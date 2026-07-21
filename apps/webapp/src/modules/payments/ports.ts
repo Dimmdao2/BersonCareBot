@@ -45,6 +45,8 @@ export type PaymentsPort = {
   findIntentByIdempotency(organizationId: string, idempotencyKey: string): Promise<PaymentIntentRecord | null>;
   findLatestIntentByAppointment(appointmentId: string): Promise<PaymentIntentRecord | null>;
   findIntentById(id: string): Promise<PaymentIntentRecord | null>;
+  /** Locks the intent row inside the active capture UoW and returns current committed state. */
+  lockIntentForCapture(intentId: string, organizationId: string): Promise<PaymentIntentRecord | null>;
   findIntentByProviderRef(organizationId: string, providerIntentRef: string): Promise<PaymentIntentRecord | null>;
   findIntentByProviderRefAnyOrg(
     providerId: string,
@@ -75,8 +77,10 @@ export type PaymentsPort = {
     idempotencyKey: string;
     eventType: string;
     payloadJson: Record<string, unknown>;
-  }): Promise<{ inserted: boolean; id: string }>;
+  }): Promise<{ inserted: boolean; id: string; processedAt: string | null }>;
   markProviderEventProcessed(id: string, organizationId: string): Promise<void>;
+
+  hasCapturedHistoryEvent(paymentId: string, organizationId: string): Promise<boolean>;
 
   appendHistoryEvent(input: {
     organizationId: string;
@@ -97,6 +101,10 @@ export type PaymentsPort = {
   listHistoryForAppointment(appointmentId: string, organizationId: string): Promise<PaymentHistoryEventRecord[]>;
   listHistoryForUser(platformUserId: string, organizationId: string, limit?: number): Promise<PaymentHistoryEventRecord[]>;
   setAppointmentPaymentRef(appointmentId: string, paymentId: string, organizationId: string): Promise<void>;
+};
+
+export type PaymentCaptureUnitOfWork = {
+  run<T>(organizationId: string, fn: () => Promise<T>): Promise<T>;
 };
 
 export type PaymentsConfigReader = {

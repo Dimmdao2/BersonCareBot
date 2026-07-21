@@ -1,5 +1,5 @@
 import { and, eq, gt, isNull, or } from "drizzle-orm";
-import { getDrizzle } from "@/app-layer/db/drizzle";
+import { getDrizzleOrMutationTx as getDrizzle } from "@/infra/db/drizzleMutationTx";
 import { contentAccessGrantsWebapp, platformUsers } from "../../../db/schema/schema";
 import type { EntitlementsPort } from "@/modules/entitlements/ports";
 

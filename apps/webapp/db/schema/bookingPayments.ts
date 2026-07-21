@@ -252,6 +252,9 @@ export const bePaymentHistoryEvents = pgTable(
   (table) => [
     index("idx_be_payment_history_appointment").on(table.appointmentId),
     index("idx_be_payment_history_user").on(table.platformUserId),
+    uniqueIndex("be_payment_history_capture_uidx")
+      .on(table.organizationId, table.paymentId, table.eventType)
+      .where(sql`payment_id IS NOT NULL AND event_type = 'payment_captured'`),
     foreignKey({
       columns: [table.organizationId],
       foreignColumns: [beOrganizations.id],

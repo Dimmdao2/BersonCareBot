@@ -1,8 +1,10 @@
 import { and, desc, eq } from "drizzle-orm";
-import { getDrizzle, type DrizzleDb } from "@/app-layer/db/drizzle";
+import type { DrizzleDb } from "@/app-layer/db/drizzle";
 import { runWithDbOrganizationPrincipal } from "@bersoncare/db-principal";
-import { getWebappSqlFromPgClient } from "@/infra/db/runWebappSql";
-import { withTransaction } from "@/infra/db/withClient";
+import {
+  getDrizzleOrMutationTx,
+  runDrizzleMutationTransaction,
+} from "@/infra/db/drizzleMutationTx";
 import {
   bePaymentHistoryEvents,
   bePaymentIntents,
@@ -89,14 +91,14 @@ function runPaymentMutation<T>(
   fn: (db: DrizzleDb) => Promise<T>,
 ): Promise<T> {
   return runWithDbOrganizationPrincipal(organizationId, () =>
-    withTransaction((client) => fn(getWebappSqlFromPgClient(client) as DrizzleDb)),
+    runDrizzleMutationTransaction(fn),
   );
 }
 
 export function createPgPaymentsPort(): PaymentsPort {
   return {
     async getPrepaymentPolicyForService(organizationId, serviceId) {
-      const db = getDrizzle();
+      const db = getDrizzleOrMutationTx();
       const rows = await db
         .select()
         .from(bePrepaymentPolicies)
@@ -111,7 +113,7 @@ export function createPgPaymentsPort(): PaymentsPort {
     },
 
     async getPrepaymentPolicyForOnlineCategory(organizationId, onlineCategory) {
-      const db = getDrizzle();
+      const db = getDrizzleOrMutationTx();
       const rows = await db
         .select()
         .from(bePrepaymentPolicies)
@@ -126,7 +128,7 @@ export function createPgPaymentsPort(): PaymentsPort {
     },
 
     async listPrepaymentPolicies(organizationId) {
-      const db = getDrizzle();
+      const db = getDrizzleOrMutationTx();
       const rows = await db
         .select()
         .from(bePrepaymentPolicies)
@@ -183,7 +185,7 @@ export function createPgPaymentsPort(): PaymentsPort {
     },
 
     async findIntentByIdempotency(organizationId, idempotencyKey) {
-      const db = getDrizzle();
+      const db = getDrizzleOrMutationTx();
       const rows = await db
         .select()
         .from(bePaymentIntents)
@@ -198,13 +200,29 @@ export function createPgPaymentsPort(): PaymentsPort {
     },
 
     async findIntentById(id) {
-      const db = getDrizzle();
+      const db = getDrizzleOrMutationTx();
       const rows = await db.select().from(bePaymentIntents).where(eq(bePaymentIntents.id, id)).limit(1);
       return rows[0] ? mapIntent(rows[0]) : null;
     },
 
+    async lockIntentForCapture(intentId, organizationId) {
+      const db = getDrizzleOrMutationTx();
+      const rows = await db
+        .select()
+        .from(bePaymentIntents)
+        .where(
+          and(
+            eq(bePaymentIntents.id, intentId),
+            eq(bePaymentIntents.organizationId, organizationId),
+          ),
+        )
+        .limit(1)
+        .for("update");
+      return rows[0] ? mapIntent(rows[0]) : null;
+    },
+
     async findIntentByProviderRef(organizationId, providerIntentRef) {
-      const db = getDrizzle();
+      const db = getDrizzleOrMutationTx();
       const rows = await db
         .select()
         .from(bePaymentIntents)
@@ -219,7 +237,7 @@ export function createPgPaymentsPort(): PaymentsPort {
     },
 
     async findIntentByProviderRefAnyOrg(providerId, providerIntentRef) {
-      const db = getDrizzle();
+      const db = getDrizzleOrMutationTx();
       const rows = await db
         .select()
         .from(bePaymentIntents)
@@ -235,7 +253,7 @@ export function createPgPaymentsPort(): PaymentsPort {
     },
 
     async findLatestIntentByAppointment(appointmentId) {
-      const db = getDrizzle();
+      const db = getDrizzleOrMutationTx();
       const rows = await db
         .select()
         .from(bePaymentIntents)
@@ -277,20 +295,25 @@ export function createPgPaymentsPort(): PaymentsPort {
         tx
         .update(bePaymentIntents)
         .set({ status, updatedAt: now })
-        .where(eq(bePaymentIntents.id, intentId))
+        .where(
+          and(
+            eq(bePaymentIntents.id, intentId),
+            eq(bePaymentIntents.organizationId, organizationId),
+          ),
+        )
           .returning(),
       );
       return rows[0] ? mapIntent(rows[0]) : null;
     },
 
     async findPaymentByIntent(intentId) {
-      const db = getDrizzle();
+      const db = getDrizzleOrMutationTx();
       const rows = await db.select().from(bePayments).where(eq(bePayments.paymentIntentId, intentId)).limit(1);
       return rows[0] ? mapPayment(rows[0]) : null;
     },
 
     async findPaymentByAppointment(appointmentId) {
-      const db = getDrizzle();
+      const db = getDrizzleOrMutationTx();
       const rows = await db
         .select()
         .from(bePayments)
@@ -331,7 +354,15 @@ export function createPgPaymentsPort(): PaymentsPort {
 
     async updatePaymentStatus(paymentId, status, organizationId) {
       await runPaymentMutation(organizationId, (tx) =>
-        tx.update(bePayments).set({ status }).where(eq(bePayments.id, paymentId)),
+        tx
+          .update(bePayments)
+          .set({ status })
+          .where(
+            and(
+              eq(bePayments.id, paymentId),
+              eq(bePayments.organizationId, organizationId),
+            ),
+          ),
       );
     },
 
@@ -355,9 +386,8 @@ export function createPgPaymentsPort(): PaymentsPort {
     },
 
     async recordProviderEvent(input) {
-      try {
-        const inserted = await runPaymentMutation(input.organizationId, (tx) =>
-          tx
+      const inserted = await runPaymentMutation(input.organizationId, (tx) =>
+        tx
           .insert(bePaymentProviderEvents)
           .values({
             organizationId: input.organizationId,
@@ -366,13 +396,27 @@ export function createPgPaymentsPort(): PaymentsPort {
             eventType: input.eventType,
             payloadJson: input.payloadJson,
           })
-            .returning({ id: bePaymentProviderEvents.id }),
-        );
-        return { inserted: true, id: inserted[0]!.id };
-      } catch {
-        const rows = await runPaymentMutation(input.organizationId, (tx) =>
-          tx
-          .select({ id: bePaymentProviderEvents.id })
+          .onConflictDoNothing({
+            target: [
+              bePaymentProviderEvents.organizationId,
+              bePaymentProviderEvents.providerId,
+              bePaymentProviderEvents.idempotencyKey,
+            ],
+          })
+          .returning({
+            id: bePaymentProviderEvents.id,
+            processedAt: bePaymentProviderEvents.processedAt,
+          }),
+      );
+      if (inserted[0]) {
+        return { inserted: true, id: inserted[0].id, processedAt: inserted[0].processedAt };
+      }
+      const rows = await runPaymentMutation(input.organizationId, (tx) =>
+        tx
+          .select({
+            id: bePaymentProviderEvents.id,
+            processedAt: bePaymentProviderEvents.processedAt,
+          })
           .from(bePaymentProviderEvents)
           .where(
             and(
@@ -381,10 +425,13 @@ export function createPgPaymentsPort(): PaymentsPort {
               eq(bePaymentProviderEvents.idempotencyKey, input.idempotencyKey),
             ),
           )
-            .limit(1),
-        );
-        return { inserted: false, id: rows[0]?.id ?? "" };
-      }
+          .limit(1),
+      );
+      return {
+        inserted: false,
+        id: rows[0]?.id ?? "",
+        processedAt: rows[0]?.processedAt ?? null,
+      };
     },
 
     async markProviderEventProcessed(id, organizationId) {
@@ -392,8 +439,29 @@ export function createPgPaymentsPort(): PaymentsPort {
         tx
         .update(bePaymentProviderEvents)
         .set({ processedAt: new Date().toISOString() })
-          .where(eq(bePaymentProviderEvents.id, id)),
+          .where(
+            and(
+              eq(bePaymentProviderEvents.id, id),
+              eq(bePaymentProviderEvents.organizationId, organizationId),
+            ),
+          ),
       );
+    },
+
+    async hasCapturedHistoryEvent(paymentId, organizationId) {
+      const db = getDrizzleOrMutationTx();
+      const rows = await db
+        .select({ id: bePaymentHistoryEvents.id })
+        .from(bePaymentHistoryEvents)
+        .where(
+          and(
+            eq(bePaymentHistoryEvents.organizationId, organizationId),
+            eq(bePaymentHistoryEvents.paymentId, paymentId),
+            eq(bePaymentHistoryEvents.eventType, "payment_captured"),
+          ),
+        )
+        .limit(1);
+      return rows.length > 0;
     },
 
     async appendHistoryEvent(input) {
@@ -412,12 +480,12 @@ export function createPgPaymentsPort(): PaymentsPort {
           purpose: input.purpose ?? null,
           comment: input.comment ?? null,
           payloadJson: input.payloadJson ?? {},
-        }),
+        }).onConflictDoNothing(),
       );
     },
 
     async listHistoryForAppointment(appointmentId, organizationId) {
-      const db = getDrizzle();
+      const db = getDrizzleOrMutationTx();
       const rows = await db
         .select()
         .from(bePaymentHistoryEvents)
@@ -432,7 +500,7 @@ export function createPgPaymentsPort(): PaymentsPort {
     },
 
     async listHistoryForUser(platformUserId, organizationId, limit = 50) {
-      const db = getDrizzle();
+      const db = getDrizzleOrMutationTx();
       const rows = await db
         .select()
         .from(bePaymentHistoryEvents)
@@ -452,7 +520,12 @@ export function createPgPaymentsPort(): PaymentsPort {
         tx
         .update(beAppointments)
         .set({ paymentRef: paymentId, updatedAt: new Date().toISOString() })
-          .where(eq(beAppointments.id, appointmentId)),
+          .where(
+            and(
+              eq(beAppointments.id, appointmentId),
+              eq(beAppointments.organizationId, organizationId),
+            ),
+          ),
       );
     },
   };

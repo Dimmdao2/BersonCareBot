@@ -1576,6 +1576,13 @@
       "when": 1793539200019,
       "tag": "0224_unsupported_client_fallback_flag",
       "breakpoints": true
+    },
+    {
+      "idx": 225,
+      "version": "7",
+      "when": 1793539200020,
+      "tag": "0225_payment_capture_replay_safety",
+      "breakpoints": true
     }
   ]
 }

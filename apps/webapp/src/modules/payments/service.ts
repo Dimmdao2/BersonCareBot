@@ -3,7 +3,7 @@ import type { BookingEnginePort } from "@/modules/booking-engine/ports";
 import { getPaymentProviderAdapter } from "@/infra/payments/paymentProviderRegistry";
 import { parseBookingPaymentSettingsValue } from "./bookingPaymentSettings";
 import { quotePrepayment } from "./prepaymentCalculator";
-import type { PaymentsConfigReader, PaymentsPort } from "./ports";
+import type { PaymentCaptureUnitOfWork, PaymentsConfigReader, PaymentsPort } from "./ports";
 import type { AppointmentPaymentSummary, BookingPaymentSettings, PrepaymentQuote } from "./types";
 import type { ResolvePrepaymentParams } from "./ports";
 import type { PrepaymentResolveContext } from "./prepaymentContextFromBooking";
@@ -13,6 +13,7 @@ import { parseProductPurchaseProductRef } from "@/modules/products/productPurcha
 export function createPaymentsService(deps: {
   port: PaymentsPort;
   config: PaymentsConfigReader;
+  captureUnitOfWork: PaymentCaptureUnitOfWork;
   bookingEngine: Pick<
     BookingEnginePort,
     "getAppointment" | "listAppointmentsByChainId" | "transitionAppointmentStatus"
@@ -45,6 +46,124 @@ export function createPaymentsService(deps: {
     const provider = settings.providers.find((p) => p.id === id && p.enabled);
     if (!provider) throw new Error("payment_provider_unavailable");
     return provider;
+  }
+
+  async function captureIntentSuccessInUnitOfWork(intentId: string, organizationId: string) {
+    const intent = await deps.port.lockIntentForCapture(intentId, organizationId);
+    if (!intent) throw new Error("intent_not_found");
+
+    const wasSucceeded = intent.status === "succeeded";
+    const succeededIntent = wasSucceeded
+      ? intent
+      : ((await deps.port.updateIntentStatus(intent.id, "succeeded", organizationId)) ?? {
+          ...intent,
+          status: "succeeded",
+        });
+    const existingPayment = await deps.port.findPaymentByIntent(intent.id);
+    const payment =
+      existingPayment ?? (await deps.port.createPaymentFromIntent({ ...succeededIntent, status: "succeeded" }));
+
+    if (!(await deps.port.hasCapturedHistoryEvent(payment.id, organizationId))) {
+      await deps.port.appendHistoryEvent({
+        organizationId,
+        appointmentId: intent.appointmentId,
+        platformUserId: intent.platformUserId,
+        paymentId: payment.id,
+        eventType: "payment_captured",
+        amountMinor: payment.amountMinor,
+        currency: payment.currency,
+        providerId: payment.providerId,
+        status: payment.status,
+        purpose: payment.purpose,
+      });
+    }
+
+    const confirmedAppointments: Array<{
+      appointmentId: string;
+      paymentId: string;
+      platformUserId: string | null;
+    }> = [];
+    if (intent.appointmentId && deps.bookingEngine) {
+      const appt = await deps.bookingEngine.getAppointment(intent.appointmentId);
+      const appointments = appt?.chainId
+        ? await deps.bookingEngine.listAppointmentsByChainId({
+            organizationId,
+            chainId: appt.chainId,
+          })
+        : appt
+          ? [appt]
+          : [];
+      if (appointments.length === 0) {
+        await deps.port.setAppointmentPaymentRef(intent.appointmentId, payment.id, organizationId);
+      }
+      for (const appointment of appointments) {
+        await deps.port.setAppointmentPaymentRef(appointment.id, payment.id, organizationId);
+        let status = appointment.status;
+        if (status === "awaiting_payment") {
+          await deps.bookingEngine.transitionAppointmentStatus({
+            appointmentId: appointment.id,
+            toStatus: "paid",
+            payload: { source: "payment_capture", paymentId: payment.id },
+          });
+          status = "paid";
+        }
+        if (status === "paid") {
+          await deps.bookingEngine.transitionAppointmentStatus({
+            appointmentId: appointment.id,
+            toStatus: "confirmed",
+            payload: { source: "payment_confirmed", paymentId: payment.id },
+          });
+        }
+        confirmedAppointments.push({
+          appointmentId: appointment.id,
+          paymentId: payment.id,
+          platformUserId: intent.platformUserId,
+        });
+      }
+    } else if (intent.appointmentId) {
+      await deps.port.setAppointmentPaymentRef(intent.appointmentId, payment.id, organizationId);
+    }
+
+    const patientPackageId = parsePatientPackageProductRef(intent.productRef);
+    if (patientPackageId && deps.onPackagePaymentCaptured) {
+      await deps.onPackagePaymentCaptured({
+        patientPackageId,
+        paymentId: payment.id,
+        platformUserId: intent.platformUserId,
+        organizationId,
+      });
+    }
+
+    const productPurchaseId = parseProductPurchaseProductRef(intent.productRef);
+    if (productPurchaseId && deps.onProductPaymentCaptured) {
+      await deps.onProductPaymentCaptured({
+        productPurchaseId,
+        paymentId: payment.id,
+        platformUserId: intent.platformUserId,
+        organizationId,
+      });
+    }
+
+    return {
+      result: {
+        intent: succeededIntent,
+        payment,
+        alreadyProcessed: wasSucceeded && existingPayment !== null,
+      },
+      confirmedAppointments,
+    };
+  }
+
+  async function captureIntentSuccess(intentId: string, organizationId: string) {
+    const captured = await deps.captureUnitOfWork.run(organizationId, () =>
+      captureIntentSuccessInUnitOfWork(intentId, organizationId),
+    );
+    if (deps.onAppointmentPaymentConfirmed) {
+      for (const appointment of captured.confirmedAppointments) {
+        await deps.onAppointmentPaymentConfirmed(appointment);
+      }
+    }
+    return captured.result;
   }
 
   return {
@@ -305,7 +424,7 @@ export function createPaymentsService(deps: {
       const intent = await deps.port.findIntentById(intentId);
       if (!intent || intent.organizationId !== organizationId) throw new Error("intent_not_found");
       if (intent.platformUserId !== platformUserId) throw new Error("forbidden");
-      return this.captureIntentSuccess(intentId, organizationId);
+      return captureIntentSuccess(intentId, organizationId);
     },
 
     async captureIntentForBooking(input: {
@@ -324,92 +443,11 @@ export function createPaymentsService(deps: {
       const normalized = input.verifyPhone.replace(/\D/g, "");
       const bookingPhone = input.bookingContactPhone.replace(/\D/g, "");
       if (!normalized || normalized !== bookingPhone) throw new Error("forbidden");
-      return this.captureIntentSuccess(input.intentId, input.organizationId);
+      return captureIntentSuccess(input.intentId, input.organizationId);
     },
 
     async captureIntentSuccess(intentId: string, organizationId: string) {
-      const intent = await deps.port.findIntentById(intentId);
-      if (!intent || intent.organizationId !== organizationId) {
-        throw new Error("intent_not_found");
-      }
-      if (intent.status === "succeeded") {
-        const payment = await deps.port.findPaymentByIntent(intent.id);
-        return { intent, payment, alreadyProcessed: true as const };
-      }
-
-      await deps.port.updateIntentStatus(intent.id, "succeeded", organizationId);
-      const payment = await deps.port.createPaymentFromIntent({ ...intent, status: "succeeded" });
-
-      await deps.port.appendHistoryEvent({
-        organizationId,
-        appointmentId: intent.appointmentId,
-        platformUserId: intent.platformUserId,
-        paymentId: payment.id,
-        eventType: "payment_captured",
-        amountMinor: payment.amountMinor,
-        currency: payment.currency,
-        providerId: payment.providerId,
-        status: payment.status,
-        purpose: payment.purpose,
-      });
-
-      if (intent.appointmentId && deps.bookingEngine) {
-        const appt = await deps.bookingEngine.getAppointment(intent.appointmentId);
-        const appointments = appt?.chainId
-          ? await deps.bookingEngine.listAppointmentsByChainId({ organizationId, chainId: appt.chainId })
-          : appt
-            ? [appt]
-            : [];
-        if (appointments.length === 0) {
-          await deps.port.setAppointmentPaymentRef(intent.appointmentId, payment.id, organizationId);
-        }
-        for (const appointment of appointments) {
-          await deps.port.setAppointmentPaymentRef(appointment.id, payment.id, organizationId);
-          if (appointment.status === "awaiting_payment") {
-            await deps.bookingEngine.transitionAppointmentStatus({
-              appointmentId: appointment.id,
-              toStatus: "paid",
-              payload: { source: "payment_capture", paymentId: payment.id },
-            });
-            await deps.bookingEngine.transitionAppointmentStatus({
-              appointmentId: appointment.id,
-              toStatus: "confirmed",
-              payload: { source: "payment_confirmed", paymentId: payment.id },
-            });
-          }
-          if (deps.onAppointmentPaymentConfirmed) {
-            await deps.onAppointmentPaymentConfirmed({
-              appointmentId: appointment.id,
-              paymentId: payment.id,
-              platformUserId: intent.platformUserId,
-            });
-          }
-        }
-      } else if (intent.appointmentId) {
-        await deps.port.setAppointmentPaymentRef(intent.appointmentId, payment.id, organizationId);
-      }
-
-      const patientPackageId = parsePatientPackageProductRef(intent.productRef);
-      if (patientPackageId && deps.onPackagePaymentCaptured) {
-        await deps.onPackagePaymentCaptured({
-          patientPackageId,
-          paymentId: payment.id,
-          platformUserId: intent.platformUserId,
-          organizationId,
-        });
-      }
-
-      const productPurchaseId = parseProductPurchaseProductRef(intent.productRef);
-      if (productPurchaseId && deps.onProductPaymentCaptured) {
-        await deps.onProductPaymentCaptured({
-          productPurchaseId,
-          paymentId: payment.id,
-          platformUserId: intent.platformUserId,
-          organizationId,
-        });
-      }
-
-      return { intent, payment, alreadyProcessed: false as const };
+      return captureIntentSuccess(intentId, organizationId);
     },
 
     async processProviderWebhook(input: {
@@ -439,9 +477,10 @@ export function createPaymentsService(deps: {
         eventType: verified.eventType,
         payloadJson: verified.payload,
       });
-      if (!stored.inserted) {
+      if (!stored.inserted && stored.processedAt) {
         return { ok: true as const, duplicate: true as const };
       }
+      if (!stored.id) throw new Error("provider_event_persist_failed");
 
       if (verified.eventType === "payment.succeeded") {
         const intentId =
@@ -453,12 +492,12 @@ export function createPaymentsService(deps: {
             verified.intentRef ?? String(verified.payload.intentRef ?? ""),
           ));
         if (intent) {
-          await this.captureIntentSuccess(intent.id, input.organizationId);
+          await captureIntentSuccess(intent.id, input.organizationId);
         }
       }
 
       await deps.port.markProviderEventProcessed(stored.id, input.organizationId);
-      return { ok: true as const, duplicate: false as const };
+      return { ok: true as const, duplicate: !stored.inserted };
     },
 
     async applyCancelPaymentOutcome(input: {

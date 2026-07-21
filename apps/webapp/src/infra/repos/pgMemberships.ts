@@ -1,6 +1,7 @@
 import { AsyncLocalStorage } from "node:async_hooks";
 import { and, asc, eq, gte, inArray, isNotNull, lt, sql } from "drizzle-orm";
-import { getDrizzle, type DrizzleDb } from "@/app-layer/db/drizzle";
+import type { DrizzleDb } from "@/app-layer/db/drizzle";
+import { getDrizzleOrMutationTx } from "@/infra/db/drizzleMutationTx";
 import {
   bePackageHistoryEvents,
   bePackageItems,
@@ -27,9 +28,10 @@ type DrizzleTx = Parameters<Parameters<DrizzleDb["transaction"]>[0]>[0];
 type MembershipsDb = DrizzleDb | DrizzleTx;
 
 const txStorage = new AsyncLocalStorage<DrizzleTx>();
+const getDrizzle = getDrizzleOrMutationTx;
 
 function getMembershipsDb(): MembershipsDb {
-  return txStorage.getStore() ?? getDrizzle();
+  return txStorage.getStore() ?? getDrizzleOrMutationTx();
 }
 
 async function runMembershipsTransaction<T>(fn: (db: MembershipsDb) => Promise<T>): Promise<T> {
@@ -37,7 +39,7 @@ async function runMembershipsTransaction<T>(fn: (db: MembershipsDb) => Promise<T
   if (activeTx) {
     return fn(activeTx);
   }
-  return getDrizzle().transaction((tx) => txStorage.run(tx, () => fn(tx)));
+  return getDrizzleOrMutationTx().transaction((tx) => txStorage.run(tx, () => fn(tx)));
 }
 
 async function loadPackageItems(packageIds: string[]): Promise<Map<string, PatientPackageItemRecord[]>> {

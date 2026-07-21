@@ -1,7 +1,9 @@
 import { and, desc, eq, ne } from "drizzle-orm";
 import { getCurrentDbPrincipalOrganizationId } from "@bersoncare/db-principal";
-import { getDrizzle } from "@/app-layer/db/drizzle";
-import { runDrizzleMutationTransaction } from "@/infra/db/drizzleMutationTx";
+import {
+  getDrizzleOrMutationTx as getDrizzle,
+  runDrizzleMutationTransaction,
+} from "@/infra/db/drizzleMutationTx";
 import { runWebappPgText } from "@/infra/db/runWebappSql";
 import { courses as coursesTable } from "../../../db/schema/courses";
 import { contentPages } from "../../../db/schema/schema";

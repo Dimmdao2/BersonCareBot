@@ -1,5 +1,5 @@
 import { and, asc, eq, inArray, isNull } from "drizzle-orm";
-import { getDrizzle } from "@/app-layer/db/drizzle";
+import { getDrizzleOrMutationTx as getDrizzle } from "@/infra/db/drizzleMutationTx";
 import {
   beProductHistoryEvents,
   beProductPayLinks,

@@ -369,6 +369,7 @@ import { createBookingPoliciesService } from "@/modules/booking-policies/service
 import { createPgBookingAppointmentLifecyclePort } from "@/infra/repos/pgBookingAppointmentLifecycle";
 import { createBookingAppointmentLifecycleService } from "@/modules/booking-appointment-lifecycle/service";
 import { createPgPaymentsPort } from "@/infra/repos/pgPayments";
+import { createPgPaymentCaptureUnitOfWork } from "@/infra/repos/pgPaymentCaptureUnitOfWork";
 import { createPaymentsService, createPaymentsConfigReader } from "@/modules/payments/service";
 import { createPgMembershipsPort } from "@/infra/repos/pgMemberships";
 import { createMembershipsService } from "@/modules/memberships/service";
@@ -738,6 +739,7 @@ const paymentsService =
     ? createPaymentsService({
         port: paymentsPort,
         config: createPaymentsConfigReader((key) => systemSettingsService.getSetting(key, "admin")),
+        captureUnitOfWork: createPgPaymentCaptureUnitOfWork(),
         bookingEngine: bookingEngineService,
         onPackagePaymentCaptured: membershipsService
           ? async ({ patientPackageId, paymentId, organizationId }) => {
@@ -764,8 +766,9 @@ const paymentsService =
           }
         },
         onAppointmentPaymentConfirmed: async ({ appointmentId, paymentId, platformUserId }) => {
-          const row = await patientBookingsPort.markConfirmedByCanonicalAppointment(appointmentId, null);
-          if (!row) return;
+          const updated = await patientBookingsPort.markConfirmedByCanonicalAppointment(appointmentId, null);
+          const row = updated ?? await patientBookingsPort.getByCanonicalAppointmentId(appointmentId);
+          if (!row || row.status !== "confirmed") return;
           try {
             const appointment = await bookingEngineService.getAppointment(appointmentId);
             if (!appointment) throw new Error("booking_payment_appointment_organization_required");

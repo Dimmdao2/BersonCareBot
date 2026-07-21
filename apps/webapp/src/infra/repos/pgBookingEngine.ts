@@ -1,6 +1,7 @@
 import { and, asc, desc, eq, inArray, isNull, or, sql } from "drizzle-orm";
 import { getCurrentDbPrincipalOrganizationId } from "@bersoncare/db-principal";
-import { getDrizzle, type DrizzleDb } from "@/app-layer/db/drizzle";
+import type { DrizzleDb } from "@/app-layer/db/drizzle";
+import { getDrizzleOrMutationTx as getDrizzle } from "@/infra/db/drizzleMutationTx";
 import { runWebappTransaction } from "@/infra/db/runWebappSql";
 import { readAdminSystemSettingString } from "@/infra/repos/pgSystemSettings";
 import { resolveOrCreateDoctorClientByPhoneInTransaction } from "@/infra/repos/pgDoctorClientCreate";
