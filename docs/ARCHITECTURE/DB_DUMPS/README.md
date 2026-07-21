@@ -83,6 +83,10 @@ owner вне `{owner текущей БД, app_owner}`. Это per-restore owner 
 runbook для DEV/TEST/PROD restore. Пакет содержит полный текущий DDL всех пяти application schemas, repo-derived
 manifest integrator+Drizzle ledgers и минимальный синтетический `.test` seed.
 
+A0 проверяет только DDL/migration reproducibility. Следующий A1 отдельно создаёт canonical ACL/runtime roles и
+memberships/context, включает locked/FORCE режим и проверяет RLS от имени non-owner principals. Bootstrap-owner
+`bcb_a0_owner` для RLS-conformance не используется.
+
 Проверка и disposable restore выполняются командами:
 
 ```bash

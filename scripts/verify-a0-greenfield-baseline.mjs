@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 
-import { spawnSync } from 'node:child_process';
+import { spawn, spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -8,6 +8,7 @@ import {
   BASELINE_OWNER_ROLE,
   packageDir,
   repoRoot,
+  resolveTrustedPostgresBinaries,
   schemaPath,
   seedPath,
   sqlLiteral,
@@ -40,26 +41,63 @@ function cleanEnvironment(overrides = {}) {
   return { ...environment, ...overrides };
 }
 
-function run(command, args, options = {}) {
-  const result = spawnSync(command, args, {
-    cwd: options.cwd ?? repoRoot,
-    encoding: 'utf8',
-    env: options.env ?? cleanEnvironment(),
-    input: options.input,
-    maxBuffer: 64 * 1024 * 1024,
-    timeout: options.timeout ?? 180_000,
-  });
-  if (result.error) throw result.error;
-  if (result.status !== 0) {
-    const stderr = String(result.stderr ?? '').trim();
-    const stdout = String(result.stdout ?? '').trim();
-    throw new Error(
-      `${options.label ?? command}_failed` +
-        `${stderr ? `\nstderr:\n${stderr.slice(-12000)}` : ''}` +
-        `${stdout ? `\nstdout:\n${stdout.slice(-12000)}` : ''}`,
-    );
+let activeChild = null;
+
+function terminateActiveChild(signal = 'SIGTERM') {
+  if (!activeChild?.pid) return;
+  try {
+    process.kill(-activeChild.pid, signal);
+  } catch (error) {
+    if (!(error instanceof Error) || !error.message.includes('ESRCH')) throw error;
   }
-  return String(result.stdout ?? '');
+}
+
+function run(command, args, options = {}) {
+  return new Promise((resolve, reject) => {
+    const child = spawn(command, args, {
+      cwd: options.cwd ?? repoRoot,
+      env: options.env ?? cleanEnvironment(),
+      detached: true,
+      stdio: ['pipe', 'pipe', 'pipe'],
+    });
+    activeChild = child;
+    const stdout = [];
+    const stderr = [];
+    let outputBytes = 0;
+    const maxBuffer = 64 * 1024 * 1024;
+    const collect = (target) => (chunk) => {
+      outputBytes += chunk.length;
+      if (outputBytes > maxBuffer) {
+        terminateActiveChild('SIGKILL');
+        reject(new Error(`${options.label ?? command}_max_buffer_exceeded`));
+        return;
+      }
+      target.push(chunk);
+    };
+    child.stdout.on('data', collect(stdout));
+    child.stderr.on('data', collect(stderr));
+    child.once('error', reject);
+    const timeout = setTimeout(() => terminateActiveChild('SIGKILL'), options.timeout ?? 180_000);
+    child.once('close', (code, signal) => {
+      clearTimeout(timeout);
+      if (activeChild === child) activeChild = null;
+      const stdoutText = Buffer.concat(stdout).toString('utf8');
+      const stderrText = Buffer.concat(stderr).toString('utf8');
+      if (code !== 0) {
+        reject(
+          new Error(
+            `${options.label ?? command}_failed:${code ?? signal ?? 'unknown'}` +
+              `${stderrText.trim() ? `\nstderr:\n${stderrText.trim().slice(-12000)}` : ''}` +
+              `${stdoutText.trim() ? `\nstdout:\n${stdoutText.trim().slice(-12000)}` : ''}`,
+          ),
+        );
+        return;
+      }
+      resolve(stdoutText);
+    });
+    if (options.input !== undefined) child.stdin.end(options.input);
+    else child.stdin.end();
+  });
 }
 
 function quoteIdent(value) {
@@ -96,17 +134,24 @@ function exactSet(actual, expected, label) {
 }
 
 const packageResult = validatePackage();
+const postgresBinaries = resolveTrustedPostgresBinaries(['initdb', 'pg_ctl', 'psql']);
 const scratchRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'bcb_saas_a0_verify_'));
 const dataDir = path.join(scratchRoot, 'data');
 const socketDir = path.join(scratchRoot, 'socket');
 fs.mkdirSync(socketDir, { mode: 0o700 });
-let pgCtl = null;
+const pgCtl = postgresBinaries.pg_ctl;
 let started = false;
 let cleaning = false;
 
 function cleanup(exitCode = null) {
   if (cleaning) return;
   cleaning = true;
+  terminateActiveChild('SIGTERM');
+  const expectedPrefix = path.join(fs.realpathSync(os.tmpdir()), 'bcb_saas_a0_verify_');
+  const canonicalScratch = fs.realpathSync(scratchRoot);
+  if (!canonicalScratch.startsWith(expectedPrefix) || path.dirname(dataDir) !== scratchRoot) {
+    throw new Error('unsafe_scratch_cleanup_target');
+  }
   if (started && pgCtl) {
     spawnSync(pgCtl, ['-D', dataDir, '-m', 'immediate', 'stop'], {
       cwd: repoRoot,
@@ -125,18 +170,15 @@ for (const signal of ['SIGINT', 'SIGTERM', 'SIGHUP']) {
 }
 
 try {
-  const bindir = run('pg_config', ['--bindir'], { label: 'pg_config' }).trim();
-  const initdb = path.join(bindir, 'initdb');
-  pgCtl = path.join(bindir, 'pg_ctl');
-  const psql = path.join(bindir, 'psql');
-  for (const binary of [initdb, pgCtl, psql]) {
-    if (!fs.existsSync(binary)) throw new Error(`postgres_binary_missing:${binary}`);
-  }
+  const { initdb, psql } = postgresBinaries;
 
-  run(initdb, ['-D', dataDir, `--username=${operatorRole}`, '--auth=trust', '--no-locale'], {
+  await run(initdb, ['-D', dataDir, `--username=${operatorRole}`, '--auth=trust', '--no-locale'], {
     label: 'initdb',
   });
-  run(
+  // From this point cleanup may safely ask pg_ctl to stop the exact data directory, including
+  // the narrow race where an external signal arrives while pg_ctl is still starting postgres.
+  started = true;
+  await run(
     pgCtl,
     [
       '-D',
@@ -150,7 +192,11 @@ try {
     ],
     { label: 'pg_ctl_start' },
   );
-  started = true;
+
+  if (process.env.A0_SIGNAL_CLEANUP_TEST === '1') {
+    console.log('A0_SIGNAL_CLEANUP_TEST_READY');
+    await new Promise((resolve) => setTimeout(resolve, 60_000));
+  }
 
   const psqlBase = ['-h', socketDir, '-p', postgresPort, '-X', '-v', 'ON_ERROR_STOP=1'];
   const psqlAs = (user, database, sql, label) =>
@@ -158,7 +204,7 @@ try {
   const psqlFileAs = (user, database, filePath, label) =>
     run(psql, [...psqlBase, '-U', user, '-d', database, '-f', filePath], { label });
 
-  psqlAs(
+  await psqlAs(
     operatorRole,
     'postgres',
     [
@@ -168,26 +214,28 @@ try {
     ].join('\n'),
     'create_disposable_roles',
   );
-  psqlAs(
+  await psqlAs(
     operatorRole,
     'postgres',
     `CREATE DATABASE ${quoteIdent(databaseName)} OWNER ${quoteIdent(BASELINE_OWNER_ROLE)};`,
     'create_disposable_database',
   );
-  psqlFileAs(BASELINE_OWNER_ROLE, databaseName, schemaPath, 'restore_schema_baseline');
+  await psqlFileAs(BASELINE_OWNER_ROLE, databaseName, schemaPath, 'restore_schema_baseline');
 
   const beforeSeedTableCount = Number(
-    psqlAs(
-      operatorRole,
-      databaseName,
-      `SELECT count(*) FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace WHERE n.nspname IN ('app','drizzle','integrator','public') AND c.relkind IN ('r','p');`,
-      'pre_seed_table_census',
+    (
+      await psqlAs(
+        operatorRole,
+        databaseName,
+        `SELECT count(*) FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace WHERE n.nspname IN ('app','drizzle','integrator','public') AND c.relkind IN ('r','p');`,
+        'pre_seed_table_census',
+      )
     ).trim(),
   );
   if (beforeSeedTableCount !== packageResult.manifest.baseline.census.tables) {
     throw new Error(`restored_table_census_drift:${beforeSeedTableCount}`);
   }
-  psqlAs(
+  await psqlAs(
     operatorRole,
     databaseName,
     `DO $a0$
@@ -206,7 +254,7 @@ END $a0$;`,
     'pre_seed_zero_rows',
   );
 
-  psqlAs(
+  await psqlAs(
     operatorRole,
     'postgres',
     `ALTER ROLE ${quoteIdent(BASELINE_OWNER_ROLE)} BYPASSRLS;`,
@@ -214,8 +262,8 @@ END $a0$;`,
   );
   const ledgerSqlPath = path.join(scratchRoot, 'ledger-seed.sql');
   fs.writeFileSync(ledgerSqlPath, buildLedgerSql(packageResult.manifest), { mode: 0o600 });
-  psqlFileAs(BASELINE_OWNER_ROLE, databaseName, ledgerSqlPath, 'seed_migration_ledgers');
-  psqlFileAs(BASELINE_OWNER_ROLE, databaseName, seedPath, 'apply_synthetic_seed');
+  await psqlFileAs(BASELINE_OWNER_ROLE, databaseName, ledgerSqlPath, 'seed_migration_ledgers');
+  await psqlFileAs(BASELINE_OWNER_ROLE, databaseName, seedPath, 'apply_synthetic_seed');
 
   const databaseUrl = `postgresql://${BASELINE_OWNER_ROLE}@localhost:${postgresPort}/${databaseName}?host=${encodeURIComponent(socketDir)}`;
   const migrateEnv = cleanEnvironment({
@@ -226,13 +274,18 @@ END $a0$;`,
     API_ENV_FILE: path.join(scratchRoot, 'missing-api.env'),
     WEBAPP_ENV_FILE: path.join(scratchRoot, 'missing-webapp.env'),
   });
-  run('bash', ['scripts/migrate-all.sh'], { env: migrateEnv, label: 'current_pending_migrations' });
+  await run('/usr/bin/bash', ['scripts/migrate-all.sh'], {
+    env: migrateEnv,
+    label: 'current_pending_migrations',
+  });
 
-  const actualIntegrator = psqlAs(
-    operatorRole,
-    databaseName,
-    'SELECT version FROM integrator.schema_migrations ORDER BY version',
-    'integrator_ledger_postcheck',
+  const actualIntegrator = (
+    await psqlAs(
+      operatorRole,
+      databaseName,
+      'SELECT version FROM integrator.schema_migrations ORDER BY version',
+      'integrator_ledger_postcheck',
+    )
   )
     .trim()
     .split('\n')
@@ -242,11 +295,13 @@ END $a0$;`,
     packageResult.currentIntegrator.map((entry) => entry.version),
     'integrator',
   );
-  const actualDrizzle = psqlAs(
-    operatorRole,
-    databaseName,
-    'SELECT hash FROM drizzle.__drizzle_migrations ORDER BY created_at, id',
-    'drizzle_ledger_postcheck',
+  const actualDrizzle = (
+    await psqlAs(
+      operatorRole,
+      databaseName,
+      'SELECT hash FROM drizzle.__drizzle_migrations ORDER BY created_at, id',
+      'drizzle_ledger_postcheck',
+    )
   )
     .trim()
     .split('\n')
@@ -257,10 +312,11 @@ END $a0$;`,
     'drizzle',
   );
 
-  const seedProof = psqlAs(
-    operatorRole,
-    databaseName,
-    `SELECT (
+  const seedProof = (
+    await psqlAs(
+      operatorRole,
+      databaseName,
+      `SELECT (
       (SELECT count(*) FROM public.be_organizations WHERE id='a0000000-0000-4000-8000-000000000001')=1
       AND (SELECT count(*) FROM public.platform_users WHERE id='a0000000-0000-4000-8000-000000000002' AND email_normalized='owner@baseline.test' AND phone_normalized IS NULL)=1
       AND (SELECT count(*) FROM public.be_specialists WHERE id='518ea988-9b5e-4ad8-8194-a2d98f43bd7b' AND organization_id='a0000000-0000-4000-8000-000000000001' AND is_active)=1
@@ -268,14 +324,16 @@ END $a0$;`,
       AND (SELECT count(*) FROM public.be_appointments WHERE id='a0000000-0000-4000-8000-000000000005' AND specialist_id='518ea988-9b5e-4ad8-8194-a2d98f43bd7b')=1
       AND (SELECT count(*) FROM public.saas_org_entitlement_overrides WHERE organization_id='a0000000-0000-4000-8000-000000000001' AND mechanic='courses' AND enabled)=1
     )::int;`,
-    'synthetic_seed_postcheck',
+      'synthetic_seed_postcheck',
+    )
   ).trim();
   if (seedProof !== '1') throw new Error('synthetic_seed_postcheck_failed');
 
-  const nonEmptyTables = psqlAs(
-    operatorRole,
-    databaseName,
-    `CREATE TEMP TABLE a0_nonempty(schema_name text, table_name text, row_count bigint);
+  const nonEmptyTables = (
+    await psqlAs(
+      operatorRole,
+      databaseName,
+      `CREATE TEMP TABLE a0_nonempty(schema_name text, table_name text, row_count bigint);
 DO $a0$
 DECLARE item record; item_count bigint;
 BEGIN
@@ -289,7 +347,8 @@ BEGIN
   END LOOP;
 END $a0$;
 SELECT schema_name || '.' || table_name FROM a0_nonempty ORDER BY 1;`,
-    'nonempty_table_census',
+      'nonempty_table_census',
+    )
   )
     .trim()
     .split('\n')
@@ -310,17 +369,19 @@ SELECT schema_name || '.' || table_name FROM a0_nonempty ORDER BY 1;`,
     throw new Error(`unexpected_nonempty_tables:${nonEmptyTables.join(',')}`);
   }
 
-  psqlAs(
+  await psqlAs(
     operatorRole,
     'postgres',
     `ALTER ROLE ${quoteIdent(BASELINE_OWNER_ROLE)} NOBYPASSRLS;`,
     'close_migration_window',
   );
-  const bypassState = psqlAs(
-    operatorRole,
-    'postgres',
-    `SELECT rolbypassrls::int FROM pg_roles WHERE rolname=${sqlLiteral(BASELINE_OWNER_ROLE)}`,
-    'migration_window_cleanup_postcheck',
+  const bypassState = (
+    await psqlAs(
+      operatorRole,
+      'postgres',
+      `SELECT rolbypassrls::int FROM pg_roles WHERE rolname=${sqlLiteral(BASELINE_OWNER_ROLE)}`,
+      'migration_window_cleanup_postcheck',
+    )
   ).trim();
   if (bypassState !== '0') throw new Error('baseline_owner_bypass_cleanup_failed');
 

@@ -5,13 +5,16 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import {
-  BASELINE_OWNER_ROLE,
+  SAFE_OPERATOR_PATH,
+  assertCleanRefreshSource,
   buildManifest,
-  discoverDrizzleMigrations,
-  discoverIntegratorMigrations,
+  discoverDrizzleMigrationsAtCommit,
+  discoverIntegratorMigrationsAtCommit,
   manifestPath,
+  normalizeA0Dump,
   packageDir,
   repoRoot,
+  resolveTrustedPostgresBinaries,
   schemaPath,
   seedPath,
 } from './a0-greenfield-baseline-lib.mjs';
@@ -50,7 +53,7 @@ function parseArgs(argv) {
 
 function operatorEnv() {
   return {
-    PATH: process.env.PATH ?? '/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin',
+    PATH: SAFE_OPERATOR_PATH,
     HOME: os.tmpdir(),
     LANG: 'C.UTF-8',
   };
@@ -72,16 +75,17 @@ function run(command, args, options = {}) {
   return String(result.stdout ?? '');
 }
 
-function runPostgres(args, label) {
+function runPostgres(binary, args, label) {
   return run(
-    'sudo',
+    '/usr/bin/sudo',
     [
       '-n',
       '-u',
       'postgres',
-      'env',
+      '/usr/bin/env',
       '-i',
       ...Object.entries(operatorEnv()).map(([key, value]) => `${key}=${value}`),
+      binary,
       ...args,
     ],
     { label },
@@ -97,36 +101,12 @@ function readCanonicalEnv(envPath) {
   return fs.readFileSync(envPath, 'utf8');
 }
 
-function normalizeDump(raw, sourceRole) {
-  let restrictCount = 0;
-  let unrestrictCount = 0;
-  let normalized = raw.replace(/^\\restrict [^\r\n]+$/mu, () => {
-    restrictCount += 1;
-    return '\\restrict bcb_a0_schema_only';
-  });
-  normalized = normalized.replace(/^\\unrestrict [^\r\n]+$/mu, () => {
-    unrestrictCount += 1;
-    return '\\unrestrict bcb_a0_schema_only';
-  });
-  if (restrictCount !== 1 || unrestrictCount !== 1)
-    throw new Error('pg_dump_restrict_shape_changed');
-  const rolePattern = new RegExp(
-    `\\b${sourceRole.replace(/[.*+?^${}()|[\]\\]/gu, '\\$&')}\\b`,
-    'gu',
-  );
-  const roleMatches = normalized.match(rolePattern) ?? [];
-  if (roleMatches.length === 0) throw new Error('expected_source_policy_owner_missing');
-  normalized = normalized.replace(rolePattern, BASELINE_OWNER_ROLE);
-  normalized = `${normalized.trimEnd()}\n`;
-  return { normalized, normalizedRoleOccurrences: roleMatches.length };
-}
-
-function assertSourceLedgersCurrent() {
-  const currentIntegrator = discoverIntegratorMigrations();
-  const currentDrizzle = discoverDrizzleMigrations();
+function assertSourceLedgersCurrent(sourceCommit, postgresBinaries) {
+  const currentIntegrator = discoverIntegratorMigrationsAtCommit(sourceCommit);
+  const currentDrizzle = discoverDrizzleMigrationsAtCommit(sourceCommit);
   const integratorRows = runPostgres(
+    postgresBinaries.psql,
     [
-      'psql',
       '-X',
       '-d',
       'bcb_webapp_dev',
@@ -149,8 +129,8 @@ function assertSourceLedgersCurrent() {
   }
 
   const drizzleRows = runPostgres(
+    postgresBinaries.psql,
     [
-      'psql',
       '-X',
       '-d',
       'bcb_webapp_dev',
@@ -208,44 +188,36 @@ function formatManifest(manifest) {
 
 try {
   const { envPath } = parseArgs(process.argv.slice(2));
+  assertCleanRefreshSource();
+  const sourceCommit = run('/usr/bin/git', ['rev-parse', 'HEAD'], {
+    env: operatorEnv(),
+    label: 'git_rev_parse',
+  }).trim();
+  const postgresBinaries = resolveTrustedPostgresBinaries(['psql', 'pg_dump']);
   const databaseUrl = assertExactLocalDevDatabaseUrl(
     parseDatabaseUrlFromDotenv(readCanonicalEnv(envPath)),
   );
   const parsedUrl = new URL(databaseUrl);
   const sourceRole = decodeURIComponent(parsedUrl.username);
   const sourceDb = runPostgres(
-    [
-      'psql',
-      '-X',
-      '-d',
-      'bcb_webapp_dev',
-      '-v',
-      'ON_ERROR_STOP=1',
-      '-Atqc',
-      'SELECT current_database()',
-    ],
+    postgresBinaries.psql,
+    ['-X', '-d', 'bcb_webapp_dev', '-v', 'ON_ERROR_STOP=1', '-Atqc', 'SELECT current_database()'],
     'source_database_probe',
   ).trim();
   if (sourceDb !== 'bcb_webapp_dev') throw new Error('source_database_mismatch');
 
-  const ledgerProof = assertSourceLedgersCurrent();
+  const ledgerProof = assertSourceLedgersCurrent(sourceCommit, postgresBinaries);
   const rawDump = runPostgres(
-    [
-      'pg_dump',
-      '--dbname=bcb_webapp_dev',
-      '--schema-only',
-      '--no-owner',
-      '--no-privileges',
-      '--no-comments',
-    ],
+    postgresBinaries.pg_dump,
+    ['--dbname=bcb_webapp_dev', '--schema-only', '--no-owner', '--no-privileges', '--no-comments'],
     'schema_only_dump',
   );
-  const { normalized, normalizedRoleOccurrences } = normalizeDump(rawDump, sourceRole);
-  const sourceCommit = run('git', ['rev-parse', 'HEAD'], {
-    env: process.env,
-    label: 'git_rev_parse',
-  }).trim();
-  const pgDumpVersion = runPostgres(['pg_dump', '--version'], 'pg_dump_version').trim();
+  const { normalized, normalizedRoleOccurrences } = normalizeA0Dump(rawDump, sourceRole);
+  const pgDumpVersion = runPostgres(
+    postgresBinaries.pg_dump,
+    ['--version'],
+    'pg_dump_version',
+  ).trim();
   const seedText = fs.readFileSync(seedPath, 'utf8');
   const manifest = buildManifest({
     schemaText: normalized,

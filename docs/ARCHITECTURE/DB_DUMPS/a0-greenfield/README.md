@@ -3,6 +3,13 @@
 Этот пакет — полный структурный bootstrap для disposable PostgreSQL в CI. Он закрывает prerequisite A0 из
 `STABILITY_SECURITY_HARDENING_PLAN_2026-07-21.md` и не является способом восстановления DEV, TEST или PROD.
 
+**Граница доказательства:** A0 доказывает только воспроизводимость DDL, migration ledgers и минимального
+синтетического seed на чистом PostgreSQL. Он намеренно не создаёт canonical runtime ACL/role memberships и не
+доказывает RLS от имени прикладных principals. Это задача A1: provision canonical roles/ACL/context, включить
+locked/FORCE RLS и выполнить positive/negative matrix от имени non-owner `app_staff` / `app_patient` principals.
+Disposable owner `bcb_a0_owner` имеет только bootstrap/migration назначение; использовать его как RLS-conformance
+principal запрещено, потому что owner таблиц способен обходить обычный RLS.
+
 ## Состав
 
 - `schema.sql` — полный `pg_dump --schema-only --no-owner --no-privileges --no-comments` подготовленной локальной
@@ -33,6 +40,7 @@ Disposable proof создаёт приватный `/tmp/bcb_saas_a0_verify_*` c
 
 ```bash
 pnpm run verify:saas-a0-greenfield-baseline
+pnpm run test:saas-a0-signal-cleanup
 ```
 
 Нулевое число pending migrations сразу после refresh нормально. Новые append-only миграции разрешены: verifier
@@ -58,6 +66,13 @@ Generator делает только две детерминированные н
 
 1. случайный `pg_dump` `\restrict` token заменяется на фиксированный repo token;
 2. exact DEV migration-owner в двух reference-catalog policies заменяется на disposable `bcb_a0_owner`.
+
+Перед чтением БД refresh fail-closed проверяет, что migration directories, Drizzle journal и A0 generator files
+чисты относительно `HEAD`. Manifest строится из exact committed tree записанного `sourceCommit`, а checker повторно
+хеширует каждый migration file именно из этого commit; mutable worktree не может незаметно изменить baseline.
+Privileged metadata read запускает только absolute root-owned PostgreSQL binaries из `/usr/lib/postgresql`, с
+фиксированным очищенным `PATH`, а не с `PATH` вызывающего пользователя. Role normalization допускает ровно шесть
+известных позиций в двух `reference_catalog_seed_owner` policies и останавливается при любой иной форме/позиции.
 
 `btree_gist` в `public` и `pgcrypto` в `app_ext` остаются штатными `CREATE EXTENSION`. Любая новая схема, extension,
 policy role, data/PII/credential shape или несовпадение ledger frontier останавливает refresh вместо тихого

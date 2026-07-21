@@ -1,10 +1,15 @@
 import assert from 'node:assert/strict';
+import { execFileSync } from 'node:child_process';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
 import {
+  assertCleanRefreshSource,
+  assertTrustedRootOwnedBinary,
   manifestPath,
+  normalizeA0Dump,
+  resolveTrustedPostgresBinaries,
   scanSchemaArtifact,
   scanSeedArtifact,
   schemaPath,
@@ -72,7 +77,7 @@ test('package checker rejects schema and historical ledger hash drift', () => {
     assert.throws(
       () =>
         validatePackage({ schemaFile: schemaCopy, seedFile: seedCopy, manifestFile: manifestCopy }),
-      /integrator_historical_hash_drift/u,
+      /integrator_source_commit_historical_hash_drift/u,
     );
 
     const metadataDrift = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
@@ -81,9 +86,64 @@ test('package checker rejects schema and historical ledger hash drift', () => {
     assert.throws(
       () =>
         validatePackage({ schemaFile: schemaCopy, seedFile: seedCopy, manifestFile: manifestCopy }),
-      /drizzle_manifest_metadata_drift/u,
+      /drizzle_source_commit_manifest_metadata_drift/u,
+    );
+
+    const missingCommit = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
+    missingCommit.baseline.sourceCommit = '0'.repeat(40);
+    fs.writeFileSync(manifestCopy, `${JSON.stringify(missingCommit)}\n`);
+    assert.throws(
+      () =>
+        validatePackage({ schemaFile: schemaCopy, seedFile: seedCopy, manifestFile: manifestCopy }),
+      /git_failed:merge-base/u,
     );
   } finally {
     fs.rmSync(temporary, { recursive: true, force: true });
   }
+});
+
+test('dump normalization changes only the six known reference-catalog policy positions', () => {
+  const sourceRole = 'bcb_webapp_dev_user';
+  const raw = schema.replaceAll('bcb_a0_owner', sourceRole);
+  const result = normalizeA0Dump(raw, sourceRole);
+  assert.equal(result.normalizedRoleOccurrences, 6);
+  assert.equal(result.normalized, schema);
+  assert.throws(
+    () => normalizeA0Dump(`${raw}\n-- ${sourceRole}\n`, sourceRole),
+    /source_role_outside_known_policies/u,
+  );
+  assert.throws(
+    () => normalizeA0Dump(raw.replace(` TO ${sourceRole} `, ' TO unexpected_role '), sourceRole),
+    /reference_catalog_policy_role_shape_changed/u,
+  );
+});
+
+test('refresh rejects dirty migration/generator state and trusts only root-owned PostgreSQL binaries', () => {
+  const temporary = fs.mkdtempSync(path.join(os.tmpdir(), 'bcb_a0_git_test_'));
+  try {
+    execFileSync('/usr/bin/git', ['init', '-q'], { cwd: temporary });
+    assert.doesNotThrow(() => assertCleanRefreshSource(temporary));
+    const dirtyFile = path.join(
+      temporary,
+      'apps',
+      'webapp',
+      'db',
+      'drizzle-migrations',
+      'dirty.sql',
+    );
+    fs.mkdirSync(path.dirname(dirtyFile), { recursive: true });
+    fs.writeFileSync(dirtyFile, '-- untracked migration\n');
+    assert.throws(() => assertCleanRefreshSource(temporary), /refresh_source_worktree_dirty/u);
+  } finally {
+    fs.rmSync(temporary, { recursive: true, force: true });
+  }
+
+  const binaries = resolveTrustedPostgresBinaries(['psql', 'pg_dump', 'pg_ctl', 'initdb']);
+  for (const binary of Object.values(binaries)) {
+    assert.equal(assertTrustedRootOwnedBinary(binary), binary);
+  }
+  assert.throws(
+    () => assertTrustedRootOwnedBinary('/tmp/untrusted-postgres-binary'),
+    /postgres_binary_outside_trusted_root/u,
+  );
 });

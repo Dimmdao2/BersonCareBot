@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 
 import crypto from 'node:crypto';
+import { spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -21,6 +22,17 @@ export const EXPECTED_SCHEMAS = Object.freeze([
   'public',
 ]);
 export const EXPECTED_EXTENSIONS = Object.freeze(['btree_gist', 'pgcrypto']);
+export const SAFE_OPERATOR_PATH = '/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin';
+export const TRUSTED_POSTGRES_ROOT = '/usr/lib/postgresql';
+export const EXPECTED_NORMALIZED_ROLE_OCCURRENCES = 6;
+export const REFRESH_SOURCE_PATHS = Object.freeze([
+  'apps/integrator/src/infra/db/migrations/core',
+  'apps/integrator/src/integrations',
+  'apps/webapp/db/drizzle-migrations',
+  'docs/ARCHITECTURE/DB_DUMPS/a0-greenfield/seed.sql',
+  'scripts/a0-greenfield-baseline-lib.mjs',
+  'scripts/refresh-a0-greenfield-baseline.mjs',
+]);
 
 const credentialPatterns = Object.freeze([
   /postgres(?:ql)?:\/\/[^\s'";]+/iu,
@@ -38,6 +50,73 @@ export function sha256(input) {
 
 export function readJson(filePath) {
   return JSON.parse(fs.readFileSync(filePath, 'utf8'));
+}
+
+function runGit(args, { root = repoRoot, encoding = 'utf8' } = {}) {
+  const result = spawnSync('/usr/bin/git', args, {
+    cwd: root,
+    encoding,
+    env: { PATH: SAFE_OPERATOR_PATH, LANG: 'C.UTF-8' },
+    maxBuffer: 64 * 1024 * 1024,
+  });
+  if (result.error) throw result.error;
+  if (result.status !== 0) throw new Error(`git_failed:${args[0]}`);
+  return result.stdout;
+}
+
+function readGitFile(commit, filePath, root = repoRoot) {
+  return runGit(['show', `${commit}:${filePath}`], { root, encoding: null });
+}
+
+function listGitFiles(commit, paths, root = repoRoot) {
+  return String(runGit(['ls-tree', '-r', '--name-only', commit, '--', ...paths], { root }))
+    .trim()
+    .split('\n')
+    .filter(Boolean);
+}
+
+export function assertCleanRefreshSource(root = repoRoot) {
+  const status = String(
+    runGit(['status', '--porcelain=v1', '--untracked-files=all', '--', ...REFRESH_SOURCE_PATHS], {
+      root,
+    }),
+  ).trim();
+  if (status) throw new Error('refresh_source_worktree_dirty');
+}
+
+export function assertTrustedRootOwnedBinary(binaryPath) {
+  const absolute = path.resolve(binaryPath);
+  const trustedPrefix = `${TRUSTED_POSTGRES_ROOT}${path.sep}`;
+  if (!absolute.startsWith(trustedPrefix))
+    throw new Error(`postgres_binary_outside_trusted_root:${absolute}`);
+  const stat = fs.lstatSync(absolute);
+  if (!stat.isFile() || stat.isSymbolicLink())
+    throw new Error(`postgres_binary_not_regular:${absolute}`);
+  if (fs.realpathSync(absolute) !== absolute)
+    throw new Error(`postgres_binary_not_canonical:${absolute}`);
+  if (stat.uid !== 0) throw new Error(`postgres_binary_not_root_owned:${absolute}`);
+  if ((stat.mode & 0o022) !== 0) throw new Error(`postgres_binary_writable_by_nonroot:${absolute}`);
+  return absolute;
+}
+
+export function resolveTrustedPostgresBinaries(requiredNames) {
+  const versions = fs
+    .readdirSync(TRUSTED_POSTGRES_ROOT, { withFileTypes: true })
+    .filter((entry) => entry.isDirectory() && /^\d+(?:\.\d+)*$/u.test(entry.name))
+    .map((entry) => entry.name)
+    .sort((left, right) => right.localeCompare(left, undefined, { numeric: true }));
+  for (const version of versions) {
+    const candidate = Object.fromEntries(
+      requiredNames.map((name) => [name, path.join(TRUSTED_POSTGRES_ROOT, version, 'bin', name)]),
+    );
+    try {
+      for (const binary of Object.values(candidate)) assertTrustedRootOwnedBinary(binary);
+      return candidate;
+    } catch {
+      // A partial/unsafe installation is not eligible; continue to the next complete version.
+    }
+  }
+  throw new Error(`trusted_postgres_toolchain_missing:${requiredNames.join(',')}`);
 }
 
 function isMigrationFile(name) {
@@ -92,6 +171,100 @@ export function discoverDrizzleMigrations(root = repoRoot) {
       sha256: sha256(fs.readFileSync(filePath)),
     };
   });
+}
+
+export function discoverIntegratorMigrationsAtCommit(commit, root = repoRoot) {
+  runGit(['cat-file', '-e', `${commit}^{commit}`], { root });
+  const corePrefix = 'apps/integrator/src/infra/db/migrations/core/';
+  const integrationPattern =
+    /^apps\/integrator\/src\/integrations\/([^/]+)\/db\/migrations\/([^/]+\.sql)$/u;
+  const entries = [];
+  for (const filePath of listGitFiles(
+    commit,
+    ['apps/integrator/src/infra/db/migrations/core', 'apps/integrator/src/integrations'],
+    root,
+  )) {
+    const fileName = path.posix.basename(filePath);
+    if (!isMigrationFile(fileName)) continue;
+    let scope;
+    if (filePath.startsWith(corePrefix)) scope = 'core';
+    else scope = filePath.match(integrationPattern)?.[1];
+    if (!scope) continue;
+    entries.push({ scope, fileName, filePath });
+  }
+  entries.sort((left, right) => left.fileName.localeCompare(right.fileName));
+  return entries.map((entry) => ({
+    scope: entry.scope,
+    fileName: entry.fileName,
+    version: `${entry.scope}:${entry.fileName}`,
+    path: entry.filePath,
+    sha256: sha256(readGitFile(commit, entry.filePath, root)),
+  }));
+}
+
+export function discoverDrizzleMigrationsAtCommit(commit, root = repoRoot) {
+  runGit(['cat-file', '-e', `${commit}^{commit}`], { root });
+  const migrationDir = 'apps/webapp/db/drizzle-migrations';
+  const journal = JSON.parse(
+    String(readGitFile(commit, `${migrationDir}/meta/_journal.json`, root)),
+  );
+  if (!Array.isArray(journal.entries)) throw new Error('drizzle_journal_entries_missing');
+  return journal.entries.map((entry, arrayIndex) => {
+    if (entry.idx !== arrayIndex) throw new Error(`drizzle_journal_idx_mismatch:${entry.tag}`);
+    const filePath = `${migrationDir}/${entry.tag}.sql`;
+    return {
+      idx: entry.idx,
+      tag: entry.tag,
+      when: entry.when,
+      path: filePath,
+      sha256: sha256(readGitFile(commit, filePath, root)),
+    };
+  });
+}
+
+export function normalizeA0Dump(raw, sourceRole) {
+  let restrictCount = 0;
+  let unrestrictCount = 0;
+  let normalized = raw.replace(/^\\restrict [^\r\n]+$/mu, () => {
+    restrictCount += 1;
+    return '\\restrict bcb_a0_schema_only';
+  });
+  normalized = normalized.replace(/^\\unrestrict [^\r\n]+$/mu, () => {
+    unrestrictCount += 1;
+    return '\\unrestrict bcb_a0_schema_only';
+  });
+  if (restrictCount !== 1 || unrestrictCount !== 1)
+    throw new Error('pg_dump_restrict_shape_changed');
+
+  const escapedRole = sourceRole.replace(/[.*+?^${}()|[\]\\]/gu, '\\$&');
+  const rolePattern = new RegExp(`\\b${escapedRole}\\b`, 'gu');
+  const policyPattern =
+    /^CREATE POLICY reference_catalog_seed_owner ON public\.(reference_categories|reference_items) .+?;$/gmsu;
+  const policies = [...normalized.matchAll(policyPattern)];
+  if (policies.length !== 2) throw new Error('reference_catalog_policy_shape_changed');
+  let normalizedRoleOccurrences = 0;
+  for (const match of policies) {
+    const statement = match[0];
+    const roleMatches = statement.match(rolePattern) ?? [];
+    const expectedCurrentUser = `CURRENT_USER = '${sourceRole}'::name`;
+    if (
+      roleMatches.length !== 3 ||
+      !statement.includes(` TO ${sourceRole} `) ||
+      statement.split(expectedCurrentUser).length - 1 !== 2
+    ) {
+      throw new Error(`reference_catalog_policy_role_shape_changed:${match[1]}`);
+    }
+    normalizedRoleOccurrences += roleMatches.length;
+  }
+  if (normalizedRoleOccurrences !== EXPECTED_NORMALIZED_ROLE_OCCURRENCES) {
+    throw new Error('reference_catalog_policy_role_count_changed');
+  }
+  const outsidePolicies = normalized.replace(policyPattern, '');
+  if (rolePattern.test(outsidePolicies)) throw new Error('source_role_outside_known_policies');
+  normalized = normalized.replace(policyPattern, (statement) =>
+    statement.replace(rolePattern, BASELINE_OWNER_ROLE),
+  );
+  return { normalized: `${normalized.trimEnd()}\n`, normalizedRoleOccurrences };
 }
 
 function matchesInOrder(manifestEntries, currentEntries, identity, fields, label) {
@@ -231,11 +404,11 @@ export function buildManifest({ schemaText, seedText, sourceCommit, generatedAt,
     ledgers: {
       integrator: {
         table: 'integrator.schema_migrations',
-        entries: discoverIntegratorMigrations(),
+        entries: discoverIntegratorMigrationsAtCommit(sourceCommit),
       },
       drizzle: {
         table: 'drizzle.__drizzle_migrations',
-        entries: discoverDrizzleMigrations(),
+        entries: discoverDrizzleMigrationsAtCommit(sourceCommit),
       },
     },
   };
@@ -280,8 +453,30 @@ export function validatePackage({
   const seedScan = scanSeedArtifact(seedText);
   if (seedScan.failures.length > 0) throw new Error(seedScan.failures.join('\n'));
 
-  const currentIntegrator = discoverIntegratorMigrations();
-  const currentDrizzle = discoverDrizzleMigrations();
+  runGit(['merge-base', '--is-ancestor', manifest.baseline.sourceCommit, 'HEAD']);
+  const sourceIntegrator = discoverIntegratorMigrationsAtCommit(manifest.baseline.sourceCommit);
+  const sourceDrizzle = discoverDrizzleMigrationsAtCommit(manifest.baseline.sourceCommit);
+  if (sourceIntegrator.length !== manifest.ledgers.integrator.entries.length)
+    throw new Error('integrator_source_commit_manifest_length_drift');
+  if (sourceDrizzle.length !== manifest.ledgers.drizzle.entries.length)
+    throw new Error('drizzle_source_commit_manifest_length_drift');
+  matchesInOrder(
+    manifest.ledgers.integrator.entries,
+    sourceIntegrator,
+    (entry) => entry.version,
+    ['scope', 'fileName', 'version', 'path', 'sha256'],
+    'integrator_source_commit',
+  );
+  matchesInOrder(
+    manifest.ledgers.drizzle.entries,
+    sourceDrizzle,
+    (entry) => entry.tag,
+    ['idx', 'tag', 'when', 'path', 'sha256'],
+    'drizzle_source_commit',
+  );
+  const headCommit = String(runGit(['rev-parse', 'HEAD'])).trim();
+  const currentIntegrator = discoverIntegratorMigrationsAtCommit(headCommit);
+  const currentDrizzle = discoverDrizzleMigrationsAtCommit(headCommit);
   matchesInOrder(
     manifest.ledgers.integrator.entries,
     currentIntegrator,
