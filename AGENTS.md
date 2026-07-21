@@ -148,6 +148,14 @@
 - **Гейт автономного лупа:** воркер берёт задачу только при `status∈(todo,doing) AND owner_waiting=false AND auto_ok=true`. Новую/крупную/спорную заводить `auto_ok=false` (ждёт триажа); мелкую-безопасную — `auto_ok=true`.
 - **`meta jsonb`** (после добавления поля): ссылки на доки + AI-данные — `{"docs":{"plan":…,"audit":…,"log":…,"design":…},"ai":{"vectorIds":[…],"indexKeys":[…]}}`. Планы/аудиты/логи остаются ФАЙЛАМИ; в БД — статус + ссылки, не контент.
 
+### Миграции: индекс на горячую колонку — в том же PR (владелец, 2026-07-20)
+*Источник: `.cursor/rules/db-migrations-hot-column-indexes.mdc` (globs на миграции/схему)*
+- Индекс — **не «потом»**, а часть КАЖДОГО PR, добавляющего таблицу/колонку под фильтр-сортировку. Горячие
+  классы: `org_id`/`clinic_id`/tenant (RLS), `user_id`+`created_at` (списки/ленты), таймстемпы event/delivery-
+  таблиц (аналитика), уникальные ключи дедупа.
+- Большая таблица → только `CREATE INDEX CONCURRENTLY`. Ревью/аудит: таблица/горячая колонка без индекса = замечание.
+- Канон рантайм-ёмкости и топологии старта: [`docs/ARCHITECTURE/SCALING_AND_LAUNCH_CAPACITY.md`](docs/ARCHITECTURE/SCALING_AND_LAUNCH_CAPACITY.md).
+
 ---
 
 ## 1a. Локальный dev и тестирование UI
