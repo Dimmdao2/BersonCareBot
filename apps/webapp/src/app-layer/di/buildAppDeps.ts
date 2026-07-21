@@ -751,7 +751,13 @@ const paymentsService =
   paymentsPort && bookingEngineService
     ? createPaymentsService({
         port: paymentsPort,
-        config: createPaymentsConfigReader((key) => systemSettingsService.getSetting(key, "admin")),
+        config: createPaymentsConfigReader((key, organizationId) =>
+          systemSettingsService.getSetting(
+            key,
+            "admin",
+            organizationId ? { organizationId } : undefined,
+          ),
+        ),
         captureUnitOfWork: createPgPaymentCaptureUnitOfWork(),
         bookingEngine: bookingEngineService,
         onPackagePaymentCaptured: membershipsService
@@ -808,8 +814,12 @@ const paymentsService =
 const acquiringGateway = !inMemoryRepos
   ? createRegistryAcquiringGateway({
       getConfig: () =>
-        createPaymentsConfigReader((key) =>
-          systemSettingsService.getSetting(key, "admin"),
+        createPaymentsConfigReader((key, organizationId) =>
+          systemSettingsService.getSetting(
+            key,
+            "admin",
+            organizationId ? { organizationId } : undefined,
+          ),
         ).getBookingPaymentSettings(),
     })
   : noopAcquiringGateway;

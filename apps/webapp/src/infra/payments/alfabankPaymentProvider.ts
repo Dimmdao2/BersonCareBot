@@ -43,6 +43,35 @@ function buildFormBody(params: Record<string, string>): string {
     .join("&");
 }
 
+function inspectAlfabankWebhook(headers: Headers, bodyText: string) {
+  const contentType = headers.get("content-type") ?? "";
+  let payload: Record<string, unknown>;
+  if (contentType.includes("application/x-www-form-urlencoded")) {
+    payload = Object.fromEntries(new URLSearchParams(bodyText).entries());
+  } else if (bodyText.trim().startsWith("{")) {
+    payload = JSON.parse(bodyText) as Record<string, unknown>;
+  } else {
+    payload = Object.fromEntries(new URLSearchParams(bodyText).entries());
+  }
+  const mdOrder = String(payload["mdOrder"] ?? payload["orderId"] ?? "");
+  const orderNumber = String(payload["orderNumber"] ?? "");
+  const orderStatus = Number(payload["orderStatus"] ?? payload["status"] ?? -1);
+  const eventType =
+    orderStatus === 2
+      ? "payment.succeeded"
+      : orderStatus === 4 || orderStatus === 6
+        ? "payment.refunded"
+        : `alfabank.status_${orderStatus}`;
+  const amountRaw = payload["amount"] ?? payload["depositedAmount"];
+  const amountMinor =
+    amountRaw != null && !Number.isNaN(Number(amountRaw))
+      ? Math.round(Number(amountRaw))
+      : undefined;
+  const idempotencyKey = orderNumber || mdOrder;
+  if (!idempotencyKey || !mdOrder) throw new Error("invalid_webhook_payload");
+  return { idempotencyKey, eventType, payload, intentRef: mdOrder, amountMinor };
+}
+
 export function createAlfabankPaymentProvider(): PaymentProviderPort {
   return {
     async createIntent({
@@ -142,6 +171,10 @@ export function createAlfabankPaymentProvider(): PaymentProviderPort {
       };
     },
 
+    inspectWebhook({ headers, bodyText }) {
+      return inspectAlfabankWebhook(headers, bodyText);
+    },
+
     /**
      * Alfa-Bank webhook verification strategy:
      *
@@ -162,23 +195,9 @@ export function createAlfabankPaymentProvider(): PaymentProviderPort {
      * server-side status check.
      */
     verifyWebhook({ headers, bodyText, webhookSecret }) {
-      // Parse body — may be GET params (query string) or POST form/JSON
-      const contentType = headers.get("content-type") ?? "";
-      let payload: Record<string, unknown>;
-
-      if (contentType.includes("application/x-www-form-urlencoded")) {
-        const params = new URLSearchParams(bodyText);
-        payload = Object.fromEntries(params.entries());
-      } else if (bodyText.trim().startsWith("{")) {
-        payload = JSON.parse(bodyText) as Record<string, unknown>;
-      } else {
-        // Treat as URL-encoded (GET callback forwarded as body)
-        const params = new URLSearchParams(bodyText);
-        payload = Object.fromEntries(params.entries());
-      }
-
-      const mdOrder = String(payload["mdOrder"] ?? payload["orderId"] ?? "");
-      const orderNumber = String(payload["orderNumber"] ?? "");
+      const inspected = inspectAlfabankWebhook(headers, bodyText);
+      const payload = inspected.payload;
+      const mdOrder = inspected.intentRef ?? "";
       const checksumField = String(payload["checksum"] ?? "");
 
       if (checksumField && webhookSecret.trim()) {
@@ -194,29 +213,7 @@ export function createAlfabankPaymentProvider(): PaymentProviderPort {
       }
       // If no checksum field configured — accept (caller must verify via getOrderStatusExtended)
 
-      const idempotencyKey = orderNumber || mdOrder;
-      // Alfa-Bank orderStatus in callback: 2 = APPROVED, 4 = REVERSED, 6 = REFUNDED
-      const orderStatus = Number(payload["orderStatus"] ?? payload["status"] ?? -1);
-      const eventType =
-        orderStatus === 2
-          ? "payment.succeeded"
-          : orderStatus === 4 || orderStatus === 6
-            ? "payment.refunded"
-            : `alfabank.status_${orderStatus}`;
-
-      const amountRaw = payload["amount"] ?? payload["depositedAmount"];
-      const amountMinor =
-        amountRaw != null && !Number.isNaN(Number(amountRaw))
-          ? Math.round(Number(amountRaw))
-          : undefined;
-
-      return {
-        idempotencyKey,
-        eventType,
-        payload,
-        intentRef: mdOrder,
-        amountMinor,
-      };
+      return inspected;
     },
   };
 }

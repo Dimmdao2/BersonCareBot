@@ -67,8 +67,8 @@ export function createPaymentsService(deps: {
   }) => Promise<void>;
   syncServicePrepaymentApplicable?: (serviceId: string, applicable: boolean) => Promise<void>;
 }) {
-  async function loadSettings(): Promise<BookingPaymentSettings> {
-    return deps.config.getBookingPaymentSettings();
+  async function loadSettings(organizationId?: string): Promise<BookingPaymentSettings> {
+    return deps.config.getBookingPaymentSettings(organizationId);
   }
 
   function resolveActiveProvider(settings: BookingPaymentSettings, providerId?: string) {
@@ -209,12 +209,12 @@ export function createPaymentsService(deps: {
   }
 
   return {
-    async getSettings(): Promise<BookingPaymentSettings> {
-      return loadSettings();
+    async getSettings(organizationId?: string): Promise<BookingPaymentSettings> {
+      return loadSettings(organizationId);
     },
 
     async resolvePrepayment(params: ResolvePrepaymentParams): Promise<PrepaymentQuote> {
-      const settings = await loadSettings();
+      const settings = await loadSettings(params.organizationId);
       const policy = params.serviceId
         ? await deps.port.getPrepaymentPolicyForService(params.organizationId, params.serviceId)
         : params.onlineCategory
@@ -281,19 +281,20 @@ export function createPaymentsService(deps: {
 
     async resolveProviderWebhookOrganizationId(input: {
       providerId: string;
-      intentId?: string | null;
-      providerIntentRef?: string | null;
+      idempotencyKey: string;
+      eventType: string;
     }) {
-      const intentId = input.intentId?.trim() || null;
-      if (intentId) {
-        const intent = await deps.port.findIntentById(intentId);
-        if (intent?.organizationId) return intent.organizationId;
-      }
-      const providerIntentRef = input.providerIntentRef?.trim() || null;
-      if (!providerIntentRef) return null;
       const providerId = input.providerId.trim();
-      if (!providerId) return null;
-      const intent = await deps.port.findIntentByProviderRefAnyOrg(providerId, providerIntentRef);
+      const idempotencyKey = input.idempotencyKey.trim();
+      const eventType = input.eventType.trim();
+      if (!providerId || !idempotencyKey || !eventType) return null;
+      const stored = await deps.port.findProviderEventAuthority(
+        providerId,
+        idempotencyKey,
+        eventType,
+      );
+      if (stored) return stored.organizationId;
+      const intent = await deps.port.findIntentByProviderEventKey(providerId, idempotencyKey);
       return intent?.organizationId ?? null;
     },
 
@@ -306,7 +307,7 @@ export function createPaymentsService(deps: {
       idempotencyKey: string;
       providerId?: string;
     }) {
-      const settings = await loadSettings();
+      const settings = await loadSettings(input.organizationId);
       if (!settings.enabled) throw new Error("payments_disabled");
       const provider = resolveActiveProvider(settings, input.providerId);
       const adapter = getPaymentProviderAdapter(provider.id);
@@ -359,7 +360,7 @@ export function createPaymentsService(deps: {
       idempotencyKey: string;
       providerId?: string;
     }) {
-      const settings = await loadSettings();
+      const settings = await loadSettings(input.organizationId);
       if (!settings.enabled) throw new Error("payments_disabled");
       const provider = resolveActiveProvider(settings, input.providerId);
       const adapter = getPaymentProviderAdapter(provider.id);
@@ -415,7 +416,7 @@ export function createPaymentsService(deps: {
       idempotencyKey: string;
       providerId?: string;
     }) {
-      const settings = await loadSettings();
+      const settings = await loadSettings(input.organizationId);
       if (!settings.enabled) throw new Error("payments_disabled");
       const provider = resolveActiveProvider(settings, input.providerId);
       const adapter = getPaymentProviderAdapter(provider.id);
@@ -498,7 +499,7 @@ export function createPaymentsService(deps: {
       headers: Headers;
       bodyText: string;
     }) {
-      const settings = await loadSettings();
+      const settings = await loadSettings(input.organizationId);
       const provider = settings.providers.find((p) => p.id === input.providerId);
       if (!provider?.enabled) throw new Error("payment_provider_unavailable");
       const secret = provider.webhookSecret?.trim();
@@ -574,7 +575,7 @@ export function createPaymentsService(deps: {
       }
 
       if (input.prepaymentRefunded) {
-        const settings = await loadSettings();
+        const settings = await loadSettings(input.organizationId);
         const provider = resolveActiveProvider(settings, payment.providerId);
         const adapter = getPaymentProviderAdapter(provider.id);
         const idempotencyKey = `refund:${payment.id}:${input.appointmentId}`;
@@ -659,12 +660,15 @@ export function createPaymentsService(deps: {
 export type PaymentsService = ReturnType<typeof createPaymentsService>;
 
 export function createPaymentsConfigReader(
-  getSetting: (key: "booking_payment_enabled" | "booking_payment_providers") => Promise<{ valueJson: unknown } | null>,
+  getSetting: (
+    key: "booking_payment_enabled" | "booking_payment_providers",
+    organizationId?: string,
+  ) => Promise<{ valueJson: unknown } | null>,
 ): PaymentsConfigReader {
   return {
-    async getBookingPaymentSettings() {
-      const enabledRow = await getSetting("booking_payment_enabled");
-      const providersRow = await getSetting("booking_payment_providers");
+    async getBookingPaymentSettings(organizationId) {
+      const enabledRow = await getSetting("booking_payment_enabled", organizationId);
+      const providersRow = await getSetting("booking_payment_providers", organizationId);
       const enabled =
         enabledRow != null &&
         enabledRow.valueJson !== null &&

@@ -558,15 +558,15 @@ describe("createPaymentsService", () => {
     expect(port.markProviderEventProcessed).toHaveBeenCalledTimes(1);
   });
 
-  it("resolves webhook organization from intent id or provider ref", async () => {
+  it("resolves webhook organization from canonical lifecycle event before intent authority", async () => {
     const port = {
-      findIntentById: vi.fn().mockResolvedValueOnce({
-        id: "intent-1",
-        organizationId: "org-from-id",
-      }),
-      findIntentByProviderRefAnyOrg: vi.fn().mockResolvedValueOnce({
+      findProviderEventAuthority: vi
+        .fn()
+        .mockResolvedValueOnce({ id: "event-1", organizationId: "org-from-event" })
+        .mockResolvedValueOnce(null),
+      findIntentByProviderEventKey: vi.fn().mockResolvedValueOnce({
         id: "intent-2",
-        organizationId: "org-from-provider-ref",
+        organizationId: "org-from-intent-key",
       }),
     };
     const svc = createPaymentsService({
@@ -585,20 +585,20 @@ describe("createPaymentsService", () => {
     await expect(
       svc.resolveProviderWebhookOrganizationId({
         providerId: "mock",
-        intentId: "intent-1",
-        providerIntentRef: "ref-1",
+        idempotencyKey: "key-1",
+        eventType: "payment.succeeded",
       }),
-    ).resolves.toBe("org-from-id");
-    expect(port.findIntentByProviderRefAnyOrg).not.toHaveBeenCalled();
+    ).resolves.toBe("org-from-event");
+    expect(port.findIntentByProviderEventKey).not.toHaveBeenCalled();
 
     await expect(
       svc.resolveProviderWebhookOrganizationId({
         providerId: "mock",
-        intentId: null,
-        providerIntentRef: "ref-2",
+        idempotencyKey: "key-2",
+        eventType: "payment.refunded",
       }),
-    ).resolves.toBe("org-from-provider-ref");
-    expect(port.findIntentByProviderRefAnyOrg).toHaveBeenCalledWith("mock", "ref-2");
+    ).resolves.toBe("org-from-intent-key");
+    expect(port.findIntentByProviderEventKey).toHaveBeenCalledWith("mock", "key-2");
   });
 
   it("links and confirms every appointment in a paid chain", async () => {

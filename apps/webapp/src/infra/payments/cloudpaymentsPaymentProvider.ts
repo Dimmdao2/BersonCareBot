@@ -47,6 +47,35 @@ export function computeCloudPaymentsHmac(body: string, apiSecret: string): strin
   return createHmac("sha256", apiSecret).update(body).digest("base64");
 }
 
+function inspectCloudpaymentsWebhook(headers: Headers, bodyText: string) {
+  let payload: Record<string, unknown>;
+  const contentType = headers.get("content-type") ?? "";
+  if (contentType.includes("application/x-www-form-urlencoded")) {
+    const params = new URLSearchParams(bodyText);
+    payload = Object.fromEntries(params.entries());
+  } else {
+    payload = JSON.parse(bodyText) as Record<string, unknown>;
+  }
+
+  const transactionId = String(payload["TransactionId"] ?? "");
+  const invoiceId = String(payload["InvoiceId"] ?? "");
+  const statusCode = Number(payload["Status"] ?? payload["StatusCode"] ?? 0);
+  const amountRaw = payload["Amount"] ?? payload["PaymentAmount"];
+  const amountMinor =
+    amountRaw != null && !Number.isNaN(Number(amountRaw))
+      ? Math.round(Number(amountRaw) * 100)
+      : undefined;
+  const idempotencyKey = invoiceId || transactionId;
+  const eventType =
+    statusCode === 3 || payload["Status"] === "Completed"
+      ? "payment.succeeded"
+      : statusCode === 4 || payload["Status"] === "Cancelled"
+        ? "payment.refunded"
+        : `cloudpayments.${String(payload["Status"] ?? "unknown").toLowerCase()}`;
+  if (!idempotencyKey || !eventType) throw new Error("invalid_webhook_payload");
+  return { idempotencyKey, eventType, payload, intentRef: transactionId, amountMinor };
+}
+
 export function createCloudpaymentsPaymentProvider(): PaymentProviderPort {
   return {
     async createIntent({
@@ -157,6 +186,10 @@ export function createCloudpaymentsPaymentProvider(): PaymentProviderPort {
       };
     },
 
+    inspectWebhook({ headers, bodyText }) {
+      return inspectCloudpaymentsWebhook(headers, bodyText);
+    },
+
     verifyWebhook({ headers, bodyText, webhookSecret }) {
       // webhookSecret = CloudPayments API Secret
       const signatureHeader = headers.get("content-hmac")?.trim() ?? "";
@@ -169,42 +202,7 @@ export function createCloudpaymentsPaymentProvider(): PaymentProviderPort {
         throw new Error("invalid_webhook_signature");
       }
 
-      // CloudPayments POSTs form-encoded data, but if bodyText is JSON, handle both.
-      let payload: Record<string, unknown>;
-      const contentType = headers.get("content-type") ?? "";
-      if (contentType.includes("application/x-www-form-urlencoded")) {
-        const params = new URLSearchParams(bodyText);
-        payload = Object.fromEntries(params.entries());
-      } else {
-        payload = JSON.parse(bodyText) as Record<string, unknown>;
-      }
-
-      const transactionId = String(payload["TransactionId"] ?? "");
-      const invoiceId = String(payload["InvoiceId"] ?? "");
-      const statusCode = Number(payload["Status"] ?? payload["StatusCode"] ?? 0);
-      const amountRaw = payload["Amount"] ?? payload["PaymentAmount"];
-      const amountMinor =
-        amountRaw != null && !Number.isNaN(Number(amountRaw))
-          ? Math.round(Number(amountRaw) * 100)
-          : undefined;
-
-      // InvoiceId is our idempotencyKey; StatusCode 3 = Completed/Succeeded
-      const idempotencyKey = invoiceId || transactionId;
-      // CloudPayments status codes: 3 = Completed, 4 = Cancelled
-      const eventType =
-        statusCode === 3 || payload["Status"] === "Completed"
-          ? "payment.succeeded"
-          : statusCode === 4 || payload["Status"] === "Cancelled"
-            ? "payment.refunded"
-            : `cloudpayments.${String(payload["Status"] ?? "unknown").toLowerCase()}`;
-
-      return {
-        idempotencyKey,
-        eventType,
-        payload,
-        intentRef: transactionId,
-        amountMinor,
-      };
+      return inspectCloudpaymentsWebhook(headers, bodyText);
     },
   };
 }

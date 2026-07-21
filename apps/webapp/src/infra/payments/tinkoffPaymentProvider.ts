@@ -54,6 +54,27 @@ export function computeTinkoffToken(
   return createHash("sha256").update(sorted).digest("hex");
 }
 
+function inspectTinkoffWebhook(bodyText: string) {
+  const payload = JSON.parse(bodyText) as Record<string, unknown>;
+  const paymentId = String(payload["PaymentId"] ?? "");
+  const orderId = String(payload["OrderId"] ?? "");
+  const status = String(payload["Status"] ?? "");
+  const amountRaw = payload["Amount"];
+  const amountMinor =
+    amountRaw != null && !Number.isNaN(Number(amountRaw))
+      ? Math.round(Number(amountRaw))
+      : undefined;
+  const idempotencyKey = orderId || paymentId;
+  const eventType =
+    status === "CONFIRMED"
+      ? "payment.succeeded"
+      : status === "REFUNDED" || status === "PARTIAL_REFUNDED"
+        ? "payment.refunded"
+        : `tinkoff.${status.toLowerCase()}`;
+  if (!idempotencyKey || !status) throw new Error("invalid_webhook_payload");
+  return { idempotencyKey, eventType, payload, intentRef: paymentId, amountMinor };
+}
+
 export function createTinkoffPaymentProvider(): PaymentProviderPort {
   return {
     async createIntent({
@@ -159,6 +180,10 @@ export function createTinkoffPaymentProvider(): PaymentProviderPort {
       };
     },
 
+    inspectWebhook({ bodyText }) {
+      return inspectTinkoffWebhook(bodyText);
+    },
+
     verifyWebhook({ bodyText, webhookSecret }) {
       // webhookSecret = Tinkoff terminal password (same as apiKey / password used for Token)
       const payload = JSON.parse(bodyText) as Record<string, unknown>;
@@ -172,31 +197,7 @@ export function createTinkoffPaymentProvider(): PaymentProviderPort {
         throw new Error("invalid_webhook_signature");
       }
 
-      const paymentId = String(payload["PaymentId"] ?? "");
-      const orderId = String(payload["OrderId"] ?? "");
-      const status = String(payload["Status"] ?? "");
-      const amountRaw = payload["Amount"];
-      const amountMinor =
-        amountRaw != null && !Number.isNaN(Number(amountRaw))
-          ? Math.round(Number(amountRaw))
-          : undefined;
-
-      // OrderId is our idempotencyKey
-      const idempotencyKey = orderId || paymentId;
-      const eventType =
-        status === "CONFIRMED"
-          ? "payment.succeeded"
-          : status === "REFUNDED" || status === "PARTIAL_REFUNDED"
-            ? "payment.refunded"
-            : `tinkoff.${status.toLowerCase()}`;
-
-      return {
-        idempotencyKey,
-        eventType,
-        payload: payload as Record<string, unknown>,
-        intentRef: paymentId,
-        amountMinor,
-      };
+      return inspectTinkoffWebhook(bodyText);
     },
   };
 }

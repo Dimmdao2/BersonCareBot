@@ -7,6 +7,8 @@ describe("payments webhook tenant resolution", () => {
 
     expect(src).not.toContain("getDefaultOrganizationId");
     expect(src).toContain("resolveProviderWebhookOrganizationId");
-    expect(src).toContain("runWithDbOrganizationPrincipal(organizationId");
+    expect(src).toContain("inspectWebhook");
+    expect(src).not.toContain("payments.getSettings()");
+    expect(src).toContain("runWithDbOrganizationPrincipal(organizationId, fn)");
   });
 });

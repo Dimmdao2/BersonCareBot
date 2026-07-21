@@ -25,6 +25,15 @@ export type PaymentProviderPort = {
     providerConfig?: PaymentProviderConfig;
   }): Promise<{ providerRefundRef: string }>;
 
+  /**
+   * Parse only enough normalized identity to locate the server-owned intent/event authority.
+   * The result is untrusted until verifyWebhook succeeds with that organization's config.
+   */
+  inspectWebhook(params: {
+    headers: Headers;
+    bodyText: string;
+  }): PaymentProviderVerifyResult;
+
   verifyWebhook(params: {
     headers: Headers;
     bodyText: string;

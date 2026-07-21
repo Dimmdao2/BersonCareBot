@@ -1,21 +1,33 @@
-import { getPool } from "@/infra/db/client";
-import { runPgPoolPgText } from "@/infra/db/runWebappSql";
-import { findCanonicalUserIdByPhone } from "@/infra/repos/pgCanonicalPlatformUser";
+import { and, eq, isNull } from "drizzle-orm";
+import { getDrizzleOrMutationTx } from "@/infra/db/drizzleMutationTx";
+import { platformUsers } from "../../../db/schema/schema";
 
 export async function resolveOrCreateTrustedPatientUserByPhone(
   phoneNormalized: string,
   displayName: string,
 ): Promise<{ userId: string | null; created: boolean }> {
-  const pool = getPool();
-  const existing = await findCanonicalUserIdByPhone(pool, phoneNormalized);
-  if (existing) return { userId: existing, created: false };
+  const db = getDrizzleOrMutationTx();
+  const existing = await db
+    .select({ id: platformUsers.id })
+    .from(platformUsers)
+    .where(
+      and(
+        eq(platformUsers.phoneNormalized, phoneNormalized),
+        isNull(platformUsers.mergedIntoId),
+      ),
+    )
+    .limit(2);
+  if (existing.length > 1) return { userId: null, created: false };
+  if (existing[0]) return { userId: existing[0].id, created: false };
 
-  const inserted = await runPgPoolPgText<{ id: string }>(
-    pool,
-    `INSERT INTO platform_users (phone_normalized, display_name, role, patient_phone_trust_at)
-     VALUES ($1, $2, 'client', now())
-     RETURNING id`,
-    [phoneNormalized, displayName],
-  );
-  return { userId: inserted.rows[0]?.id ?? null, created: true };
+  const inserted = await db
+    .insert(platformUsers)
+    .values({
+      phoneNormalized,
+      displayName,
+      role: "client",
+      patientPhoneTrustAt: new Date().toISOString(),
+    })
+    .returning({ id: platformUsers.id });
+  return { userId: inserted[0]?.id ?? null, created: inserted[0] != null };
 }

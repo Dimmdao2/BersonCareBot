@@ -257,7 +257,7 @@ export function createPgPaymentsPort(): PaymentsPort {
       return rows[0] ? mapIntent(rows[0]) : null;
     },
 
-    async findIntentByProviderRefAnyOrg(providerId, providerIntentRef) {
+    async findIntentByProviderEventKey(providerId, idempotencyKey) {
       const db = getDrizzleOrMutationTx();
       const rows = await db
         .select()
@@ -265,12 +265,11 @@ export function createPgPaymentsPort(): PaymentsPort {
         .where(
           and(
             eq(bePaymentIntents.providerId, providerId),
-            eq(bePaymentIntents.providerIntentRef, providerIntentRef),
+            eq(bePaymentIntents.idempotencyKey, idempotencyKey),
           ),
         )
-        .orderBy(desc(bePaymentIntents.createdAt))
-        .limit(1);
-      return rows[0] ? mapIntent(rows[0]) : null;
+        .limit(2);
+      return rows.length === 1 ? mapIntent(rows[0]!) : null;
     },
 
     async findLatestIntentByAppointment(appointmentId) {
@@ -420,9 +419,9 @@ export function createPgPaymentsPort(): PaymentsPort {
           })
           .onConflictDoNothing({
             target: [
-              bePaymentProviderEvents.organizationId,
               bePaymentProviderEvents.providerId,
               bePaymentProviderEvents.idempotencyKey,
+              bePaymentProviderEvents.eventType,
             ],
           })
           .returning(),
@@ -439,12 +438,32 @@ export function createPgPaymentsPort(): PaymentsPort {
               eq(bePaymentProviderEvents.organizationId, input.organizationId),
               eq(bePaymentProviderEvents.providerId, input.providerId),
               eq(bePaymentProviderEvents.idempotencyKey, input.idempotencyKey),
+              eq(bePaymentProviderEvents.eventType, input.eventType),
             ),
           )
           .limit(1),
       );
       if (!rows[0]) throw new Error("provider_event_persist_failed");
       return mapProviderEvent(rows[0], false);
+    },
+
+    async findProviderEventAuthority(providerId, idempotencyKey, eventType) {
+      const db = getDrizzleOrMutationTx();
+      const rows = await db
+        .select({
+          id: bePaymentProviderEvents.id,
+          organizationId: bePaymentProviderEvents.organizationId,
+        })
+        .from(bePaymentProviderEvents)
+        .where(
+          and(
+            eq(bePaymentProviderEvents.providerId, providerId),
+            eq(bePaymentProviderEvents.idempotencyKey, idempotencyKey),
+            eq(bePaymentProviderEvents.eventType, eventType),
+          ),
+        )
+        .limit(2);
+      return rows.length === 1 ? rows[0]! : null;
     },
 
     async getProviderEventById(id, organizationId) {

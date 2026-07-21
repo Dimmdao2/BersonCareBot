@@ -23,6 +23,40 @@ function safeEqualText(a: string, b: string): boolean {
   return left.length === right.length && timingSafeEqual(left, right);
 }
 
+function inspectYookassaWebhook(bodyText: string) {
+  const payload = JSON.parse(bodyText) as {
+    event?: string;
+    object?: {
+      id?: string;
+      status?: string;
+      amount?: { value?: string; currency?: string };
+      metadata?: Record<string, unknown>;
+    };
+  };
+  const event = String(payload.event ?? "");
+  const object = payload.object;
+  if (!object?.id) throw new Error("invalid_webhook_payload");
+  const metaKey =
+    typeof object.metadata?.idempotencyKey === "string"
+      ? object.metadata.idempotencyKey
+      : object.id;
+  const eventType =
+    event === "payment.succeeded" || object.status === "succeeded"
+      ? "payment.succeeded"
+      : event || "payment.unknown";
+  const amountMinor =
+    object.amount?.value != null
+      ? Math.round(Number.parseFloat(String(object.amount.value)) * 100)
+      : undefined;
+  return {
+    idempotencyKey: metaKey,
+    eventType,
+    payload: payload as Record<string, unknown>,
+    intentRef: object.id,
+    amountMinor,
+  };
+}
+
 export function createYookassaPaymentProvider(): PaymentProviderPort {
   return {
     async createIntent({ amountMinor, currency, idempotencyKey, metadata, providerConfig }) {
@@ -101,6 +135,10 @@ export function createYookassaPaymentProvider(): PaymentProviderPort {
       return { providerRefundRef: String(body.id ?? idempotencyKey) };
     },
 
+    inspectWebhook({ bodyText }) {
+      return inspectYookassaWebhook(bodyText);
+    },
+
     verifyWebhook({ headers, bodyText, webhookSecret, providerConfig }) {
       const webhookSecretTrimmed = webhookSecret.trim();
       const authHeader = headers.get("authorization")?.trim() ?? "";
@@ -117,37 +155,7 @@ export function createYookassaPaymentProvider(): PaymentProviderPort {
       }
       if (!verified) throw new Error("invalid_webhook_signature");
 
-      const payload = JSON.parse(bodyText) as {
-        event?: string;
-        object?: {
-          id?: string;
-          status?: string;
-          amount?: { value?: string; currency?: string };
-          metadata?: Record<string, unknown>;
-        };
-      };
-      const event = String(payload.event ?? "");
-      const object = payload.object;
-      if (!object?.id) throw new Error("invalid_webhook_payload");
-      const metaKey =
-        typeof object.metadata?.idempotencyKey === "string"
-          ? object.metadata.idempotencyKey
-          : object.id;
-      const eventType =
-        event === "payment.succeeded" || object.status === "succeeded"
-          ? "payment.succeeded"
-          : event || "payment.unknown";
-      const amountMinor =
-        object.amount?.value != null
-          ? Math.round(Number.parseFloat(String(object.amount.value)) * 100)
-          : undefined;
-      return {
-        idempotencyKey: metaKey,
-        eventType,
-        payload: payload as Record<string, unknown>,
-        intentRef: object.id,
-        amountMinor,
-      };
+      return inspectYookassaWebhook(bodyText);
     },
   };
 }

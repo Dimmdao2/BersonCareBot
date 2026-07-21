@@ -8,6 +8,8 @@ type CaptureState = {
   captureHistoryCount: number;
   appointmentStatus: string | null;
   packageActive: boolean;
+  productUserCreated: boolean;
+  productGrantActive: boolean;
   productActive: boolean;
 };
 
@@ -36,6 +38,8 @@ function createCrashHarness(input: { productRef?: string | null; appointmentId?:
     captureHistoryCount: 0,
     appointmentStatus: input.appointmentId ? "awaiting_payment" : null,
     packageActive: false,
+    productUserCreated: false,
+    productGrantActive: false,
     productActive: false,
   };
   let failAfter: string | null = input.failAfter;
@@ -125,6 +129,10 @@ function createCrashHarness(input: { productRef?: string | null; appointmentId?:
       maybeCrash("package");
     },
     onProductPaymentCaptured: async () => {
+      if (!state.productUserCreated) state.productUserCreated = true;
+      maybeCrash("product_user");
+      if (!state.productGrantActive) state.productGrantActive = true;
+      maybeCrash("product_grant");
       if (!state.productActive) state.productActive = true;
       maybeCrash("product");
     },
@@ -139,6 +147,8 @@ function createCrashHarness(input: { productRef?: string | null; appointmentId?:
       captureHistoryCount: 0,
       appointmentStatus: input.appointmentId ? "awaiting_payment" : null,
       packageActive: false,
+      productUserCreated: false,
+      productGrantActive: false,
       productActive: false,
     }),
   };
@@ -169,6 +179,8 @@ describe("payment capture crash/replay", () => {
   it.each([
     ["package", "patient_package:package-1", "packageActive"],
     ["product", "product_purchase:purchase-1", "productActive"],
+    ["product_user", "product_purchase:purchase-1", "productUserCreated"],
+    ["product_grant", "product_purchase:purchase-1", "productGrantActive"],
   ] as const)(
     "rolls back %s fulfillment and completes it exactly once on replay",
     async (failAfter, productRef, field) => {

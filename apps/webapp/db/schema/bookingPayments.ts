@@ -111,6 +111,10 @@ export const bePaymentIntents = pgTable(
   },
   (table) => [
     uniqueIndex("be_payment_intents_idempotency_uidx").on(table.organizationId, table.idempotencyKey),
+    uniqueIndex("be_payment_intents_provider_authority_uidx").on(
+      table.providerId,
+      table.idempotencyKey,
+    ),
     index("idx_be_payment_intents_appointment").on(table.appointmentId),
     index("idx_be_payment_intents_user").on(table.platformUserId),
     foreignKey({
@@ -218,10 +222,10 @@ export const bePaymentProviderEvents = pgTable(
     createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
   },
   (table) => [
-    uniqueIndex("be_payment_provider_events_idempotency_uidx").on(
-      table.organizationId,
+    uniqueIndex("be_payment_provider_events_lifecycle_uidx").on(
       table.providerId,
       table.idempotencyKey,
+      table.eventType,
     ),
     foreignKey({
       columns: [table.organizationId],

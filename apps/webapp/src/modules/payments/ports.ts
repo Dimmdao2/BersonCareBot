@@ -48,9 +48,9 @@ export type PaymentsPort = {
   /** Locks the intent row inside the active capture UoW and returns current committed state. */
   lockIntentForCapture(intentId: string, organizationId: string): Promise<PaymentIntentRecord | null>;
   findIntentByProviderRef(organizationId: string, providerIntentRef: string): Promise<PaymentIntentRecord | null>;
-  findIntentByProviderRefAnyOrg(
+  findIntentByProviderEventKey(
     providerId: string,
-    providerIntentRef: string,
+    idempotencyKey: string,
   ): Promise<PaymentIntentRecord | null>;
   createPaymentIntent(input: CreatePaymentIntentInput): Promise<PaymentIntentRecord>;
   updateIntentStatus(intentId: string, status: string, organizationId: string): Promise<PaymentIntentRecord | null>;
@@ -79,6 +79,11 @@ export type PaymentsPort = {
     intentRef: string | null;
     payloadJson: Record<string, unknown>;
   }): Promise<StoredPaymentProviderEvent>;
+  findProviderEventAuthority(
+    providerId: string,
+    idempotencyKey: string,
+    eventType: string,
+  ): Promise<{ id: string; organizationId: string } | null>;
   getProviderEventById(id: string, organizationId: string): Promise<StoredPaymentProviderEvent | null>;
   markProviderEventProcessed(id: string, organizationId: string): Promise<void>;
 
@@ -123,7 +128,7 @@ export type PaymentCaptureUnitOfWork = {
 };
 
 export type PaymentsConfigReader = {
-  getBookingPaymentSettings(): Promise<BookingPaymentSettings>;
+  getBookingPaymentSettings(organizationId?: string): Promise<BookingPaymentSettings>;
 };
 
 export type ResolvePrepaymentParams = {
