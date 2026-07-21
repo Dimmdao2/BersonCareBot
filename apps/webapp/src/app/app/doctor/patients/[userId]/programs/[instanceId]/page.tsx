@@ -8,7 +8,7 @@
 import { notFound } from "next/navigation";
 import { z } from "zod";
 import { requireDoctorWorkspaceContext } from "@/app-layer/guards/requireRole";
-import { assertMechanicEnabled } from "@/app-layer/guards/requireEntitlement";
+import { requireEntitlementForReadAction } from "@/app-layer/guards/requireEntitlement";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import { DoctorAppShell } from "@/shared/ui/doctor/DoctorAppShell";
 import { doctorPageStackClass } from "@/shared/ui/doctor/doctorVisual";
@@ -36,7 +36,9 @@ export default async function DoctorPatientProgramEmbeddedPage({ params, searchP
   }
 
   const deps = buildAppDeps();
-  const includePlatformBase = await assertMechanicEnabled(workspace.organizationId, "exercise_catalog");
+  const includePlatformBase = (
+    await requireEntitlementForReadAction(workspace, "exercise_catalog")
+  ).ok;
 
   let detail;
   try {

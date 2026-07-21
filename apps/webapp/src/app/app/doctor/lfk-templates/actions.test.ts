@@ -15,6 +15,7 @@ const {
   unarchiveTemplateMock,
   getTemplateMock,
   getTemplateUsageMock,
+  requireEntitlementForMutationActionMock,
   principalState,
 } = vi.hoisted(() => ({
   revalidatePathMock: vi.fn(),
@@ -32,6 +33,7 @@ const {
   unarchiveTemplateMock: vi.fn(),
   getTemplateMock: vi.fn(),
   getTemplateUsageMock: vi.fn(),
+  requireEntitlementForMutationActionMock: vi.fn(),
   principalState: { inside: false },
 }));
 
@@ -53,7 +55,8 @@ vi.mock("@/app-layer/guards/requireRole", () => ({
 }));
 
 vi.mock("@/app-layer/guards/requireEntitlement", () => ({
-  assertMechanicEnabled: vi.fn(async () => true),
+  requireEntitlementForMutationAction: (...args: unknown[]) =>
+    requireEntitlementForMutationActionMock(...args),
 }));
 
 vi.mock("@/app-layer/principal/withOrganizationPrincipal", () => ({
@@ -133,6 +136,8 @@ describe("doctor lfk template actions principal boundaries", () => {
     unarchiveTemplateMock.mockReset();
     getTemplateMock.mockReset();
     getTemplateUsageMock.mockReset();
+    requireEntitlementForMutationActionMock.mockReset();
+    requireEntitlementForMutationActionMock.mockResolvedValue({ ok: true });
     principalState.inside = false;
   });
 
@@ -166,6 +171,10 @@ describe("doctor lfk template actions principal boundaries", () => {
       [{ exerciseId: "ex-1", sortOrder: 0 }],
       { includePlatformBase: true, runTemplateWrite: expect.any(Function) },
     );
+    expect(requireEntitlementForMutationActionMock).toHaveBeenCalledWith(
+      workspaceContext(),
+      "exercise_catalog",
+    );
     expect(withDoctorWorkspacePrincipalMock).toHaveBeenNthCalledWith(
       1,
       workspaceContext(),
@@ -180,6 +189,32 @@ describe("doctor lfk template actions principal boundaries", () => {
     );
     expect(requireDoctorAccessMock).not.toHaveBeenCalled();
     expect(principalState.inside).toBe(false);
+  });
+
+  it("removes platform-base composition from create when the workspace mutation gate denies it", async () => {
+    requireEntitlementForMutationActionMock.mockResolvedValue({
+      ok: false,
+      mechanic: "exercise_catalog",
+      reason: "commercial_read_only",
+    });
+    createTemplateMock.mockResolvedValue({ id: "tpl-1" });
+
+    const result = await createLfkTemplateDraftFromEditor({
+      title: "Комплекс",
+      description: null,
+      exercises: [{ exerciseId: "platform-exercise", sortOrder: 0 }],
+    });
+
+    expect(result).toEqual({ ok: true, id: "tpl-1" });
+    expect(requireEntitlementForMutationActionMock).toHaveBeenCalledWith(
+      workspaceContext(),
+      "exercise_catalog",
+    );
+    expect(updateExercisesMock).toHaveBeenCalledWith(
+      "tpl-1",
+      [{ exerciseId: "platform-exercise", sortOrder: 0 }],
+      { includePlatformBase: false, runTemplateWrite: expect.any(Function) },
+    );
   });
 
   it("keeps template pre-read outside principal before draft update writes", async () => {
@@ -218,7 +253,38 @@ describe("doctor lfk template actions principal boundaries", () => {
       "doctor.lfk-templates.update-exercises",
       expect.any(Function),
     );
+    expect(requireEntitlementForMutationActionMock).toHaveBeenCalledWith(
+      workspaceContext(),
+      "exercise_catalog",
+    );
     expect(principalState.inside).toBe(false);
+  });
+
+  it("removes platform-base composition from draft updates when the mechanic is disabled", async () => {
+    requireEntitlementForMutationActionMock.mockResolvedValue({
+      ok: false,
+      mechanic: "exercise_catalog",
+      reason: "entitlement_required",
+    });
+    getTemplateMock.mockResolvedValue({ id: "tpl-1", status: "draft" });
+
+    const result = await persistLfkTemplateDraft({
+      templateId: "tpl-1",
+      title: "Комплекс",
+      description: null,
+      exercises: [],
+    });
+
+    expect(result).toEqual({ ok: true });
+    expect(requireEntitlementForMutationActionMock).toHaveBeenCalledWith(
+      workspaceContext(),
+      "exercise_catalog",
+    );
+    expect(updateExercisesMock).toHaveBeenCalledWith(
+      "tpl-1",
+      [],
+      { includePlatformBase: false, runTemplateWrite: expect.any(Function) },
+    );
   });
 
   it("does not enter principal when draft update pre-read misses", async () => {

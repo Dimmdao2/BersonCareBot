@@ -1,6 +1,6 @@
 import { notFound } from "next/navigation";
 import { requireDoctorWorkspaceContext } from "@/app-layer/guards/requireRole";
-import { assertMechanicEnabled } from "@/app-layer/guards/requireEntitlement";
+import { requireEntitlementForReadAction } from "@/app-layer/guards/requireEntitlement";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import { DoctorAppShell } from "@/shared/ui/doctor/DoctorAppShell";
 import { TreatmentProgramConstructorClient } from "./TreatmentProgramConstructorClient";
@@ -14,7 +14,9 @@ export default async function TreatmentProgramTemplateEditorPage(props: PageProp
   const session = workspace.session;
   const { id } = await props.params;
   const deps = buildAppDeps();
-  const includePlatformBase = await assertMechanicEnabled(workspace.organizationId, "exercise_catalog");
+  const includePlatformBase = (
+    await requireEntitlementForReadAction(workspace, "exercise_catalog")
+  ).ok;
 
   let detail;
   let usage;

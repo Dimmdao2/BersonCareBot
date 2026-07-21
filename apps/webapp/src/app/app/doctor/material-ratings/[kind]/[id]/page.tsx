@@ -8,7 +8,7 @@ import { DoctorAppShell } from "@/shared/ui/doctor/DoctorAppShell";
 
 import { MaterialRatingDetailClient } from "@/app/app/doctor/material-ratings/MaterialRatingDetailClient";
 import { MaterialRatingFeedbackDoctorPanel } from "@/app/app/doctor/material-ratings/MaterialRatingFeedbackDoctorPanel";
-import { assertMechanicEnabled } from "@/app-layer/guards/requireEntitlement";
+import { requireEntitlementForReadAction } from "@/app-layer/guards/requireEntitlement";
 
 const UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -30,7 +30,9 @@ export default async function DoctorMaterialRatingDetailPage({ params }: Props) 
   }
 
   const deps = buildAppDeps();
-  const includePlatformBase = await assertMechanicEnabled(workspace.organizationId, "exercise_catalog");
+  const includePlatformBase = (
+    await requireEntitlementForReadAction(workspace, "exercise_catalog")
+  ).ok;
   const iana = await getAppDisplayTimeZone();
   const calendarTodayYmd = DateTime.now().setZone(iana).toFormat("yyyy-LL-dd");
 

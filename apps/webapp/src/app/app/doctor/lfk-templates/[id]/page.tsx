@@ -1,6 +1,6 @@
 import { notFound } from "next/navigation";
 import { requireDoctorWorkspaceContext } from "@/app-layer/guards/requireRole";
-import { assertMechanicEnabled } from "@/app-layer/guards/requireEntitlement";
+import { requireEntitlementForReadAction } from "@/app-layer/guards/requireEntitlement";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import { DoctorAppShell } from "@/shared/ui/doctor/DoctorAppShell";
 import { doctorCatalogEditorSectionClass } from "@/shared/ui/doctor/doctorVisual";
@@ -14,7 +14,9 @@ export default async function DoctorLfkTemplateEditPage({ params }: PageProps) {
   const session = workspace.session;
   const { id } = await params;
   const deps = buildAppDeps();
-  const includePlatformBase = await assertMechanicEnabled(workspace.organizationId, "exercise_catalog");
+  const includePlatformBase = (
+    await requireEntitlementForReadAction(workspace, "exercise_catalog")
+  ).ok;
   const template = await deps.lfkTemplates.getTemplate(id, { includePlatformBase });
   if (!template) {
     notFound();

@@ -1,5 +1,5 @@
 import { requireDoctorWorkspaceContext } from "@/app-layer/guards/requireRole";
-import { assertMechanicEnabled } from "@/app-layer/guards/requireEntitlement";
+import { requireEntitlementForReadAction } from "@/app-layer/guards/requireEntitlement";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import { DoctorAppShell } from "@/shared/ui/doctor/DoctorAppShell";
 import { DoctorPageHeader } from "@/shared/ui/doctor/shell/DoctorPageHeader";
@@ -26,7 +26,9 @@ export default async function TreatmentProgramTemplatesPage({ searchParams }: Pa
   const workspace = await requireDoctorWorkspaceContext();
   const session = workspace.session;
   const deps = buildAppDeps();
-  const includePlatformBase = await assertMechanicEnabled(workspace.organizationId, "exercise_catalog");
+  const includePlatformBase = (
+    await requireEntitlementForReadAction(workspace, "exercise_catalog")
+  ).ok;
 
   const sp = (await searchParams) ?? {};
   const listPubArch = parseDoctorCatalogPubArchQuery(sp);

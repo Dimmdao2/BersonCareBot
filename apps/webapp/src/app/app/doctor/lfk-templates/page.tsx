@@ -1,6 +1,6 @@
 import { Suspense } from "react";
 import { requireDoctorWorkspaceContext } from "@/app-layer/guards/requireRole";
-import { assertMechanicEnabled } from "@/app-layer/guards/requireEntitlement";
+import { requireEntitlementForReadAction } from "@/app-layer/guards/requireEntitlement";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import type { ExerciseLoadType } from "@/modules/lfk-exercises/types";
 import {
@@ -43,7 +43,9 @@ export default async function DoctorLfkTemplatesPage({ searchParams }: PageProps
   const listPubArch: DoctorCatalogPubArchQuery = parseDoctorCatalogPubArchQuery(sp);
 
   const deps = buildAppDeps();
-  const includePlatformBase = await assertMechanicEnabled(workspace.organizationId, "exercise_catalog");
+  const includePlatformBase = (
+    await requireEntitlementForReadAction(workspace, "exercise_catalog")
+  ).ok;
   const [rawList, exercises, bodyRegionItems, loadTypeRefItems] = await Promise.all([
     deps.lfkTemplates.listTemplates({
       includeExerciseDetails: true,

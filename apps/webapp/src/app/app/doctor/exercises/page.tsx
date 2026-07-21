@@ -1,5 +1,5 @@
 import { requireDoctorWorkspaceContext } from "@/app-layer/guards/requireRole";
-import { assertMechanicEnabled } from "@/app-layer/guards/requireEntitlement";
+import { requireEntitlementForReadAction } from "@/app-layer/guards/requireEntitlement";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import { DoctorAppShell } from "@/shared/ui/doctor/DoctorAppShell";
 import { doctorCatalogViewFromSearchParams } from "@/shared/lib/doctorCatalogViewPreference";
@@ -34,10 +34,9 @@ export default async function DoctorExercisesPage({ searchParams }: PageProps) {
   const regionParsed = parseDoctorCatalogRegionQueryParam(sp.region);
 
   const deps = buildAppDeps();
-  const includePlatformBase = await assertMechanicEnabled(
-    workspace.organizationId,
-    "exercise_catalog",
-  );
+  const includePlatformBase = (
+    await requireEntitlementForReadAction(workspace, "exercise_catalog")
+  ).ok;
   const [bodyRegionItems, loadTypeRefItems] = await Promise.all([
     deps.references.listActiveItemsByCategoryCode("body_region"),
     deps.references.listActiveItemsByCategoryCode(EXERCISE_LOAD_TYPE_CATEGORY_CODE),
