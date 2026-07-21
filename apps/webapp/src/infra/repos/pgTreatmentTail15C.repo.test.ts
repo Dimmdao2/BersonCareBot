@@ -28,6 +28,10 @@ vi.mock("@/infra/repos/materialRatingTargetVideoMediaIds", () => ({
 
 vi.mock("@bersoncare/db-principal", () => ({
   buildDbPrincipalApplyOptionsFromEnv: vi.fn(() => ({ mode: principalModeState.mode })),
+  getCurrentDbPrincipal: vi.fn(() => ({
+    kind: "organization",
+    organizationId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+  })),
   getCurrentDbPrincipalOrganizationId: vi.fn(() => "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"),
 }));
 

@@ -90,8 +90,10 @@ describe("doctor courses/references residual principal coverage", () => {
     }
 
     const patientHomePage = readSource("src/app/app/patient/page.tsx");
-    expect(patientHomePage).toContain("resolvePatientEnrollmentOrganizationId");
-    expect(patientHomePage).toContain("requireEntitlementForAction(patientOrganization, \"courses\")");
+    expect(patientHomePage).toContain("resolvePatientOrganizationRequestContext");
+    expect(patientHomePage).toContain(
+      'requireEntitlementForAction({ organizationId: patientContext.organizationId }, "courses")',
+    );
     const patientHomeProjection = readSource("src/app/app/patient/home/PatientHomeToday.tsx");
     expect(patientHomeProjection).toContain("withPatientOrganizationPrincipal");
 

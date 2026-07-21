@@ -214,6 +214,7 @@ VALUES
   ('public', 'patient_files', 'SCOPED'),
   ('public', 'patient_home_block_items', 'SCOPED'),
   ('public', 'patient_home_blocks', 'SCOPED'),
+  ('public', 'patient_invites', 'SCOPED'),
   ('public', 'patient_lfk_assignments', 'SCOPED'),
   ('public', 'patient_merge_candidates', 'SCOPED'),
   ('public', 'patient_payment', 'SCOPED'),
@@ -421,5 +422,5 @@ SELECT (
 SELECT 1 / 0 AS p0_5_abort;
 \endif
 
-\echo 'P0.5 role split UP complete: 160 SCOPED tables and 27 BOOTSTRAP tables granted to the app role.'
+\echo 'P0.5 role split UP complete: 161 SCOPED tables and 27 BOOTSTRAP tables granted to the app role.'
 \endif

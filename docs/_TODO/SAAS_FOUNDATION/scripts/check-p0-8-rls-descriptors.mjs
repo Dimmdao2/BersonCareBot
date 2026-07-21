@@ -12,7 +12,7 @@ const expectedTierCounts = new Map([
   ["BOOTSTRAP", 30],
   ["INFRA", 25],
   ["LEGACY", 16],
-  ["SCOPED", 160],
+  ["SCOPED", 161],
   ["TELEMETRY", 5],
 ]);
 
@@ -40,7 +40,7 @@ const expectedScopedFkPathTables = new Set([
   "public.be_patient_package_items",
 ]);
 
-const expectedPublicDirectOrgPolicyTargets = 108;
+const expectedPublicDirectOrgPolicyTargets = 109;
 
 const expectedP083ParentCopyHolds = new Set([
   "public.content_section_slug_history",
@@ -88,8 +88,8 @@ if (duplicates.size > 0) {
   fail(`Duplicate tier rows: ${Array.from(duplicates).sort().join(", ")}`);
 }
 
-if (tierRows.length !== 236) {
-  fail(`Expected 236 tier rows, got ${tierRows.length}`);
+if (tierRows.length !== 237) {
+  fail(`Expected 237 tier rows, got ${tierRows.length}`);
 }
 
 if (descriptors.size !== tierRows.length) {

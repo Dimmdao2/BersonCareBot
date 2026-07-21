@@ -106,6 +106,13 @@ function runChecks(overrides = {}) {
     "GRANT SELECT, UPDATE ON TABLE public.organization_member_invites TO app_owner",
   ]);
   requireFragments(files.patientInvites, loaded.patientInvites, [
+    "ALTER TABLE public.manual_patient_commands ENABLE ROW LEVEL SECURITY",
+    "ALTER TABLE public.manual_patient_commands FORCE ROW LEVEL SECURITY",
+    "CREATE POLICY manual_patient_commands_exact_staff_org ON public.manual_patient_commands",
+    "USING (app.is_staff() AND app.current_org_id() IS NOT NULL AND organization_id = app.current_org_id())",
+    "WITH CHECK (app.is_staff() AND app.current_org_id() IS NOT NULL AND organization_id = app.current_org_id())",
+    "GRANT SELECT, INSERT ON TABLE public.manual_patient_commands TO app_staff",
+    "REVOKE ALL ON TABLE public.manual_patient_commands FROM app_patient",
     "ALTER TABLE public.patient_invites FORCE ROW LEVEL SECURITY",
     "app.is_staff()",
     "organization_id = app.current_org_id()",

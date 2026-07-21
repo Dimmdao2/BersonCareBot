@@ -10,6 +10,7 @@ import { join } from "node:path";
 import { readActualBaseTables, sourceDirs } from "./actual-schema-tables.mjs";
 import { buildRlsDescriptors } from "./rls-descriptor-model.mjs";
 import { getPhase4LockedPolicyTargets } from "./phase4-locked-policy-artifact.mjs";
+import { postPhase4StrictPolicyExceptions } from "./post-phase4-strict-policy-exceptions.mjs";
 
 const repoRoot = process.cwd();
 const cutoverSqlPath = "deploy/postgres/phase4-force-rls-cutover.sql";
@@ -25,37 +26,7 @@ const nonLockedPolicyExceptions = new Map([
         "BOOTSTRAP identity-to-organization resolver is read before an organization context exists (R1 taxonomy).",
     },
   ],
-  [
-    "public.organization_slug_claims",
-    {
-      reason:
-        "Post-Phase-4 U6B slug ownership is created with exact-org FORCE RLS in its own migration.",
-      policyPath: "apps/webapp/db/drizzle-migrations/0218_u6b_organization_slug_claims.sql",
-      policyTokens: [
-        "ALTER TABLE public.organization_slug_claims ENABLE ROW LEVEL SECURITY;",
-        "ALTER TABLE public.organization_slug_claims FORCE ROW LEVEL SECURITY;",
-        "CREATE POLICY organization_slug_claims_exact_org_staff",
-        "USING (organization_id = app.current_org_id())",
-        "WITH CHECK (organization_id = app.current_org_id())",
-      ],
-    },
-  ],
-  [
-    "public.organization_slug_rename_events",
-    {
-      reason:
-        "Post-Phase-4 U6B append-only rename audit is created with exact-org FORCE RLS in its own migration.",
-      policyPath: "apps/webapp/db/drizzle-migrations/0218_u6b_organization_slug_claims.sql",
-      policyTokens: [
-        "ALTER TABLE public.organization_slug_rename_events ENABLE ROW LEVEL SECURITY;",
-        "ALTER TABLE public.organization_slug_rename_events FORCE ROW LEVEL SECURITY;",
-        "CREATE POLICY organization_slug_rename_events_select_org_staff",
-        "CREATE POLICY organization_slug_rename_events_insert_org_staff",
-        "USING (organization_id = app.current_org_id())",
-        "WITH CHECK (organization_id = app.current_org_id())",
-      ],
-    },
-  ],
+  ...postPhase4StrictPolicyExceptions,
 ]);
 
 function fail(message) {

@@ -85,6 +85,7 @@ These route files had `getPool`, `getDrizzle`, `runWebappPgText`, direct query, 
 - `apps/webapp/src/app/api/doctor/clients/[userId]/merge-candidates/route.ts`
 - `apps/webapp/src/app/api/doctor/clients/integrator-merge/route.ts`
 - `apps/webapp/src/app/api/doctor/clients/name-match-hints/route.ts`
+- `apps/webapp/src/app/api/doctor/treatment-program-instances/[instanceId]/media-presign/route.ts`
 - `apps/webapp/src/app/api/integrator/events/route.ts`
 - `apps/webapp/src/app/api/integrator/reminders/messenger-topic/disable/route.ts`
 - `apps/webapp/src/app/api/integrator/reminders/mute/route.ts`

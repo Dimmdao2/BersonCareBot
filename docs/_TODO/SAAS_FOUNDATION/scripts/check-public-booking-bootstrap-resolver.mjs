@@ -79,8 +79,8 @@ function runChecks(overrides = {}) {
     "'app.resolve_public_booking_organization(uuid,uuid,uuid)'::regprocedure",
     "AND privilege.grantee = bootstrap_role.oid",
     "AND NOT privilege.is_grantable",
-    "AND 4 = (",
-    "AND 2 = (",
+    "AND 5 = (",
+    "AND 3 = (",
     "accessor.oid IN (",
     "'app.resolve_public_booking_organization(uuid,uuid,uuid)'::regprocedure",
     "'app.resolve_public_organization_by_slug(text)'::regprocedure",
@@ -140,7 +140,10 @@ if (process.argv.includes("--self-test")) {
       ),
     },
     {
-      d34: readFileSync(paths.d34, "utf8").replace("AND 4 = (", "AND 3 = ("),
+      d34: readFileSync(paths.d34, "utf8").replace("AND 5 = (", "AND 4 = ("),
+    },
+    {
+      d34: readFileSync(paths.d34, "utf8").replace("AND 3 = (", "AND 2 = ("),
     },
     {
       route: readFileSync(paths.route, "utf8").replace(

@@ -2,6 +2,11 @@
 import "@testing-library/jest-dom/vitest";
 import { configure } from "@testing-library/react";
 
+// Keep generic unit tests hermetic from a developer/server runtime .env. Suites that
+// exercise the fail-closed principal boundary opt into `locked` explicitly and restore
+// this baseline after each case.
+process.env.DB_PRINCIPAL_CONTEXT_MODE = "legacy-guc";
+
 // Raise global waitFor/findBy* timeout from 1000ms → 3000ms to prevent
 // timing flakes when the full test suite runs under CPU pressure.
 configure({ asyncUtilTimeout: 3000 });

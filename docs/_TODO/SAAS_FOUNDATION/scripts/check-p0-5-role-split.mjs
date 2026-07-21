@@ -14,7 +14,7 @@ const proofPath = "docs/_TODO/SAAS_FOUNDATION/P0_5_DB_ROLE_SPLIT_PROOF.sql";
 const opsSqlPath = "deploy/postgres/p0-5-role-split.sql";
 
 const expectedCounts = Object.freeze({
-  SCOPED: 160,
+  SCOPED: 161,
   BOOTSTRAP: 27,
 });
 
@@ -163,7 +163,7 @@ function runChecks({ doc = read(docPath), proof = read(proofPath), opsSql = read
     "GRANT USAGE, SELECT ON SEQUENCE %I.%I TO %I",
     "\\if :{?p0_5_down}",
     "DROP ROLE %I",
-    "P0.5 role split UP complete: 160 SCOPED tables and 27 BOOTSTRAP tables granted to the app role.",
+    "P0.5 role split UP complete: 161 SCOPED tables and 27 BOOTSTRAP tables granted to the app role.",
   ]);
 
   forbidFragments("P0.5 proof", proof, [
@@ -252,5 +252,5 @@ if (process.argv.includes("--self-test")) {
 } else {
   runChecks();
   console.log("P0.5 role split contract/proof/ops artifacts OK.");
-  console.log("P0.5 app grant tables: SCOPED=160 BOOTSTRAP=27.");
+  console.log("P0.5 app grant tables: SCOPED=161 BOOTSTRAP=27.");
 }

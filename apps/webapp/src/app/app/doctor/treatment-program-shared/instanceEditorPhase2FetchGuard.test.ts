@@ -36,7 +36,7 @@ describe("instance editor phase 2 — no immediate editor mutation fetch", () =>
 
   it("InstanceAddLibraryItemDialog", () => {
     const source = readModule("./InstanceAddLibraryItemDialog.tsx");
-    expect(source.includes("fetch(")).toBe(false);
+    assertNoForbiddenEditorFetch("InstanceAddLibraryItemDialog", source);
     expect(source.includes("addItemCreate")).toBe(true);
   });
 });

@@ -2,6 +2,7 @@
 
 import { readFileSync } from "node:fs";
 import { readActualBaseTables } from "./actual-schema-tables.mjs";
+import { postPhase4StrictPolicyExceptions } from "./post-phase4-strict-policy-exceptions.mjs";
 import { preScopedDirectOrgTables, readBeFkPathRows, readTierRows } from "./rls-descriptor-model.mjs";
 
 const root = "docs/_TODO/SAAS_FOUNDATION/scope-derivation";
@@ -15,7 +16,7 @@ const expectedTierCounts = Object.freeze({
   BOOTSTRAP: 30,
   INFRA: 25,
   LEGACY: 16,
-  SCOPED: 160,
+  SCOPED: 161,
   TELEMETRY: 5,
 });
 
@@ -57,12 +58,9 @@ function assertUnique(values, label) {
   }
 }
 
-// The P0.10.1 grounding check: tiers-218.tsv must be exactly the set of
-// base tables that actually exist per the repo's own schema declarations
-// and migration history (see actual-schema-tables.mjs — no live DB access,
-// no hand-maintained snapshot TSV). Reports both directions precisely so a
-// drift is actionable immediately, without needing to cross-reference
-// other files:
+// The P0.10.1 grounding check: tiers-218.tsv is the historical Phase 0 set
+// and must exactly match the actual schema after subtracting reviewed
+// post-Phase-4 strict-policy exceptions. Reports both directions precisely:
 //   - IN CODE, NO TIER: a real table with no tier assignment yet.
 //   - IN TSV, NO CODE: a tier row for a table that no longer exists
 //     (renamed/dropped) or never did (typo/stale entry).
@@ -78,6 +76,18 @@ function assertGroundedInActualSchema({ tierTableSet, actualTableSet }) {
         `IN TSV, NO CODE (${inTsvNoCode.length}): ${inTsvNoCode.join(", ") || "<none>"}.`,
       ].join(" "),
     );
+  }
+}
+
+function assertPostPhase4StrictPolicyExceptions({ tierTableSet, actualTableSet, exceptionTableSet }) {
+  const missingFromSchema = setDiff(exceptionTableSet, actualTableSet);
+  const overlappingTierRows = Array.from(exceptionTableSet).filter((table) => tierTableSet.has(table)).sort();
+
+  if (missingFromSchema.length > 0) {
+    fail(`Post-Phase-4 strict-policy exception is missing from actual schema: ${missingFromSchema.join(", ")}`);
+  }
+  if (overlappingTierRows.length > 0) {
+    fail(`Post-Phase-4 strict-policy exceptions must not overlap historical tier rows: ${overlappingTierRows.join(", ")}`);
   }
 }
 
@@ -110,6 +120,7 @@ function buildP0101Facts() {
   const tierTableSet = new Set(tierTables);
   const actualTables = readActualBaseTables();
   const actualTableSet = new Set(actualTables);
+  const postPhase4StrictPolicyExceptionSet = new Set(postPhase4StrictPolicyExceptions.keys());
   const needsOrgTables = readNeedsOrgTables();
   const needsOrgSet = new Set(needsOrgTables);
   const batchTables = readBatchTables();
@@ -139,6 +150,7 @@ function buildP0101Facts() {
     tierTableSet,
     actualTables,
     actualTableSet,
+    postPhase4StrictPolicyExceptionSet,
     needsOrgTables,
     needsOrgSet,
     batchTables,
@@ -157,6 +169,7 @@ function runP0101Invariant({
   tierTables,
   tierTableSet,
   actualTableSet,
+  postPhase4StrictPolicyExceptionSet,
   needsOrgTables,
   needsOrgSet,
   batchTables,
@@ -174,11 +187,15 @@ function runP0101Invariant({
   assertUnique(batchTables, "p0-4-batches.tsv");
   assertUnique(beFkPathTables, "p0-4-be-fk-paths.tsv");
 
-  // Ground truth first: everything below this line assumes tiers-218.tsv
-  // already covers exactly the real schema. As of this writing it does
-  // NOT (see LOG.md) — this is expected to fail until every stray table
-  // gets a tier assignment (tracked separately).
-  assertGroundedInActualSchema({ tierTableSet, actualTableSet });
+  assertPostPhase4StrictPolicyExceptions({
+    tierTableSet,
+    actualTableSet,
+    exceptionTableSet: postPhase4StrictPolicyExceptionSet,
+  });
+  const historicalActualTableSet = new Set(
+    Array.from(actualTableSet).filter((table) => !postPhase4StrictPolicyExceptionSet.has(table)),
+  );
+  assertGroundedInActualSchema({ tierTableSet, actualTableSet: historicalActualTableSet });
 
   for (const [tier, expectedCount] of Object.entries(expectedTierCounts)) {
     const actualCount = tierCounts.get(tier) ?? 0;
@@ -194,8 +211,8 @@ function runP0101Invariant({
     fail(`Unexpected tier(s): ${unexpectedTiers.join(", ")}`);
   }
 
-  if (scopedTables.length !== 160) {
-    fail(`Expected 160 SCOPED tables, got ${scopedTables.length}`);
+  if (scopedTables.length !== 161) {
+    fail(`Expected 161 SCOPED tables, got ${scopedTables.length}`);
   }
 
   if (scopedBeTables.length !== 44) {
@@ -246,6 +263,7 @@ function cloneFacts(facts) {
     tierTableSet: cloneSet(facts.tierTableSet),
     actualTables: [...facts.actualTables],
     actualTableSet: cloneSet(facts.actualTableSet),
+    postPhase4StrictPolicyExceptionSet: cloneSet(facts.postPhase4StrictPolicyExceptionSet),
     needsOrgTables: [...facts.needsOrgTables],
     needsOrgSet: cloneSet(facts.needsOrgSet),
     batchTables: [...facts.batchTables],
@@ -267,8 +285,8 @@ function cloneFacts(facts) {
 // each self-test proves exactly one failure mode.
 function groundedFacts() {
   const facts = cloneFacts(buildP0101Facts());
-  facts.actualTables = [...facts.tierTables];
-  facts.actualTableSet = new Set(facts.tierTables);
+  facts.actualTables = [...facts.tierTables, ...facts.postPhase4StrictPolicyExceptionSet];
+  facts.actualTableSet = new Set(facts.actualTables);
   return facts;
 }
 
@@ -327,12 +345,8 @@ function runSelfTest() {
     /needs-orgid-FINAL\.txt vs SCOPED non-be tables mismatch|P0\.4\.BE FK-path tables must stay outside/,
   );
 
-  // tiers-218.tsv now covers the full actual schema (P0.10.1 W2, taskdb #648: the
-  // 4 stray tables be_organization_members/org_enrollments/system_settings_audit/
-  // broadcast_drafts are tiered — see LOG.md), so the grounding check no longer
-  // has a real drift to report on the unmutated repo state. Prove the grounding
-  // check still fails closed against the REAL (non-synthetic) facts by injecting
-  // a drift directly: drop one real tier row so its table reads as untiered.
+  // Prove the historical grounding still fails closed against a real tier row;
+  // post-Phase-4 strict-policy exceptions stay independently validated above.
   expectFailure(
     "real schema drift is caught (tier row removed)",
     cloneFacts(buildP0101Facts()),
@@ -355,7 +369,7 @@ if (process.argv.includes("--self-test")) {
   console.log(
     [
       "P0.10.1 tier completeness invariant OK:",
-      "tiers-218.tsv tier rows match the actual schema (code + migrations) exactly once;",
+      "historical tiers-218.tsv rows plus reviewed post-Phase-4 strict-policy exceptions match the actual schema;",
       "needs-orgid-FINAL=115 SCOPED non-be tables;",
       "P0.4 batches cover needs-org exactly;",
       "P0.4.BE FK-path tables stay outside needs-org.",

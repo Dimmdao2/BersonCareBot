@@ -65,7 +65,7 @@ function runChecks(overrides = {}) {
     "assertDbPrincipalRequestPoolCheckoutAllowed",
     "assertRoutedWebappPoolCheckoutAllowed",
     "choosePoolKindForPrincipal(principal, input.metrics) === \"staff\" ? input.staffPool : input.nonstaffPool",
-    "principal?.kind === \"organization\" || principal?.kind === \"staff\" ? \"staff\" : \"nonstaff\"",
+    "principal?.kind === \"organization\" || principal?.kind === \"staff\" || principal?.kind === \"platform\"",
     "metrics.poolRoleMismatches += 1",
     "getWebappPoolRoutingMetrics",
   ]);
@@ -85,7 +85,7 @@ function runChecks(overrides = {}) {
   requireFragments(files.withClient, loaded.withClient, [
     "assertDbPrincipalRequestPoolCheckoutAllowed",
     "const principalApplyOptions = getDbPrincipalApplyOptions();",
-    "await clearDbPrincipalFromConnection(client, options);",
+    "await clearDbPrincipalFromConnection(client, options, principal);",
     "client.release(cleanupError instanceof Error ? cleanupError : new Error(\"DB principal cleanup failed\"))",
   ]);
   requireFragmentBefore(
@@ -97,6 +97,7 @@ function runChecks(overrides = {}) {
 
   requireFragments(files.providerTest, loaded.providerTest, [
     "routes staff and organization-scoped principals to the staff pool before checkout",
+    "routes the platform principal through staff transport, SET ROLEs narrowly, and cleans up",
     "routes patient, bootstrap, and missing principals to the nonstaff pool before checkout",
     "rejects missing and infra principals before dual-pool checkout in locked mode",
     "DB infra principal is not allowed to use the webapp request DB pool in locked mode",

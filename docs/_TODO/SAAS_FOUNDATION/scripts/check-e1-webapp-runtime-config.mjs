@@ -24,6 +24,7 @@ const files = {
   maintenanceScreen: "apps/webapp/src/app/app/patient/PatientMaintenanceScreen.tsx",
   playback: "apps/webapp/src/app-layer/media/resolveMediaPlaybackPayload.ts",
   phoneStart: "apps/webapp/src/app/api/auth/phone/start/route.ts",
+  authChannelPolicy: "apps/webapp/src/modules/auth/authChannelPolicy.ts",
   authObservability: "apps/webapp/src/modules/auth/authRouteObservability.ts",
   authExchange: "apps/webapp/src/app/api/auth/exchange/route.ts",
   presignTtl: "apps/webapp/src/app-layer/media/videoPresignTtl.ts",
@@ -519,8 +520,18 @@ function runChecks(overrides = {}) {
     "sourceOperation: family",
   ]);
   requireText(files.phoneStart, loaded.phoneStart, [
-    'getPublicRuntimeBool("public_sms_fallback_enabled")',
+    "isAuthChannelEnabled",
+    "if (!(await isAuthChannelEnabled(deliveryChannel)))",
   ]);
+  requireText(files.authChannelPolicy, loaded.authChannelPolicy, [
+    'email: "auth_email_enabled"',
+    'sms: "auth_sms_enabled"',
+    'telegram: "auth_telegram_enabled"',
+    'max: "auth_max_enabled"',
+    'return getPublicRuntimeBool(SETTING_BY_CHANNEL[channel], "public_auth_config");',
+  ]);
+  forbidText(files.phoneStart, loaded.phoneStart, ['public_sms_fallback_enabled']);
+  forbidText(files.authChannelPolicy, loaded.authChannelPolicy, ['public_sms_fallback_enabled']);
   requireText(files.authObservability, loaded.authObservability, [
     'getServerRuntimeBool("debug_forward_to_admin")',
   ]);
@@ -663,6 +674,8 @@ if (process.argv.includes("--self-test")) {
     ["server accessor", { pgRuntime: read(files.pgRuntime).replace("FROM app.read_webapp_server_runtime_setting($1, $2)", "FROM public.app_runtime_settings") }],
     ["pool operation attribution", { poolProvider: read(files.poolProvider).replace('getCurrentWebappDbOperationFamily() ?? "webapp_db_request"', '"webapp_db_request"') }],
     ["legacy SMS read", { phoneStart: `${read(files.phoneStart)}\nvoid getSmsFallbackEnabled();\n` }],
+    ["legacy SMS direct route read", { phoneStart: `${read(files.phoneStart)}\nvoid getPublicRuntimeBool("public_sms_fallback_enabled");\n` }],
+    ["legacy SMS direct policy read", { authChannelPolicy: `${read(files.authChannelPolicy)}\nvoid getPublicRuntimeBool("public_sms_fallback_enabled");\n` }],
     ["legacy server read", { presignTtl: `${read(files.presignTtl)}\nvoid getConfigPositiveInt();\n` }],
     ["deploy overlay", { deploy: read(files.deploy).replace("E1_WEBAPP_RUNTIME_CONFIG=deploy/postgres/e1-webapp-runtime-config.sql", "E1_WEBAPP_RUNTIME_CONFIG=") }],
     ["telemetry auth role operation", { telemetryOverlay: read(files.telemetryOverlay).replaceAll("auth_role_config", "removed_auth_role_config") }],
