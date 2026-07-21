@@ -79,7 +79,7 @@ export function createTinkoffPaymentProvider(): PaymentProviderPort {
       };
       const token = computeTinkoffToken(params, password);
 
-      const res = await fetchWithTimeout(
+      const body = await fetchWithTimeout(
         "https://securepay.tinkoff.ru/v2/Init",
         {
           method: "POST",
@@ -87,19 +87,19 @@ export function createTinkoffPaymentProvider(): PaymentProviderPort {
           body: JSON.stringify({ ...params, Token: token }),
         },
         { timeoutMs: PAYMENT_PROVIDER_FETCH_TIMEOUT_MS },
+        async (res) => {
+          if (!res.ok) {
+            const text = await res.text().catch(() => "");
+            throw new Error(`tinkoff_create_failed:${res.status}:${text.slice(0, 200)}`);
+          }
+          return (await res.json()) as {
+            Success?: boolean;
+            PaymentId?: string | number;
+            PaymentURL?: string;
+            Message?: string;
+          };
+        },
       );
-
-      if (!res.ok) {
-        const text = await res.text().catch(() => "");
-        throw new Error(`tinkoff_create_failed:${res.status}:${text.slice(0, 200)}`);
-      }
-
-      const body = (await res.json()) as {
-        Success?: boolean;
-        PaymentId?: string | number;
-        PaymentURL?: string;
-        Message?: string;
-      };
 
       if (!body.Success) {
         throw new Error(`tinkoff_create_error:${body.Message ?? "unknown"}`);
@@ -129,7 +129,7 @@ export function createTinkoffPaymentProvider(): PaymentProviderPort {
       };
       const token = computeTinkoffToken(params, password);
 
-      const res = await fetchWithTimeout(
+      const body = await fetchWithTimeout(
         "https://securepay.tinkoff.ru/v2/Cancel",
         {
           method: "POST",
@@ -137,18 +137,18 @@ export function createTinkoffPaymentProvider(): PaymentProviderPort {
           body: JSON.stringify({ ...params, Token: token }),
         },
         { timeoutMs: PAYMENT_PROVIDER_FETCH_TIMEOUT_MS },
+        async (res) => {
+          if (!res.ok) {
+            const text = await res.text().catch(() => "");
+            throw new Error(`tinkoff_refund_failed:${res.status}:${text.slice(0, 200)}`);
+          }
+          return (await res.json()) as {
+            Success?: boolean;
+            PaymentId?: string | number;
+            Message?: string;
+          };
+        },
       );
-
-      if (!res.ok) {
-        const text = await res.text().catch(() => "");
-        throw new Error(`tinkoff_refund_failed:${res.status}:${text.slice(0, 200)}`);
-      }
-
-      const body = (await res.json()) as {
-        Success?: boolean;
-        PaymentId?: string | number;
-        Message?: string;
-      };
 
       if (!body.Success) {
         throw new Error(`tinkoff_refund_error:${body.Message ?? "unknown"}`);

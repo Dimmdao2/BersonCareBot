@@ -20,7 +20,7 @@ export async function exchangeGoogleCode(
   code: string,
   opts: { clientId: string; clientSecret: string; redirectUri: string },
 ): Promise<GoogleTokenResult> {
-  const res = await fetchWithTimeout(
+  const json = await fetchWithTimeout(
     "https://oauth2.googleapis.com/token",
     {
       method: "POST",
@@ -34,12 +34,14 @@ export async function exchangeGoogleCode(
       }),
     },
     { timeoutMs: OAUTH_PROVIDER_FETCH_TIMEOUT_MS },
+    async (res) => {
+      if (!res.ok) {
+        const text = await res.text().catch(() => "");
+        throw new Error(`google_token_exchange_failed: ${res.status} ${text.slice(0, 200)}`);
+      }
+      return (await res.json()) as Record<string, unknown>;
+    },
   );
-  if (!res.ok) {
-    const text = await res.text().catch(() => "");
-    throw new Error(`google_token_exchange_failed: ${res.status} ${text.slice(0, 200)}`);
-  }
-  const json = (await res.json()) as Record<string, unknown>;
   const accessToken = typeof json.access_token === "string" ? json.access_token : "";
   const refreshToken = typeof json.refresh_token === "string" ? json.refresh_token : null;
   if (!accessToken) throw new Error("google_token_missing_access_token");
@@ -51,7 +53,7 @@ export async function refreshGoogleAccessToken(opts: {
   clientSecret: string;
   refreshToken: string;
 }): Promise<string> {
-  const res = await fetchWithTimeout(
+  const json = await fetchWithTimeout(
     "https://oauth2.googleapis.com/token",
     {
       method: "POST",
@@ -64,12 +66,14 @@ export async function refreshGoogleAccessToken(opts: {
       }),
     },
     { timeoutMs: OAUTH_PROVIDER_FETCH_TIMEOUT_MS },
+    async (res) => {
+      if (!res.ok) {
+        const text = await res.text().catch(() => "");
+        throw new Error(`google_refresh_failed: ${res.status} ${text.slice(0, 200)}`);
+      }
+      return (await res.json()) as Record<string, unknown>;
+    },
   );
-  if (!res.ok) {
-    const text = await res.text().catch(() => "");
-    throw new Error(`google_refresh_failed: ${res.status} ${text.slice(0, 200)}`);
-  }
-  const json = (await res.json()) as Record<string, unknown>;
   const accessToken = typeof json.access_token === "string" ? json.access_token : "";
   if (!accessToken) throw new Error("google_refresh_missing_access_token");
   return accessToken;
@@ -78,16 +82,18 @@ export async function refreshGoogleAccessToken(opts: {
 export async function fetchGoogleCalendarList(
   accessToken: string,
 ): Promise<GoogleCalendarListItem[]> {
-  const res = await fetchWithTimeout(
+  const json = await fetchWithTimeout(
     "https://www.googleapis.com/calendar/v3/users/me/calendarList?minAccessRole=writer",
     { headers: { Authorization: `Bearer ${accessToken}` } },
     { timeoutMs: OAUTH_PROVIDER_FETCH_TIMEOUT_MS },
+    async (res) => {
+      if (!res.ok) {
+        const text = await res.text().catch(() => "");
+        throw new Error(`google_calendar_list_failed: ${res.status} ${text.slice(0, 200)}`);
+      }
+      return (await res.json()) as { items?: Array<Record<string, unknown>> };
+    },
   );
-  if (!res.ok) {
-    const text = await res.text().catch(() => "");
-    throw new Error(`google_calendar_list_failed: ${res.status} ${text.slice(0, 200)}`);
-  }
-  const json = (await res.json()) as { items?: Array<Record<string, unknown>> };
   if (!Array.isArray(json.items)) return [];
   return json.items.map((item) => ({
     id: typeof item.id === "string" ? item.id : "",
@@ -98,14 +104,16 @@ export async function fetchGoogleCalendarList(
 
 export async function fetchGoogleUserEmail(accessToken: string): Promise<string | null> {
   try {
-    const res = await fetchWithTimeout(
+    const json = await fetchWithTimeout(
       "https://www.googleapis.com/oauth2/v2/userinfo",
       { headers: { Authorization: `Bearer ${accessToken}` } },
       { timeoutMs: OAUTH_PROVIDER_FETCH_TIMEOUT_MS },
+      async (res) => {
+        if (!res.ok) return null;
+        return (await res.json()) as Record<string, unknown>;
+      },
     );
-    if (!res.ok) return null;
-    const json = (await res.json()) as Record<string, unknown>;
-    return typeof json.email === "string" ? json.email : null;
+    return typeof json?.email === "string" ? json.email : null;
   } catch {
     return null;
   }
@@ -121,18 +129,20 @@ export type GoogleUserProfile = {
 
 export async function fetchGoogleUserProfile(accessToken: string): Promise<GoogleUserProfile | null> {
   try {
-    const res = await fetchWithTimeout(
+    const json = await fetchWithTimeout(
       "https://www.googleapis.com/oauth2/v2/userinfo",
       { headers: { Authorization: `Bearer ${accessToken}` } },
       { timeoutMs: OAUTH_PROVIDER_FETCH_TIMEOUT_MS },
+      async (res) => {
+        if (!res.ok) return null;
+        return (await res.json()) as Record<string, unknown>;
+      },
     );
-    if (!res.ok) return null;
-    const json = (await res.json()) as Record<string, unknown>;
-    const sub = typeof json.id === "string" ? json.id : "";
+    const sub = typeof json?.id === "string" ? json.id : "";
     if (!sub) return null;
-    const email = typeof json.email === "string" ? json.email : null;
-    const name = typeof json.name === "string" ? json.name : null;
-    const emailVerified = json.verified_email === true;
+    const email = typeof json?.email === "string" ? json.email : null;
+    const name = typeof json?.name === "string" ? json.name : null;
+    const emailVerified = json?.verified_email === true;
     return { sub, email, name, emailVerified };
   } catch {
     return null;

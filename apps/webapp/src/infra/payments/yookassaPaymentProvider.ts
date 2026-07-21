@@ -33,7 +33,7 @@ export function createYookassaPaymentProvider(): PaymentProviderPort {
           ? metadata.returnUrl.trim()
           : "https://yookassa.ru";
 
-      const res = await fetchWithTimeout(
+      const body = await fetchWithTimeout(
         "https://api.yookassa.ru/v3/payments",
         {
           method: "POST",
@@ -53,17 +53,17 @@ export function createYookassaPaymentProvider(): PaymentProviderPort {
           }),
         },
         { timeoutMs: PAYMENT_PROVIDER_FETCH_TIMEOUT_MS },
+        async (res) => {
+          if (!res.ok) {
+            const text = await res.text().catch(() => "");
+            throw new Error(`yookassa_create_failed:${res.status}:${text.slice(0, 200)}`);
+          }
+          return (await res.json()) as {
+            id?: string;
+            confirmation?: { confirmation_url?: string };
+          };
+        },
       );
-
-      if (!res.ok) {
-        const text = await res.text().catch(() => "");
-        throw new Error(`yookassa_create_failed:${res.status}:${text.slice(0, 200)}`);
-      }
-
-      const body = (await res.json()) as {
-        id?: string;
-        confirmation?: { confirmation_url?: string };
-      };
       const providerIntentRef = String(body.id ?? "");
       if (!providerIntentRef) throw new Error("yookassa_missing_payment_id");
       return {
@@ -75,7 +75,7 @@ export function createYookassaPaymentProvider(): PaymentProviderPort {
     async refund({ providerIntentRef, amountMinor, currency, idempotencyKey, providerConfig }) {
       const { shopId, secretKey } = requireYookassaCredentials(providerConfig);
       const value = (amountMinor / 100).toFixed(2);
-      const res = await fetchWithTimeout(
+      const body = await fetchWithTimeout(
         "https://api.yookassa.ru/v3/refunds",
         {
           method: "POST",
@@ -90,12 +90,14 @@ export function createYookassaPaymentProvider(): PaymentProviderPort {
           }),
         },
         { timeoutMs: PAYMENT_PROVIDER_FETCH_TIMEOUT_MS },
+        async (res) => {
+          if (!res.ok) {
+            const text = await res.text().catch(() => "");
+            throw new Error(`yookassa_refund_failed:${res.status}:${text.slice(0, 200)}`);
+          }
+          return (await res.json()) as { id?: string };
+        },
       );
-      if (!res.ok) {
-        const text = await res.text().catch(() => "");
-        throw new Error(`yookassa_refund_failed:${res.status}:${text.slice(0, 200)}`);
-      }
-      const body = (await res.json()) as { id?: string };
       return { providerRefundRef: String(body.id ?? idempotencyKey) };
     },
 

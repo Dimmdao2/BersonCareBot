@@ -26,14 +26,15 @@ function isAbortError(error: unknown): boolean {
   return error instanceof Error && (error.name === 'AbortError' || error.name === 'TimeoutError');
 }
 
-export async function fetchWithTimeout(
+export async function fetchWithTimeout<T>(
   input: RequestInfo | URL,
   init: RequestInit | undefined,
   options: {
     timeoutMs: number;
     fetchImpl?: typeof fetch;
   },
-): Promise<Response> {
+  consumeResponse: (response: Response) => Promise<T>,
+): Promise<T> {
   const { timeoutMs, fetchImpl = globalThis.fetch } = options;
   if (!Number.isFinite(timeoutMs) || timeoutMs <= 0) {
     throw new RangeError('fetch_timeout_must_be_positive');
@@ -46,20 +47,34 @@ export async function fetchWithTimeout(
 
   const controller = new AbortController();
   let timedOut = false;
-  const abortFromCaller = (): void => controller.abort(callerSignal?.reason);
+  let rejectTermination: (reason: Error) => void = () => undefined;
+  const termination = new Promise<never>((_resolve, reject) => {
+    rejectTermination = reject;
+  });
+  const abortFromCaller = (): void => {
+    const error = new ExternalFetchAbortedError({ cause: callerSignal?.reason });
+    rejectTermination(error);
+    controller.abort(callerSignal?.reason);
+  };
   callerSignal?.addEventListener('abort', abortFromCaller, { once: true });
 
   const timeoutId = setTimeout(() => {
     timedOut = true;
-    controller.abort(new DOMException('External fetch timed out', 'TimeoutError'));
+    const error = new ExternalFetchTimeoutError(timeoutMs);
+    rejectTermination(error);
+    controller.abort(error);
   }, timeoutMs);
 
   try {
-    return await fetchImpl(input, {
+    const fetchAndConsume = fetchImpl(input, {
       ...init,
       signal: controller.signal,
-    });
+    }).then(consumeResponse);
+    return await Promise.race([fetchAndConsume, termination]);
   } catch (error: unknown) {
+    if (error instanceof ExternalFetchTimeoutError || error instanceof ExternalFetchAbortedError) {
+      throw error;
+    }
     if (timedOut) {
       throw new ExternalFetchTimeoutError(timeoutMs, { cause: error });
     }

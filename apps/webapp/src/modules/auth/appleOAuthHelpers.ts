@@ -48,7 +48,7 @@ export async function exchangeAppleAuthorizationCode(opts: {
     grant_type: "authorization_code",
     redirect_uri: opts.redirectUri,
   });
-  const res = await fetchWithTimeout(
+  return fetchWithTimeout(
     "https://appleid.apple.com/auth/token",
     {
       method: "POST",
@@ -56,12 +56,14 @@ export async function exchangeAppleAuthorizationCode(opts: {
       body,
     },
     { timeoutMs: OAUTH_PROVIDER_FETCH_TIMEOUT_MS },
+    async (res) => {
+      if (!res.ok) {
+        const text = await res.text().catch(() => "");
+        throw new Error(`apple_token_exchange_failed: ${res.status} ${text.slice(0, 200)}`);
+      }
+      return (await res.json()) as AppleTokenResponse;
+    },
   );
-  if (!res.ok) {
-    const text = await res.text().catch(() => "");
-    throw new Error(`apple_token_exchange_failed: ${res.status} ${text.slice(0, 200)}`);
-  }
-  return (await res.json()) as AppleTokenResponse;
 }
 
 export type AppleIdTokenClaims = {

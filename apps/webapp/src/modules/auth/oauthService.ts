@@ -40,9 +40,12 @@ export async function exchangeYandexCode(
     redirect_uri: creds.redirectUri,
   });
 
-  let res: Response;
+  let result:
+    | { kind: "http_error"; status: number }
+    | { kind: "parse_error"; error: unknown }
+    | { kind: "success"; data: YandexTokenResponse };
   try {
-    res = await fetchWithTimeout(
+    result = await fetchWithTimeout(
       "https://oauth.yandex.ru/token",
       {
         method: "POST",
@@ -50,16 +53,25 @@ export async function exchangeYandexCode(
         body: body.toString(),
       },
       { timeoutMs: OAUTH_PROVIDER_FETCH_TIMEOUT_MS, fetchImpl: fetchFn },
+      async (res) => {
+        if (!res.ok) return { kind: "http_error", status: res.status } as const;
+        try {
+          return { kind: "success", data: (await res.json()) as YandexTokenResponse } as const;
+        } catch (error: unknown) {
+          return { kind: "parse_error", error } as const;
+        }
+      },
     );
   } catch (err) {
     throw new Error(`yandex_token_network_error: ${String(err)}`);
   }
 
-  if (!res.ok) {
-    throw new Error(`yandex_token_exchange_failed: ${res.status}`);
+  if (result.kind === "http_error") {
+    throw new Error(`yandex_token_exchange_failed: ${result.status}`);
   }
+  if (result.kind === "parse_error") throw result.error;
 
-  const data = (await res.json()) as YandexTokenResponse;
+  const data = result.data;
   if (!data.access_token) throw new Error("yandex_no_access_token");
   return { accessToken: data.access_token };
 }
@@ -69,22 +81,34 @@ export async function fetchYandexUserInfo(
   accessToken: string,
   fetchFn: typeof fetch = fetch,
 ): Promise<OAuthUserInfo> {
-  let res: Response;
+  let result:
+    | { kind: "http_error"; status: number }
+    | { kind: "parse_error"; error: unknown }
+    | { kind: "success"; data: YandexUserInfoResponse };
   try {
-    res = await fetchWithTimeout(
+    result = await fetchWithTimeout(
       "https://login.yandex.ru/info?format=json",
       { headers: { Authorization: `OAuth ${accessToken}` } },
       { timeoutMs: OAUTH_PROVIDER_FETCH_TIMEOUT_MS, fetchImpl: fetchFn },
+      async (res) => {
+        if (!res.ok) return { kind: "http_error", status: res.status } as const;
+        try {
+          return { kind: "success", data: (await res.json()) as YandexUserInfoResponse } as const;
+        } catch (error: unknown) {
+          return { kind: "parse_error", error } as const;
+        }
+      },
     );
   } catch (err) {
     throw new Error(`yandex_userinfo_network_error: ${String(err)}`);
   }
 
-  if (!res.ok) {
-    throw new Error(`yandex_userinfo_failed: ${res.status}`);
+  if (result.kind === "http_error") {
+    throw new Error(`yandex_userinfo_failed: ${result.status}`);
   }
+  if (result.kind === "parse_error") throw result.error;
 
-  const data = (await res.json()) as YandexUserInfoResponse;
+  const data = result.data;
   return {
     id: data.id,
     email: data.default_email ?? null,
