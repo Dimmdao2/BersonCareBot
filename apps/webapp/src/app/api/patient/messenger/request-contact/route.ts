@@ -4,6 +4,10 @@ import { requestMessengerContactViaIntegrator } from "@/modules/messaging/reques
 import { patientClientBusinessGate } from "@/app-layer/platform-access";
 import { canAccessPatient } from "@/modules/roles/service";
 import { env } from "@/config/env";
+import {
+  AUTH_CHANNEL_DISABLED_ERROR,
+  isAuthChannelEnabled,
+} from "@/modules/auth/authChannelPolicy";
 
 const RATE_LIMIT_MS = 60_000;
 const lastRequestContactByUserId = new Map<string, number>();
@@ -38,6 +42,17 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ ok: false, error: "unauthorized" }, { status: 401 });
   }
 
+  const tg = session.user.bindings.telegramId?.trim() ?? "";
+  const mx = session.user.bindings.maxId?.trim() ?? "";
+  const hint = request.headers.get("x-bersoncare-contact-channel");
+  const target = resolveMessengerContactTarget({ headerHint: hint, telegramId: tg, maxId: mx });
+  if (target && !(await isAuthChannelEnabled(target.channel))) {
+    return NextResponse.json(
+      { ok: false, error: AUTH_CHANNEL_DISABLED_ERROR },
+      { status: 403 },
+    );
+  }
+
   if (env.DATABASE_URL?.trim()) {
     const gate = await patientClientBusinessGate(session);
     if (gate === "stale_session") {
@@ -52,10 +67,6 @@ export async function POST(request: NextRequest) {
     }
   }
 
-  const tg = session.user.bindings.telegramId?.trim() ?? "";
-  const mx = session.user.bindings.maxId?.trim() ?? "";
-  const hint = request.headers.get("x-bersoncare-contact-channel");
-  const target = resolveMessengerContactTarget({ headerHint: hint, telegramId: tg, maxId: mx });
   if (!target) {
     const err = tg && mx ? "contact_channel_required" : "no_messenger_binding";
     return NextResponse.json({ ok: false, error: err }, { status: 400 });

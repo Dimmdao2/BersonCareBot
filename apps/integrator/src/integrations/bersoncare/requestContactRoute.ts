@@ -42,6 +42,7 @@ export type BersoncareRequestContactDeps = {
   dispatchPort: DispatchPort;
   sharedSecret: string;
   db: DbPort;
+  isAuthChannelEnabled: (channel: 'telegram' | 'max') => Promise<boolean>;
   resolveOrganizationIdForMessengerIdentity?: (
     externalId: string,
     resource: 'telegram' | 'max',
@@ -58,6 +59,7 @@ export async function registerBersoncareRequestContactRoute(
     dispatchPort,
     sharedSecret,
     db,
+    isAuthChannelEnabled,
     resolveOrganizationIdForMessengerIdentity,
     resolveDeploymentOrganizationId,
   } = deps;
@@ -113,6 +115,9 @@ export async function registerBersoncareRequestContactRoute(
     }
 
     const { channel, recipientId, idempotencyKey } = parsed.data;
+    if (!(await isAuthChannelEnabled(channel))) {
+      return reply.code(403).send({ ok: false, error: 'auth_channel_disabled' });
+    }
     if (isDuplicate(idempotencyKey)) {
       logger.info({ idempotencyKey }, 'request-contact: duplicate, skipping');
       return reply.code(200).send({ ok: true, status: 'duplicate' });

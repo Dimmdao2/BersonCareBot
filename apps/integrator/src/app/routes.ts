@@ -171,6 +171,7 @@ export async function registerRoutes(app: FastifyInstance, deps: AppDeps): Promi
     dispatchPort: deps.dispatchPort,
     sharedSecret: integratorWebhookSecret(),
     db: createDbPort(),
+    isAuthChannelEnabled: authChannelPolicy,
     resolveOrganizationIdForMessengerIdentity,
     resolveDeploymentOrganizationId,
   });

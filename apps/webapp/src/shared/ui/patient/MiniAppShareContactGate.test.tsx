@@ -53,7 +53,7 @@ describe("MiniAppShareContactGate", () => {
     }) as typeof fetch;
 
     render(
-      <MiniAppShareContactGate>
+      <MiniAppShareContactGate channelPolicy={{ email: true, sms: false, telegram: true, max: true }}>
         <div data-testid="inner">Inside</div>
       </MiniAppShareContactGate>,
     );
@@ -62,6 +62,44 @@ describe("MiniAppShareContactGate", () => {
       expect(screen.getByTestId("inner")).toBeInTheDocument();
     });
     expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument();
+  });
+
+  it("does not offer or initiate request-contact when the current messenger is disabled", async () => {
+    globalThis.fetch = vi.fn(async (url: string | Request) => {
+      const u = typeof url === "string" ? url : (url as Request).url;
+      if (u.includes("/api/me")) {
+        return new Response(
+          JSON.stringify({
+            ok: true,
+            user: { phone: "", bindings: { telegramId: "123" } },
+            platformAccess: { tier: "onboarding" },
+          }),
+          { status: 200, headers: { "Content-Type": "application/json" } },
+        );
+      }
+      if (u.includes("/api/auth/telegram-login/config")) {
+        return new Response(JSON.stringify({ ok: true, botUsername: null }), {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        });
+      }
+      return new Response("", { status: 404 });
+    }) as typeof fetch;
+
+    render(
+      <MiniAppShareContactGate channelPolicy={{ email: true, sms: false, telegram: false, max: true }}>
+        <div data-testid="inner">Inside</div>
+      </MiniAppShareContactGate>,
+    );
+
+    await waitFor(() => {
+      expect(screen.getByRole("alertdialog")).toBeInTheDocument();
+    });
+    expect(screen.queryByRole("button", { name: /Предоставить контакт/i })).not.toBeInTheDocument();
+    expect(globalThis.fetch).not.toHaveBeenCalledWith(
+      expect.stringContaining("/api/patient/messenger/request-contact"),
+      expect.anything(),
+    );
   });
 
   it("shows gate when /api/me has phone but tier is onboarding (untrusted phone)", async () => {
@@ -94,7 +132,7 @@ describe("MiniAppShareContactGate", () => {
     }) as typeof fetch;
 
     render(
-      <MiniAppShareContactGate>
+      <MiniAppShareContactGate channelPolicy={{ email: true, sms: false, telegram: true, max: true }}>
         <div data-testid="inner">Inside</div>
       </MiniAppShareContactGate>,
     );
@@ -273,7 +311,7 @@ describe("MiniAppShareContactGate", () => {
     }) as typeof fetch;
 
     render(
-      <MiniAppShareContactGate>
+      <MiniAppShareContactGate channelPolicy={{ email: true, sms: false, telegram: true, max: true }}>
         <div data-testid="inner">Inside</div>
       </MiniAppShareContactGate>,
     );

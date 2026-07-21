@@ -16,18 +16,32 @@ import {
   resolveBotHrefAfterMessengerSessionLoss,
   resolveMessengerContactGateBotHref,
 } from "@/shared/lib/patientMessengerContactGate";
-import { closeMessengerMiniApp, isMessengerMiniAppHost } from "@/shared/lib/messengerMiniApp";
+import {
+  closeMessengerMiniApp,
+  inferMessengerChannelForRequestContact,
+  isMessengerMiniAppHost,
+} from "@/shared/lib/messengerMiniApp";
 import { postPatientMessengerRequestContact } from "@/shared/lib/patientMessengerContactClient";
 import toast from "react-hot-toast";
 import { usePatientPhonePromptChrome } from "@/shared/ui/patient/PatientPhonePromptChromeContext";
 import { PatientSharePhoneViaBotPanel } from "./PatientSharePhoneViaBotPanel";
+import {
+  FAIL_CLOSED_AUTH_CHANNEL_UI_POLICY,
+  type AuthChannelUiPolicy,
+} from "@/modules/auth/otpChannelUi";
 
 const POLL_MS = 2000;
 const MAX_POLLS = 45;
 
 type GateMode = "inactive" | "loading" | "blocked" | "timed_out" | "session_lost" | "me_unavailable";
 
-export function MiniAppShareContactGate({ children }: { children: React.ReactNode }) {
+export function MiniAppShareContactGate({
+  children,
+  channelPolicy = FAIL_CLOSED_AUTH_CHANNEL_UI_POLICY,
+}: {
+  children: React.ReactNode;
+  channelPolicy?: AuthChannelUiPolicy;
+}) {
   const pathname = usePathname();
   const router = useRouter();
   const phoneChrome = usePatientPhonePromptChrome();
@@ -51,7 +65,9 @@ export function MiniAppShareContactGate({ children }: { children: React.ReactNod
   }, [clearPoll, router]);
 
   const onProvideContact = useCallback(async () => {
-    const r = await postPatientMessengerRequestContact();
+    const channel = inferMessengerChannelForRequestContact();
+    if (!channel || !channelPolicy[channel]) return;
+    const r = await postPatientMessengerRequestContact(channel);
     if (!r.ok) {
       if (r.error === "not_required") {
         closeMessengerMiniApp();
@@ -69,7 +85,7 @@ export function MiniAppShareContactGate({ children }: { children: React.ReactNod
     }
     router.refresh();
     closeMessengerMiniApp();
-  }, [releaseGate, router]);
+  }, [channelPolicy, releaseGate, router]);
 
   useLayoutEffect(() => {
     if (!isMessengerMiniAppHost()) {
@@ -343,6 +359,10 @@ export function MiniAppShareContactGate({ children }: { children: React.ReactNod
     );
   }
 
+  const currentMessengerChannel = inferMessengerChannelForRequestContact();
+  const canProvideContact =
+    currentMessengerChannel != null && channelPolicy[currentMessengerChannel];
+
   return (
     <PatientSharePhoneViaBotPanel
       mode={
@@ -357,7 +377,7 @@ export function MiniAppShareContactGate({ children }: { children: React.ReactNod
       botHref={botHref}
       onRetry={onRetry}
       variant="overlay"
-      onProvideContact={onProvideContact}
+      onProvideContact={canProvideContact ? onProvideContact : undefined}
     />
   );
 }

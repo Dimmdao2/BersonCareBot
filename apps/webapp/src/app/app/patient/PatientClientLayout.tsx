@@ -10,12 +10,14 @@ import { PatientWebPushBootstrap } from "@/shared/ui/patient/webPush/PatientWebP
 import { PatientAnalyticsReporter } from "@/shared/ui/patient/PatientAnalyticsReporter";
 import type { PatientOrganizationSummary } from "@/modules/patient-organization/service";
 import { PatientOrganizationContextProvider } from "@/shared/ui/patient/organization/PatientOrganizationContext";
+import type { AuthChannelUiPolicy } from "@/modules/auth/otpChannelUi";
 
 /** Клиентская обёртка пациентского раздела (гейт Mini App). Серверный редирект по телефону — в `layout.tsx`. */
 export function PatientClientLayout({
   children,
   organizationContext,
   rememberOrganizationOnMount = false,
+  authChannelPolicy,
 }: {
   children: ReactNode;
   organizationContext?: {
@@ -23,6 +25,7 @@ export function PatientClientLayout({
     organizations: PatientOrganizationSummary[];
   } | null;
   rememberOrganizationOnMount?: boolean;
+  authChannelPolicy: AuthChannelUiPolicy;
 }) {
   const content = organizationContext ?
     <PatientOrganizationContextProvider
@@ -35,7 +38,7 @@ export function PatientClientLayout({
   : children;
   return (
     <PatientPhonePromptChromeProvider>
-      <MiniAppShareContactGate>
+      <MiniAppShareContactGate channelPolicy={authChannelPolicy}>
         <PatientWebPushProvider>
           <Suspense fallback={null}>
             <PatientCalendarTimezoneBootstrap />

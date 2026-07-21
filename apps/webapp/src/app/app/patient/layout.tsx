@@ -27,6 +27,7 @@ import {
   stampPatientOrganizationRequestContext,
 } from "@/app-layer/patient-organization/requestContext";
 import { PatientOrganizationRecoveryScreen } from "@/shared/ui/patient/organization/PatientOrganizationContext";
+import { getAuthChannelPolicy } from "@/modules/auth/authChannelPolicy";
 
 function patientPathAllowsGlobalAccountWithoutCareContext(pathname: string): boolean {
   return [
@@ -59,6 +60,8 @@ export default async function PatientLayout({ children }: { children: ReactNode 
     redirect(buildOwnHubUrlWithAccessDeniedToast(session.user.role));
   }
 
+  const authChannelPolicy = await getAuthChannelPolicy();
+
   const returnTo = (pathname.trim() ? pathname : routePaths.patient) + search;
 
   const gate = await patientClientBusinessGate(session);
@@ -79,10 +82,10 @@ export default async function PatientLayout({ children }: { children: ReactNode 
     );
     if (!patientContext.ok) {
       if (patientPathAllowsGlobalAccountWithoutCareContext(pathname)) {
-        return <PatientClientLayout>{children}</PatientClientLayout>;
+        return <PatientClientLayout authChannelPolicy={authChannelPolicy}>{children}</PatientClientLayout>;
       }
       return (
-        <PatientClientLayout>
+        <PatientClientLayout authChannelPolicy={authChannelPolicy}>
           <PatientOrganizationRecoveryScreen
             organizations={patientContext.reason === "organization_selection_required" ? patientContext.organizations : []}
             invalidRememberedOrganization={
@@ -137,7 +140,7 @@ export default async function PatientLayout({ children }: { children: ReactNode 
       const appDisplayTimeZone = await getAppDisplayTimeZone();
 
       return (
-        <PatientClientLayout organizationContext={patientContext}>
+        <PatientClientLayout organizationContext={patientContext} authChannelPolicy={authChannelPolicy}>
           <PatientMaintenanceScreen
             user={session.user}
             message={maintenance.message}
@@ -152,11 +155,12 @@ export default async function PatientLayout({ children }: { children: ReactNode 
       <PatientClientLayout
         organizationContext={patientContext}
         rememberOrganizationOnMount={patientContext.selectedBy === "only_active"}
+        authChannelPolicy={authChannelPolicy}
       >
         {children}
       </PatientClientLayout>
     );
   }
 
-  return <PatientClientLayout>{children}</PatientClientLayout>;
+  return <PatientClientLayout authChannelPolicy={authChannelPolicy}>{children}</PatientClientLayout>;
 }

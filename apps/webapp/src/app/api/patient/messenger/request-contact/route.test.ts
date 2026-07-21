@@ -1,9 +1,10 @@
 import { NextRequest } from "next/server";
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const getCurrentSessionMock = vi.hoisted(() => vi.fn());
 const patientGateMock = vi.hoisted(() => vi.fn());
 const requestMessengerMock = vi.hoisted(() => vi.fn());
+const isAuthChannelEnabledMock = vi.hoisted(() => vi.fn());
 
 vi.mock("@/modules/auth/service", () => ({
   getCurrentSession: getCurrentSessionMock,
@@ -15,6 +16,11 @@ vi.mock("@/app-layer/platform-access", () => ({
 
 vi.mock("@/modules/messaging/requestMessengerContact", () => ({
   requestMessengerContactViaIntegrator: requestMessengerMock,
+}));
+
+vi.mock("@/modules/auth/authChannelPolicy", () => ({
+  AUTH_CHANNEL_DISABLED_ERROR: "auth_channel_disabled",
+  isAuthChannelEnabled: isAuthChannelEnabledMock,
 }));
 
 import { POST } from "./route";
@@ -31,6 +37,11 @@ function sessionWithId(userId: string, bindings: { telegramId?: string; maxId?: 
 }
 
 describe("POST /api/patient/messenger/request-contact", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    isAuthChannelEnabledMock.mockResolvedValue(true);
+  });
+
   it("returns 401 when there is no session", async () => {
     getCurrentSessionMock.mockResolvedValue(null);
     const res = await POST(new NextRequest("http://localhost/api/patient/messenger/request-contact", { method: "POST" }));
@@ -62,6 +73,23 @@ describe("POST /api/patient/messenger/request-contact", () => {
     expect(res.status).toBe(400);
     const body = (await res.json()) as { error?: string };
     expect(body.error).toBe("contact_channel_required");
+    expect(requestMessengerMock).not.toHaveBeenCalled();
+  });
+
+  it("rejects a disabled channel before patient identity lookup or dispatch", async () => {
+    getCurrentSessionMock.mockResolvedValue(
+      sessionWithId("user-disabled-tg", { telegramId: "tg-disabled", maxId: "" }),
+    );
+    isAuthChannelEnabledMock.mockResolvedValue(false);
+
+    const res = await POST(
+      new NextRequest("http://localhost/api/patient/messenger/request-contact", { method: "POST" }),
+    );
+
+    expect(res.status).toBe(403);
+    await expect(res.json()).resolves.toEqual({ ok: false, error: "auth_channel_disabled" });
+    expect(isAuthChannelEnabledMock).toHaveBeenCalledWith("telegram");
+    expect(patientGateMock).not.toHaveBeenCalled();
     expect(requestMessengerMock).not.toHaveBeenCalled();
   });
 

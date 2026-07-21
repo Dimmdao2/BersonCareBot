@@ -17,7 +17,6 @@ import {
   formatOtpRetryAfterMessage,
   OTP_TOO_MANY_ATTEMPTS_MESSAGE,
 } from "@/modules/auth/otpConstants";
-import { getPublicRuntimeBool } from "@/modules/system-settings/configAdapter";
 import { getCurrentSession } from "@/modules/auth/service";
 import { canAccessPatient } from "@/modules/roles/service";
 import { getCurrentDbPrincipalOrganizationId } from "@bersoncare/db-principal";
@@ -89,20 +88,6 @@ export async function POST(request: Request) {
       { ok: false, error: "auth_channel_disabled" },
       { status: 403 },
     );
-  }
-
-  if (deliveryChannel === "sms") {
-    const smsAllowed = await getPublicRuntimeBool("public_sms_fallback_enabled");
-    if (!smsAllowed) {
-      return NextResponse.json(
-        {
-          ok: false,
-          error: "sms_disabled_by_policy",
-          message: "Отправка SMS отключена в настройках приложения.",
-        },
-        { status: 403 },
-      );
-    }
   }
 
   if (channel === "web" && deliveryChannel === "sms") {

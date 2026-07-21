@@ -90,8 +90,36 @@ describe("POST /api/auth/phone/start", () => {
     expect(startPhoneAuth).not.toHaveBeenCalled();
   });
 
-  it("fails closed when the projected public SMS policy is disabled", async () => {
+  it("uses auth_sms_enabled independently of the legacy SMS fallback flag", async () => {
     getPublicRuntimeBool.mockImplementation(async (key: string) => key === "auth_sms_enabled");
+    findByPhone.mockResolvedValue({
+      userId: "sms-user",
+      bindings: { telegramId: null, maxId: null },
+    });
+    const res = await POST(
+      new Request("http://localhost/api/auth/phone/start", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          phone: "+79991234567",
+          channel: "telegram",
+          chatId: "tg-1",
+          deliveryChannel: "sms",
+        }),
+      }),
+    );
+    expect(res.status).toBe(200);
+    expect(getPublicRuntimeBool).toHaveBeenCalledWith("auth_sms_enabled", "public_auth_config");
+    expect(getPublicRuntimeBool).not.toHaveBeenCalledWith("public_sms_fallback_enabled");
+    expect(startPhoneAuth).toHaveBeenCalledWith(
+      "+79991234567",
+      expect.objectContaining({ channel: "telegram", chatId: "tg-1" }),
+      expect.objectContaining({ delivery: { channel: "sms" } }),
+    );
+  });
+
+  it("rejects SMS when the platform auth SMS channel is disabled", async () => {
+    getPublicRuntimeBool.mockImplementation(async (key: string) => key !== "auth_sms_enabled");
     const res = await POST(
       new Request("http://localhost/api/auth/phone/start", {
         method: "POST",
@@ -105,8 +133,8 @@ describe("POST /api/auth/phone/start", () => {
       }),
     );
     expect(res.status).toBe(403);
-    await expect(res.json()).resolves.toMatchObject({ error: "sms_disabled_by_policy" });
-    expect(getPublicRuntimeBool).toHaveBeenCalledWith("public_sms_fallback_enabled");
+    await expect(res.json()).resolves.toEqual({ ok: false, error: "auth_channel_disabled" });
+    expect(findByPhone).not.toHaveBeenCalled();
     expect(startPhoneAuth).not.toHaveBeenCalled();
   });
 

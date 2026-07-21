@@ -23,7 +23,12 @@ function sign(timestamp: string, rawBody: string, secret: string): string {
   return createHmac('sha256', secret).update(`${timestamp}.${rawBody}`).digest('base64url');
 }
 
-async function buildApp(deps: Parameters<typeof registerBersoncareRequestContactRoute>[1]) {
+type RequestContactDeps = Parameters<typeof registerBersoncareRequestContactRoute>[1];
+
+async function buildApp(
+  deps: Omit<RequestContactDeps, 'isAuthChannelEnabled'> &
+    Partial<Pick<RequestContactDeps, 'isAuthChannelEnabled'>>,
+) {
   const app = Fastify();
   app.addContentTypeParser('application/json', { parseAs: 'string' }, (req, body, done) => {
     const raw: string = typeof body === 'string' ? body : (body as Buffer).toString('utf8');
@@ -34,7 +39,10 @@ async function buildApp(deps: Parameters<typeof registerBersoncareRequestContact
       done(e as Error, undefined);
     }
   });
-  await registerBersoncareRequestContactRoute(app, deps);
+  await registerBersoncareRequestContactRoute(app, {
+    ...deps,
+    isAuthChannelEnabled: deps.isAuthChannelEnabled ?? vi.fn().mockResolvedValue(true),
+  });
   return app;
 }
 
@@ -61,6 +69,49 @@ describe('POST /api/bersoncare/request-contact', () => {
       body: rawBody,
     });
     expect(res.statusCode).toBe(401);
+    await app.close();
+  });
+
+  it('rejects a disabled channel before identity lookup, state mutation, or dispatch', async () => {
+    const dispatchOutgoing = vi.fn();
+    const query = vi.fn();
+    const resolveOrganizationIdForMessengerIdentity = vi.fn();
+    const resolveDeploymentOrganizationId = vi.fn();
+    const isAuthChannelEnabled = vi.fn().mockResolvedValue(false);
+    const app = await buildApp({
+      dispatchPort: { dispatchOutgoing },
+      sharedSecret: TEST_SECRET,
+      db: dbWithTx(query),
+      isAuthChannelEnabled,
+      resolveOrganizationIdForMessengerIdentity,
+      resolveDeploymentOrganizationId,
+    });
+    const bodyObj = {
+      channel: 'telegram' as const,
+      recipientId: '999',
+      idempotencyKey: 'idem-disabled',
+    };
+    const rawBody = JSON.stringify(bodyObj);
+    const ts = String(Math.floor(Date.now() / 1000));
+
+    const res = await app.inject({
+      method: 'POST',
+      url: '/api/bersoncare/request-contact',
+      headers: {
+        'content-type': 'application/json',
+        'x-bersoncare-timestamp': ts,
+        'x-bersoncare-signature': sign(ts, rawBody, TEST_SECRET),
+      },
+      body: rawBody,
+    });
+
+    expect(res.statusCode).toBe(403);
+    expect(JSON.parse(res.body)).toEqual({ ok: false, error: 'auth_channel_disabled' });
+    expect(isAuthChannelEnabled).toHaveBeenCalledWith('telegram');
+    expect(resolveOrganizationIdForMessengerIdentity).not.toHaveBeenCalled();
+    expect(resolveDeploymentOrganizationId).not.toHaveBeenCalled();
+    expect(query).not.toHaveBeenCalled();
+    expect(dispatchOutgoing).not.toHaveBeenCalled();
     await app.close();
   });
 
