@@ -221,6 +221,34 @@ unknown class, direct-call checker, auth regression, independent security audit.
 Messenger topology guard не ждёт `MOB-O9`. Конкретные content builders из `N3/N6` используют safe default только в
 DEV fixtures и не получают production release до exact matrix acceptance.
 
+#### N1 launch checkpoint — 2026-07-21
+
+- **Base/task/dependency:** `8d693b5d4`, taskdb `#913`; N0 terminal audit PASS and integrated. The retained C5A
+  evidence branch has no changed-file overlap with this manifest.
+- **Business boundary:** fail closed at the one integrator dispatch contour: Telegram/MAX only for typed
+  `auth_code` or minimal `auth_handshake`; email/SMS only for the same existing authentication purpose until the
+  owner accepts the later account-service allowlist; Web Push remains the migration product transport. No feature
+  route/UI, content-builder migration, bot retirement, provider/config, DB/schema or queue drain belongs here.
+- **Exact writable implementation scope:**
+  `apps/integrator/src/kernel/contracts/events.ts`, `index.ts`, `unifiedMessage.ts`;
+  `apps/integrator/src/infra/adapters/outboundMessagePolicy.ts` (new), `dispatchPort.ts`, `sendUnified.ts`,
+  `channelRouting.ts`;
+  `apps/integrator/src/infra/runtime/worker/outgoingDeliveryWorker.ts`, `doctorBroadcastIntentMenu.ts`;
+  `apps/integrator/src/integrations/bersoncare/relayOutboundRoute.ts`, `sendOtpRoute.ts`, `sendEmailRoute.ts`,
+  `sendSmsRoute.ts`, `dispatchRequestContact.ts`; co-located tests and one co-located static checker/test only.
+  This exact extension over the N0 proposal is required by the N1 typed-contract and auth-regression checklist;
+  product callers cannot supply an arbitrary class through the generic relay payload.
+- **Protected scope:** webapp feature modules/routes, `apps/integrator` provider adapters/clients and DI, root
+  tooling/CI, DB/migrations, settings/env, active SaaS/C5/FIO/Doctor UI files, TEST/PROD/host/provider state.
+- **Acceptance:** typed finite policy; generic relay cannot forge auth capability; unknown/missing/legacy product
+  external delivery is denied before adapter/send without payload logging; Web Push still passes; OTP over existing
+  Telegram/MAX/email/SMS and request-contact handshake pass; worker replay/fake legacy config cannot bypass; a
+  source-backed static checker catches a newly introduced product/provider bypass. Targeted policy/route/worker/auth
+  tests, integrator typecheck/lint and one independent critical security audit are required. Full CI is deferred to
+  the next cross-plan milestone unless the implementation introduces repo-level shared changes.
+- **Open gates:** `MOB-O9`, `G-04B`, account-service templates and any TEST/PROD cutover remain owner/legal gates;
+  they do not block this repository-only topology guard and are not inferred closed by it.
+
 ### N2 — provider-neutral push target and delivery (`AI`, coordinated with `MOB-03`)
 
 - [ ] Notification intent отделён от transport; Web Push/APNs/FCM — adapters одного push capability.

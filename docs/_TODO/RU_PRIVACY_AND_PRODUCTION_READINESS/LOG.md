@@ -1,5 +1,14 @@
 # Execution log
 
+## 2026-07-21 — NTF-01/N1 central egress policy launch checkpoint (`#913`)
+
+- N0 integrated and pushed at `8d693b5d4`; the retained C5A evidence branch has no changed-file overlap with N1.
+  N1 is one integrator-only high-security slice: typed auth capabilities, fail-closed external-channel policy at the
+  existing dispatch chokepoint, auth/request-contact preservation and a direct-bypass checker.
+- The exact file lock is recorded in the stage. No webapp product route/UI, provider client, DB/schema, queue drain,
+  runtime setting, TEST/PROD/host or real send is authorized. `MOB-O9`, `G-04B`, account-service templates and later
+  cutover remain open; full CI waits the next cross-plan milestone unless repo-level shared contracts are introduced.
+
 ## 2026-07-21 — NTF-01/N0 notification-egress census (`#913`, docs-only)
 
 - Completed the existing N0 checklist in `stages/NTF-01_APP_PUSH_AND_MESSENGER_AUTH_ONLY.md` in place. The census
