@@ -27,7 +27,7 @@
 | G3 — тумблеры механик | **решено: только organization/clinic**, не специалист | строить на существующем S4 engine `#888`, не форкать |
 | G4 — split коммуникаций | **решено: 45/55** | согласованный fallback: 50/50 |
 | G5 — онлайн-приём | **решено:** online уже существует; нужна только встроенная включаемая локация «Онлайн» | её toggle гейтит существующие online-галочки услуг; новой схемы не вводить |
-| G6 — общий Doctor UI chrome | **решено:** gap background `#faf9f4`, белая page header, радиусы blocks/KPI/controls `12/8/24px`, padding основных блоков `18px`, белый input, KPI label сверху/value снизу; list rows крупнее/легче, с серым divider `1px` и horizontal padding `18px` | один shared-primitives presentation pass; doctor workspace only, без локального style fork |
+| G6 — общий Doctor UI chrome | **решено:** gap background `#faf9f4`, белая page header, радиусы blocks/KPI/controls `12/8/24px`, padding основных блоков `18px`, белый input, KPI label сверху/value снизу. **Live correction 2026-07-21:** фактический эталон строк — список «На сопровождении» на «Сегодня»; его спокойные укороченные divider, внутреннее выравнивание и крупный лёгкий текст важнее прежней числовой формулировки padding. Применить к спискам «Клиенты» и сообщений/диалогов через shared primitive. | один shared-primitives presentation pass; doctor workspace only, без локального style fork |
 | SCH-G5 — fallback слотов | **owner question `#848`** | не менять строгую/резервную семантику без ответа |
 
 Отдельное точное решение по `#191`: разминки по умолчанию в `12:00` и `15:00` в рабочие дни; существующих клиентов
@@ -145,8 +145,11 @@ deep-link compatibility до принятого U5B routing contract.
   `24px`. Основные блоки используют внутренний отступ `18px`; внутренний `input` имеет белый фон. Локальные копии
   этих классов по страницам не создаются.
 - KPI во всех затронутых doctor surfaces используют один порядок: label сверху, value снизу.
-- Основной шрифт строк doctor-списков становится крупнее и легче без изменения meta/badge/calendar typography;
-  строки разделены серой линией `1px` и имеют горизонтальные внутренние отступы `18px`, выровненные по шапке.
+- Основной шрифт строк doctor-списков становится крупнее и легче без изменения meta/badge/calendar typography.
+  Live-эталон владельца — блок «На сопровождении» на «Сегодня»: divider `1px` не доходит до краёв page-level блока,
+  а текст/иконки имеют тот же спокойный внутренний ритм. Этот behavioral reference применяется к «Клиентам» и
+  спискам сообщений/диалогов и заменяет прежнее буквальное требование размножить `18px` на каждом экране.
+  Выбранный диалог сохраняет понятное состояние, но не превращается в отдельную карточку и не ломает divider rhythm.
 - На странице «Клиенты» поиск переносится из отдельного toolbar под header в правый слот белой page header, на
   одну линию с title. Desktop width совпадает с правой половиной 50/50 split; mobile остаётся доступным и компактным.
 - Это presentation-only stage: metric semantics, list sorting/filtering, patient UI, public booking и page data

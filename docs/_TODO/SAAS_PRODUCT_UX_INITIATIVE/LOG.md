@@ -1,5 +1,13 @@
 # Log — SaaS Product UX Initiative
 
+## 2026-07-21 — Live list-row reference replaces literal padding (`#925`)
+
+Owner selected the actual «На сопровождении» list on «Сегодня» as the visual reference for doctor list rows.
+Its inset hairline dividers, text/icon alignment and larger lighter primary text take precedence over copying a
+literal padding number to every screen. The same shared presentation behavior now applies to «Клиенты» and the
+messages/conversations lists; selected chat state stays clear but does not turn the row into a separate card.
+No sorting, filtering, message or patient data behavior changes in this correction.
+
 ## 2026-07-21 — Platform defaults for clinic-location colors (`#932`)
 
 Owner added a later platform setting for an ordered palette of default colors for newly created physical locations
