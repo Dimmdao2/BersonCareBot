@@ -127,7 +127,12 @@ RSS) как часть приёмки этапа.
       canonical non-owner runtime login. Независимый полный re-audit — PASS; итоговый verifier — PASS (`5/5`).
 - [ ] **C2. `orgId` + сквозной correlation-id в стандартный контекст pino** (webapp→integrator→worker).
       Разблокирует трассировку и A3. Файлы: `apps/*/src/**/logger.ts`, request-middleware/proxy. Размер: **S-M** · Аудит: один.
-- [ ] **F1. dependabot/renovate + `shadcn` → devDependencies** (снимает 2 high из прод-дерева). Размер: **S** · Аудит: один.
+- [x] **F1. dependabot/renovate + `shadcn` → devDependencies** (снимает 2 high из прод-дерева). Размер: **S** · Аудит: один.
+      **Закрыто 2026-07-21:** `03c1dfac1`; выбран один bounded GitHub Dependabot updater для root pnpm workspace
+      (weekly, максимум 5 PR, без auto-merge/deploy), `shadcn@4.7.0` перенесён в devDependencies без lock/resolution
+      drift и отсутствует в production graph всех workspaces. Один независимый аудит — PASS `0/0/0`; offline frozen
+      install, manifest/config proofs и CLI proof — PASS. Реальный Dependabot schedule начнёт работать только после
+      попадания конфига в default branch; это не симулируется локально.
 - [x] **D3. Hard-guard `ALLOW_DEV_AUTH_BYPASS`** — throw при `NODE_ENV=production` на этапе парсинга env.
       Файлы: `apps/webapp/src/app/api/clinic/invites/route.ts:70`, `config/env`. Размер: **S** · Аудит: один.
       **Закрыто 2026-07-21:** `a70b7ce4a`; exact boolean parser отклоняет неоднозначные значения, production с

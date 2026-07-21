@@ -1,5 +1,16 @@
 # Log — SaaS Product UX Initiative
 
+## 2026-07-21 — Hardening F1 dependency automation integrated (`#942`)
+
+Integrated `03c1dfac1`. A single bounded GitHub Dependabot updater now covers the root pnpm workspace weekly with a
+five-PR cap and no auto-merge or deploy behavior. `shadcn@4.7.0` moved from webapp production dependencies to
+devDependencies without version or lock-resolution drift; the recursive production graph for all workspaces no
+longer contains it, while build-time CLI/CSS usage remains available.
+
+The one independent mechanical/security audit passed `0 P0 / 0 P1 / 0 P2`. Offline lock/frozen install, config and
+manifest proofs, prod/dev dependency trees, CLI version and diff-check passed. GitHub scheduling can only be observed
+after the config reaches the default branch; no PR, merge, deploy, registry mutation or full CI was triggered here.
+
 ## 2026-07-21 — Hardening D3 production dev-bypass guard integrated (`#941`)
 
 Integrated `a70b7ce4a`. `ALLOW_DEV_AUTH_BYPASS` now accepts only exact optional boolean text and production with the
