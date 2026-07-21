@@ -1,5 +1,28 @@
 # Log — SaaS Product UX Initiative
 
+## 2026-07-21 — Hardening C2 and Phase 0 milestone closed (`#940`)
+
+Integrated `693c10d98` + `7055287ba`. The existing `@bersoncare/db-principal` AsyncLocalStorage and existing pino
+loggers now carry one bounded UUID correlation identity plus trusted organization context across webapp ingress,
+webapp→integrator transports, Fastify, outgoing-delivery persistence/worker processing, long polling and media jobs.
+No second context/logger, inbound organization header, per-request database call or synchronous network hop was
+added.
+
+The first independent audit failed `0/2/0`: some bootstrap routes regenerated the id after proxy validation, and a
+raw legacy auth header could override the safe pino field. One coherent correction made all current bootstrap and
+integrator ingress request-bound, removed the raw field and added a recursive route census. Terminal re-audit passed
+`0/0/0`. The accumulated milestone then found only integration mechanics: shared-package typecheck ordering and
+stale partial test mocks (`564e26b9f`, `40904546a`), U9A fallback-key generator drift (`e08481969`) and a static
+principal-census marker for the already-secure notification-template route (`56be482e1`).
+
+The complete command-equivalent Phase 0 CI gate passed after resuming from each failed command: lint/static guards,
+all workspace typechecks, HLS sync, integrator tests (`1319` passed), the full webapp suite plus all exact resumed
+failures (`76/76`), media-worker (`61` passed), backend and production webapp builds, SaaS/hard-migration/isolation/
+smoke audits and registry audit. Dependency audit initially read a stale local install; offline frozen synchronization
+confirmed the already-integrated patched lock (`650ae57f4`) and the final audit reported no known vulnerabilities.
+Migration `0224` remained fail-closed against the working DEV database (`42501`); no schema apply, deploy, TEST or
+PROD action was performed.
+
 ## 2026-07-21 — Hardening F1 dependency automation integrated (`#942`)
 
 Integrated `03c1dfac1`. A single bounded GitHub Dependabot updater now covers the root pnpm workspace weekly with a

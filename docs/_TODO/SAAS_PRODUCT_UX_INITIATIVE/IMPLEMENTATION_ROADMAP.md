@@ -726,6 +726,14 @@ downgrade/over-limit сохраняют memberships и блокируют нов
    **F1 status (2026-07-21):** [x] `#942` интегрирован как `03c1dfac1`; один ограниченный GitHub Dependabot updater
    обслуживает root pnpm workspace без auto-merge/deploy, а `shadcn` исключён из production dependency graph и
    остаётся доступным на build-time как devDependency. Один независимый аудит — PASS `0/0/0`.
+   **C2 status (2026-07-21):** [x] `#940` интегрирован как `693c10d98` + `7055287ba`; bounded UUID correlation и
+   trusted organization context проходят через существующий principal ALS/pino от webapp ingress к integrator и
+   очередям/workers. Один coherent correction закрыл два audit P1; terminal re-audit — PASS `0/0/0`. Milestone
+   integration compatibility зафиксирована `564e26b9f` + `40904546a`.
+   **Hardening Phase 0 milestone (2026-07-21): [x] green.** Полный command-equivalent CI gate завершён через resume
+   с точек падения: lint, typecheck, HLS sync, integrator/webapp/media tests, оба builds, SaaS/migration/static audits
+   и registry audit PASS. U9A generator drift исправлен `e08481969`; новый platform principal marker признан
+   статическим audit census в `56be482e1`. DB/deploy/TEST/PROD не затрагивались.
 4. **Unsupported-client Ф0/Ф1 — параллельно после Phase 0 contract check:** repository/DEV watchdog, bounded
    ingress, SSR fallback и synthetic old-client/zero-JS proof. Persisted analytics зависит от C6 + `LOG-01`;
    TEST activation и сбор реальной telemetry требуют отдельного owner разрешения. Ф2 admin card создаётся только

@@ -125,8 +125,15 @@ RSS) как часть приёмки этапа.
       приватный ephemeral PostgreSQL из A0 baseline, применяет актуальные миграции и доказывает own-org access,
       cross-org denial, principal-full access и буквальный FORCE-RLS fail-closed без signed principal для обоих
       canonical non-owner runtime login. Независимый полный re-audit — PASS; итоговый verifier — PASS (`5/5`).
-- [ ] **C2. `orgId` + сквозной correlation-id в стандартный контекст pino** (webapp→integrator→worker).
+- [x] **C2. `orgId` + сквозной correlation-id в стандартный контекст pino** (webapp→integrator→worker).
       Разблокирует трассировку и A3. Файлы: `apps/*/src/**/logger.ts`, request-middleware/proxy. Размер: **S-M** · Аудит: один.
+      **Закрыто 2026-07-21:** интеграционные коммиты `693c10d98` + `7055287ba`; существующий principal ALS и
+      pino переиспользованы для bounded UUID correlation и trusted organization context через webapp, integrator,
+      outgoing-delivery и media worker. Первый независимый аудит нашёл два P1: часть webapp ingress генерировала
+      второй id, а raw legacy auth header мог переопределить безопасное log-поле. Один coherent correction закрыл
+      оба finding и добавил полный request-bound route census; terminal re-audit — PASS `0/0/0`. Milestone CI
+      дополнительно закрыл stale partial mocks и deterministic shared-package typecheck ordering (`564e26b9f`,
+      `40904546a`).
 - [x] **F1. dependabot/renovate + `shadcn` → devDependencies** (снимает 2 high из прод-дерева). Размер: **S** · Аудит: один.
       **Закрыто 2026-07-21:** `03c1dfac1`; выбран один bounded GitHub Dependabot updater для root pnpm workspace
       (weekly, максимум 5 PR, без auto-merge/deploy), `shadcn@4.7.0` перенесён в devDependencies без lock/resolution
@@ -139,6 +146,13 @@ RSS) как часть приёмки этапа.
       включённым bypass падает на config/startup boundary, оба dev-auth route остаются fail-closed, а production
       invite не раскрывает token и не смягчает delivery failure. Один независимый security-аудит — PASS `0/0/0`;
       targeted tests, typecheck, scoped lint и реальный production config-import proof — PASS.
+
+**Phase 0 milestone status (2026-07-21): [x] green.** Lint/static security gates, all workspace typechecks, HLS
+sync, integrator tests (`177` files; `1319` passed), webapp full suite plus exact resumed failures (`1498` initially
+passed and all `8` failed files then passed `76/76`), media-worker (`14` files; `61` passed), backend/webapp builds,
+SaaS/migration audits and registry audit all passed. CI was resumed from each failing command instead of restarting
+already-green expensive steps. Working DEV migration `0224` remained fail-closed with SQLSTATE `42501`; no database
+apply, TEST/PROD or deploy is claimed.
 
 ### Phase 1 — Максимальное снижение риска (параллельно, независимые file-scope)
 - [ ] **A3. Замкнуть детект в проде.** Завести isolation-события (`missing_principal`) в 5-минутный
