@@ -115,12 +115,16 @@ RSS) как часть приёмки этапа.
       Размер: **M** · Аудит: **полный адверсарный** (migration integrity + PII-free artifact).
       **Закрыто 2026-07-21:** интеграционные коммиты `dd4241f65` + `b6222cd40`; static gate `6/6`, обычный и
       append-only disposable restore, SIGTERM-during-migration cleanup и полный независимый re-audit — PASS.
-- [ ] **A1. RLS-conformance harness в CI.** Поднять Postgres-сервис в `ci.yml`, прогнать миграции в `locked`-режиме,
+- [x] **A1. RLS-conformance harness в CI.** Поднять Postgres-сервис в `ci.yml`, прогнать миграции в `locked`-режиме,
       посеять org A + org B, три ассерта: (а) принципал видит только свою орг; (б) **запрос без принципала под
       FORCE-RLS → пусто/ошибка, но НЕ строки чужой орг**; (в) principal-full видит строки. Завести в мерж-гейт.
       _Почему keystone: без этого A2/A4/B1/B3 нечем верифицировать против реальности._
       Файлы: `.github/workflows/ci.yml`, `apps/webapp/vitest.setup.ts:30`, `vitest.globalSetup.ts`, `package.json:test:with-db`.
       Размер: **M** · Аудит: **полный адверсарный** (это про изоляцию).
+      **Закрыто 2026-07-21:** интеграционные коммиты `296ec6e33` + `14c9b7ca7`; dedicated CI gate поднимает
+      приватный ephemeral PostgreSQL из A0 baseline, применяет актуальные миграции и доказывает own-org access,
+      cross-org denial, principal-full access и буквальный FORCE-RLS fail-closed без signed principal для обоих
+      canonical non-owner runtime login. Независимый полный re-audit — PASS; итоговый verifier — PASS (`5/5`).
 - [ ] **C2. `orgId` + сквозной correlation-id в стандартный контекст pino** (webapp→integrator→worker).
       Разблокирует трассировку и A3. Файлы: `apps/*/src/**/logger.ts`, request-middleware/proxy. Размер: **S-M** · Аудит: один.
 - [ ] **F1. dependabot/renovate + `shadcn` → devDependencies** (снимает 2 high из прод-дерева). Размер: **S** · Аудит: один.

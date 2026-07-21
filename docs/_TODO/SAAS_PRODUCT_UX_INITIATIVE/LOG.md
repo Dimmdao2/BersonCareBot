@@ -1,5 +1,18 @@
 # Log — SaaS Product UX Initiative
 
+## 2026-07-21 — Hardening A1 real-PostgreSQL tenant gate integrated (`#937`)
+
+Integrated `296ec6e33` + `14c9b7ca7`. The dedicated serialized CI gate restores the versioned A0 baseline into a
+private ephemeral PostgreSQL, applies the current migrations and verifies two synthetic organizations through the
+canonical non-owner staff and patient runtime roles. It proves own-organization access, cross-organization denial,
+controlled principal-full access and literal FORCE-RLS denial when no signed principal context exists.
+
+The initial audit found that missing-principal behavior was only indirectly covered. One coherent correction added
+fresh direct database sessions for both base logins; the full independent re-audit passed `0 P0 / 0 P1 / 0 P2`.
+The verifier passed on the integrated feature SHA (`5/5` static checks plus real PostgreSQL). No working database,
+DEV server, TEST/PROD environment or deploy was touched. Full CI remains serialized at the accumulated Phase 0
+milestone.
+
 ## 2026-07-21 — Live list-row reference replaces literal padding (`#925`)
 
 Owner selected the actual «На сопровождении» list on «Сегодня» as the visual reference for doctor list rows.
