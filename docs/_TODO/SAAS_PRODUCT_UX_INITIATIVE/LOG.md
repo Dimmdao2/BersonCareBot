@@ -3717,3 +3717,24 @@ UI-9 / `#564` may run in parallel: C4D `#724` is complete, `#565` provides the d
 independent from `#806`, and migration lanes are reserved as `0220` for invite activation and `0221` for the
 individual-exercise stage. Heavy CI and live DEV remain serialized. After U3B, invite activation supplies the honest
 path for the remaining U5A two-organization/revoked-selection seals; U5B/UI-5 follows only after those seals.
+
+## 2026-07-21 — `#806` email-first invite slice integrated
+
+The initial invite implementation and coherent security correction were rebased onto the current feature branch and
+integrated as `e74ee8b82` and `08a0449e2`. The full terminal re-audit found no remaining P0/P1 issue. It confirmed
+explicit portal activation instead of legacy relationship inference, FK-safe reissue, single-use bearer exchange,
+purpose-scoped signed OTP proof, no internal identity disclosure, signed canonical-principal redeem, trusted-IP plus
+artifact rate limits, organization re-check under lock, exact-org FORCE RLS/ACL and both ordinary production
+migration-overlay closures. No production script was executed.
+
+The re-audit's only P2 was an owner-mapped recovery-copy mismatch: inline start/confirm errors collapsed terminal
+revoked/superseded/expired/already-linked/organization states, and PostgreSQL returned a generic code for a mistyped
+recipient email. The bounded local correction `fd0ac2166` reuses the existing lifecycle copy, preserves an editable
+wrong-recipient recovery and aligns PostgreSQL with the in-memory contract. The focused contract test passed `11/11`,
+webapp typecheck and scoped ESLint passed, and the guarded disposable PostgreSQL proof again passed forward/rollback,
+reissue, wrong-recipient, single-use, cross-org, concurrent one-winner redeem and ACL/FORCE; scratch state was removed.
+No new audit round or full CI was added.
+
+This closes only the email-first invite/activation slice. Task `#806` remains `doing` for the separately manifested
+owner-required patient/card creation without phone or email. U3B also retains its named SMS/PBK/PWA/install/push and
+milestone acceptance work; no DEV/TEST/PROD database, deploy or external delivery action occurred.

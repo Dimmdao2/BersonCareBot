@@ -926,8 +926,17 @@ care state. Public self-booking remains another entry and can continue safely in
   desktop/mobile/API acceptance passed, including one real visit on exact replay and a non-mutating redirect proof.
   The disposable PostgreSQL two-connection race remains a named U3B milestone check. Invite/activation/PBK/PWA
   work remains open and is not implied by this slice.
-- **Completion:** [x] manual card + appointment + walk-in complete; [ ] not-activated/invited/linked states truthful;
-  [ ] identity-to-existing-card link exactly-once; [ ] PIN/SMS/PBK complete; [ ] no internal-id authority; [ ] first value
+- **Status (2026-07-21, `#806` invite slice):** exact-organization email-first portal invitation is integrated
+  through `fd0ac2166`. A hashed bearer is exchanged once into a short-lived continuation; purpose-scoped OTP proof
+  exposes no internal patient/email/challenge identity; redeem derives the signed canonical patient principal and
+  atomically activates only the invited enrollment. Legacy `active` relationships are not guessed as portal-linked;
+  reissue, revoke, supersede, expiry, wrong-recipient, already-linked and disabled-organization recovery are truthful.
+  Trusted-IP/artifact limits, FORCE RLS/ACL and ordinary migration-overlay closure are present. The terminal security
+  re-audit closed all P0/P1 findings; its single recovery-copy P2 was corrected locally with targeted tests and a
+  repeat disposable PostgreSQL proof. The remaining no-phone/no-email patient-creation path is a separately manifested
+  `#806` substage; SMS/PBK/PWA/install/push remain outside this invite slice.
+- **Completion:** [x] manual card + appointment + walk-in complete; [x] not-activated/invited/linked states truthful;
+  [x] identity-to-existing-card link exactly-once; [ ] PIN/SMS/PBK complete; [x] no internal-id authority; [ ] first value
   before install; [ ] installed re-auth/context; [ ] delivery privacy; [ ] full audit PASS.
 - **Merge dependency:** U1 + U5A; deferred clinic-staff stage U3A is not a dependency.
 
