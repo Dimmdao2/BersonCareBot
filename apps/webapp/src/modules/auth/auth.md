@@ -109,6 +109,20 @@ Tier **`patient`** (доступ к основному пациентскому 
 
 - Отдельные публичные auth-route могут дополнительно логировать **`logAuthRouteTiming`** (см. реализации маршрутов); секреты в лог не попадают.
 
+### Unsupported-client boot fallback (Ф0, dormant)
+
+- Единый RSC-чокпоинт `AppEntryRsc` для `/app`, `/app/tg`, `/app/max` при включённом глобальном public runtime-флаге
+  `patient_unsupported_client_fallback_enabled` вставляет скрытую SSR-заглушку и classic ES5-safe watchdog.
+  Дефолт флага — `false`; TEST/PROD-активация и реальное окно сбора остаются отдельным owner gate.
+- Раннее исполнение client-модуля отмечает `module_executed`, mount `AuthBootstrap` — `react_mounted`; здоровый mount
+  отменяет watchdog. Существующие `MESSENGER_*` таймауты остаются отдельным auth-flow и не считаются boot failure.
+- `POST /api/patient-app/client-boot-report` принимает только bounded/minimized strict payload, лимитируется по
+  доверенному `X-Real-IP` через DB sliding-window port и пишет только structured `info`/`warn` с
+  `scope=patient_client_env`, `event=unsupported_client_boot`. Raw UA/stack/body/tokens/account ids не принимаются;
+  product analytics, registration failure, audit и operator-health не вызываются.
+- UA-матрица (`supportedClientMatrix.ts`) используется только для классификации/текста и никогда не понижает bundle
+  baseline и не ограничивает доступ.
+
 ### Phone messenger bind (вход / привязка по `auth_*`)
 
 Поток для **публичного браузера/PWA** и **inline-привязки в профиле**, когда у номера ещё нет привязки TG/Max для OTP: вместо SMS — deep link в бота, контакт; дальше ветка по **`purpose`**.

@@ -20,7 +20,13 @@ export type RealIpRateLimitClientKeyResult =
  */
 export function resolveRealIpRateLimitClientKey(
   request: Request,
-  opts: { scope: string; logPrefix: string; fallbackKey: string },
+  opts: {
+    scope: string;
+    logPrefix: string;
+    fallbackKey: string;
+    productionMissingLogLevel?: "error" | "warn";
+    event?: string;
+  },
 ): RealIpRateLimitClientKeyResult {
   const real = request.headers.get("x-real-ip")?.trim();
   if (real && real.length > 0) {
@@ -28,11 +34,14 @@ export function resolveRealIpRateLimitClientKey(
   }
 
   if (env.NODE_ENV === "production") {
-    logger.error({
+    const fields = {
       msg: `${opts.logPrefix}_x_real_ip_required`,
       scope: opts.scope,
+      ...(opts.event ? { event: opts.event } : {}),
       reason: "missing_x_real_ip",
-    });
+    };
+    if (opts.productionMissingLogLevel === "warn") logger.warn(fields);
+    else logger.error(fields);
     return { ok: false, reason: "missing_x_real_ip" };
   }
 

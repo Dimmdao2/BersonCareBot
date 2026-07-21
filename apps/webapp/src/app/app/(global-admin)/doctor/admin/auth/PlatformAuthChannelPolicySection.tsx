@@ -8,6 +8,7 @@ import type { AuthChannelUiPolicy } from "@/modules/auth/otpChannelUi";
 
 type PolicyKey = keyof AuthChannelUiPolicy;
 type SettingKey = `auth_${PolicyKey}_enabled`;
+const UNSUPPORTED_CLIENT_FALLBACK_KEY = "patient_unsupported_client_fallback_enabled" as const;
 
 const CHANNELS: ReadonlyArray<{ channel: PolicyKey; label: string; hint: string }> = [
   { channel: "email", label: "Email-коды", hint: "Разрешить вход и регистрацию по одноразовому коду из письма." },
@@ -28,8 +29,9 @@ function readBoolean(valueJson: unknown): boolean {
 
 export function PlatformAuthChannelPolicySection() {
   const [policy, setPolicy] = useState<AuthChannelUiPolicy>(EMPTY_POLICY);
+  const [unsupportedClientFallbackEnabled, setUnsupportedClientFallbackEnabled] = useState(false);
   const [loaded, setLoaded] = useState(false);
-  const [saving, setSaving] = useState<PolicyKey | null>(null);
+  const [saving, setSaving] = useState<PolicyKey | typeof UNSUPPORTED_CLIENT_FALLBACK_KEY | null>(null);
 
   useEffect(() => {
     let active = true;
@@ -48,6 +50,9 @@ export function PlatformAuthChannelPolicySection() {
           next[channel.channel] = readBoolean(setting?.valueJson);
         }
         setPolicy(next);
+        setUnsupportedClientFallbackEnabled(readBoolean(
+          data.settings.find((item) => item.key === UNSUPPORTED_CLIENT_FALLBACK_KEY)?.valueJson,
+        ));
         setLoaded(true);
       })
       .catch(() => {
@@ -79,26 +84,60 @@ export function PlatformAuthChannelPolicySection() {
     }
   }
 
+  async function updateUnsupportedClientFallback(enabled: boolean): Promise<void> {
+    const previous = unsupportedClientFallbackEnabled;
+    setUnsupportedClientFallbackEnabled(enabled);
+    setSaving(UNSUPPORTED_CLIENT_FALLBACK_KEY);
+    try {
+      const response = await fetch("/api/platform/settings", {
+        method: "PATCH",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ key: UNSUPPORTED_CLIENT_FALLBACK_KEY, value: enabled }),
+      });
+      const data = (await response.json().catch(() => ({}))) as { ok?: boolean };
+      if (!response.ok || !data.ok) throw new Error("save_failed");
+    } catch {
+      setUnsupportedClientFallbackEnabled(previous);
+      toast.error("Не удалось сохранить настройку");
+    } finally {
+      setSaving(null);
+    }
+  }
+
   return (
-    <DoctorSection>
-      <DoctorSectionHeader>
-        <DoctorSectionTitle>Доступные способы входа</DoctorSectionTitle>
-      </DoctorSectionHeader>
-      <div className="grid gap-4 md:grid-cols-2">
-        {CHANNELS.map(({ channel, label, hint }) => (
-          <LabeledSwitch
-            key={channel}
-            label={label}
-            hint={hint}
-            checked={policy[channel]}
-            disabled={!loaded || saving !== null}
-            onCheckedChange={(enabled) => void updateChannel(channel, enabled)}
-          />
-        ))}
-      </div>
-      <p className="text-xs text-muted-foreground">
-        Парольный вход по email остаётся доступен независимо от переключателя email-кодов.
-      </p>
-    </DoctorSection>
+    <>
+      <DoctorSection>
+        <DoctorSectionHeader>
+          <DoctorSectionTitle>Доступные способы входа</DoctorSectionTitle>
+        </DoctorSectionHeader>
+        <div className="grid gap-4 md:grid-cols-2">
+          {CHANNELS.map(({ channel, label, hint }) => (
+            <LabeledSwitch
+              key={channel}
+              label={label}
+              hint={hint}
+              checked={policy[channel]}
+              disabled={!loaded || saving !== null}
+              onCheckedChange={(enabled) => void updateChannel(channel, enabled)}
+            />
+          ))}
+        </div>
+        <p className="text-xs text-muted-foreground">
+          Парольный вход по email остаётся доступен независимо от переключателя email-кодов.
+        </p>
+      </DoctorSection>
+      <DoctorSection>
+        <DoctorSectionHeader>
+          <DoctorSectionTitle>Совместимость устройств</DoctorSectionTitle>
+        </DoctorSectionHeader>
+        <LabeledSwitch
+          label="Помощь при сбое запуска"
+          hint="Показывать страницу помощи и принимать обезличенный технический сигнал, если приложение не запустилось."
+          checked={unsupportedClientFallbackEnabled}
+          disabled={!loaded || saving !== null}
+          onCheckedChange={(enabled) => void updateUnsupportedClientFallback(enabled)}
+        />
+      </DoctorSection>
+    </>
   );
 }

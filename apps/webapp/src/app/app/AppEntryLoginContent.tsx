@@ -13,6 +13,7 @@ import { LegalFooterLinks } from "@/shared/ui/patient/LegalFooterLinks";
 import type { MessengerSurfaceHint } from "@/shared/lib/platform";
 import type { PrefetchedPublicAuthConfig } from "@/shared/ui/patient/auth/AuthFlowV2";
 import type { UnauthenticatedAppEntryClassification } from "@/modules/auth/appEntryClassification";
+import { CLIENT_BOOT_ACTIVE_CONTENT_ID } from "@/modules/auth/clientBootWatchdog";
 
 type AppEntryLoginContentProps = {
   allowDevBypass: boolean;
@@ -39,7 +40,7 @@ export function AppEntryLoginContent({
   routeBoundMiniappEntry = false,
 }: AppEntryLoginContentProps) {
   return (
-    <>
+    <div id={CLIENT_BOOT_ACTIVE_CONTENT_ID}>
       <div id="app-entry-content" className="flex flex-col gap-6">
         {allowDevBypass ? (
           <div id="app-entry-dev-bypass-panel" className={cn(patientHeroBookingSectionClass, "mt-2 flex flex-col gap-4")}>
@@ -102,6 +103,6 @@ export function AppEntryLoginContent({
         />
       </Suspense>
       <LegalFooterLinks className="mt-8" supportHref={supportContactHref} />
-    </>
+    </div>
   );
 }

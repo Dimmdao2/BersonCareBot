@@ -3,6 +3,7 @@
  */
 
 import { redirect } from "next/navigation";
+import { headers } from "next/headers";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import { env } from "@/config/env";
 import {
@@ -18,6 +19,9 @@ import { getMessengerSurfaceHint, getPlatformEntry } from "@/shared/lib/platform
 import type { MessengerSurfaceHint } from "@/shared/lib/platform";
 import { PatientAppShell } from "@/shared/ui/patient/PatientAppShell";
 import { AppEntryLoginContent } from "./AppEntryLoginContent";
+import { PatientUnsupportedClientFallback } from "./PatientUnsupportedClientFallback";
+import { getUnsupportedClientFallbackEnabled } from "@/modules/auth/unsupportedClientFallback";
+import { parseSupportedClientEnvironment } from "@/modules/auth/supportedClientMatrix";
 
 export type AppEntrySearchParams = { next?: string; t?: string; token?: string; switch?: string };
 
@@ -51,10 +55,11 @@ export async function AppEntryRsc({
     redirect(`/api/auth/dev-bypass?${params.toString()}`);
   }
 
-  const [prefetchedPublicAuth, platformEntry, messengerSurface] = await Promise.all([
+  const [prefetchedPublicAuth, platformEntry, messengerSurface, unsupportedClientFallbackEnabled] = await Promise.all([
     buildPrefetchedPublicAuthConfig(),
     getPlatformEntry(),
     getMessengerSurfaceHint(),
+    getUnsupportedClientFallbackEnabled(),
   ]);
   const entryClassification = classifyUnauthenticatedAppEntry({
     platformEntry,
@@ -67,6 +72,15 @@ export async function AppEntryRsc({
     routeBoundMessengerSurface != null ? true : platformEntry === "bot";
   const serverMessengerSurface =
     routeBoundMessengerSurface ?? (platformEntry === "bot" ? messengerSurface : null);
+  const clientEnvironment = unsupportedClientFallbackEnabled
+    ? parseSupportedClientEnvironment((await headers()).get("user-agent") ?? "")
+    : null;
+  const watchdogEntrySurface =
+    routeBoundMessengerSurface === "telegram" || entryClassification === "telegram_miniapp"
+      ? "tg"
+      : routeBoundMessengerSurface === "max" || entryClassification === "max_miniapp"
+        ? "max"
+        : "browser";
 
   return (
     <PatientAppShell
@@ -87,6 +101,13 @@ export async function AppEntryRsc({
         entryClassification={entryClassification}
         routeBoundMiniappEntry={routeBoundMessengerSurface != null}
       />
+      {clientEnvironment ? (
+        <PatientUnsupportedClientFallback
+          client={clientEnvironment}
+          entrySurface={watchdogEntrySurface}
+          supportContactHref={routePaths.loginContactSupport}
+        />
+      ) : null}
     </PatientAppShell>
   );
 }

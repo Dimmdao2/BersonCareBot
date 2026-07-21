@@ -47,6 +47,12 @@ import {
 import type { MessengerSurfaceHint } from "@/shared/lib/platform";
 import { PLATFORM_COOKIE_NAME, readMessengerSurfaceCookie } from "@/shared/lib/platform";
 import { FAIL_CLOSED_AUTH_CHANNEL_UI_POLICY } from "@/modules/auth/otpChannelUi";
+import {
+  markClientBootModuleExecuted,
+  markClientBootReactMounted,
+} from "@/modules/auth/clientBootWatchdog";
+
+markClientBootModuleExecuted();
 
 type BootstrapState = "idle" | "loading" | "error";
 
@@ -169,6 +175,10 @@ export function AuthBootstrap({
   prefetchedAuthRef.current = prefetchedAuth;
 
   const [maxBridgeActive, setMaxBridgeActive] = useState(() => serverMessengerSurface === "max");
+
+  useEffect(() => {
+    markClientBootReactMounted();
+  }, []);
 
   useEffect(() => {
     const surface = serverMessengerSurface ?? readMessengerSurfaceCookie();

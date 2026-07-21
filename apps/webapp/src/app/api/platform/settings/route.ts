@@ -14,6 +14,7 @@ import type { SystemSetting } from "@/modules/system-settings/types";
 export const PLATFORM_GLOBAL_SETTINGS_API_KEYS = [
   "debug_forward_to_admin",
   "specialist_signup_enabled",
+  "patient_unsupported_client_fallback_enabled",
   "patient_app_maintenance_enabled",
   "patient_app_maintenance_message",
   "auth_email_enabled",

@@ -41,6 +41,14 @@ export const isEmailOtpStartRateLimitedByKey = createSlidingWindowRateLimit({
   db: authRateLimitDb,
 });
 
+/** Bounded unauthenticated client-compatibility telemetry ingress. */
+export const isClientBootReportRateLimitedByKey = createSlidingWindowRateLimit({
+  scope: "patient.client_boot_report",
+  windowMs: 60 * 60 * 1000,
+  maxPerWindow: 30,
+  db: authRateLimitDb,
+});
+
 export const isMessengerStartRateLimited = createSlidingWindowRateLimit({
   scope: "auth.messenger_start",
   windowMs: 60 * 60 * 1000,

@@ -87,6 +87,7 @@ export const SYSTEM_SETTING_REGISTRY = {
   patient_app_maintenance_enabled: runtime("admin", "global", "authenticated_client", "boolean", "false"),
   patient_app_maintenance_message: runtime("admin", "global", "authenticated_client", "string", ""),
   specialist_signup_enabled: runtime("admin", "global", "public", "boolean", "false"),
+  patient_unsupported_client_fallback_enabled: runtime("admin", "global", "public", "boolean", "false"),
   auth_email_enabled: runtime("admin", "global", "public", "boolean", "true"),
   auth_sms_enabled: runtime("admin", "global", "public", "boolean", "false"),
   auth_telegram_enabled: runtime("admin", "global", "public", "boolean", "true"),

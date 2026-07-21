@@ -1569,6 +1569,13 @@
       "when": 1793539200018,
       "tag": "0223_n1a_auth_channel_policy",
       "breakpoints": true
+    },
+    {
+      "idx": 224,
+      "version": "7",
+      "when": 1793539200019,
+      "tag": "0224_unsupported_client_fallback_flag",
+      "breakpoints": true
     }
   ]
 }

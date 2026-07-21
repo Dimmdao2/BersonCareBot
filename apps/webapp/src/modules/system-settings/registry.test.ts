@@ -50,4 +50,15 @@ describe("S5-0 system-settings registry", () => {
       });
     }
   });
+
+  it("keeps unsupported-client fallback global, public and fail-closed", () => {
+    expect(SYSTEM_SETTING_REGISTRY.patient_unsupported_client_fallback_enabled).toMatchObject({
+      scope: "admin",
+      storage: "runtime",
+      ownership: "global",
+      audience: "public",
+      valueContract: "boolean",
+      defaultValue: "false",
+    });
+  });
 });

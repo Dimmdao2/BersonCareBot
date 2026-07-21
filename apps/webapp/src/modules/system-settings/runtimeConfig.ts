@@ -98,6 +98,7 @@ export const PUBLIC_RUNTIME_BOOLEAN_DEFAULTS = {
   oauth_apple_enabled: false,
   public_sms_fallback_enabled: false,
   specialist_signup_enabled: false,
+  patient_unsupported_client_fallback_enabled: false,
 } as const;
 
 export const PUBLIC_RUNTIME_STRING_DEFAULTS = {

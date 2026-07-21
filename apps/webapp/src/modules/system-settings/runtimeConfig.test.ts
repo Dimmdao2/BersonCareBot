@@ -152,6 +152,7 @@ describe("runtime config provider", () => {
     await expect(provider.getPublicBoolean("auth_sms_enabled")).resolves.toBe(false);
     await expect(provider.getPublicBoolean("auth_telegram_enabled")).resolves.toBe(true);
     await expect(provider.getPublicBoolean("auth_max_enabled")).resolves.toBe(true);
+    await expect(provider.getPublicBoolean("patient_unsupported_client_fallback_enabled")).resolves.toBe(false);
   });
 
   it("reads an explicit auth-channel policy from the canonical public projection", async () => {

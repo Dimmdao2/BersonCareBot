@@ -59,6 +59,18 @@ describe("/api/platform/settings", () => {
     );
   });
 
+  it("writes the unsupported-client fallback only as a global admin boolean", async () => {
+    const response = await PATCH(new Request("http://localhost/api/platform/settings", {
+      method: "PATCH", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ key: "patient_unsupported_client_fallback_enabled", value: true }),
+    }));
+    expect(response.status).toBe(200);
+    expect(updateMock).toHaveBeenCalledWith(
+      "patient_unsupported_client_fallback_enabled", "admin", { value: true },
+      platformSession.user.userId, { organizationId: null },
+    );
+  });
+
   it("rejects a non-boolean auth-channel value before the service", async () => {
     const response = await PATCH(new Request("http://localhost/api/platform/settings", {
       method: "PATCH", headers: { "Content-Type": "application/json" },
