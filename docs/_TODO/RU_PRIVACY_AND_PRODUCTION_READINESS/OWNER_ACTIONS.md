@@ -8,6 +8,82 @@
 Статусы: `NOW` — можно/нужно делать без ожидания кода; `AFTER PACKET` — агент сначала готовит пакет; `WINDOW` —
 действие только в согласованное окно; `FINAL` — перед GO.
 
+## 0. Текущий короткий список — 2026-07-22
+
+Это owner-facing snapshot; полный реестр `O-*` ниже сохраняет детали и evidence. В список `NOW` не попадают
+отложенные продуктовые идеи, будущая TEST-приёмка без актуального deploy и production windows.
+
+### От владельца сейчас
+
+- [ ] **`O-01 / #899`: назначить ответственного за ПДн, ответственного за безопасность ИСПДн и внешнего
+  юриста/ПДн-специалиста.** Без этого нельзя завершить PR-01 и получить правовые решения для consent/retention.
+- [ ] **`O-02 / G-04A`: отправить Selectel тикет по готовому шаблону §2.** Нужен письменный ответ по конкретным
+  VPS/volume/snapshot/backup/S3, географии, encryption/deletion и применимости актов.
+- [ ] **`O-03 / G-05`: передать ответственному текущую запись/уведомление РКН и сверить её с factual register.**
+  Результат — update/file/no-change с датой и основанием.
+- [ ] **`O-04 / G-01/G-05A`: передать юристу factual role/process matrix и письменно решить interim processing
+  health data.** До решения не расширять health purposes/vendors и onboarding новых организаций с health data.
+- [ ] **`#848 / SCH-G5`: выбрать семантику дней без ручного графика:** клиенту показывать пусто/строго по графику
+  либо использовать fallback на недельные часы. Остальные UI residual это не блокирует.
+- [ ] **`#881`: подтвердить отзыв/ротацию старых Rubitime и Telegram/webhook credentials**, найденных только в git
+  history; после подтверждения выбрать history rewrite либо датированное исключение. Значения credentials в чат не
+  присылать.
+
+### От владельца перед соответствующим этапом, не обязательно сейчас
+
+- [ ] **`#796 / U5A`:** выбрать product discharge/reactivate per enrollment либо разрешить узкий reversible
+  TEST-only harness; отдельно разрешить A↔B TEST walkthrough. Блокирует полный U5A/UI-5b, но не UI-5a `#958`.
+- [ ] **`G-07 / O-05`:** после инженерного packet утвердить RPO/RTO, backup retention, российскую offsite-площадку
+  и бюджет.
+- [ ] **`G-06B/G-13/G-14`:** после ADR/options packet решить EDR/HIDS, disk unlock/key custody и S3 application
+  encryption/performance budget.
+- [ ] **`G-09/G-10`:** перед SEC-04 выбрать российский security-log sink/retention и правила break-glass.
+- [ ] **Payment/C5B:** после provider/reality packet утвердить реальный PSP, кассово-фискальный контур и допустимые
+  cash/invoice/pay-link/QR/refund operations. До этого payment UI остаётся скрытым.
+- [ ] **`G-15/MOB-O9`:** после event census принять точную field-level matrix push/email/SMS. Channel topology уже
+  решён и повторно не обсуждается.
+
+### От юриста / ответственного по ПДн
+
+- [ ] **`G-01`:** роли platform/clinic/specialist по каждой цели обработки, включая собственные billing/security
+  purposes платформы.
+- [ ] **`G-02`:** основание и отдельный текст health-data consent; письменная форма, идентификация/вид электронной
+  подписи, представители и legacy data. Это блокирует код PR-02 `#907`.
+- [ ] **`G-03`:** retention matrix по классам данных, legal holds и исключения для payments/audit/backups/logs;
+  recovery/reminder/export/purge policy. Purge до этого остаётся выключенным.
+- [ ] **`G-04/G-04A`:** фактически включённые Telegram/MAX/email/SMS/OAuth/payment/S3 recipients — содержание,
+  договорная роль, регион/transborder, subprocessors, support/log access, incident/deletion clauses и ответ Selectel.
+- [ ] **`G-05/G-05A`:** решение по уведомлению РКН и датированное interim health-processing decision.
+- [ ] **`#213`:** юридический текст и доказательный contract рекламного opt-in. Технический baseline/draft можно
+  готовить заранее, но production marketing send без текста/версии/согласия запрещён.
+- [ ] **`G-06/G-06A`:** границы ИСПДн, threat model/уровень защиты/certified controls и организационные меры.
+- [ ] **`G-04B`:** Apple/Google/APNs/FCM roles, metadata/payload, region/transborder и store privacy wording до
+  native-push leg; текущий Web Push/N1 этим не блокируется.
+- [ ] **`G-12`:** финальная внешняя оценка и письменный residual-risk GO/NO-GO перед release.
+
+### Только по отдельному owner-approved окну
+
+- [ ] **TEST mutation/rehearsal:** отдельное явное разрешение на точный TEST target, SHA, runbook и rollback;
+  это самостоятельный TEST gate, не production `G-11`.
+- [ ] **`G-11`:** каждое production host/DB/cutover mutation получает отдельное production window, точный SHA,
+  runbook, backup/restore, abort criteria и назначенных GO/rollback owners.
+- [ ] **FIO `#857`:** hash-bound fresh preview и отдельное production apply window внутри общего финального cutover;
+  `#858` стартует только после reconciliation.
+- [ ] **Rubitime R5/R6/R7:** disable → cutoff/drain → archive/drop проходят раздельные owner gates; destructive
+  action без final manifest запрещён.
+- [ ] **INFRA/CRYPTO/SEC/DR production activation/decommission:** только после соответствующих packets, TEST proof
+  и отдельного `G-11` production window. Покупка target VPS/offsite resources выполняется раньше как `AFTER PACKET`
+  (`O-05/O-07`), а не считается production window.
+
+### Сейчас не спрашивать владельца
+
+- Expanded online-booking `#215` отложен до будущего отдельного ТЗ; встроенная Online location исполняется без него.
+- Старый TEST task `#821` предъявляется владельцу только после следующего актуального code-only TEST milestone;
+  проверять прежний SHA сейчас не требуется.
+- Broadcast bundle `#90` и общий error/toast backlog `#206` не являются текущими owner questions; их следующий
+  scope формирует оркестратор из уже принятых решений.
+- FIO/Rubitime production, native push, PR-04 и final cutover не запрашиваются до готовности их packets/gates.
+
 ## Как агент отвечает владельцу
 
 На вопрос «что мне делать сейчас?» агент:

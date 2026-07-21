@@ -874,6 +874,8 @@ Privacy/readiness остаётся отдельным каноническим �
 [`RU_PRIVACY_AND_PRODUCTION_READINESS/MASTER_PLAN.md`](../RU_PRIVACY_AND_PRODUCTION_READINESS/MASTER_PLAN.md):
 repository/DEV launch slices исполняются параллельно по его dependency gates; host encryption/firewall/SSH,
 реальные secrets, production telemetry/cutover и PROD FIO backfill — только в owner-approved production window.
+Единый owner-facing список решений/юридических inputs/окон: [`OWNER_ACTIONS.md`](../RU_PRIVACY_AND_PRODUCTION_READINESS/OWNER_ACTIONS.md)
+§0; полный decision registry: [`OWNER_AND_LEGAL_GATES.md`](../RU_PRIVACY_AND_PRODUCTION_READINESS/OWNER_AND_LEGAL_GATES.md).
 `SESSION_HANDOFF_2026-07-17.md` перенесён в archive как полностью superseded snapshot: все перечисленные там commits
 уже достижимы из текущей ветки, старых worktree нет, а fresh-reset TEST инструкция больше не применима.
 

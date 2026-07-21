@@ -1,5 +1,15 @@
 # Execution log
 
+## 2026-07-22 — current owner/legal action register reconciled
+
+- `OWNER_ACTIONS.md` §0 now separates inputs needed now, inputs needed only before their stage, lawyer/PDn decisions,
+  TEST authorization and production `G-11` windows. The full `G-01…G-15` registry remains in
+  `OWNER_AND_LEGAL_GATES.md`; open gates are not all presented as immediate work.
+- Stale taskdb owner questions `#90/#206/#213/#215/#821` were removed from the current waiting set without deleting
+  their scope. Current BCB owner-waiting denominator is exactly `#796/#848/#881/#899`; future TEST/production gates
+  are raised only with a current SHA, packet and runbook.
+- No code, DB, host, provider, TEST/PROD or deploy action was performed.
+
 ## 2026-07-21 — NTF-01/N1A auth-channel policy repository closure (`#929`)
 
 - Integrated and pushed through `00d3b2240`: four platform-global Email/SMS/Telegram/MAX auth/binding flags,
