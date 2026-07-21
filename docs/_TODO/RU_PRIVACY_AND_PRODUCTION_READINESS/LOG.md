@@ -21,6 +21,10 @@
 - Validation: every cited source path exists; relative Markdown links resolve; `git diff --check` is clean. No
   tests, lint, build, full CI, DB/server/network/deploy/send command was run because this was a docs/read-only
   census.
+- The first independent N0 audit (`bcb-ntf01-n0-audit-20260721`) found one owner-mapped P1: the booking 24h/2h
+  `message.deliver` jobs in `integrator.rubitime_create_retry_jobs` were absent from the queue map and booking child
+  manifest. The bounded correction adds their retained field categories, state/retry/dispatch path, no-live-state
+  boundary and exact queue/adapter/executor ownership. No second correction scope was opened.
 
 ## 2026-07-21 — PR-01 factual register independent audit PASS (`#899`)
 
