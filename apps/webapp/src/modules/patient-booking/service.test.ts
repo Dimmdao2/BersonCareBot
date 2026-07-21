@@ -1353,6 +1353,7 @@ describe("createPatientBookingService", () => {
       organization: { getDefaultOrganizationId: vi.fn().mockResolvedValue("org-1") },
       getAppointment: vi.fn().mockResolvedValue({ id: "appt-1", organizationId: "org-1" }),
       createAppointment: vi.fn().mockResolvedValue({ id: "appt-1" }),
+      createOnlineAppointmentsIfAvailable: vi.fn().mockResolvedValue([{ id: "appt-1" }]),
       upsertRubitimeAppointmentMapping: vi.fn(),
     };
     const bookingScheduling = {
@@ -1402,6 +1403,7 @@ describe("createPatientBookingService", () => {
       organization: { getDefaultOrganizationId: vi.fn().mockResolvedValue("org-1") },
       getAppointment: vi.fn().mockResolvedValue({ id: "appt-1", organizationId: "org-1" }),
       createAppointment: vi.fn().mockResolvedValue({ id: "appt-1" }),
+      createOnlineAppointmentsIfAvailable: vi.fn().mockResolvedValue([{ id: "appt-1" }]),
       upsertRubitimeAppointmentMapping: vi.fn(),
     };
     const bookingScheduling = {
@@ -1437,7 +1439,8 @@ describe("createPatientBookingService", () => {
       contactPhone: pending.contactPhone,
     });
 
-    expect(bookingEngine.createAppointment).toHaveBeenCalled();
+    expect(bookingEngine.createOnlineAppointmentsIfAvailable).toHaveBeenCalled();
+    expect(bookingEngine.createAppointment).not.toHaveBeenCalled();
     expect(syncPort.createRecord).not.toHaveBeenCalled();
     expect(result.canonicalAppointmentId).toBe("appt-1");
   });
@@ -1455,6 +1458,15 @@ describe("createPatientBookingService", () => {
             release = () => resolve({ id: "appt-1" });
           }),
       ),
+      createOnlineAppointmentsIfAvailable: vi
+        .fn()
+        .mockImplementationOnce(
+          () =>
+            new Promise<Array<{ id: string }>>((resolve) => {
+              release = () => resolve([{ id: "appt-1" }]);
+            }),
+        )
+        .mockRejectedValueOnce(new Error("slot_overlap")),
       upsertRubitimeAppointmentMapping: vi.fn(),
     };
     const bookingScheduling = {

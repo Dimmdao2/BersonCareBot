@@ -61,13 +61,31 @@ vi.mock("@/app-layer/db/drizzle", () => ({
     mediaChain.from.mockReturnValue(mediaChain);
     mediaChain.where.mockReturnValue(mediaChain);
 
-    return {
+    const organizationChain = {
+      from: vi.fn(),
+      where: vi.fn(),
+      limit: vi.fn(async () => [{ tariffId: null, commercialAccessState: "compatibility" }]),
+    };
+    organizationChain.from.mockReturnValue(organizationChain);
+    organizationChain.where.mockReturnValue(organizationChain);
+
+    const trialChain = {
+      from: vi.fn(),
+      where: vi.fn(),
+      limit: vi.fn(async () => []),
+    };
+    trialChain.from.mockReturnValue(trialChain);
+    trialChain.where.mockReturnValue(trialChain);
+
+    const db = {
       insert: vi.fn(() => ({
         values: vi.fn(() => ({
           onConflictDoUpdate: vi.fn(async () => {}),
         })),
       })),
       select: vi.fn((selection?: Record<string, unknown>) => {
+        if (selection && "commercialAccessState" in selection) return organizationChain;
+        if (selection && "graceEndsAt" in selection) return trialChain;
         if (selection && "includedSeats" in selection) return tariffChain;
         if (selection && "mechanic" in selection) return overridesChain;
         return mediaChain;
@@ -80,6 +98,10 @@ vi.mock("@/app-layer/db/drizzle", () => ({
         recommendations: { findFirst: vi.fn(async () => null) },
         contentPages: { findFirst: vi.fn(async () => null) },
       },
+    };
+    return {
+      ...db,
+      transaction: vi.fn(async (fn: (tx: typeof db) => unknown) => fn(db)),
     };
   }),
 }));

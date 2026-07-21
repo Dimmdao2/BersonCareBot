@@ -69,6 +69,11 @@ vi.mock("@/app-layer/di/buildAppDeps", () => ({
       addStageItem: addStageItemMock,
     },
     orgEntitlements: {
+      getSnapshot: vi.fn(async () => ({
+        tariff: { mechanics: { courses: true }, quotas: {}, includedSeats: null },
+        overrides: [],
+        access: { lifecycle: "active", tariffId: null, source: "compatibility" },
+      })),
       getTariffForOrg: vi.fn(async () => ({ mechanics: { courses: true }, includedSeats: null })),
       listOverrides: vi.fn(async () => []),
     },

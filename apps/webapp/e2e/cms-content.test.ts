@@ -38,7 +38,8 @@ vi.mock("@/app-layer/guards/doctorWorkspacePrincipal", () => ({
 }));
 
 vi.mock("@/app-layer/guards/requireEntitlement", () => ({
-  requireEntitlementForAction: vi.fn().mockResolvedValue({ ok: true }),
+  requireEntitlementForReadAction: vi.fn().mockResolvedValue({ ok: true }),
+  requireEntitlementForMutationAction: vi.fn().mockResolvedValue({ ok: true }),
 }));
 
 vi.mock("@/app-layer/di/buildAppDeps", () => ({

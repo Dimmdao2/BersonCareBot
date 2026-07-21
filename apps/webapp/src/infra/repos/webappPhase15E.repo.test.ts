@@ -61,7 +61,9 @@ describe("Wave3 phase 15E route tails (runtime constraints)", () => {
     expect(src).toContain("resolveOrCreateTrustedPatientUserByPhone");
 
     const repoSrc = readFileSync(join(repoRoot, "infra/repos/pgPublicBookingUserResolve.ts"), "utf8");
-    expect(repoSrc).toContain("runPgPoolPgText");
+    expect(repoSrc).not.toMatch(/\bpool\.query\b/);
+    expect(repoSrc).not.toContain("runPgPoolPgText");
+    expect(repoSrc).toContain("getDrizzleOrMutationTx");
   });
 
   it("recordPublicBookingMergeCandidates has no pool.query (P12E verify)", () => {
