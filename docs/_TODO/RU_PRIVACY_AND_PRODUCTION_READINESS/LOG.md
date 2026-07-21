@@ -1,5 +1,27 @@
 # Execution log
 
+## 2026-07-21 — NTF-01/N0 notification-egress census (`#913`, docs-only)
+
+- Completed the existing N0 checklist in `stages/NTF-01_APP_PUSH_AND_MESSENGER_AUTH_ONLY.md` in place. The census
+  has no unclassified required family: chat, program notes, patient reminders/warmups, specialist tasks, booking
+  lifecycle/24h/2h/payment, broadcasts, intake, public/patient support, account services, operator/security and
+  auth/login/bind are each classified with producer/resolver/queue/dispatch/provider/in-app evidence, status,
+  class and `T0–T3` safe-default tier.
+- Canonical current-runtime evidence is `NOTIFICATION_CHANNELS`, `OUTGOING_DELIVERY_QUEUE` and
+  `PATIENT_SUPPORT_CHAT_INBOX`; target policy is `NTF-01` under decided `G-15`. `MOB-O9` and `G-04B` remain open:
+  the field-level preview matrix, service email/SMS allowlist and Apple/Google/APNs/FCM legal review were not
+  inferred or closed.
+- `codeq` was attempted first but its semantic backend returned `no DSN (secrets/storage.env)`; lexical
+  `code-search`, scoped exact search and targeted repository reads then traced the relay, durable queue, worker,
+  adapters, canonical in-app records and family tests. No PII/secret values, live logs, environment, DB, host,
+  provider or network state were accessed; adapter presence is explicitly not treated as PROD activation.
+- The stage now contains exact, non-overlapping proposed manifests for N1 and N3 family slices, with owned file
+  scopes, dependency SHA, gates, acceptance and risk. They are triage input only: no taskdb task was created or
+  updated, no active SaaS/Product UX/billing/FIO/Doctor DNA plan was edited, and no N1+ runtime code was changed.
+- Validation: every cited source path exists; relative Markdown links resolve; `git diff --check` is clean. No
+  tests, lint, build, full CI, DB/server/network/deploy/send command was run because this was a docs/read-only
+  census.
+
 ## 2026-07-21 — PR-01 factual register independent audit PASS (`#899`)
 
 - Commit `999099355` is patch-equivalent to the audited worker commit `9ea341e47` after rebase onto the current
