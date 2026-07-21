@@ -178,9 +178,16 @@ apply, TEST/PROD or deploy is claimed.
       stalled-body proof. Terminal re-audit — PASS `0/0`; targeted suite `46/46`, typecheck и scoped lint — PASS.
       Три integrator Google Calendar delivery-callsite остаются P2 owner recommendation вне payment/OAuth scope,
       а не автоматически созданной задачей.
-- [ ] **B3. Закрыть онлайн-слот TOCTOU** — advisory-lock на `(org, slotStart)` вокруг `assertSlotAvailable`+insert
+- [x] **B3. Закрыть онлайн-слот TOCTOU** — advisory-lock на `(org, slotStart)` вокруг `assertSlotAvailable`+insert
       ИЛИ partial exclusion/unique на онлайн-ёмкость (паритет с очным GiST-констрейнтом).
       Файлы: `canonicalCreate.ts:161-203`. Размер: **S-M** · Аудит: полный (конкурентность+деньги).
+      **Закрыто 2026-07-21:** интеграционные коммиты `fdbea3b0e` + `d640d93b9`; online/null-capacity writer
+      валидирует bounded minute-aligned chain, берёт ordered per-minute organization keys одним SQL-вызовом,
+      повторно читает busy intervals и вставляет всю цепочку в той же Drizzle-транзакции. Первый полный аудит нашёл
+      один P1: exact-start keys не закрывали off-grid overlapping starts. Один coherent correction перешёл на весь
+      half-open range; private PostgreSQL proofs закрывают same/distinct-start, chain, adjacent, reverse/deadlock и
+      cross-org случаи. Terminal re-audit — PASS `0/0/0`; targeted suite `31/31`, disposable verifier, typecheck и
+      scoped lint — PASS. Schedule-block linearization остаётся owner question вне утверждённого B3, не новой задачей.
 - [ ] **C1. Трекинг ошибок** (self-hosted per F-2) в 3 сервиса + release-теги. Размер: **M** (вкл. инфру) · Аудит: один.
 
 ### Phase 2 — Остаточная безопасность + контракты (параллельно)

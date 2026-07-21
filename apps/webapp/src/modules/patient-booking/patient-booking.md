@@ -21,7 +21,7 @@ Admin keys (`system_settings`, scope `admin`):
 ## Поток создания (этап 2)
 
 1. Быстрая валидация слота (`booking-scheduling.assertSlotAvailable`) и обязательных полей (`booking-form`).
-2. `be_appointments` со статусом `confirmed` или `awaiting_payment`. Для очной записи действует exclusion constraint на специалиста; legacy online/null-capacity путь блокирует `(organization, slotStart)`, повторно проверяет занятость и вставляет цепочку в одной транзакции.
+2. `be_appointments` со статусом `confirmed` или `awaiting_payment`. Для очной записи действует exclusion constraint на специалиста; legacy online/null-capacity путь блокирует все минутные ключи полуинтервала `(organization, [start, end))`, повторно проверяет занятость и вставляет цепочку в одной транзакции.
 3. `patient_bookings` (pending → confirmed), связь `canonical_appointment_id`.
 4. Rubitime create/slots не вызывается в normal runtime.
 5. Проекция в `appointment_records` (`integrator_record_id` = `be:{appointmentId}`) для кабинета врача при canonical cutover / native path.

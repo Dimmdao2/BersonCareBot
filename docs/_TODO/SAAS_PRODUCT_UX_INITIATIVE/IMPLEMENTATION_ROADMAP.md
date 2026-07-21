@@ -753,6 +753,11 @@ downgrade/over-limit сохраняют memberships и блокируют нов
    request-path DB reads, scheduler или high-cardinality payload. Один correction-pass закрыл два matching P1
    первого аудита; terminal re-audit `0/0/0`, targeted tests/typecheck/lint — PASS. Host/production activation
    остаётся отдельным owner gate.
+   **B3 status (2026-07-21):** [x] `#948` интегрирован как `fdbea3b0e` + `d640d93b9`; online/null-capacity booking
+   recheck и chain insert атомарны под ordered full-range advisory locks в одной Drizzle-транзакции. Один
+   matching-plan distinct-start P1 первого аудита закрыт одним correction-pass; terminal re-audit `0/0/0`, private
+   PostgreSQL concurrency matrix, `31/31` targeted tests, typecheck/lint — PASS. Schedule-block semantics не
+   расширялись из audit recommendation.
 6. **Hardening Phase 2 до C7:** launch-relevant session revocation/TTL, CSRF/origin и integrator↔webapp contract
    SSOT. Общий HTTP response builder внедряется инкрементально и не превращается в обязательный mass-refactor перед
    release, если risk-relevant routes уже закрыты.

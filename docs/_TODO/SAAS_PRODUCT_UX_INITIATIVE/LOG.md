@@ -4217,3 +4217,17 @@ could exceed the declared bound under organization churn. One coherent correctio
 collector, enforced the lifetime `4096` cap and added exact churn/active-set-zero proofs. Terminal re-audit passed
 `0/0/0`; targeted tests passed `66/66`, typecheck, scoped lint and diff check passed. Full CI remains at the Phase 1
 milestone; production activation, DB apply, deploy, TEST and PROD were not performed.
+
+## 2026-07-21 — Hardening B3 online booking concurrency integrated (`#948`)
+
+Integrated `fdbea3b0e` plus the single audit correction `d640d93b9`. The legacy online/null-capacity writer now
+validates a bounded minute-aligned chain, acquires deterministic organization-scoped keys for the complete half-open
+time range in one SQL call, rechecks the canonical busy set and inserts all appointments/events/history in the same
+principal-aware Drizzle transaction. In-person GiST, payment, projection and idempotency paths remain unchanged.
+
+The first full audit found one matching-plan P1: locking only exact start times allowed two overlapping off-grid
+intervals with different starts to commit. One coherent correction moved to full-range keys. Terminal re-audit
+passed `0/0/0`; worker evidence passed `31/31` targeted tests, private disposable PostgreSQL same-slot,
+distinct-start, chain, adjacent, reverse/deadlock and cross-org proofs, typecheck, scoped lint and diff check. Full CI
+remains at the Phase 1 milestone. Working DB, deploy, TEST and PROD were not touched. Concurrent schedule-block
+linearization remains an explicit owner question outside B3 and did not generate an audit-driven task.
