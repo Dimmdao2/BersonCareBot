@@ -779,7 +779,7 @@ function PatientsContent({
                           buttonVariants({ variant: "ghost" }),
                           doctorDnaFlatListRowClass,
                           doctorDnaFlatListClickableClass,
-                          "h-auto w-full rounded-none border-0 bg-transparent text-left shadow-none active:bg-muted/80 md:gap-3",
+                          "h-auto w-full rounded-none bg-transparent text-left shadow-none active:bg-muted/80 md:gap-3",
                           index === 0 && "border-t-0",
                         )}
                       >

@@ -137,6 +137,11 @@ describe("PatientsPageClient", () => {
       "text-base",
       "font-normal",
     );
+    expect(document.getElementById("doctor-patients-card-support-only")).toHaveClass(
+      "border-t",
+      "border-border",
+    );
+    expect(document.getElementById("doctor-patients-card-support-only")).not.toHaveClass("border-0");
     expect(document.getElementById("doctor-patients-list")).toHaveClass(
       "mx-[var(--doctor-block-padding,18px)]",
     );
