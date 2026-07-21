@@ -754,6 +754,7 @@ function assertOperationalSqlAndDeploy(loaded) {
     "writeProtected(mediaPath",
     "writeProtected(apiPath",
     "writeProtected(webappPath",
+    '["ALLOW_DEV_AUTH_BYPASS", "false"]',
     "DATABASE_URL_WEB_PUSH_REMINDER",
     '!["--check", "--execute"].includes(process.argv[2])',
     'write = process.argv[2] === "--execute"',
@@ -1214,6 +1215,10 @@ if (process.argv.includes("--self-test")) {
     '  sudo node "$DEPLOY_REPO/deploy/host/bootstrap-c4-test-env.mjs" --check\n',
     "  # removed missing-media bootstrap preflight\n",
   );
+  const operationalTestEnvBootstrapKeepsDevBypass = read(files.operationalTestEnvBootstrap).replace(
+    '["ALLOW_DEV_AUTH_BYPASS", "false"]',
+    '["ALLOW_DEV_AUTH_BYPASS", webapp.get("ALLOW_DEV_AUTH_BYPASS") || "true"]',
+  );
   const dispatchPortNoFailedAudit = read(files.dispatchPort).replace(
     "'failed', 1, 'provider_rejected'",
     "'success', 1, 'provider_rejected'",
@@ -1303,6 +1308,7 @@ if (process.argv.includes("--self-test")) {
     { testDeploy: testDeployNoUnitEnvGate },
     { testDeploy: testDeployNoFiveContourOutput },
     { testDeploy: testDeployNoBootstrapInputCheck },
+    { operationalTestEnvBootstrap: operationalTestEnvBootstrapKeepsDevBypass },
     { dispatchPort: dispatchPortNoFailedAudit },
     { reportOperatorFailure: reportOperatorFailureRawRecipient },
     { idempotencyKeys: idempotencyKeysUnqualified },

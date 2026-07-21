@@ -139,6 +139,7 @@ function bootstrap({ apiPath, webappPath, mediaPath, ownerUid = 0, deployGid, wr
     apiAdditions.set(key, api.get(key) || makeUrl(baseUrl, role));
   }
   const webappAdditions = new Map([
+    ["ALLOW_DEV_AUTH_BYPASS", "false"],
     [
       "DATABASE_URL_WEB_PUSH_REMINDER",
       webapp.get("DATABASE_URL_WEB_PUSH_REMINDER") || makeUrl(baseUrl, WEB_PUSH_REMINDER_ROLE),
@@ -201,7 +202,7 @@ function selfTest() {
     const common = "DB_PRINCIPAL_CONTEXT_MODE='locked'\nDB_PRINCIPAL_SIGNING_SECRET='test-signing-secret-at-least-32-bytes'\n";
     const s3 = "S3_ENDPOINT='http://s3.test'\nS3_ACCESS_KEY='access'\nS3_SECRET_KEY='secret'\nS3_PRIVATE_BUCKET='private'\n";
     writeFileSync(api, "DATABASE_URL='postgresql://base:base-secret@127.0.0.1:5432/bersoncarebot_test'\n" + common + s3);
-    writeFileSync(webapp, common);
+    writeFileSync(webapp, "NODE_ENV='production'\nALLOW_DEV_AUTH_BYPASS='true'\n" + common);
     const apiBeforeCheck = readFileSync(api, "utf8");
     const webappBeforeCheck = readFileSync(webapp, "utf8");
     chmodSync(api, 0o000);
@@ -238,6 +239,9 @@ function selfTest() {
     }
     if (new URL(firstMedia.get("DATABASE_URL")).username !== MEDIA_ROLE) fail("self-test wrong media role");
     const firstWebapp = parseEnv(readFileSync(webapp, "utf8"), "webapp.test");
+    if (firstWebapp.get("ALLOW_DEV_AUTH_BYPASS") !== "false") {
+      fail("self-test did not disable dev auth bypass in webapp.test");
+    }
     if (new URL(firstWebapp.get("DATABASE_URL_WEB_PUSH_REMINDER")).username !== WEB_PUSH_REMINDER_ROLE) {
       fail("self-test wrong Web Push reminder role");
     }

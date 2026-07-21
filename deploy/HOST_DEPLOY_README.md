@@ -181,7 +181,8 @@ bash /opt/projects/bersoncarebot-test/deploy/host/provision-c4-operational-runti
 ```
 
 Bootstrap заменяет каждый env-файл атомарно (это не общая транзакция трёх файлов): добавляет три отдельные operational URL в `api.test`, создаёт отдельный media-worker URL,
-добавляет пятый `DATABASE_URL_WEB_PUSH_REMINDER` в `webapp.test`,
+добавляет пятый `DATABASE_URL_WEB_PUSH_REMINDER` в `webapp.test` и принудительно закрепляет там
+`ALLOW_DEV_AUTH_BYPASS=false` (TEST работает как production-сборка; dev-bypass разрешён только локальному DEV),
 переносит в `media-worker.test` только общий principal-контракт и необходимые S3/runtime поля из `api.test`,
 и нормализует три TEST-env как `root:deploy 0640`. Уже созданные URL при повторном запуске сохраняются; значения
 паролей и секретов не выводятся.

@@ -383,6 +383,10 @@ sudo nginx -T 2>/dev/null | grep -n "configuration file.*bersoncarebot-webapp"
 - `INTEGRATOR_API_URL=http://127.0.0.1:4200`
 - `ALLOW_DEV_AUTH_BYPASS=...`
 
+TEST webapp (`/opt/env/bersoncarebot/webapp.test`) запускается с `NODE_ENV=production`, поэтому обязан иметь
+`ALLOW_DEV_AUTH_BYPASS=false`. Канонический `bootstrap-c4-test-env.mjs --execute`, вызываемый общей TEST closure,
+идемпотентно закрепляет это значение перед рестартом; dev-bypass остаётся только в локальном DEV.
+
 ### Dev cutover env
 
 Для симметрии с production dev-скрипты backfill/reconcile/gate используют отдельный файл:
