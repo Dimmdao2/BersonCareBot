@@ -8,7 +8,7 @@
     "build": "pnpm --dir ../../packages/db-principal run build && pnpm run clean && tsc -p tsconfig.build.json",
     "start": "node dist/main.js",
     "dev": "tsx watch src/main.ts",
-    "typecheck": "pnpm --dir ../../packages/db-principal run build && tsc --noEmit",
+    "typecheck": "tsc --noEmit",
     "test": "pnpm --dir ../../packages/db-principal run build && vitest --run"
   },
   "engines": {
