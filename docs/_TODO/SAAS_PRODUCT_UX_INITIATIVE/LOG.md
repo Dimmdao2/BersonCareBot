@@ -4001,6 +4001,17 @@ boundary, no fourth correction, milestone CI, integration or push was started. T
 isolated candidate. The worktree and branch remain as evidence; no DB, DEV/TEST/PROD, deploy, dump/reset or provider
 action occurred.
 
+### Owner sequencing: close the twelve pre-C5A S4 bypass findings after C5A
+
+The owner asked when and how the twelve pre-existing direct-resolver findings will be removed. They are now mapped
+to one non-duplicating task `#939`, not twelve microtasks and not an expansion of the bounded C5A correction. The
+current checker names eleven doctor/LFK page-action callsites plus
+`src/app-layer/media/resolvePlatformLfkMediaAccess.ts`. After C5A is integrated, one coherent high-risk stage moves
+all twelve behind the canonical entitlement boundary, preserves read/composition versus mutation semantics and
+exact-organization ownership, makes the production checker green without a broad suppression allowlist, and proves
+the affected role/org/action matrix. It can run alongside Hardening A1, must close before C5B/C7, and joins the next
+accumulated milestone CI. No DB apply, TEST/PROD, deploy or host action is authorized by this mapping.
+
 The owner-requested Opus orchestration audit `bcb-orchestration-opus-audit-20260721-0750` returned **ON TRACK**:
 the terminal stop, one retained evidence worktree, independent PR-01 pivot and U6B `doing`→`todo` correction match
 the execution canon. Its only LOW recommendation was the provenance split recorded above; no new task or audit round

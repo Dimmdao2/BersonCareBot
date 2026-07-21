@@ -618,6 +618,16 @@ Per the declared terminal boundary, no fourth correction, milestone CI, integrat
 C5A-introduced regressions (Online mutation boundary + async-export census) while tracking the pre-base S4 debt
 separately, or freeze the isolated candidate.
 
+**S4 residual after C5A (`#939`, owner 2026-07-21):** the twelve pre-C5A direct-resolver findings are not part of
+the bounded C5A repair, but they are not deferred indefinitely. Immediately after C5A is integrated, one coherent
+high-risk stage moves all eleven doctor/LFK page-action callsites and `resolvePlatformLfkMediaAccess` behind the
+canonical entitlement boundary while preserving the current read/composition, visibility and mutation semantics.
+The stage must distinguish read projection from mutation denial, preserve exact-organization ownership, make
+`check:s4-entitlement-coverage` green without suppressing future findings, and prove the affected role/org/action
+matrix with targeted tests, typecheck/scoped lint and one independent audit. It may run in parallel with Hardening
+A1 after C5A; it closes before C5B/C7 and joins the next accumulated milestone CI rather than starting its own full
+CI loop.
+
 **C5C implementation checklist (owner policy resolved):** active specialist binding и pending invite потребляют/
 резервируют seat, non-clinical admin — нет; included count и per-seat price/purchase moment остаются tariff data;
 downgrade/over-limit сохраняют memberships и блокируют новый growth. Исполнитель:
