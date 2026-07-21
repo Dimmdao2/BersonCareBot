@@ -8,8 +8,11 @@ provider with non-owner staff and patient login principals.
 
 The proof covers both organizations' own appointment, both cross-organization negatives, a missing
 principal rejection before checkout, exact runtime role routing and the complete signed organization /
-patient context. `bcb_a0_owner` is used only during restore and migration and is explicitly returned to
-`NOBYPASSRLS` before evidence is collected.
+patient context. Before those positive paths, two fresh direct database connections authenticate as the
+non-owner staff and patient base logins, select their canonical terminal role, prove all protected
+context helpers are empty, and accept only zero visible appointment rows or an explicit PostgreSQL
+permission denial. `bcb_a0_owner` is used only during restore and migration and is explicitly returned
+to `NOBYPASSRLS` before evidence is collected.
 
 Run the complete gate with:
 

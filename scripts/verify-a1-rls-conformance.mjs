@@ -23,6 +23,14 @@ const nonstaffLoginRole = 'app_runtime_nonstaff_login';
 const postgresPort = '57439';
 const signingSecret = 'a1-synthetic-signing-secret-2026-locked-proof';
 const fixturePath = path.join(repoRoot, 'docs', 'ARCHITECTURE', 'DB_DUMPS', 'a1-rls', 'seed.sql');
+const missingContextDenialPath = path.join(
+  repoRoot,
+  'docs',
+  'ARCHITECTURE',
+  'DB_DUMPS',
+  'a1-rls',
+  'missing-context-denial.sql',
+);
 const scrubbedEnvironmentKeys = Object.freeze([
   'A1_DATABASE_URL_NONSTAFF',
   'A1_DATABASE_URL_STAFF',
@@ -397,6 +405,27 @@ try {
   ).trim();
   if (topologyProof !== '1') throw new Error('topology_policy_postcheck_failed');
 
+  await psqlFileAs(
+    staffLoginRole,
+    databaseName,
+    missingContextDenialPath,
+    'unsigned_staff_db_layer_denial',
+    [
+      ['a1_expected_login_role', staffLoginRole],
+      ['a1_expected_runtime_role', staffRole],
+    ],
+  );
+  await psqlFileAs(
+    nonstaffLoginRole,
+    databaseName,
+    missingContextDenialPath,
+    'unsigned_patient_db_layer_denial',
+    [
+      ['a1_expected_login_role', nonstaffLoginRole],
+      ['a1_expected_runtime_role', patientRole],
+    ],
+  );
+
   await run('/usr/bin/env', ['pnpm', '--dir', 'packages/db-principal', 'build'], {
     label: 'build_db_principal',
   });
@@ -433,6 +462,7 @@ try {
         ownOrgAccess: true,
         crossOrgDenied: true,
         missingPrincipalDenied: true,
+        unsignedDirectDbAccessDenied: true,
       },
       null,
       2,
