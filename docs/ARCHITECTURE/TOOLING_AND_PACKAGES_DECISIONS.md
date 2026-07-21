@@ -16,6 +16,7 @@
 | Анкеты/опросники | ✅ **Нативные** (в нашей БД, под стенами) | Решение владельца 19.07 — НЕ Formbricks |
 | Stirling PDF (документы пациента) | 🗺 Когда появится workflow «документы пациента» | Не раньше |
 | pgvector (поиск по базе знаний/транскриптам) | ✅ pgvector, **НЕ Qdrant** | По месту (не плодить второй datastore при живом Postgres) |
+| **Редактор текста/контента** (статьи, тело писем/уведомлений) | ✅ **Tiptap — Simple Editor** (free/MIT/self-hosted, **НЕ** AI-editor); вариант A | Встраивается в шаблоны уведомлений — стадия N1B, taskdb `#930`. См. раздел «Редактор контента» |
 | Recharts | ✅ **Уже стоит и используется** — переиспользовать | — |
 | @tanstack/react-table | ❌ Не внедрять сейчас | — |
 | Penpot | ✅ **Уже развёрнут** (`penpot.bersonservicex.ru`) | См. раздел «Penpot» |
@@ -85,6 +86,44 @@
 - **Uptime Kuma** — nice-to-have (внешний аптайм-монитор), низкий приоритет; health-dashboard уже есть.
 - **cmdk / motion (framer-motion)** — полировка, по вкусу и не сейчас.
 
+## Редактор контента — Tiptap Simple Editor (вариант A, решение владельца 21.07)
+
+**Задача:** WYSIWYG-редактор для текстов на платформе (статьи, тело писем-рассылок и уведомлений). Markdown и
+поле-ввода/превью — отклонены владельцем; нужен единый WYSIWYG + красивые HTML-письма.
+
+**Выбор: Tiptap, шаблон «Simple Editor» (free, MIT, self-hosted). НЕ «AI-editor».**
+
+- **Почему Tiptap:** headless — надевается на нашу Design DNA (Nunito, свои primitives), без чужой панельки;
+  модульный (не громоздкий — ставим только нужные расширения); WYSIWYG на одной поверхности; отдаёт HTML/JSON
+  (в БД лучше JSON — надёжнее санитайзить и рендерить под стенами тенанта); self-hosted, наружу ничего не ходит.
+- **Simple Editor vs AI-editor:** отличие ровно в AI-функциях. «AI-editor» = Tiptap **Content AI** — **платный
+  Tiptap Cloud**, отправляет содержимое редактора во **внешний** AI-сервис. Против нашей линии (медданные,
+  self-hosted, ничего наружу) → берём **Simple Editor**. Захотим AI-помощь позже — на **своей** модели, не Tiptap Cloud.
+- **Не берём:** CKEditor 5 / TinyMCE (громоздкие + платные тиры), Quill/Editor.js (тяжелее управлять дизайном /
+  блочная модель). Lexical — запасной, если Tiptap где-то упрётся.
+
+**Вариант A — HTML-письма (решение владельца 21.07):** рассылки/письма клиники набирают **текст** в готовый
+шаблон, каркасы писем делаем мы. Полноценный визуальный email-билдер (GrapesJS и пр.) — **не берём**. Механика:
+тело из Tiptap → **sanitized HTML** → вставляется в фиксированный **email-safe каркас** (React Email / MJML,
+OSS/self-hosted) + генерится обязательный **plain-text fallback**. Telegram/MAX/push — безопасное подмножество из
+того же документа. (React Email/MJML заводить в момент реализации email-каркасов, не раньше.)
+
+**Синхронизация с планами (важно — не плодить сущность):** редактор — это **UI-слой существующей системы шаблонов**,
+а не новый экран. Садится в стадию **N1B «managed notification templates»** (taskdb `#930`,
+[`docs/_TODO/RU_PRIVACY_AND_PRODUCTION_READINESS/stages/NTF-01_APP_PUSH_AND_MESSENGER_AUTH_ONLY.md`](../_TODO/RU_PRIVACY_AND_PRODUCTION_READINESS/stages/NTF-01_APP_PUSH_AND_MESSENGER_AUTH_ONLY.md)).
+Обязательный reuse (канон N1B, не форкать второй стор): `modules/notif-templates/notifTemplatesService.ts`,
+существующие admin/doctor-роуты, настройки `notif_template:*`, редактор «Тексты уведомлений»
+(`NotificationTemplatesPageClient.tsx`). Требования N1B, которые редактор обязан соблюсти:
+- модель **event × audience × channel**, версии, platform default → org override → рендерер канала;
+- **переменные — server-enforced allowlist** (Tiptap custom-node «переменная», разрешённый набор приходит с
+  сервера по event/channel/tier; unknown / диагноз / жалоба / телефон-имя-где-нельзя / чужой URL / секрет → fail-closed);
+- **email = subject + sanitized HTML + обязательный plain-text fallback**; мессенджеры/push — только их безопасные поля;
+- **превью на синтетике, без реальной отправки** (в т.ч. без реального DEV-send).
+
+**Массовые рассылки врача** (`/app/doctor/broadcasts`, `DOCTOR_BROADCASTS.md`) — отдельный **уже готовый**
+механизм (текст + HTML для мессенджеров, markdown-форматирование = task #20). Тот же Tiptap можно переиспользовать
+для тела рассылки позже, но это НЕ скоуп N1B — отдельным решением.
+
 ## Penpot — уже развёрнут (пробел в доках закрыт)
 
 **Факт (владелец 19.07): Penpot уже развёрнут как сервер `penpot.bersonservicex.ru`.** В доках репозитория он ранее
@@ -101,5 +140,6 @@ BersonCare (пациентский/докторский рантайм) он н�
 Блок «Next.js 16 + React 19 + Tailwind v4 + shadcn new-york … Tiptap как ядро контента, idea-inbox → storyline, kanban,
 30 экранов, статистика постинга» — это **язык проекта storylama, не BersonCare**. У BersonCare своя дизайн-система
 (Design DNA v1, Nunito, свои primitives; эталон каталога — страница упражнений). Оттуда в BersonCare переносится только
-точечно и по месту — не как стек. Rich-text-редактор (Tiptap/Lexical) — только если конкретный экран (CMS/библиотека)
-реально этого потребует, отдельным решением.
+точечно и по месту — не как стек. **Исключение — сам rich-text-редактор: конкретный экран его потребовал**
+(тексты платформы / шаблоны уведомлений), поэтому Tiptap **принят** отдельным решением 21.07 — см. раздел
+«Редактор контента» выше. Остальной блок storylama-стека это не втягивает.
