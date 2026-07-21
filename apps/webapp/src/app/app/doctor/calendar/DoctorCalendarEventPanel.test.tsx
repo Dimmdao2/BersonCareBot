@@ -132,6 +132,8 @@ describe("DoctorCalendarEventPanel patient heading", () => {
       "tel:+79990000000",
     );
     const copyButton = screen.getByRole("button", { name: /Показать и скопировать телефон:/ });
+    expect(copyButton).toHaveTextContent("+7 999 000-00-00");
+    expect(screen.queryByRole("status")).not.toBeInTheDocument();
     fireEvent.click(copyButton);
     await waitFor(() => expect(writeText).toHaveBeenCalledWith("+7 999 000-00-00"));
     expect(screen.getByRole("status")).toHaveTextContent("Скопировано");
@@ -167,6 +169,7 @@ describe("DoctorCalendarEventPanel patient heading", () => {
     expect(
       screen.queryByRole("button", { name: "Закрыть карточку записи" }),
     ).not.toBeInTheDocument();
+    expect(screen.getByTestId("appointment-detail-header")).toHaveClass("pr-10");
     await waitFor(() => expect(fetch).toHaveBeenCalledTimes(1));
   });
 

@@ -213,7 +213,7 @@ function DoctorCalendarEventPanelInner({
   const [message, setMessage] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
   const [lifecycle, setLifecycle] = useState<LifecycleResponse | null>(null);
-  const [phoneCopyState, setPhoneCopyState] = useState<"shown" | "copied" | null>(null);
+  const [phoneCopied, setPhoneCopied] = useState(false);
 
   const [createStart, setCreateStart] = useState("");
   const [createSpecialistId, setCreateSpecialistId] = useState<string | null>(null);
@@ -226,12 +226,11 @@ function DoctorCalendarEventPanelInner({
   const selectedId = selected?.id ?? null;
 
   async function copyPatientPhone(phone: string) {
-    setPhoneCopyState("shown");
     try {
       await navigator.clipboard.writeText(phone);
-      setPhoneCopyState("copied");
+      setPhoneCopied(true);
     } catch {
-      // The visible number remains available when clipboard permission is unavailable.
+      // The number remains visible when clipboard permission is unavailable.
     }
   }
 
@@ -518,7 +517,13 @@ function DoctorCalendarEventPanelInner({
 
   return (
     <div className={doctorClientOverviewPrimaryCardClass}>
-      <div className="flex items-start justify-between gap-3">
+      <div
+        data-testid="appointment-detail-header"
+        className={cn(
+          "flex items-start justify-between gap-3",
+          !showCloseControl && "pr-10",
+        )}
+      >
         <div className="min-w-0 flex-1">
           <div className="flex min-w-0 items-center justify-between gap-2">
             <h2 className="min-w-0 truncate text-base font-semibold text-foreground">
@@ -571,8 +576,8 @@ function DoctorCalendarEventPanelInner({
                     title="Телефон"
                   >
                     <Phone aria-hidden />
-                    {phoneCopyState ? <span>{selected.patientPhone}</span> : null}
-                    {phoneCopyState === "copied" ? <span role="status">Скопировано</span> : null}
+                    <span>{selected.patientPhone}</span>
+                    {phoneCopied ? <span role="status">Скопировано</span> : null}
                   </Button>
                 </>
               ) : null}
