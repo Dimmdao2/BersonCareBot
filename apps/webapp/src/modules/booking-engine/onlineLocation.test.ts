@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import type { BeBranch } from "./types";
 import {
   ONLINE_LOCATION_CITY_CODE,
+  ONLINE_LOCATION_SHORT_TITLE,
   ONLINE_LOCATION_TITLE,
   findBuiltInOnlineLocation,
   isBuiltInOnlineLocation,
@@ -99,5 +100,42 @@ describe("built-in Online location", () => {
       branch({ id: "online-2", cityCode: "ONLINE" }),
     ];
     expect(() => findBuiltInOnlineLocation(rows, ORGANIZATION_A)).toThrow("online_location_duplicate");
+  });
+
+  it("updates an explicit clinic color override and otherwise preserves the stored Online color", async () => {
+    const stored = branch({
+      id: "online-a",
+      title: ONLINE_LOCATION_TITLE,
+      shortTitle: ONLINE_LOCATION_SHORT_TITLE,
+      cityCode: ONLINE_LOCATION_CITY_CODE,
+      color: "#123456",
+      isActive: true,
+    });
+    const upsertBranch = vi.fn(async (input: Parameters<import("./ports").OrganizationCatalogPort["upsertBranch"]>[0]) => ({
+      ...stored,
+      ...input,
+    }));
+    const catalog = { listBranches: vi.fn().mockResolvedValue([stored]), upsertBranch };
+
+    const unchanged = await setBuiltInOnlineLocationState(catalog, {
+      organizationId: ORGANIZATION_A,
+      isActive: false,
+      defaultColor: "#7C3AED",
+    });
+    expect(unchanged.color).toBe("#123456");
+    expect(upsertBranch).toHaveBeenLastCalledWith(expect.objectContaining({ color: "#123456" }));
+
+    const overridden = await setBuiltInOnlineLocationState(catalog, {
+      organizationId: ORGANIZATION_A,
+      isActive: true,
+      defaultColor: "#7C3AED",
+      colorOverride: "#ABCDEF",
+    });
+    expect(overridden.color).toBe("#ABCDEF");
+    expect(upsertBranch).toHaveBeenLastCalledWith(expect.objectContaining({
+      id: "online-a",
+      organizationId: ORGANIZATION_A,
+      color: "#ABCDEF",
+    }));
   });
 });

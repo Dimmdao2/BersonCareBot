@@ -38,21 +38,29 @@ export function findBuiltInOnlineLocation(
 type OnlineLocationCatalog = Pick<OrganizationCatalogPort, "listBranches" | "upsertBranch">;
 
 /**
- * Lazy-provisions the one organization-owned built-in Online location and only changes its
- * active state. Existing service/specialist availability rows are intentionally left intact.
+ * Lazy-provisions the one organization-owned built-in Online location and changes only its
+ * active state and an explicitly supplied clinic color override. Existing service/specialist
+ * availability rows are intentionally left intact.
  */
 export async function setBuiltInOnlineLocationState(
   catalog: OnlineLocationCatalog,
-  input: { organizationId: string; isActive: boolean; defaultColor: string },
+  input: {
+    organizationId: string;
+    isActive: boolean;
+    defaultColor: string;
+    colorOverride?: string;
+  },
 ): Promise<BeBranch> {
   const branches = await catalog.listBranches(input.organizationId);
   const existing = findBuiltInOnlineLocation(branches, input.organizationId);
 
   if (existing) {
+    const color = input.colorOverride ?? existing.color;
     if (
       existing.isActive === input.isActive &&
       existing.title === ONLINE_LOCATION_TITLE &&
-      existing.shortTitle === ONLINE_LOCATION_SHORT_TITLE
+      existing.shortTitle === ONLINE_LOCATION_SHORT_TITLE &&
+      existing.color === color
     ) {
       return existing;
     }
@@ -61,7 +69,7 @@ export async function setBuiltInOnlineLocationState(
       id: existing.id,
       title: ONLINE_LOCATION_TITLE,
       shortTitle: ONLINE_LOCATION_SHORT_TITLE,
-      color: existing.color,
+      color,
       cityCode: ONLINE_LOCATION_CITY_CODE,
       address: null,
       timezone: existing.timezone,
@@ -76,7 +84,7 @@ export async function setBuiltInOnlineLocationState(
       organizationId: input.organizationId,
       title: ONLINE_LOCATION_TITLE,
       shortTitle: ONLINE_LOCATION_SHORT_TITLE,
-      color: input.defaultColor,
+      color: input.colorOverride ?? input.defaultColor,
       cityCode: ONLINE_LOCATION_CITY_CODE,
       address: null,
       timezone: ONLINE_LOCATION_DEFAULT_TIMEZONE,
@@ -91,13 +99,14 @@ export async function setBuiltInOnlineLocationState(
       input.organizationId,
     );
     if (!current) throw error;
-    if (current.isActive === input.isActive) return current;
+    const color = input.colorOverride ?? current.color;
+    if (current.isActive === input.isActive && current.color === color) return current;
     return catalog.upsertBranch({
       organizationId: input.organizationId,
       id: current.id,
       title: ONLINE_LOCATION_TITLE,
       shortTitle: ONLINE_LOCATION_SHORT_TITLE,
-      color: current.color,
+      color,
       cityCode: ONLINE_LOCATION_CITY_CODE,
       address: null,
       timezone: current.timezone,

@@ -16,6 +16,7 @@ import {
   type SoloOverview,
 } from "@/app/app/settings/bookingSoloAdminApi";
 import { isBuiltInOnlineLocation } from "@/modules/booking-engine/onlineLocation";
+import { DEFAULT_BOOKING_LOCATION_PALETTE } from "@/modules/booking-engine/locationPalette";
 
 const BASE = "/api/admin/booking-engine";
 const DEFAULT_BRANCH_COLOR = "#2563eb";
@@ -96,12 +97,25 @@ export function BookingSoloLocationsSection() {
 
         <div className="flex items-center justify-between gap-3 rounded-md border border-border/60 p-3">
           <Label htmlFor="booking-online-location">Онлайн</Label>
-          <Switch
-            id="booking-online-location"
-            checked={onlineLocation?.isActive ?? false}
-            disabled={pending}
-            onCheckedChange={(checked) => run(() => setOnlineLocationEnabled(checked))}
-          />
+          <div className="flex items-center gap-3">
+            <Input
+              type="color"
+              className="h-8 w-12 cursor-pointer px-1 py-0.5"
+              aria-label="Цвет онлайн-локации"
+              value={onlineLocation?.color ?? DEFAULT_BOOKING_LOCATION_PALETTE.online}
+              disabled={pending}
+              onChange={(event) => run(() => setOnlineLocationEnabled(
+                onlineLocation?.isActive ?? false,
+                event.target.value,
+              ))}
+            />
+            <Switch
+              id="booking-online-location"
+              checked={onlineLocation?.isActive ?? false}
+              disabled={pending}
+              onCheckedChange={(checked) => run(() => setOnlineLocationEnabled(checked))}
+            />
+          </div>
         </div>
 
         <div className="space-y-2 rounded-md border border-border/60 p-3">

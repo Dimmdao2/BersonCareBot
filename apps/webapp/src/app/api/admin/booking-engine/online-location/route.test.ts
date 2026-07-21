@@ -58,6 +58,44 @@ describe("PUT /api/admin/booking-engine/online-location", () => {
     );
   });
 
+  it("normalizes and saves an explicit Online color through the exact organization context", async () => {
+    const res = await PUT(new Request("http://localhost/api/admin/booking-engine/online-location", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ isActive: true, color: "#abcdef" }),
+    }));
+    expect(res.status).toBe(200);
+    expect(setOnlineLocationStateMock).toHaveBeenCalledWith({
+      organizationId: "org-a",
+      isActive: true,
+      colorOverride: "#ABCDEF",
+    });
+  });
+
+  it("rejects an invalid Online color before reaching the service", async () => {
+    const res = await PUT(new Request("http://localhost/api/admin/booking-engine/online-location", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ isActive: true, color: "violet" }),
+    }));
+    expect(res.status).toBe(400);
+    expect(setOnlineLocationStateMock).not.toHaveBeenCalled();
+  });
+
+  it("keeps ordinary unauthorized callers outside the clinic-management route", async () => {
+    const { NextResponse } = await import("next/server");
+    requireClinicManagementBookingEngineMock.mockResolvedValueOnce({
+      ok: false,
+      response: NextResponse.json({ ok: false, error: "forbidden" }, { status: 403 }),
+    });
+    const res = await PUT(new Request("http://localhost", {
+      method: "PUT",
+      body: JSON.stringify({ isActive: true, color: "#ABCDEF" }),
+    }));
+    expect(res.status).toBe(403);
+    expect(setOnlineLocationStateMock).not.toHaveBeenCalled();
+  });
+
   it.each([
     "entitlement_required",
     "commercial_read_only",

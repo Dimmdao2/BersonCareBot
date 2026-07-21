@@ -4,7 +4,10 @@ import { requireEntitlementForMutation } from "@/app-layer/guards/requireEntitle
 import { withDoctorWorkspacePrincipal } from "@/app-layer/principal/withOrganizationPrincipal";
 import { requireClinicManagementBookingEngine } from "../_requireAdminBookingEngine";
 
-const PutSchema = z.object({ isActive: z.boolean() }).strict();
+const PutSchema = z.object({
+  isActive: z.boolean(),
+  color: z.string().regex(/^#[0-9A-Fa-f]{6}$/).transform((value) => value.toUpperCase()).optional(),
+}).strict();
 
 export async function PUT(request: Request) {
   const gate = await requireClinicManagementBookingEngine();
@@ -24,6 +27,7 @@ export async function PUT(request: Request) {
       gate.ctx.service.catalog.setOnlineLocationState({
         organizationId: gate.ctx.organizationId,
         isActive: parsed.data.isActive,
+        ...(parsed.data.color ? { colorOverride: parsed.data.color } : {}),
       }),
   );
   return NextResponse.json({ ok: true, location });

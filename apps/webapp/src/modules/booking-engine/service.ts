@@ -254,7 +254,11 @@ function createCatalogFacade(
         physicalPalette: palette.physicalPalette,
       });
     },
-    async setOnlineLocationState(input: { organizationId: string; isActive: boolean }) {
+    async setOnlineLocationState(input: {
+      organizationId: string;
+      isActive: boolean;
+      colorOverride?: string;
+    }) {
       const palette = await locationPalette();
       return setBuiltInOnlineLocationState(port, { ...input, defaultColor: palette.online });
     },

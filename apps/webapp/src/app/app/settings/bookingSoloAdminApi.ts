@@ -56,11 +56,11 @@ export async function fetchSoloOverview(): Promise<SoloOverview | null> {
   }
 }
 
-export async function setOnlineLocationEnabled(isActive: boolean): Promise<void> {
+export async function setOnlineLocationEnabled(isActive: boolean, color?: string): Promise<void> {
   await apiJson(`${BASE}/online-location`, {
     method: "PUT",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ isActive }),
+    body: JSON.stringify({ isActive, ...(color ? { color } : {}) }),
   });
 }
 
