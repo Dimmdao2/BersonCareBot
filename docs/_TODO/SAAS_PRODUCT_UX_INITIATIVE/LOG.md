@@ -3778,3 +3778,25 @@ card/scheduled/walk-in idempotency, exact-placeholder claim, existing-email conf
 two-organization negatives, concurrent registration-versus-claim convergence, rollback-safe pending-invite handling,
 targeted tests, disposable PostgreSQL proof, typecheck/lint/build, milestone full CI and one independent high-risk
 audit. No file, database, server or provider action was performed by the readiness pass.
+
+## 2026-07-21 — U3B no-contact invite closure integrated (`#806`)
+
+Commits `20b454200`, `f9e4c9534` and `dc21e1905` close the separately manifested no-phone/no-email patient identity
+path. Standalone card, scheduled appointment and walk-in creation now accept structured FIO with null contacts and
+create one exact-organization enrollment without fabricated phone/email, contact trust or FIO deduplication. All
+three entry points share one durable command ledger, so exact retries and two-connection concurrency return the same
+patient/enrollment while changed organization, command kind or semantic payload fails closed.
+
+An explicitly unbound portal invite can be claimed by a newly verified email and atomically attaches that proof to
+the exact placeholder identity. If the email already belongs to another canonical user, activation and contact
+mutation remain zero-partial and one organization-attributed merge candidate is recorded; no automatic merge or
+rebind was introduced. Existing bound-email invites, including legacy local values, retain their previous contract.
+Migration `0222`, rollback, FORCE RLS/ACL, session-loss recovery and registration/claim/redeem races passed the
+guarded disposable PostgreSQL proof.
+
+The first two high-risk audits produced owner-mapped retry/idempotency findings, closed in the two bounded
+corrections above. The final full independent audit passed `0 P0 / 0 P1 / 0 P2`. Worker evidence was `83/83`
+targeted tests, scoped lint, migration journal/frozen-history, D3.4 and strict-finalizer checks; the auditor repeated
+the structural gates and exact constraint parity. No working database, DEV/TEST/PROD, deploy, real delivery or full
+CI was used. Task `#806` is technically complete; broader U3B SMS/PBK/PWA/install/push and its milestone acceptance
+remain open and are not represented as closed by this entry.

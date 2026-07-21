@@ -554,8 +554,12 @@ card; запрещено строить временный resolver, второ�
   `200`, while independent DEV org B resolves `courses=false`, hides navigation and returns direct-route `404`.
   The resumed milestone gate passed lint/typecheck, integrator `1271/1271`, webapp `8181` tests, media-worker `60/60`,
   root/webapp builds and full audit. **C4C is terminally complete;** no TEST/PROD/deploy/reset/dump was performed.
-  C4D remains a separate pending substage. C5C seat
-  commerce is not part of the completed C4A scope.
+  C4D is integrated through `cd92fbc2c`: organization/platform ownership is explicit, clinic content never becomes
+  global automatically, platform base-library reads are exact and gated, assignment/media/template ownership is
+  checked through the trusted organization, and platform writes remain fail-closed until the sanctioned U9 platform
+  governance path. Its terminal high-risk audit, targeted checks and milestone gate passed; taskdb `#724` is
+  technically complete. Future store commerce remains deferred. C5C seat commerce is not part of the completed C4A
+  scope.
 - **Dependencies:** U0/U1/U2, S4-0/S4-1 registry/chokepoint и C2 identity. Store commerce не блокирует первые два
   library modes. C4A-C4D исполняются/аудируются независимо; blocked seat pricing, course redesign или store не
   останавливает готовую tenant isolation.
@@ -937,9 +941,21 @@ care state. Public self-booking remains another entry and can continue safely in
   re-audit closed all P0/P1 findings; its single recovery-copy P2 was corrected locally with targeted tests and a
   repeat disposable PostgreSQL proof. The remaining no-phone/no-email patient-creation path is a separately manifested
   `#806` substage; SMS/PBK/PWA/install/push remain outside this invite slice.
+- **Status (2026-07-21, `#806` no-contact closure):** the separately manifested no-phone/no-email path is integrated
+  through `dc21e1905`. Standalone card, scheduled appointment and walk-in creation accept structured FIO with null
+  contacts, create one exact-organization enrollment and never use FIO, fake contacts or contact trust as identity.
+  One durable command ledger makes all three creation paths retry/concurrency safe. An explicitly unbound invite lets
+  a newly verified email claim that exact placeholder identity; an email already owned by another canonical user
+  fails closed and records only an exact-organization merge candidate, without automatic merge or rebind. Migration
+  `0222`, rollback, FORCE RLS/ACL, two-connection races and legacy bound-email compatibility passed the disposable
+  PostgreSQL proof. The final independent high-risk audit passed `0 P0 / 0 P1 / 0 P2`; worker evidence was `83/83`
+  targeted tests plus scoped lint and structural migration/finalizer checks. No working database, DEV/TEST/PROD,
+  deploy, external delivery or full CI was used. Task `#806` is technically complete; the broader U3B SMS/PBK/PWA/
+  install/push work remains open under this roadmap and is not implied by the task closure.
 - **Completion:** [x] manual card + appointment + walk-in complete; [x] not-activated/invited/linked states truthful;
   [x] identity-to-existing-card link exactly-once; [ ] PIN/SMS/PBK complete; [x] no internal-id authority; [ ] first value
-  before install; [ ] installed re-auth/context; [ ] delivery privacy; [ ] full audit PASS.
+  before install; [ ] installed re-auth/context; [ ] delivery privacy; [x] `#806` invite/no-contact audit PASS;
+  [ ] full U3B audit PASS.
 - **Merge dependency:** U1 + U5A; deferred clinic-staff stage U3A is not a dependency.
 
 ### U4 — acquisition and relationship integration checkpoint
