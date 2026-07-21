@@ -363,6 +363,7 @@ async function main() {
     '"--execute"',
     '"--execute --prove-cleanup-on-injected-failure"',
     '"--execute --assert-clean-only"',
+    'ALLOW_DEV_AUTH_BYPASS=false pnpm --dir apps/webapp run diagnostics:saas-isolation:test-scenarios',
     'diagnostics:saas-isolation:test-scenarios',
   ])
     requireText(scenarioProof, fragment, 'canonical TEST diagnostic scenario proof');
@@ -485,6 +486,11 @@ async function main() {
         scenarioProof.replace('"--execute --prove-cleanup-on-injected-failure"', '"--execute"'),
         '"--execute --prove-cleanup-on-injected-failure"',
         'missing injected-failure cleanup proof',
+      ],
+      [
+        scenarioProof.replace('ALLOW_DEV_AUTH_BYPASS=false ', ''),
+        'ALLOW_DEV_AUTH_BYPASS=false pnpm --dir apps/webapp run diagnostics:saas-isolation:test-scenarios',
+        'diagnostic CLI inherits TEST dev-bypass flag',
       ],
       [
         closure.replace('run_saas_isolation_test_scenario_proof', 'true'),

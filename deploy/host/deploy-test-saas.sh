@@ -725,7 +725,7 @@ run_saas_isolation_test_scenario_proof(){
     "--execute" \
     "--execute --prove-cleanup-on-injected-failure" \
     "--execute --assert-clean-only"; do
-    sudo -u deploy bash -lc "cd '$DEPLOY_REPO' && set -a && . '$WEBAPP_ENV' && set +a && pnpm --dir apps/webapp run diagnostics:saas-isolation:test-scenarios -- $scenario_args"
+    sudo -u deploy bash -lc "cd '$DEPLOY_REPO' && set -a && . '$WEBAPP_ENV' && set +a && ALLOW_DEV_AUTH_BYPASS=false pnpm --dir apps/webapp run diagnostics:saas-isolation:test-scenarios -- $scenario_args"
   done
   echo "   SaaS isolation TEST scenarios: normal + injected cleanup + final clean OK"
 }
