@@ -1,6 +1,7 @@
 # NTF-01 — App push and messenger auth-only boundary
 
-Статус: `in_progress`; N0 census закрыт 2026-07-21, N1 следующий. Текущий runtime всё ещё многоканальный.
+Статус: `in_progress`; N0 census и N1 central guard закрыты 2026-07-21. N1A и N1B0 — следующие repository slices.
+Текущий runtime всё ещё многоканальный до N3/N4/N6 cutover.
 
 ## Цель
 
@@ -214,12 +215,12 @@ run.
 
 ### N1 — central egress policy guard (`AI`, after exact dispatch scope)
 
-- [ ] Ввести strict typed `OutboundMessageClass/Capability`; product module не передаёт произвольную строку.
-- [ ] В нижнем integrator dispatch chokepoint Telegram/MAX допускают только `auth_code` и минимальный auth
+- [x] Ввести strict typed `OutboundMessageClass/Capability`; product module не передаёт произвольную строку.
+- [x] В нижнем integrator dispatch chokepoint Telegram/MAX допускают только `auth_code` и минимальный auth
       handshake allowlist. Ошибка resolver/legacy setting не обходит guard.
-- [ ] Email/SMS product delivery default-deny; разрешённые service classes имеют отдельные tests/templates.
-- [ ] Static/runtime checker запрещает product notification → Telegram/MAX/email/SMS и direct provider calls.
-- [ ] Существующий OTP/login/bind regression остаётся зелёным; code/token не логируется и не попадает в URL.
+- [x] Email/SMS product delivery default-deny; разрешённые service classes имеют отдельные tests/templates.
+- [x] Static/runtime checker запрещает product notification → Telegram/MAX/email/SMS и direct provider calls.
+- [x] Существующий OTP/login/bind regression остаётся зелёным; code/token не логируется и не попадает в URL.
 
 Scope boundary: не менять feature UI/routes в этом slice. Checks: dispatch policy tests, fake legacy config, replay,
 unknown class, direct-call checker, auth regression, independent security audit.
@@ -254,6 +255,18 @@ DEV fixtures и не получают production release до exact matrix accep
   the next cross-plan milestone unless the implementation introduces repo-level shared changes.
 - **Open gates:** `MOB-O9`, `G-04B`, account-service templates and any TEST/PROD cutover remain owner/legal gates;
   they do not block this repository-only topology guard and are not inferred closed by it.
+
+#### N1 closure — 2026-07-21
+
+Integrated SHA: `671ac2127`. The first independent critical audit found seven owner-mapped P1s; one coherent
+correction closed the taxonomy, forged queue marker, legacy retry, non-message regression, static-checker, email
+contract and green-check gaps. Terminal audit `bcb-ntf01-n1-terminal-audit-20260721` passed `0 P0 / 0 P1 / 0 P2`.
+The audited/rebased patch id remained `b5212dd13df01d0a3b37a895ff516147d0252db8` after current-roadmap rebase.
+
+Checks: `13` targeted Vitest files / `136` tests PASS; integrator strict typecheck PASS; integrator lint PASS;
+`git diff --check` PASS. Full CI was intentionally deferred by the launch checkpoint. No provider/webapp/DB/schema,
+env, deploy, TEST/PROD, queue drain or real send was touched. Concrete safe templates remain N3/N1B work; SMS OTP
+transport/config remains present and is controlled later by N1A rather than removed.
 
 ### N1A — platform auth-channel policy (`AI`, taskdb `#929`, after N1)
 

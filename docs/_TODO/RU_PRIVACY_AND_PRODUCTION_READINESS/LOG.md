@@ -1,5 +1,20 @@
 # Execution log
 
+## 2026-07-21 — NTF-01/N1 central egress guard integrated (`#913`)
+
+- Integrated `671ac2127` on `feat/doctor-ui-rebuild`. Central typed policy runs before redirect, adapter selection,
+  provider or delivery-attempt logging. Telegram/MAX accept only auth code/contact handshake; Email/SMS accept only
+  auth code; Web Push accepts the canonical product classes. Generic relay cannot forge auth capability.
+- Persisted outgoing-delivery and legacy booking rows cannot restore caller-supplied auth markers. Policy denial is
+  terminal without retry or payload/body logging. Existing callback/edit/delete intents remain until N4.
+- The first critical audit reported seven P1s. One coherent correction closed all seven; terminal audit
+  `bcb-ntf01-n1-terminal-audit-20260721` passed `0 P0 / 0 P1 / 0 P2`. The audited patch id
+  `b5212dd13df01d0a3b37a895ff516147d0252db8` was unchanged after rebase onto current owner docs.
+- Validation: 13 targeted Vitest files / 136 tests PASS; integrator typecheck PASS; integrator lint PASS; diff-check
+  PASS. Full CI was intentionally not repeated. No DB/schema/provider/env/deploy/TEST/PROD/queue drain or real send.
+- SMS OTP modules/settings were retained. N1A `#929` now owns platform admin channel flags; N1B `#930` owns the
+  existing template-editor evolution. N3/N4/N6 and owner/legal gates remain open.
+
 ## 2026-07-21 — Owner additions: platform auth-channel policy and template editor (`#929/#930`)
 
 - Source census confirmed there is no independent Email/SMS/Telegram/MAX auth enable policy. Provider configuration
