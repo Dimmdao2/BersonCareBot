@@ -2,10 +2,10 @@
 
 Снимки **только DDL** (`pg_dump --schema-only`) с dev-базы **`bcb_webapp_dev`** после `pnpm run migrate`.
 
-| Файл | Схема | Обновлено |
-|------|--------|-----------|
+| Файл                                                                             | Схема        | Обновлено  |
+| -------------------------------------------------------------------------------- | ------------ | ---------- |
 | [`integrator_bcb_webapp_dev_schema.sql`](./integrator_bcb_webapp_dev_schema.sql) | `integrator` | 2026-06-10 |
-| [`public_bcb_webapp_dev_schema.sql`](./public_bcb_webapp_dev_schema.sql) | `public` | 2026-06-10 |
+| [`public_bcb_webapp_dev_schema.sql`](./public_bcb_webapp_dev_schema.sql)         | `public`     | 2026-06-10 |
 
 Переснять на хосте разработки:
 
@@ -73,5 +73,24 @@ owner вне `{owner текущей БД, app_owner}`. Это per-restore owner 
 не broad `ALTER OWNER`.
 Одноразовые C0 login/password роли готовятся вручную по `LOCAL_DEV_AND_AGENT_TESTING.md` и при следующих restore/deploy
 не пересоздаются.
+
+---
+
+## PII-free greenfield baseline для ephemeral CI
+
+Полный CI-only структурный baseline хранится отдельно в
+[`a0-greenfield/`](./a0-greenfield/README.md). Он не заменяет два исторических DEV schema dumps выше и не является
+runbook для DEV/TEST/PROD restore. Пакет содержит полный текущий DDL всех пяти application schemas, repo-derived
+manifest integrator+Drizzle ledgers и минимальный синтетический `.test` seed.
+
+Проверка и disposable restore выполняются командами:
+
+```bash
+pnpm run check:saas-a0-greenfield-baseline
+pnpm run verify:saas-a0-greenfield-baseline
+```
+
+Refresh выполняется только как отдельная осознанная schema-stage по инструкции пакета. Обычный deploy кода,
+incremental migration или запуск тестов baseline автоматически не переснимают.
 
 **Удалены устаревшие артефакты** (отдельные legacy dev-базы, март–апрель 2026): `integrator_bersoncarebot_dev_schema.sql`, `webapp_bcb_webapp_dev_schema.sql`.
