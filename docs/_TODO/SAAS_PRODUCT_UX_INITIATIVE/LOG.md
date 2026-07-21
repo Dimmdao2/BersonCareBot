@@ -1,5 +1,19 @@
 # Log — SaaS Product UX Initiative
 
+## 2026-07-21 — appointment detail UI owner delta queued (`UI-1c`, `#951`)
+
+Owner supplied a focused correction for the appointment card opened from Schedule/Today. The delta is now bound to
+OWNER_REVIEW §16a, the Doctor UI execution artifact and the main roadmap as a separate presentation/interaction
+sibling of completed C1 `#851`; no code worker was launched in this docs-only pass.
+
+Acceptance covers one close control, larger FIO with existing chat/phone actions, emphasized current date/time with
+semantic status badge, labelled branch/service/specialist with a solo-only omission, removal of duplicate status,
+patient-card and Rubitime UI, original time only after an actual reschedule, a centered create-visit action and a
+blank-disabled comment submit. Current `BookingStaffPaymentPanel` is diagnostic-only and does not provide the full
+provider-readiness/cash/invoice/pay-link/QR contract, so UI-1c hides it without deleting its domain; any future money
+implementation remains a separate high-risk stage. Taskdb `#951` is `todo`, `auto_ok=true`, with the canonical doc
+pointers. No source, DB, DEV/TEST/PROD, deploy or CI action was performed.
+
 ## 2026-07-21 — Hardening C2 and Phase 0 milestone closed (`#940`)
 
 Integrated `693c10d98` + `7055287ba`. The existing `@bersoncare/db-principal` AsyncLocalStorage and existing pino

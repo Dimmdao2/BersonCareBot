@@ -429,6 +429,14 @@ card; запрещено строить временный resolver, второ�
   slices UI-4a/UI-6a не перезапускаются; выдаётся только новый owner delta/residual после current code/live census.
   Каждый presentation scope: worker + один audit; live DEV evidence на единственном `:5200` сериализуется. UI-3
   делится на cosmetics, broadcast IA и composer/backend; UI-4 presentation не смешивается с backend metrics.
+- **UI-1c appointment detail owner delta (2026-07-21, `#951`):** отдельный sibling закрытого C1 `#851`, а не
+  перезапуск всего C1. Existing calendar/Today detail получает один close-control, semantic status badge рядом с
+  выделенными актуальными датой/временем, labelled branch/service/specialist с solo-aware specialist row, без
+  Rubitime service data и дублирующих status/patient links; исходное время показывается только после реального
+  переноса. FIO остаётся canonical card link и получает existing chat/phone actions; create-visit центрируется,
+  blank comment disabled. Диагностический payment panel скрывается до отдельной proof полной organization payment
+  readiness и server contracts cash/invoice/pay-link/QR; money backend не входит в UI-1c. Exact manifest и live
+  matrix — в Doctor UI execution artifact.
 - **UI-P shared presentation delta (owner 2026-07-20):** taskdb `#925`; doctor workspace получает единый
   shared-primitives pass для gap background `#faf9f4`, белой page header, радиусов block/KPI/control `12/8/24px`,
   padding основных блоков `18px`, белого input, порядка KPI label→value и более крупного/лёгкого основного list
@@ -447,7 +455,7 @@ card; запрещено строить временный resolver, второ�
   требуется только встроенная toggleable location; G6 — UI-P shared doctor chrome из предыдущего пункта.
   Независимый SCH-G5 остаётся owner-waiting `#848`.
   `#191`: default новых разминок `12:00`/`15:00` в рабочие дни, существующих клиентов не менять.
-- **Task mapping:** C1 `#850/#851/#852`; bounded built-in Online location переиспользует `#197`, а expanded online
+- **Task mapping:** C1 `#850/#851/#852`; новый UI-1c detail delta — `#951`; bounded built-in Online location переиспользует `#197`, а expanded online
   booking остаётся blocked в `#215`; UI-P `#925`; manual patient/walk-in `#801`; mechanics/reminders C4D/C5 +
   `#191`; individual exercises `#564` + design `#565`; voice post-production `#922`; S4 engine `#888`; superseded
   Doctor DNA `#885`. Новые duplicate cards не

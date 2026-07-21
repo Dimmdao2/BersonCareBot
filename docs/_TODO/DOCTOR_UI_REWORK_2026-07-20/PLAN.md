@@ -77,6 +77,45 @@ UI-0 acceptance.
   уже существующие online-галочки услуг. Не вводить новую схему, delivery-mode или второй booking engine; сначала
   подтвердить, какие follow-on фильтры/public projections уже работают, и дошить только доказанные gaps.
 
+#### UI-1c — карточка записи в календаре (`#951`)
+
+Новый owner delta 2026-07-21 относится к существующей `DoctorCalendarEventPanel`, открываемой из календаря и
+«Сегодня». Это отдельный presentation/interaction substage после текущего C1 baseline `#851`; весь закрытый C1
+повторно не запускать. UI-1c может идти параллельно с UI-1a/UI-1b при свободном file scope, но live DEV на `:5200`
+и тяжёлые проверки сериализуются.
+
+**Точный outcome:**
+
+1. В каждом host-context остаётся ровно один доступный close-control: в `Dialog` — внешний крупный крестик, в
+   embedded schedule panel — её собственное закрытие; два крестика рядом запрещены.
+2. ФИО крупнее и остаётся единственной навигацией в карточку пациента. Справа — icon-actions с доступными названиями:
+   чат переиспользует `DoctorOpenChatButton`; телефон использует существующую нормализацию `phoneToTelHref`, на
+   mobile открывает `tel:`, на desktop показывает номер и копирует его с видимым подтверждением. При отсутствии
+   canonical patient/phone соответствующее действие скрыто или disabled, без нового lookup API.
+3. Актуальные дата/время показаны отдельной более крупной и жирной строкой с заметным вертикальным отступом; справа
+   в той же строке — standard doctor `Badge`, немного выше текущего, с semantic цветом статуса (confirmed — green;
+   остальные состояния используют существующую status vocabulary, без случайных hex). Текст «Статус записи: …»
+   удалён как дубль.
+4. `Rubitime ID`, external Rubitime manage-link и отдельная ссылка «Карточка пациента» не рендерятся. Runtime/data
+   Rubitime и lifecycle этим presentation-scope не меняются.
+5. Детали идут с явными подписями «Филиал», «Услуга», «Специалист». Строка «Специалист» отсутствует только когда
+   server-derived organization/specialist context действительно доказывает solo-mode; clinic mode её сохраняет.
+   Не выводить предположение о solo-mode только из пустого поля текущей записи.
+6. «Исходное время» находится сразу под актуальными датой/временем в прежней спокойной meta-типографике и появляется
+   только если `originalStartAt` реально отличается от `startAt` по календарной минуте.
+7. «Создать визит из записи» занимает отдельную центрированную строку, имеет немного более крупный текст/padding,
+   но не растягивается на всю ширину. Других ссылок и badges в этой строке нет.
+8. «Добавить комментарий» disabled при пустом или whitespace-only draft; существующий comments API не меняется.
+9. Текущий `BookingStaffPaymentPanel` является диагностическим read-on-demand UI и не соответствует целевому
+   payment UX. До доказанной полной organization provider-readiness и существующих server-authorized contracts
+   cash mark + invoice/pay-link + QR панель скрывается, но сам компонент/домен не удаляется. UI-1c не строит эти
+   денежные механизмы. Будущий payment substage показывает только три owner-состояния: частичная предоплата с
+   суммой, полностью оплачено с суммой либо «Не оплачено» с действиями «Оплачено наличными»/«Выставить счёт».
+
+**Risk:** UI-1c сейчас presentation/interaction — один worker + один независимый audit. Любая реализация cash mark,
+invoice/pay-link/QR или новый provider-readiness contract выносится в отдельный money/high-risk stage; finding не
+превращает её автоматически в scope UI-1c.
+
 ### UI-3 — коммуникации
 
 Разделить три непересекающихся по риску этапа:
@@ -203,6 +242,7 @@ Targeted checks presentation workers могут идти независимо; l
 | UI-0 booking funnel | `#923`; manual patient/walk-in — `#801` | `#923` — единый UI-0 stage; `#801` остаётся отдельным authority для полного manual patient/walk-in scope и не форкается |
 | Manual patient/walk-in | U3B / `#801` | переиспользовать; не считать authority для UI-0 trace |
 | UI-1 presentation/behavior | C1 / `#851` | обновить scope существующей задачи при запуске |
+| UI-1c appointment detail card | `#951`, sibling закрытого C1 `#851` | новый owner delta; запускать отдельно, не переоткрывать и не повторять весь C1 |
 | SCH-G5 | `#848` | owner-waiting, без реализации |
 | UI-2 built-in Online location | базовый online-location scope отделить от расширенного `#215` | G5 закрыт; переиспользовать существующую модель и не объявлять закрытым расширенный flow `#215` |
 | UI-3 communications | C1 / `#852` | split на subscopes в meta/note, не новые дубли |
@@ -252,6 +292,29 @@ delta. UI-1 и UI-3 могут выполняться параллельно с 
 header, а не повторены в каждой date-cell; действие называется «Установить», используется существующий shared time
 picker, grid lines спокойнее. Фильтр state и SCH-G5 не менять в presentation slice.
 
+### UI-1c — Карточка записи presentation/interaction
+
+**Current fact:** `DoctorCalendarEventPanel` переиспользуется в schedule и двух modal wrappers «Сегодня»; именно
+сочетание встроенного close и стандартного `DialogContent` даёт два крестика. Карточка уже получает canonical
+patient id/phone, имеет `DoctorOpenChatButton` и `phoneToTelHref` reuse-кандидаты, но текущий payment panel только
+загружает диагностический summary и не имеет полного readiness/cash/invoice/QR contract.
+
+**Writable manifest (уточнить current callsites перед launch):**
+
+- `apps/webapp/src/app/app/doctor/calendar/DoctorCalendarEventPanel.tsx`
+- `apps/webapp/src/app/app/doctor/calendar/DoctorCalendarEventPanel.test.tsx`
+- `apps/webapp/src/app/app/doctor/TodayAppointmentFullModal.tsx`
+- `apps/webapp/src/app/app/doctor/TodayMiniCalendarWithModal.tsx`
+- `apps/webapp/src/app/app/doctor/clients/AppointmentStaffCommentsSection.tsx`
+- существующий или новый focused test рядом с `AppointmentStaffCommentsSection`, только если blank-draft contract
+  нельзя доказать через panel test без тяжёлого mock graph.
+
+**Acceptance:** DEV `/app/doctor/schedule?tab=calendar` и `/app/doctor`, `dev:doctor`; `1440×900` и `390×844`.
+Проверить modal и embedded context, confirmed + cancelled/rescheduled statuses, solo и clinic context, patient с/без
+phone/canonical id, whitespace comment, unchanged appointment и реально перенесённую запись. Payment panel отсутствует
+до отдельной readiness proof. Focused tests + scoped typecheck/lint; один live pass и один independent presentation
+audit. TEST/deploy/full CI не входят — stage присоединяется к следующему milestone CI.
+
 ### UI-4a — Клиенты presentation
 
 **Current fact:** базовый 50/50/presentation slice уже интегрирован и прошёл независимый audit; не запускать его
@@ -295,6 +358,8 @@ link detail. Shared composer/backend/scheduled-message работу не сме�
 - `DoctorDateTimePicker` и существующие time-picker contracts → UI-1.
 - Existing location-color resolver/tokens → все template days и weekday header UI-1.
 - Existing independent multi-select pattern → UI-1b, после trace текущего state contract.
+- Standard doctor `Badge`, `DoctorOpenChatButton`, `phoneToTelHref` и canonical `patientCardHref` → UI-1c; новый
+  chat/phone/payment механизм не создавать.
 - `CatalogSplitLayout`/действующий doctor split primitive → UI-3/UI-4/UI-5; новый layout primitive не создавать.
 - `ChatView` и текущие discussion renderers → UI-3 background и поздний UI-7 message status.
 - Existing Overview/Visits blocks и `MembershipPanel` → перенос в UI-5, не переписывание.
