@@ -25,6 +25,10 @@
   `message.deliver` jobs in `integrator.rubitime_create_retry_jobs` were absent from the queue map and booking child
   manifest. The bounded correction adds their retained field categories, state/retry/dispatch path, no-live-state
   boundary and exact queue/adapter/executor ownership. No second correction scope was opened.
+- Terminal re-audit `bcb-ntf01-n0-final-audit-20260721` passed `0 P0 / 0 P1` with no P2 recommendations. It verified
+  the complete required-family census, current/target separation, legacy queue cutover inventory, exact
+  non-overlapping manifests, source/link validity and the continuing `MOB-O9`/`G-04B`/later drain gates. N0 is
+  engineering-closed; N1 is the next repository runtime slice and no production activation or cutover is implied.
 
 ## 2026-07-21 — PR-01 factual register independent audit PASS (`#899`)
 

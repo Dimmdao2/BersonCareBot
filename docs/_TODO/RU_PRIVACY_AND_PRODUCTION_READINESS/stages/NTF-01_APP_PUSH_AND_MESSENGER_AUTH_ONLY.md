@@ -1,6 +1,6 @@
 # NTF-01 — App push and messenger auth-only boundary
 
-Статус: `planned`; owner channel direction принят 2026-07-19. Текущий runtime всё ещё многоканальный.
+Статус: `in_progress`; N0 census закрыт 2026-07-21, N1 следующий. Текущий runtime всё ещё многоканальный.
 
 ## Цель
 
