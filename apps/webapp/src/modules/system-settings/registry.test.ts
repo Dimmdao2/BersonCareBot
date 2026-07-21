@@ -33,4 +33,21 @@ describe("S5-0 system-settings registry", () => {
       expect(definition.evaluation).toBe("deferred_until_s4_merge");
     }
   });
+
+  it("classifies auth-channel policy as global public runtime configuration", () => {
+    expect(SYSTEM_SETTING_REGISTRY.auth_email_enabled).toMatchObject({
+      scope: "admin", storage: "runtime", ownership: "global", audience: "public",
+      valueContract: "boolean", defaultValue: "true",
+    });
+    expect(SYSTEM_SETTING_REGISTRY.auth_sms_enabled).toMatchObject({
+      scope: "admin", storage: "runtime", ownership: "global", audience: "public",
+      valueContract: "boolean", defaultValue: "false",
+    });
+    for (const key of ["auth_telegram_enabled", "auth_max_enabled"] as const) {
+      expect(SYSTEM_SETTING_REGISTRY[key]).toMatchObject({
+        scope: "admin", storage: "runtime", ownership: "global", audience: "public",
+        valueContract: "boolean", defaultValue: "true",
+      });
+    }
+  });
 });

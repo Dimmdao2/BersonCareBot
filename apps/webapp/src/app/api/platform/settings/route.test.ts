@@ -43,6 +43,31 @@ describe("/api/platform/settings", () => {
     );
   });
 
+  it.each([
+    "auth_email_enabled",
+    "auth_sms_enabled",
+    "auth_telegram_enabled",
+    "auth_max_enabled",
+  ])("writes the %s policy only as a global admin boolean", async (key) => {
+    const response = await PATCH(new Request("http://localhost/api/platform/settings", {
+      method: "PATCH", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ key, value: false }),
+    }));
+    expect(response.status).toBe(200);
+    expect(updateMock).toHaveBeenCalledWith(
+      key, "admin", { value: false }, platformSession.user.userId, { organizationId: null },
+    );
+  });
+
+  it("rejects a non-boolean auth-channel value before the service", async () => {
+    const response = await PATCH(new Request("http://localhost/api/platform/settings", {
+      method: "PATCH", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ key: "auth_sms_enabled", value: "true" }),
+    }));
+    expect(response.status).toBe(400);
+    expect(updateMock).not.toHaveBeenCalled();
+  });
+
   it("does not expose unwhitelisted restricted settings", async () => {
     listMock.mockResolvedValue([{ key: "max_bot_api_key", scope: "admin", organizationId: null, valueJson: { value: "secret" } }]);
     const body = await (await GET()).json();

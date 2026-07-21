@@ -50,7 +50,11 @@ BEGIN
     'debug_forward_to_admin',
     'specialist_signup_enabled',
     'patient_app_maintenance_enabled',
-    'patient_app_maintenance_message'
+    'patient_app_maintenance_message',
+    'auth_email_enabled',
+    'auth_sms_enabled',
+    'auth_telegram_enabled',
+    'auth_max_enabled'
   ) THEN
     RAISE EXCEPTION 'platform system-setting key is not allowed';
   END IF;

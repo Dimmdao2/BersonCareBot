@@ -8,14 +8,18 @@ import type { SystemSetting } from "@/modules/system-settings/types";
 
 /**
  * The platform API is deliberately not a mirror of `/api/admin/settings`.
- * Each key is an explicit platform-global operator action; N1A1 extends this
- * list with its four boolean auth-channel policy keys.
+ * Each key is an explicit platform-global operator action; N1A now includes
+ * its four boolean auth-channel policy keys.
  */
 export const PLATFORM_GLOBAL_SETTINGS_API_KEYS = [
   "debug_forward_to_admin",
   "specialist_signup_enabled",
   "patient_app_maintenance_enabled",
   "patient_app_maintenance_message",
+  "auth_email_enabled",
+  "auth_sms_enabled",
+  "auth_telegram_enabled",
+  "auth_max_enabled",
 ] as const satisfies readonly SystemSettingKey[];
 
 const platformKeySchema = z.enum(PLATFORM_GLOBAL_SETTINGS_API_KEYS);

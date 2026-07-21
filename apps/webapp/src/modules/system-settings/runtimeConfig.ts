@@ -89,6 +89,10 @@ function parseStringEnvelope(valueJson: unknown): string | null {
 }
 
 export const PUBLIC_RUNTIME_BOOLEAN_DEFAULTS = {
+  auth_email_enabled: true,
+  auth_sms_enabled: false,
+  auth_telegram_enabled: true,
+  auth_max_enabled: true,
   oauth_yandex_enabled: false,
   oauth_google_enabled: false,
   oauth_apple_enabled: false,

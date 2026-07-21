@@ -14,6 +14,10 @@ const dualWriteMigration = readFileSync(
   new URL("../drizzle-migrations/0210_s5_runtime_dual_write_trigger_bypass.sql", import.meta.url),
   "utf8",
 );
+const authChannelPolicyMigration = readFileSync(
+  new URL("../drizzle-migrations/0223_n1a_auth_channel_policy.sql", import.meta.url),
+  "utf8",
+);
 
 function normalRuntimeDefinitionKeys(sql: string): string[] {
   const definitionBlock = sql.match(
@@ -66,7 +70,14 @@ describe("S5-1 app runtime settings schema/data contract", () => {
   });
 
   it("keeps the normal migration list exactly aligned with the S5-0 runtime registry", () => {
-    const migrationKeys = normalRuntimeDefinitionKeys(migration);
+    const authChannelKeys = [
+      "auth_email_enabled",
+      "auth_sms_enabled",
+      "auth_telegram_enabled",
+      "auth_max_enabled",
+    ];
+    for (const key of authChannelKeys) expect(authChannelPolicyMigration).toContain(`'${key}'`);
+    const migrationKeys = [...normalRuntimeDefinitionKeys(migration), ...authChannelKeys];
     expect(new Set(migrationKeys).size).toBe(migrationKeys.length);
     expect([...migrationKeys].sort()).toEqual([...RUNTIME_SYSTEM_SETTING_KEYS].sort());
   });

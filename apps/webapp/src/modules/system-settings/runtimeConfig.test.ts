@@ -144,6 +144,36 @@ describe("runtime config provider", () => {
     await expect(provider.getPublicBoolean("public_sms_fallback_enabled")).resolves.toBe(false);
   });
 
+  it("preserves auth-channel rollout defaults when the public projection is absent", async () => {
+    const getEffective = vi.fn<RuntimeConfigPort["getEffective"]>().mockResolvedValue(null);
+    const provider = createRuntimeConfigProvider({ getEffective });
+
+    await expect(provider.getPublicBoolean("auth_email_enabled")).resolves.toBe(true);
+    await expect(provider.getPublicBoolean("auth_sms_enabled")).resolves.toBe(false);
+    await expect(provider.getPublicBoolean("auth_telegram_enabled")).resolves.toBe(true);
+    await expect(provider.getPublicBoolean("auth_max_enabled")).resolves.toBe(true);
+  });
+
+  it("reads an explicit auth-channel policy from the canonical public projection", async () => {
+    const getEffective = vi.fn<RuntimeConfigPort["getEffective"]>().mockResolvedValue({
+      key: "auth_email_enabled",
+      scope: "admin",
+      organizationId: null,
+      audience: "public",
+      valueJson: { value: false },
+    });
+    const provider = createRuntimeConfigProvider({ getEffective });
+
+    await expect(provider.getPublicBoolean("auth_email_enabled")).resolves.toBe(false);
+    expect(getEffective).toHaveBeenCalledWith({
+      key: "auth_email_enabled",
+      scope: "admin",
+      organizationId: null,
+      allowedAudiences: ["public"],
+      operationFamily: "public_auth_config",
+    });
+  });
+
   it("keeps patient booking resolution scoped to the active organization", async () => {
     const getEffective = vi.fn<RuntimeConfigPort["getEffective"]>().mockResolvedValue({
       key: "patient_booking_url",

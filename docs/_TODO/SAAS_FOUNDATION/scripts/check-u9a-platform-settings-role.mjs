@@ -5,6 +5,10 @@ import {
 } from "./u9a-platform-settings-role-sql.mjs";
 
 const artifact = readFileSync(u9aPlatformSettingsRoleArtifactPath, "utf8");
+const platformSettingsRoute = readFileSync(
+  "apps/webapp/src/app/api/platform/settings/route.ts",
+  "utf8",
+);
 if (artifact !== renderU9aPlatformSettingsRoleSql())
   throw new Error("U9A platform-settings SQL artifact is not generator-synchronized");
 for (const fragment of [
@@ -40,12 +44,13 @@ if (/GRANT\s+[^;]*ON TABLE public\.integrator_push_outbox\s+TO app_platform_sett
 }
 const whitelistMatch = /p_key NOT IN \(([\s\S]*?)\) THEN/.exec(artifact);
 const whitelistedKeys = [...(whitelistMatch?.[1] ?? "").matchAll(/'([a-z0-9_]+)'/g)].map((match) => match[1]);
-const expectedKeys = [
-  "debug_forward_to_admin",
-  "specialist_signup_enabled",
-  "patient_app_maintenance_enabled",
-  "patient_app_maintenance_message",
-];
+const apiWhitelistMatch = /PLATFORM_GLOBAL_SETTINGS_API_KEYS\s*=\s*\[([\s\S]*?)\]\s*as const/.exec(
+  platformSettingsRoute,
+);
+const expectedKeys = [...(apiWhitelistMatch?.[1] ?? "").matchAll(/"([a-z0-9_]+)"/g)].map(
+  (match) => match[1],
+);
+if (expectedKeys.length === 0) throw new Error("U9A platform API whitelist is missing");
 if (JSON.stringify(whitelistedKeys) !== JSON.stringify(expectedKeys)) {
   throw new Error("U9A platform outbox function whitelist differs from the API whitelist");
 }
