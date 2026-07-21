@@ -1,5 +1,20 @@
 # Execution log
 
+## 2026-07-21 — NTF-01/N1A auth-channel policy repository closure (`#929`)
+
+- Integrated and pushed through `00d3b2240`: four platform-global Email/SMS/Telegram/MAX auth/binding flags,
+  platform-admin controls, public fail-closed discovery/UI and webapp/integrator execution guards. Existing provider
+  configuration, bindings, password email login and dev bypass remain intact; product notifications are unchanged.
+- The first whole-stage audit found two P1 gaps: request-contact bypassed the TG/MAX policy and SMS still depended on
+  the legacy fallback flag. One coherent correction closed both server paths; the re-audit found the remaining
+  disabled-MAX Mini App bot fallback. The second/final bounded correction removed it. Terminal re-audit passed
+  `0 P0 / 0 P1 / 0 P2`.
+- Evidence: email `128`; integrated webapp `62` and integrator `32`; UI `92` plus one existing skip; correction
+  webapp `28`, integrator `7`, final Mini App `8`; affected typechecks, scoped lint and diff checks passed. Full CI
+  was not repeated and remains the accumulated milestone gate.
+- No DB apply, deploy, TEST/PROD, provider call, real send or binding deletion occurred. Taskdb `#929` remains
+  `doing` until milestone full CI and live owner/TEST acceptance.
+
 ## 2026-07-21 — U9A platform-settings prerequisite integrated (`#929`)
 
 - Integrated `7c9d94bea` + `f48c4b8af`: dedicated no-organization platform principal/guard, whitelisted global

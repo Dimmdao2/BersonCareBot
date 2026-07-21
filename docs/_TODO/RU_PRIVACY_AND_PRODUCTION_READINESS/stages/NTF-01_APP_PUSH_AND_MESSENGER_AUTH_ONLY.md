@@ -279,19 +279,19 @@ write to `systemSettings.updateSetting`. Borrowing a clinic, mapping the operato
 RLS, using `adminMode` as universal authority, direct SQL, or adding a second sync/audit path is forbidden. This is
 not the full U9 admin console; it owns only global configuration read/write plus its existing atomic settings audit.
 
-- [ ] Add independent global admin runtime flags for `auth_email_enabled`, `auth_sms_enabled`,
+- [x] Add independent global admin runtime flags for `auth_email_enabled`, `auth_sms_enabled`,
       `auth_telegram_enabled` and `auth_max_enabled` through the existing DB-backed `system_settings` registry,
       service and public-runtime projection. Provider credentials/readiness remain separate.
-- [ ] Reuse the existing `/app/doctor/admin/auth` settings surface, the system-settings registry/service/UoW and
+- [x] Reuse the existing `/app/doctor/admin/auth` settings surface, the system-settings registry/service/UoW and
       integrator mirror. Add a separate platform-only API/helper; do not redirect clinic settings through it and do
       not introduce a second config store, env flag, provider adapter, route-level mirror or audit store.
-- [ ] Apply each flag to discovery and server execution: check-phone/channel picker/phone start, email OTP starts,
+- [x] Apply each flag to discovery and server execution: check-phone/channel picker/phone start, email OTP starts,
       Telegram Widget/login, MAX init, channel-link and messenger-bind paths. A crafted request cannot use a disabled
       channel; re-enable restores only an already configured provider path.
-- [ ] Preserve SMTP/SMSC/Telegram/MAX modules and settings. Existing bindings remain stored when a channel is off.
+- [x] Preserve SMTP/SMSC/Telegram/MAX modules and settings. Existing bindings remain stored when a channel is off.
       `sms_fallback_enabled` stays a temporary legacy doctor/global compatibility key and is not reused as the new
       platform auth policy.
-- [ ] Migration-safe rollout preserves current behavior: Email/Telegram/MAX default enabled; SMS seeds from the
+- [x] Migration-safe rollout preserves current behavior: Email/Telegram/MAX default enabled; SMS seeds from the
       existing effective public SMS policy and otherwise defaults disabled. Any direct migration write maintains the
       `public` + `integrator.system_settings` mirror; no migration is executed on TEST/PROD by this stage.
 
@@ -331,6 +331,24 @@ Evidence: db-principal `7/7`; targeted webapp `82/82`; webapp typecheck and scop
 disposable PostgreSQL 16 real-role matrix; diff check. No working DB, role apply, deploy, TEST/PROD, provider or
 real send was touched. N1A remains `doing`: the four flags, UI/discovery and crafted-request enforcement are not
 claimed by this prerequisite.
+
+#### N1A repository closure — 2026-07-21
+
+Integrated and pushed through `00d3b2240`. The platform page now controls four independent global auth/binding
+channels through the existing registry/service/mirror path. Public discovery and UI fail closed, while webapp and
+integrator execution paths reject disabled channels before send or binding mutation. Email/password login, provider
+configuration and existing bindings remain intact; the legacy SMS fallback key is no longer an auth-policy gate.
+
+The first whole-stage audit found two owner-mapped P1 gaps: request-contact could bypass the Telegram/MAX policy,
+and SMS still depended on the legacy fallback flag. The coherent correction closed both server paths; the re-audit
+found the remaining disabled-MAX bot fallback in Mini App UI. The second and final bounded correction removed that
+offer. Terminal re-audit passed `0 P0 / 0 P1 / 0 P2`.
+
+Evidence: email targeted `128` tests; integrated auth webapp `62` and integrator `32`; public/admin UI `92` plus one
+existing intentional skip; correction webapp `28` and integrator `7`; final Mini App fallback `8`; affected app
+typechecks, scoped lint and diff checks passed. Full CI and live owner/TEST acceptance remain milestone gates, so
+taskdb `#929` stays `doing` despite repository implementation and audit closure. No DB apply, deploy, TEST/PROD,
+provider call, real send or binding deletion was performed.
 
 ### N1B — managed notification templates and branded presentation (`AI`, taskdb `#930`, after N1)
 
