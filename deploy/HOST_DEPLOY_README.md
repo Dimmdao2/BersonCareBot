@@ -679,6 +679,9 @@ journalctl -u bersoncarebot-api-prod.service -p err --since "14 days ago" --no-p
   `bash deploy/host/migrate-dev.sh --preflight`, затем `bash deploy/host/migrate-dev.sh --execute`. Это
   недеструктивный exact-DEV путь: короткий audited privilege window, существующий `pnpm migrate`, отдельный C4D
   concurrent-index artifact, обязательный cleanup, существующий DEV runtime-overlay closure и ledger postchecks.
+  Role-topology preflight разрешает ровно одно исходящее из wall-роли auxiliary membership: каноническое U9A
+  `app_platform_settings → app_staff` только с `ADMIN FALSE, INHERIT FALSE, SET TRUE` и exact безопасными атрибутами
+  auxiliary-роли; любое другое ребро или изменение options остаётся fail-closed.
 - `bash deploy/host/dev-runtime-overlay-rehydrate.sh --execute` — targeted owner/ACL/runtime repair при актуальном
   migration ledger; dump/restore не выполняется.
 - `bash deploy/host/refresh-dev-from-test.sh --execute` — отдельная явно разрушительная операция замены данных DEV

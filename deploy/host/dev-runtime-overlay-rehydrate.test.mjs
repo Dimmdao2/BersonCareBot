@@ -33,6 +33,9 @@ const e1OverlayPath = fileURLToPath(
 const d34BootstrapPath = fileURLToPath(
   new URL("../postgres/d3-4-bootstrap-base-login-read-grants.sql", import.meta.url),
 );
+const u9aPlatformSettingsPath = fileURLToPath(
+  new URL("../postgres/u9a-platform-settings-role.sql", import.meta.url),
+);
 const phase4LockedPoliciesPath = fileURLToPath(
   new URL("../postgres/phase4-locked-helper-rls-policies.sql", import.meta.url),
 );
@@ -178,10 +181,7 @@ test("missing-capable handoff targets map exactly to later overlay creation and 
     detectedSetRoleReplacements,
     protectedReplacements.map((replacement) => replacement.relativePath),
   );
-  const u9aPlatformSettings = readFileSync(
-    join(repoRoot, "deploy/postgres/u9a-platform-settings-role.sql"),
-    "utf8",
-  );
+  const u9aPlatformSettings = readFileSync(u9aPlatformSettingsPath, "utf8");
   assert.match(
     u9aPlatformSettings,
     /ALTER FUNCTION app\.enqueue_platform_system_settings_sync\(text\) OWNER TO app_owner;/u,
@@ -327,6 +327,46 @@ test("shared topology guard rejects owner equals runtime and accepts separate C0
     { encoding: "utf8" },
   );
   assert.equal(accepted.status, 0, accepted.stderr);
+});
+
+test("DEV preflight allows only the canonical U9A SET-only edge from app_staff", () => {
+  const source = readFileSync(wrapperPath, "utf8");
+  const u9aPlatformSettings = readFileSync(u9aPlatformSettingsPath, "utf8");
+
+  assert.match(
+    u9aPlatformSettings,
+    /ALTER ROLE app_platform_settings NOLOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT NOREPLICATION NOBYPASSRLS;/u,
+  );
+  assert.match(
+    u9aPlatformSettings,
+    /GRANT app_platform_settings TO app_staff WITH ADMIN FALSE, INHERIT FALSE, SET TRUE;/u,
+  );
+  assert.match(source, /WITH expected_wall_auxiliary_membership\(/u);
+  assert.match(
+    source,
+    /\('app_platform_settings', 'app_staff', false, false, true\)/u,
+  );
+  assert.match(source, /actual_wall_auxiliary_membership AS/u);
+  assert.match(
+    source,
+    /member_role\.rolname IN \('app_owner', 'app_staff', 'app_patient'\)[\s\S]*OR granted_role\.rolname = 'app_platform_settings'[\s\S]*OR member_role\.rolname = 'app_platform_settings'/u,
+  );
+  assert.match(
+    source,
+    /\(SELECT count\(\*\) FROM actual_wall_auxiliary_membership\) = 1/u,
+  );
+  assert.match(
+    source,
+    /SELECT \* FROM actual_wall_auxiliary_membership[\s\S]*EXCEPT[\s\S]*SELECT \* FROM expected_wall_auxiliary_membership/u,
+  );
+  assert.match(
+    source,
+    /SELECT \* FROM expected_wall_auxiliary_membership[\s\S]*EXCEPT[\s\S]*SELECT \* FROM actual_wall_auxiliary_membership/u,
+  );
+  assert.match(
+    source,
+    /WHERE rolname = 'app_platform_settings'[\s\S]*AND NOT rolcanlogin[\s\S]*AND NOT rolinherit[\s\S]*AND NOT rolbypassrls[\s\S]*AND NOT rolsuper[\s\S]*AND NOT rolcreatedb[\s\S]*AND NOT rolcreaterole[\s\S]*AND NOT rolreplication[\s\S]*AND rolconnlimit = -1[\s\S]*AND rolconfig IS NULL/u,
+  );
 });
 
 test("DEV wrapper separates owner and runtime before any overlay and proves live capabilities", () => {
