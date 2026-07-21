@@ -14,6 +14,7 @@ import {
 import { Input } from "@/shared/ui/doctor/primitives/input";
 import { Label } from "@/shared/ui/doctor/primitives/label";
 import { cn } from "@/lib/utils";
+import { MarkdownEditor } from "@/shared/ui/doctor/markdown/MarkdownEditor";
 import { Textarea } from "@/shared/ui/doctor/primitives/textarea";
 import { Checkbox } from "@/shared/ui/doctor/primitives/checkbox";
 import { Card, CardContent } from "@/shared/ui/doctor/primitives/card";
@@ -582,15 +583,14 @@ export function InstanceAddLibraryItemDialog(props: {
               />
             </div>
             <div className="flex flex-col gap-2">
-              <Label htmlFor="tp-freeform-body">Текст</Label>
-              <Textarea
-                id="tp-freeform-body"
-                className="min-h-[200px] resize-y text-sm"
+              <MarkdownEditor
+                name="freeform_body_md"
+                label="Текст"
                 value={freeformBody}
-                onChange={(e) => setFreeformBody(e.target.value)}
+                onChange={setFreeformBody}
                 disabled={editLocked}
                 maxLength={100_000}
-                spellCheck
+                minHeight={200}
               />
             </div>
             <Button type="button" disabled={editLocked} onClick={submitFreeform}>

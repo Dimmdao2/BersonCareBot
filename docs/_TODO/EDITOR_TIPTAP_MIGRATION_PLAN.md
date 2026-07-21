@@ -9,10 +9,9 @@
 > Оперативный статус хранится в taskdb; порядок запуска задаёт основной roadmap/оркестратор. «Тесты/аудит зелёные»
 > сами по себе ≠ готово: нужны галочки ниже, milestone CI и живая проверка всех пунктов discovery-manifest.
 >
-> **Статус — PLAN-ONLY, исполнение НЕ запущено.** Планирование ведёт верхняя персона; **когда безопасно выполнять —
-> решает основной оркестратор** (через taskdb `auto_ok`/`doing` под конкретный manifest). Этот файл — не триггер
-> исполнения. Порядок исполнения (воркер + один независимый аудит + приёмка) описан ниже как требование к тому, кто
-> будет выполнять, а не как «делаю сейчас».
+> **Статус 21.07 — реализация воркера завершена, milestone-гейты ещё не закрыты.** Discovery, перевод компонентов и
+> точечные проверки выполнены в изолированной ветке задачи. До статуса «готово» остаются один независимый аудит,
+> milestone full CI и живая проверка владельцем всех строк manifest после интеграции. Этот файл — не триггер deploy.
 >
 > **Подтверждение памяти владельца (21.07):** «где-то самописный простой редактор, где-то готовый модуль, он не
 > нравится» — по факту так и есть: самописный = кастомный `MarkdownEditor` (textarea + тулбар) на `/broadcasts`;
@@ -69,32 +68,55 @@ discovery-manifest; Toast UI полностью выведен.
   не дефолтная тема Tiptap; **Simple Editor** как база (НЕ AI-editor — платный Tiptap Cloud, наружу; см. канон).
 - **SSR:** Tiptap — client-only (`"use client"`), у форм уже client-компоненты; не импортировать в серверных.
 
+## Discovery-manifest (зафиксирован перед реализацией, подтверждён после sweep)
+
+Sweep выполнен по двум прежним компонентам редактора, `bodyMd`/`body_md`, DB/type-полям с документированной
+markdown-семантикой и точечному просмотру textarea-потребителей. Простые заметки, комментарии, описания без
+markdown-семантики и N1B-шаблоны уведомлений не включались.
+
+| Живая поверхность | Write-path | Хранение/контракт | Реализация #931 |
+|---|---|---|---|
+| `/app/doctor/content` | `ContentForm` | `body_md`, Markdown/GFM | единый `MarkdownEditor` |
+| `/app/doctor/recommendations` | `RecommendationForm` | `bodyMd`, Markdown/GFM | единый `MarkdownEditor` |
+| `/app/doctor/broadcasts` | `BroadcastForm` | `message.body`, Markdown | единый `MarkdownEditor` |
+| `/app/doctor/treatment-program-templates/[id]` | создание/редактирование целей и задач этапа | `goals`/`objectives`, TEXT с markdown-семантикой | единый `MarkdownEditor` |
+| `/app/doctor/clients/[userId]/treatment-programs/[instanceId]` | цели и задачи этапа назначенной программы | `goals`/`objectives`, TEXT с markdown-семантикой | единый `MarkdownEditor` |
+| тот же экран назначенной программы, диалог добавления | собственная рекомендация | `bodyMd`, Markdown/GFM | единый `MarkdownEditor` |
+
+Результат контрольного поиска: активных импортов `MarkdownEditorToastUi` и зависимостей `@toast-ui/*` не осталось;
+других doctor-facing write-полей, документированных в schema/domain как Markdown, не найдено. Пациентские
+`MarkdownContent`/render-tree не менялись. Тексты N1B (`NotificationTemplatesPageClient`) намеренно остались простыми.
+
 ## Чек-лист
 
 ### Этап 1 — компонент
-- [ ] До реализации сохранить discovery-manifest всех markdown write-surfaces и их общих компонентов; список не
+- [x] До реализации сохранить discovery-manifest всех markdown write-surfaces и их общих компонентов; список не
       ограничивается тремя уже известными экранами.
-- [ ] Добавить Tiptap deps (см. выше), зафиксировать в `apps/webapp/package.json` + lockfile.
-- [ ] Новый Tiptap-`MarkdownEditor` с тем же публичным контрактом (`value/onChange/defaultValue/name/maxLength/label`).
-- [ ] markdown→doc→markdown roundtrip стабилен на репрезентативном контенте (заголовки, списки, ссылки, картинки,
+- [x] Добавить Tiptap deps (см. выше), зафиксировать в `apps/webapp/package.json` + lockfile.
+- [x] Новый Tiptap-`MarkdownEditor` с тем же публичным контрактом (`value/onChange/defaultValue/name/maxLength/label`).
+- [x] markdown→doc→markdown roundtrip стабилен на репрезентативном контенте (заголовки, списки, ссылки, картинки,
       **media-ссылки `/api/media/…`, YouTube, Rutube**, таблицы/зачёркнутый если используются).
-- [ ] `MediaLibraryInsertDialog` подключён через Tiptap-команду (link/image), выдаёт тот же URL, что и раньше.
-- [ ] `maxLength` по markdown соблюдается; скрытый `input[name]` содержит актуальный markdown при сабмите.
+- [x] `MediaLibraryInsertDialog` подключён через Tiptap-команду (link/image), выдаёт тот же URL, что и раньше.
+- [x] `maxLength` по markdown соблюдается; скрытый `input[name]` содержит актуальный markdown при сабмите.
 
 ### Этап 2 — перевод форм и вывод Toast UI
-- [ ] `content`, `recommendations`, `broadcasts` и каждый дополнительный пункт discovery-manifest импортируют новый
+- [x] `content`, `recommendations`, `broadcasts` и каждый дополнительный пункт discovery-manifest импортируют новый
       компонент; поведение форм не изменилось.
-- [ ] Удалить `MarkdownEditorToastUi`, `MarkdownEditorToastUiInner` и зависимости `@toast-ui/*` из package.json.
-- [ ] Старые тесты редактора обновлены/заменены; тесты рендера и `MediaLibraryInsertDialog` остаются зелёными.
+- [x] Удалить `MarkdownEditorToastUi`, `MarkdownEditorToastUiInner` и зависимости `@toast-ui/*` из package.json.
+- [x] Старые тесты редактора обновлены/заменены; тесты рендера и `MediaLibraryInsertDialog` остаются зелёными.
 
 ### Этап 3 — проверки
 - [ ] Точечные тесты: roundtrip, сабмит формы, maxLength, вставка медиа. Затем **один раз** full CI (lint+typecheck+tests).
-- [ ] **Регрессия рендера:** сохранённый ранее markdown по-прежнему корректно рендерится у пациента (формат не менялся).
+- [x] **Регрессия рендера:** сохранённый ранее markdown по-прежнему корректно рендерится у пациента (формат не менялся).
 - [ ] Независимый аудит compatibility/data-risk (ОДИН проход): проверить отсутствие потери контента при
       roundtrip, сохранность media-ссылок, соблюдение правил репо (client-only, no server import, изоляция), отсутствие
       скрытой смены формата хранения. Находки, которых нет в этом плане, → ВОПРОС владельцу, не новый скоуп.
 - [ ] **Живая проверка каждого экрана из discovery-manifest** (`port.sh shot` / dev `:5200`) владельцу — приёмка.
       До неё статус = «этапы закрыты, ждёт приёмки».
+
+Текущее evidence воркера (до независимого аудита): golden roundtrip и контракт редактора — 5/5; затронутые формы,
+media dialog и doctor/patient render — 66/66; webapp typecheck — PASS; scoped ESLint — PASS. Full CI и live-check
+осознанно оставлены milestone-оркестратору и поэтому общая первая галочка этапа 3 пока не закрыта.
 
 ## Готово =
 Все галочки выше + зелёный milestone CI + owner acceptance по живой проверке всех пунктов discovery-manifest.

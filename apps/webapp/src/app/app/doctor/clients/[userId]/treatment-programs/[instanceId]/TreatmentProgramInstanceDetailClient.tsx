@@ -11,6 +11,7 @@ import { Badge } from "@/shared/ui/doctor/primitives/badge";
 import { Input } from "@/shared/ui/doctor/primitives/input";
 import { Label } from "@/shared/ui/doctor/primitives/label";
 import { Textarea } from "@/shared/ui/doctor/primitives/textarea";
+import { MarkdownEditor } from "@/shared/ui/doctor/markdown/MarkdownEditor";
 import {
   Dialog,
   DialogContent,
@@ -2352,25 +2353,25 @@ function StageDoctorControls(props: {
               />
             </div>
             <div className="flex flex-col gap-1.5">
-              <Label htmlFor={`st-goals-${stageId}`}>Цель этапа</Label>
-              <Textarea
-                id={`st-goals-${stageId}`}
-                rows={3}
-                className="text-sm"
+              <MarkdownEditor
+                name={`stage_goals_md_${stageId}`}
+                label="Цель этапа"
+                helpText={null}
                 value={goalsDraft}
-                onChange={(e) => setGoalsDraft(e.target.value)}
+                onChange={setGoalsDraft}
                 disabled={editLocked}
+                minHeight={120}
               />
             </div>
             <div className="flex flex-col gap-1.5">
-              <Label htmlFor={`st-obj-${stageId}`}>Задачи этапа</Label>
-              <Textarea
-                id={`st-obj-${stageId}`}
-                rows={3}
-                className="text-sm"
+              <MarkdownEditor
+                name={`stage_objectives_md_${stageId}`}
+                label="Задачи этапа"
+                helpText={null}
                 value={objectivesDraft}
-                onChange={(e) => setObjectivesDraft(e.target.value)}
+                onChange={setObjectivesDraft}
                 disabled={editLocked}
+                minHeight={120}
               />
             </div>
             <div className="flex flex-col gap-1.5">

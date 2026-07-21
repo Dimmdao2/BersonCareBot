@@ -12,7 +12,7 @@ import {
 } from "@/shared/ui/doctor/primitives/dialog";
 import { Input } from "@/shared/ui/doctor/primitives/input";
 import { Label } from "@/shared/ui/doctor/primitives/label";
-import { MarkdownEditorToastUi } from "@/shared/ui/doctor/markdown/MarkdownEditorToastUi";
+import { MarkdownEditor } from "@/shared/ui/doctor/markdown/MarkdownEditor";
 import {
   buildRecommendationDomainSelectOptions,
   type RecommendationDomain,
@@ -412,13 +412,13 @@ export function RecommendationForm({
             </div>
 
             <div className="flex flex-col gap-3">
-              <MarkdownEditorToastUi
+              <MarkdownEditor
                 key={`rec-body-${recordKey}`}
                 name="bodyMd"
                 defaultValue={values.bodyMd}
                 label={<span className="text-sm font-medium text-foreground">Описание</span>}
                 helpText={null}
-                onValueChange={(md) => setValues((v) => ({ ...v, bodyMd: md }))}
+                onChange={(md) => setValues((v) => ({ ...v, bodyMd: md }))}
               />
             </div>
 

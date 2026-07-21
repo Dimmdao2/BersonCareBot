@@ -437,7 +437,8 @@ export function BroadcastForm({ onBroadcastSent, prefill }: Props) {
           value={body}
           onChange={setBody}
           maxLength={800}
-          label="Текст сообщения * (Markdown)"
+          label="Текст сообщения *"
+          minHeight={220}
         />
       </div>
 

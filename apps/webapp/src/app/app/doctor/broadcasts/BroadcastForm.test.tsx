@@ -3,6 +3,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { render, screen, waitFor, act } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import type { ReactNode } from "react";
 
 const previewBroadcastAction = vi.fn();
 const executeBroadcastAction = vi.fn();
@@ -18,6 +19,31 @@ vi.mock("./actions", () => ({
   saveDraftAction: (...args: unknown[]) => saveDraftAction(...args),
   getChannelCountsAction: (...args: unknown[]) => getChannelCountsAction(...args),
   getChannelCountsByAudienceAction: (...args: unknown[]) => getChannelCountsByAudienceAction(...args),
+}));
+
+vi.mock("@/shared/ui/doctor/markdown/MarkdownEditor", () => ({
+  MarkdownEditor: (props: {
+    name: string;
+    label?: ReactNode;
+    defaultValue?: string;
+    value?: string;
+    onChange?: (value: string) => void;
+    disabled?: boolean;
+    maxLength?: number;
+  }) => (
+    <label>
+      {props.label ?? "Содержимое"}
+      <textarea
+        aria-label="Редактор"
+        name={props.name}
+        value={props.value}
+        defaultValue={props.value === undefined ? props.defaultValue : undefined}
+        onChange={(event) => props.onChange?.(event.target.value)}
+        disabled={props.disabled}
+        maxLength={props.maxLength}
+      />
+    </label>
+  ),
 }));
 
 import { BroadcastForm } from "./BroadcastForm";

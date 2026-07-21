@@ -45,6 +45,7 @@ import {
 import { TreatmentProgramTemplateStatusBadge } from "../TreatmentProgramTemplateStatusBadge";
 import { TemplateReorderChevrons } from "@/shared/ui/doctor/TemplateReorderChevrons";
 import { cn } from "@/lib/utils";
+import { MarkdownEditor } from "@/shared/ui/doctor/markdown/MarkdownEditor";
 import {
   TreatmentProgramPipelineStagesDnd,
   TreatmentProgramSortablePipelineStage,
@@ -1847,30 +1848,26 @@ export function TreatmentProgramConstructorClient({
               />
             </div>
             <div className="flex flex-col gap-1.5">
-              <Label htmlFor="tpl-stage-modal-goals">Цель этапа</Label>
-              <Textarea
-                id="tpl-stage-modal-goals"
-                rows={3}
+              <MarkdownEditor
+                name="stage_goals_md"
+                label="Цель этапа"
+                helpText={null}
                 disabled={editLocked || busy}
                 value={goalsDraft}
-                onChange={(e) => setGoalsDraft(e.target.value)}
-                className="text-sm"
+                onChange={setGoalsDraft}
+                minHeight={120}
               />
-              <p className="text-xs text-muted-foreground">Кратко, в свободной форме (markdown).</p>
             </div>
             <div className="flex flex-col gap-1.5">
-              <Label htmlFor="tpl-stage-modal-obj">Задачи этапа</Label>
-              <Textarea
-                id="tpl-stage-modal-obj"
-                rows={3}
+              <MarkdownEditor
+                name="stage_objectives_md"
+                label="Задачи этапа"
+                helpText={null}
                 disabled={editLocked || busy}
                 value={objectivesDraft}
-                onChange={(e) => setObjectivesDraft(e.target.value)}
-                className="text-sm"
+                onChange={setObjectivesDraft}
+                minHeight={120}
               />
-              <p className="text-xs text-muted-foreground">
-                Список задач текстом (markdown); структурированный чеклист в БД не хранится (O1).
-              </p>
             </div>
             <div className="flex flex-col gap-1.5">
               <Label htmlFor="tpl-stage-modal-days">Ожидаемый срок, дней</Label>
@@ -2050,23 +2047,21 @@ export function TreatmentProgramConstructorClient({
               onChange={(e) => setNewStageTitle(e.target.value)}
               maxLength={2000}
             />
-            <Label htmlFor="stage-new-goals">Цель этапа (опционально)</Label>
-            <Textarea
-              id="stage-new-goals"
-              rows={2}
-              className="text-sm"
+            <MarkdownEditor
+              name="new_stage_goals_md"
+              label="Цель этапа (опционально)"
+              helpText={null}
               value={newStageGoals}
-              onChange={(e) => setNewStageGoals(e.target.value)}
-              placeholder="Кратко, markdown"
+              onChange={setNewStageGoals}
+              minHeight={96}
             />
-            <Label htmlFor="stage-new-obj">Задачи этапа (опционально)</Label>
-            <Textarea
-              id="stage-new-obj"
-              rows={2}
-              className="text-sm"
+            <MarkdownEditor
+              name="new_stage_objectives_md"
+              label="Задачи этапа (опционально)"
+              helpText={null}
               value={newStageObjectives}
-              onChange={(e) => setNewStageObjectives(e.target.value)}
-              placeholder="Список задач текстом, markdown"
+              onChange={setNewStageObjectives}
+              minHeight={96}
             />
           </div>
           <DialogFooter>

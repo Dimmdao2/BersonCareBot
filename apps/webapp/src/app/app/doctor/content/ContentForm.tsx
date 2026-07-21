@@ -14,7 +14,7 @@ import {
   SelectValue,
 } from "@/shared/ui/doctor/primitives/select";
 import { Textarea } from "@/shared/ui/doctor/primitives/textarea";
-import { MarkdownEditorToastUi } from "@/shared/ui/doctor/markdown/MarkdownEditorToastUi";
+import { MarkdownEditor } from "@/shared/ui/doctor/markdown/MarkdownEditor";
 import type { ContentSectionRow } from "@/infra/repos/pgContentSections";
 import {
   HELP_CANONICAL_ARTICLE_IA,
@@ -455,13 +455,13 @@ export function ContentForm({
           </div>
 
           {/* Содержимое (markdown editor) */}
-          <MarkdownEditorToastUi
+          <MarkdownEditor
             name="body_md"
             defaultValue={
               page ? (page.bodyMd.trim().length > 0 ? page.bodyMd : page.bodyHtml) : ""
             }
             key={`body-${page?.id ?? "new"}`}
-            onValueChange={setBodyMdValue}
+            onChange={setBodyMdValue}
           />
 
           {/* #4 — Hidden is_published.

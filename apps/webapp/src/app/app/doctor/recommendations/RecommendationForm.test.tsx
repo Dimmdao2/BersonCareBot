@@ -2,6 +2,7 @@
 
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
+import type { ReactNode } from "react";
 import type { Recommendation } from "@/modules/recommendations/types";
 import { EMPTY_RECOMMENDATION_USAGE_SNAPSHOT } from "@/modules/recommendations/types";
 import type { ArchiveRecommendationState, SaveRecommendationState } from "./actionsShared";
@@ -12,6 +13,31 @@ import type { ReferenceItem } from "@/modules/references/types";
 
 vi.mock("@/shared/ui/doctor/ReferenceMultiSelect", () => ({
   ReferenceMultiSelect: () => <div data-testid="region-multi" />,
+}));
+
+vi.mock("@/shared/ui/doctor/markdown/MarkdownEditor", () => ({
+  MarkdownEditor: (props: {
+    name: string;
+    label?: ReactNode;
+    defaultValue?: string;
+    value?: string;
+    onChange?: (value: string) => void;
+    disabled?: boolean;
+    maxLength?: number;
+  }) => (
+    <label>
+      {props.label ?? "Содержимое"}
+      <textarea
+        aria-label="Редактор"
+        name={props.name}
+        value={props.value}
+        defaultValue={props.value === undefined ? props.defaultValue : undefined}
+        onChange={(event) => props.onChange?.(event.target.value)}
+        disabled={props.disabled}
+        maxLength={props.maxLength}
+      />
+    </label>
+  ),
 }));
 
 let recommendationTypeItems: ReferenceItem[];

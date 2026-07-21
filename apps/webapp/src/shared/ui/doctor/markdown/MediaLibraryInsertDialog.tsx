@@ -11,12 +11,13 @@ export type MediaLibraryInsertPickMeta = Pick<MediaListItem, "kind" | "mimeType"
 type Props = {
   /** После выбора из библиотеки или загрузки с устройства. */
   onInsert: (url: string, filename: string, meta?: MediaLibraryInsertPickMeta) => void;
+  disabled?: boolean;
 };
 
 /**
  * Попап: выбор файла из медиабиблиотеки или загрузка с устройства для вставки в Markdown.
  */
-export function MediaLibraryInsertDialog({ onInsert }: Props) {
+export function MediaLibraryInsertDialog({ onInsert, disabled = false }: Props) {
   const [open, setOpen] = useState(false);
   const [folderScope, setFolderScope] = useState<string | null | undefined>(undefined);
 
@@ -38,6 +39,7 @@ export function MediaLibraryInsertDialog({ onInsert }: Props) {
         type="button"
         variant="outline"
         size="sm"
+        disabled={disabled}
         onClick={() => {
           setOpen(true);
         }}

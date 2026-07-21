@@ -3,6 +3,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import type { ReactNode } from "react";
 import type { TreatmentProgramInstanceDetail } from "@/modules/treatment-program/types";
 import type { TreatmentProgramLibraryPickers } from "./treatmentProgramLibraryTypes";
 import { InstanceAddLibraryItemDialog } from "./InstanceAddLibraryItemDialog";
@@ -67,6 +68,31 @@ vi.mock("@/shared/ui/doctor/ReferenceMultiSelect", () => ({
     <button type="button" onClick={() => props.onChange?.(["55555555-5555-4555-8555-555555555555"])}>
       Добавить регион
     </button>
+  ),
+}));
+
+vi.mock("@/shared/ui/doctor/markdown/MarkdownEditor", () => ({
+  MarkdownEditor: (props: {
+    name: string;
+    label?: ReactNode;
+    defaultValue?: string;
+    value?: string;
+    onChange?: (value: string) => void;
+    disabled?: boolean;
+    maxLength?: number;
+  }) => (
+    <label>
+      {props.label ?? "Содержимое"}
+      <textarea
+        aria-label="Редактор"
+        name={props.name}
+        value={props.value}
+        defaultValue={props.value === undefined ? props.defaultValue : undefined}
+        onChange={(event) => props.onChange?.(event.target.value)}
+        disabled={props.disabled}
+        maxLength={props.maxLength}
+      />
+    </label>
   ),
 }));
 

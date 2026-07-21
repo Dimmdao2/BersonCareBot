@@ -1,5 +1,6 @@
 /** @vitest-environment jsdom */
 
+import { useState } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
@@ -10,14 +11,33 @@ vi.mock("./actions", () => ({
   saveContentPage: saveContentPageMock,
 }));
 
-vi.mock("@/shared/ui/doctor/markdown/MarkdownEditorToastUi", async () => {
-  const { MarkdownEditor } = await import("@/shared/ui/doctor/markdown/MarkdownEditor");
-  return {
-    MarkdownEditorToastUi: (props: { name: string; defaultValue?: string }) => (
-      <MarkdownEditor name={props.name} defaultValue={props.defaultValue ?? ""} />
-    ),
-  };
-});
+vi.mock("@/shared/ui/doctor/markdown/MarkdownEditor", () => ({
+  MarkdownEditor: ({
+    name,
+    defaultValue = "",
+    onChange,
+  }: {
+    name: string;
+    defaultValue?: string;
+    onChange?: (value: string) => void;
+  }) => {
+    const [value, setValue] = useState(defaultValue);
+    return (
+      <label>
+        <span>Редактор</span>
+        <textarea
+          aria-label="Редактор"
+          value={value}
+          onChange={(event) => {
+            setValue(event.target.value);
+            onChange?.(event.target.value);
+          }}
+        />
+        <input type="hidden" name={name} value={value} readOnly />
+      </label>
+    );
+  },
+}));
 
 import { ContentForm } from "./ContentForm";
 

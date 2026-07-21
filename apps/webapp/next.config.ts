@@ -70,8 +70,6 @@ const nextConfig: NextConfig = {
   ],
   transpilePackages: [
     "react-phone-number-input",
-    "@toast-ui/editor",
-    "@toast-ui/react-editor",
     "@bersoncare/booking-rubitime-sync",
     "@bersoncare/operator-db-schema",
   ],
