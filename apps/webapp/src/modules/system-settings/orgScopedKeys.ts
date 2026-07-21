@@ -17,6 +17,23 @@ export function isPerOrgSettingKey(key: string): boolean {
   return SYSTEM_SETTING_REGISTRY[key as SystemSettingKey]?.ownership === "per_org";
 }
 
+const PLATFORM_GLOBAL_FALLBACK_WRITE_KEYS = new Set<SystemSettingKey>([
+  "notif_template:created:patient",
+  "notif_template:created:doctor",
+  "notif_template:cancelled:patient",
+  "notif_template:cancelled:doctor",
+  "notif_template:rescheduled:patient",
+  "notif_template:rescheduled:doctor",
+]);
+
+/**
+ * These per-organization settings intentionally have a platform-owned NULL fallback.
+ * The caller still needs the platform-only API guard and an explicit service write option.
+ */
+export function allowsPlatformGlobalFallbackWrite(key: string): boolean {
+  return PLATFORM_GLOBAL_FALLBACK_WRITE_KEYS.has(key as SystemSettingKey);
+}
+
 /**
  * Thrown by the existing write service when a per-org key has no proven org context.
  * It never falls back to a platform-global write.

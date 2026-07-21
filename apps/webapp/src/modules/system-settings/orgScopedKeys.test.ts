@@ -1,5 +1,9 @@
 import { describe, it, expect } from "vitest";
-import { isPerOrgSettingKey, SYSTEM_SETTINGS_ORG_SCOPE } from "./orgScopedKeys";
+import {
+  allowsPlatformGlobalFallbackWrite,
+  isPerOrgSettingKey,
+  SYSTEM_SETTINGS_ORG_SCOPE,
+} from "./orgScopedKeys";
 import { ALLOWED_KEYS } from "./types";
 
 describe("orgScopedKeys — P0.11.3 org-aware write classification", () => {
@@ -35,5 +39,11 @@ describe("orgScopedKeys — P0.11.3 org-aware write classification", () => {
     for (const key of ALLOWED_KEYS) {
       expect(scopeKeys).toContain(key);
     }
+  });
+
+  it("limits platform NULL fallback writes to notification templates", () => {
+    expect(allowsPlatformGlobalFallbackWrite("notif_template:created:patient")).toBe(true);
+    expect(allowsPlatformGlobalFallbackWrite("patient_label")).toBe(false);
+    expect(allowsPlatformGlobalFallbackWrite("smtp_outbound")).toBe(false);
   });
 });

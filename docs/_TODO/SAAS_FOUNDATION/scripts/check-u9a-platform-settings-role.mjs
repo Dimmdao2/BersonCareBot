@@ -43,13 +43,22 @@ if (/GRANT\s+[^;]*ON TABLE public\.integrator_push_outbox\s+TO app_platform_sett
   throw new Error("U9A platform role must not receive shared-outbox table DML");
 }
 const whitelistMatch = /p_key NOT IN \(([\s\S]*?)\) THEN/.exec(artifact);
-const whitelistedKeys = [...(whitelistMatch?.[1] ?? "").matchAll(/'([a-z0-9_]+)'/g)].map((match) => match[1]);
+const whitelistedKeys = [...(whitelistMatch?.[1] ?? "").matchAll(/'([a-z0-9_:]+)'/g)].map((match) => match[1]);
 const apiWhitelistMatch = /PLATFORM_GLOBAL_SETTINGS_API_KEYS\s*=\s*\[([\s\S]*?)\]\s*as const/.exec(
   platformSettingsRoute,
 );
-const expectedKeys = [...(apiWhitelistMatch?.[1] ?? "").matchAll(/"([a-z0-9_]+)"/g)].map(
+const platformApiKeys = [...(apiWhitelistMatch?.[1] ?? "").matchAll(/"([a-z0-9_]+)"/g)].map(
   (match) => match[1],
 );
+const expectedKeys = [
+  ...platformApiKeys,
+  "notif_template:created:patient",
+  "notif_template:created:doctor",
+  "notif_template:cancelled:patient",
+  "notif_template:cancelled:doctor",
+  "notif_template:rescheduled:patient",
+  "notif_template:rescheduled:doctor",
+];
 if (expectedKeys.length === 0) throw new Error("U9A platform API whitelist is missing");
 if (JSON.stringify(whitelistedKeys) !== JSON.stringify(expectedKeys)) {
   throw new Error("U9A platform outbox function whitelist differs from the API whitelist");

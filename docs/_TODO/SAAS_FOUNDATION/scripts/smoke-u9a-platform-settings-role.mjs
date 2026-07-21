@@ -140,6 +140,10 @@ function assertAllowedPaths() {
       VALUES ('30000000-0000-4000-8000-000000000001','specialist_signup_enabled','admin',NULL,
         '{"value":false}','{"value":true}');
     SELECT app.enqueue_platform_system_settings_sync('specialist_signup_enabled');
+    INSERT INTO public.system_settings(key,scope,organization_id,value_json,updated_by)
+      VALUES ('notif_template:created:patient','admin',NULL,
+        '{"value":"Legacy preserved","managed":{"version":1}}','platform-user');
+    SELECT app.enqueue_platform_system_settings_sync('notif_template:created:patient');
     RESET ROLE;
     RESET SESSION AUTHORIZATION;
   `, "whitelisted global write, audit and mirror enqueue");
@@ -152,7 +156,17 @@ function assertAllowedPaths() {
       AND payload->'organizationId'='null'::jsonb
       AND payload->'valueJson'='{"value":true}'::jsonb
     FROM public.integrator_push_outbox
+    WHERE idempotency_key='settings:global:admin:specialist_signup_enabled'
   )::int`, "outbox payload derives from canonical global row");
+
+  assertTrue(`SELECT (
+    SELECT kind='system_settings_sync'
+      AND payload->>'key'='notif_template:created:patient'
+      AND payload->'organizationId'='null'::jsonb
+      AND payload->'valueJson'->>'value'='Legacy preserved'
+    FROM public.integrator_push_outbox
+    WHERE idempotency_key='settings:global:admin:notif_template:created:patient'
+  )::int`, "notification-template platform fallback mirror enqueue");
 }
 
 function assertDeniedPaths() {

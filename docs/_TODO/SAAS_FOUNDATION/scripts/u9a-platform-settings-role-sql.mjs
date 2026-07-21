@@ -54,7 +54,13 @@ BEGIN
     'auth_email_enabled',
     'auth_sms_enabled',
     'auth_telegram_enabled',
-    'auth_max_enabled'
+    'auth_max_enabled',
+    'notif_template:created:patient',
+    'notif_template:created:doctor',
+    'notif_template:cancelled:patient',
+    'notif_template:cancelled:doctor',
+    'notif_template:rescheduled:patient',
+    'notif_template:rescheduled:doctor'
   ) THEN
     RAISE EXCEPTION 'platform system-setting key is not allowed';
   END IF;

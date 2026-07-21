@@ -31,4 +31,5 @@ export const NOTIF_VARIABLE_LABELS: Record<string, string> = {
   name: "имя пациента",
   phone: "телефон",
   reason: "причина отмены",
+  organizationName: "название организации",
 };

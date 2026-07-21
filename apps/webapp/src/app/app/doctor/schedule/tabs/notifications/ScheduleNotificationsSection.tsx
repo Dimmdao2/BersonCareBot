@@ -3,54 +3,52 @@
 import { useCallback, useEffect, useState, useTransition } from "react";
 import { Button } from "@/shared/ui/doctor/primitives/button";
 import type {
-  NotifTemplateEvent,
-  NotifTemplateAudience,
-} from "@/modules/notif-templates/notifTemplatesService";
+  ManagedNotifPresentationEntry,
+  ManagedNotifTemplateEntry,
+} from "@/modules/notif-templates/managedNotifTemplate";
 import { NotificationTemplatesPageClient } from "./NotificationTemplatesPageClient";
-
-type TemplateEntry = {
-  event: NotifTemplateEvent;
-  audience: NotifTemplateAudience;
-  text: string;
-  isDefault: boolean;
-};
 
 type State =
   | { phase: "loading" }
   | { phase: "error"; message: string }
-  | { phase: "ready"; templates: TemplateEntry[]; variables: string[] };
+  | {
+      phase: "ready";
+      templates: ManagedNotifTemplateEntry[];
+      presentation: ManagedNotifPresentationEntry;
+    };
 
-/**
- * Загрузчик раздела «Тексты уведомлений» таба «Настройки» (Расписание).
- * Тянет шаблоны из GET /api/doctor/notification-templates (доступ доктор|админ)
- * и отдаёт их редактору NotificationTemplatesPageClient.
- */
-export function ScheduleNotificationsSection() {
+type Props = Readonly<{
+  endpoint?: "/api/doctor/notification-templates" | "/api/admin/notification-templates";
+}>;
+
+export function ScheduleNotificationsSection({
+  endpoint = "/api/doctor/notification-templates",
+}: Props = {}) {
   const [state, setState] = useState<State>({ phase: "loading" });
   const [, startTransition] = useTransition();
 
   const load = useCallback(() => {
     startTransition(async () => {
-      const res = await fetch("/api/doctor/notification-templates");
+      const res = await fetch(endpoint);
       const json = (await res.json().catch(() => null)) as {
         ok?: boolean;
-        templates?: TemplateEntry[];
-        variables?: string[];
+        templates?: ManagedNotifTemplateEntry[];
+        presentation?: ManagedNotifPresentationEntry;
       } | null;
-      if (!res.ok || !json?.ok || !json.templates) {
-        setState({ phase: "error", message: "Не удалось загрузить тексты уведомлений" });
+      if (!res.ok || !json?.ok || !json.templates || !json.presentation) {
+        setState({ phase: "error", message: "Не удалось загрузить шаблоны уведомлений" });
         return;
       }
-      setState({ phase: "ready", templates: json.templates, variables: json.variables ?? [] });
+      setState({ phase: "ready", templates: json.templates, presentation: json.presentation });
     });
-  }, []);
+  }, [endpoint]);
 
   useEffect(() => {
     load();
   }, [load]);
 
   if (state.phase === "loading") {
-    return <p className="text-sm text-muted-foreground">Загрузка текстов уведомлений…</p>;
+    return <p className="text-sm text-muted-foreground">Загрузка шаблонов уведомлений…</p>;
   }
   if (state.phase === "error") {
     return (
@@ -62,5 +60,11 @@ export function ScheduleNotificationsSection() {
       </div>
     );
   }
-  return <NotificationTemplatesPageClient templates={state.templates} variables={state.variables} />;
+  return (
+    <NotificationTemplatesPageClient
+      endpoint={endpoint}
+      templates={state.templates}
+      presentation={state.presentation}
+    />
+  );
 }

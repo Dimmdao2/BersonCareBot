@@ -256,6 +256,36 @@ describe("SystemSettingsService", () => {
       );
     });
 
+    it("allows an explicit platform NULL fallback only for notification-template keys", async () => {
+      const port = makePort();
+      const service = createSystemSettingsService(port);
+      await service.updateSetting(
+        "notif_template:created:patient",
+        "admin",
+        { value: "Platform default" },
+        "platform-user",
+        { organizationId: null, allowPlatformGlobalFallbackWrite: true },
+      );
+      expect(port.upsert).toHaveBeenCalledWith(
+        "notif_template:created:patient",
+        "admin",
+        { value: "Platform default" },
+        "platform-user",
+        { organizationId: null },
+      );
+    });
+
+    it("does not turn the explicit platform fallback option into a generic per-org bypass", async () => {
+      const service = createSystemSettingsService(makePort());
+      await expect(service.updateSetting(
+        "patient_label",
+        "doctor",
+        { value: "Клиенты" },
+        "platform-user",
+        { organizationId: null, allowPlatformGlobalFallbackWrite: true },
+      )).rejects.toThrow(SystemSettingsOrgContextRequiredError);
+    });
+
     it("updateSetting — GLOBAL key forces organizationId: null at the port even when caller passes one", async () => {
       const port = makePort();
       const service = createSystemSettingsService(port);

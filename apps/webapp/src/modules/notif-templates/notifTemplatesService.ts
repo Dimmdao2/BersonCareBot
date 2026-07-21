@@ -1,4 +1,17 @@
 import type { SystemSetting, SystemSettingKey, SystemSettingScope } from "@/modules/system-settings/types";
+import {
+  DEFAULT_MANAGED_NOTIF_PRESENTATION,
+  MANAGED_NOTIF_TEMPLATE_VERSION,
+  createDefaultManagedNotifTemplate,
+  parseManagedNotifPresentation,
+  parseManagedNotifTemplateFor,
+  validateManagedNotifTemplateChannels,
+  type ManagedNotifPresentation,
+  type ManagedNotifPresentationEntry,
+  type ManagedNotifTemplateChannels,
+  type ManagedNotifTemplateEntry,
+  type ManagedNotifTemplateMetadata,
+} from "./managedNotifTemplate";
 
 export const NOTIF_TEMPLATE_EVENTS = ["created", "cancelled", "rescheduled"] as const;
 export type NotifTemplateEvent = (typeof NOTIF_TEMPLATE_EVENTS)[number];
@@ -45,7 +58,10 @@ export type NotifTemplateEntry = {
 };
 
 type SystemSettingsReadOptionsLike = { organizationId?: string | null };
-type SystemSettingsWriteOptionsLike = { organizationId?: string | null };
+type SystemSettingsWriteOptionsLike = {
+  organizationId?: string | null;
+  allowPlatformGlobalFallbackWrite?: true;
+};
 
 type SystemSettingsLike = {
   getSetting(
@@ -69,6 +85,35 @@ type SystemSettingsLike = {
  * missing — the caller/route resolves it from the current session's organization membership).
  */
 export function createNotifTemplatesService(systemSettings: SystemSettingsLike) {
+  const presentationCarrierKey = notifTemplateSettingKey("created", "patient");
+
+  function metadataFor(
+    row: SystemSetting | null,
+    source: ManagedNotifTemplateMetadata["effectiveSource"],
+    revision: number,
+  ): ManagedNotifTemplateMetadata {
+    return {
+      revision,
+      effectiveSource: source,
+      updatedAt: row?.updatedAt || null,
+      updatedBy: row?.updatedBy ?? null,
+    };
+  }
+
+  async function readResolutionRows(
+    key: SystemSettingKey,
+    organizationId?: string | null,
+  ): Promise<{ globalRow: SystemSetting | null; effectiveRow: SystemSetting | null; exactOrgRow: SystemSetting | null }> {
+    const normalizedOrganizationId = organizationId?.trim() || null;
+    const globalRow = await systemSettings.getSetting(key, "admin", { organizationId: null });
+    if (!normalizedOrganizationId) {
+      return { globalRow, effectiveRow: globalRow, exactOrgRow: null };
+    }
+    const effectiveRow = await systemSettings.getSetting(key, "admin", { organizationId: normalizedOrganizationId });
+    const exactOrgRow = effectiveRow?.organizationId === normalizedOrganizationId ? effectiveRow : null;
+    return { globalRow, effectiveRow, exactOrgRow };
+  }
+
   async function getTemplate(
     event: NotifTemplateEvent,
     audience: NotifTemplateAudience,
@@ -83,6 +128,51 @@ export function createNotifTemplatesService(systemSettings: SystemSettingsLike) 
       text: stored ?? NOTIF_TEMPLATE_DEFAULTS[event][audience],
       isDefault: stored === null,
     };
+  }
+
+  async function getManagedTemplate(
+    event: NotifTemplateEvent,
+    audience: NotifTemplateAudience,
+    options: SystemSettingsReadOptionsLike = {},
+  ): Promise<ManagedNotifTemplateEntry> {
+    const key = notifTemplateSettingKey(event, audience);
+    const { globalRow, effectiveRow, exactOrgRow } = await readResolutionRows(key, options.organizationId);
+    const orgManaged = exactOrgRow ? parseManagedNotifTemplateFor(event, audience, exactOrgRow.valueJson) : null;
+    const platformManaged = parseManagedNotifTemplateFor(event, audience, globalRow?.valueJson ?? null);
+    const managed = orgManaged ?? platformManaged ?? createDefaultManagedNotifTemplate(event, audience);
+    const source = orgManaged ? "organization" : platformManaged ? "platform" : "hardcoded";
+    const sourceRow = orgManaged ? exactOrgRow : platformManaged ? globalRow : null;
+    const legacyStored = extractTextFromValueJson(effectiveRow?.valueJson ?? null);
+    return {
+      event,
+      audience,
+      legacyText: legacyStored ?? NOTIF_TEMPLATE_DEFAULTS[event][audience],
+      legacyIsDefault: legacyStored === null,
+      managed,
+      metadata: metadataFor(sourceRow, source, managed.revision),
+    };
+  }
+
+  async function getPresentation(
+    options: SystemSettingsReadOptionsLike = {},
+  ): Promise<ManagedNotifPresentationEntry> {
+    const { globalRow, exactOrgRow } = await readResolutionRows(presentationCarrierKey, options.organizationId);
+    const orgPresentation = exactOrgRow ? parseManagedNotifPresentation(exactOrgRow.valueJson) : null;
+    const platformPresentation = parseManagedNotifPresentation(globalRow?.valueJson ?? null);
+    const presentation = orgPresentation ?? platformPresentation ?? DEFAULT_MANAGED_NOTIF_PRESENTATION;
+    const source = orgPresentation ? "organization" : platformPresentation ? "platform" : "hardcoded";
+    const sourceRow = orgPresentation ? exactOrgRow : platformPresentation ? globalRow : null;
+    return {
+      presentation,
+      metadata: metadataFor(sourceRow, source, presentation.revision),
+    };
+  }
+
+  function writeOptions(options: SystemSettingsWriteOptionsLike): SystemSettingsWriteOptionsLike {
+    const organizationId = options.organizationId?.trim() || null;
+    return organizationId
+      ? { organizationId }
+      : { organizationId: null, allowPlatformGlobalFallbackWrite: true };
   }
 
   return {
@@ -102,8 +192,108 @@ export function createNotifTemplatesService(systemSettings: SystemSettingsLike) 
       options: SystemSettingsWriteOptionsLike = {},
     ): Promise<NotifTemplateEntry> {
       const key = notifTemplateSettingKey(event, audience);
-      await systemSettings.updateSetting(key, "admin", { value: text }, userId, options);
+      const current = await systemSettings.getSetting(key, "admin", options);
+      const currentValue = current?.valueJson;
+      const currentRecord = currentValue && typeof currentValue === "object" && !Array.isArray(currentValue)
+        ? currentValue as Record<string, unknown>
+        : {};
+      await systemSettings.updateSetting(key, "admin", { ...currentRecord, value: text }, userId, options);
       return { event, audience, text, isDefault: false };
+    },
+
+    async getManagedTemplates(options: SystemSettingsReadOptionsLike = {}): Promise<ManagedNotifTemplateEntry[]> {
+      return Promise.all(
+        NOTIF_TEMPLATE_EVENTS.flatMap((event) =>
+          NOTIF_TEMPLATE_AUDIENCES.map((audience) => getManagedTemplate(event, audience, options)),
+        ),
+      );
+    },
+
+    getManagedPresentation(options: SystemSettingsReadOptionsLike = {}): Promise<ManagedNotifPresentationEntry> {
+      return getPresentation(options);
+    },
+
+    async saveManagedTemplate(
+      event: NotifTemplateEvent,
+      audience: NotifTemplateAudience,
+      channels: ManagedNotifTemplateChannels,
+      userId: string,
+      options: SystemSettingsWriteOptionsLike = {},
+    ): Promise<ManagedNotifTemplateEntry> {
+      const validatedChannels = validateManagedNotifTemplateChannels(event, audience, channels);
+      const key = notifTemplateSettingKey(event, audience);
+      const { globalRow, effectiveRow, exactOrgRow } = await readResolutionRows(key, options.organizationId);
+      const targetRow = options.organizationId?.trim() ? exactOrgRow : globalRow;
+      const previous = targetRow ? parseManagedNotifTemplateFor(event, audience, targetRow.valueJson) : null;
+      const legacyText = extractTextFromValueJson(effectiveRow?.valueJson ?? null)
+        ?? NOTIF_TEMPLATE_DEFAULTS[event][audience];
+      const managed = {
+        version: MANAGED_NOTIF_TEMPLATE_VERSION,
+        revision: (previous?.revision ?? 0) + 1,
+        channels: validatedChannels,
+      } as const;
+      const existingValue = targetRow?.valueJson;
+      const existingRecord = existingValue && typeof existingValue === "object" && !Array.isArray(existingValue)
+        ? existingValue as Record<string, unknown>
+        : {};
+      const saved = await systemSettings.updateSetting(
+        key,
+        "admin",
+        { ...existingRecord, value: legacyText, managed },
+        userId,
+        writeOptions(options),
+      );
+      const source = options.organizationId?.trim() ? "organization" : "platform";
+      return {
+        event,
+        audience,
+        legacyText,
+        legacyIsDefault: false,
+        managed,
+        metadata: metadataFor(saved, source, managed.revision),
+      };
+    },
+
+    async saveManagedPresentation(
+      input: Pick<ManagedNotifPresentation, "layout" | "signature" | "contacts">,
+      userId: string,
+      options: SystemSettingsWriteOptionsLike = {},
+    ): Promise<ManagedNotifPresentationEntry> {
+      const signature = input.signature.trim();
+      const contacts = input.contacts.trim();
+      if (signature.length > 500 || contacts.length > 500 || /(?:https?:\/\/|\/\/)/i.test(`${signature}\n${contacts}`)) {
+        throw new Error("invalid_notification_presentation");
+      }
+      const { globalRow, effectiveRow, exactOrgRow } = await readResolutionRows(
+        presentationCarrierKey,
+        options.organizationId,
+      );
+      const targetRow = options.organizationId?.trim() ? exactOrgRow : globalRow;
+      const previous = targetRow ? parseManagedNotifPresentation(targetRow.valueJson) : null;
+      const presentation: ManagedNotifPresentation = {
+        version: MANAGED_NOTIF_TEMPLATE_VERSION,
+        revision: (previous?.revision ?? 0) + 1,
+        layout: input.layout,
+        signature,
+        contacts,
+        logoAssetId: null,
+        avatarAssetId: null,
+      };
+      const legacyText = extractTextFromValueJson(effectiveRow?.valueJson ?? null)
+        ?? NOTIF_TEMPLATE_DEFAULTS.created.patient;
+      const existingValue = targetRow?.valueJson;
+      const existingRecord = existingValue && typeof existingValue === "object" && !Array.isArray(existingValue)
+        ? existingValue as Record<string, unknown>
+        : {};
+      const saved = await systemSettings.updateSetting(
+        presentationCarrierKey,
+        "admin",
+        { ...existingRecord, value: legacyText, presentation },
+        userId,
+        writeOptions(options),
+      );
+      const source = options.organizationId?.trim() ? "organization" : "platform";
+      return { presentation, metadata: metadataFor(saved, source, presentation.revision) };
     },
   };
 }

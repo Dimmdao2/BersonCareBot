@@ -10,7 +10,11 @@ import type {
 } from "./ports";
 import { SYSTEM_SETTING_REGISTRY } from "./registry";
 import type { ModesFormKey } from "./modesFormKeys";
-import { isPerOrgSettingKey, SystemSettingsOrgContextRequiredError } from "./orgScopedKeys";
+import {
+  allowsPlatformGlobalFallbackWrite,
+  isPerOrgSettingKey,
+  SystemSettingsOrgContextRequiredError,
+} from "./orgScopedKeys";
 import { normalizeValueJson } from "./adminSettingsPatchNormalize";
 import { invalidateConfigKey } from "./configAdapter";
 import {
@@ -163,6 +167,9 @@ export function createSystemSettingsService(port: SystemSettingsPort, dependenci
     if (!isPerOrgSettingKey(key)) return null;
     const organizationId = options.organizationId?.trim() || null;
     if (!organizationId) {
+      if (options.allowPlatformGlobalFallbackWrite === true && allowsPlatformGlobalFallbackWrite(key)) {
+        return null;
+      }
       throw new SystemSettingsOrgContextRequiredError(key);
     }
     return organizationId;

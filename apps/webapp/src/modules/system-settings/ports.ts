@@ -15,6 +15,8 @@ export type SystemSettingsReadOptions = {
 
 export type SystemSettingsWriteOptions = {
   organizationId?: string | null;
+  /** Platform operations only: bounded exception for keys with an intentional global fallback row. */
+  allowPlatformGlobalFallbackWrite?: true;
 };
 
 export type SystemSettingsPort = {

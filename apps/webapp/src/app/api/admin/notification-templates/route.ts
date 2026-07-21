@@ -1,65 +1,128 @@
-/**
- * GET  /api/admin/notification-templates — все шаблоны уведомлений (event×audience) + список переменных
- * PUT  /api/admin/notification-templates — сохранить один шаблон (event, audience, text)
- * Guard: requireAdminModeSession (role=admin)
- */
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { requireAdminModeSession } from "@/modules/auth/requireAdminMode";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
-import { requireDoctorWorkspaceApiContext } from "@/app-layer/guards/requireRole";
-import { systemSettingsOrgContextErrorResponse } from "@/app-layer/guards/systemSettingsOrgContextResponse";
+import { requirePlatformOperationsApiContext } from "@/app-layer/guards/requireRole";
 import {
-  NOTIF_TEMPLATE_EVENTS,
   NOTIF_TEMPLATE_AUDIENCES,
-  NOTIF_TEMPLATE_VARIABLES,
-  NOTIF_TEMPLATE_MAX_LENGTH,
+  NOTIF_TEMPLATE_EVENTS,
 } from "@/modules/notif-templates/notifTemplatesService";
+import {
+  NOTIF_TEMPLATE_CHANNELS,
+  SYNTHETIC_NOTIF_TEMPLATE_VARIABLES,
+  ManagedNotifTemplateValidationError,
+  renderManagedNotifTemplate,
+} from "@/modules/notif-templates/managedNotifTemplate";
 
-const putSchema = z.object({
+const channelsSchema = z.object({
+  email: z.object({ subject: z.string(), plainText: z.string() }).strict(),
+  telegram: z.object({ text: z.string() }).strict(),
+  max: z.object({ text: z.string() }).strict(),
+  smsc: z.object({ text: z.string() }).strict(),
+  web_push: z.object({ title: z.string(), text: z.string() }).strict(),
+}).strict();
+
+const presentationSchema = z.object({
+  layout: z.enum(["neutral", "organization"]),
+  signature: z.string().max(500),
+  contacts: z.string().max(500),
+}).strict();
+
+const templateWriteSchema = z.object({
+  kind: z.literal("template"),
   event: z.enum(NOTIF_TEMPLATE_EVENTS),
   audience: z.enum(NOTIF_TEMPLATE_AUDIENCES),
-  text: z.string().min(1).max(NOTIF_TEMPLATE_MAX_LENGTH),
-});
+  channels: channelsSchema,
+}).strict();
 
-/**
- * `notif_template:*` is PER-ORG (see `orgScopedKeys.ts`). `requireAdminModeSession` only checks
- * role+adminMode (no org); `canAccessDoctor("admin") === true` so `requireDoctorWorkspaceApiContext`
- * additionally resolves+stamps the admin's own clinic membership without requiring `adminMode`.
- */
+const presentationWriteSchema = z.object({
+  kind: z.literal("presentation"),
+  presentation: presentationSchema,
+}).strict();
+
+const putSchema = z.discriminatedUnion("kind", [templateWriteSchema, presentationWriteSchema]);
+const previewSchema = z.object({
+  event: z.enum(NOTIF_TEMPLATE_EVENTS),
+  audience: z.enum(NOTIF_TEMPLATE_AUDIENCES),
+  channel: z.enum(NOTIF_TEMPLATE_CHANNELS),
+  channels: channelsSchema,
+  presentation: presentationSchema,
+}).strict();
+
+function invalidTemplateResponse() {
+  return NextResponse.json({ ok: false, error: "invalid_template" }, { status: 400 });
+}
+
+function isInvalidTemplateError(error: unknown): boolean {
+  return error instanceof ManagedNotifTemplateValidationError
+    || (error instanceof Error && error.message === "invalid_notification_presentation");
+}
+
+/** Platform-owned `organization_id IS NULL` defaults; no clinic membership is borrowed. */
 export async function GET() {
-  const gate = await requireAdminModeSession();
+  const gate = await requirePlatformOperationsApiContext();
   if (!gate.ok) return gate.response;
-  const workspaceGate = await requireDoctorWorkspaceApiContext();
-  if (!workspaceGate.ok) return workspaceGate.response;
-
   const deps = buildAppDeps();
-  const templates = await deps.notifTemplates.getAllTemplates({ organizationId: workspaceGate.ctx.organizationId });
-  return NextResponse.json({ ok: true, templates, variables: [...NOTIF_TEMPLATE_VARIABLES] });
+  const [templates, presentation] = await Promise.all([
+    deps.notifTemplates.getManagedTemplates({ organizationId: null }),
+    deps.notifTemplates.getManagedPresentation({ organizationId: null }),
+  ]);
+  return NextResponse.json({ ok: true, templates, presentation });
 }
 
 export async function PUT(request: Request) {
-  const gate = await requireAdminModeSession();
+  const gate = await requirePlatformOperationsApiContext();
   if (!gate.ok) return gate.response;
-  const workspaceGate = await requireDoctorWorkspaceApiContext();
-  if (!workspaceGate.ok) return workspaceGate.response;
-
-  const raw = await request.json().catch(() => null);
-  const parsed = putSchema.safeParse(raw);
-  if (!parsed.success) {
-    return NextResponse.json({ ok: false, error: "invalid_body" }, { status: 400 });
-  }
-
-  const { event, audience, text } = parsed.data;
+  const parsed = putSchema.safeParse(await request.json().catch(() => null));
+  if (!parsed.success) return NextResponse.json({ ok: false, error: "invalid_body" }, { status: 400 });
   const deps = buildAppDeps();
   try {
-    const template = await deps.notifTemplates.saveTemplate(event, audience, text.trim(), gate.session.user.userId, {
-      organizationId: workspaceGate.ctx.organizationId,
-    });
+    if (parsed.data.kind === "presentation") {
+      const presentation = await deps.notifTemplates.saveManagedPresentation(
+        parsed.data.presentation,
+        gate.session.user.userId,
+        { organizationId: null },
+      );
+      return NextResponse.json({ ok: true, presentation });
+    }
+    const template = await deps.notifTemplates.saveManagedTemplate(
+      parsed.data.event,
+      parsed.data.audience,
+      parsed.data.channels,
+      gate.session.user.userId,
+      { organizationId: null },
+    );
     return NextResponse.json({ ok: true, template });
   } catch (error) {
-    const errResponse = systemSettingsOrgContextErrorResponse(error);
-    if (errResponse) return errResponse;
+    if (isInvalidTemplateError(error)) return invalidTemplateResponse();
+    throw error;
+  }
+}
+
+/** Synthetic server rendering only. This route never resolves a recipient or calls a sender. */
+export async function POST(request: Request) {
+  const gate = await requirePlatformOperationsApiContext();
+  if (!gate.ok) return gate.response;
+  const parsed = previewSchema.safeParse(await request.json().catch(() => null));
+  if (!parsed.success) return NextResponse.json({ ok: false, error: "invalid_body" }, { status: 400 });
+  try {
+    const rendered = renderManagedNotifTemplate({
+      event: parsed.data.event,
+      audience: parsed.data.audience,
+      channel: parsed.data.channel,
+      template: { version: 1, revision: 0, channels: parsed.data.channels },
+      presentation: {
+        version: 1,
+        revision: 0,
+        ...parsed.data.presentation,
+        logoAssetId: null,
+        avatarAssetId: null,
+      },
+      variables: SYNTHETIC_NOTIF_TEMPLATE_VARIABLES,
+      brandingEnabled: parsed.data.presentation.layout === "organization",
+    });
+    return NextResponse.json({ ok: true, rendered });
+  } catch (error) {
+    if (isInvalidTemplateError(error)) return invalidTemplateResponse();
     throw error;
   }
 }
