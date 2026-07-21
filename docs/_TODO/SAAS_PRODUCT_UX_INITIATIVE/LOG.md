@@ -4346,3 +4346,12 @@ locked product smoke passed `22/22` plus the global-admin clinical-write denial.
 coverage gate reported an active unexplained event before coverage; on TEST this gate is intentionally warning-only,
 so the environment remains available for triage and owner live acceptance. No PROD action occurred. Repository stages
 `#931` and `#932` remain unaccepted until their live TEST scenarios are checked; `accepted` remains owner-only.
+
+The post-deploy read-only isolation triage found two older unresolved aggregates whose last occurrences predate the
+code-only deploy window. Their low-cardinality records cannot prove the historic root cause. They were deliberately
+left unchanged: the canonical resolver is a documented clean six-service coverage run starting after the last event,
+not an invented timestamp or a synthetic "explained" occurrence.
+
+The owner-authored UI-1c appointment-card planning commit was reconciled from its temporary branch as `8d482133b`.
+The outbound-delivery incident plan is now a subordinate `#950` artifact in this roadmap: repository-safe work may
+proceed after the A3/notification foundations, while live TEST delivery and all PROD activation remain explicit gates.

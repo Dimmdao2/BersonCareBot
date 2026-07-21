@@ -732,6 +732,8 @@ downgrade/over-limit сохраняют memberships и блокируют нов
   проверяемость tenant isolation, целостность денег/booking, auth/session security, observability и contracts;
 - [`UNSUPPORTED_CLIENT_FALLBACK_PLAN.md`](../UNSUPPORTED_CLIENT_FALLBACK_PLAN.md) — bounded patient-entry
   watchdog/fallback и минимизированная telemetry для браузеров, где application bundle не стартует.
+- [`OUTBOUND_DELIVERY_ALERTING_PLAN.md`](../OUTBOUND_DELIVERY_ALERTING_PLAN.md) — subordinate incident-response
+  stage `#950`: отказ email/SMS/provider становится красным open incident с независимым multi-channel alerting.
 
 Порядок включения:
 
@@ -799,6 +801,10 @@ downgrade/over-limit сохраняют memberships и блокируют нов
    path. Private PostgreSQL lifecycle/UoW/rollback/concurrency proofs, focused tests, typecheck/lint, D3.4/static
    gates and the terminal independent audit passed with no findings. The accumulated milestone gate is green at
    `c6a8930c2`; no working database, provider call, TEST/PROD or deploy was used by the stage.
+   **Outbound delivery alerting `#950`:** запускается после A3 и существующей notification foundation отдельным
+   observability stage, не смешиваясь с owner TEST-приёмкой или dependency refresh. Сначала repository/DEV-safe
+   signal/state/UI и synthetic tests; реальный broken-provider прогон на TEST — отдельный явный gate с разрешёнными
+   TEST-получателями. PROD activation/verification не входит в этот этап.
 6. **Hardening Phase 2 до C7:** launch-relevant session revocation/TTL, CSRF/origin и integrator↔webapp contract
    SSOT. Общий HTTP response builder внедряется инкрементально и не превращается в обязательный mass-refactor перед
    release, если risk-relevant routes уже закрыты.
