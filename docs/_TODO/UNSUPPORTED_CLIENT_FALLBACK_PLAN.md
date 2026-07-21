@@ -102,6 +102,30 @@ JS-бандл (Next 16 / React 19) молча не выполнился на с�
       loadAdminRegistrationFailureAttention НЕ ссылаются на новое событие; тест «boot-report не растит
       системный счётчик и не пишет error-audit».
 
+### Execution reconciliation — current feature branch, 2026-07-21
+
+`Ф0/Ф1` готовы к bounded repository implementation без дополнительного owner decision:
+
+- `/app`, `/app/tg` и `/app/max` уже сходятся в один server entry `AppEntryRsc` и один `AuthBootstrap`; watchdog,
+  SSR fallback и server-first UA presentation должны встраиваться в этот chokepoint, а не дублироваться по routes;
+- текущий `AuthBootstrap` уже отделяет messenger timeout от browser interactive flow и имеет ранний mount-effect;
+  существующие `MESSENGER_*` таймауты сохраняются и не классифицируются как boot failure;
+- отдельного `client-boot-report`, `supportedClientMatrix` или classic-script watchdog сейчас нет;
+- feature toggle добавляется как global public DB-backed `system_settings` runtime setting с fail-closed default `false`;
+  новый env-флаг запрещён;
+- ingress переиспользует общий trusted `X-Real-IP` resolver и DB-backed sliding-window rate-limit port. Payload
+  остаётся bounded/minimized; persistent product analytics, account lookup и admin card не входят в `Ф0/Ф1`;
+- exact initial file families: `AppEntryRsc`/server entry presentation, one patient boot-fallback component/script,
+  `AuthBootstrap` mount acknowledgement, one auth-module report contract/rate-limit, one API route, typed settings
+  registry/projection and focused tests. `SystemHealthSection`, registration-failure and operator-health runtime code are
+  protected except negative invariant tests;
+- acceptance must include HTML proof with zero module execution, healthy-client cancellation, module-executed vs
+  React-mounted distinction, bounded/rate-limited ingress, payload rejection, no raw identifiers/tokens/stacks, and
+  negative proof that system-health/error-audit counters are untouched.
+
+`Ф0` implementation may begin immediately in an isolated worktree. TEST/production activation, real telemetry window
+and `Ф1` owner live acceptance remain explicit later gates.
+
 ## Риски / верификация
 - Watchdog ES5-safe и без зависимостей (тест: принудительный фейл загрузки модуля).
 - False positive: здоровый-но-медленный клиент обязан отменить watchdog ранним `ok()`; `WATCHDOG_MS` > худшего времени хорошего старта.
