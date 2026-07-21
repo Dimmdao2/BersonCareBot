@@ -41,6 +41,18 @@ export type OrganizationCatalogPort = {
     isActive: boolean;
     sortOrder: number;
   }): Promise<BeBranch>;
+  /** Creates a physical branch and assigns its server-owned default color atomically. */
+  createPhysicalBranchWithDefaultColor(input: {
+    organizationId: string;
+    title: string;
+    shortTitle?: string | null;
+    cityCode: string;
+    address?: string | null;
+    timezone?: string;
+    isActive: boolean;
+    sortOrder: number;
+    physicalPalette: readonly string[];
+  }): Promise<BeBranch>;
   deactivateBranch(id: string): Promise<boolean>;
 
   listRooms(organizationId: string, branchId?: string): Promise<BeRoom[]>;

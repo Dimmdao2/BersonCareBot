@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, inArray, isNull, or, sql } from "drizzle-orm";
+import { and, asc, count, desc, eq, inArray, isNull, ne, or, sql } from "drizzle-orm";
 import { getCurrentDbPrincipalOrganizationId } from "@bersoncare/db-principal";
 import type { DrizzleDb } from "@/app-layer/db/drizzle";
 import { getDrizzleOrMutationTx as getDrizzle } from "@/infra/db/drizzleMutationTx";
@@ -580,6 +580,42 @@ export function createPgBookingEnginePort(): BookingEngineCorePort {
           .returning(),
       );
       return mapBranch(inserted[0]!);
+    },
+
+    async createPhysicalBranchWithDefaultColor(input) {
+      return runWebappTransaction(async (tx) => {
+        await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtextextended(${`booking-location-palette:${input.organizationId}`}, 0))`);
+        const [row] = await tx
+          .select({ value: count() })
+          .from(beBranches)
+          .where(and(
+            eq(beBranches.organizationId, input.organizationId),
+            ne(sql`lower(${beBranches.cityCode})`, "online"),
+            ne(sql`lower(${beBranches.title})`, "онлайн"),
+          ));
+        const physicalCount = row?.value ?? 0;
+        const color = input.physicalPalette[physicalCount % input.physicalPalette.length];
+        if (!color) throw new Error("booking_location_palette_empty");
+        const now = new Date().toISOString();
+        const [inserted] = await tx
+          .insert(beBranches)
+          .values({
+            organizationId: input.organizationId,
+            title: input.title,
+            shortTitle: input.shortTitle ?? null,
+            color,
+            cityCode: input.cityCode,
+            address: input.address ?? null,
+            timezone: input.timezone ?? "Europe/Moscow",
+            isActive: input.isActive,
+            sortOrder: input.sortOrder,
+            createdAt: now,
+            updatedAt: now,
+          })
+          .returning();
+        if (!inserted) throw new Error("branch_create_failed");
+        return mapBranch(inserted);
+      });
     },
 
     async deactivateBranch(id) {

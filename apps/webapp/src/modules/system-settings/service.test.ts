@@ -85,6 +85,43 @@ describe("SystemSettingsService", () => {
     });
   });
 
+  it("writes the global booking location palette through runtime UoW and mirror sync", async () => {
+    const writeUnitOfWork: SettingsWriteUnitOfWork = {
+      write: vi.fn(async (input): Promise<SystemSetting[]> => {
+        expect(input.authoritativeRuntimeRows).toEqual([{
+          key: "booking_location_default_palette",
+          scope: "admin",
+          organizationId: null,
+          audience: "server",
+          valueJson: { value: { physicalPalette: ["#111111", "#222222", "#333333", "#444444", "#555555"], online: "#666666" } },
+          updatedBy: "platform-user",
+        }]);
+        return input.legacyRows.map((row: SystemSettingsUpsertRow) => ({
+          key: row.key,
+          scope: row.scope,
+          organizationId: null,
+          valueJson: row.valueJson,
+          updatedAt: "",
+          updatedBy: row.updatedBy,
+        }));
+      }),
+    };
+    const valueJson = {
+      value: { physicalPalette: ["#111111", "#222222", "#333333", "#444444", "#555555"], online: "#666666" },
+    };
+    const service = createSystemSettingsService(makePort(), { writeUnitOfWork });
+    await service.updateSetting(
+      "booking_location_default_palette", "admin", valueJson, "platform-user", { organizationId: null },
+    );
+    expect(syncSettingToIntegratorMock).toHaveBeenCalledWith({
+      key: "booking_location_default_palette",
+      scope: "admin",
+      organizationId: null,
+      valueJson,
+      updatedBy: "platform-user",
+    });
+  });
+
   it("routes a runtime setting through the committed write UoW before compatibility sync", async () => {
     const events: string[] = [];
     const writeUnitOfWork: SettingsWriteUnitOfWork = {

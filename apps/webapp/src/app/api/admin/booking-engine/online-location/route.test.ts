@@ -5,7 +5,7 @@ const requireEntitlementMock = vi.hoisted(() => vi.fn());
 const withDoctorWorkspacePrincipalMock = vi.hoisted(() =>
   vi.fn(async (_ctx: unknown, _source: string, callback: () => Promise<unknown>) => callback()),
 );
-const setBuiltInOnlineLocationStateMock = vi.hoisted(() => vi.fn());
+const setOnlineLocationStateMock = vi.hoisted(() => vi.fn());
 
 vi.mock("../_requireAdminBookingEngine", () => ({
   requireClinicManagementBookingEngine: requireClinicManagementBookingEngineMock,
@@ -14,10 +14,6 @@ vi.mock("@/app-layer/guards/requireEntitlement", () => ({ requireEntitlementForM
 vi.mock("@/app-layer/principal/withOrganizationPrincipal", () => ({
   withDoctorWorkspacePrincipal: withDoctorWorkspacePrincipalMock,
 }));
-vi.mock("@/modules/booking-engine/onlineLocation", () => ({
-  setBuiltInOnlineLocationState: setBuiltInOnlineLocationStateMock,
-}));
-
 import { PUT } from "./route";
 
 describe("PUT /api/admin/booking-engine/online-location", () => {
@@ -27,11 +23,11 @@ describe("PUT /api/admin/booking-engine/online-location", () => {
       ok: true,
       ctx: {
         organizationId: "org-a",
-        service: { catalog: { listBranches: vi.fn(), upsertBranch: vi.fn() } },
+        service: { catalog: { setOnlineLocationState: setOnlineLocationStateMock } },
       },
     });
     requireEntitlementMock.mockResolvedValue({ ok: true });
-    setBuiltInOnlineLocationStateMock.mockResolvedValue({ id: "online-a", isActive: true });
+    setOnlineLocationStateMock.mockResolvedValue({ id: "online-a", isActive: true });
   });
 
   it("uses only the organization from the authenticated management context", async () => {
@@ -44,7 +40,7 @@ describe("PUT /api/admin/booking-engine/online-location", () => {
     );
 
     expect(res.status).toBe(400);
-    expect(setBuiltInOnlineLocationStateMock).not.toHaveBeenCalled();
+    expect(setOnlineLocationStateMock).not.toHaveBeenCalled();
 
     const okRes = await PUT(
       new Request("http://localhost/api/admin/booking-engine/online-location", {
@@ -54,10 +50,7 @@ describe("PUT /api/admin/booking-engine/online-location", () => {
       }),
     );
     expect(okRes.status).toBe(200);
-    expect(setBuiltInOnlineLocationStateMock).toHaveBeenCalledWith(
-      expect.anything(),
-      { organizationId: "org-a", isActive: true },
-    );
+    expect(setOnlineLocationStateMock).toHaveBeenCalledWith({ organizationId: "org-a", isActive: true });
     expect(withDoctorWorkspacePrincipalMock).toHaveBeenCalledWith(
       expect.anything(),
       "admin.booking-engine.online-location.set-state",
@@ -81,6 +74,6 @@ describe("PUT /api/admin/booking-engine/online-location", () => {
     );
     expect(res.status).toBe(403);
     expect(await res.json()).toEqual({ ok: false, error, mechanic: "booking" });
-    expect(setBuiltInOnlineLocationStateMock).not.toHaveBeenCalled();
+    expect(setOnlineLocationStateMock).not.toHaveBeenCalled();
   });
 });

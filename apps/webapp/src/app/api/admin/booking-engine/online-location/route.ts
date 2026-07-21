@@ -2,7 +2,6 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { requireEntitlementForMutation } from "@/app-layer/guards/requireEntitlement";
 import { withDoctorWorkspacePrincipal } from "@/app-layer/principal/withOrganizationPrincipal";
-import { setBuiltInOnlineLocationState } from "@/modules/booking-engine/onlineLocation";
 import { requireClinicManagementBookingEngine } from "../_requireAdminBookingEngine";
 
 const PutSchema = z.object({ isActive: z.boolean() }).strict();
@@ -22,7 +21,7 @@ export async function PUT(request: Request) {
     gate.ctx,
     "admin.booking-engine.online-location.set-state",
     () =>
-      setBuiltInOnlineLocationState(gate.ctx.service.catalog, {
+      gate.ctx.service.catalog.setOnlineLocationState({
         organizationId: gate.ctx.organizationId,
         isActive: parsed.data.isActive,
       }),

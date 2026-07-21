@@ -32,7 +32,6 @@ export function BookingSoloLocationsSection() {
   const [title, setTitle] = useState("");
   const [shortTitle, setShortTitle] = useState("");
   const [address, setAddress] = useState("");
-  const [color, setColor] = useState(DEFAULT_BRANCH_COLOR);
   const [timezone, setTimezone] = useState("Europe/Moscow");
   const [editId, setEditId] = useState<string | null>(null);
   const [editTitle, setEditTitle] = useState("");
@@ -128,13 +127,6 @@ export function BookingSoloLocationsSection() {
               value={shortTitle}
               onChange={(e) => setShortTitle(e.target.value.slice(0, 12))}
             />
-            <Input
-              type="color"
-              className="h-8 w-12 cursor-pointer px-1 py-0.5"
-              aria-label="Цвет локации"
-              value={color}
-              onChange={(e) => setColor(e.target.value)}
-            />
             <Button
               type="button"
               size="sm"
@@ -151,7 +143,6 @@ export function BookingSoloLocationsSection() {
                       shortTitle: shortTitle.trim() || null,
                       cityCode: slugCityCode(title),
                       address: address.trim() || null,
-                      color,
                       timezone,
                       sortOrder: maxOrder + 10,
                     }),
@@ -159,7 +150,6 @@ export function BookingSoloLocationsSection() {
                   setTitle("");
                   setShortTitle("");
                   setAddress("");
-                  setColor(DEFAULT_BRANCH_COLOR);
                 })
               }
             >

@@ -32,6 +32,7 @@ function mockPort(overrides: Partial<BookingEngineBundlePort> = {}): BookingEngi
     listBranches: vi.fn().mockResolvedValue([]),
     getBranch: vi.fn(),
     upsertBranch: vi.fn(),
+    createPhysicalBranchWithDefaultColor: vi.fn(),
     deactivateBranch: vi.fn(),
     listRooms: vi.fn().mockResolvedValue([]),
     getRoom: vi.fn(),
@@ -100,6 +101,37 @@ function mockPort(overrides: Partial<BookingEngineBundlePort> = {}): BookingEngi
 }
 
 describe("createBookingEngineService", () => {
+  it("resolves the configured palette for physical and Online creation independently", async () => {
+    const port = mockPort({
+      createPhysicalBranchWithDefaultColor: vi.fn().mockResolvedValue({ id: "physical" }),
+      upsertBranch: vi.fn().mockResolvedValue({ id: "online", color: "#ABCDEF", isActive: true }),
+    });
+    const svc = createBookingEngineService(port, {
+      getLocationPaletteSetting: vi.fn().mockResolvedValue({
+        value: {
+          physicalPalette: ["#111111", "#222222", "#333333", "#444444", "#555555"],
+          online: "#abcdef",
+        },
+      }),
+    });
+    await svc.catalog.createPhysicalBranch({
+      organizationId: "a0000000-0000-4000-8000-000000000001",
+      title: "Москва",
+      cityCode: "moscow",
+      isActive: true,
+      sortOrder: 10,
+    });
+    await svc.catalog.setOnlineLocationState({
+      organizationId: "a0000000-0000-4000-8000-000000000001",
+      isActive: true,
+    });
+
+    expect(port.createPhysicalBranchWithDefaultColor).toHaveBeenCalledWith(expect.objectContaining({
+      physicalPalette: ["#111111", "#222222", "#333333", "#444444", "#555555"],
+    }));
+    expect(port.upsertBranch).toHaveBeenCalledWith(expect.objectContaining({ color: "#ABCDEF" }));
+  });
+
   it("createAppointment defaults status to created", async () => {
     const port = mockPort();
     const svc = createBookingEngineService(port);

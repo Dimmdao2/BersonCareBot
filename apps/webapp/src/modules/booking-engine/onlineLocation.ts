@@ -5,7 +5,6 @@ export const ONLINE_LOCATION_CITY_CODE = "online";
 export const ONLINE_LOCATION_TITLE = "Онлайн";
 export const ONLINE_LOCATION_SHORT_TITLE = "Онлайн";
 
-const ONLINE_LOCATION_DEFAULT_COLOR = "#7c3aed";
 const ONLINE_LOCATION_DEFAULT_TIMEZONE = "Europe/Moscow";
 
 type OnlineLocationIdentity = Pick<BeBranch, "cityCode" | "title">;
@@ -44,7 +43,7 @@ type OnlineLocationCatalog = Pick<OrganizationCatalogPort, "listBranches" | "ups
  */
 export async function setBuiltInOnlineLocationState(
   catalog: OnlineLocationCatalog,
-  input: { organizationId: string; isActive: boolean },
+  input: { organizationId: string; isActive: boolean; defaultColor: string },
 ): Promise<BeBranch> {
   const branches = await catalog.listBranches(input.organizationId);
   const existing = findBuiltInOnlineLocation(branches, input.organizationId);
@@ -77,7 +76,7 @@ export async function setBuiltInOnlineLocationState(
       organizationId: input.organizationId,
       title: ONLINE_LOCATION_TITLE,
       shortTitle: ONLINE_LOCATION_SHORT_TITLE,
-      color: ONLINE_LOCATION_DEFAULT_COLOR,
+      color: input.defaultColor,
       cityCode: ONLINE_LOCATION_CITY_CODE,
       address: null,
       timezone: ONLINE_LOCATION_DEFAULT_TIMEZONE,

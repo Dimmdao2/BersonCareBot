@@ -1590,6 +1590,13 @@
       "when": 1793539200021,
       "tag": "0226_payment_capture_replay_safety",
       "breakpoints": true
+    },
+    {
+      "idx": 227,
+      "version": "7",
+      "when": 1793539200022,
+      "tag": "0227_booking_location_default_palette",
+      "breakpoints": true
     }
   ]
 }

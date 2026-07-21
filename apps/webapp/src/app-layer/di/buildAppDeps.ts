@@ -587,7 +587,12 @@ const bookingEnginePort =
     ? { ...bookingEngineCorePort, ...bookingRubitimeBridgePort }
     : null;
 const bookingEngineService = bookingEnginePort
-  ? createBookingEngineService(bookingEnginePort)
+  ? createBookingEngineService(bookingEnginePort, {
+      getLocationPaletteSetting: () =>
+        systemSettingsService
+          .getSetting("booking_location_default_palette", "admin", { organizationId: null })
+          .then((row) => row?.valueJson ?? null),
+    })
   : null;
 const bookingSchedulingPort =
   bookingEngineCorePort && !inMemoryRepos

@@ -68,17 +68,22 @@ describe("built-in Online location", () => {
     const off = await setBuiltInOnlineLocationState(catalog, {
       organizationId: ORGANIZATION_A,
       isActive: false,
+      defaultColor: "#AABBCC",
     });
     const on = await setBuiltInOnlineLocationState(catalog, {
       organizationId: ORGANIZATION_A,
       isActive: true,
+      defaultColor: "#AABBCC",
     });
     const onAgain = await setBuiltInOnlineLocationState(catalog, {
       organizationId: ORGANIZATION_A,
       isActive: true,
+      defaultColor: "#AABBCC",
     });
 
-    expect(off).toMatchObject({ id: "online-a", isActive: false, title: "Онлайн", cityCode: "online" });
+    expect(off).toMatchObject({
+      id: "online-a", isActive: false, title: "Онлайн", cityCode: "online", color: "#AABBCC",
+    });
     expect(on).toMatchObject({ id: "online-a", isActive: true });
     expect(onAgain).toMatchObject({ id: "online-a", isActive: true });
     expect(rows.filter((row) => row.organizationId === ORGANIZATION_A && isBuiltInOnlineLocation(row))).toHaveLength(1);

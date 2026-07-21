@@ -13,6 +13,8 @@ import type {
   CreateManualPatientVisitInput,
   TransitionAppointmentStatusInput,
 } from "./types";
+import { resolveBookingLocationPalette } from "./locationPalette";
+import { setBuiltInOnlineLocationState } from "./onlineLocation";
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const ONLINE_SLOT_MINUTE_MS = 60_000;
@@ -41,7 +43,14 @@ function assertAppointmentStatus(s: string): asserts s is AppointmentStatus {
   if (!statuses.includes(s)) throw new Error("Неизвестный статус записи");
 }
 
-export function createBookingEngineService(port: BookingEngineBundlePort) {
+type BookingEngineServiceDependencies = {
+  getLocationPaletteSetting?: () => Promise<unknown>;
+};
+
+export function createBookingEngineService(
+  port: BookingEngineBundlePort,
+  dependencies: BookingEngineServiceDependencies = {},
+) {
   const engine: BookingEnginePort = {
     async getAppointment(id) {
       assertUuid(id);
@@ -199,7 +208,7 @@ export function createBookingEngineService(port: BookingEngineBundlePort) {
   return {
     ...engine,
     organization: createOrganizationFacade(port),
-    catalog: createCatalogFacade(port),
+    catalog: createCatalogFacade(port, dependencies),
     services: createServiceAvailabilityFacade(port),
     bridge: createBridgeFacade(port),
   };
@@ -217,7 +226,17 @@ function createOrganizationFacade(port: OrganizationPort) {
   };
 }
 
-function createCatalogFacade(port: OrganizationCatalogPort) {
+function createCatalogFacade(
+  port: OrganizationCatalogPort,
+  dependencies: BookingEngineServiceDependencies,
+) {
+  async function locationPalette() {
+    const stored = dependencies.getLocationPaletteSetting
+      ? await dependencies.getLocationPaletteSetting()
+      : null;
+    return resolveBookingLocationPalette(stored);
+  }
+
   return {
     listBranches: (organizationId: string) => {
       assertUuid(organizationId);
@@ -228,6 +247,17 @@ function createCatalogFacade(port: OrganizationCatalogPort) {
       return port.getBranch(id);
     },
     upsertBranch: port.upsertBranch.bind(port),
+    async createPhysicalBranch(input: Omit<Parameters<OrganizationCatalogPort["createPhysicalBranchWithDefaultColor"]>[0], "physicalPalette">) {
+      const palette = await locationPalette();
+      return port.createPhysicalBranchWithDefaultColor({
+        ...input,
+        physicalPalette: palette.physicalPalette,
+      });
+    },
+    async setOnlineLocationState(input: { organizationId: string; isActive: boolean }) {
+      const palette = await locationPalette();
+      return setBuiltInOnlineLocationState(port, { ...input, defaultColor: palette.online });
+    },
     deactivateBranch: port.deactivateBranch.bind(port),
     listRooms: port.listRooms.bind(port),
     getRoom: port.getRoom.bind(port),

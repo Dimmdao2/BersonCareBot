@@ -80,6 +80,37 @@ describe("/api/platform/settings", () => {
     expect(updateMock).not.toHaveBeenCalled();
   });
 
+  it("normalizes and writes the structured location palette globally", async () => {
+    const value = {
+      physicalPalette: ["#123abc", "#223344", "#334455", "#445566", "#556677"],
+      online: "#abcdef",
+    };
+    const response = await PATCH(new Request("http://localhost/api/platform/settings", {
+      method: "PATCH", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ key: "booking_location_default_palette", value }),
+    }));
+    expect(response.status).toBe(200);
+    expect(updateMock).toHaveBeenCalledWith(
+      "booking_location_default_palette",
+      "admin",
+      { value: { ...value, physicalPalette: value.physicalPalette.map((color) => color.toUpperCase()), online: "#ABCDEF" } },
+      platformSession.user.userId,
+      { organizationId: null },
+    );
+  });
+
+  it("rejects a short or invalid location palette", async () => {
+    const response = await PATCH(new Request("http://localhost/api/platform/settings", {
+      method: "PATCH", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        key: "booking_location_default_palette",
+        value: { physicalPalette: ["#111111", "#222222"], online: "#333333" },
+      }),
+    }));
+    expect(response.status).toBe(400);
+    expect(updateMock).not.toHaveBeenCalled();
+  });
+
   it("does not expose unwhitelisted restricted settings", async () => {
     listMock.mockResolvedValue([{ key: "max_bot_api_key", scope: "admin", organizationId: null, valueJson: { value: "secret" } }]);
     const body = await (await GET()).json();

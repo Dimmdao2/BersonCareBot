@@ -7,6 +7,7 @@ import { BookingSoloLocationsSection } from "@/app/app/settings/BookingSoloLocat
 import { BookingSoloServicesSection } from "@/app/app/settings/BookingSoloServicesSection";
 import { BookingSoloAvailabilitySection } from "@/app/app/settings/BookingSoloAvailabilitySection";
 import { BOOKING_CARD_GRID_CLASS } from "@/shared/ui/doctor/doctorWorkspaceLayout";
+import { PlatformLocationPaletteSection } from "./PlatformLocationPaletteSection";
 
 function parseAdminBoolean(valueJson: unknown): boolean {
   if (valueJson === true) return true;
@@ -33,6 +34,8 @@ export default async function DoctorAdminBookingOverviewPage() {
     <div className="space-y-4">
       <BookingCatalogHelp />
       <BookingOverviewPanel data={overview} />
+
+      <PlatformLocationPaletteSection />
 
       <section id="section-locations">
         <BookingSoloLocationsSection />

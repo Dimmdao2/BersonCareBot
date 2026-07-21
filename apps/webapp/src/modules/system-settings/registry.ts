@@ -110,6 +110,13 @@ export const SYSTEM_SETTING_REGISTRY = {
   booking_calendar_default_window: runtime("doctor", "per_org", "authenticated_client", "structured", "absent"),
   booking_calendar_default_branch_id: runtime("doctor", "per_org", "authenticated_client", "uuid", "absent"),
   booking_calendar_default_service_id: runtime("doctor", "per_org", "authenticated_client", "uuid", "absent"),
+  booking_location_default_palette: runtime(
+    "admin",
+    "global",
+    "server",
+    "structured",
+    '{"physicalPalette":["#2563EB","#16A34A","#F59E0B","#DC2626","#7C3AED"],"online":"#7C3AED"}',
+  ),
   booking_slots_read_source: runtime("admin", "global", "server", "string", "rubitime"),
   booking_payment_enabled: runtime("admin", "per_org", "authenticated_client", "boolean", "false"),
   booking_payment_providers: restricted("admin", "per_org", "secret_envelope", "mock", "redacted", "booking_payment_public_config"),

@@ -5,6 +5,11 @@ import { requirePlatformOperationsApiContext } from "@/app-layer/guards/requireR
 import { normalizeValueJson } from "@/modules/system-settings/adminSettingsPatchNormalize";
 import { SYSTEM_SETTING_REGISTRY, type SystemSettingKey } from "@/modules/system-settings/registry";
 import type { SystemSetting } from "@/modules/system-settings/types";
+import {
+  BOOKING_LOCATION_PALETTE_SETTING_KEY,
+  bookingLocationPaletteEnvelope,
+  normalizeBookingLocationPalette,
+} from "@/modules/booking-engine/locationPalette";
 
 /**
  * The platform API is deliberately not a mirror of `/api/admin/settings`.
@@ -21,6 +26,7 @@ export const PLATFORM_GLOBAL_SETTINGS_API_KEYS = [
   "auth_sms_enabled",
   "auth_telegram_enabled",
   "auth_max_enabled",
+  "booking_location_default_palette",
 ] as const satisfies readonly SystemSettingKey[];
 
 const platformKeySchema = z.enum(PLATFORM_GLOBAL_SETTINGS_API_KEYS);
@@ -36,6 +42,10 @@ function isPlatformGlobalSetting(setting: SystemSetting): boolean {
 
 function normalizePlatformValue(key: (typeof PLATFORM_GLOBAL_SETTINGS_API_KEYS)[number], value: unknown): unknown | null {
   const normalized = normalizeValueJson(value);
+  if (key === BOOKING_LOCATION_PALETTE_SETTING_KEY) {
+    const palette = normalizeBookingLocationPalette(normalized);
+    return palette ? bookingLocationPaletteEnvelope(palette) : null;
+  }
   if (key === "patient_app_maintenance_message") {
     if (typeof normalized.value !== "string" || normalized.value.length > 2_000) return null;
     return { value: normalized.value.trim() };
