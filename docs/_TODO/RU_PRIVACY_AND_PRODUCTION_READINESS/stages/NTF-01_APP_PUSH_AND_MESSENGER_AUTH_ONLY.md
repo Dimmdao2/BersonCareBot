@@ -327,6 +327,12 @@ Reuse base is mandatory: `modules/notif-templates/notifTemplatesService.ts`, exi
 `notif_template:*` global-fallback/per-org settings and the schedule «Тексты уведомлений» editor. Do not fork a
 second template store or channel sender.
 
+> Editor UI note (owner 2026-07-21): the HTML email-body editing surface reuses the shared **Tiptap Simple** WYSIWYG
+> component from taskdb `#931` ([`docs/_TODO/EDITOR_TIPTAP_MIGRATION_PLAN.md`](../../EDITOR_TIPTAP_MIGRATION_PLAN.md),
+> [`docs/ARCHITECTURE/TOOLING_AND_PACKAGES_DECISIONS.md`](../../../ARCHITECTURE/TOOLING_AND_PACKAGES_DECISIONS.md) §«Редактор
+> контента»). `#931` is a cross-cutting UI enabler, not privacy scope; it lands independently and this stage consumes
+> it. This note references the editor decision only; it does not add or change N1B requirements.
+
 - [ ] `N1B0 contract/editor`: define typed event × audience × channel templates and versioned effective resolution:
       platform default → eligible organization override → channel renderer. Platform admin owns defaults;
       organization owner/admin owns org overrides. Per-specialist override is not launch scope until a later owner
