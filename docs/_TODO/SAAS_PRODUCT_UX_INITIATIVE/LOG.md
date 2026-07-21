@@ -4363,3 +4363,35 @@ A fresh post-checkpoint registry audit discovered two advisories published after
 `3.1.3` and `3.4.12`; Next, React, FullCalendar and other unrelated packages remain unchanged. Frozen install,
 production dependency paths, `17/17` sanitizer tests, Fastify/Ajv URI validation, the registry audit and one
 independent audit passed. No full CI, deploy, DB or environment action was repeated for this bounded security patch.
+
+## 2026-07-22 — UI-1c appointment detail launch manifest (`#951`)
+
+Base `b7fb1c5b4`; TEST remains application SHA `62b69b6a2` and is not part of this repository/DEV slice. Authority is
+owner-review §16a plus `DOCTOR_UI_REWORK_2026-07-20/PLAN.md` UI-1c. The closed C1 baseline is not reopened. Writable
+scope is the existing `DoctorCalendarEventPanel`, its focused test, the two Today modal wrappers and the existing
+appointment-comments component/test only where required for blank-draft proof. Shared doctor primitives, existing
+chat/phone helpers and server-derived solo context must be reused; payment backend, Rubitime lifecycle/data,
+appointment APIs and patient/public UI are protected.
+
+Acceptance is the nine-item UI-1c checklist: one close-control per host, canonical FIO plus existing chat/phone
+actions, semantic status beside emphasized current time, labelled details with proven solo behavior, reschedule-only
+original time, centered visit CTA, whitespace comment denial and hidden diagnostic payment panel. Focused tests,
+scoped typecheck/lint, one serialized DEV live pass at `/app/doctor/schedule?tab=calendar` and `/app/doctor` for
+`1440×900`/`390×844`, then one independent presentation audit. No full CI or deploy; audit findings outside the
+checklist are owner questions, not scope.
+
+## 2026-07-22 — outbound delivery failure signal launch manifest (`#950`, P1)
+
+Base `b7fb1c5b4`; prerequisites A3 `#946`, notification foundation `#930` and the existing Wave-2 operator-alert
+dispatcher/incident/digest machinery are integrated. This first coherent slice closes only plan P1: synchronous
+email/SMS provider failures and the existing dead relay queue become one low-cardinality critical topic
+`outbound_delivery_provider`, without a second queue, scheduler, settings tree or logger. Exact ownership is global
+platform operations; no clinical/tenant payload, recipient, address, body, credential or provider response may enter
+the signal. Existing modules/ports/Drizzle repositories and operator incident/job status storage are reused after a
+source-backed census.
+
+P2 SMS alert transport, P3 cadence/state changes and P4 UI severity remain later checkboxes of the same task and are
+not smuggled into P1. Repository/DEV-safe synthetic tests only: no real sends, no provider calls, no TEST mutation,
+no broken-credential exercise, no PROD, deploy or full CI. Worker must prove sync send failure capture, dead-queue
+reuse, bounded aggregation/classification, successful-send/non-provider negatives and digest/critical compatibility;
+one independent observability audit follows. The live P0/P-guard stays an explicit later owner-authorized TEST gate.
