@@ -1,0 +1,840 @@
+'use client';
+
+import { useCallback, useEffect, useMemo, useState, type FormEvent } from 'react';
+import {
+  MECHANIC_REGISTRY,
+  MECHANICS,
+  type OrgMechanic,
+  type Tariff,
+  type TariffQuota,
+  type TrialPolicy,
+} from '@/modules/org-entitlements/types';
+import type { PlatformOrganizationSummary } from '@/modules/org-entitlements/ports';
+import {
+  DoctorSection,
+  DoctorSectionHeader,
+  DoctorSectionTitle,
+} from '@/shared/ui/doctor/DoctorSection';
+import { Button } from '@/shared/ui/doctor/primitives/button';
+import { Checkbox } from '@/shared/ui/doctor/primitives/checkbox';
+import { Input } from '@/shared/ui/doctor/primitives/input';
+import { Label } from '@/shared/ui/doctor/primitives/label';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/shared/ui/doctor/primitives/select';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/shared/ui/doctor/primitives/tabs';
+import { Textarea } from '@/shared/ui/doctor/primitives/textarea';
+
+type CommercialState = {
+  tariffs: Tariff[];
+  organizations: PlatformOrganizationSummary[];
+  trialPolicy: TrialPolicy | null;
+};
+
+type TariffDraft = {
+  id: string | null;
+  name: string;
+  description: string;
+  priceRub: string;
+  billingPeriod: Tariff['billingPeriod'];
+  includedSeats: string;
+  isActive: boolean;
+  mechanics: Record<OrgMechanic, boolean>;
+  quotas: Partial<Record<OrgMechanic, TariffQuota>>;
+};
+
+const emptyMechanics = (): Record<OrgMechanic, boolean> =>
+  Object.fromEntries(MECHANICS.map((mechanic) => [mechanic, false])) as Record<
+    OrgMechanic,
+    boolean
+  >;
+
+function emptyTariffDraft(): TariffDraft {
+  return {
+    id: null,
+    name: '',
+    description: '',
+    priceRub: '',
+    billingPeriod: 'month',
+    includedSeats: '1',
+    isActive: true,
+    mechanics: emptyMechanics(),
+    quotas: {},
+  };
+}
+
+function tariffToDraft(tariff: Tariff): TariffDraft {
+  return {
+    id: tariff.id,
+    name: tariff.name,
+    description: tariff.description,
+    priceRub: tariff.priceMinor === null ? '' : String(tariff.priceMinor / 100),
+    billingPeriod: tariff.billingPeriod,
+    includedSeats: tariff.includedSeats === null ? '' : String(tariff.includedSeats),
+    isActive: tariff.isActive,
+    mechanics: Object.fromEntries(
+      MECHANICS.map((mechanic) => [mechanic, tariff.mechanics[mechanic] === true]),
+    ) as Record<OrgMechanic, boolean>,
+    quotas: tariff.quotas,
+  };
+}
+
+function nullableNonnegativeInteger(value: string): number | null {
+  if (!value.trim()) return null;
+  const number = Number(value);
+  return Number.isSafeInteger(number) && number >= 0 ? number : null;
+}
+
+function QuotaEditor({
+  mechanic,
+  quota,
+  onChange,
+}: {
+  mechanic: OrgMechanic;
+  quota: TariffQuota | null;
+  onChange: (quota: TariffQuota | null) => void;
+}) {
+  const units = MECHANIC_REGISTRY[mechanic].quotaUnits;
+  if (units.length === 0) return null;
+
+  function changeKind(kind: 'none' | TariffQuota['kind']) {
+    if (kind === 'none') {
+      onChange(null);
+      return;
+    }
+    onChange({
+      kind,
+      limit: kind === 'numeric' ? (quota?.limit ?? 0) : null,
+      unit: quota?.unit && units.includes(quota.unit as never) ? quota.unit : (units[0] ?? 'items'),
+      period: quota?.period ?? 'month',
+      usagePolicy: quota?.usagePolicy ?? 'consumption',
+    });
+  }
+
+  return (
+    <div className="grid gap-2 sm:grid-cols-2">
+      <Select
+        value={quota?.kind ?? 'none'}
+        onValueChange={(value) => {
+          if (value === 'none' || value === 'numeric' || value === 'unlimited') changeKind(value);
+        }}
+      >
+        <SelectTrigger>
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value="none">Без квоты</SelectItem>
+          <SelectItem value="numeric">Числовая</SelectItem>
+          <SelectItem value="unlimited">Без лимита</SelectItem>
+        </SelectContent>
+      </Select>
+      {quota?.kind === 'numeric' ? (
+        <Input
+          type="number"
+          min="0"
+          aria-label={`Лимит: ${MECHANIC_REGISTRY[mechanic].label}`}
+          value={quota.limit ?? 0}
+          onChange={(event) =>
+            onChange({ ...quota, limit: Math.max(0, Number(event.target.value) || 0) })
+          }
+        />
+      ) : null}
+      {quota ? (
+        <>
+          <Select
+            value={quota.unit}
+            onValueChange={(value) => {
+              if (value) onChange({ ...quota, unit: value });
+            }}
+          >
+            <SelectTrigger>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {units.map((unit) => (
+                <SelectItem key={unit} value={unit}>
+                  {unit}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <Select
+            value={quota.period}
+            onValueChange={(value) => {
+              if (value) onChange({ ...quota, period: value });
+            }}
+          >
+            <SelectTrigger>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="snapshot">Текущее значение</SelectItem>
+              <SelectItem value="day">За день</SelectItem>
+              <SelectItem value="month">За месяц</SelectItem>
+              <SelectItem value="year">За год</SelectItem>
+            </SelectContent>
+          </Select>
+          <Select
+            value={quota.usagePolicy}
+            onValueChange={(value) => {
+              if (value) onChange({ ...quota, usagePolicy: value });
+            }}
+          >
+            <SelectTrigger>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="snapshot">Снимок</SelectItem>
+              <SelectItem value="consumption">Расход за период</SelectItem>
+            </SelectContent>
+          </Select>
+        </>
+      ) : null}
+    </div>
+  );
+}
+
+export function CommercialConstructorClient() {
+  const [state, setState] = useState<CommercialState>({
+    tariffs: [],
+    organizations: [],
+    trialPolicy: null,
+  });
+  const [tariff, setTariff] = useState<TariffDraft>(emptyTariffDraft);
+  const [reason, setReason] = useState('');
+  const [organizationId, setOrganizationId] = useState('');
+  const [assignedTariffId, setAssignedTariffId] = useState('none');
+  const [overrideMechanic, setOverrideMechanic] = useState<OrgMechanic>('booking');
+  const [overrideEnabled, setOverrideEnabled] = useState(true);
+  const [overrideQuota, setOverrideQuota] = useState<TariffQuota | null>(null);
+  const [overrideExpiresAt, setOverrideExpiresAt] = useState('');
+  const [trialTariffId, setTrialTariffId] = useState('');
+  const [trialDuration, setTrialDuration] = useState('14');
+  const [trialGrace, setTrialGrace] = useState('7');
+  const [trialStartEvent, setTrialStartEvent] = useState<TrialPolicy['startEvent']>(
+    'organization_provisioned',
+  );
+  const [postTrialBehavior, setPostTrialBehavior] =
+    useState<TrialPolicy['postTrialBehavior']>('read_only');
+  const [postTrialTariffId, setPostTrialTariffId] = useState('none');
+  const [trialActive, setTrialActive] = useState(true);
+  const [extensionDays, setExtensionDays] = useState('7');
+  const [message, setMessage] = useState('');
+  const [busy, setBusy] = useState(false);
+
+  const loadState = useCallback(async () => {
+    const response = await fetch('/api/admin/commercial', { cache: 'no-store' });
+    const payload = (await response.json()) as CommercialState & { ok?: boolean; error?: string };
+    if (!response.ok) throw new Error(payload.error ?? 'commercial_state_load_failed');
+    setState(payload);
+  }, []);
+
+  useEffect(() => {
+    void loadState().catch((error: unknown) =>
+      setMessage(error instanceof Error ? error.message : 'Не удалось загрузить данные'),
+    );
+  }, [loadState]);
+
+  useEffect(() => {
+    const policy = state.trialPolicy;
+    if (!policy) return;
+    setTrialTariffId(policy.tariffId);
+    setTrialDuration(String(policy.durationDays));
+    setTrialGrace(String(policy.graceDays));
+    setTrialStartEvent(policy.startEvent);
+    setPostTrialBehavior(policy.postTrialBehavior);
+    setPostTrialTariffId(policy.postTrialTariffId ?? 'none');
+    setTrialActive(policy.isActive);
+  }, [state.trialPolicy]);
+
+  const selectedOrganization = useMemo(
+    () => state.organizations.find((organization) => organization.id === organizationId) ?? null,
+    [organizationId, state.organizations],
+  );
+
+  useEffect(() => {
+    setAssignedTariffId(selectedOrganization?.tariffId ?? 'none');
+  }, [selectedOrganization]);
+
+  async function mutate(body: Record<string, unknown>, success: string) {
+    setBusy(true);
+    setMessage('');
+    try {
+      const response = await fetch('/api/admin/commercial', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+      const payload = (await response.json()) as { error?: string };
+      if (!response.ok) throw new Error(payload.error ?? 'commercial_operation_failed');
+      await loadState();
+      setMessage(success);
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : 'Операция не выполнена');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function saveTariff(event: FormEvent) {
+    event.preventDefault();
+    const price = tariff.priceRub.trim() ? Math.round(Number(tariff.priceRub) * 100) : null;
+    const input = {
+      name: tariff.name,
+      description: tariff.description,
+      priceMinor: Number.isFinite(price) ? price : null,
+      currency: price === null ? null : 'RUB',
+      billingPeriod: tariff.billingPeriod,
+      mechanics: tariff.mechanics,
+      quotas: tariff.quotas,
+      includedSeats: nullableNonnegativeInteger(tariff.includedSeats),
+      isActive: tariff.isActive,
+    };
+    await mutate(
+      tariff.id
+        ? { action: 'update_tariff', tariffId: tariff.id, tariff: input, reason }
+        : { action: 'create_tariff', tariff: input, reason },
+      tariff.id ? 'Тариф обновлён' : 'Тариф создан',
+    );
+    setReason('');
+    if (!tariff.id) setTariff(emptyTariffDraft());
+  }
+
+  return (
+    <Tabs defaultValue="tariffs" className="space-y-3">
+      <TabsList>
+        <TabsTrigger value="tariffs">Тарифы</TabsTrigger>
+        <TabsTrigger value="organizations">Организации</TabsTrigger>
+        <TabsTrigger value="trial">Триал</TabsTrigger>
+      </TabsList>
+      {message ? (
+        <p className="text-sm text-muted-foreground" role="status">
+          {message}
+        </p>
+      ) : null}
+
+      <TabsContent
+        value="tariffs"
+        className="grid gap-3 xl:grid-cols-[minmax(240px,0.7fr)_minmax(0,1.3fr)]"
+      >
+        <DoctorSection>
+          <DoctorSectionHeader>
+            <DoctorSectionTitle>Созданные тарифы</DoctorSectionTitle>
+          </DoctorSectionHeader>
+          <div className="divide-y divide-border/70">
+            {state.tariffs.map((item) => (
+              <button
+                type="button"
+                key={item.id}
+                className="flex w-full items-center justify-between gap-3 px-[18px] py-3 text-left text-base font-normal hover:bg-muted/50"
+                onClick={() => setTariff(tariffToDraft(item))}
+              >
+                <span>{item.name}</span>
+                <span className="text-xs text-muted-foreground">
+                  {item.isActive ? 'Активен' : 'Архив'}
+                </span>
+              </button>
+            ))}
+          </div>
+          <Button type="button" variant="outline" onClick={() => setTariff(emptyTariffDraft())}>
+            Новый тариф
+          </Button>
+        </DoctorSection>
+
+        <DoctorSection>
+          <form className="space-y-4" onSubmit={saveTariff}>
+            <DoctorSectionHeader>
+              <DoctorSectionTitle>
+                {tariff.id ? 'Редактирование тарифа' : 'Новый тариф'}
+              </DoctorSectionTitle>
+            </DoctorSectionHeader>
+            <div className="grid gap-3 md:grid-cols-2">
+              <div className="space-y-1">
+                <Label htmlFor="tariff-name">Название</Label>
+                <Input
+                  id="tariff-name"
+                  value={tariff.name}
+                  onChange={(event) => setTariff({ ...tariff, name: event.target.value })}
+                  required
+                />
+              </div>
+              <div className="space-y-1">
+                <Label htmlFor="tariff-price">Цена, ₽</Label>
+                <Input
+                  id="tariff-price"
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={tariff.priceRub}
+                  onChange={(event) => setTariff({ ...tariff, priceRub: event.target.value })}
+                />
+              </div>
+              <div className="space-y-1">
+                <Label>Период</Label>
+                <Select
+                  value={tariff.billingPeriod}
+                  onValueChange={(value) => {
+                    if (value) setTariff({ ...tariff, billingPeriod: value });
+                  }}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="day">День</SelectItem>
+                    <SelectItem value="month">Месяц</SelectItem>
+                    <SelectItem value="year">Год</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1">
+                <Label htmlFor="tariff-seats">Мест специалистов</Label>
+                <Input
+                  id="tariff-seats"
+                  type="number"
+                  min="0"
+                  value={tariff.includedSeats}
+                  onChange={(event) => setTariff({ ...tariff, includedSeats: event.target.value })}
+                />
+              </div>
+            </div>
+            <div className="space-y-1">
+              <Label htmlFor="tariff-description">Описание</Label>
+              <Textarea
+                id="tariff-description"
+                value={tariff.description}
+                onChange={(event) => setTariff({ ...tariff, description: event.target.value })}
+              />
+            </div>
+            <div className="grid gap-2 md:grid-cols-2">
+              {MECHANICS.map((mechanic) => {
+                const quota = tariff.quotas[mechanic];
+                return (
+                  <div key={mechanic} className="space-y-2 rounded-xl border border-border/70 p-3">
+                    <Label className="flex items-center gap-2 text-sm">
+                      <Checkbox
+                        checked={tariff.mechanics[mechanic]}
+                        onCheckedChange={(checked) =>
+                          setTariff((current) => ({
+                            ...current,
+                            mechanics: { ...current.mechanics, [mechanic]: checked === true },
+                          }))
+                        }
+                      />
+                      {MECHANIC_REGISTRY[mechanic].label}
+                    </Label>
+                    <QuotaEditor
+                      mechanic={mechanic}
+                      quota={quota ?? null}
+                      onChange={(nextQuota) =>
+                        setTariff((current) => {
+                          const quotas = { ...current.quotas };
+                          if (nextQuota) quotas[mechanic] = nextQuota;
+                          else delete quotas[mechanic];
+                          return { ...current, quotas };
+                        })
+                      }
+                    />
+                  </div>
+                );
+              })}
+            </div>
+            <Label className="flex items-center gap-2">
+              <Checkbox
+                checked={tariff.isActive}
+                onCheckedChange={(checked) => setTariff({ ...tariff, isActive: checked === true })}
+              />
+              Активный тариф
+            </Label>
+            <div className="space-y-1">
+              <Label htmlFor="tariff-reason">Причина изменения</Label>
+              <Input
+                id="tariff-reason"
+                value={reason}
+                onChange={(event) => setReason(event.target.value)}
+                required
+              />
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <Button disabled={busy} type="submit">
+                {tariff.id ? 'Сохранить' : 'Создать'}
+              </Button>
+              {tariff.id ? (
+                <Button
+                  disabled={busy}
+                  type="button"
+                  variant="outline"
+                  onClick={() =>
+                    void mutate(
+                      { action: 'archive_tariff', tariffId: tariff.id, reason },
+                      'Тариф отправлен в архив',
+                    )
+                  }
+                >
+                  В архив
+                </Button>
+              ) : null}
+            </div>
+          </form>
+        </DoctorSection>
+      </TabsContent>
+
+      <TabsContent value="organizations" className="grid gap-3 lg:grid-cols-2">
+        <DoctorSection className="space-y-4">
+          <DoctorSectionHeader>
+            <DoctorSectionTitle>Тариф организации</DoctorSectionTitle>
+          </DoctorSectionHeader>
+          <div className="space-y-1">
+            <Label>Организация</Label>
+            <Select
+              value={organizationId}
+              onValueChange={(value) => {
+                if (value) setOrganizationId(value);
+              }}
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="Выберите организацию" />
+              </SelectTrigger>
+              <SelectContent>
+                {state.organizations.map((organization) => (
+                  <SelectItem key={organization.id} value={organization.id}>
+                    {organization.title}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-1">
+            <Label>Тариф</Label>
+            <Select
+              value={assignedTariffId}
+              onValueChange={(value) => {
+                if (value) setAssignedTariffId(value);
+              }}
+            >
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="none">Без тарифа</SelectItem>
+                {state.tariffs
+                  .filter((item) => item.isActive)
+                  .map((item) => (
+                    <SelectItem key={item.id} value={item.id}>
+                      {item.name}
+                    </SelectItem>
+                  ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-1">
+            <Label htmlFor="organization-reason">Причина</Label>
+            <Input
+              id="organization-reason"
+              value={reason}
+              onChange={(event) => setReason(event.target.value)}
+            />
+          </div>
+          <Button
+            disabled={busy || !organizationId || !reason.trim()}
+            onClick={() =>
+              void mutate(
+                {
+                  action: 'assign_tariff',
+                  organizationId,
+                  tariffId: assignedTariffId === 'none' ? null : assignedTariffId,
+                  reason,
+                },
+                'Тариф организации изменён',
+              )
+            }
+          >
+            Назначить
+          </Button>
+        </DoctorSection>
+        <DoctorSection className="space-y-4">
+          <DoctorSectionHeader>
+            <DoctorSectionTitle>Исключение организации</DoctorSectionTitle>
+          </DoctorSectionHeader>
+          <div className="space-y-1">
+            <Label>Механика</Label>
+            <Select
+              value={overrideMechanic}
+              onValueChange={(value) => {
+                if (value) {
+                  setOverrideMechanic(value);
+                  setOverrideQuota(null);
+                }
+              }}
+            >
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {MECHANICS.map((mechanic) => (
+                  <SelectItem key={mechanic} value={mechanic}>
+                    {MECHANIC_REGISTRY[mechanic].label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <Label className="flex items-center gap-2">
+            <Checkbox
+              checked={overrideEnabled}
+              onCheckedChange={(checked) => setOverrideEnabled(checked === true)}
+            />
+            Разрешено
+          </Label>
+          <div className="space-y-1">
+            <Label>Квота для организации</Label>
+            <QuotaEditor
+              mechanic={overrideMechanic}
+              quota={overrideQuota}
+              onChange={setOverrideQuota}
+            />
+          </div>
+          <div className="space-y-1">
+            <Label htmlFor="override-expires">Действует до (необязательно)</Label>
+            <Input
+              id="override-expires"
+              type="datetime-local"
+              value={overrideExpiresAt}
+              onChange={(event) => setOverrideExpiresAt(event.target.value)}
+            />
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <Button
+              disabled={busy || !organizationId || !reason.trim()}
+              onClick={() =>
+                void mutate(
+                  {
+                    action: 'upsert_override',
+                    organizationId,
+                    mechanic: overrideMechanic,
+                    enabled: overrideEnabled,
+                    quota: overrideQuota,
+                    expiresAt: overrideExpiresAt ? new Date(overrideExpiresAt).toISOString() : null,
+                    reason,
+                  },
+                  'Исключение сохранено',
+                )
+              }
+            >
+              Сохранить исключение
+            </Button>
+            <Button
+              variant="outline"
+              disabled={busy || !organizationId || !reason.trim()}
+              onClick={() =>
+                void mutate(
+                  { action: 'delete_override', organizationId, mechanic: overrideMechanic, reason },
+                  'Исключение удалено',
+                )
+              }
+            >
+              Удалить
+            </Button>
+          </div>
+          <div className="flex flex-wrap items-end gap-2 border-t border-border/70 pt-3">
+            <Button
+              variant="outline"
+              disabled={busy || !organizationId || !reason.trim()}
+              onClick={() =>
+                void mutate({ action: 'start_trial', organizationId, reason }, 'Триал запущен')
+              }
+            >
+              Запустить триал
+            </Button>
+            <div className="space-y-1">
+              <Label htmlFor="extension-days">Продлить, дней</Label>
+              <Input
+                id="extension-days"
+                className="w-28"
+                type="number"
+                min="1"
+                value={extensionDays}
+                onChange={(event) => setExtensionDays(event.target.value)}
+              />
+            </div>
+            <Button
+              variant="outline"
+              disabled={busy || !organizationId || !reason.trim()}
+              onClick={() =>
+                void mutate(
+                  { action: 'extend_trial', organizationId, days: Number(extensionDays), reason },
+                  'Триал продлён',
+                )
+              }
+            >
+              Продлить
+            </Button>
+          </div>
+        </DoctorSection>
+      </TabsContent>
+
+      <TabsContent value="trial">
+        <DoctorSection>
+          <form
+            className="grid gap-4 md:grid-cols-2"
+            onSubmit={(event) => {
+              event.preventDefault();
+              void mutate(
+                {
+                  action: 'set_trial_policy',
+                  policy: {
+                    tariffId: trialTariffId,
+                    durationDays: Number(trialDuration),
+                    graceDays: Number(trialGrace),
+                    startEvent: trialStartEvent,
+                    postTrialBehavior,
+                    postTrialTariffId:
+                      postTrialBehavior === 'tariff' && postTrialTariffId !== 'none'
+                        ? postTrialTariffId
+                        : null,
+                    isActive: trialActive,
+                  },
+                  reason,
+                },
+                'Правило триала сохранено',
+              );
+            }}
+          >
+            <DoctorSectionHeader className="md:col-span-2">
+              <DoctorSectionTitle>Правило для новых организаций</DoctorSectionTitle>
+            </DoctorSectionHeader>
+            <div className="space-y-1">
+              <Label>Тариф триала</Label>
+              <Select
+                value={trialTariffId}
+                onValueChange={(value) => {
+                  if (value) setTrialTariffId(value);
+                }}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Выберите тариф" />
+                </SelectTrigger>
+                <SelectContent>
+                  {state.tariffs
+                    .filter((item) => item.isActive)
+                    .map((item) => (
+                      <SelectItem key={item.id} value={item.id}>
+                        {item.name}
+                      </SelectItem>
+                    ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1">
+              <Label>Старт</Label>
+              <Select
+                value={trialStartEvent}
+                onValueChange={(value) => {
+                  if (value) setTrialStartEvent(value);
+                }}
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="organization_provisioned">
+                    После создания организации
+                  </SelectItem>
+                  <SelectItem value="email_verified">После подтверждения email</SelectItem>
+                  <SelectItem value="manual">Вручную</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1">
+              <Label htmlFor="trial-duration">Триал, дней</Label>
+              <Input
+                id="trial-duration"
+                type="number"
+                min="1"
+                value={trialDuration}
+                onChange={(event) => setTrialDuration(event.target.value)}
+              />
+            </div>
+            <div className="space-y-1">
+              <Label htmlFor="trial-grace">Льготный период, дней</Label>
+              <Input
+                id="trial-grace"
+                type="number"
+                min="0"
+                value={trialGrace}
+                onChange={(event) => setTrialGrace(event.target.value)}
+              />
+            </div>
+            <div className="space-y-1">
+              <Label>После триала</Label>
+              <Select
+                value={postTrialBehavior}
+                onValueChange={(value) => {
+                  if (value) setPostTrialBehavior(value);
+                }}
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="read_only">Только чтение</SelectItem>
+                  <SelectItem value="blocked">Заблокировать</SelectItem>
+                  <SelectItem value="tariff">Другой тариф</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            {postTrialBehavior === 'tariff' ? (
+              <div className="space-y-1">
+                <Label>Тариф после триала</Label>
+                <Select
+                  value={postTrialTariffId}
+                  onValueChange={(value) => {
+                    if (value) setPostTrialTariffId(value);
+                  }}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Выберите тариф" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {state.tariffs
+                      .filter((item) => item.isActive)
+                      .map((item) => (
+                        <SelectItem key={item.id} value={item.id}>
+                          {item.name}
+                        </SelectItem>
+                      ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            ) : null}
+            <Label className="flex items-center gap-2">
+              <Checkbox
+                checked={trialActive}
+                onCheckedChange={(checked) => setTrialActive(checked === true)}
+              />
+              Правило активно
+            </Label>
+            <div className="space-y-1">
+              <Label htmlFor="trial-reason">Причина изменения</Label>
+              <Input
+                id="trial-reason"
+                value={reason}
+                onChange={(event) => setReason(event.target.value)}
+                required
+              />
+            </div>
+            <div className="md:col-span-2">
+              <Button type="submit" disabled={busy || !trialTariffId}>
+                Сохранить правило
+              </Button>
+            </div>
+          </form>
+        </DoctorSection>
+      </TabsContent>
+    </Tabs>
+  );
+}

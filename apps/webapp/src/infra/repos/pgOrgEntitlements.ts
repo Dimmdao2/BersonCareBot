@@ -1,11 +1,17 @@
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { getCurrentDbPrincipal } from "@bersoncare/db-principal";
 import { getDrizzle } from "@/app-layer/db/drizzle";
 import { runWithWebappDbOperationFamily } from "@/infra/db/saasIsolationOperationContext";
 import { runWebappPgText } from "@/infra/db/runWebappSql";
 import type { OrgEntitlementsPort } from "@/modules/org-entitlements/ports";
 import { beOrganizations } from "../../../db/schema/bookingEngine";
-import { saasOrgEntitlementOverrides, saasTariffs } from "../../../db/schema/saasEntitlements";
+import {
+  saasOrganizationQuotaUsage,
+  saasOrganizationTrials,
+  saasOrgEntitlementOverrides,
+  saasTariffs,
+} from "../../../db/schema/saasEntitlements";
+import { MECHANICS, type TariffQuota, type TariffQuotaMap } from "@/modules/org-entitlements/types";
 
 type CurrentPatientEntitlementRow = {
   tariff_mechanics: Record<string, boolean> | null;
@@ -51,19 +57,46 @@ export function createPgOrgEntitlementsPort(): OrgEntitlementsPort {
       if (patientRows) {
         const row = patientRows[0];
         if (!row?.tariff_mechanics) return null;
-        return { mechanics: row.tariff_mechanics, includedSeats: row.included_seats };
+        return { mechanics: row.tariff_mechanics, quotas: {}, includedSeats: row.included_seats };
       }
 
       const db = getDrizzle();
-      const rows = await db
-        .select({ mechanics: saasTariffs.mechanics, includedSeats: saasTariffs.includedSeats })
+      const organizations = await db
+        .select({ tariffId: beOrganizations.tariffId })
         .from(beOrganizations)
-        .innerJoin(saasTariffs, eq(saasTariffs.id, beOrganizations.tariffId))
         .where(eq(beOrganizations.id, organizationId))
+        .limit(1);
+      let tariffId = organizations[0]?.tariffId ?? null;
+      const trials = await db
+        .select({
+          graceEndsAt: saasOrganizationTrials.graceEndsAt,
+          postTrialBehavior: saasOrganizationTrials.postTrialBehavior,
+          postTrialTariffId: saasOrganizationTrials.postTrialTariffId,
+        })
+        .from(saasOrganizationTrials)
+        .where(eq(saasOrganizationTrials.organizationId, organizationId))
+        .limit(1);
+      const trial = trials[0];
+      if (trial && new Date(trial.graceEndsAt).getTime() < Date.now()) {
+        if (trial.postTrialBehavior === "tariff") {
+          tariffId = trial.postTrialTariffId;
+        } else {
+          return {
+            mechanics: Object.fromEntries(MECHANICS.map((mechanic) => [mechanic, false])),
+            quotas: {},
+            includedSeats: 0,
+          };
+        }
+      }
+      if (!tariffId) return null;
+      const rows = await db
+        .select({ mechanics: saasTariffs.mechanics, quotas: saasTariffs.quotas, includedSeats: saasTariffs.includedSeats })
+        .from(saasTariffs)
+        .where(eq(saasTariffs.id, tariffId))
         .limit(1);
       const row = rows[0];
       if (!row) return null;
-      return { mechanics: row.mechanics, includedSeats: row.includedSeats };
+      return { mechanics: row.mechanics, quotas: row.quotas as TariffQuotaMap, includedSeats: row.includedSeats };
     },
 
     async listOverrides(organizationId) {
@@ -75,6 +108,8 @@ export function createPgOrgEntitlementsPort(): OrgEntitlementsPort {
             : [{
                 mechanic: row.override_mechanic,
                 enabled: row.override_enabled,
+                quota: null,
+                expiresAt: null,
                 seatLimitOverride: row.seat_limit_override,
               }],
         );
@@ -85,11 +120,29 @@ export function createPgOrgEntitlementsPort(): OrgEntitlementsPort {
         .select({
           mechanic: saasOrgEntitlementOverrides.mechanic,
           enabled: saasOrgEntitlementOverrides.enabled,
+          quota: saasOrgEntitlementOverrides.quota,
+          expiresAt: saasOrgEntitlementOverrides.expiresAt,
           seatLimitOverride: saasOrgEntitlementOverrides.seatLimitOverride,
         })
         .from(saasOrgEntitlementOverrides)
         .where(eq(saasOrgEntitlementOverrides.organizationId, organizationId));
-      return rows;
+      return rows.map((row) => ({ ...row, quota: row.quota as TariffQuota | null }));
+    },
+
+    async getQuotaUsage(organizationId, mechanic, periodKey) {
+      const db = getDrizzle();
+      const rows = await db
+        .select({ used: saasOrganizationQuotaUsage.used })
+        .from(saasOrganizationQuotaUsage)
+        .where(
+          and(
+            eq(saasOrganizationQuotaUsage.organizationId, organizationId),
+            eq(saasOrganizationQuotaUsage.mechanic, mechanic),
+            eq(saasOrganizationQuotaUsage.periodKey, periodKey),
+          ),
+        );
+      const row = rows[0];
+      return row?.used ?? 0;
     },
   };
 }

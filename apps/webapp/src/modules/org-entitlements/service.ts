@@ -1,11 +1,90 @@
 import {
   CLINIC_TEAM_FAIL_CLOSED_SEAT_BASELINE,
   MECHANIC_DEFAULT_ENABLED,
+  MECHANIC_REGISTRY,
   MECHANICS,
   type OrgEntitlements,
   type OrgMechanic,
+  type QuotaAccessDecision,
+  type Tariff,
+  type TariffQuota,
+  type TariffQuotaMap,
+  type TrialPolicy,
 } from "./types";
-import type { OrgEntitlementsPort } from "./ports";
+import type { OrgEntitlementsPort, PlatformEntitlementsPort, PlatformMutationAudit } from "./ports";
+
+function assertAudit(audit: PlatformMutationAudit): void {
+  if (!audit.reason.trim()) throw new Error("commercial_change_reason_required");
+}
+
+function assertMechanic(value: string): asserts value is OrgMechanic {
+  if (!MECHANICS.includes(value as OrgMechanic)) throw new Error("entitlement_mechanic_invalid");
+}
+
+function assertQuota(mechanic: OrgMechanic, quota: TariffQuota): void {
+  if (!MECHANIC_REGISTRY[mechanic].quotaUnits.includes(quota.unit as never)) {
+    throw new Error("tariff_quota_unit_invalid");
+  }
+  if (quota.kind === "unlimited") {
+    if (quota.limit !== null) throw new Error("tariff_quota_unlimited_limit_invalid");
+    return;
+  }
+  if (!Number.isSafeInteger(quota.limit) || (quota.limit ?? -1) < 0) {
+    throw new Error("tariff_quota_limit_invalid");
+  }
+}
+
+function normalizeQuotaMap(quotas: TariffQuotaMap): TariffQuotaMap {
+  const normalized: TariffQuotaMap = {};
+  for (const [key, value] of Object.entries(quotas)) {
+    if (!MECHANICS.includes(key as OrgMechanic) || !value) throw new Error("tariff_quota_mechanic_invalid");
+    assertQuota(key as OrgMechanic, value);
+    normalized[key as OrgMechanic] = value;
+  }
+  return normalized;
+}
+
+function normalizeTariffInput(input: Omit<Tariff, "id" | "createdAt" | "updatedAt">) {
+  const name = input.name.trim();
+  if (!name) throw new Error("tariff_name_required");
+  if (input.priceMinor !== null && (!Number.isSafeInteger(input.priceMinor) || input.priceMinor < 0)) {
+    throw new Error("tariff_price_invalid");
+  }
+  if (input.priceMinor !== null && !input.currency?.trim()) throw new Error("tariff_currency_required");
+  if (input.includedSeats !== null && (!Number.isSafeInteger(input.includedSeats) || input.includedSeats < 0)) {
+    throw new Error("tariff_seat_limit_invalid");
+  }
+  const mechanics: Record<string, boolean> = {};
+  for (const mechanic of Object.keys(input.mechanics)) assertMechanic(mechanic);
+  for (const mechanic of MECHANICS) mechanics[mechanic] = input.mechanics[mechanic] === true;
+  return {
+    ...input,
+    name,
+    description: input.description.trim(),
+    currency: input.currency?.trim().toUpperCase() ?? null,
+    mechanics,
+    quotas: normalizeQuotaMap(input.quotas),
+  };
+}
+
+function assertTrialPolicy(policy: TrialPolicy): void {
+  if (!Number.isSafeInteger(policy.durationDays) || policy.durationDays <= 0) {
+    throw new Error("trial_duration_invalid");
+  }
+  if (!Number.isSafeInteger(policy.graceDays) || policy.graceDays < 0) {
+    throw new Error("trial_grace_invalid");
+  }
+  if (policy.postTrialBehavior === "tariff" && !policy.postTrialTariffId) {
+    throw new Error("trial_post_tariff_required");
+  }
+  if (policy.postTrialBehavior !== "tariff" && policy.postTrialTariffId !== null) {
+    throw new Error("trial_post_tariff_forbidden");
+  }
+}
+
+function isOverrideActive(expiresAt: string | null | undefined): boolean {
+  return !expiresAt || new Date(expiresAt).getTime() > Date.now();
+}
 
 /**
  * Store P0 — entitlement foundation. Resolves, for EACH canonical mechanic, the precedence
@@ -25,7 +104,9 @@ export async function resolveOrgEntitlements(
     port.listOverrides(organizationId),
   ]);
 
-  const overrideByMechanic = new Map(overrides.map((override) => [override.mechanic, override.enabled]));
+  const overrideByMechanic = new Map(
+    overrides.filter((override) => isOverrideActive(override.expiresAt)).map((override) => [override.mechanic, override.enabled]),
+  );
 
   const result = {} as OrgEntitlements;
   for (const mechanic of MECHANICS) {
@@ -60,12 +141,133 @@ export async function resolveClinicSeatLimit(
     port.getTariffForOrg(organizationId),
     port.listOverrides(organizationId),
   ]);
-  const overrideByMechanic = new Map(overrides.map((override) => [override.mechanic, override.enabled]));
+  const activeOverrides = overrides.filter((override) => isOverrideActive(override.expiresAt));
+  const overrideByMechanic = new Map(activeOverrides.map((override) => [override.mechanic, override.enabled]));
   const clinicTeamEnabled =
     overrideByMechanic.get("clinic_team") ?? tariff?.mechanics.clinic_team ?? MECHANIC_DEFAULT_ENABLED.clinic_team;
   if (!clinicTeamEnabled) return 0;
 
-  const seatOverride = overrides.find((entry) => entry.mechanic === "clinic_team");
+  const seatOverride = activeOverrides.find((entry) => entry.mechanic === "clinic_team");
   if (seatOverride?.seatLimitOverride != null) return seatOverride.seatLimitOverride;
   return tariff?.includedSeats ?? CLINIC_TEAM_FAIL_CLOSED_SEAT_BASELINE;
 }
+
+/**
+ * Quotas protect only creation/growth. Existing data remains readable and can be reduced or
+ * exported even after a downgrade. The caller must pass a positive `growth` only for a new unit.
+ */
+export function evaluateQuotaGrowth(input: {
+  quota: TariffQuota | null;
+  used: number;
+  growth: number;
+}): QuotaAccessDecision {
+  const used = Math.max(0, input.used);
+  const growth = Math.max(0, input.growth);
+  const projected = used + growth;
+  if (!input.quota || input.quota.kind === "unlimited") {
+    return { allowed: true, warning: false, used, projected, limit: null, utilizationPercent: null, reason: "allowed" };
+  }
+  const limit = input.quota.limit ?? 0;
+  const utilizationPercent = limit === 0 ? (projected === 0 ? 0 : 100) : Math.round((projected / limit) * 100);
+  if (growth > 0 && projected > limit) {
+    return { allowed: false, warning: true, used, projected, limit, utilizationPercent, reason: "quota_reached" };
+  }
+  const warning = utilizationPercent >= 80;
+  return {
+    allowed: true,
+    warning,
+    used,
+    projected,
+    limit,
+    utilizationPercent,
+    reason: warning ? "warning_80" : "allowed",
+  };
+}
+
+export async function resolveQuotaGrowthAccess(input: {
+  port: OrgEntitlementsPort;
+  organizationId: string;
+  mechanic: OrgMechanic;
+  periodKey: string;
+  growth: number;
+}): Promise<QuotaAccessDecision> {
+  const [tariff, overrides] = await Promise.all([
+    input.port.getTariffForOrg(input.organizationId),
+    input.port.listOverrides(input.organizationId),
+  ]);
+  const activeOverride = overrides.find(
+    (entry) =>
+      entry.mechanic === input.mechanic &&
+      isOverrideActive(entry.expiresAt),
+  );
+  const quota = activeOverride?.quota ?? tariff?.quotas?.[input.mechanic] ?? null;
+  const used = input.port.getQuotaUsage
+    ? await input.port.getQuotaUsage(input.organizationId, input.mechanic, input.periodKey)
+    : 0;
+  return evaluateQuotaGrowth({ quota, used, growth: input.growth });
+}
+
+/** Dedicated application boundary for platform commercial operations. Routes must capability-gate before use. */
+export function createPlatformEntitlementsService(port: PlatformEntitlementsPort) {
+  return {
+    listTariffs: () => port.listTariffs(),
+    listOrganizations: () => port.listOrganizations(),
+    getTrialPolicy: () => port.getTrialPolicy(),
+    createTariff: (
+      input: Omit<Tariff, "id" | "createdAt" | "updatedAt">,
+      audit: PlatformMutationAudit,
+    ) => {
+      assertAudit(audit);
+      return port.createTariff(normalizeTariffInput(input), audit);
+    },
+    updateTariff: (
+      id: string,
+      input: Omit<Tariff, "id" | "createdAt" | "updatedAt">,
+      audit: PlatformMutationAudit,
+    ) => {
+      assertAudit(audit);
+      return port.updateTariff(id, normalizeTariffInput(input), audit);
+    },
+    archiveTariff: (id: string, audit: PlatformMutationAudit) => {
+      assertAudit(audit);
+      return port.archiveTariff(id, audit);
+    },
+    assignTariff: (organizationId: string, tariffId: string | null, audit: PlatformMutationAudit) => {
+      assertAudit(audit);
+      return port.assignTariff(organizationId, tariffId, audit);
+    },
+    upsertOverride: (
+      input: { organizationId: string; mechanic: OrgMechanic; enabled: boolean; quota: TariffQuota | null; expiresAt: string | null },
+      audit: PlatformMutationAudit,
+    ) => {
+      assertAudit(audit);
+      assertMechanic(input.mechanic);
+      if (input.quota) assertQuota(input.mechanic, input.quota);
+      if (input.expiresAt && !Number.isFinite(new Date(input.expiresAt).getTime())) {
+        throw new Error("entitlement_override_expiry_invalid");
+      }
+      return port.upsertOverride(input, audit);
+    },
+    deleteOverride: (organizationId: string, mechanic: OrgMechanic, audit: PlatformMutationAudit) => {
+      assertAudit(audit);
+      assertMechanic(mechanic);
+      return port.deleteOverride(organizationId, mechanic, audit);
+    },
+    setTrialPolicy: (policy: TrialPolicy, audit: PlatformMutationAudit) => {
+      assertAudit(audit);
+      assertTrialPolicy(policy);
+      return port.setTrialPolicy(policy, audit);
+    },
+    startTrial: (organizationId: string, audit: PlatformMutationAudit) => {
+      assertAudit(audit);
+      return port.startTrial(organizationId, audit);
+    },
+    extendTrial: (organizationId: string, days: number, audit: PlatformMutationAudit) => {
+      assertAudit(audit);
+      if (!Number.isSafeInteger(days) || days <= 0) throw new Error("trial_extension_days_invalid");
+      return port.extendTrial(organizationId, days, audit);
+    },
+  };
+}
+
+export type PlatformEntitlementsService = ReturnType<typeof createPlatformEntitlementsService>;

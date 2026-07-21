@@ -40,6 +40,7 @@ function collectServerActionFiles(dir: URL, result: URL[] = []): URL[] {
  */
 const launchManifest: readonly LaunchManifestEntry[] = [
   { route: "usage/page.tsx", launchClass: "platform", capability: "platform-operations", objectPolicy: "platform-neutral-no-pii" },
+  { route: "commercial/page.tsx", launchClass: "platform", capability: "platform-operations", objectPolicy: "platform-config" },
   { route: "booking-merge/page.tsx", launchClass: "platform", capability: "platform-operations", objectPolicy: "platform-neutral-no-pii" },
   { route: "analytics/page.tsx", launchClass: "platform", capability: "platform-operations", objectPolicy: "platform-config" },
   { route: "analytics/clients/page.tsx", launchClass: "platform", capability: "platform-operations", objectPolicy: "platform-config" },

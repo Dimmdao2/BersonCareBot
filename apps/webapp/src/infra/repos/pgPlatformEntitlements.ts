@@ -1,0 +1,271 @@
+import { and, eq, or, sql } from "drizzle-orm";
+import { getCurrentDbPrincipal, runWithDbOrganizationPrincipal } from "@bersoncare/db-principal";
+import { getDrizzle } from "@/app-layer/db/drizzle";
+import type {
+  PlatformEntitlementsPort,
+  PlatformMutationAudit,
+  OrganizationTrialProvisioningPort,
+} from "@/modules/org-entitlements/ports";
+import type { Tariff, TariffQuota, TariffQuotaMap, TrialPolicy } from "@/modules/org-entitlements/types";
+import { beOrganizations } from "../../../db/schema/bookingEngine";
+import {
+  saasOrganizationTrials,
+  saasOrgEntitlementOverrides,
+  saasTariffs,
+  saasTrialPolicy,
+} from "../../../db/schema/saasEntitlements";
+import { adminAuditLog } from "../../../db/schema/schema";
+import { PLATFORM_OPERATIONS_DB_SOURCE } from "@/shared/security/platformOperationsPrincipal";
+
+type Db = ReturnType<typeof getDrizzle>;
+type Transaction = Parameters<Parameters<Db["transaction"]>[0]>[0];
+
+function toTariff(row: typeof saasTariffs.$inferSelect): Tariff {
+  return {
+    ...row,
+    billingPeriod: row.billingPeriod as Tariff["billingPeriod"],
+    quotas: row.quotas as TariffQuotaMap,
+  };
+}
+
+function toTrialPolicy(row: typeof saasTrialPolicy.$inferSelect): TrialPolicy {
+  return {
+    tariffId: row.tariffId,
+    durationDays: row.durationDays,
+    graceDays: row.graceDays,
+    startEvent: row.startEvent as TrialPolicy["startEvent"],
+    postTrialBehavior: row.postTrialBehavior as TrialPolicy["postTrialBehavior"],
+    postTrialTariffId: row.postTrialTariffId,
+    isActive: row.isActive,
+  };
+}
+
+async function appendAudit(
+  tx: Transaction,
+  input: {
+    audit: PlatformMutationAudit;
+    action: string;
+    targetId: string;
+    organizationId?: string | null;
+    before: unknown;
+    after: unknown;
+  },
+): Promise<void> {
+  await tx.insert(adminAuditLog).values({
+    organizationId: input.organizationId ?? null,
+    actorId: input.audit.actorId,
+    action: input.action,
+    targetId: input.targetId,
+    details: { reason: input.audit.reason, before: input.before, after: input.after },
+    status: "ok",
+  });
+}
+
+async function requireActiveTariff(tx: Transaction, tariffId: string): Promise<void> {
+  const row = await tx
+    .select({ id: saasTariffs.id })
+    .from(saasTariffs)
+    .where(and(eq(saasTariffs.id, tariffId), eq(saasTariffs.isActive, true)))
+    .limit(1);
+  if (!row[0]) throw new Error("active_tariff_not_found");
+}
+
+async function assertTariffNotUsedByActiveTrialPolicy(tx: Transaction, tariffId: string): Promise<void> {
+  const policy = await tx
+    .select({ key: saasTrialPolicy.key })
+    .from(saasTrialPolicy)
+    .where(
+      and(
+        eq(saasTrialPolicy.isActive, true),
+        or(eq(saasTrialPolicy.tariffId, tariffId), eq(saasTrialPolicy.postTrialTariffId, tariffId)),
+      ),
+    )
+    .limit(1);
+  if (policy[0]) throw new Error("tariff_used_by_trial_policy");
+}
+
+function tariffValues(input: Omit<Tariff, "id" | "createdAt" | "updatedAt">) {
+  return {
+    name: input.name,
+    description: input.description,
+    priceMinor: input.priceMinor,
+    currency: input.currency,
+    billingPeriod: input.billingPeriod,
+    mechanics: input.mechanics,
+    quotas: input.quotas,
+    includedSeats: input.includedSeats,
+    isActive: input.isActive,
+    updatedAt: new Date().toISOString(),
+  };
+}
+
+function assertPlatformOperationsPrincipal(): void {
+  const principal = getCurrentDbPrincipal();
+  if (principal?.kind !== "platform" || principal.source !== PLATFORM_OPERATIONS_DB_SOURCE) {
+    throw new Error("platform_operations_principal_required");
+  }
+}
+
+async function startTrialForOrganization(
+  organizationId: string,
+  audit: PlatformMutationAudit,
+  requiredStartEvent?: "organization_provisioned",
+): Promise<{ created: boolean; endsAt: string } | null> {
+  return runWithDbOrganizationPrincipal(organizationId, () =>
+    getDrizzle().transaction(async (tx) => {
+      const [policyRow] = await tx.select().from(saasTrialPolicy).where(and(eq(saasTrialPolicy.key, "global"), eq(saasTrialPolicy.isActive, true))).limit(1);
+      if (!policyRow) return null;
+      if (requiredStartEvent && policyRow.startEvent !== requiredStartEvent) return null;
+      await requireActiveTariff(tx, policyRow.tariffId);
+      const startedAt = new Date();
+      const endsAt = new Date(startedAt.getTime() + policyRow.durationDays * 86_400_000);
+      const graceEndsAt = new Date(endsAt.getTime() + policyRow.graceDays * 86_400_000);
+      const [created] = await tx.insert(saasOrganizationTrials).values({ organizationId, tariffId: policyRow.tariffId, startedAt: startedAt.toISOString(), endsAt: endsAt.toISOString(), graceEndsAt: graceEndsAt.toISOString(), postTrialBehavior: policyRow.postTrialBehavior, postTrialTariffId: policyRow.postTrialTariffId, createdBy: audit.actorId }).onConflictDoNothing({ target: saasOrganizationTrials.organizationId }).returning();
+      if (!created) {
+        const [existing] = await tx.select({ endsAt: saasOrganizationTrials.endsAt }).from(saasOrganizationTrials).where(eq(saasOrganizationTrials.organizationId, organizationId)).limit(1);
+        if (!existing) throw new Error("trial_start_conflict");
+        return { created: false, endsAt: existing.endsAt };
+      }
+      await tx.update(beOrganizations).set({ tariffId: policyRow.tariffId }).where(eq(beOrganizations.id, organizationId));
+      await appendAudit(tx, { audit, action: "saas_trial_start", targetId: created.id, organizationId, before: null, after: created });
+      return { created: true, endsAt: created.endsAt };
+    }),
+  );
+}
+
+export function createPgPlatformEntitlementsPort(): PlatformEntitlementsPort {
+  return {
+    async listTariffs() {
+      assertPlatformOperationsPrincipal();
+      const rows = await getDrizzle().select().from(saasTariffs).orderBy(saasTariffs.name);
+      return rows.map(toTariff);
+    },
+
+    async listOrganizations() {
+      assertPlatformOperationsPrincipal();
+      return getDrizzle()
+        .select({ id: beOrganizations.id, title: beOrganizations.title, tariffId: beOrganizations.tariffId, isActive: beOrganizations.isActive })
+        .from(beOrganizations)
+        .orderBy(beOrganizations.title);
+    },
+
+    async getTrialPolicy() {
+      assertPlatformOperationsPrincipal();
+      const rows = await getDrizzle().select().from(saasTrialPolicy).where(eq(saasTrialPolicy.key, "global")).limit(1);
+      return rows[0] ? toTrialPolicy(rows[0]) : null;
+    },
+
+    async createTariff(input, audit) {
+      assertPlatformOperationsPrincipal();
+      return getDrizzle().transaction(async (tx) => {
+        const [row] = await tx.insert(saasTariffs).values(tariffValues(input)).returning();
+        if (!row) throw new Error("tariff_create_failed");
+        await appendAudit(tx, { audit, action: "saas_tariff_create", targetId: row.id, before: null, after: row });
+        return toTariff(row);
+      });
+    },
+
+    async updateTariff(id, input, audit) {
+      assertPlatformOperationsPrincipal();
+      return getDrizzle().transaction(async (tx) => {
+        const [before] = await tx.select().from(saasTariffs).where(eq(saasTariffs.id, id)).limit(1);
+        if (!before) throw new Error("tariff_not_found");
+        if (before.isActive && !input.isActive) await assertTariffNotUsedByActiveTrialPolicy(tx, id);
+        const [row] = await tx.update(saasTariffs).set(tariffValues(input)).where(eq(saasTariffs.id, id)).returning();
+        if (!row) throw new Error("tariff_update_failed");
+        await appendAudit(tx, { audit, action: "saas_tariff_update", targetId: id, before, after: row });
+        return toTariff(row);
+      });
+    },
+
+    async archiveTariff(id, audit) {
+      assertPlatformOperationsPrincipal();
+      await getDrizzle().transaction(async (tx) => {
+        const [before] = await tx.select().from(saasTariffs).where(eq(saasTariffs.id, id)).limit(1);
+        if (!before) throw new Error("tariff_not_found");
+        await assertTariffNotUsedByActiveTrialPolicy(tx, id);
+        const [after] = await tx.update(saasTariffs).set({ isActive: false, updatedAt: new Date().toISOString() }).where(eq(saasTariffs.id, id)).returning();
+        await appendAudit(tx, { audit, action: "saas_tariff_deactivate", targetId: id, before, after });
+      });
+    },
+
+    async assignTariff(organizationId, tariffId, audit) {
+      assertPlatformOperationsPrincipal();
+      await runWithDbOrganizationPrincipal(organizationId, () =>
+        getDrizzle().transaction(async (tx) => {
+          if (tariffId) await requireActiveTariff(tx, tariffId);
+          const [before] = await tx.select({ tariffId: beOrganizations.tariffId }).from(beOrganizations).where(eq(beOrganizations.id, organizationId)).limit(1);
+          if (!before) throw new Error("organization_not_found");
+          await tx.update(beOrganizations).set({ tariffId }).where(eq(beOrganizations.id, organizationId));
+          await tx.update(saasOrganizationTrials).set({ status: "ended", updatedAt: new Date().toISOString() }).where(and(eq(saasOrganizationTrials.organizationId, organizationId), eq(saasOrganizationTrials.status, "active")));
+          await appendAudit(tx, { audit, action: tariffId ? "saas_tariff_assign" : "saas_tariff_unassign", targetId: organizationId, organizationId, before, after: { tariffId } });
+        }),
+      );
+    },
+
+    async upsertOverride(input, audit) {
+      assertPlatformOperationsPrincipal();
+      await runWithDbOrganizationPrincipal(input.organizationId, () =>
+        getDrizzle().transaction(async (tx) => {
+          const [before] = await tx.select().from(saasOrgEntitlementOverrides).where(and(eq(saasOrgEntitlementOverrides.organizationId, input.organizationId), eq(saasOrgEntitlementOverrides.mechanic, input.mechanic))).limit(1);
+          const values = { organizationId: input.organizationId, mechanic: input.mechanic, enabled: input.enabled, quota: input.quota as TariffQuota | null, expiresAt: input.expiresAt, updatedAt: new Date().toISOString() };
+          const [after] = await tx.insert(saasOrgEntitlementOverrides).values(values).onConflictDoUpdate({ target: [saasOrgEntitlementOverrides.organizationId, saasOrgEntitlementOverrides.mechanic], set: values }).returning();
+          await appendAudit(tx, { audit, action: "saas_entitlement_override_upsert", targetId: `${input.organizationId}:${input.mechanic}`, organizationId: input.organizationId, before: before ?? null, after });
+        }),
+      );
+    },
+
+    async deleteOverride(organizationId, mechanic, audit) {
+      assertPlatformOperationsPrincipal();
+      await runWithDbOrganizationPrincipal(organizationId, () =>
+        getDrizzle().transaction(async (tx) => {
+          const [before] = await tx.delete(saasOrgEntitlementOverrides).where(and(eq(saasOrgEntitlementOverrides.organizationId, organizationId), eq(saasOrgEntitlementOverrides.mechanic, mechanic))).returning();
+          await appendAudit(tx, { audit, action: "saas_entitlement_override_delete", targetId: `${organizationId}:${mechanic}`, organizationId, before: before ?? null, after: null });
+        }),
+      );
+    },
+
+    async setTrialPolicy(policy, audit) {
+      assertPlatformOperationsPrincipal();
+      await getDrizzle().transaction(async (tx) => {
+        await requireActiveTariff(tx, policy.tariffId);
+        if (policy.postTrialTariffId) await requireActiveTariff(tx, policy.postTrialTariffId);
+        const [before] = await tx.select().from(saasTrialPolicy).where(eq(saasTrialPolicy.key, "global")).limit(1);
+        const values = { ...policy, key: "global", updatedBy: audit.actorId, updatedAt: new Date().toISOString() };
+        const [after] = await tx.insert(saasTrialPolicy).values(values).onConflictDoUpdate({ target: saasTrialPolicy.key, set: values }).returning();
+        await appendAudit(tx, { audit, action: "saas_trial_policy_update", targetId: "global", before: before ?? null, after });
+      });
+    },
+
+    async startTrial(organizationId, audit) {
+      assertPlatformOperationsPrincipal();
+      return startTrialForOrganization(organizationId, audit);
+    },
+
+    async extendTrial(organizationId, days, audit) {
+      assertPlatformOperationsPrincipal();
+      return runWithDbOrganizationPrincipal(organizationId, () =>
+        getDrizzle().transaction(async (tx) => {
+          const [before] = await tx.select().from(saasOrganizationTrials).where(eq(saasOrganizationTrials.organizationId, organizationId)).limit(1);
+          if (!before) throw new Error("organization_trial_not_found");
+          const [after] = await tx.update(saasOrganizationTrials).set({ endsAt: sql`${saasOrganizationTrials.endsAt} + (${days} * interval '1 day')`, graceEndsAt: sql`${saasOrganizationTrials.graceEndsAt} + (${days} * interval '1 day')`, extensionCount: sql`${saasOrganizationTrials.extensionCount} + 1`, updatedAt: new Date().toISOString() }).where(eq(saasOrganizationTrials.organizationId, organizationId)).returning();
+          if (!after) throw new Error("trial_extension_failed");
+          await appendAudit(tx, { audit, action: "saas_trial_extend", targetId: after.id, organizationId, before, after });
+          return { endsAt: after.endsAt };
+        }),
+      );
+    },
+  };
+}
+
+export function createPgOrganizationTrialProvisioningPort(): OrganizationTrialProvisioningPort {
+  return {
+    async startConfiguredTrial(organizationId) {
+      await startTrialForOrganization(
+        organizationId,
+        { actorId: null, reason: "automatic organization provisioning trial" },
+        "organization_provisioned",
+      );
+    },
+  };
+}

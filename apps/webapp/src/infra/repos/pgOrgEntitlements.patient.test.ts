@@ -62,10 +62,11 @@ describe("pgOrgEntitlements current-patient capability", () => {
     const port = createPgOrgEntitlementsPort();
     await expect(port.getTariffForOrg(ORGANIZATION_ID)).resolves.toEqual({
       mechanics: { courses: false, clinic_team: true },
+      quotas: {},
       includedSeats: 3,
     });
     await expect(port.listOverrides(ORGANIZATION_ID)).resolves.toEqual([
-      { mechanic: "courses", enabled: true, seatLimitOverride: null },
+      { mechanic: "courses", enabled: true, quota: null, expiresAt: null, seatLimitOverride: null },
     ]);
 
     expect(getDrizzleMock).not.toHaveBeenCalled();
@@ -113,27 +114,33 @@ describe("pgOrgEntitlements current-patient capability", () => {
       organizationId: ORGANIZATION_ID,
       platformUserId: PATIENT_ID,
     });
+    const organizationLimit = vi.fn().mockResolvedValue([{ tariffId: "tariff-1" }]);
+    const organizationWhere = vi.fn(() => ({ limit: organizationLimit }));
+    const trialLimit = vi.fn().mockResolvedValue([]);
+    const trialWhere = vi.fn(() => ({ limit: trialLimit }));
     const tariffLimit = vi.fn().mockResolvedValue([
-      { mechanics: { courses: true }, includedSeats: 2 },
+      { mechanics: { courses: true }, quotas: {}, includedSeats: 2 },
     ]);
     const tariffWhere = vi.fn(() => ({ limit: tariffLimit }));
-    const tariffJoin = vi.fn(() => ({ where: tariffWhere }));
     const overridesWhere = vi.fn().mockResolvedValue([
-      { mechanic: "courses", enabled: false, seatLimitOverride: null },
+      { mechanic: "courses", enabled: false, quota: null, expiresAt: null, seatLimitOverride: null },
     ]);
     const select = vi
       .fn()
-      .mockReturnValueOnce({ from: vi.fn(() => ({ innerJoin: tariffJoin })) })
+      .mockReturnValueOnce({ from: vi.fn(() => ({ where: organizationWhere })) })
+      .mockReturnValueOnce({ from: vi.fn(() => ({ where: trialWhere })) })
+      .mockReturnValueOnce({ from: vi.fn(() => ({ where: tariffWhere })) })
       .mockReturnValueOnce({ from: vi.fn(() => ({ where: overridesWhere })) });
     getDrizzleMock.mockReturnValue({ select });
 
     const port = createPgOrgEntitlementsPort();
     await expect(port.getTariffForOrg(ORGANIZATION_ID)).resolves.toEqual({
       mechanics: { courses: true },
+      quotas: {},
       includedSeats: 2,
     });
     await expect(port.listOverrides(ORGANIZATION_ID)).resolves.toEqual([
-      { mechanic: "courses", enabled: false, seatLimitOverride: null },
+      { mechanic: "courses", enabled: false, quota: null, expiresAt: null, seatLimitOverride: null },
     ]);
     expect(runWebappPgTextMock).not.toHaveBeenCalled();
   });

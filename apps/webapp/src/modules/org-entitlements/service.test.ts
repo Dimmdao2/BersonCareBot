@@ -1,11 +1,17 @@
 import { describe, expect, it, vi } from "vitest";
 import type { OrgEntitlementsPort } from "./ports";
-import { isMechanicEnabled, resolveClinicSeatLimit, resolveOrgEntitlements } from "./service";
+import {
+  createPlatformEntitlementsService,
+  evaluateQuotaGrowth,
+  isMechanicEnabled,
+  resolveClinicSeatLimit,
+  resolveOrgEntitlements,
+} from "./service";
 import { MECHANICS } from "./types";
 
 function portFor(
   tariff: { mechanics: Record<string, boolean>; includedSeats?: number | null } | null,
-  overrides: { mechanic: string; enabled: boolean; seatLimitOverride?: number | null }[],
+  overrides: { mechanic: string; enabled: boolean; seatLimitOverride?: number | null; expiresAt?: string | null }[],
 ): OrgEntitlementsPort {
   return {
     getTariffForOrg: vi.fn(async () =>
@@ -53,6 +59,17 @@ describe("resolveOrgEntitlements", () => {
       "org-a",
     );
     expect(result.courses).toBe(true);
+  });
+
+  it("ignores an expired organization override", async () => {
+    const result = await resolveOrgEntitlements(
+      portFor(
+        { mechanics: { courses: false } },
+        [{ mechanic: "courses", enabled: true, expiresAt: "2020-01-01T00:00:00.000Z" }],
+      ),
+      "org-a",
+    );
+    expect(result.courses).toBe(false);
   });
 
   it("keeps courses fail-closed for an unassigned organization", async () => {
@@ -137,5 +154,77 @@ describe("resolveClinicSeatLimit", () => {
     };
     await expect(resolveClinicSeatLimit(scopedPort, "org-a")).resolves.toBe(5);
     await expect(resolveClinicSeatLimit(scopedPort, "org-b")).resolves.toBe(0);
+  });
+});
+
+describe("quota growth policy", () => {
+  const numeric = {
+    kind: "numeric" as const,
+    limit: 100,
+    unit: "items",
+    period: "month" as const,
+    usagePolicy: "consumption" as const,
+  };
+
+  it("warns at 80 percent without blocking existing access", () => {
+    expect(evaluateQuotaGrowth({ quota: numeric, used: 79, growth: 1 })).toMatchObject({
+      allowed: true,
+      warning: true,
+      reason: "warning_80",
+    });
+  });
+
+  it("blocks only new growth above the limit", () => {
+    expect(evaluateQuotaGrowth({ quota: numeric, used: 100, growth: 1 })).toMatchObject({
+      allowed: false,
+      reason: "quota_reached",
+    });
+    expect(evaluateQuotaGrowth({ quota: numeric, used: 120, growth: 0 })).toMatchObject({
+      allowed: true,
+      reason: "warning_80",
+    });
+  });
+
+  it("never blocks an explicit unlimited quota", () => {
+    expect(evaluateQuotaGrowth({
+      quota: { ...numeric, kind: "unlimited", limit: null },
+      used: 1_000_000,
+      growth: 10,
+    })).toMatchObject({ allowed: true, limit: null });
+  });
+});
+
+describe("platform tariff constructor validation", () => {
+  it("rejects blank audit reasons before a write", async () => {
+    const port = { createTariff: vi.fn() };
+    const service = createPlatformEntitlementsService(port as never);
+    expect(() => service.createTariff({
+      name: "Base",
+      description: "",
+      priceMinor: 1000,
+      currency: "rub",
+      billingPeriod: "month",
+      mechanics: {},
+      quotas: {},
+      includedSeats: 1,
+      isActive: true,
+    }, { actorId: null, reason: " " })).toThrow("commercial_change_reason_required");
+    expect(port.createTariff).not.toHaveBeenCalled();
+  });
+
+  it("rejects a quota unit not registered for the mechanic", async () => {
+    const port = { createTariff: vi.fn() };
+    const service = createPlatformEntitlementsService(port as never);
+    expect(() => service.createTariff({
+      name: "Base",
+      description: "",
+      priceMinor: null,
+      currency: null,
+      billingPeriod: "month",
+      mechanics: { booking: true },
+      quotas: { booking: { kind: "numeric", limit: 10, unit: "bytes", period: "month", usagePolicy: "consumption" } },
+      includedSeats: null,
+      isActive: true,
+    }, { actorId: null, reason: "test" })).toThrow("tariff_quota_unit_invalid");
   });
 });

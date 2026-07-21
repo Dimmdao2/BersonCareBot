@@ -131,6 +131,12 @@ const RAW_DOCTOR_MENU_ITEMS: DoctorMenuLinkItem[] = [
     accessTier: "global_admin",
     items: [
       {
+        id: "commercial",
+        label: "Тарифы и триал",
+        href: "/app/doctor/commercial",
+        accessTier: "global_admin",
+      },
+      {
         id: "system-health",
         label: "Здоровье системы",
         href: "/app/doctor/system-health",
