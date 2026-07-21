@@ -4355,3 +4355,11 @@ not an invented timestamp or a synthetic "explained" occurrence.
 The owner-authored UI-1c appointment-card planning commit was reconciled from its temporary branch as `8d482133b`.
 The outbound-delivery incident plan is now a subordinate `#950` artifact in this roadmap: repository-safe work may
 proceed after the A3/notification foundations, while live TEST delivery and all PROD activation remain explicit gates.
+
+## 2026-07-21 — fresh registry advisories closed without mass upgrade (`#955`)
+
+A fresh post-checkpoint registry audit discovered two advisories published after the earlier green milestone:
+`fast-uri@3.1.2` (high) and `dompurify@3.4.11` (low). Commit `763630e7f` pins only their fixed compatible versions
+`3.1.3` and `3.4.12`; Next, React, FullCalendar and other unrelated packages remain unchanged. Frozen install,
+production dependency paths, `17/17` sanitizer tests, Fastify/Ajv URI validation, the registry audit and one
+independent audit passed. No full CI, deploy, DB or environment action was repeated for this bounded security patch.
