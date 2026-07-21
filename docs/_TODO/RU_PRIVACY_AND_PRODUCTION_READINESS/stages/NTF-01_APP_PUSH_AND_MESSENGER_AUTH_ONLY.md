@@ -53,14 +53,20 @@ Read-only audit 2026-07-19 подтвердил:
 | Class | Примеры | In-app | App push | Telegram/MAX | Email/SMS |
 |---|---|---:|---:|---:|---:|
 | `auth_code` | login/bind OTP, contact handshake | да | нет | **да** | существующие email auth/recovery flows отдельно |
-| `routine_product` | запись, перенос, отмена, обычный reminder, quota/trial status | **да** | **да** | нет | нет |
-| `conversation_event` | новое сообщение, program note, intake reply | **да** | **да** | нет | нет |
+| `routine_product` | запись, перенос, отмена, обычный reminder, quota/trial status | **да** | **да** | нет | Email только для exact appointment-reminder template; exercise reminder — push only; SMS нет |
+| `conversation_event` | новое сообщение, program note, intake reply | **да** | **да** | нет | Email только как neutral event notice без body/ФИО/clinical text; SMS нет |
 | `broadcast_event` | врачебная рассылка | **да** | **да** | нет | нет |
 | `account_service` | invite, reset, receipt, договор, export/deletion notices | по событию | по policy | нет | **да по allowlist** |
 | `operator_security` | provider outage, security incident, health alert | admin/monitoring | по принятому contour | нет | отдельный monitoring allowlist |
 
 Новый/неизвестный class = default deny для messenger/email/SMS. Allowlist хранится централизованно в typed policy,
 а не размножается по feature modules.
+
+Owner ruling 2026-07-21: разрешённые email rows выше являются event/template-level allowlist, а не общим
+разрешением class или generic relay. Appointment email может содержать дату/время, специалиста и место/`Онлайн`;
+exercise push остаётся общим; message/comment email и push сообщают только факт нового события. Реализация этих
+builders относится к соответствующим N3 children; N1 вводит typed vocabulary и default-deny boundary, но не
+изобретает до N3 новый generic sender/template API.
 
 ## 4. Матрица текста push — engineering safe default до `MOB-O9/G-04B`
 

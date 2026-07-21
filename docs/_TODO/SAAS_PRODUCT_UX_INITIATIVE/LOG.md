@@ -1,5 +1,15 @@
 # Log — SaaS Product UX Initiative
 
+## 2026-07-21 — Owner ruling: notification channel and safe-copy matrix
+
+Appointment reminders may use email through an exact transactional template containing appointment date/time,
+specialist, location/online mode and a safe authenticated-app link, but no diagnosis, complaint or arbitrary
+clinical text. Exercise reminders are app-push events with generic copy; details stay behind authenticated fetch.
+Message/comment events use neutral push and, when email is enabled, a neutral email without message body, patient
+name or clinical data. This is a subtype/template allowlist, not generic email permission. Platform SMS remains no
+fallback; a later specialist-funded provider integration requires its own explicit templates and gate. Reminder
+timing still follows the specialist-default plus client per-appointment override ruling below.
+
 ## 2026-07-21 — Owner correction: reminder preset ownership (`#190` / NTF booking)
 
 The fixed `24h/2h` booking reminders are legacy defaults, not the target model. Each specialist configures which

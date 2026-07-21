@@ -1,5 +1,16 @@
 # Execution log
 
+## 2026-07-21 — Owner ruling: exact safe email/push rows
+
+- Appointment reminders may be delivered by an exact email template with date/time, specialist, location/online
+  mode and a safe app link; diagnosis, complaint and arbitrary clinical/free text are forbidden there.
+- Exercise reminders are generic app push; message/comment events use neutral push and optionally neutral email
+  without the message body, patient name or clinical payload. These are subtype/template allowlist rows, not a
+  generic email relay permission.
+- Platform SMS remains no product fallback. A later specialist-funded SMS provider integration is separately gated.
+- N1 still establishes typed default-deny topology only; concrete appointment/exercise/conversation builders and
+  their safe-copy tests remain in their N3 children.
+
 ## 2026-07-21 — Owner correction: booking reminder defaults are not fixed `24h/2h`
 
 - `24h/2h` in the N0 census names the current legacy jobs only. Target ownership is now explicit: each specialist
