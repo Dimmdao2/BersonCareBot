@@ -119,6 +119,45 @@ describe("POST /api/doctor/clients", () => {
     });
   });
 
+  it("accepts an exact-organization card with structured FIO and no contacts", async () => {
+    requireDoctorWorkspaceApiContextMock.mockResolvedValue({ ok: true, ctx: gateContext });
+    createDoctorClientMock.mockResolvedValue({
+      ok: true,
+      userId: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+      displayName: "Иванов Иван",
+      lastName: "Иванов",
+      firstName: "Иван",
+      patronymic: null,
+      phoneNormalized: null,
+      created: true,
+      emailSetupEnqueued: false,
+    });
+
+    const res = await POST(
+      new Request("http://localhost/api/doctor/clients", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ lastName: "Иванов", firstName: "Иван" }),
+      }),
+    );
+
+    expect(res.status).toBe(200);
+    expect(createDoctorClientMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        organizationId: gateContext.organizationId,
+        lastName: "Иванов",
+        firstName: "Иван",
+        phone: undefined,
+        email: undefined,
+      }),
+      { patientOrganization, emailSetupAccess },
+    );
+    expect(await res.json()).toMatchObject({
+      ok: true,
+      client: { id: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb", phone: null },
+    });
+  });
+
   it("does not fall back to a global identity writer when organization registration is unavailable", async () => {
     requireDoctorWorkspaceApiContextMock.mockResolvedValue({ ok: true, ctx: gateContext });
     buildAppDepsMock.mockReturnValue({ patientOrganization: null, emailSetupAccess });

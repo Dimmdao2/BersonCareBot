@@ -4,7 +4,7 @@ import { formatDoctorFio, normalizeFioPart } from "@/shared/lib/fio";
 import { platformUsers, userPhoneHistory } from "../../../db/schema/schema";
 
 export type ResolveOrCreateDoctorClientByPhoneInput = {
-  phoneNormalized: string;
+  phoneNormalized: string | null;
   lastName: string;
   firstName: string;
   patronymic: string | null;
@@ -18,7 +18,7 @@ export type ResolveOrCreateDoctorClientByPhoneResult = {
   lastName: string | null;
   firstName: string | null;
   patronymic: string | null;
-  phoneNormalized: string;
+  phoneNormalized: string | null;
   created: boolean;
 };
 
@@ -51,6 +51,43 @@ export async function resolveOrCreateDoctorClientByPhoneInTransaction(
   }
   const displayName = formatDoctorFio({ lastName, firstName, patronymic });
 
+  if (!input.phoneNormalized) {
+    if (input.emailRaw || input.emailNormalized) {
+      throw new DoctorClientIdentityError("create_failed");
+    }
+    const [inserted] = await tx
+      .insert(platformUsers)
+      .values({
+        phoneNormalized: null,
+        email: null,
+        emailNormalized: null,
+        displayName,
+        lastName,
+        firstName,
+        patronymic,
+        role: "client",
+        patientPhoneTrustAt: null,
+      })
+      .returning({
+        id: platformUsers.id,
+        displayName: platformUsers.displayName,
+        lastName: platformUsers.lastName,
+        firstName: platformUsers.firstName,
+        patronymic: platformUsers.patronymic,
+      });
+    if (!inserted) throw new DoctorClientIdentityError("create_failed");
+    return {
+      userId: inserted.id,
+      displayName: inserted.displayName,
+      lastName: inserted.lastName,
+      firstName: inserted.firstName,
+      patronymic: inserted.patronymic,
+      phoneNormalized: null,
+      created: true,
+    };
+  }
+  const phoneNormalized = input.phoneNormalized;
+
   const findByPhone = async () => {
     const [row] = await tx
       .select({
@@ -65,7 +102,7 @@ export async function resolveOrCreateDoctorClientByPhoneInTransaction(
       .from(platformUsers)
       .where(
         and(
-          eq(platformUsers.phoneNormalized, input.phoneNormalized),
+          eq(platformUsers.phoneNormalized, phoneNormalized),
           isNull(platformUsers.mergedIntoId),
         ),
       )
@@ -101,7 +138,7 @@ export async function resolveOrCreateDoctorClientByPhoneInTransaction(
       lastName: existing.lastName,
       firstName: existing.firstName,
       patronymic: existing.patronymic,
-      phoneNormalized: existing.phoneNormalized ?? input.phoneNormalized,
+      phoneNormalized: existing.phoneNormalized ?? phoneNormalized,
       created: false,
     };
   }
@@ -118,7 +155,7 @@ export async function resolveOrCreateDoctorClientByPhoneInTransaction(
       const [row] = await savepointTx
         .insert(platformUsers)
         .values({
-          phoneNormalized: input.phoneNormalized,
+          phoneNormalized,
           displayName,
           lastName,
           firstName,
@@ -154,7 +191,7 @@ export async function resolveOrCreateDoctorClientByPhoneInTransaction(
       lastName: concurrent.lastName,
       firstName: concurrent.firstName,
       patronymic: concurrent.patronymic,
-      phoneNormalized: concurrent.phoneNormalized ?? input.phoneNormalized,
+      phoneNormalized: concurrent.phoneNormalized ?? phoneNormalized,
       created: false,
     };
   }
@@ -164,7 +201,7 @@ export async function resolveOrCreateDoctorClientByPhoneInTransaction(
   await tx.insert(userPhoneHistory).values({
     platformUserId: inserted.id,
     organizationId,
-    phoneNormalized: input.phoneNormalized,
+    phoneNormalized,
     source: "admin",
   });
 
@@ -174,7 +211,7 @@ export async function resolveOrCreateDoctorClientByPhoneInTransaction(
     lastName: inserted.lastName,
     firstName: inserted.firstName,
     patronymic: inserted.patronymic,
-    phoneNormalized: input.phoneNormalized,
+    phoneNormalized,
     created: true,
   };
 }

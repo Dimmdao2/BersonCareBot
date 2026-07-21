@@ -2,11 +2,13 @@ import type {
   PatientInviteRecord,
   PatientInvitesPort,
   PatientPortalStatus,
+  PatientInviteRecipientBinding,
 } from '@/modules/patient-invites/ports';
 
 type StoredInvite = PatientInviteRecord & {
   tokenHash: string;
-  invitedEmailNormalized: string;
+  invitedEmailNormalized: string | null;
+  recipientBinding: PatientInviteRecipientBinding;
   bearerExchangedAt: string | null;
   continuationHash: string | null;
   continuationExpiresAt: string | null;
@@ -28,6 +30,7 @@ type EnrollmentState = {
 
 const invites: StoredInvite[] = [];
 const enrollments = new Map<string, EnrollmentState>();
+const emailOwners = new Map<string, string>();
 
 function key(organizationId: string, patientUserId: string): string {
   return `${organizationId}:${patientUserId}`;
@@ -42,15 +45,18 @@ function publicRecord(invite: StoredInvite): PatientInviteRecord {
     status: invite.status,
     expiresAt: invite.expiresAt,
     createdAt: invite.createdAt,
+    recipientBinding: invite.recipientBinding,
   };
 }
 
 function preview(invite: StoredInvite) {
-  const [local = '', domain = ''] = invite.invitedEmailNormalized.split('@');
+  const [local = '', domain = ''] = (invite.invitedEmailNormalized ?? '').split('@');
   return {
     organizationTitle: invite.organizationTitle,
-    recipientHint: `${local[0] ?? '*'}***@${domain}`,
+    recipientHint:
+      invite.recipientBinding === 'bound_email' ? `${local[0] ?? '*'}***@${domain}` : null,
     inviteExpiresAt: invite.expiresAt,
+    recipientBinding: invite.recipientBinding,
   };
 }
 
@@ -69,6 +75,14 @@ function lifecycleFailure(invite: StoredInvite) {
 export function resetInMemoryPatientInvitesForTests(): void {
   invites.length = 0;
   enrollments.clear();
+  emailOwners.clear();
+}
+
+export function setInMemoryPatientInviteEmailOwnerForTests(
+  emailNormalized: string,
+  patientUserId: string,
+): void {
+  emailOwners.set(emailNormalized, patientUserId);
 }
 
 export function setInMemoryPatientInviteEnrollmentForTests(input: {
@@ -155,6 +169,7 @@ export function createInMemoryPatientInvitesPort(): PatientInvitesPort {
         createdAt: new Date().toISOString(),
         tokenHash: input.tokenHash,
         invitedEmailNormalized: input.invitedEmailNormalized,
+        recipientBinding: input.recipientBinding,
         bearerExchangedAt: null,
         continuationHash: null,
         continuationExpiresAt: null,
@@ -220,7 +235,10 @@ export function createInMemoryPatientInvitesPort(): PatientInvitesPort {
     async startEmailProof({ continuationHash, emailNormalized, codeHash, proofExpiresAt }) {
       const invite = byContinuation(continuationHash);
       if (!invite || lifecycleFailure(invite)) return { ok: false, code: 'invalid_continuation' };
-      if (invite.invitedEmailNormalized !== emailNormalized)
+      if (
+        invite.recipientBinding === 'bound_email' &&
+        invite.invitedEmailNormalized !== emailNormalized
+      )
         return { ok: false, code: 'wrong_recipient' };
       if (invite.proofStartedAt && Date.parse(invite.proofStartedAt) > Date.now() - 30_000) {
         return { ok: false, code: 'rate_limited' };
@@ -250,7 +268,12 @@ export function createInMemoryPatientInvitesPort(): PatientInvitesPort {
       if (!invite.proofExpiresAt || Date.parse(invite.proofExpiresAt) <= Date.now()) {
         return { ok: false, code: 'expired_code' };
       }
-      if (invite.proofEmailNormalized !== emailNormalized || invite.proofCodeHash !== codeHash) {
+      if (
+        invite.proofEmailNormalized !== emailNormalized ||
+        (invite.recipientBinding === 'bound_email' &&
+          invite.invitedEmailNormalized !== emailNormalized) ||
+        invite.proofCodeHash !== codeHash
+      ) {
         invite.proofAttempts += 1;
         return { ok: false, code: 'invalid_code' };
       }
@@ -280,6 +303,42 @@ export function createInMemoryPatientInvitesPort(): PatientInvitesPort {
       });
       invite.status = 'accepted';
       return { ok: true, organizationId: invite.organizationId };
+    },
+
+    async claimUnboundEmailProof({ continuationHash, emailNormalized }) {
+      const invite = byContinuation(continuationHash);
+      if (!invite) return { ok: false, code: 'invalid_continuation' };
+      const lifecycle = lifecycleFailure(invite);
+      if (lifecycle) return lifecycle;
+      if (invite.recipientBinding !== 'unbound_email_claim') {
+        return { ok: false, code: 'invalid_invite' };
+      }
+      if (
+        !invite.proofVerifiedAt ||
+        invite.proofEmailNormalized !== emailNormalized
+      ) {
+        return { ok: false, code: 'unproved_identity' };
+      }
+      const owner = emailOwners.get(emailNormalized);
+      if (owner && owner !== invite.patientUserId) {
+        return { ok: false, code: 'conflicting_identity' };
+      }
+      const enrollment = relationship(invite.organizationId, invite.patientUserId);
+      if (enrollment.portalActivatedAt) return { ok: false, code: 'already_linked' };
+      if (enrollment.status !== 'invited' && enrollment.status !== 'active') {
+        return { ok: false, code: 'inactive_relationship' };
+      }
+      emailOwners.set(emailNormalized, invite.patientUserId);
+      enrollments.set(key(invite.organizationId, invite.patientUserId), {
+        status: 'active',
+        portalActivatedAt: new Date().toISOString(),
+      });
+      invite.status = 'accepted';
+      return {
+        ok: true,
+        organizationId: invite.organizationId,
+        patientUserId: invite.patientUserId,
+      };
     },
   };
 }

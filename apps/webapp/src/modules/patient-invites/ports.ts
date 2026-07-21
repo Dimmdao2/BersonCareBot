@@ -1,4 +1,5 @@
 export type PatientPortalStatus = 'not_activated' | 'invited' | 'linked';
+export type PatientInviteRecipientBinding = 'bound_email' | 'unbound_email_claim';
 
 export type PatientInviteRecord = {
   id: string;
@@ -8,12 +9,14 @@ export type PatientInviteRecord = {
   status: 'pending' | 'accepted' | 'expired' | 'revoked' | 'superseded';
   expiresAt: string;
   createdAt: string;
+  recipientBinding: PatientInviteRecipientBinding;
 };
 
 export type PatientInvitePublicPreview = {
   organizationTitle: string;
   recipientHint: string | null;
   inviteExpiresAt: string;
+  recipientBinding: PatientInviteRecipientBinding;
 };
 
 export type PatientInviteLifecycleCode =
@@ -46,7 +49,8 @@ export type PatientInvitesPort = {
     organizationId: string;
     patientUserId: string;
     tokenHash: string;
-    invitedEmailNormalized: string;
+    invitedEmailNormalized: string | null;
+    recipientBinding: PatientInviteRecipientBinding;
     expiresAt: string;
     createdByPlatformUserId: string;
   }): Promise<{ ok: true; invite: PatientInviteRecord } | PatientInviteFailure>;
@@ -90,4 +94,14 @@ export type PatientInvitesPort = {
     continuationHash: string;
     authenticatedPlatformUserId: string;
   }): Promise<{ ok: true; organizationId: string } | PatientInviteFailure>;
+  claimUnboundEmailProof(input: {
+    continuationHash: string;
+    emailNormalized: string;
+    authorizationNonce: string;
+    authorizationExpiresEpoch: number;
+    authorizationSignature: string;
+  }): Promise<
+    | { ok: true; organizationId: string; patientUserId: string }
+    | PatientInviteFailure
+  >;
 };

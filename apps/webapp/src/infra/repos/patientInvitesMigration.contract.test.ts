@@ -11,6 +11,9 @@ function readRepo(relativePath: string): string {
 
 describe('patient invite migration contract', () => {
   const migration = readRepo('apps/webapp/db/drizzle-migrations/0220_patient_portal_invites.sql');
+  const claimMigration = readRepo(
+    'apps/webapp/db/drizzle-migrations/0222_patient_invite_unbound_email_claim.sql',
+  );
   const schema = readRepo('apps/webapp/db/schema/patientInvites.ts');
   const bookingSchema = readRepo('apps/webapp/db/schema/bookingEngine.ts');
   const overlay = readRepo('deploy/postgres/patient-invites-rls.sql');
@@ -169,14 +172,47 @@ describe('patient invite migration contract', () => {
     expect(doctorRoute).toContain('withDoctorWorkspacePrincipal');
     expect(doctorRoute).not.toMatch(/bodySchema[\s\S]*organizationId/);
     const verify = confirmRoute.indexOf('verifyEmailProof(');
+    const lookup = confirmRoute.indexOf('lookupContinuation(', verify);
+    const unboundBranch = confirmRoute.indexOf("recipientBinding === 'unbound_email_claim'", lookup);
+    const claim = confirmRoute.indexOf('claimUnboundEmailProof(', unboundBranch);
     const resolveIdentity = confirmRoute.indexOf('findPublicEmailUser(', verify);
     const redeem = confirmRoute.indexOf('redeemEmailProof(', resolveIdentity);
     expect(verify).toBeGreaterThanOrEqual(0);
+    expect(lookup).toBeGreaterThan(verify);
+    expect(unboundBranch).toBeGreaterThan(lookup);
+    expect(claim).toBeGreaterThan(unboundBranch);
     expect(resolveIdentity).toBeGreaterThan(verify);
     expect(redeem).toBeGreaterThan(resolveIdentity);
-    expect(confirmRoute).toContain('result.organizationId');
+    expect(confirmRoute).toContain('organizationId = claimed.organizationId');
+    expect(confirmRoute).not.toContain('claimVerifiedEmail');
+    expect(confirmRoute).not.toContain('register');
     expect(confirmRoute).toContain('PATIENT_ORGANIZATION_PREFERENCE_COOKIE');
     expect(confirmRoute).toContain('setSessionFromUser(user)');
+  });
+
+  it('adds a narrow unbound-email claim without changing the 0220 bound-email contract', () => {
+    expect(claimMigration).toContain("recipient_binding text NOT NULL DEFAULT 'bound_email'");
+    expect(claimMigration).toContain("recipient_binding = 'unbound_email_claim'");
+    expect(claimMigration).toContain(
+      'CREATE OR REPLACE FUNCTION app.claim_unbound_patient_invite_email',
+    );
+    expect(claimMigration).toContain("'patient-invite-proof', 'v1', 'claim'");
+    expect(claimMigration).toContain('patient.id = v_invite.patient_user_id');
+    expect(claimMigration).toContain('email_normalized = v_email');
+    expect(claimMigration).toContain("'invite_redeem_identity_conflict'");
+    expect(claimMigration).toContain(
+      'ON CONFLICT (organization_id, anchor_user_id, candidate_user_id)',
+    );
+    expect(claimMigration).not.toMatch(/merged_into_id\s*=/i);
+    expect(overlay).toContain(
+      'ALTER FUNCTION app.claim_unbound_patient_invite_email(text, text, text, bigint, text) OWNER TO app_owner',
+    );
+    expect(overlay).toContain(
+      'GRANT EXECUTE ON FUNCTION app.claim_unbound_patient_invite_email(text, text, text, bigint, text) TO app_patient',
+    );
+    expect(overlay).not.toMatch(
+      /GRANT\s+(?:SELECT|INSERT|UPDATE|DELETE|ALL)[^;]*patient_invites[^;]*app_patient/i,
+    );
   });
 
   it('wires the strict overlay into both ordinary production migration paths', () => {

@@ -43,7 +43,7 @@ function hashPatientInviteEmailCode(code: string): string {
 }
 
 function proofAuthorization(input: {
-  action: 'start' | 'verify';
+  action: 'start' | 'verify' | 'claim';
   continuationHash: string;
   emailNormalized: string;
   codeHash: string;
@@ -91,8 +91,11 @@ export function createPatientInvitesService(deps: {
       invitedEmail: string | null;
       createdByPlatformUserId: string;
     }) {
-      const invitedEmailNormalized = input.invitedEmail ? normalizeEmail(input.invitedEmail) : '';
-      if (!invitedEmailNormalized) return lifecycleFailure('missing_recipient');
+      const normalizedRecipient = input.invitedEmail ? normalizeEmail(input.invitedEmail) : '';
+      const invitedEmailNormalized = normalizedRecipient || null;
+      const recipientBinding = invitedEmailNormalized
+        ? ('bound_email' as const)
+        : ('unbound_email_claim' as const);
       const bearer = opaqueToken();
       const result = await deps.port.createReplacingPending({
         id: randomUUID(),
@@ -100,6 +103,7 @@ export function createPatientInvitesService(deps: {
         patientUserId: input.patientUserId,
         tokenHash: hashPatientInviteBearer(bearer),
         invitedEmailNormalized,
+        recipientBinding,
         expiresAt: new Date(Date.now() + INVITE_TTL_MS).toISOString(),
         createdByPlatformUserId: input.createdByPlatformUserId,
       });
@@ -205,6 +209,22 @@ export function createPatientInvitesService(deps: {
       return deps.port.redeemEmailProof({
         continuationHash,
         authenticatedPlatformUserId,
+      });
+    },
+
+    claimUnboundEmailProof(continuation: string, emailRaw: string) {
+      const emailNormalized = normalizeEmail(emailRaw);
+      const continuationHash = hashPatientInviteContinuation(continuation);
+      return deps.port.claimUnboundEmailProof({
+        continuationHash,
+        emailNormalized,
+        ...proofAuthorization({
+          action: 'claim',
+          continuationHash,
+          emailNormalized,
+          codeHash: '',
+          proofExpiresEpoch: null,
+        }),
       });
     },
   };

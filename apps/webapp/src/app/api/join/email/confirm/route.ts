@@ -53,25 +53,59 @@ export async function POST(request: Request) {
     return response({ ok: false, error: proof.code }, status);
   }
 
-  const identity = await deps.emailOtpPublicDb.findPublicEmailUser(
-    normalizeEmail(parsed.data.email),
-  );
-  if (!identity || !isPlatformUserUuid(identity.userId)) {
-    return response({ ok: false, error: 'wrong_recipient' }, 400);
+  const inviteState = await deps.patientInvites.lookupContinuation(continuation);
+  if (!inviteState.ok) {
+    return response({ ok: false, error: inviteState.code }, 400);
   }
-  enterStaffSecuritySelfPrincipal(identity.userId, 'api/join/email/confirm:otp-verified-patient');
-  const user = await deps.userByPhone.findByUserId(identity.userId);
+  const emailNormalized = normalizeEmail(parsed.data.email);
+  let patientUserId: string;
+  let organizationId: string;
+  if (inviteState.preview.recipientBinding === 'unbound_email_claim') {
+    const claimed = await deps.patientInvites.claimUnboundEmailProof(
+      continuation,
+      emailNormalized,
+    );
+    if (!claimed.ok) {
+      const status = claimed.code === 'conflicting_identity' ? 409 : 400;
+      return response({ ok: false, error: claimed.code }, status);
+    }
+    patientUserId = claimed.patientUserId;
+    organizationId = claimed.organizationId;
+  } else {
+    const identity = await deps.emailOtpPublicDb.findPublicEmailUser(emailNormalized);
+    if (!identity || !isPlatformUserUuid(identity.userId)) {
+      return response({ ok: false, error: 'wrong_recipient' }, 400);
+    }
+    enterStaffSecuritySelfPrincipal(
+      identity.userId,
+      'api/join/email/confirm:otp-verified-patient',
+    );
+    const redeemed = await deps.patientInvites.redeemEmailProof(
+      continuation,
+      identity.userId,
+    );
+    if (!redeemed.ok) {
+      const status = redeemed.code === 'conflicting_identity' ? 409 : 400;
+      return response({ ok: false, error: redeemed.code }, status);
+    }
+    patientUserId = identity.userId;
+    organizationId = redeemed.organizationId;
+  }
+
+  if (!isPlatformUserUuid(patientUserId)) {
+    return response({ ok: false, error: 'server_error' }, 500);
+  }
+  enterStaffSecuritySelfPrincipal(
+    patientUserId,
+    'api/join/email/confirm:claimed-patient',
+  );
+  const user = await deps.userByPhone.findByUserId(patientUserId);
   if (!user || user.role !== 'client') {
     return response({ ok: false, error: 'server_error' }, 500);
   }
 
-  const result = await deps.patientInvites.redeemEmailProof(continuation, identity.userId);
-  if (!result.ok) {
-    const status = result.code === 'conflicting_identity' ? 409 : 400;
-    return response({ ok: false, error: result.code }, status);
-  }
   await setSessionFromUser(user);
-  (await cookies()).set(PATIENT_ORGANIZATION_PREFERENCE_COOKIE, result.organizationId, {
+  (await cookies()).set(PATIENT_ORGANIZATION_PREFERENCE_COOKIE, organizationId, {
     httpOnly: true,
     sameSite: 'lax',
     secure: process.env.NODE_ENV === 'production',

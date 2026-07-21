@@ -135,6 +135,42 @@ describe("POST manual patient visit", () => {
     expect(emitBookingEventMock).toHaveBeenCalledOnce();
   });
 
+  it("accepts a scheduled patient without contacts and skips an impossible contact delivery", async () => {
+    createManualPatientVisitMock.mockImplementation(async (input) => ({
+      kind: "scheduled",
+      replayed: false,
+      clinicalVisitId: null,
+      portalStatus: "not_activated",
+      patient: {
+        userId: "66666666-6666-4666-8666-666666666666",
+        displayName: `${input.lastName} ${input.firstName}`,
+        lastName: input.lastName,
+        firstName: input.firstName,
+        patronymic: input.patronymic,
+        phoneNormalized: input.phoneNormalized,
+        created: true,
+      },
+      appointment: {
+        id: "77777777-7777-4777-8777-777777777777",
+        organizationId: input.organizationId,
+        startAt: input.appointment.startAt,
+        endAt: input.appointment.endAt,
+        platformUserId: "66666666-6666-4666-8666-666666666666",
+        phoneNormalized: null,
+        serviceId: input.appointment.serviceId,
+        attributionJson: {},
+      },
+    }));
+
+    const response = await POST(request({ ...requestBody, phone: null, email: null }));
+
+    expect(response.status).toBe(200);
+    expect(createManualPatientVisitMock).toHaveBeenCalledWith(
+      expect.objectContaining({ phoneNormalized: null, emailRaw: null, emailNormalized: null }),
+    );
+    expect(emitBookingEventMock).not.toHaveBeenCalled();
+  });
+
   it("keeps a committed visit successful when optional booking enrichment fails", async () => {
     createManualPatientVisitMock.mockResolvedValue({
       kind: "scheduled",

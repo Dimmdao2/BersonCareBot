@@ -14,6 +14,7 @@ SELECT (
   AND to_regclass('public.platform_users') IS NOT NULL
   AND to_regclass('app.context_signing_secrets') IS NOT NULL
   AND to_regprocedure('app.current_patient_user_id()') IS NOT NULL
+  AND to_regprocedure('app.claim_unbound_patient_invite_email(text,text,text,bigint,text)') IS NOT NULL
   AND to_regprocedure('app_ext.hmac(text,text,text)') IS NOT NULL
   AND has_schema_privilege('app_owner', 'app_ext', 'USAGE')
   AND has_function_privilege('app_owner', 'app_ext.hmac(text,text,text)', 'EXECUTE')
@@ -60,6 +61,7 @@ ALTER FUNCTION app.start_patient_invite_email_proof(text, text, text, timestampt
 ALTER FUNCTION app.cancel_patient_invite_email_proof(text, text) OWNER TO app_owner;
 ALTER FUNCTION app.verify_patient_invite_email_proof(text, text, text, text, bigint, text) OWNER TO app_owner;
 ALTER FUNCTION app.redeem_patient_invite_email(text) OWNER TO app_owner;
+ALTER FUNCTION app.claim_unbound_patient_invite_email(text, text, text, bigint, text) OWNER TO app_owner;
 
 REVOKE ALL ON FUNCTION app.exchange_patient_invite(text, text, timestamptz) FROM PUBLIC;
 REVOKE ALL ON FUNCTION app.lookup_patient_invite_continuation(text) FROM PUBLIC;
@@ -67,6 +69,7 @@ REVOKE ALL ON FUNCTION app.start_patient_invite_email_proof(text, text, text, ti
 REVOKE ALL ON FUNCTION app.cancel_patient_invite_email_proof(text, text) FROM PUBLIC;
 REVOKE ALL ON FUNCTION app.verify_patient_invite_email_proof(text, text, text, text, bigint, text) FROM PUBLIC;
 REVOKE ALL ON FUNCTION app.redeem_patient_invite_email(text) FROM PUBLIC;
+REVOKE ALL ON FUNCTION app.claim_unbound_patient_invite_email(text, text, text, bigint, text) FROM PUBLIC;
 
 GRANT EXECUTE ON FUNCTION app.exchange_patient_invite(text, text, timestamptz) TO app_patient;
 GRANT EXECUTE ON FUNCTION app.lookup_patient_invite_continuation(text) TO app_patient;
@@ -74,5 +77,6 @@ GRANT EXECUTE ON FUNCTION app.start_patient_invite_email_proof(text, text, text,
 GRANT EXECUTE ON FUNCTION app.cancel_patient_invite_email_proof(text, text) TO app_patient;
 GRANT EXECUTE ON FUNCTION app.verify_patient_invite_email_proof(text, text, text, text, bigint, text) TO app_patient;
 GRANT EXECUTE ON FUNCTION app.redeem_patient_invite_email(text) TO app_patient;
+GRANT EXECUTE ON FUNCTION app.claim_unbound_patient_invite_email(text, text, text, bigint, text) TO app_patient;
 
 COMMIT;

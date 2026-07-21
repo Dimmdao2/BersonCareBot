@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   createInMemoryPatientInvitesPort,
   resetInMemoryPatientInvitesForTests,
+  setInMemoryPatientInviteEmailOwnerForTests,
   setInMemoryPatientInviteEnrollmentForTests,
 } from '@/infra/repos/inMemoryPatientInvites';
 import {
@@ -34,7 +35,7 @@ function buildService() {
 
 async function issueInvite(
   service: ReturnType<typeof buildService>['service'],
-  invitedEmail = 'patient@example.test',
+  invitedEmail: string | null = 'patient@example.test',
 ) {
   return service.issue({
     organizationId,
@@ -74,11 +75,48 @@ describe('patient invite activation', () => {
     expect(hashPatientInviteBearer(bearer)).not.toBe(hashPatientInviteContinuation(bearer));
   });
 
-  it('requires an explicit recipient email', async () => {
-    const { service } = buildService();
-    await expect(issueInvite(service, '')).resolves.toEqual({
-      ok: false,
-      code: 'missing_recipient',
+  it('issues a channel-agnostic invite and claims the verified email on the same patient', async () => {
+    const { service, deliveredCode } = buildService();
+    const issued = await issueInvite(service, null);
+    expect(issued.ok).toBe(true);
+    if (!issued.ok) return;
+    expect(issued.invite.recipientBinding).toBe('unbound_email_claim');
+    const exchanged = await service.exchangeBearer(bearerFrom(issued.relativeUrl));
+    expect(exchanged).toMatchObject({
+      ok: true,
+      preview: { recipientBinding: 'unbound_email_claim', recipientHint: null },
+    });
+    if (!exchanged.ok) return;
+    await expect(
+      service.startEmailProof(exchanged.continuation, 'NEW@example.test'),
+    ).resolves.toMatchObject({ ok: true });
+    await expect(
+      service.verifyEmailProof(exchanged.continuation, 'new@example.test', deliveredCode()),
+    ).resolves.toEqual({ ok: true });
+    await expect(
+      service.claimUnboundEmailProof(exchanged.continuation, 'new@example.test'),
+    ).resolves.toEqual({ ok: true, organizationId, patientUserId });
+    await expect(service.getPortalStatus(organizationId, patientUserId)).resolves.toMatchObject({
+      status: 'linked',
+    });
+  });
+
+  it('rejects an unbound claim when the verified email belongs to another identity', async () => {
+    const { service, deliveredCode } = buildService();
+    setInMemoryPatientInviteEmailOwnerForTests('owned@example.test', otherUserId);
+    const issued = await issueInvite(service, null);
+    expect(issued.ok).toBe(true);
+    if (!issued.ok) return;
+    const exchanged = await service.exchangeBearer(bearerFrom(issued.relativeUrl));
+    expect(exchanged.ok).toBe(true);
+    if (!exchanged.ok) return;
+    await service.startEmailProof(exchanged.continuation, 'owned@example.test');
+    await service.verifyEmailProof(exchanged.continuation, 'owned@example.test', deliveredCode());
+    await expect(
+      service.claimUnboundEmailProof(exchanged.continuation, 'owned@example.test'),
+    ).resolves.toEqual({ ok: false, code: 'conflicting_identity' });
+    await expect(service.getPortalStatus(organizationId, patientUserId)).resolves.toMatchObject({
+      status: 'invited',
     });
   });
 

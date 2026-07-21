@@ -24,6 +24,10 @@ export type PatientInviteStatus = (typeof PATIENT_INVITE_STATUSES)[number];
 
 export const PATIENT_INVITE_ACCEPT_METHODS = ['email_otp'] as const;
 export type PatientInviteAcceptMethod = (typeof PATIENT_INVITE_ACCEPT_METHODS)[number];
+export const PATIENT_INVITE_RECIPIENT_BINDINGS = [
+  'bound_email',
+  'unbound_email_claim',
+] as const;
 
 export const patientInvites = pgTable(
   'patient_invites',
@@ -35,7 +39,8 @@ export const patientInvites = pgTable(
     tokenHash: text('token_hash').notNull(),
     status: text().default('pending').notNull(),
     createdByPlatformUserId: uuid('created_by_platform_user_id').notNull(),
-    invitedEmailNormalized: text('invited_email_normalized').notNull(),
+    invitedEmailNormalized: text('invited_email_normalized'),
+    recipientBinding: text('recipient_binding').default('bound_email').notNull(),
     deliveryChannelHint: text('delivery_channel_hint'),
     expiresAt: timestamp('expires_at', { withTimezone: true, mode: 'string' }).notNull(),
     acceptedByPlatformUserId: uuid('accepted_by_platform_user_id'),
@@ -131,6 +136,10 @@ export const patientInvites = pgTable(
     check(
       'patient_invites_proof_attempts_check',
       sql`${table.proofAttempts} >= 0 AND ${table.proofAttempts} <= 5`,
+    ),
+    check(
+      'patient_invites_recipient_binding_check',
+      sql`(${table.recipientBinding} = 'bound_email' AND ${table.invitedEmailNormalized} IS NOT NULL) OR (${table.recipientBinding} = 'unbound_email_claim' AND ${table.invitedEmailNormalized} IS NULL)`,
     ),
   ],
 );

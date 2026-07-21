@@ -29,6 +29,10 @@ type RedeemRow = FunctionBaseRow & {
   organization_id: string | null;
 };
 
+type ClaimRow = RedeemRow & {
+  patient_user_id: string | null;
+};
+
 function exactOrganization(organizationId: string): void {
   if (getCurrentDbPrincipalOrganizationId() !== organizationId) {
     throw new Error('organization_principal_mismatch');
@@ -76,6 +80,7 @@ function mapInvite(row: typeof patientInvites.$inferSelect): PatientInviteRecord
     status: row.status as PatientInviteRecord['status'],
     expiresAt: iso(row.expiresAt),
     createdAt: iso(row.createdAt),
+    recipientBinding: row.recipientBinding as PatientInviteRecord['recipientBinding'],
   };
 }
 
@@ -85,6 +90,7 @@ function mapPreview(row: PreviewFunctionRow): PatientInvitePublicPreview | null 
     organizationTitle: row.organization_title,
     recipientHint: row.recipient_hint,
     inviteExpiresAt: iso(row.invite_expires_at),
+    recipientBinding: row.recipient_hint ? 'bound_email' : 'unbound_email_claim',
   };
 }
 
@@ -194,6 +200,7 @@ export function createPgPatientInvitesPort(): PatientInvitesPort {
             enrollmentId: enrollment.id,
             tokenHash: input.tokenHash,
             invitedEmailNormalized: input.invitedEmailNormalized,
+            recipientBinding: input.recipientBinding,
             expiresAt: input.expiresAt,
             createdByPlatformUserId: input.createdByPlatformUserId,
           })
@@ -347,6 +354,33 @@ export function createPgPatientInvitesPort(): PatientInvitesPort {
         ? {
             ok: true,
             organizationId: row.organization_id,
+          }
+        : failure(row?.code ?? 'invalid_continuation');
+    },
+
+    async claimUnboundEmailProof({
+      continuationHash,
+      emailNormalized,
+      authorizationNonce,
+      authorizationExpiresEpoch,
+      authorizationSignature,
+    }) {
+      const db = getDrizzle();
+      const result = await db.transaction((tx) =>
+        tx.execute<ClaimRow>(sql`
+          SELECT ok, code, organization_id, patient_user_id
+          FROM app.claim_unbound_patient_invite_email(
+            ${continuationHash}, ${emailNormalized}, ${authorizationNonce},
+            ${authorizationExpiresEpoch}::bigint, ${authorizationSignature}
+          )
+        `),
+      );
+      const row = result.rows[0];
+      return row?.ok && row.organization_id && row.patient_user_id
+        ? {
+            ok: true,
+            organizationId: row.organization_id,
+            patientUserId: row.patient_user_id,
           }
         : failure(row?.code ?? 'invalid_continuation');
     },

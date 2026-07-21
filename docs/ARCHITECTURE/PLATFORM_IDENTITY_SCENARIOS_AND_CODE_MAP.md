@@ -157,7 +157,7 @@ continuation дополнительно связан с узкой HttpOnly cook
 
 Email OTP приглашения хранит purpose-scoped hash/expiry/attempts непосредственно в `patient_invites` и не удаляет
 и не инвалидирует обычные `email_challenges` входа, регистрации или восстановления. После успешной проверки кода
-route lookup-only разрешает канонический `platform_user` по нормализованному email; только затем
+bound-email route lookup-only разрешает канонический `platform_user` по нормализованному email; только затем
 `app.redeem_patient_invite_email` принимает этот доказанный id и под row lock повторно проверяет invite, recipient и точную тройку
 `(organization_id, patient_user_id, enrollment_id)`. Успех атомарно подтверждает email, переводит только это
 `org_enrollments` в `active`, ставит отдельный `portal_activated_at/via` и расходует приглашение. Исторический
@@ -169,8 +169,19 @@ Start/verify DB-вызовы дополнительно требуют коро�
 прямой `app_patient` не может выбрать собственный OTP hash или обойти attempts/cooldown. Redeem не принимает target
 user id: он читает только `app.current_patient_user_id()` из уже установленного подписанного patient principal.
 
+Для пациента, которого специалист создал со структурированным ФИО без телефона и email, создаётся настоящий
+канонический `platform_users` anchor с `NULL` contact fields и exact-org enrollment; phone trust и email setup не
+выставляются. Такое приглашение получает явный discriminator `unbound_email_claim` и не маскирует заранее известный
+recipient. После invite-scoped OTP узкая функция `app.claim_unbound_patient_invite_email` атомарно назначает новый
+verified email **тому же** placeholder user и активирует то же enrollment, без generic registration,
+`claimVerifiedEmail`, FK rebind или duplicate identity. Если email уже принадлежит другому активному канону, функция
+возвращает `conflicting_identity`, не меняет patient/enrollment/invite и создаёт дедуплированный exact-org
+`patient_merge_candidates(reason='invite_redeem_identity_conflict')`. Миграция `0222` сохраняет старый
+`bound_email` путь `0220`; disposable proof проверяет обе ветки, concurrent claim/issue и registration-vs-claim race.
+
 Якоря: `modules/patient-invites/*`, `infra/repos/pgPatientInvites.ts`, `app/api/join/*`,
-`app/join/*`, `deploy/postgres/patient-invites-rls.sql`. Staff issue/revoke/status доступны только через текущий
+`app/join/*`, `app-layer/doctor/createDoctorClient.ts`, `app-layer/doctor/createScheduledManualPatientVisit.ts`,
+`deploy/postgres/patient-invites-rls.sql`. Staff issue/revoke/status доступны только через текущий
 doctor workspace principal и точную организацию. `app_patient` не имеет прямого доступа к таблице приглашений —
 только EXECUTE узких SECURITY DEFINER функций после runtime-overlay.
 

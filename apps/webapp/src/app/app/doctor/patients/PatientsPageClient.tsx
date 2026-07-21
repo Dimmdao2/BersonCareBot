@@ -444,8 +444,12 @@ function ManualWalkInPatientDialog() {
 
   async function submit() {
     setError(null);
-    if (!lastName.trim() || !firstName.trim() || !phone.trim() || !visitedAt) {
-      setError("Укажите фамилию, имя, телефон и время визита.");
+    if (!lastName.trim() || !firstName.trim() || !visitedAt) {
+      setError("Укажите фамилию, имя и время визита.");
+      return;
+    }
+    if (!phone.trim() && email.trim()) {
+      setError("Для email укажите телефон или оставьте оба контакта пустыми.");
       return;
     }
     setPending(true);
@@ -527,7 +531,7 @@ function ManualWalkInPatientDialog() {
             <Input id="manual-walk-in-patronymic" value={patronymic} onChange={(event) => setPatronymic(event.target.value)} />
           </div>
           <div className="grid gap-1.5">
-            <Label htmlFor="manual-walk-in-phone">Телефон</Label>
+            <Label htmlFor="manual-walk-in-phone">Телефон, если есть</Label>
             <Input id="manual-walk-in-phone" type="tel" value={phone} onChange={(event) => setPhone(event.target.value)} autoComplete="tel" placeholder="+7 999 000-00-00" />
           </div>
           <div className="grid gap-1.5">

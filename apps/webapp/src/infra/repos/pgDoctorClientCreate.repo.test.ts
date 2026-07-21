@@ -26,6 +26,51 @@ function selectQueue(rows: unknown[][]) {
 }
 
 describe("resolveOrCreateDoctorClientByPhoneInTransaction", () => {
+  it("creates a real canonical contactless client without phone history", async () => {
+    const values: unknown[] = [];
+    const insert = vi.fn((table: unknown) => ({
+      values: vi.fn((inputValues: unknown) => {
+        values.push(inputValues);
+        expect(table).toBe(platformUsers);
+        return {
+          returning: async () => [{
+            id: "contactless-user",
+            displayName: "Новый Пациент",
+            lastName: "Новый",
+            firstName: "Пациент",
+            patronymic: null,
+          }],
+        };
+      }),
+    }));
+    const tx = { insert };
+
+    await expect(
+      resolveOrCreateDoctorClientByPhoneInTransaction(tx as never, ORG_ID, {
+        ...input,
+        phoneNormalized: null,
+      }),
+    ).resolves.toEqual({
+      userId: "contactless-user",
+      displayName: "Новый Пациент",
+      lastName: "Новый",
+      firstName: "Пациент",
+      patronymic: null,
+      phoneNormalized: null,
+      created: true,
+    });
+    expect(values).toEqual([
+      expect.objectContaining({
+        phoneNormalized: null,
+        email: null,
+        emailNormalized: null,
+        patientPhoneTrustAt: null,
+        role: "client",
+      }),
+    ]);
+    expect(insert).toHaveBeenCalledTimes(1);
+  });
+
   it("reuses an existing canonical client without a second writer", async () => {
     const insert = vi.fn();
     const tx = {

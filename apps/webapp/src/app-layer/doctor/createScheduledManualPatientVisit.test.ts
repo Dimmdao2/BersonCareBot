@@ -84,6 +84,37 @@ describe("createScheduledManualPatientVisit", () => {
     expect(fireAndForgetContactEmailSetupMock).toHaveBeenCalledOnce();
   });
 
+  it("creates a scheduled contactless patient without phone trust or email setup", async () => {
+    createManualPatientVisit.mockResolvedValue({
+      kind: "scheduled",
+      replayed: false,
+      clinicalVisitId: null,
+      portalStatus: "not_activated",
+      patient: {
+        userId: "44444444-4444-4444-8444-444444444444",
+        displayName: "Новый Пациент",
+        lastName: "Новый",
+        firstName: "Пациент",
+        patronymic: null,
+        phoneNormalized: null,
+        created: true,
+      },
+      appointment: { id: "55555555-5555-4555-8555-555555555555" },
+    });
+
+    await expect(
+      createScheduledManualPatientVisit(
+        { ...baseInput, phone: null, email: null },
+        { bookingEngine: { createManualPatientVisit }, emailSetupAccess },
+      ),
+    ).resolves.toMatchObject({ ok: true, portalStatus: "not_activated" });
+    expect(createManualPatientVisit).toHaveBeenCalledWith(
+      expect.objectContaining({ phoneNormalized: null, emailRaw: null, emailNormalized: null }),
+    );
+    expect(trustedPatientPhoneWriteAnchorMock).not.toHaveBeenCalled();
+    expect(fireAndForgetContactEmailSetupMock).not.toHaveBeenCalled();
+  });
+
   it("rejects malformed identity input before opening the atomic command", async () => {
     await expect(
       createScheduledManualPatientVisit(

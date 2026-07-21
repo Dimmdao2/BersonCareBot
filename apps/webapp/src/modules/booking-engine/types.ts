@@ -146,7 +146,7 @@ type CreateManualPatientIdentityInput = {
   lastName: string;
   firstName: string;
   patronymic: string | null;
-  phoneNormalized: string;
+  phoneNormalized: string | null;
   emailRaw: string | null;
   emailNormalized: string | null;
 };
@@ -180,7 +180,7 @@ type CreateManualPatientResult = {
     lastName: string | null;
     firstName: string | null;
     patronymic: string | null;
-    phoneNormalized: string;
+    phoneNormalized: string | null;
     created: boolean;
   };
 };

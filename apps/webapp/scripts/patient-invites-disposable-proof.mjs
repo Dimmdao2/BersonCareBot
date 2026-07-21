@@ -15,7 +15,11 @@ const root = `/tmp/${dbName}_pg`;
 const data = path.join(root, "data");
 const socket = path.join(root, "socket");
 const port = String(56000 + Number.parseInt(randomBytes(2).toString("hex"), 16) % 7000);
-const migration = path.join(repoRoot, "apps/webapp/db/drizzle-migrations/0220_patient_portal_invites.sql");
+const migrations = [
+  "0220_patient_portal_invites.sql",
+  "0221_lfk_personal_exercises.sql",
+  "0222_patient_invite_unbound_email_claim.sql",
+].map((name) => path.join(repoRoot, "apps/webapp/db/drizzle-migrations", name));
 const overlay = path.join(repoRoot, "deploy/postgres/patient-invites-rls.sql");
 const { Client } = createRequire(path.join(repoRoot, "apps/webapp/package.json"))("pg");
 
@@ -23,12 +27,25 @@ const orgA = "10000000-0000-4000-8000-000000000001";
 const orgB = "10000000-0000-4000-8000-000000000002";
 const patientA = "20000000-0000-4000-8000-000000000001";
 const patientB = "20000000-0000-4000-8000-000000000002";
+const patientC = "20000000-0000-4000-8000-000000000003";
+const patientD = "20000000-0000-4000-8000-000000000004";
+const patientE = "20000000-0000-4000-8000-000000000005";
+const patientF = "20000000-0000-4000-8000-000000000006";
+const foreignEmailOwner = "20000000-0000-4000-8000-000000000099";
 const staff = "30000000-0000-4000-8000-000000000001";
 const enrollmentA = "40000000-0000-4000-8000-000000000001";
 const enrollmentB = "40000000-0000-4000-8000-000000000002";
+const enrollmentC = "40000000-0000-4000-8000-000000000003";
+const enrollmentD = "40000000-0000-4000-8000-000000000004";
+const enrollmentE = "40000000-0000-4000-8000-000000000005";
+const enrollmentF = "40000000-0000-4000-8000-000000000006";
 const oldInvite = "50000000-0000-4000-8000-000000000001";
 const newInvite = "50000000-0000-4000-8000-000000000002";
 const foreignInvite = "50000000-0000-4000-8000-000000000003";
+const unboundInvite = "50000000-0000-4000-8000-000000000004";
+const conflictInvite = "50000000-0000-4000-8000-000000000005";
+const raceInvite = "50000000-0000-4000-8000-000000000006";
+const raceRegistrant = "20000000-0000-4000-8000-000000000098";
 const proofSecret = randomBytes(32).toString("hex");
 
 let started = false;
@@ -56,7 +73,7 @@ async function main() {
     run(path.join(pgBin, "createdb"), ["-h", socket, "-p", port, dbName]);
 
     psql(setupSql());
-    psqlFile(migration);
+    for (const migration of migrations) psqlFile(migration);
     psqlFile(overlay);
     psql(seedAndReissueSql());
 
@@ -66,13 +83,17 @@ async function main() {
       await proveForwardState(admin);
       await proveBearerAndProof(admin);
       await proveConcurrentRedeem();
+      await proveUnboundClaim(admin);
+      await proveRepeatedConflict(admin);
+      await proveRegistrationRace();
+      await proveConcurrentIssue();
       await proveStaffCrossOrg(admin);
       await proveAclAndForce(admin);
       await proveRollback(admin);
     } finally {
       await admin.end();
     }
-    process.stdout.write("patient-invite-disposable-proof: PASS (forward, rollback, reissue, single-use, cross-org, concurrent redeem, ACL/FORCE)\n");
+    process.stdout.write("patient-invite-disposable-proof: PASS (0220→0221→0222, rollback guard, reissue, single-use, cross-org, concurrent redeem/claim/issue/registration)\n");
   } finally {
     cleanup();
   }
@@ -167,8 +188,12 @@ CREATE TABLE public.be_organizations (
 );
 CREATE TABLE public.platform_users (
   id uuid PRIMARY KEY, role text NOT NULL, merged_into_id uuid,
-  email_normalized text, email_verified_at timestamptz, updated_at timestamptz NOT NULL DEFAULT now()
+  email text, email_normalized text, email_verified_at timestamptz,
+  updated_at timestamptz NOT NULL DEFAULT now()
 );
+CREATE UNIQUE INDEX uq_platform_users_email_normalized_active
+  ON public.platform_users(email_normalized)
+  WHERE merged_into_id IS NULL AND email_normalized IS NOT NULL;
 CREATE TABLE public.org_enrollments (
   id uuid PRIMARY KEY, organization_id uuid NOT NULL REFERENCES public.be_organizations(id),
   platform_user_id uuid NOT NULL REFERENCES public.platform_users(id), status text NOT NULL
@@ -180,6 +205,14 @@ CREATE TABLE public.patient_merge_candidates (
 );
 CREATE UNIQUE INDEX patient_merge_candidates_pending_key
   ON public.patient_merge_candidates(anchor_user_id, candidate_user_id) WHERE status = 'pending';
+CREATE TABLE public.lfk_exercises (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(), owner_kind text NOT NULL DEFAULT 'organization',
+  organization_id uuid, is_archived boolean NOT NULL DEFAULT false,
+  updated_at timestamptz NOT NULL DEFAULT now()
+);
+CREATE TABLE public.patient_care_refs (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(), patient_user_id uuid NOT NULL REFERENCES public.platform_users(id)
+);
 `;
 }
 
@@ -190,10 +223,20 @@ INSERT INTO public.be_organizations(id,title,is_active) VALUES
 INSERT INTO public.platform_users(id,role,email_normalized) VALUES
   ('${patientA}','client','patient-a@example.test'),
   ('${patientB}','client','patient-b@example.test'),
+  ('${patientC}','client',NULL),
+  ('${patientD}','client',NULL),
+  ('${patientE}','client',NULL),
+  ('${patientF}','client',NULL),
+  ('${foreignEmailOwner}','client','owned@example.test'),
   ('${staff}','doctor','staff@example.test');
 INSERT INTO public.org_enrollments(id,organization_id,platform_user_id,status) VALUES
   ('${enrollmentA}','${orgA}','${patientA}','active'),
-  ('${enrollmentB}','${orgB}','${patientB}','invited');
+  ('${enrollmentB}','${orgB}','${patientB}','invited'),
+  ('${enrollmentC}','${orgA}','${patientC}','invited'),
+  ('${enrollmentD}','${orgA}','${patientD}','invited'),
+  ('${enrollmentE}','${orgA}','${patientE}','invited'),
+  ('${enrollmentF}','${orgA}','${patientF}','invited');
+INSERT INTO public.patient_care_refs(patient_user_id) VALUES ('${patientC}'),('${patientD}'),('${patientE}');
 INSERT INTO public.patient_invites(
   id, organization_id, patient_user_id, enrollment_id, token_hash, created_by_platform_user_id,
   invited_email_normalized, expires_at
@@ -217,6 +260,13 @@ INSERT INTO public.patient_invites(
   '${foreignInvite}','${orgB}','${patientB}','${enrollmentB}','foreign-token','${staff}',
   'patient-b@example.test',now()+interval '1 day'
 );
+INSERT INTO public.patient_invites(
+  id, organization_id, patient_user_id, enrollment_id, token_hash, created_by_platform_user_id,
+  invited_email_normalized, recipient_binding, expires_at
+) VALUES
+  ('${unboundInvite}','${orgA}','${patientC}','${enrollmentC}','unbound-token','${staff}',NULL,'unbound_email_claim',now()+interval '1 day'),
+  ('${conflictInvite}','${orgA}','${patientD}','${enrollmentD}','conflict-token','${staff}',NULL,'unbound_email_claim',now()+interval '1 day'),
+  ('${raceInvite}','${orgA}','${patientE}','${enrollmentE}','race-token','${staff}',NULL,'unbound_email_claim',now()+interval '1 day');
 `;
 }
 
@@ -282,6 +332,228 @@ async function proveConcurrentRedeem() {
   }
 }
 
+async function prepareUnboundInvite(db, tokenHash, continuationHash, email, codeHash) {
+  const exchanged = await db.query(
+    "SELECT * FROM app.exchange_patient_invite($1,$2,now()+interval '10 min')",
+    [tokenHash, continuationHash],
+  );
+  assert(exchanged.rows[0]?.ok === true, `unbound bearer exchange failed for ${continuationHash}`);
+  assert(exchanged.rows[0]?.recipient_hint == null, "unbound exchange leaked a recipient hint");
+
+  const proofExpiresEpoch = Math.floor(Date.now() / 1000) + 600;
+  const proofExpiresAt = new Date(proofExpiresEpoch * 1000).toISOString();
+  const startAuth = proofAuthorization("start", continuationHash, email, codeHash, proofExpiresEpoch);
+  const started = await db.query(
+    "SELECT * FROM app.start_patient_invite_email_proof($1,$2,$3,$4,$5,$6,$7)",
+    [continuationHash, email, codeHash, proofExpiresAt, startAuth.nonce, startAuth.expiresEpoch, startAuth.signature],
+  );
+  assert(started.rows[0]?.ok === true, `unbound proof start failed for ${continuationHash}`);
+  const verifyAuth = proofAuthorization("verify", continuationHash, email, codeHash, null);
+  const verified = await db.query(
+    "SELECT * FROM app.verify_patient_invite_email_proof($1,$2,$3,$4,$5,$6)",
+    [continuationHash, email, codeHash, verifyAuth.nonce, verifyAuth.expiresEpoch, verifyAuth.signature],
+  );
+  assert(verified.rows[0]?.ok === true, `unbound proof verify failed for ${continuationHash}`);
+}
+
+async function claimUnbound(db, continuationHash, email) {
+  const authorization = proofAuthorization("claim", continuationHash, email, "", null);
+  return db.query(
+    "SELECT * FROM app.claim_unbound_patient_invite_email($1,$2,$3,$4,$5)",
+    [continuationHash, email, authorization.nonce, authorization.expiresEpoch, authorization.signature],
+  );
+}
+
+async function proveUnboundClaim(db) {
+  await prepareUnboundInvite(db, "unbound-token", "continuation-unbound", "new@example.test", "unbound-code");
+  const first = client();
+  const second = client();
+  await Promise.all([first.connect(), second.connect()]);
+  try {
+    await Promise.all([first.query("SET ROLE app_patient"), second.query("SET ROLE app_patient")]);
+    const [a, b] = await Promise.all([
+      claimUnbound(first, "continuation-unbound", "new@example.test"),
+      claimUnbound(second, "continuation-unbound", "new@example.test"),
+    ]);
+    const rows = [a.rows[0], b.rows[0]];
+    assert(rows.filter((row) => row?.ok === true && row?.patient_user_id === patientC).length === 1,
+      "concurrent unbound claim did not keep the original placeholder as the one winner");
+    assert(rows.filter((row) => row?.ok === false && row?.code === "already_linked").length === 1,
+      "concurrent unbound claim loser was not terminal");
+  } finally {
+    await Promise.all([first.end(), second.end()]);
+  }
+  const state = await db.query(`
+    SELECT patient.email_normalized, patient.email_verified_at,
+      enrollment.platform_user_id, enrollment.status, enrollment.portal_activated_at,
+      invite.patient_user_id AS invite_patient_user_id, invite.status AS invite_status,
+      (SELECT count(*)::int FROM public.patient_care_refs ref WHERE ref.patient_user_id=$1) AS care_ref_count
+    FROM public.platform_users patient
+    JOIN public.org_enrollments enrollment ON enrollment.id=$2
+    JOIN public.patient_invites invite ON invite.id=$3
+    WHERE patient.id=$1
+  `, [patientC, enrollmentC, unboundInvite]);
+  const row = state.rows[0];
+  assert(row?.email_normalized === "new@example.test" && row?.email_verified_at != null,
+    "unbound claim did not attach the verified email to the placeholder");
+  assert(row?.platform_user_id === patientC && row?.invite_patient_user_id === patientC && row?.care_ref_count === 1,
+    "unbound claim rebound an existing patient FK");
+  assert(row?.status === "active" && row?.portal_activated_at != null && row?.invite_status === "accepted",
+    "unbound claim left a partial activation");
+}
+
+async function proveRepeatedConflict(db) {
+  await prepareUnboundInvite(db, "conflict-token", "continuation-conflict", "owned@example.test", "conflict-code");
+  const first = await claimUnbound(db, "continuation-conflict", "owned@example.test");
+  const second = await claimUnbound(db, "continuation-conflict", "owned@example.test");
+  assert(first.rows[0]?.ok === false && first.rows[0]?.code === "conflicting_identity",
+    "occupied email was not rejected");
+  assert(second.rows[0]?.ok === false && second.rows[0]?.code === "conflicting_identity",
+    "repeated occupied email was not deterministically rejected");
+  const state = await db.query(`
+    SELECT patient.email_normalized, enrollment.status, enrollment.portal_activated_at,
+      invite.status AS invite_status,
+      (SELECT count(*)::int FROM public.patient_merge_candidates candidate
+        WHERE candidate.organization_id=$4 AND candidate.anchor_user_id=$1
+          AND candidate.candidate_user_id=$5 AND candidate.reason='invite_redeem_identity_conflict'
+          AND candidate.status='pending') AS candidate_count
+    FROM public.platform_users patient
+    JOIN public.org_enrollments enrollment ON enrollment.id=$2
+    JOIN public.patient_invites invite ON invite.id=$3
+    WHERE patient.id=$1
+  `, [patientD, enrollmentD, conflictInvite, orgA, foreignEmailOwner]);
+  const row = state.rows[0];
+  assert(row?.email_normalized == null && row?.status === "invited" && row?.portal_activated_at == null,
+    "conflict partially mutated the placeholder or enrollment");
+  assert(row?.invite_status === "pending" && row?.candidate_count === 1,
+    "conflict was not exact-org deduplicated");
+}
+
+async function proveRegistrationRace() {
+  const admin = client();
+  await admin.connect();
+  try {
+    await prepareUnboundInvite(admin, "race-token", "continuation-race", "race@example.test", "race-code");
+  } finally {
+    await admin.end();
+  }
+  const registration = client();
+  const claimant = client();
+  await Promise.all([registration.connect(), claimant.connect()]);
+  try {
+    await claimant.query("SET ROLE app_patient");
+    const [registrationResult, claimResult] = await Promise.allSettled([
+      registration.query(
+        "INSERT INTO public.platform_users(id,role,email,email_normalized) VALUES($1,'client',$2,$2) RETURNING id",
+        [raceRegistrant, "race@example.test"],
+      ),
+      claimUnbound(claimant, "continuation-race", "race@example.test"),
+    ]);
+    const claimRow = claimResult.status === "fulfilled" ? claimResult.value.rows[0] : null;
+    const registrationWon = registrationResult.status === "fulfilled";
+    assert(
+      (registrationWon && claimRow?.ok === false && claimRow?.code === "conflicting_identity")
+      || (!registrationWon && claimRow?.ok === true && claimRow?.patient_user_id === patientE),
+      "registration-vs-claim race did not resolve to one canonical owner",
+    );
+  } finally {
+    await Promise.all([registration.end(), claimant.end()]);
+  }
+  const check = client();
+  await check.connect();
+  try {
+    const owners = await check.query(
+      "SELECT id FROM public.platform_users WHERE email_normalized=$1 AND merged_into_id IS NULL",
+      ["race@example.test"],
+    );
+    assert(owners.rowCount === 1, "registration race produced duplicate active email owners");
+    const placeholderWon = owners.rows[0]?.id === patientE;
+    const state = await check.query(`
+      SELECT patient.email_normalized, enrollment.status, enrollment.portal_activated_at,
+        invite.status AS invite_status,
+        (SELECT count(*)::int FROM public.patient_merge_candidates candidate
+          WHERE candidate.organization_id=$4 AND candidate.anchor_user_id=$1
+            AND candidate.reason='invite_redeem_identity_conflict' AND candidate.status='pending') AS candidate_count
+      FROM public.platform_users patient
+      JOIN public.org_enrollments enrollment ON enrollment.id=$2
+      JOIN public.patient_invites invite ON invite.id=$3
+      WHERE patient.id=$1
+    `, [patientE, enrollmentE, raceInvite, orgA]);
+    const row = state.rows[0];
+    if (placeholderWon) {
+      assert(row?.email_normalized === "race@example.test" && row?.status === "active"
+        && row?.portal_activated_at != null && row?.invite_status === "accepted",
+      "claim winner did not atomically activate the original placeholder");
+    } else {
+      assert(row?.email_normalized == null && row?.status === "invited"
+        && row?.portal_activated_at == null && row?.invite_status === "pending" && row?.candidate_count === 1,
+      "registration winner left partial claim state or no merge candidate");
+    }
+  } finally {
+    await check.end();
+  }
+}
+
+async function issueUnboundInvite(db, id, tokenHash) {
+  await db.query("BEGIN");
+  try {
+    const enrollment = await db.query(
+      "SELECT id FROM public.org_enrollments WHERE organization_id=$1 AND platform_user_id=$2 FOR UPDATE",
+      [orgA, patientF],
+    );
+    const previous = await db.query(
+      "SELECT id FROM public.patient_invites WHERE organization_id=$1 AND patient_user_id=$2 AND status='pending' LIMIT 1",
+      [orgA, patientF],
+    );
+    await db.query(
+      "UPDATE public.patient_invites SET status='superseded',superseded_by_invite_id=NULL WHERE organization_id=$1 AND patient_user_id=$2 AND status='pending'",
+      [orgA, patientF],
+    );
+    await db.query(`
+      INSERT INTO public.patient_invites(
+        id,organization_id,patient_user_id,enrollment_id,token_hash,created_by_platform_user_id,
+        invited_email_normalized,recipient_binding,expires_at
+      ) VALUES($1,$2,$3,$4,$5,$6,NULL,'unbound_email_claim',now()+interval '1 day')
+    `, [id, orgA, patientF, enrollment.rows[0].id, tokenHash, staff]);
+    if (previous.rows[0]?.id) {
+      await db.query("UPDATE public.patient_invites SET superseded_by_invite_id=$1 WHERE id=$2", [id, previous.rows[0].id]);
+    }
+    await db.query("COMMIT");
+  } catch (error) {
+    await db.query("ROLLBACK");
+    throw error;
+  }
+}
+
+async function proveConcurrentIssue() {
+  const first = client();
+  const second = client();
+  await Promise.all([first.connect(), second.connect()]);
+  const firstId = "50000000-0000-4000-8000-000000000007";
+  const secondId = "50000000-0000-4000-8000-000000000008";
+  try {
+    await Promise.all([
+      issueUnboundInvite(first, firstId, "issue-token-a"),
+      issueUnboundInvite(second, secondId, "issue-token-b"),
+    ]);
+  } finally {
+    await Promise.all([first.end(), second.end()]);
+  }
+  const db = client();
+  await db.connect();
+  try {
+    const state = await db.query(`
+      SELECT count(*) FILTER (WHERE status='pending')::int AS pending_count,
+        count(*) FILTER (WHERE status='superseded')::int AS superseded_count
+      FROM public.patient_invites WHERE organization_id=$1 AND patient_user_id=$2
+    `, [orgA, patientF]);
+    assert(state.rows[0]?.pending_count === 1 && state.rows[0]?.superseded_count === 1,
+      "concurrent issue did not leave exactly one pending replacement");
+  } finally {
+    await db.end();
+  }
+}
+
 async function proveStaffCrossOrg(db) {
   await db.query("BEGIN");
   try {
@@ -299,19 +571,49 @@ async function proveAclAndForce(db) {
     SELECT c.relrowsecurity, c.relforcerowsecurity,
       has_table_privilege('app_patient','public.patient_invites','SELECT') AS patient_select,
       has_function_privilege('app_patient','app.redeem_patient_invite_email(text)','EXECUTE') AS patient_redeem,
-      pg_get_userbyid(p.proowner) AS function_owner
+      has_function_privilege('app_patient','app.claim_unbound_patient_invite_email(text,text,text,bigint,text)','EXECUTE') AS patient_claim,
+      pg_get_userbyid(p.proowner) AS function_owner,
+      (SELECT pg_get_userbyid(claim.proowner)
+        FROM pg_proc claim
+        WHERE claim.oid='app.claim_unbound_patient_invite_email(text,text,text,bigint,text)'::regprocedure
+      ) AS claim_owner
     FROM pg_class c
     JOIN pg_proc p ON p.oid='app.redeem_patient_invite_email(text)'::regprocedure
     WHERE c.oid='public.patient_invites'::regclass
   `);
   const row = result.rows[0];
   assert(row?.relrowsecurity && row?.relforcerowsecurity, "RLS/FORCE is not active");
-  assert(row?.patient_select === false && row?.patient_redeem === true, "patient ACL boundary is wrong");
-  assert(row?.function_owner === "app_owner", "redeem function owner is not app_owner");
+  assert(row?.patient_select === false && row?.patient_redeem === true && row?.patient_claim === true,
+    "patient ACL boundary is wrong");
+  assert(row?.function_owner === "app_owner" && row?.claim_owner === "app_owner",
+    "patient invite function owner is not app_owner");
 }
 
 async function proveRollback(db) {
+  let guardFailed = false;
+  await db.query("BEGIN");
+  try {
+    await db.query("ALTER TABLE public.patient_invites ALTER COLUMN invited_email_normalized SET NOT NULL");
+  } catch (error) {
+    guardFailed = error && typeof error === "object" && "code" in error && error.code === "23502";
+  } finally {
+    await db.query("ROLLBACK");
+  }
+  assert(guardFailed, "rollback guard allowed unbound invite emails to become NOT NULL");
+  const durable = await db.query(`
+    SELECT patient.email_normalized, enrollment.status, enrollment.portal_activated_at, invite.status
+    FROM public.platform_users patient
+    JOIN public.org_enrollments enrollment ON enrollment.id=$2
+    JOIN public.patient_invites invite ON invite.id=$3
+    WHERE patient.id=$1
+  `, [patientC, enrollmentC, unboundInvite]);
+  assert(durable.rows[0]?.email_normalized === "new@example.test"
+    && durable.rows[0]?.status === "accepted"
+    && durable.rows[0]?.portal_activated_at != null,
+  "rollback guard did not preserve the accepted claim state");
+
   await db.query(`
+    DROP FUNCTION app.claim_unbound_patient_invite_email(text,text,text,bigint,text);
     DROP FUNCTION app.exchange_patient_invite(text,text,timestamptz);
     DROP FUNCTION app.lookup_patient_invite_continuation(text);
     DROP FUNCTION app.start_patient_invite_email_proof(text,text,text,timestamptz,text,bigint,text);
@@ -321,6 +623,9 @@ async function proveRollback(db) {
     DROP TABLE public.patient_invites;
     ALTER TABLE public.org_enrollments DROP CONSTRAINT org_enrollments_portal_activation_check;
     ALTER TABLE public.org_enrollments DROP COLUMN portal_activated_via, DROP COLUMN portal_activated_at;
+    DROP INDEX public.idx_lfk_exercises_catalog_scope_owner;
+    ALTER TABLE public.lfk_exercises DROP CONSTRAINT lfk_exercises_catalog_scope_check;
+    ALTER TABLE public.lfk_exercises DROP COLUMN catalog_scope;
   `);
   const result = await db.query(`
     SELECT to_regclass('public.patient_invites') IS NULL AS table_gone,

@@ -115,6 +115,8 @@ function runChecks(overrides = {}) {
     "ALTER FUNCTION app.verify_patient_invite_email_proof(text, text, text, text, bigint, text) OWNER TO app_owner",
     "ALTER FUNCTION app.redeem_patient_invite_email(text) OWNER TO app_owner",
     "GRANT EXECUTE ON FUNCTION app.redeem_patient_invite_email(text) TO app_patient",
+    "ALTER FUNCTION app.claim_unbound_patient_invite_email(text, text, text, bigint, text) OWNER TO app_owner",
+    "GRANT EXECUTE ON FUNCTION app.claim_unbound_patient_invite_email(text, text, text, bigint, text) TO app_patient",
   ]);
   if (loaded.invites.includes("NULLIF(current_setting('app.org', true), '') IS NULL")) {
     fail(`${files.invites} still contains the fail-open NULL-context policy branch`);

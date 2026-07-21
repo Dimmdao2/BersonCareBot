@@ -13,7 +13,7 @@ export type CreateDoctorClientInput = {
   lastName: string;
   firstName: string;
   patronymic?: string | null;
-  phone: string;
+  phone?: string | null;
   email?: string | null;
   createdByUserId: string;
   organizationId: string;
@@ -27,7 +27,7 @@ export type CreateDoctorClientResult =
       lastName: string | null;
       firstName: string | null;
       patronymic: string | null;
-      phoneNormalized: string;
+      phoneNormalized: string | null;
       created: boolean;
       emailSetupEnqueued: boolean;
     }
@@ -40,9 +40,6 @@ export async function createDoctorClient(
     emailSetupAccess: Pick<EmailSetupAccessService, "requestContactEmailSetup">;
   },
 ): Promise<CreateDoctorClientResult> {
-  const phoneNormalized = normalizeRuPhoneE164(input.phone);
-  if (!/^\+7\d{10}$/.test(phoneNormalized)) return { ok: false, error: "invalid_phone" };
-
   const emailRaw = input.email?.trim() || null;
   const emailNormalized = emailRaw ? normalizeEmail(emailRaw) : null;
   if (
@@ -51,6 +48,15 @@ export async function createDoctorClient(
   ) {
     return { ok: false, error: "invalid_email" };
   }
+
+  const phoneRaw = input.phone?.trim() ?? "";
+  const phoneNormalized = phoneRaw ? normalizeRuPhoneE164(phoneRaw) : null;
+  if (phoneRaw && (!phoneNormalized || !/^\+7\d{10}$/.test(phoneNormalized))) {
+    return { ok: false, error: "invalid_phone" };
+  }
+  // Email-only identity creation has different dedup/proof semantics and is not part of #806.
+  // The sanctioned contactless path carries neither contact until invite OTP claim.
+  if (!phoneNormalized && emailNormalized) return { ok: false, error: "invalid_phone" };
 
   const lastName = normalizeFioPart(input.lastName);
   const firstName = normalizeFioPart(input.firstName);
@@ -72,7 +78,7 @@ export async function createDoctorClient(
     return { ok: false, error: "create_failed" };
   }
 
-  if (registered.created) {
+  if (registered.created && registered.phoneNormalized) {
     trustedPatientPhoneWriteAnchor(TrustedPatientPhoneSource.DoctorStaffClientCreate);
   }
   if (emailNormalized) {

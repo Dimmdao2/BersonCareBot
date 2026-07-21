@@ -1,5 +1,5 @@
 /**
- * POST /api/doctor/clients — создать organization-owned клиента (телефон обязателен; email → ссылка на вход).
+ * POST /api/doctor/clients — создать organization-owned клиента; #806 permits an explicit no-contact card.
  */
 import { NextResponse } from "next/server";
 import { z } from "zod";
@@ -12,7 +12,7 @@ const bodySchema = z.object({
   lastName: z.string().min(1).max(200),
   firstName: z.string().min(1).max(200),
   patronymic: z.string().max(200).nullable().optional(),
-  phone: z.string().min(1).max(100),
+  phone: z.string().max(100).nullable().optional(),
   email: z.string().max(320).nullable().optional(),
 });
 

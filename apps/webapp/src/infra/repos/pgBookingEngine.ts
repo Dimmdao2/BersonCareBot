@@ -347,7 +347,7 @@ async function loadManualPatientForReplay(
     .where(and(eq(platformUsers.id, userId), isNull(platformUsers.mergedIntoId)))
     .limit(1);
   const [relationship] = await tx
-    .select({ status: orgEnrollments.status })
+    .select({ portalActivatedAt: orgEnrollments.portalActivatedAt })
     .from(orgEnrollments)
     .where(
       and(
@@ -356,10 +356,10 @@ async function loadManualPatientForReplay(
       ),
     )
     .limit(1);
-  if (!patient?.phoneNormalized || !relationship) throw new Error("idempotency_replay_missing");
+  if (!patient || !relationship) throw new Error("idempotency_replay_missing");
   return {
-    patient: { ...patient, phoneNormalized: patient.phoneNormalized, created: false },
-    portalStatus: relationship.status === "active" ? "linked" : "not_activated",
+    patient: { ...patient, created: false },
+    portalStatus: relationship.portalActivatedAt ? "linked" : "not_activated",
   };
 }
 
@@ -1287,6 +1287,44 @@ export function createPgBookingEnginePort(): BookingEngineCorePort {
           input.organizationId,
           input.walkIn.specialistId,
         );
+        if (input.phoneNormalized === null) {
+          const [existingContactlessVisit] = await tx
+            .select({
+              id: clinicalVisit.id,
+              patientUserId: clinicalVisit.patientUserId,
+              visitedAt: clinicalVisit.visitedAt,
+              createdBy: clinicalVisit.createdBy,
+            })
+            .from(clinicalVisit)
+            .where(
+              and(
+                eq(clinicalVisit.id, input.commandId),
+                eq(clinicalVisit.organizationId, input.organizationId),
+              ),
+            )
+            .limit(1);
+          if (existingContactlessVisit) {
+            if (
+              new Date(existingContactlessVisit.visitedAt).getTime() !==
+                new Date(input.walkIn.visitedAt).getTime() ||
+              existingContactlessVisit.createdBy !== input.walkIn.actorId
+            ) {
+              throw new Error("idempotency_conflict");
+            }
+            const replay = await loadManualPatientForReplay(
+              tx,
+              input.organizationId,
+              existingContactlessVisit.patientUserId,
+            );
+            return {
+              kind: "walk_in" as const,
+              replayed: true,
+              appointment: null,
+              clinicalVisitId: existingContactlessVisit.id,
+              ...replay,
+            };
+          }
+        }
         const patient = await resolveOrCreateDoctorClientByPhoneInTransaction(
           tx,
           input.organizationId,

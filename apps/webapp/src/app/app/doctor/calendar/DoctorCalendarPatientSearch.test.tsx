@@ -49,6 +49,36 @@ describe("DoctorCalendarPatientSearch new-patient draft", () => {
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
+  it("keeps a contactless structured identity for the atomic calendar command", () => {
+    const onChange = vi.fn();
+    const fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
+    render(
+      <DoctorCalendarPatientSearch value={null} onChange={onChange} deferNewPatientCreation />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Новый пациент" }));
+    fireEvent.change(screen.getByLabelText("Фамилия пациента"), {
+      target: { value: "Иванов" },
+    });
+    fireEvent.change(screen.getByLabelText("Имя пациента"), {
+      target: { value: "Иван" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Выбрать нового" }));
+
+    expect(onChange).toHaveBeenCalledWith(
+      expect.objectContaining({
+        id: null,
+        lastName: "Иванов",
+        firstName: "Иван",
+        phone: null,
+        email: null,
+        isNew: true,
+      }),
+    );
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
   it("preserves immediate standalone client creation for non-calendar consumers", async () => {
     const onChange = vi.fn();
     const fetchMock = vi.fn().mockResolvedValue({

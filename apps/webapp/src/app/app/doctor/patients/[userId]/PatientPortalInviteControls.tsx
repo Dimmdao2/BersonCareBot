@@ -51,11 +51,7 @@ export function PatientPortalInviteControls({
         typeof json.expiresAt !== "string" ||
         typeof json.relativeUrl !== "string"
       ) {
-        setNotice(
-          json?.error === "missing_recipient"
-            ? "Сначала укажите email пациента в карточке."
-            : "Не удалось создать приглашение.",
-        );
+        setNotice("Не удалось создать приглашение.");
         return;
       }
       const absoluteUrl = `${window.location.origin}${json.relativeUrl}`;

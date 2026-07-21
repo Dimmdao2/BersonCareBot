@@ -94,7 +94,10 @@ type VisitRow = {
   createdBy: string;
 };
 
-function createHarness(commandIds: string[], options?: { missingBranch?: boolean }) {
+function createHarness(
+  commandIds: string[],
+  options?: { missingBranch?: boolean; contactlessPatient?: boolean },
+) {
   const appointments = new Map<string, Record<string, unknown>>();
   const visits = new Map<string, VisitRow>();
   const insertOrder: string[] = [];
@@ -110,7 +113,7 @@ function createHarness(commandIds: string[], options?: { missingBranch?: boolean
     lastName: "Новый",
     firstName: "Пациент",
     patronymic: null,
-    phoneNormalized: "+79990000000",
+    phoneNormalized: options?.contactlessPatient ? null : "+79990000000",
   });
 
   const rowsFor = (table: unknown, selection: unknown): unknown[] => {
@@ -398,6 +401,20 @@ describe("pgBookingEngine.createManualPatientVisit", () => {
     expect(replay.replayed).toBe(true);
     expect(harness.visits.size).toBe(1);
     expect(harness.insertOrder).toEqual(["visit:first"]);
+  });
+
+  it("replays a contactless walk-in before creating a second placeholder identity", async () => {
+    const harness = createHarness([COMMAND_ID, COMMAND_ID], { contactlessPatient: true });
+    const port = createPgBookingEnginePort();
+    const input = { ...walkInInput(), phoneNormalized: null };
+
+    const first = await port.createManualPatientVisit(input);
+    const replay = await port.createManualPatientVisit(input);
+
+    expect(first).toMatchObject({ replayed: false, patient: { phoneNormalized: null } });
+    expect(replay).toMatchObject({ replayed: true, patient: { phoneNormalized: null } });
+    expect(resolveIdentityMock).toHaveBeenCalledTimes(1);
+    expect(harness.visits.size).toBe(1);
   });
 
   it("converges concurrent retries under the command-lock unit harness", async () => {

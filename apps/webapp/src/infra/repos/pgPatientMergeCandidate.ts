@@ -31,6 +31,7 @@ export function createPgPatientMergeCandidatePort(): PatientMergeCandidatePort {
         .from(patientMergeCandidates)
         .where(
           and(
+            eq(patientMergeCandidates.organizationId, input.organizationId),
             eq(patientMergeCandidates.anchorUserId, input.anchorUserId),
             eq(patientMergeCandidates.candidateUserId, input.candidateUserId),
             eq(patientMergeCandidates.status, "pending"),

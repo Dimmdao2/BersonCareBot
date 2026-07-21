@@ -453,7 +453,7 @@ describe("PatientsPageClient", () => {
     await user.type(screen.getByLabelText("Фамилия"), "Петров");
     await user.type(screen.getByLabelText("Имя"), "Иван");
     await user.type(screen.getByLabelText("Отчество"), "Сергеевич");
-    await user.type(screen.getByLabelText("Телефон"), "+7 999 000-00-00");
+    await user.type(screen.getByLabelText("Телефон, если есть"), "+7 999 000-00-00");
     await user.type(screen.getByLabelText("Email, если есть"), "patient@example.com");
     expect(screen.getByLabelText("Дата и время визита")).toHaveAttribute("max");
     await user.click(screen.getByRole("button", { name: "Создать визит" }));

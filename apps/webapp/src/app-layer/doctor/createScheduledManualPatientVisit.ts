@@ -22,7 +22,7 @@ type ManualPatientIdentityInput = {
   lastName: string;
   firstName: string;
   patronymic?: string | null;
-  phone: string;
+  phone?: string | null;
   email?: string | null;
 };
 
@@ -39,11 +39,6 @@ export type CreateWalkInManualPatientVisitInput = ManualPatientIdentityInput & {
 };
 
 function normalizeManualPatientIdentity(input: ManualPatientIdentityInput) {
-  const phoneNormalized = normalizeRuPhoneE164(input.phone);
-  if (!/^\+7\d{10}$/.test(phoneNormalized)) {
-    return { ok: false as const, error: "invalid_phone" as const };
-  }
-
   const emailRaw = input.email?.trim() || null;
   const emailNormalized = emailRaw ? normalizeEmail(emailRaw) : null;
   if (
@@ -51,6 +46,15 @@ function normalizeManualPatientIdentity(input: ManualPatientIdentityInput) {
     (emailNormalized.length > 320 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(emailNormalized))
   ) {
     return { ok: false as const, error: "invalid_email" as const };
+  }
+
+  const phoneRaw = input.phone?.trim() ?? "";
+  const phoneNormalized = phoneRaw ? normalizeRuPhoneE164(phoneRaw) : null;
+  if (phoneRaw && (!phoneNormalized || !/^\+7\d{10}$/.test(phoneNormalized))) {
+    return { ok: false as const, error: "invalid_phone" as const };
+  }
+  if (!phoneNormalized && emailNormalized) {
+    return { ok: false as const, error: "invalid_phone" as const };
   }
 
   const lastName = normalizeFioPart(input.lastName);
@@ -72,7 +76,7 @@ function enqueueManualPatientContactSetup(
   deps: { emailSetupAccess: Pick<EmailSetupAccessService, "requestContactEmailSetup"> },
 ) {
   if (result.replayed) return;
-  if (result.patient.created) {
+  if (result.patient.created && result.patient.phoneNormalized) {
     trustedPatientPhoneWriteAnchor(TrustedPatientPhoneSource.DoctorStaffClientCreate);
   }
   if (emailNormalized) {

@@ -25,8 +25,8 @@ export const patientMergeCandidates = pgTable(
       table.status.asc().nullsLast().op("text_ops"),
       table.createdAt.desc().nullsFirst().op("timestamptz_ops"),
     ),
-    uniqueIndex("uq_patient_merge_candidates_pending_pair")
-      .on(table.anchorUserId, table.candidateUserId)
+    uniqueIndex("uq_patient_merge_candidates_org_pending_pair")
+      .on(table.organizationId, table.anchorUserId, table.candidateUserId)
       .where(sql`status = 'pending'`),
     foreignKey({
       columns: [table.organizationId],

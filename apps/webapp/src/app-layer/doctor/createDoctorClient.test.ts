@@ -114,6 +114,50 @@ describe("createDoctorClient", () => {
     );
   });
 
+  it("creates a structured patient without phone or email and does not grant contact trust", async () => {
+    createManualOrganizationClient.mockResolvedValue({
+      ok: true,
+      created: true,
+      userId: "contactless-user",
+      displayName: "Иванов Иван Иванович",
+      lastName: "Иванов",
+      firstName: "Иван",
+      patronymic: "Иванович",
+      phoneNormalized: null,
+    });
+
+    await expect(
+      createDoctorClient(
+        {
+          lastName: " иванов ",
+          firstName: " иван ",
+          patronymic: " иванович ",
+          phone: null,
+          email: null,
+          createdByUserId: "doc-1",
+          organizationId: "org-1",
+        },
+        deps,
+      ),
+    ).resolves.toMatchObject({
+      ok: true,
+      userId: "contactless-user",
+      phoneNormalized: null,
+      emailSetupEnqueued: false,
+    });
+    expect(createManualOrganizationClient).toHaveBeenCalledWith({
+      organizationId: "org-1",
+      phoneNormalized: null,
+      lastName: "Иванов",
+      firstName: "Иван",
+      patronymic: "Иванович",
+      emailRaw: null,
+      emailNormalized: null,
+    });
+    expect(trustedPatientPhoneWriteAnchorMock).not.toHaveBeenCalled();
+    expect(fireAndForgetContactEmailSetupMock).not.toHaveBeenCalled();
+  });
+
   it("is idempotent for an existing organization client and does not claim a new phone trust write", async () => {
     createManualOrganizationClient.mockResolvedValue({
       ok: true,

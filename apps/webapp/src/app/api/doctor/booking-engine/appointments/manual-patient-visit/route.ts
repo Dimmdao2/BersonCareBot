@@ -18,7 +18,7 @@ const identitySchema = z.object({
   lastName: z.string().min(1).max(200),
   firstName: z.string().min(1).max(200),
   patronymic: z.string().max(200).nullable().optional(),
-  phone: z.string().min(1).max(100),
+  phone: z.string().max(100).nullable().optional(),
   email: z.string().max(320).nullable().optional(),
 });
 
@@ -132,7 +132,8 @@ export async function POST(request: Request) {
         } catch {
           // The identity/relationship/appointment transaction already committed. Enrichment is optional.
         }
-        if (!created.replayed) {
+        const contactPhone = bookingRow?.contactPhone ?? created.patient.phoneNormalized;
+        if (!created.replayed && contactPhone) {
           try {
             await createBookingSyncPort().emitBookingEvent({
               eventType: "booking.created",
@@ -150,7 +151,7 @@ export async function POST(request: Request) {
                 contactName:
                   bookingRow?.contactName ??
                   staffBookingContactNameFromAppointment(created.appointment),
-                contactPhone: bookingRow?.contactPhone ?? created.patient.phoneNormalized,
+                contactPhone,
                 contactEmail: bookingRow?.contactEmail ?? undefined,
                 branchServiceId: bookingRow?.branchServiceId ?? null,
                 cityCodeSnapshot: bookingRow?.cityCodeSnapshot ?? null,

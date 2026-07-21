@@ -148,8 +148,8 @@ export function DoctorCalendarPatientSearch({
       setCreateError("Укажите фамилию и имя");
       return;
     }
-    if (!phone) {
-      setCreateError("Укажите телефон");
+    if (!phone && newEmail.trim()) {
+      setCreateError("Для email укажите телефон или оставьте оба контакта пустыми");
       return;
     }
     setCreateError(null);
@@ -161,7 +161,7 @@ export function DoctorCalendarPatientSearch({
         lastName,
         firstName,
         patronymic,
-        phone,
+        phone: phone || null,
         email: newEmail.trim() || null,
         isNew: true,
       });
@@ -182,7 +182,7 @@ export function DoctorCalendarPatientSearch({
           lastName,
           firstName,
           patronymic: newPatronymic.trim() || null,
-          phone,
+          phone: phone || null,
           email: newEmail.trim() || null,
         }),
       });
@@ -351,7 +351,7 @@ export function DoctorCalendarPatientSearch({
             aria-label="Отчество пациента"
           />
           <Input
-            placeholder="Телефон"
+            placeholder="Телефон (если есть)"
             value={newPhone}
             onChange={(e) => setNewPhone(e.target.value)}
             disabled={disabled || creating}
@@ -359,7 +359,7 @@ export function DoctorCalendarPatientSearch({
           />
           <Input
             type="email"
-            placeholder="Email"
+            placeholder="Email (если есть)"
             value={newEmail}
             onChange={(e) => setNewEmail(e.target.value)}
             disabled={disabled || creating}
