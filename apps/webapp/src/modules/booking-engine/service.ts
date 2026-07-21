@@ -15,6 +15,8 @@ import type {
 } from "./types";
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const ONLINE_SLOT_MINUTE_MS = 60_000;
+const MAX_ONLINE_CHAIN_MINUTES = 8 * 60;
 
 function assertUuid(id: string, label = "id"): void {
   if (!UUID_RE.test(id.trim())) throw new Error(`Некорректный UUID: ${label}`);
@@ -99,6 +101,12 @@ export function createBookingEngineService(port: BookingEngineBundlePort) {
         if (!Number.isInteger(input.durationMinutes) || input.durationMinutes <= 0) {
           throw new Error("invalid_appointment_duration");
         }
+        if (startMs % ONLINE_SLOT_MINUTE_MS !== 0 || endMs % ONLINE_SLOT_MINUTE_MS !== 0) {
+          throw new Error("online_slot_minute_alignment_required");
+        }
+        if (endMs - startMs !== input.durationMinutes * ONLINE_SLOT_MINUTE_MS) {
+          throw new Error("invalid_appointment_duration");
+        }
         return {
           ...input,
           branchId: null,
@@ -118,6 +126,10 @@ export function createBookingEngineService(port: BookingEngineBundlePort) {
           throw new Error("appointment_chain_not_consecutive");
         }
       }
+      const totalMinutes =
+        (new Date(normalized.at(-1)!.endAt).getTime() - new Date(normalized[0]!.startAt).getTime()) /
+        ONLINE_SLOT_MINUTE_MS;
+      if (totalMinutes > MAX_ONLINE_CHAIN_MINUTES) throw new Error("online_appointment_range_too_large");
       return port.createOnlineAppointmentsIfAvailable(normalized);
     },
 

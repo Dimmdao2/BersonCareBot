@@ -95,7 +95,7 @@ describe("createPgBookingEnginePort.createAppointment", () => {
     expect(insertOrder).toEqual(["appointments", "events", "history"]);
   });
 
-  it("locks every online chain slot, rechecks, then inserts in the same transaction", async () => {
+  it("range-locks an online chain in one batch, rechecks, then inserts in the same transaction", async () => {
     const organizationId = "a0000000-0000-4000-8000-000000000001";
     const port = createPgBookingEnginePort();
     await runWithDbOrganizationPrincipal(organizationId, () =>
@@ -120,7 +120,6 @@ describe("createPgBookingEnginePort.createAppointment", () => {
     );
     expect(insertOrder).toEqual([
       "lock",
-      "lock",
       "appointments",
       "events",
       "history",
@@ -129,6 +128,7 @@ describe("createPgBookingEnginePort.createAppointment", () => {
       "history",
     ]);
     expect(listBookingBusyIntervals).toHaveBeenCalledOnce();
+    expect(txExecute).toHaveBeenCalledOnce();
   });
 
   it("rejects a busy online slot after the lock without inserting", async () => {

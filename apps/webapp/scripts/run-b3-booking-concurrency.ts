@@ -63,15 +63,35 @@ async function appointmentAggregate(
 }
 
 function assertOneOverlapRejection(results: PromiseSettledResult<unknown>[]): void {
-  assert.equal(results.filter((result) => result.status === 'fulfilled').length, 1);
+  const fulfilledCount = results.filter((result) => result.status === 'fulfilled').length;
   const rejected = results.filter(
     (result): result is PromiseRejectedResult => result.status === 'rejected',
   );
+  if (fulfilledCount !== 1) {
+    const reasons = rejected.map((result) =>
+      result.reason instanceof Error ? result.reason.message : 'non_error_rejection',
+    );
+    throw new Error(`unexpected_concurrency_outcome:${fulfilledCount}:${reasons.join('|')}`);
+  }
   assert.equal(rejected.length, 1);
   assert.equal(
     rejected[0]?.reason instanceof Error ? rejected[0].reason.message : '',
     'slot_overlap',
   );
+}
+
+async function withDeadlockTimeout<T>(promise: Promise<T>): Promise<T> {
+  let timeout: ReturnType<typeof setTimeout> | undefined;
+  try {
+    return await Promise.race([
+      promise,
+      new Promise<never>((_, reject) => {
+        timeout = setTimeout(() => reject(new Error('range_lock_deadlock_timeout')), 5_000);
+      }),
+    ]);
+  } finally {
+    if (timeout) clearTimeout(timeout);
+  }
 }
 
 async function proveLegacySplitRace(): Promise<{ rows: number; backendPids: number }> {
@@ -137,6 +157,47 @@ async function proveOverlappingChainsSerialized(): Promise<{ rows: number; rejec
   return { rows: aggregate.rows, rejected: 1 };
 }
 
+async function proveDifferentStartsSerialized(): Promise<{ rows: number; rejected: number }> {
+  const results = await runWithDbOrganizationPrincipal(organizationId, () =>
+    Promise.allSettled([
+      engine.createOnlineAppointmentsIfAvailable([onlineSlot('2032-01-01T10:15:00.000Z')]),
+      engine.createOnlineAppointmentsIfAvailable([onlineSlot('2032-01-01T10:45:00.000Z')]),
+    ]),
+  );
+  assertOneOverlapRejection(results);
+  const aggregate = await appointmentAggregate();
+  assert.equal(aggregate.rows, 1);
+  return { rows: aggregate.rows, rejected: 1 };
+}
+
+async function proveAdjacentRangesRemainIndependent(): Promise<{ rows: number; rejected: number }> {
+  const results = await runWithDbOrganizationPrincipal(organizationId, () =>
+    Promise.allSettled([
+      engine.createOnlineAppointmentsIfAvailable([onlineSlot('2032-01-01T10:15:00.000Z')]),
+      engine.createOnlineAppointmentsIfAvailable([onlineSlot('2032-01-01T11:15:00.000Z')]),
+    ]),
+  );
+  assert.equal(results.filter((result) => result.status === 'fulfilled').length, 2);
+  const aggregate = await appointmentAggregate();
+  assert.equal(aggregate.rows, 2);
+  return { rows: aggregate.rows, rejected: 0 };
+}
+
+async function proveReverseStartOrderDoesNotDeadlock(): Promise<{ rows: number; rejected: number }> {
+  const results = await withDeadlockTimeout(
+    runWithDbOrganizationPrincipal(organizationId, () =>
+      Promise.allSettled([
+        engine.createOnlineAppointmentsIfAvailable([onlineSlot('2032-01-01T14:45:00.000Z')]),
+        engine.createOnlineAppointmentsIfAvailable([onlineSlot('2032-01-01T14:15:00.000Z')]),
+      ]),
+    ),
+  );
+  assertOneOverlapRejection(results);
+  const aggregate = await appointmentAggregate();
+  assert.equal(aggregate.rows, 1);
+  return { rows: aggregate.rows, rejected: 1 };
+}
+
 async function proveSameSlotIsOrganizationScoped(): Promise<{ rows: number; rejected: number }> {
   const startAt = '2032-01-01T10:00:00.000Z';
   const results = await Promise.allSettled([
@@ -162,6 +223,12 @@ try {
   await clearFixture();
   const overlappingChains = await proveOverlappingChainsSerialized();
   await clearFixture();
+  const differentStarts = await proveDifferentStartsSerialized();
+  await clearFixture();
+  const adjacentRanges = await proveAdjacentRangesRemainIndependent();
+  await clearFixture();
+  const reverseStartOrder = await proveReverseStartOrderDoesNotDeadlock();
+  await clearFixture();
   const organizationScoped = await proveSameSlotIsOrganizationScoped();
   console.log(
     JSON.stringify({
@@ -170,6 +237,9 @@ try {
       legacySplitRace: legacySplit,
       hardenedSameSlot: sameSlot,
       hardenedOverlappingChains: overlappingChains,
+      hardenedDifferentStarts: differentStarts,
+      hardenedAdjacentRanges: adjacentRanges,
+      hardenedReverseStartOrderNoDeadlock: reverseStartOrder,
       hardenedSameSlotAcrossOrganizations: organizationScoped,
     }),
   );

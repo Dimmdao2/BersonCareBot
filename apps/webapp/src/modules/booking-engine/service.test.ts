@@ -164,6 +164,40 @@ describe("createBookingEngineService", () => {
     expect(port.createOnlineAppointmentsIfAvailable).not.toHaveBeenCalled();
   });
 
+  it("rejects sub-minute online ranges before reaching the range-locking port", async () => {
+    const port = mockPort();
+    const svc = createBookingEngineService(port);
+    await expect(
+      svc.createOnlineAppointmentsIfAvailable([
+        {
+          organizationId: "a0000000-0000-4000-8000-000000000001",
+          startAt: "2026-06-01T10:00:30Z",
+          endAt: "2026-06-01T11:00:30Z",
+          durationMinutes: 60,
+          source: "native",
+        },
+      ]),
+    ).rejects.toThrow("online_slot_minute_alignment_required");
+    expect(port.createOnlineAppointmentsIfAvailable).not.toHaveBeenCalled();
+  });
+
+  it("bounds the online range-lock cost to the allowed eight-hour chain", async () => {
+    const port = mockPort();
+    const svc = createBookingEngineService(port);
+    await expect(
+      svc.createOnlineAppointmentsIfAvailable([
+        {
+          organizationId: "a0000000-0000-4000-8000-000000000001",
+          startAt: "2026-06-01T10:00:00Z",
+          endAt: "2026-06-01T18:01:00Z",
+          durationMinutes: 481,
+          source: "native",
+        },
+      ]),
+    ).rejects.toThrow("online_appointment_range_too_large");
+    expect(port.createOnlineAppointmentsIfAvailable).not.toHaveBeenCalled();
+  });
+
   it("transitionAppointmentStatus rejects invalid FSM", async () => {
     const port = mockPort({
       getAppointment: vi.fn().mockResolvedValue({

@@ -212,15 +212,49 @@ async function insertAppointmentInTransaction(
   return appointment;
 }
 
-async function lockOnlineAppointmentSlots(
+const ONLINE_LOCK_BUCKET_MS = 60_000;
+const MAX_ONLINE_LOCK_BUCKETS = 8 * 60;
+
+function onlineAppointmentLockKeys(
+  organizationId: string,
+  rangeStart: string,
+  rangeEnd: string,
+): string[] {
+  const startMs = new Date(rangeStart).getTime();
+  const endMs = new Date(rangeEnd).getTime();
+  const bucketCount = (endMs - startMs) / ONLINE_LOCK_BUCKET_MS;
+  if (
+    !Number.isInteger(bucketCount) ||
+    bucketCount < 1 ||
+    bucketCount > MAX_ONLINE_LOCK_BUCKETS ||
+    startMs % ONLINE_LOCK_BUCKET_MS !== 0 ||
+    endMs % ONLINE_LOCK_BUCKET_MS !== 0
+  ) {
+    throw new Error("invalid_online_appointment_lock_range");
+  }
+  return Array.from(
+    { length: bucketCount },
+    (_, index) =>
+      `booking:online-minute:${organizationId}:${new Date(startMs + index * ONLINE_LOCK_BUCKET_MS).toISOString()}`,
+  );
+}
+
+async function lockOnlineAppointmentRange(
   tx: DrizzleDb,
   organizationId: string,
-  slotStarts: readonly string[],
+  rangeStart: string,
+  rangeEnd: string,
 ): Promise<void> {
-  for (const slotStart of [...new Set(slotStarts)].sort()) {
-    const lockKey = `booking:online-slot:${organizationId}:${slotStart}`;
-    await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtextextended(${lockKey}::text, 0))`);
-  }
+  const lockKeys = onlineAppointmentLockKeys(organizationId, rangeStart, rangeEnd);
+  const lockKeyParameters = sql.join(
+    lockKeys.map((lockKey) => sql`${lockKey}`),
+    sql`, `,
+  );
+  await tx.execute(sql`
+    SELECT pg_advisory_xact_lock(hashtextextended(lock_key, 0))
+    FROM unnest(ARRAY[${lockKeyParameters}]::text[]) AS requested_locks(lock_key)
+    ORDER BY lock_key
+  `);
 }
 
 async function insertOnlineAppointmentsIfAvailableInTransaction(
@@ -235,7 +269,7 @@ async function insertOnlineAppointmentsIfAvailableInTransaction(
   if (getCurrentDbPrincipalOrganizationId() !== organizationId) {
     throw new Error("organization_principal_mismatch");
   }
-  await lockOnlineAppointmentSlots(tx, organizationId, inputs.map((input) => input.startAt));
+  await lockOnlineAppointmentRange(tx, organizationId, first.startAt, last.endAt);
   const busy = await listBookingBusyIntervals(tx, {
     organizationId,
     specialistId: null,
