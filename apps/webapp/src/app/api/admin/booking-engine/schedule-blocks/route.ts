@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
-import { requireEntitlement } from "@/app-layer/guards/requireEntitlement";
+import { requireEntitlementForMutation } from "@/app-layer/guards/requireEntitlement";
 import { withDoctorWorkspacePrincipal } from "@/app-layer/principal/withOrganizationPrincipal";
 import { requireAdminBookingEngine } from "../_requireAdminBookingEngine";
 
@@ -39,7 +39,7 @@ export async function GET(request: Request) {
 export async function POST(request: Request) {
   const gate = await requireAdminBookingEngine();
   if (!gate.ok) return gate.response;
-  const entitlement = await requireEntitlement(gate.ctx, "booking", { kind: "mutation" });
+  const entitlement = await requireEntitlementForMutation(gate.ctx, "booking");
   if (!entitlement.ok) return entitlement.response;
   const parsed = createBody.safeParse(await request.json().catch(() => null));
   if (!parsed.success) {

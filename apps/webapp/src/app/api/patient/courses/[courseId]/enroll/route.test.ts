@@ -8,6 +8,7 @@ vi.mock("@/app-layer/guards/requireRole", () => ({
 }));
 vi.mock("@/app-layer/guards/requireEntitlement", () => ({
   requireEntitlement: requireEntitlementMock,
+  requireEntitlementForMutation: requireEntitlementMock,
 }));
 vi.mock("@/app-layer/principal/withOrganizationPrincipal", () => ({
   withPatientOrganizationPrincipal: (_ctx: unknown, fn: () => unknown) => fn(),
@@ -130,7 +131,6 @@ describe("POST /api/patient/courses/[courseId]/enroll", () => {
     expect(requireEntitlementMock).toHaveBeenCalledWith(
       { organizationId: "org-a" },
       "courses",
-      { kind: "mutation" },
     );
     expect(enrollPatientMock).not.toHaveBeenCalled();
   });

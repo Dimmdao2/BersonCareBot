@@ -35,6 +35,9 @@ type CommercialState = {
   trialPolicy: TrialPolicy | null;
 };
 
+type CommercialMutationResult = { created?: boolean; endsAt?: string } | null;
+type CommercialMutationResponse = { error?: string; result?: CommercialMutationResult };
+
 const COMMERCIAL_LIFECYCLE_LABELS: Record<
   PlatformOrganizationSummary['effectiveAccess']['lifecycle'],
   string
@@ -288,6 +291,15 @@ export function CommercialConstructorClient() {
     () => state.organizations.find((organization) => organization.id === organizationId) ?? null,
     [organizationId, state.organizations],
   );
+  const canStartTrial = Boolean(
+    selectedOrganization && selectedOrganization.trial === null && state.trialPolicy?.isActive,
+  );
+  const canExtendTrial = Boolean(
+    selectedOrganization?.trial?.status === 'active' &&
+      Date.parse(selectedOrganization.trial.endsAt) > Date.now() &&
+      Number.isSafeInteger(Number(extensionDays)) &&
+      Number(extensionDays) > 0,
+  );
 
   useEffect(() => {
     setAssignedTariffId(selectedOrganization?.tariffId ?? 'none');
@@ -302,7 +314,10 @@ export function CommercialConstructorClient() {
     setOverrideExpiresAt(current?.expiresAt ? current.expiresAt.slice(0, 16) : '');
   }, [overrideMechanic, selectedOrganization]);
 
-  async function mutate(body: Record<string, unknown>, success: string) {
+  async function mutate(
+    body: Record<string, unknown>,
+    success: string | ((result: CommercialMutationResult | undefined) => string),
+  ) {
     setBusy(true);
     setMessage('');
     try {
@@ -311,10 +326,10 @@ export function CommercialConstructorClient() {
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify(body),
       });
-      const payload = (await response.json()) as { error?: string };
+      const payload = (await response.json()) as CommercialMutationResponse;
       if (!response.ok) throw new Error(payload.error ?? 'commercial_operation_failed');
       await loadState();
-      setMessage(success);
+      setMessage(typeof success === 'function' ? success(payload.result) : success);
     } catch (error) {
       setMessage(error instanceof Error ? error.message : 'Операция не выполнена');
     } finally {
@@ -719,7 +734,7 @@ export function CommercialConstructorClient() {
           </div>
           <div className="flex flex-wrap gap-2">
             <Button
-              disabled={busy || !organizationId || !reason.trim() || selectedOrganization?.trial !== null}
+              disabled={busy || !organizationId || !reason.trim()}
               onClick={() =>
                 void mutate(
                   {
@@ -742,10 +757,7 @@ export function CommercialConstructorClient() {
               disabled={
                 busy ||
                 !organizationId ||
-                !reason.trim() ||
-                selectedOrganization?.trial?.status !== 'active' ||
-                !Number.isSafeInteger(Number(extensionDays)) ||
-                Number(extensionDays) <= 0
+                !reason.trim()
               }
               onClick={() =>
                 void mutate(
@@ -760,9 +772,15 @@ export function CommercialConstructorClient() {
           <div className="flex flex-wrap items-end gap-2 border-t border-border/70 pt-3">
             <Button
               variant="outline"
-              disabled={busy || !organizationId || !reason.trim()}
+              disabled={busy || !organizationId || !reason.trim() || !canStartTrial}
               onClick={() =>
-                void mutate({ action: 'start_trial', organizationId, reason }, 'Триал запущен')
+                void mutate({ action: 'start_trial', organizationId, reason }, (result) =>
+                  result?.created
+                    ? 'Триал запущен'
+                    : result
+                      ? 'Триал не запущен: он уже был использован'
+                      : 'Триал не запущен: активная политика не настроена',
+                )
               }
             >
               Запустить триал
@@ -780,7 +798,7 @@ export function CommercialConstructorClient() {
             </div>
             <Button
               variant="outline"
-              disabled={busy || !organizationId || !reason.trim()}
+              disabled={busy || !organizationId || !reason.trim() || !canExtendTrial}
               onClick={() =>
                 void mutate(
                   { action: 'extend_trial', organizationId, days: Number(extensionDays), reason },

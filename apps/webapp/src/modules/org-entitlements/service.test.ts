@@ -7,6 +7,7 @@ import {
   isMechanicEnabled,
   resolveClinicSeatLimit,
   resolveOrgEntitlements,
+  resolveOrgQuotaProjections,
 } from "./service";
 import { MECHANIC_REGISTRY, MECHANICS } from "./types";
 
@@ -31,6 +32,7 @@ function portFor(
       tariffId: null,
       source: "compatibility" as const,
     })),
+    getEnforcedQuotaUsage: vi.fn(async () => ({})),
   };
   return port;
 }
@@ -89,6 +91,17 @@ describe("resolveOrgEntitlements", () => {
     expect(result.courses).toBe(false);
   });
 
+  it("fails closed for a provisioned no-trial organization instead of applying compatibility defaults", async () => {
+    const port = portFor(null, []);
+    port.getEffectiveCommercialAccess = vi.fn(async () => ({
+      lifecycle: "active" as const,
+      tariffId: null,
+      source: "no_trial" as const,
+    }));
+    const result = await resolveOrgEntitlements(port, "new-org-without-trial-policy");
+    expect(Object.values(result)).not.toContain(true);
+  });
+
   it("does not leak an override from organization A into organization B", async () => {
     const ports = new Map<string, OrgEntitlementsPort>([
       ["org-a", portFor(null, [{ mechanic: "courses", enabled: true }])],
@@ -99,9 +112,29 @@ describe("resolveOrgEntitlements", () => {
       getTariffForOrg: (organizationId) => ports.get(organizationId)!.getTariffForOrg(organizationId),
       listOverrides: (organizationId) => ports.get(organizationId)!.listOverrides(organizationId),
       getEffectiveCommercialAccess: (organizationId) => ports.get(organizationId)!.getEffectiveCommercialAccess(organizationId),
+      getEnforcedQuotaUsage: (organizationId) => ports.get(organizationId)!.getEnforcedQuotaUsage(organizationId),
     };
     await expect(isMechanicEnabled(scopedPort, "org-a", "courses")).resolves.toBe(true);
     await expect(isMechanicEnabled(scopedPort, "org-b", "courses")).resolves.toBe(false);
+  });
+});
+
+describe("resolveOrgQuotaProjections", () => {
+  it("exposes the courses 80% threshold as typed state and omits unenforced keys", async () => {
+    const port = portFor({ mechanics: { courses: true } }, []);
+    port.getSnapshot = vi.fn(async () => ({
+      tariff: {
+        mechanics: { courses: true },
+        quotas: { courses: { kind: "numeric" as const, limit: 5, unit: "items", period: "snapshot" as const, usagePolicy: "snapshot" as const } },
+        includedSeats: null,
+      },
+      overrides: [],
+      access: { lifecycle: "active" as const, tariffId: "tariff-a", source: "assignment" as const },
+    }));
+    port.getEnforcedQuotaUsage = vi.fn(async () => ({ courses: 4 }));
+    await expect(resolveOrgQuotaProjections(port, "org-a")).resolves.toEqual([
+      expect.objectContaining({ mechanic: "courses", usage: 4, threshold: "warning", enforcement: "atomic_snapshot" }),
+    ]);
   });
 });
 
@@ -167,6 +200,7 @@ describe("resolveClinicSeatLimit", () => {
       getTariffForOrg: (organizationId) => ports.get(organizationId)!.getTariffForOrg(organizationId),
       listOverrides: (organizationId) => ports.get(organizationId)!.listOverrides(organizationId),
       getEffectiveCommercialAccess: (organizationId) => ports.get(organizationId)!.getEffectiveCommercialAccess(organizationId),
+      getEnforcedQuotaUsage: (organizationId) => ports.get(organizationId)!.getEnforcedQuotaUsage(organizationId),
     };
     await expect(resolveClinicSeatLimit(scopedPort, "org-a")).resolves.toBe(5);
     await expect(resolveClinicSeatLimit(scopedPort, "org-b")).resolves.toBe(0);

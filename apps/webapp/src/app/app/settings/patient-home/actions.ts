@@ -5,7 +5,7 @@ import { z } from "zod";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import { withDoctorWorkspacePrincipal } from "@/app-layer/guards/doctorWorkspacePrincipal";
 import { requireDoctorWorkspaceContext, type DoctorWorkspaceAccessContext } from "@/app-layer/guards/requireRole";
-import { requireEntitlementForAction } from "@/app-layer/guards/requireEntitlement";
+import { requireEntitlementForAction, requireEntitlementForMutationAction } from "@/app-layer/guards/requireEntitlement";
 import {
   allowedTargetTypesForBlock,
   isPatientHomeBlockCode,
@@ -80,7 +80,7 @@ function fail(error: string): ActionState {
 
 async function requireDoctorForPatientHomeBlocks(): Promise<DoctorWorkspaceAccessContext> {
   const workspace = await requireDoctorWorkspaceContext();
-  const entitlement = await requireEntitlementForAction(workspace, "cms_pages");
+  const entitlement = await requireEntitlementForMutationAction(workspace, "cms_pages");
   if (!entitlement.ok) throw new Error("forbidden");
   return workspace;
 }
@@ -90,7 +90,7 @@ async function requireCoursesForPatientHomeReference(
   targetType: string,
 ): Promise<ActionState | null> {
   if (targetType !== "course") return null;
-  const entitlement = await requireEntitlementForAction(workspace, "courses");
+  const entitlement = await requireEntitlementForMutationAction(workspace, "courses");
   return entitlement.ok ? null : fail("entitlement_required");
 }
 

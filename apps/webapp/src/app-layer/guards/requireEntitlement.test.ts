@@ -13,11 +13,12 @@ vi.mock("@/app-layer/di/buildAppDeps", () => ({
       listOverrides: listOverridesMock,
       getEffectiveCommercialAccess: getEffectiveCommercialAccessMock,
       getSnapshot: getSnapshotMock,
+      getEnforcedQuotaUsage: vi.fn(async () => ({})),
     } satisfies OrgEntitlementsPort,
   })),
 }));
 
-import { requireEntitlement, requireEntitlementForAction } from "./requireEntitlement";
+import { requireEntitlement, requireEntitlementForAction, requireEntitlementForMutationAction } from "./requireEntitlement";
 
 const workspaceCtx = {
   organizationId: "11111111-1111-4111-8111-111111111111",
@@ -129,5 +130,17 @@ describe("requireEntitlement", () => {
     expect(getSnapshotMock).toHaveBeenCalledOnce();
     if (mutation.ok) return;
     await expect(mutation.response.json()).resolves.toMatchObject({ error: "commercial_blocked" });
+  });
+
+  it("cannot omit lifecycle enforcement through the mutation-only Server Action adapter", async () => {
+    getSnapshotMock.mockResolvedValue({
+      tariff: { mechanics: { cms_pages: true }, quotas: {}, includedSeats: null },
+      overrides: [],
+      access: { lifecycle: "read_only", tariffId: "tariff-1", source: "trial" },
+    });
+    await expect(requireEntitlementForMutationAction(workspaceCtx, "cms_pages")).resolves.toMatchObject({
+      ok: false,
+      reason: "commercial_read_only",
+    });
   });
 });

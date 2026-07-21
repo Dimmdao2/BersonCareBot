@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
-import { requireEntitlement } from "@/app-layer/guards/requireEntitlement";
+import { requireEntitlement, requireEntitlementForMutation } from "@/app-layer/guards/requireEntitlement";
 import { requireDoctorWorkspaceApiContext } from "@/app-layer/guards/requireRole";
 import { withDoctorWorkspacePrincipal } from "@/app-layer/principal/withOrganizationPrincipal";
 
@@ -55,7 +55,7 @@ export async function POST(request: Request) {
   if (!parsed.success) {
     return NextResponse.json({ ok: false, error: "invalid_body" }, { status: 400 });
   }
-  const entitlement = await requireEntitlement(auth.ctx, "courses", { kind: "mutation" });
+  const entitlement = await requireEntitlementForMutation(auth.ctx, "courses");
   if (!entitlement.ok) return entitlement.response;
 
   const deps = buildAppDeps();

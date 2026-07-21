@@ -3,7 +3,7 @@
 import { z } from "zod";
 import { revalidatePath } from "next/cache";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
-import { requireEntitlementForAction } from "@/app-layer/guards/requireEntitlement";
+import { requireEntitlementForMutationAction } from "@/app-layer/guards/requireEntitlement";
 import { requireDoctorAccess, requireDoctorWorkspaceContext } from "@/app-layer/guards/requireRole";
 import { withDoctorWorkspacePrincipal } from "@/app-layer/principal/withOrganizationPrincipal";
 import type {
@@ -74,9 +74,7 @@ export async function executeBroadcastAction(
     {
       organizationId: workspace.organizationId,
       reserveAudienceGrowth: async (audienceSize) => {
-        const entitlement = await requireEntitlementForAction(workspace, "mailings", {
-          kind: "mutation",
-        });
+        const entitlement = await requireEntitlementForMutationAction(workspace, "mailings");
         if (!entitlement.ok) throw new Error(`${entitlement.reason}:${entitlement.mechanic}`);
       },
       runDeliveryCommit: (fn) =>

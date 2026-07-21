@@ -11,6 +11,7 @@ vi.mock("@/app-layer/guards/requireRole", () => ({
 }));
 vi.mock("@/app-layer/guards/requireEntitlement", () => ({
   requireEntitlement: entitlementMock,
+  requireEntitlementForMutation: entitlementMock,
 }));
 vi.mock("@/app-layer/di/buildAppDeps", () => ({
   buildAppDeps: () => ({ courses: { createCourse: createCourseMock, listCoursesForDoctor: listCoursesMock } }),
@@ -54,7 +55,7 @@ describe("courses entitlement ordering", () => {
     });
     const response = await POST(new Request("http://localhost", { method: "POST", body: JSON.stringify({ ...validBody, organizationId: "forged-org-b" }) }));
     expect(response.status).toBe(403);
-    expect(entitlementMock).toHaveBeenCalledWith(workspace, "courses", { kind: "mutation" });
+    expect(entitlementMock).toHaveBeenCalledWith(workspace, "courses");
     expect(createCourseMock).not.toHaveBeenCalled();
   });
 

@@ -5,7 +5,7 @@ import { z } from "zod";
 import { revalidatePatientContentPaths } from "@/app-layer/content/revalidatePatientContentPaths";
 import { withDoctorWorkspacePrincipal } from "@/app-layer/guards/doctorWorkspacePrincipal";
 import { requireDoctorWorkspaceContext } from "@/app-layer/guards/requireRole";
-import { requireEntitlementForAction } from "@/app-layer/guards/requireEntitlement";
+import { requireEntitlementForAction, requireEntitlementForMutationAction } from "@/app-layer/guards/requireEntitlement";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import { API_MEDIA_URL_RE, isLegacyAbsoluteUrl } from "@/shared/lib/mediaUrlPolicy";
 
@@ -99,9 +99,7 @@ export async function saveContentPage(
   }
 
   const editingId = pageIdParsed?.success ? pageIdParsed.data : null;
-  const entitlement = await requireEntitlementForAction(workspace, "cms_pages", {
-    kind: "mutation",
-  });
+  const entitlement = await requireEntitlementForMutationAction(workspace, "cms_pages");
   if (!entitlement.ok) return { ok: false, error: entitlement.reason };
 
   if (editingId) {

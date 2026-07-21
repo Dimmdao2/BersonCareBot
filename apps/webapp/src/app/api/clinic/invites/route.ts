@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { env } from "@/config/env";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
-import { requireEntitlement } from "@/app-layer/guards/requireEntitlement";
+import { requireEntitlement, requireEntitlementForMutation } from "@/app-layer/guards/requireEntitlement";
 import { requireClinicManagementApiContext } from "@/app-layer/guards/requireRole";
 import { sendEmailSetupLinkViaIntegrator } from "@/infra/integrations/email/integratorEmailAdapter";
 import { getAppBaseUrl } from "@/modules/system-settings/integrationRuntime";
@@ -35,7 +35,7 @@ export async function GET() {
 export async function POST(request: Request) {
   const gate = await requireClinicManagementApiContext();
   if (!gate.ok) return gate.response;
-  const entitlement = await requireEntitlement(gate.ctx, "clinic_team", { kind: "mutation" });
+  const entitlement = await requireEntitlementForMutation(gate.ctx, "clinic_team");
   if (!entitlement.ok) return entitlement.response;
 
   const raw = (await request.json().catch(() => null)) as unknown;

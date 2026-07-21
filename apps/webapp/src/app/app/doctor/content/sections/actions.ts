@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { withDoctorWorkspacePrincipal } from "@/app-layer/guards/doctorWorkspacePrincipal";
 import { requireDoctorWorkspaceContext } from "@/app-layer/guards/requireRole";
-import { requireEntitlementForAction } from "@/app-layer/guards/requireEntitlement";
+import { requireEntitlementForMutationAction } from "@/app-layer/guards/requireEntitlement";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import {
   CMS_UNASSIGNED_SECTION_SLUG,
@@ -92,9 +92,7 @@ export async function saveContentSection(
     return { ok: false, error: "Некорректное сочетание типа раздела и папки CMS" };
   }
 
-  const entitlement = await requireEntitlementForAction(workspace, "cms_pages", {
-    kind: "mutation",
-  });
+  const entitlement = await requireEntitlementForMutationAction(workspace, "cms_pages");
   if (!entitlement.ok) return { ok: false, error: entitlement.reason };
 
   try {
@@ -135,7 +133,7 @@ export async function attachArticleSectionToSystemFolder(
   formData: FormData,
 ): Promise<AttachArticleSectionToFolderState> {
   const workspace = await requireDoctorWorkspaceContext();
-  const entitlement = await requireEntitlementForAction(workspace, "cms_pages", { kind: "mutation" });
+  const entitlement = await requireEntitlementForMutationAction(workspace, "cms_pages");
   if (!entitlement.ok) return { ok: false, error: "entitlement_required" };
   const deps = buildAppDeps();
 
@@ -201,7 +199,7 @@ export async function renameContentSectionSlug(
   formData: FormData,
 ): Promise<RenameContentSectionSlugState> {
   const workspace = await requireDoctorWorkspaceContext();
-  const entitlement = await requireEntitlementForAction(workspace, "cms_pages", { kind: "mutation" });
+  const entitlement = await requireEntitlementForMutationAction(workspace, "cms_pages");
   if (!entitlement.ok) return { ok: false, error: "entitlement_required" };
   const deps = buildAppDeps();
 
@@ -247,7 +245,7 @@ export async function deleteContentSection(
   formData: FormData,
 ): Promise<DeleteContentSectionState> {
   const workspace = await requireDoctorWorkspaceContext();
-  const entitlement = await requireEntitlementForAction(workspace, "cms_pages", { kind: "mutation" });
+  const entitlement = await requireEntitlementForMutationAction(workspace, "cms_pages");
   if (!entitlement.ok) return { ok: false, error: "entitlement_required" };
   const deps = buildAppDeps();
 

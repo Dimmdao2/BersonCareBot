@@ -87,6 +87,7 @@ function makeService(params: {
           tariffId: null,
           source: "compatibility",
         }),
+        getEnforcedQuotaUsage: async () => ({}),
   };
   return createClinicSeatsService({ membershipPort, invitesPort, orgEntitlementsPort });
 }

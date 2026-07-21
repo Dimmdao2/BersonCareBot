@@ -68,6 +68,14 @@ export async function requireEntitlement(
   return decision;
 }
 
+/** Mutation-only API adapter. Its signature makes lifecycle enforcement non-optional. */
+export async function requireEntitlementForMutation(
+  ctx: EntitlementContext,
+  mechanic: OrgMechanic,
+): Promise<EntitlementSuccess | { ok: false; response: NextResponse }> {
+  return requireEntitlement(ctx, mechanic, { kind: "mutation" });
+}
+
 /** Server Action adapter: same resolver, intentionally no NextResponse dependency in its result. */
 export async function requireEntitlementForAction(
   ctx: EntitlementContext,
@@ -78,6 +86,14 @@ export async function requireEntitlementForAction(
   return decision.ok
     ? decision
     : { ok: false, mechanic, reason: decision.reason };
+}
+
+/** Mutation-only Server Action adapter. Read adapters cannot silently skip lifecycle enforcement. */
+export async function requireEntitlementForMutationAction(
+  ctx: EntitlementContext,
+  mechanic: OrgMechanic,
+): Promise<EntitlementSuccess | { ok: false; mechanic: OrgMechanic; reason: EntitlementDenialReason }> {
+  return requireEntitlementForAction(ctx, mechanic, { kind: "mutation" });
 }
 
 /**

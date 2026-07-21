@@ -62,6 +62,52 @@ describe("CommercialConstructorClient", () => {
     expect(screen.getByText("Триал не запускался.")).toBeInTheDocument();
   });
 
+  it("keeps overrides independent from trial extension and exposes only valid lifecycle controls", async () => {
+    vi.stubGlobal("fetch", vi.fn(async () => ({
+      ok: true,
+      json: async () => ({
+        ok: true,
+        tariffs: [],
+        organizations: [{
+          id: "11111111-1111-4111-8111-111111111111",
+          title: "Организация с триалом",
+          tariffId: null,
+          isActive: true,
+          commercialAccessState: "active",
+          effectiveAccess: { lifecycle: "active", tariffId: null, source: "trial" },
+          overrides: [],
+          trial: {
+            id: "22222222-2222-4222-8222-222222222222",
+            status: "active",
+            startedAt: "2026-07-20T00:00:00.000Z",
+            endsAt: "2026-07-22T00:00:00.000Z",
+            graceEndsAt: "2026-07-23T00:00:00.000Z",
+          },
+        }],
+        trialPolicy: {
+          tariffId: "33333333-3333-4333-8333-333333333333",
+          durationDays: 14,
+          graceDays: 0,
+          startEvent: "organization_provisioned",
+          postTrialBehavior: "read_only",
+          postTrialTariffId: null,
+          isActive: true,
+        },
+      }),
+    })));
+
+    render(<CommercialConstructorClient />);
+    fireEvent.click(await screen.findByRole("tab", { name: "Организации" }));
+    fireEvent.click((await screen.findAllByRole("combobox"))[0]!);
+    fireEvent.click(screen.getByText("Организация с триалом"));
+    fireEvent.change(screen.getByLabelText("Причина"), { target: { value: "Проверка операции" } });
+
+    expect(screen.getByRole("button", { name: "Сохранить исключение" })).toBeEnabled();
+    expect(screen.getByRole("button", { name: "Удалить" })).toBeEnabled();
+    expect(screen.getByRole("button", { name: "Запустить триал" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Продлить" })).toBeDisabled();
+  });
+
   it("shows loading and a load error explicitly", async () => {
     let rejectRequest: ((reason: Error) => void) | undefined;
     vi.stubGlobal("fetch", vi.fn(() => new Promise((_resolve, reject) => { rejectRequest = reject; })));

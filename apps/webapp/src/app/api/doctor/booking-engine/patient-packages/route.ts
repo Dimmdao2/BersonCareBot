@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
-import { requireEntitlement } from "@/app-layer/guards/requireEntitlement";
+import { requireEntitlementForMutation } from "@/app-layer/guards/requireEntitlement";
 import { withDoctorWorkspacePrincipal } from "@/app-layer/principal/withOrganizationPrincipal";
 import {
   membershipErrorResponse,
@@ -74,7 +74,7 @@ export async function POST(request: Request) {
   if (!parsed.success) {
     return NextResponse.json({ ok: false, error: "invalid_body" }, { status: 400 });
   }
-  const entitlement = await requireEntitlement(gate.ctx, "subscriptions", { kind: "mutation" });
+  const entitlement = await requireEntitlementForMutation(gate.ctx, "subscriptions");
   if (!entitlement.ok) return entitlement.response;
   const deps = buildAppDeps();
   if (!deps.memberships) {

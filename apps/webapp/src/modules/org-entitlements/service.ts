@@ -4,6 +4,7 @@ import {
   MECHANIC_REGISTRY,
   MECHANICS,
   type OrgEntitlements,
+  type OrgQuotaProjection,
   type EffectiveOrgCommercialAccess,
   type OrgEntitlementSnapshot,
   type OrgMechanic,
@@ -97,7 +98,7 @@ function isOverrideActive(expiresAt: string | null | undefined): boolean {
 }
 
 function entitlementsFromSnapshot(
-  snapshot: Pick<OrgEntitlementSnapshot, "tariff" | "overrides">,
+  snapshot: Pick<OrgEntitlementSnapshot, "tariff" | "overrides" | "access">,
 ): OrgEntitlements {
   const overrideByMechanic = new Map(
     snapshot.overrides
@@ -109,9 +110,36 @@ function entitlementsFromSnapshot(
     result[mechanic] =
       overrideByMechanic.get(mechanic) ??
       snapshot.tariff?.mechanics[mechanic] ??
-      MECHANIC_DEFAULT_ENABLED[mechanic];
+      (snapshot.access.source === "no_trial" ? false : MECHANIC_DEFAULT_ENABLED[mechanic]);
   }
   return result;
+}
+
+/**
+ * Returns a typed threshold projection only for quota keys that are really enforced today.
+ * Declared future quota keys intentionally do not appear here.
+ */
+export async function resolveOrgQuotaProjections(
+  port: OrgEntitlementsPort,
+  organizationId: string,
+): Promise<OrgQuotaProjection[]> {
+  const [snapshot, usage] = await Promise.all([port.getSnapshot(organizationId), port.getEnforcedQuotaUsage(organizationId)]);
+  const activeOverrides = new Map(
+    snapshot.overrides.filter((override) => isOverrideActive(override.expiresAt)).map((override) => [override.mechanic, override]),
+  );
+  return MECHANICS.flatMap((mechanic) => {
+    if (MECHANIC_REGISTRY[mechanic].quotaEnforcement === "declared_no_enforcement") return [];
+    const quota = activeOverrides.get(mechanic)?.quota ?? snapshot.tariff?.quotas[mechanic];
+    const currentUsage = usage[mechanic];
+    if (!quota || quota.kind !== "numeric" || quota.limit === null || currentUsage === undefined) return [];
+    return [{
+      mechanic,
+      quota,
+      usage: currentUsage,
+      threshold: currentUsage >= quota.limit ? "reached" : currentUsage * 5 >= quota.limit * 4 ? "warning" : "below_warning",
+      enforcement: MECHANIC_REGISTRY[mechanic].quotaEnforcement,
+    }];
+  });
 }
 
 export async function resolveOrgEntitlementSnapshot(
@@ -147,6 +175,7 @@ export async function resolveOrgEntitlements(
       quota: override.quota ?? null,
       expiresAt: override.expiresAt ?? null,
     })),
+    access: await port.getEffectiveCommercialAccess(organizationId),
   });
 }
 

@@ -14,6 +14,7 @@ vi.mock("@/app-layer/guards/requireRole", () => ({
 
 vi.mock("@/app-layer/guards/requireEntitlement", () => ({
   requireEntitlementForAction: (...args: unknown[]) => requireEntitlementForAction(...args),
+  requireEntitlementForMutationAction: (...args: unknown[]) => requireEntitlementForAction(...args),
 }));
 
 vi.mock("@/app-layer/di/buildAppDeps", () => ({

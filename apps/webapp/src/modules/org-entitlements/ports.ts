@@ -26,6 +26,8 @@ export type OrgEntitlementsPort = {
     organizationId: string,
   ): Promise<{ mechanic: string; enabled: boolean; quota?: TariffQuota | null; expiresAt?: string | null; seatLimitOverride: number | null }[]>;
   getEffectiveCommercialAccess(organizationId: string): Promise<EffectiveOrgCommercialAccess>;
+  /** Current usage only for quota keys that have a real database chokepoint. */
+  getEnforcedQuotaUsage(organizationId: string): Promise<Partial<Record<OrgMechanic, number>>>;
 };
 
 export type PlatformMutationAudit = { actorId: string | null; reason: string };

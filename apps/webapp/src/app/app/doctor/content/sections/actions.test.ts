@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const requireEntitlementForActionMock = vi.hoisted(() => vi.fn());
 vi.mock("@/app-layer/guards/requireEntitlement", () => ({
   requireEntitlementForAction: requireEntitlementForActionMock,
+  requireEntitlementForMutationAction: requireEntitlementForActionMock,
 }));
 
 const upsertMock = vi.fn();

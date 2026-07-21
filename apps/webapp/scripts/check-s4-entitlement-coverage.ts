@@ -48,8 +48,12 @@ export function validateProtectedActionMappings(
       findings.push({ id: mapping.id, message: `unknown exported action ${mapping.exportName}` });
       continue;
     }
-    const guardPattern = new RegExp(`${mapping.guard}\\([^)]*,\\s*["']${mapping.mechanic}["']`);
-    if (!guardPattern.test(actionSource)) {
+    const guardPattern = mapping.guard === "requireDoctorForPatientHomeBlocks"
+      ? /requireDoctorForPatientHomeBlocks\(\)/
+      : new RegExp(`${mapping.guard}\\([^)]*,\\s*["']${mapping.mechanic}["']`);
+    const helperBoundaryIsTyped = mapping.guard !== "requireDoctorForPatientHomeBlocks"
+      || sourceFor(mapping.file).includes('requireEntitlementForMutationAction(workspace, "cms_pages")');
+    if (!guardPattern.test(actionSource) || !helperBoundaryIsTyped) {
       findings.push({ id: mapping.id, message: `missing ${mapping.guard}(${mapping.mechanic})` });
     }
   }

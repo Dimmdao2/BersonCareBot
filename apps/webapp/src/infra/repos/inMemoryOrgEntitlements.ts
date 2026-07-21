@@ -18,5 +18,8 @@ export function createInMemoryOrgEntitlementsPort(): OrgEntitlementsPort {
     async getEffectiveCommercialAccess() {
       return { lifecycle: "active", tariffId: null, source: "compatibility" };
     },
+    async getEnforcedQuotaUsage() {
+      return {};
+    },
   };
 }

@@ -7,7 +7,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { requireDoctorWorkspaceApiContext } from "@/app-layer/guards/requireRole";
-import { requireEntitlement } from "@/app-layer/guards/requireEntitlement";
+import { requireEntitlementForMutation } from "@/app-layer/guards/requireEntitlement";
 import { withDoctorWorkspacePrincipal } from "@/app-layer/guards/doctorWorkspacePrincipal";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 
@@ -72,7 +72,7 @@ export async function PATCH(
     return NextResponse.json({ ok: false, error: "not_found" }, { status: 404 });
   }
   const patientUserId = identity.userId;
-  const entitlement = await requireEntitlement(gate.ctx, "patient_card", { kind: "mutation" });
+  const entitlement = await requireEntitlementForMutation(gate.ctx, "patient_card");
   if (!entitlement.ok) return entitlement.response;
 
   let ok: boolean;

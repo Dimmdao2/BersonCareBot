@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { requireDoctorWorkspaceContext } from "@/app-layer/guards/requireRole";
-import { requireEntitlementForAction } from "@/app-layer/guards/requireEntitlement";
+import { requireEntitlementForMutationAction } from "@/app-layer/guards/requireEntitlement";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import { withDoctorWorkspacePrincipal } from "@/app-layer/principal/withOrganizationPrincipal";
 
@@ -10,7 +10,7 @@ export type SectionVisibilityState = { ok: boolean; error?: string };
 
 export async function setSectionRequiresAuth(slug: string, requiresAuth: boolean): Promise<SectionVisibilityState> {
   const workspace = await requireDoctorWorkspaceContext();
-  const entitlement = await requireEntitlementForAction(workspace, "cms_pages");
+  const entitlement = await requireEntitlementForMutationAction(workspace, "cms_pages");
   if (!entitlement.ok) return { ok: false, error: "entitlement_required" };
   const s = slug?.trim();
   if (!s) return { ok: false, error: "Нет slug" };
@@ -35,7 +35,7 @@ export async function setSectionRequiresAuth(slug: string, requiresAuth: boolean
 
 export async function setSectionVisibility(slug: string, isVisible: boolean): Promise<SectionVisibilityState> {
   const workspace = await requireDoctorWorkspaceContext();
-  const entitlement = await requireEntitlementForAction(workspace, "cms_pages");
+  const entitlement = await requireEntitlementForMutationAction(workspace, "cms_pages");
   if (!entitlement.ok) return { ok: false, error: "entitlement_required" };
   const s = slug?.trim();
   if (!s) return { ok: false, error: "Нет slug" };

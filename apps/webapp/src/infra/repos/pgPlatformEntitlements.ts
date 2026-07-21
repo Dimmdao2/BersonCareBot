@@ -352,6 +352,7 @@ export function createPgPlatformEntitlementsPort(): PlatformEntitlementsPort {
       return getDrizzle().transaction(async (tx) => {
           const [before] = await tx.select().from(saasOrganizationTrials).where(and(eq(saasOrganizationTrials.organizationId, organizationId), eq(saasOrganizationTrials.status, "active"))).limit(1);
           if (!before) throw new Error("organization_trial_not_found");
+          if (new Date(before.endsAt).getTime() <= Date.now()) throw new Error("organization_trial_not_extendable");
           const [after] = await tx.update(saasOrganizationTrials).set({ endsAt: sql`${saasOrganizationTrials.endsAt} + (${days} * interval '1 day')`, graceEndsAt: sql`${saasOrganizationTrials.graceEndsAt} + (${days} * interval '1 day')`, extensionCount: sql`${saasOrganizationTrials.extensionCount} + 1`, updatedAt: new Date().toISOString() }).where(and(eq(saasOrganizationTrials.organizationId, organizationId), eq(saasOrganizationTrials.status, "active"))).returning();
           if (!after) throw new Error("trial_extension_failed");
           await appendAudit(tx, { audit, action: "saas_trial_extend", targetId: after.id, organizationId, before, after });

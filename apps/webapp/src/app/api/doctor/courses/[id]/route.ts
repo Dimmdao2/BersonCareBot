@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
-import { requireEntitlement } from "@/app-layer/guards/requireEntitlement";
+import { requireEntitlement, requireEntitlementForMutation } from "@/app-layer/guards/requireEntitlement";
 import { requireDoctorWorkspaceApiContext } from "@/app-layer/guards/requireRole";
 import { withDoctorWorkspacePrincipal } from "@/app-layer/principal/withOrganizationPrincipal";
 import {
@@ -56,7 +56,7 @@ export async function PATCH(
 ) {
   const auth = await requireDoctorWorkspaceApiContext();
   if (!auth.ok) return auth.response;
-  const entitlement = await requireEntitlement(auth.ctx, "courses", { kind: "mutation" });
+  const entitlement = await requireEntitlementForMutation(auth.ctx, "courses");
   if (!entitlement.ok) return entitlement.response;
   const { ctx: workspace } = auth;
 

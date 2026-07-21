@@ -1,4 +1,4 @@
-import { and, eq } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 import { getCurrentDbPrincipal } from "@bersoncare/db-principal";
 import { getDrizzle } from "@/app-layer/db/drizzle";
 import { runWithWebappDbOperationFamily } from "@/infra/db/saasIsolationOperationContext";
@@ -11,6 +11,7 @@ import type {
   TariffQuotaMap,
 } from "@/modules/org-entitlements/types";
 import { beOrganizations } from "../../../db/schema/bookingEngine";
+import { courses } from "../../../db/schema/courses";
 import {
   saasOrganizationTrials,
   saasOrgEntitlementOverrides,
@@ -210,6 +211,13 @@ export function createPgOrgEntitlementsPort(): OrgEntitlementsPort {
     },
     async getEffectiveCommercialAccess(organizationId) {
       return (await readSnapshot(organizationId)).access;
+    },
+    async getEnforcedQuotaUsage(organizationId) {
+      const [{ count }] = await getDrizzle()
+        .select({ count: sql<number>`count(*)::int` })
+        .from(courses)
+        .where(eq(courses.organizationId, organizationId));
+      return { courses: count ?? 0 };
     },
   };
 }

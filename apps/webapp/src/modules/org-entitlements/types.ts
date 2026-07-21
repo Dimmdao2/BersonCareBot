@@ -110,6 +110,15 @@ export type OrgEntitlementOverride = {
 
 export type OrgEntitlements = Record<OrgMechanic, boolean>;
 
+/** A product-consumable view of an actually enforced quota. */
+export type OrgQuotaProjection = {
+  mechanic: OrgMechanic;
+  quota: TariffQuota;
+  usage: number;
+  threshold: "below_warning" | "warning" | "reached";
+  enforcement: (typeof MECHANIC_REGISTRY)[OrgMechanic]["quotaEnforcement"];
+};
+
 export type TrialPostBehavior = "read_only" | "blocked" | "tariff";
 export type TrialStartEvent = "organization_provisioned";
 
