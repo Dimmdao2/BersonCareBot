@@ -21,8 +21,27 @@ export type ReportOperatorFailureInput = {
   alertLines: string[];
 };
 
+export type RecordOperatorFailureIncidentInput = Omit<ReportOperatorFailureInput, 'dispatchPort' | 'alertLines'>;
+
 function buildDedupKey(direction: string, integration: string, errorClass: string): string {
   return `${direction}:${integration}:${errorClass}`;
+}
+
+/**
+ * Durable incident-only path for failures that must be consumed by the scheduled critical
+ * classifier. It intentionally does not enqueue an immediate alert: the existing dispatcher
+ * owns fan-out/dedup, and the incident contains only caller-supplied low-cardinality fields.
+ */
+export async function recordOperatorFailureIncident(
+  input: RecordOperatorFailureIncidentInput,
+): Promise<{ id: string; occurrenceCount: number }> {
+  return openOrTouchOperatorIncident({
+    dedupKey: buildDedupKey(input.direction, input.integration, input.errorClass),
+    direction: input.direction,
+    integration: input.integration,
+    errorClass: input.errorClass,
+    errorDetail: input.errorDetail ?? null,
+  });
 }
 
 function buildRecipientDigest(channel: 'telegram' | 'max', recipientId: string): string {
@@ -47,13 +66,7 @@ const PROBE_ERROR_CLASSES_NO_IMMEDIATE_CRITICAL = new Set([
  */
 export async function reportOperatorFailure(input: ReportOperatorFailureInput): Promise<void> {
   const dedupKey = buildDedupKey(input.direction, input.integration, input.errorClass);
-  const { id: incidentId, occurrenceCount } = await openOrTouchOperatorIncident({
-    dedupKey,
-    direction: input.direction,
-    integration: input.integration,
-    errorClass: input.errorClass,
-    errorDetail: input.errorDetail ?? null,
-  });
+  const { id: incidentId, occurrenceCount } = await recordOperatorFailureIncident(input);
 
   if (occurrenceCount !== 1) return;
 

@@ -3,6 +3,8 @@ import { ADMIN_DELIVERY_DUE_BACKLOG_WARNING } from "./adminHealthThresholds";
 import {
   classifyCriticalHealthSignals,
   classifyOperatorHealthBannerSignals,
+  countRecentOutboundProviderFailureIncidents,
+  OUTBOUND_PROVIDER_FAILURE_WINDOW_MINUTES,
   PROBE_CRITICAL_CONSECUTIVE_FAIL_RUNS,
   type CriticalHealthSignalsInput,
   type OperatorHealthBannerInput,
@@ -28,6 +30,7 @@ function healthyInput(overrides: Partial<CriticalHealthSignalsInput> = {}): Crit
     integratorApi: "ok",
     projection: { probeStatus: "ok", deadCount: 0, retriesOverThreshold: 0 },
     outgoingDelivery: { deadTotal: 0, dueBacklog: 0 },
+    outboundDeliveryProvider: { recentIncidentCount: 0 },
     integratorPushOutbox: emptyIpo(),
     backupJobs: {},
     probeConsecutiveFailRuns: 0,
@@ -101,16 +104,80 @@ describe("classifyCriticalHealthSignals", () => {
     expect(retriesOnly.some((x) => x.topic === "projection")).toBe(false);
   });
 
-  it("flags outgoing dead but not due backlog alone", () => {
-    const dead = classifyCriticalHealthSignals(healthyInput({ outgoingDelivery: { deadTotal: 1, dueBacklog: 0 } }));
-    expect(dead.some((x) => x.topic === "outgoing_delivery")).toBe(true);
+  it("unifies outgoing dead and recent synchronous failures under one provider topic", () => {
+    const dead = classifyCriticalHealthSignals(
+      healthyInput({ outgoingDelivery: { deadTotal: 1, dueBacklog: 0 } }),
+    );
+    expect(dead).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          topic: "outbound_delivery_provider",
+          dedupKey: "critical:outbound_delivery_provider:active",
+        }),
+      ]),
+    );
+
+    const synchronous = classifyCriticalHealthSignals(
+      healthyInput({ outboundDeliveryProvider: { recentIncidentCount: 1 } }),
+    );
+    expect(synchronous).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          topic: "outbound_delivery_provider",
+          dedupKey: "critical:outbound_delivery_provider:active",
+        }),
+      ]),
+    );
+
+    const combined = classifyCriticalHealthSignals(
+      healthyInput({
+        outgoingDelivery: { deadTotal: 2, dueBacklog: 0 },
+        outboundDeliveryProvider: { recentIncidentCount: 1 },
+      }),
+    ).filter((candidate) => candidate.topic === "outbound_delivery_provider");
+    expect(combined).toHaveLength(1);
+    expect(combined[0]?.lines.join("\n")).toContain("dead-записей очереди: 2");
 
     const dueOnly = classifyCriticalHealthSignals(
       healthyInput({
         outgoingDelivery: { deadTotal: 0, dueBacklog: ADMIN_DELIVERY_DUE_BACKLOG_WARNING },
       }),
     );
-    expect(dueOnly.some((x) => x.topic === "outgoing_delivery")).toBe(false);
+    expect(dueOnly.some((x) => x.topic === "outbound_delivery_provider")).toBe(false);
+  });
+
+  it("counts only recent outbound-provider incidents without exposing incident payload", () => {
+    const nowMs = Date.parse("2026-07-22T10:00:00.000Z");
+    const row = (
+      overrides: Partial<Parameters<typeof countRecentOutboundProviderFailureIncidents>[0][number]>,
+    ) => ({
+      id: "incident-id",
+      dedupKey: "safe-dedup",
+      direction: "outbound_delivery_provider",
+      integration: "email",
+      errorClass: "provider_send_failed",
+      errorDetail: null,
+      openedAt: "2026-07-22T09:00:00.000Z",
+      lastSeenAt: "2026-07-22T09:55:00.000Z",
+      occurrenceCount: 1,
+      ...overrides,
+    });
+
+    expect(
+      countRecentOutboundProviderFailureIncidents(
+        [
+          row({}),
+          row({
+            id: "stale",
+            lastSeenAt: new Date(
+              nowMs - (OUTBOUND_PROVIDER_FAILURE_WINDOW_MINUTES + 1) * 60_000,
+            ).toISOString(),
+          }),
+          row({ id: "other", direction: "inbound_webhook" }),
+        ],
+        nowMs,
+      ),
+    ).toBe(1);
   });
 
   it("flags ipo error but not degraded", () => {
@@ -202,7 +269,7 @@ describe("classifyOperatorHealthBannerSignals", () => {
         outgoingDelivery: { deadTotal: 0, dueBacklog: ADMIN_DELIVERY_DUE_BACKLOG_WARNING },
       }),
     );
-    expect(critical.some((x) => x.topic === "outgoing_delivery")).toBe(false);
+    expect(critical.some((x) => x.topic === "outbound_delivery_provider")).toBe(false);
   });
 
   it("shows banner for open operator incidents", () => {

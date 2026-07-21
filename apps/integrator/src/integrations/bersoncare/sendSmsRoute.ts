@@ -10,6 +10,7 @@ import { createHmac, randomUUID, timingSafeEqual } from 'node:crypto';
 import type { FastifyInstance, FastifyRequest } from 'fastify';
 import type { DispatchPort } from '../../kernel/contracts/index.js';
 import { messageToIntent } from '../../infra/adapters/channelRouting.js';
+import { isOutboundMessagePolicyDenied } from '../../infra/adapters/outboundMessagePolicy.js';
 import { logger } from '../../infra/observability/logger.js';
 
 const WINDOW_SECONDS = 300;
@@ -40,13 +41,27 @@ export type BersoncareSendSmsDeps = {
   dispatchPort: DispatchPort;
   sharedSecret: string;
   isAuthChannelEnabled: (channel: 'sms') => Promise<boolean>;
+  recordProviderFailure: (reason: 'provider_send_failed') => Promise<void>;
 };
+
+async function recordProviderFailureSafely(
+  recordProviderFailure: BersoncareSendSmsDeps['recordProviderFailure'],
+): Promise<void> {
+  try {
+    await recordProviderFailure('provider_send_failed');
+  } catch {
+    logger.warn(
+      { channel: 'smsc', errorClass: 'operator_incident_record_failed' },
+      'bersoncare send-sms: operator incident record failed',
+    );
+  }
+}
 
 export async function registerBersoncareSendSmsRoute(
   app: FastifyInstance,
   deps: BersoncareSendSmsDeps,
 ): Promise<void> {
-  const { dispatchPort, sharedSecret, isAuthChannelEnabled } = deps;
+  const { dispatchPort, sharedSecret, isAuthChannelEnabled, recordProviderFailure } = deps;
 
   app.addContentTypeParser('application/json', { parseAs: 'string' }, (req, body, done) => {
     const raw: string =
@@ -106,9 +121,14 @@ export async function registerBersoncareSendSmsRoute(
 
     try {
       await dispatchPort.dispatchOutgoing(intent);
-    } catch (err) {
-      const errMsg = err instanceof Error ? err.message : String(err);
-      logger.warn({ phone: phone.slice(0, 6) + '…', error: errMsg }, 'bersoncare send-sms: dispatch failed');
+    } catch (error) {
+      const errorClass = isOutboundMessagePolicyDenied(error)
+        ? 'egress_policy_denied'
+        : 'provider_send_failed';
+      if (errorClass === 'provider_send_failed') {
+        await recordProviderFailureSafely(recordProviderFailure);
+      }
+      logger.warn({ channel: 'smsc', errorClass }, 'bersoncare send-sms: dispatch failed');
       return reply.code(502).send({ ok: false, error: 'sms_failed' });
     }
 

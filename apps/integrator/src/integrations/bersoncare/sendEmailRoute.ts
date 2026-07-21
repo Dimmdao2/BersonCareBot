@@ -63,13 +63,28 @@ export type BersoncareSendEmailDeps = {
   /** The single chokepoint for email delivery (PLAN S9). */
   dispatchPort: DispatchPort;
   isAuthChannelEnabled: (channel: 'email') => Promise<boolean>;
+  recordProviderFailure: (reason: 'provider_not_configured' | 'provider_send_failed') => Promise<void>;
 };
+
+async function recordProviderFailureSafely(
+  recordProviderFailure: BersoncareSendEmailDeps['recordProviderFailure'],
+  reason: 'provider_not_configured' | 'provider_send_failed',
+): Promise<void> {
+  try {
+    await recordProviderFailure(reason);
+  } catch {
+    logger.warn(
+      { channel: 'email', errorClass: 'operator_incident_record_failed' },
+      'bersoncare send-email: operator incident record failed',
+    );
+  }
+}
 
 export async function registerBersoncareSendEmailRoute(
   app: FastifyInstance,
   deps: BersoncareSendEmailDeps,
 ): Promise<void> {
-  const { sharedSecret, db, dispatchPort, isAuthChannelEnabled } = deps;
+  const { sharedSecret, db, dispatchPort, isAuthChannelEnabled, recordProviderFailure } = deps;
 
   if (!app.hasContentTypeParser('application/json')) {
     app.addContentTypeParser('application/json', { parseAs: 'string' }, (req, body, done) => {
@@ -115,6 +130,7 @@ export async function registerBersoncareSendEmailRoute(
     // Provider readiness follows policy so a disabled channel cannot probe provider state.
     const resolved = await resolveSmtpOutboundConfig(db);
     if (!isResolvedMailerConfigured(resolved)) {
+      await recordProviderFailureSafely(recordProviderFailure, 'provider_not_configured');
       return reply.code(503).send({ ok: false, error: 'email_not_configured' });
     }
 
@@ -153,7 +169,12 @@ export async function registerBersoncareSendEmailRoute(
       if (isOutboundMessagePolicyDenied(error)) {
         return reply.code(403).send({ ok: false, error: 'egress_policy_denied' });
       }
-      throw error;
+      await recordProviderFailureSafely(recordProviderFailure, 'provider_send_failed');
+      logger.warn(
+        { channel: 'email', errorClass: 'provider_send_failed' },
+        'bersoncare send-email: provider dispatch failed',
+      );
+      return reply.code(500).send({ ok: false, error: 'email_failed' });
     }
 
     return reply.code(200).send({ ok: true });

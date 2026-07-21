@@ -61,4 +61,26 @@ describe('createSmscClient', () => {
 
     expect(result).toEqual({ ok: false, error: 'invalid sender (code: 7)' });
   });
+
+  it('keeps recipient and provider response body out of failure logs', async () => {
+    const fetchImpl = vi.fn().mockResolvedValue({
+      ok: false,
+      status: 502,
+      statusText: 'provider-secret-status',
+      text: async () => 'provider response for +79990001122',
+    });
+    const log = createLogger();
+    const client = createSmscClient({
+      apiKey: 'test-key',
+      log,
+      fetchImpl: fetchImpl as unknown as typeof globalThis.fetch,
+    });
+
+    const result = await client.sendSms({ toPhone: '+79990001122', message: 'private body' });
+
+    expect(result).toEqual({ ok: false, error: 'SMSC_HTTP_502' });
+    expect(JSON.stringify(log.error.mock.calls)).toBe(
+      '[[{"status":502,"errorClass":"smsc_http_error"},"smsc request failed"]]',
+    );
+  });
 });

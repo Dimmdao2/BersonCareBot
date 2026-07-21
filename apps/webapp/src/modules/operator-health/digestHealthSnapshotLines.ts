@@ -23,6 +23,7 @@ export type DigestHealthSnapshotInput = {
     includeStalePendingLine: boolean;
   };
   outgoingDelivery: { dueBacklog: number; deadTotal: number };
+  outboundDeliveryProvider: { recentIncidentCount: number };
   integratorPushOutbox: IntegratorPushOutboxHealthSnapshot;
   backupJobs: Record<string, { lastStatus: string }>;
   probeConsecutiveFailRuns: number;
@@ -40,6 +41,7 @@ export function buildDigestHealthSnapshotLines(input: DigestHealthSnapshotInput)
     integratorApi: input.integratorApi,
     projection: input.projection,
     outgoingDelivery: input.outgoingDelivery,
+    outboundDeliveryProvider: input.outboundDeliveryProvider,
     integratorPushOutbox: input.integratorPushOutbox,
     backupJobs: input.backupJobs,
     probeConsecutiveFailRuns: input.probeConsecutiveFailRuns,

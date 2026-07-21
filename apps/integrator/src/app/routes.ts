@@ -25,6 +25,7 @@ import type { AppDeps, ProjectionHealthSnapshot } from './di.js';
 import { runWithBootstrapPrincipal } from '../infra/principal/organizationPrincipal.js';
 import { reportIntegratorIsolationFailure } from '../infra/observability/saasIsolationTelemetry.js';
 import { isAuthChannelEnabled } from '../infra/db/authChannelPolicy.js';
+import { recordOperatorFailureIncident } from '../infra/operatorIncident/reportOperatorFailure.js';
 
 /** Public response shape for the health endpoint. */
 export type HealthResponse = {
@@ -122,6 +123,17 @@ export async function registerRoutes(app: FastifyInstance, deps: AppDeps): Promi
   const authChannelPolicyDb = createDbPort();
   const authChannelPolicy = (channel: 'email' | 'sms' | 'telegram' | 'max') =>
     isAuthChannelEnabled(authChannelPolicyDb, channel);
+  const recordOutboundProviderFailure = async (
+    integration: 'email' | 'smsc',
+    errorClass: 'provider_not_configured' | 'provider_send_failed',
+  ): Promise<void> => {
+    await recordOperatorFailureIncident({
+      direction: 'outbound_delivery_provider',
+      integration,
+      errorClass,
+      errorDetail: null,
+    });
+  };
 
   app.get<{ Reply: HealthResponse }>('/health', async (_request, _reply) => {
     const dbOk = await deps.healthCheckDb();
@@ -152,6 +164,7 @@ export async function registerRoutes(app: FastifyInstance, deps: AppDeps): Promi
     dispatchPort: deps.dispatchPort,
     sharedSecret: integratorWebhookSecret(),
     isAuthChannelEnabled: authChannelPolicy,
+    recordProviderFailure: (reason) => recordOutboundProviderFailure('smsc', reason),
   });
 
   await registerBersoncareSendEmailRoute(app, {
@@ -159,6 +172,7 @@ export async function registerRoutes(app: FastifyInstance, deps: AppDeps): Promi
     db: createDbPort(),
     dispatchPort: deps.dispatchPort,
     isAuthChannelEnabled: authChannelPolicy,
+    recordProviderFailure: (reason) => recordOutboundProviderFailure('email', reason),
   });
 
   await registerBersoncareRelayOutboundRoute(app, {

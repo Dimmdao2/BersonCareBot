@@ -19,6 +19,7 @@ const base = {
   integratorApi: "ok" as const,
   projection: { probeStatus: "ok" as const, deadCount: 0, retriesOverThreshold: 0 },
   outgoingDelivery: { dueBacklog: 0, deadTotal: 0 },
+  outboundDeliveryProvider: { recentIncidentCount: 0 },
   integratorPushOutbox: emptyIpo,
   backupJobs: {},
   probeConsecutiveFailRuns: 0,
@@ -50,6 +51,16 @@ describe("buildDigestHealthSnapshotLines", () => {
       probeConsecutiveFailRuns: PROBE_CRITICAL_CONSECUTIVE_FAIL_RUNS,
     });
     expect(lines.some((l) => l.includes("Синтетические пробы"))).toBe(true);
+  });
+
+  it("uses the same provider-failure critical line as the scheduled classifier", () => {
+    const lines = buildDigestHealthSnapshotLines({
+      ...base,
+      webappDb: "up",
+      outboundDeliveryProvider: { recentIncidentCount: 1 },
+    });
+    expect(lines).toContain("Исходящая доставка: отказ провайдера");
+    expect(lines.some((line) => line.includes("Свежих классов синхронного отказа"))).toBe(true);
   });
 
   it("includes projection retries only when debounce allows", () => {

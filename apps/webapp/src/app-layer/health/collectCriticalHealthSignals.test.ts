@@ -7,6 +7,7 @@ const checkDbMock = vi.hoisted(() => vi.fn());
 const getPoolRoutingMetricsMock = vi.hoisted(() => vi.fn());
 const readIsolationHealthMock = vi.hoisted(() => vi.fn());
 const readIsolationCanaryMock = vi.hoisted(() => vi.fn());
+const listOpenIncidentsMock = vi.hoisted(() => vi.fn());
 
 vi.mock("@/modules/system-settings/configAdapter", () => ({
   getConfigBool: getConfigBoolMock,
@@ -48,7 +49,7 @@ vi.mock("@/app-layer/di/buildAppDeps", () => ({
       listBackupJobStatus: vi.fn().mockResolvedValue([]),
       getOperatorJobStatus: getOperatorJobStatusMock,
       listWebhookBurstSignals: vi.fn().mockResolvedValue([]),
-      listOpenIncidents: vi.fn().mockResolvedValue([]),
+      listOpenIncidents: listOpenIncidentsMock,
       getTenantIsolationCanarySnapshot: readIsolationCanaryMock,
     },
     saasIsolationDiagnostics: { readHealth: readIsolationHealthMock },
@@ -87,6 +88,7 @@ describe("collectCriticalHealthSignals", () => {
       active: { unexplained: 0 },
     });
     readIsolationCanaryMock.mockResolvedValue({ organizations: [], truncated: false });
+    listOpenIncidentsMock.mockResolvedValue([]);
   });
 
   it("does not mark video transcode error when pipeline disabled and metrics unavailable", async () => {
@@ -98,6 +100,26 @@ describe("collectCriticalHealthSignals", () => {
     getConfigBoolMock.mockImplementation(async (key: string) => key === "video_hls_pipeline_enabled");
     const input = await collectCriticalHealthSignals();
     expect(input.videoTranscodeStatus).toBe("error");
+  });
+
+  it("collects a recent synchronous provider incident into the bounded critical input", async () => {
+    listOpenIncidentsMock.mockResolvedValue([
+      {
+        id: "incident-id",
+        dedupKey: "outbound_delivery_provider:email:provider_send_failed",
+        direction: "outbound_delivery_provider",
+        integration: "email",
+        errorClass: "provider_send_failed",
+        errorDetail: null,
+        openedAt: new Date(Date.now() - 10 * 60_000).toISOString(),
+        lastSeenAt: new Date(Date.now() - 5 * 60_000).toISOString(),
+        occurrenceCount: 1,
+      },
+    ]);
+
+    const input = await collectCriticalHealthSignals();
+    expect(input.outboundDeliveryProvider).toEqual({ recentIncidentCount: 1 });
+    expect(listOpenIncidentsMock).toHaveBeenCalledWith(100);
   });
 
   it("feeds existing routing and isolation diagnostics into the critical snapshot", async () => {

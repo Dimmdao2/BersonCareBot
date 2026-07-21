@@ -6,6 +6,7 @@
  */
 import fetch from 'node-fetch';
 import type { SmsClient } from './types.js';
+import { serializeError } from '../../infra/observability/logger.js';
 
 type WarnLogger = {
   warn(payload: Record<string, unknown>, message: string): void;
@@ -69,7 +70,7 @@ export function createSmscClient(config: SmscClientConfig): SmsClient {
 
         if (!res.ok) {
           config.log.error(
-            { status: res.status, statusText: res.statusText, body: raw.slice(0, 300) },
+            { status: res.status, errorClass: 'smsc_http_error' },
             'smsc request failed',
           );
           return { ok: false, error: `SMSC_HTTP_${res.status}` };
@@ -84,11 +85,7 @@ export function createSmscClient(config: SmscClientConfig): SmsClient {
         return { ok: true };
       } catch (err) {
         config.log.error(
-          {
-            err,
-            toPhone: input.toPhone,
-            messageLength: input.message.length,
-          },
+          { error: serializeError(err), errorClass: 'smsc_transport_error' },
           'smsc transport error',
         );
         return { ok: false, error: 'SMSC_TRANSPORT_ERROR' };

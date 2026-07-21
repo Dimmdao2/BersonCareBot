@@ -52,6 +52,9 @@ async function buildTestApp(
   secret = TEST_SECRET,
   dispatchPort?: DispatchPort,
   isAuthChannelEnabled: (channel: 'email') => Promise<boolean> = vi.fn().mockResolvedValue(true),
+  recordProviderFailure: (reason: 'provider_not_configured' | 'provider_send_failed') => Promise<void> = vi
+    .fn()
+    .mockResolvedValue(undefined),
 ) {
   const app = Fastify();
   const dp: DispatchPort = dispatchPort ?? { dispatchOutgoing: vi.fn().mockResolvedValue({}) };
@@ -60,8 +63,9 @@ async function buildTestApp(
     db: noopDb,
     dispatchPort: dp,
     isAuthChannelEnabled,
+    recordProviderFailure,
   });
-  return { app, dp };
+  return { app, dp, recordProviderFailure };
 }
 
 describe('POST /api/bersoncare/send-email', () => {
@@ -104,7 +108,13 @@ describe('POST /api/bersoncare/send-email', () => {
   it('denies generic email text or template input without an approved auth code', async () => {
     vi.spyOn(smtpOutbound, resolveSmtpOutboundCfg).mockResolvedValue(MOCK_RESOLVED_CONFIGURED);
     const dispatchOutgoing = vi.fn().mockRejectedValue(new OutboundMessagePolicyError('missing_or_invalid_marker'));
-    const { app, dp } = await buildTestApp(TEST_SECRET, { dispatchOutgoing });
+    const recordProviderFailure = vi.fn().mockResolvedValue(undefined);
+    const { app, dp } = await buildTestApp(
+      TEST_SECRET,
+      { dispatchOutgoing },
+      vi.fn().mockResolvedValue(true),
+      recordProviderFailure,
+    );
     const body = JSON.stringify({
       to: 'user@example.com',
       text: 'product fallback must not send',
@@ -124,6 +134,7 @@ describe('POST /api/bersoncare/send-email', () => {
     const intent = dispatchOutgoing.mock.calls[0]![0] as { meta: Record<string, unknown> };
     expect(intent.meta).not.toHaveProperty('outboundMessageClass');
     expect(intent.meta).not.toHaveProperty('outboundCapability');
+    expect(recordProviderFailure).not.toHaveBeenCalled();
   });
 
   it('returns 403 before provider lookup or dispatch when email auth is disabled', async () => {
@@ -219,7 +230,13 @@ describe('POST /api/bersoncare/send-email', () => {
       configured: false,
     });
 
-    const { app, dp } = await buildTestApp();
+    const recordProviderFailure = vi.fn().mockResolvedValue(undefined);
+    const { app, dp } = await buildTestApp(
+      TEST_SECRET,
+      undefined,
+      vi.fn().mockResolvedValue(true),
+      recordProviderFailure,
+    );
     const body = JSON.stringify({ to: 'user@example.com', code: '123456' });
 
     const res = await app.inject({
@@ -232,6 +249,55 @@ describe('POST /api/bersoncare/send-email', () => {
     expect(res.statusCode).toBe(503);
     expect(JSON.parse(res.body)).toEqual({ ok: false, error: 'email_not_configured' });
     expect(dp.dispatchOutgoing).not.toHaveBeenCalled();
+    expect(recordProviderFailure).toHaveBeenCalledWith('provider_not_configured');
+  });
+
+  it('records a low-cardinality incident and keeps a provider failure response sanitized', async () => {
+    vi.spyOn(smtpOutbound, resolveSmtpOutboundCfg).mockResolvedValue(MOCK_RESOLVED_CONFIGURED);
+    const dispatchOutgoing = vi.fn().mockRejectedValue(new Error('535 EAUTH user@example.com provider-response-body'));
+    const recordProviderFailure = vi.fn().mockResolvedValue(undefined);
+    const { app } = await buildTestApp(
+      TEST_SECRET,
+      { dispatchOutgoing },
+      vi.fn().mockResolvedValue(true),
+      recordProviderFailure,
+    );
+    const body = JSON.stringify({ to: 'user@example.com', code: '123456' });
+
+    const response = await app.inject({
+      method: 'POST',
+      url: '/api/bersoncare/send-email',
+      headers: makeHeaders(body),
+      body,
+    });
+
+    expect(response.statusCode).toBe(500);
+    expect(JSON.parse(response.body)).toEqual({ ok: false, error: 'email_failed' });
+    expect(response.body).not.toContain('user@example.com');
+    expect(response.body).not.toContain('provider-response-body');
+    expect(recordProviderFailure).toHaveBeenCalledWith('provider_send_failed');
+  });
+
+  it('does not let incident persistence failure mask the original provider failure', async () => {
+    vi.spyOn(smtpOutbound, resolveSmtpOutboundCfg).mockResolvedValue(MOCK_RESOLVED_CONFIGURED);
+    const dispatchOutgoing = vi.fn().mockRejectedValue(new Error('provider failed'));
+    const { app } = await buildTestApp(
+      TEST_SECRET,
+      { dispatchOutgoing },
+      vi.fn().mockResolvedValue(true),
+      vi.fn().mockRejectedValue(new Error('incident db failed')),
+    );
+    const body = JSON.stringify({ to: 'user@example.com', code: '123456' });
+
+    const response = await app.inject({
+      method: 'POST',
+      url: '/api/bersoncare/send-email',
+      headers: makeHeaders(body),
+      body,
+    });
+
+    expect(response.statusCode).toBe(500);
+    expect(JSON.parse(response.body)).toEqual({ ok: false, error: 'email_failed' });
   });
 
   it('keeps the legacy transactional shape parse-compatible until central policy denies it', async () => {

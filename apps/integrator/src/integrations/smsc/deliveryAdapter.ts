@@ -21,7 +21,11 @@ export function createSmscDeliveryAdapter(deps: { smsClient: SmsClient }): Deliv
       const toPhone = payload.recipient?.phoneNormalized ?? '';
       const message = payload.message?.text ?? '';
       if (!toPhone || !message) return {};
-      await deps.smsClient.sendSms({ toPhone, message });
+      const result = await deps.smsClient.sendSms({ toPhone, message });
+      if (!result.ok) {
+        // Provider details stay inside the client boundary; callers receive one stable class.
+        throw new Error('SMSC_PROVIDER_REJECTED');
+      }
       return {};
     },
   };

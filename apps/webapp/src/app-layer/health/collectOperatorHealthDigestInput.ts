@@ -2,6 +2,7 @@ import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import { collectAdminSystemHealthData } from "@/app-layer/health/collectAdminSystemHealthData";
 import type { OperatorHealthDigestInput } from "@/modules/operator-health/buildOperatorHealthDigest";
 import { buildDigestHealthSnapshotLines } from "@/modules/operator-health/digestHealthSnapshotLines";
+import { countRecentOutboundProviderFailureIncidents } from "@/modules/operator-health/criticalHealthSignals";
 import { loadOperatorHealthProjectionThresholds } from "@/modules/operator-health/operatorHealthProjectionThresholds";
 import {
   evaluateProjectionDigestDebounceFlags,
@@ -22,7 +23,7 @@ export async function collectOperatorHealthDigestInput(params: {
   const digestRead = deps.operatorHealthDigestRead;
   const nowMs = Date.now();
 
-  const [auditErrorCount, incidentsOpened, incidentsResolved, jobFailures, health, thresholds, debounceRow] =
+  const [auditErrorCount, incidentsOpened, incidentsResolved, jobFailures, health, thresholds, debounceRow, openIncidents] =
     await Promise.all([
       digestRead.countAuditErrorsInWindow(params.windowStartIso, params.windowEndIso),
       digestRead.listIncidentsOpenedInWindow(params.windowStartIso, params.windowEndIso),
@@ -34,6 +35,7 @@ export async function collectOperatorHealthDigestInput(params: {
         OPERATOR_HEALTH_JOB_FAMILY,
         OPERATOR_HEALTH_PROJECTION_DIGEST_DEBOUNCE_JOB_KEY,
       ),
+      deps.operatorHealthRead.listOpenIncidents(100),
     ]);
 
   const projectionSnapshot = health.projection.snapshot;
@@ -71,6 +73,9 @@ export async function collectOperatorHealthDigestInput(params: {
     outgoingDelivery: {
       dueBacklog: health.outgoingDelivery.dueBacklog,
       deadTotal: health.outgoingDelivery.deadTotal,
+    },
+    outboundDeliveryProvider: {
+      recentIncidentCount: countRecentOutboundProviderFailureIncidents(openIncidents, nowMs),
     },
     integratorPushOutbox: health.integratorPushOutbox,
     backupJobs: Object.fromEntries(

@@ -23,7 +23,7 @@ vi.mock('../../integrations/max/config.js', () => ({
   maxConfig: maxConfigMock,
 }));
 
-import { reportOperatorFailure } from './reportOperatorFailure.js';
+import { recordOperatorFailureIncident, reportOperatorFailure } from './reportOperatorFailure.js';
 
 const originalSigningSecret = process.env.DB_PRINCIPAL_SIGNING_SECRET;
 
@@ -47,6 +47,26 @@ describe('reportOperatorFailure', () => {
   afterEach(() => {
     if (originalSigningSecret === undefined) delete process.env.DB_PRINCIPAL_SIGNING_SECRET;
     else process.env.DB_PRINCIPAL_SIGNING_SECRET = originalSigningSecret;
+  });
+
+  it('records an incident without loading alert config or enqueueing transport', async () => {
+    await recordOperatorFailureIncident({
+      direction: 'outbound_delivery_provider',
+      integration: 'email',
+      errorClass: 'provider_send_failed',
+      errorDetail: null,
+    });
+
+    expect(openOrTouchMock).toHaveBeenCalledWith({
+      dedupKey: 'outbound_delivery_provider:email:provider_send_failed',
+      direction: 'outbound_delivery_provider',
+      integration: 'email',
+      errorClass: 'provider_send_failed',
+      errorDetail: null,
+    });
+    expect(loadConfigMock).not.toHaveBeenCalled();
+    expect(loadListsMock).not.toHaveBeenCalled();
+    expect(enqueueMock).not.toHaveBeenCalled();
   });
 
   it('keeps raw recipient ids out of queue and audit event identifiers', async () => {

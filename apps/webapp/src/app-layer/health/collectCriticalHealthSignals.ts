@@ -19,6 +19,7 @@ import type {
   ProjectionProbeStatus,
   VideoTranscodeHealthStatus,
 } from "@/modules/operator-health/criticalHealthSignals";
+import { countRecentOutboundProviderFailureIncidents } from "@/modules/operator-health/criticalHealthSignals";
 import { readProbeConsecutiveFailRuns } from "@/modules/operator-health/probeOutboundMeta";
 import { WEBHOOK_BURST_MIN_COUNT, WEBHOOK_BURST_WINDOW_MINUTES } from "@/modules/operator-health/webhookBurst";
 import { getConfigBool } from "@/modules/system-settings/configAdapter";
@@ -152,6 +153,7 @@ async function collectCriticalHealthSignalsBase(
     probeJob,
     videoTranscodeStatus,
     webhookBursts,
+    operatorIncidents,
   ] = await Promise.all([
     probeWebappDb(),
     probeIntegratorApi(),
@@ -162,6 +164,7 @@ async function collectCriticalHealthSignalsBase(
     read.getOperatorJobStatus(OPERATOR_HEALTH_JOB_FAMILY, OPERATOR_OUTBOUND_PROBE_JOB_KEY),
     probeVideoTranscodeStatus(),
     read.listWebhookBurstSignals(WEBHOOK_BURST_WINDOW_MINUTES, WEBHOOK_BURST_MIN_COUNT),
+    read.listOpenIncidents(100),
   ]);
 
   return {
@@ -171,6 +174,9 @@ async function collectCriticalHealthSignalsBase(
     outgoingDelivery: {
       deadTotal: outgoingDelivery.deadTotal,
       dueBacklog: outgoingDelivery.dueBacklog,
+    },
+    outboundDeliveryProvider: {
+      recentIncidentCount: countRecentOutboundProviderFailureIncidents(operatorIncidents),
     },
     integratorPushOutbox,
     backupJobs,

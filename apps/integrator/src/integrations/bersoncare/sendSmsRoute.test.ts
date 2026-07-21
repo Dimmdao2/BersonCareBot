@@ -6,6 +6,7 @@ import { createHmac } from 'node:crypto';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import Fastify from 'fastify';
 import { registerBersoncareSendSmsRoute } from './sendSmsRoute.js';
+import { OutboundMessagePolicyError } from '../../infra/adapters/outboundMessagePolicy.js';
 
 const TEST_SECRET = 'test-shared-secret-16chars';
 const authChannelEnabled = vi.fn().mockResolvedValue(true);
@@ -35,9 +36,14 @@ describe('POST /api/bersoncare/send-sms', () => {
       dispatchPort: { dispatchOutgoing },
       sharedSecret: TEST_SECRET,
       isAuthChannelEnabled: authChannelEnabled,
+      recordProviderFailure: vi.fn().mockResolvedValue(undefined),
     });
 
-    const body = JSON.stringify({ phone: '+79991234567', code: '123456', idempotencyKey: 'key-abc' });
+    const body = JSON.stringify({
+      phone: '+79991234567',
+      code: '123456',
+      idempotencyKey: 'key-abc',
+    });
     const res = await app.inject({
       method: 'POST',
       url: '/api/bersoncare/send-sms',
@@ -78,9 +84,14 @@ describe('POST /api/bersoncare/send-sms', () => {
       dispatchPort: { dispatchOutgoing },
       sharedSecret: TEST_SECRET,
       isAuthChannelEnabled: authChannelEnabled,
+      recordProviderFailure: vi.fn().mockResolvedValue(undefined),
     });
 
-    const body = JSON.stringify({ phone: '+79991234567', code: '999888', idempotencyKey: 'idem-xyz' });
+    const body = JSON.stringify({
+      phone: '+79991234567',
+      code: '999888',
+      idempotencyKey: 'idem-xyz',
+    });
     await app.inject({
       method: 'POST',
       url: '/api/bersoncare/send-sms',
@@ -97,11 +108,13 @@ describe('POST /api/bersoncare/send-sms', () => {
 
   it('returns 502 when dispatchPort throws', async () => {
     const dispatchOutgoing = vi.fn().mockRejectedValue(new Error('CHANNEL_NOT_SUPPORTED:smsc'));
+    const recordProviderFailure = vi.fn().mockResolvedValue(undefined);
     const app = Fastify();
     await registerBersoncareSendSmsRoute(app, {
       dispatchPort: { dispatchOutgoing },
       sharedSecret: TEST_SECRET,
       isAuthChannelEnabled: authChannelEnabled,
+      recordProviderFailure,
     });
 
     const body = JSON.stringify({ phone: '+79991234567', code: '111222' });
@@ -114,6 +127,30 @@ describe('POST /api/bersoncare/send-sms', () => {
 
     expect(res.statusCode).toBe(502);
     expect(JSON.parse(res.body)).toEqual({ ok: false, error: 'sms_failed' });
+    expect(recordProviderFailure).toHaveBeenCalledWith('provider_send_failed');
+  });
+
+  it('does not classify a central egress-policy rejection as provider failure', async () => {
+    const dispatchOutgoing = vi.fn().mockRejectedValue(new OutboundMessagePolicyError('missing_or_invalid_marker'));
+    const recordProviderFailure = vi.fn().mockResolvedValue(undefined);
+    const app = Fastify();
+    await registerBersoncareSendSmsRoute(app, {
+      dispatchPort: { dispatchOutgoing },
+      sharedSecret: TEST_SECRET,
+      isAuthChannelEnabled: authChannelEnabled,
+      recordProviderFailure,
+    });
+    const body = JSON.stringify({ phone: '+79991234567', code: '111222' });
+
+    const response = await app.inject({
+      method: 'POST',
+      url: '/api/bersoncare/send-sms',
+      headers: makeHeaders(body),
+      body,
+    });
+
+    expect(response.statusCode).toBe(502);
+    expect(recordProviderFailure).not.toHaveBeenCalled();
   });
 
   it('returns 401 for invalid signature', async () => {
@@ -123,6 +160,7 @@ describe('POST /api/bersoncare/send-sms', () => {
       dispatchPort: { dispatchOutgoing },
       sharedSecret: TEST_SECRET,
       isAuthChannelEnabled: authChannelEnabled,
+      recordProviderFailure: vi.fn().mockResolvedValue(undefined),
     });
 
     const body = JSON.stringify({ phone: '+79991234567', code: '111222' });
@@ -149,6 +187,7 @@ describe('POST /api/bersoncare/send-sms', () => {
       dispatchPort: { dispatchOutgoing },
       sharedSecret: TEST_SECRET,
       isAuthChannelEnabled: authChannelEnabled,
+      recordProviderFailure: vi.fn().mockResolvedValue(undefined),
     });
 
     const body = JSON.stringify({ phone: '+79991234567' }); // missing code
@@ -171,6 +210,7 @@ describe('POST /api/bersoncare/send-sms', () => {
       dispatchPort: { dispatchOutgoing },
       sharedSecret: '',
       isAuthChannelEnabled: authChannelEnabled,
+      recordProviderFailure: vi.fn().mockResolvedValue(undefined),
     });
 
     const body = JSON.stringify({ phone: '+79991234567', code: '111222' });
@@ -198,6 +238,7 @@ describe('POST /api/bersoncare/send-sms', () => {
       dispatchPort: { dispatchOutgoing },
       sharedSecret: TEST_SECRET,
       isAuthChannelEnabled,
+      recordProviderFailure: vi.fn().mockResolvedValue(undefined),
     });
 
     const body = JSON.stringify({ phone: '+79991234567', code: '111222' });

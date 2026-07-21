@@ -1,10 +1,18 @@
 import { ADMIN_DELIVERY_DUE_BACKLOG_WARNING } from "./adminHealthThresholds";
 import { classifyIntegratorPushOutboxSystemHealthStatus } from "./integratorPushOutboxHealth";
-import type { IntegratorPushOutboxHealthSnapshot, OutgoingDeliveryQueueHealthSnapshot, WebhookBurstRow } from "./ports";
+import type {
+  IntegratorPushOutboxHealthSnapshot,
+  OperatorIncidentOpenRow,
+  OutgoingDeliveryQueueHealthSnapshot,
+  WebhookBurstRow,
+} from "./ports";
 import { isWebhookBurstCritical, WEBHOOK_BURST_MIN_COUNT } from "./webhookBurst";
 import type { TenantIsolationCriticalHealthSignal } from "./tenantIsolationCriticalHealth";
 
 export const PROBE_CRITICAL_CONSECUTIVE_FAIL_RUNS = 3;
+export const OUTBOUND_PROVIDER_FAILURE_DIRECTION = "outbound_delivery_provider";
+export const OUTBOUND_PROVIDER_FAILURE_WINDOW_MINUTES = 15;
+export const OUTBOUND_PROVIDER_FAILURE_MIN_INCIDENTS = 1;
 
 export type DbStatus = "up" | "down";
 export type IntegratorApiStatus = "ok" | "unreachable" | "error";
@@ -23,6 +31,7 @@ export type CriticalHealthSignalsInput = {
   integratorApi: IntegratorApiStatus;
   projection: CriticalHealthProjectionInput;
   outgoingDelivery: Pick<OutgoingDeliveryQueueHealthSnapshot, "deadTotal" | "dueBacklog">;
+  outboundDeliveryProvider?: { recentIncidentCount: number };
   integratorPushOutbox: IntegratorPushOutboxHealthSnapshot;
   backupJobs: Record<string, { lastStatus: string }>;
   /** Из `operator_job_status.meta_json.consecutiveFailRuns` (outbound probe). */
@@ -67,10 +76,29 @@ export function classifyOperatorHealthBannerSignals(input: OperatorHealthBannerI
   if (input.probeConsecutiveFailRuns >= PROBE_CRITICAL_CONSECUTIVE_FAIL_RUNS) return true;
   if ((input.webhookBursts ?? []).some(isWebhookBurstCritical)) return true;
   const od = input.outgoingDelivery;
+  if ((input.outboundDeliveryProvider?.recentIncidentCount ?? 0) >= OUTBOUND_PROVIDER_FAILURE_MIN_INCIDENTS) return true;
   if (od.deadTotal > 0 || od.dueBacklog >= ADMIN_DELIVERY_DUE_BACKLOG_WARNING) return true;
   if (classifyIntegratorPushOutboxSystemHealthStatus(input.integratorPushOutbox) !== "ok") return true;
   if (classifyTenantIsolationSignals(input.tenantIsolation).length > 0) return true;
   return false;
+}
+
+/**
+ * Counts only recent, open, low-cardinality provider incident classes. One incident is enough
+ * to raise the owner-approved critical signal; occurrence history is intentionally not treated
+ * as a sliding-window event count because the existing incident store does not retain timestamps
+ * per occurrence.
+ */
+export function countRecentOutboundProviderFailureIncidents(
+  incidents: OperatorIncidentOpenRow[],
+  nowMs = Date.now(),
+): number {
+  const cutoffMs = nowMs - OUTBOUND_PROVIDER_FAILURE_WINDOW_MINUTES * 60_000;
+  return incidents.filter((incident) => {
+    if (incident.direction !== OUTBOUND_PROVIDER_FAILURE_DIRECTION) return false;
+    const lastSeenMs = Date.parse(incident.lastSeenAt);
+    return Number.isFinite(lastSeenMs) && lastSeenMs >= cutoffMs && lastSeenMs <= nowMs;
+  }).length;
 }
 
 function classifyTenantIsolationSignals(
@@ -156,12 +184,26 @@ export function classifyCriticalHealthSignals(input: CriticalHealthSignalsInput)
     });
   }
 
-  if (input.outgoingDelivery.deadTotal > 0) {
+  const recentProviderIncidents = input.outboundDeliveryProvider?.recentIncidentCount ?? 0;
+  if (
+    input.outgoingDelivery.deadTotal > 0 ||
+    recentProviderIncidents >= OUTBOUND_PROVIDER_FAILURE_MIN_INCIDENTS
+  ) {
     out.push({
-      topic: "outgoing_delivery",
-      dedupKey: "critical:outgoing_delivery:dead",
-      pushTitle: "Критичный сбой: исходящая доставка",
-      lines: [`Исходящая доставка: dead=${input.outgoingDelivery.deadTotal}`],
+      topic: "outbound_delivery_provider",
+      dedupKey: "critical:outbound_delivery_provider:active",
+      pushTitle: "Критичный сбой: провайдер доставки",
+      lines: [
+        "Исходящая доставка: отказ провайдера",
+        ...(recentProviderIncidents >= OUTBOUND_PROVIDER_FAILURE_MIN_INCIDENTS
+          ? [
+              `Свежих классов синхронного отказа за ${OUTBOUND_PROVIDER_FAILURE_WINDOW_MINUTES} мин: ${recentProviderIncidents}`,
+            ]
+          : []),
+        ...(input.outgoingDelivery.deadTotal > 0
+          ? [`Необработанных dead-записей очереди: ${input.outgoingDelivery.deadTotal}`]
+          : []),
+      ],
     });
   }
 
