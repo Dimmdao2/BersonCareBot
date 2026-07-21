@@ -146,7 +146,40 @@ describe("/api/admin/booking-engine/schedule-blocks", () => {
       "33333333-3333-4333-8333-333333333333",
       "org-1",
     );
+    expect(requireEntitlementMock).toHaveBeenCalledWith(gateCtx, "booking");
   });
+
+  it.each([
+    ["read_only", "commercial_read_only"],
+    ["blocked", "commercial_blocked"],
+  ] as const)(
+    "DELETE denies schedule-block mutation when the organization lifecycle is %s",
+    async (_lifecycle, error) => {
+      const { NextResponse } = await import("next/server");
+      const gateCtx = { organizationId: "org-1", session: { user: { userId: "user-1" } } };
+      requireAdminBookingEngineMock.mockResolvedValue({ ok: true, ctx: gateCtx });
+      requireEntitlementMock.mockResolvedValueOnce({
+        ok: false,
+        response: NextResponse.json(
+          { ok: false, error, mechanic: "booking" },
+          { status: 403 },
+        ),
+      });
+
+      const res = await DELETE(
+        new Request(
+          "http://localhost/api/admin/booking-engine/schedule-blocks?id=33333333-3333-4333-8333-333333333333",
+          { method: "DELETE" },
+        ),
+      );
+
+      expect(res.status).toBe(403);
+      await expect(res.json()).resolves.toMatchObject({ error, mechanic: "booking" });
+      expect(requireEntitlementMock).toHaveBeenCalledWith(gateCtx, "booking");
+      expect(deleteScheduleBlockMock).not.toHaveBeenCalled();
+      expect(withDoctorWorkspacePrincipalMock).not.toHaveBeenCalled();
+    },
+  );
 
   it("DELETE rejects missing id before principal wrapper", async () => {
     requireAdminBookingEngineMock.mockResolvedValue({

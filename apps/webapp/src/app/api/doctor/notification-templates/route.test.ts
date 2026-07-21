@@ -3,13 +3,15 @@ import { createDefaultManagedNotifTemplate } from "@/modules/notif-templates/man
 
 const {
   managementGuardMock,
-  entitlementMock,
+  readEntitlementMock,
+  mutationEntitlementMock,
   getManagedTemplatesMock,
   getPresentationMock,
   saveTemplateMock,
 } = vi.hoisted(() => ({
   managementGuardMock: vi.fn(),
-  entitlementMock: vi.fn(),
+  readEntitlementMock: vi.fn(),
+  mutationEntitlementMock: vi.fn(),
   getManagedTemplatesMock: vi.fn(),
   getPresentationMock: vi.fn(),
   saveTemplateMock: vi.fn(),
@@ -18,7 +20,10 @@ const {
 vi.mock("@/app-layer/guards/requireRole", () => ({
   requireClinicManagementApiContext: managementGuardMock,
 }));
-vi.mock("@/app-layer/guards/requireEntitlement", () => ({ requireEntitlement: entitlementMock }));
+vi.mock("@/app-layer/guards/requireEntitlement", () => ({
+  requireEntitlementForRead: readEntitlementMock,
+  requireEntitlementForMutation: mutationEntitlementMock,
+}));
 vi.mock("@/app-layer/di/buildAppDeps", () => ({
   buildAppDeps: () => ({
     notifTemplates: {
@@ -54,7 +59,8 @@ describe("organization notification templates API", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     managementGuardMock.mockResolvedValue(MANAGEMENT);
-    entitlementMock.mockResolvedValue({ ok: true });
+    readEntitlementMock.mockResolvedValue({ ok: true });
+    mutationEntitlementMock.mockResolvedValue({ ok: true });
     getManagedTemplatesMock.mockResolvedValue([]);
     getPresentationMock.mockResolvedValue({ presentation: {}, metadata: {} });
   });
@@ -62,19 +68,36 @@ describe("organization notification templates API", () => {
   it("denies a specialist without organization-management capability", async () => {
     managementGuardMock.mockResolvedValue(DENIED);
     expect((await GET()).status).toBe(403);
-    expect(entitlementMock).not.toHaveBeenCalled();
+    expect(readEntitlementMock).not.toHaveBeenCalled();
   });
 
   it("denies an organization without the branding entitlement", async () => {
-    entitlementMock.mockResolvedValue(DENIED);
+    readEntitlementMock.mockResolvedValue(DENIED);
     expect((await GET()).status).toBe(403);
     expect(getManagedTemplatesMock).not.toHaveBeenCalled();
   });
 
   it("reads templates only for the server-resolved organization", async () => {
     expect((await GET()).status).toBe(200);
-    expect(entitlementMock).toHaveBeenCalledWith(MANAGEMENT.ctx, "branding");
+    expect(readEntitlementMock).toHaveBeenCalledWith(MANAGEMENT.ctx, "branding");
     expect(getManagedTemplatesMock).toHaveBeenCalledWith({ organizationId: ORG_A });
+  });
+
+  it("denies template mutation when the commercial lifecycle is read-only", async () => {
+    mutationEntitlementMock.mockResolvedValue(DENIED);
+    const channels = createDefaultManagedNotifTemplate("rescheduled", "doctor").channels;
+
+    const response = await PUT(putRequest({
+      kind: "template",
+      event: "rescheduled",
+      audience: "doctor",
+      channels,
+      expectedUpdatedAt: null,
+    }));
+
+    expect(response.status).toBe(403);
+    expect(mutationEntitlementMock).toHaveBeenCalledWith(MANAGEMENT.ctx, "branding");
+    expect(saveTemplateMock).not.toHaveBeenCalled();
   });
 
   it("cannot select another organization in the request body", async () => {

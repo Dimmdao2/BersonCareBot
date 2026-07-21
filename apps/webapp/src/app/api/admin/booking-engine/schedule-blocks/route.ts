@@ -63,6 +63,8 @@ export async function POST(request: Request) {
 export async function DELETE(request: Request) {
   const gate = await requireAdminBookingEngine();
   if (!gate.ok) return gate.response;
+  const entitlement = await requireEntitlementForMutation(gate.ctx, "booking");
+  if (!entitlement.ok) return entitlement.response;
   const id = new URL(request.url).searchParams.get("id")?.trim();
   if (!id) {
     return NextResponse.json({ ok: false, error: "missing_id" }, { status: 400 });

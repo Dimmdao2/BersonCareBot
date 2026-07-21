@@ -284,10 +284,43 @@ describe("saveDraftAction", () => {
 
     expect(saveDraftMock).toHaveBeenCalledWith(DOCTOR_USER_ID, draft);
     expect(observedPrincipals).toEqual([ORGANIZATION_ID]);
+    expect(requireEntitlementForMutationActionMock).toHaveBeenCalledWith(
+      workspaceContext(),
+      "mailings",
+    );
     expect(requireDoctorWorkspaceContextMock).toHaveBeenCalledTimes(1);
     expect(requireDoctorAccessMock).not.toHaveBeenCalled();
     expect(getCurrentDbPrincipalOrganizationId()).toBeUndefined();
   });
+
+  it.each([
+    ["read_only", "commercial_read_only"],
+    ["blocked", "commercial_blocked"],
+  ] as const)(
+    "denies draft persistence when the organization lifecycle is %s",
+    async (_lifecycle, reason) => {
+      const draft: BroadcastDraft = {
+        category: "reminder",
+        audience: "with_telegram",
+        channels: ["bot_message"],
+        title: "Заголовок",
+        body: "Текст",
+      };
+      requireEntitlementForMutationActionMock.mockResolvedValueOnce({
+        ok: false,
+        mechanic: "mailings",
+        reason,
+      });
+
+      await expect(saveDraftAction(draft)).rejects.toThrow(`${reason}:mailings`);
+
+      expect(requireDoctorWorkspaceContextMock.mock.invocationCallOrder[0]).toBeLessThan(
+        requireEntitlementForMutationActionMock.mock.invocationCallOrder[0]!,
+      );
+      expect(saveDraftMock).not.toHaveBeenCalled();
+      expect(getCurrentDbPrincipalOrganizationId()).toBeUndefined();
+    },
+  );
 
   it("сохраняет черновик с валидными non-null полями", async () => {
     const draft: BroadcastDraft = {

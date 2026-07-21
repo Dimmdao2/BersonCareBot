@@ -56,6 +56,7 @@ const canonicalOrder = [
   "deploy/postgres/patient-course-assignment-wall.sql",
   "deploy/postgres/specialist-signup-public-bootstrap-rls.sql",
   "deploy/postgres/specialist-owner-provisioning-rls.sql",
+  "deploy/postgres/u9a-platform-settings-role.sql",
   "deploy/postgres/c5a-platform-operations-runtime.sql",
   "deploy/postgres/runtime-overlay-app-owner-handoff.sql",
   "deploy/postgres/reference-catalog-rls.sql",
@@ -161,7 +162,11 @@ test("missing-capable handoff targets map exactly to later overlay creation and 
   assertExactOwnerHandoffCoverage(handoff);
 
   const detectedSetRoleReplacements = canonicalOrder.filter((relativePath) => {
-    if (!relativePath.startsWith("deploy/postgres/") || relativePath === canonicalOrder.at(-1)) {
+    if (
+      !relativePath.startsWith("deploy/postgres/") ||
+      relativePath === canonicalOrder.at(-1) ||
+      relativePath === "deploy/postgres/u9a-platform-settings-role.sql"
+    ) {
       return false;
     }
     const overlay = readFileSync(join(repoRoot, relativePath), "utf8");
@@ -170,6 +175,14 @@ test("missing-capable handoff targets map exactly to later overlay creation and 
   assert.deepEqual(
     detectedSetRoleReplacements,
     protectedReplacements.map((replacement) => replacement.relativePath),
+  );
+  const u9aPlatformSettings = readFileSync(
+    join(repoRoot, "deploy/postgres/u9a-platform-settings-role.sql"),
+    "utf8",
+  );
+  assert.match(
+    u9aPlatformSettings,
+    /ALTER FUNCTION app\.enqueue_platform_system_settings_sync\(text\) OWNER TO app_owner;/u,
   );
 
   const handoffIndex = canonicalOrder.indexOf("deploy/postgres/runtime-overlay-app-owner-handoff.sql");

@@ -1,7 +1,10 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
-import { requireEntitlement } from "@/app-layer/guards/requireEntitlement";
+import {
+  requireEntitlementForMutation,
+  requireEntitlementForRead,
+} from "@/app-layer/guards/requireEntitlement";
 import { requireClinicManagementApiContext } from "@/app-layer/guards/requireRole";
 import {
   NOTIF_TEMPLATE_AUDIENCES,
@@ -49,10 +52,12 @@ const previewSchema = z.object({
   presentation: presentationSchema,
 }).strict();
 
-async function requireTemplateManagement() {
+async function requireTemplateManagement(access: "read" | "mutation") {
   const management = await requireClinicManagementApiContext();
   if (!management.ok) return management;
-  const entitlement = await requireEntitlement(management.ctx, "branding");
+  const entitlement = access === "mutation"
+    ? await requireEntitlementForMutation(management.ctx, "branding")
+    : await requireEntitlementForRead(management.ctx, "branding");
   if (!entitlement.ok) return entitlement;
   return management;
 }
@@ -67,7 +72,7 @@ function isInvalidTemplateError(error: unknown): boolean {
 }
 
 export async function GET() {
-  const gate = await requireTemplateManagement();
+  const gate = await requireTemplateManagement("read");
   if (!gate.ok) return gate.response;
   const deps = buildAppDeps();
   const options = { organizationId: gate.ctx.organizationId };
@@ -79,7 +84,7 @@ export async function GET() {
 }
 
 export async function PUT(request: Request) {
-  const gate = await requireTemplateManagement();
+  const gate = await requireTemplateManagement("mutation");
   if (!gate.ok) return gate.response;
   const parsed = putSchema.safeParse(await request.json().catch(() => null));
   if (!parsed.success) return NextResponse.json({ ok: false, error: "invalid_body" }, { status: 400 });
@@ -115,7 +120,7 @@ export async function PUT(request: Request) {
 
 /** Synthetic preview only: no recipient lookup, queue or provider call exists in this route. */
 export async function POST(request: Request) {
-  const gate = await requireTemplateManagement();
+  const gate = await requireTemplateManagement("read");
   if (!gate.ok) return gate.response;
   const parsed = previewSchema.safeParse(await request.json().catch(() => null));
   if (!parsed.success) return NextResponse.json({ ok: false, error: "invalid_body" }, { status: 400 });

@@ -43,6 +43,7 @@ export const PROTECTED_ACTION_MAPPINGS = [
   { id: "courses.patient.list", mechanic: "courses", file: "src/app/api/patient/courses/route.ts", exportName: "GET", method: "GET", authContext: "requirePatientApiBusinessAccess + resolvePatientEnrollmentOrganizationId", guard: "requireEntitlementForRead", serviceBoundary: "deps.courses.listAssignedForPatient" },
   { id: "courses.patient.enroll", mechanic: "courses", file: "src/app/api/patient/courses/[courseId]/enroll/route.ts", exportName: "POST", method: "POST", authContext: "requirePatientApiBusinessAccess + resolvePatientEnrollmentOrganizationId", guard: "requireEntitlementForMutation", serviceBoundary: "deps.courses.enrollPatient" },
   { id: "mailings.execute", mechanic: "mailings", file: "src/app/app/doctor/broadcasts/actions.ts", exportName: "executeBroadcastAction", method: "action", authContext: "requireDoctorWorkspaceContext", guard: "requireEntitlementForMutationAction", serviceBoundary: "deps.doctorBroadcasts.execute" },
+  { id: "mailings.draft.save", mechanic: "mailings", file: "src/app/app/doctor/broadcasts/actions.ts", exportName: "saveDraftAction", method: "action", authContext: "requireDoctorWorkspaceContext", guard: "requireEntitlementForMutationAction", serviceBoundary: "deps.doctorBroadcastComposer.saveDraft" },
   { id: "cms-pages.save", mechanic: "cms_pages", file: "src/app/app/doctor/content/actions.ts", exportName: "saveContentPage", method: "action", authContext: "requireDoctorWorkspaceContext", guard: "requireEntitlementForMutationAction", serviceBoundary: "deps.contentPages.updateFull/upsert" },
   { id: "cms-pages.lifecycle", mechanic: "cms_pages", file: "src/app/app/doctor/content/lifecycleActions.ts", exportName: "applyContentLifecycle", method: "action", authContext: "requireDoctorWorkspaceContext", guard: "requireEntitlementForMutationAction", serviceBoundary: "deps.contentPages.updateLifecycle" },
   { id: "cms-pages.requires-auth", mechanic: "cms_pages", file: "src/app/app/doctor/content/contentPageAuthActions.ts", exportName: "setContentPageRequiresAuth", method: "action", authContext: "requireDoctorWorkspaceContext", guard: "requireEntitlementForMutationAction", serviceBoundary: "deps.contentPages.updateLifecycle" },
@@ -82,6 +83,7 @@ export const PROTECTED_ACTION_MAPPINGS = [
   { id: "booking.branch.create", mechanic: "booking", file: "src/app/api/admin/booking-engine/branches/route.ts", exportName: "POST", method: "POST", authContext: "requireClinicManagementBookingEngine", guard: "requireEntitlementForMutation", serviceBoundary: "gate.ctx.service.catalog.upsertBranch" },
   { id: "booking.service.create", mechanic: "booking", file: "src/app/api/admin/booking-engine/services/route.ts", exportName: "POST", method: "POST", authContext: "requireClinicManagementBookingEngine", guard: "requireEntitlementForMutation", serviceBoundary: "gate.ctx.service.services.upsertService" },
   { id: "booking.slot.create", mechanic: "booking", file: "src/app/api/admin/booking-engine/schedule-blocks/route.ts", exportName: "POST", method: "POST", authContext: "requireAdminBookingEngine", guard: "requireEntitlementForMutation", serviceBoundary: "bookingScheduling.createScheduleBlock" },
+  { id: "booking.schedule-block.delete", mechanic: "booking", file: "src/app/api/admin/booking-engine/schedule-blocks/route.ts", exportName: "DELETE", method: "DELETE", authContext: "requireAdminBookingEngine", guard: "requireEntitlementForMutation", serviceBoundary: "bookingScheduling.deleteScheduleBlock" },
   { id: "payments.booking-settings.patch", mechanic: "payments", file: "src/app/api/admin/settings/route.ts", exportName: "PATCH", method: "PATCH", authContext: "requireClinicManagementApiContext", guard: "requireEntitlementForMutation", serviceBoundary: "deps.systemSettings.updateSetting" },
   { id: "clinic-team.invites.list", mechanic: "clinic_team", file: "src/app/api/clinic/invites/route.ts", exportName: "GET", method: "GET", authContext: "requireClinicManagementApiContext", guard: "requireEntitlementForRead", serviceBoundary: "deps.organizationInvites.listPending/deps.clinicSeats.getSeatStatus" },
   { id: "clinic-team.invites.create", mechanic: "clinic_team", file: "src/app/api/clinic/invites/route.ts", exportName: "POST", method: "POST", authContext: "requireClinicManagementApiContext", guard: "requireEntitlementForMutation", serviceBoundary: "deps.organizationInvites.createInvite (atomic seat check inside createReplacingPending)" },
@@ -109,7 +111,6 @@ export const PROTECTED_ACTION_EXEMPTIONS = [
   { file: "src/app/app/doctor/broadcasts/actions.ts", exportName: "previewBroadcastAction", reason: "non-mutating preview" },
   { file: "src/app/app/doctor/broadcasts/actions.ts", exportName: "listBroadcastAuditAction", reason: "read action" },
   { file: "src/app/app/doctor/broadcasts/actions.ts", exportName: "loadDraftAction", reason: "read action" },
-  { file: "src/app/app/doctor/broadcasts/actions.ts", exportName: "saveDraftAction", reason: "draft persistence is not the protected mailing execution boundary" },
   { file: "src/app/app/doctor/broadcasts/actions.ts", exportName: "getChannelCountsAction", reason: "read action" },
   { file: "src/app/app/doctor/broadcasts/actions.ts", exportName: "getChannelCountsByAudienceAction", reason: "read action" },
   { file: "src/app/app/doctor/content/lifecycleActions.ts", exportName: "applyContentLifecycleForm", reason: "form wrapper delegates to mapped applyContentLifecycle" },
@@ -123,7 +124,6 @@ export const PROTECTED_ACTION_EXEMPTIONS = [
   { file: "src/app/api/admin/booking-engine/branches/route.ts", exportName: "GET", reason: "read route" },
   { file: "src/app/api/admin/booking-engine/services/route.ts", exportName: "GET", reason: "read route" },
   { file: "src/app/api/admin/booking-engine/schedule-blocks/route.ts", exportName: "GET", reason: "read route" },
-  { file: "src/app/api/admin/booking-engine/schedule-blocks/route.ts", exportName: "DELETE", reason: "S4 Phase 2 scopes booking to create only" },
   { file: "src/app/api/admin/settings/route.ts", exportName: "GET", reason: "read route" },
 ] as const satisfies readonly ProtectedActionExemption[];
 

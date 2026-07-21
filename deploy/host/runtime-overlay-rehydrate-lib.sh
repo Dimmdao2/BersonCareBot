@@ -91,6 +91,7 @@ runtime_overlay_apply_post_migration_chain() {
     deploy/postgres/patient-course-assignment-wall.sql
     deploy/postgres/specialist-signup-public-bootstrap-rls.sql
     deploy/postgres/specialist-owner-provisioning-rls.sql
+    deploy/postgres/u9a-platform-settings-role.sql
     deploy/postgres/c5a-platform-operations-runtime.sql
   )
   local -a protected_overlays=(

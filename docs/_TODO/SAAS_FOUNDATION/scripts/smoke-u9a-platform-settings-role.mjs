@@ -115,7 +115,52 @@ function installFixture() {
 
   const artifact = readFileSync(path.join(root, "deploy/postgres/u9a-platform-settings-role.sql"), "utf8");
   psql(artifact, "U9A role artifact first apply");
-  psql(artifact, "U9A role artifact repeat apply");
+  psql(`
+    ALTER ROLE app_platform_settings LOGIN INHERIT BYPASSRLS;
+    REVOKE app_platform_settings FROM app_staff;
+    REVOKE SELECT, INSERT, UPDATE ON TABLE public.system_settings FROM app_platform_settings;
+    REVOKE INSERT ON TABLE public.system_settings_audit FROM app_platform_settings;
+    DROP POLICY u9a_platform_settings_global_only ON public.system_settings;
+    DROP POLICY u9a_platform_settings_audit_global_only ON public.system_settings_audit;
+    DROP POLICY u9a_platform_runtime_global_only ON public.app_runtime_settings;
+    DROP POLICY u9a_platform_runtime_audit_global_only ON public.app_runtime_settings_audit;
+  `, "simulate post-restore role and database-local ACL drift");
+  psql(artifact, "U9A role artifact post-restore reapply");
+}
+
+function assertRehydratedRoleAndDatabaseClosure() {
+  assertTrue(`
+    SELECT (
+      NOT role.rolcanlogin
+      AND NOT role.rolsuper
+      AND NOT role.rolinherit
+      AND NOT role.rolcreaterole
+      AND NOT role.rolcreatedb
+      AND NOT role.rolreplication
+      AND NOT role.rolbypassrls
+      AND pg_has_role('app_staff', 'app_platform_settings', 'SET')
+      AND has_table_privilege('app_platform_settings', 'public.system_settings', 'SELECT')
+      AND has_table_privilege('app_platform_settings', 'public.system_settings', 'INSERT')
+      AND has_table_privilege('app_platform_settings', 'public.system_settings', 'UPDATE')
+      AND has_table_privilege('app_platform_settings', 'public.system_settings_audit', 'INSERT')
+      AND 4 = (
+        SELECT count(*)
+        FROM pg_policy AS policy
+        JOIN pg_class AS relation ON relation.oid = policy.polrelid
+        JOIN pg_namespace AS namespace ON namespace.oid = relation.relnamespace
+        WHERE namespace.nspname = 'public'
+          AND policy.polname IN (
+            'u9a_platform_settings_global_only',
+            'u9a_platform_settings_audit_global_only',
+            'u9a_platform_runtime_global_only',
+            'u9a_platform_runtime_audit_global_only'
+          )
+          AND policy.polroles = ARRAY[role.oid]::oid[]
+      )
+    )::int
+    FROM pg_roles AS role
+    WHERE role.rolname = 'app_platform_settings';
+  `, "post-restore role attributes, membership, grants and policies rehydrated");
 }
 
 function assertAllowedPaths() {
@@ -216,6 +261,7 @@ try {
   serverStarted = true;
   run(path.join(pgBin, "createdb"), ["-h", socket, "-p", port, "-U", "postgres", db], undefined, "scratch DB");
   installFixture();
+  assertRehydratedRoleAndDatabaseClosure();
   assertAllowedPaths();
   assertDeniedPaths();
   console.log("U9A private PostgreSQL real-role matrix: OK (PII-free)");

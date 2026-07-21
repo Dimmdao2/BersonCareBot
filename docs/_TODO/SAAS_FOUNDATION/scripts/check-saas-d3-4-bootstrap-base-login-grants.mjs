@@ -717,6 +717,8 @@ function runChecks(overrides = {}) {
     "deploy/postgres/patient-course-assignment-wall.sql",
     "deploy/postgres/specialist-signup-public-bootstrap-rls.sql",
     "deploy/postgres/specialist-owner-provisioning-rls.sql",
+    "deploy/postgres/u9a-platform-settings-role.sql",
+    "deploy/postgres/c5a-platform-operations-runtime.sql",
     "deploy/postgres/runtime-overlay-app-owner-handoff.sql",
     "deploy/postgres/reference-catalog-rls.sql",
     "deploy/postgres/patient-visible-catalog-rls.sql",

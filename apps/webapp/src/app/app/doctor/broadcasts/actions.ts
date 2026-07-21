@@ -99,6 +99,8 @@ export async function loadDraftAction(): Promise<BroadcastDraft | null> {
 
 export async function saveDraftAction(draft: BroadcastDraft): Promise<void> {
   const workspace = await requireDoctorWorkspaceContext();
+  const entitlement = await requireEntitlementForMutationAction(workspace, "mailings");
+  if (!entitlement.ok) throw new Error(`${entitlement.reason}:${entitlement.mechanic}`);
   const parsed = draftSchema.safeParse(draft);
   if (!parsed.success) {
     throw new Error("draft_validation_error");

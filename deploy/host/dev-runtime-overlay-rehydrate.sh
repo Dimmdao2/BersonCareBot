@@ -21,6 +21,7 @@ P0_5B_GRANTS="$REPO_ROOT/deploy/postgres/p0-5b-grants.sql"
 P2_B_CONTEXT="$REPO_ROOT/deploy/postgres/p2-b-protected-principal-context.sql"
 PHASE4_LOCKED_POLICIES="$REPO_ROOT/deploy/postgres/phase4-locked-helper-rls-policies.sql"
 D3_4_BOOTSTRAP_GRANTS="$REPO_ROOT/deploy/postgres/d3-4-bootstrap-base-login-read-grants.sql"
+U9A_PLATFORM_SETTINGS_ROLE="$REPO_ROOT/deploy/postgres/u9a-platform-settings-role.sql"
 C5A_PLATFORM_OPERATIONS="$REPO_ROOT/deploy/postgres/c5a-platform-operations-runtime.sql"
 RUNTIME_OVERLAY_APP_OWNER_HANDOFF="$REPO_ROOT/deploy/postgres/runtime-overlay-app-owner-handoff.sql"
 POSTGRES=(sudo -n -u postgres env -i PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin)
@@ -65,6 +66,7 @@ for guarded_file in \
   "$P2_B_CONTEXT|$REPO_ROOT/deploy/postgres/p2-b-protected-principal-context.sql|P2-B protected context" \
   "$PHASE4_LOCKED_POLICIES|$REPO_ROOT/deploy/postgres/phase4-locked-helper-rls-policies.sql|Phase 4 strict locked-helper policies" \
   "$D3_4_BOOTSTRAP_GRANTS|$REPO_ROOT/deploy/postgres/d3-4-bootstrap-base-login-read-grants.sql|D3.4 bootstrap grants" \
+  "$U9A_PLATFORM_SETTINGS_ROLE|$REPO_ROOT/deploy/postgres/u9a-platform-settings-role.sql|U9A platform settings role" \
   "$C5A_PLATFORM_OPERATIONS|$REPO_ROOT/deploy/postgres/c5a-platform-operations-runtime.sql|C5A platform operations" \
   "$RUNTIME_OVERLAY_APP_OWNER_HANDOFF|$REPO_ROOT/deploy/postgres/runtime-overlay-app-owner-handoff.sql|runtime overlay app_owner handoff"; do
   IFS='|' read -r guarded_path expected_path guarded_label <<<"$guarded_file"
