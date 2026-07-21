@@ -59,6 +59,36 @@ async function findEditor(container: HTMLElement): Promise<HTMLElement> {
   return editor;
 }
 
+function placeCaretAtEnd(element: HTMLElement): void {
+  element.focus();
+  const selection = window.getSelection();
+  if (!selection) throw new Error("Selection API is unavailable");
+  const range = document.createRange();
+  range.selectNodeContents(element);
+  range.collapse(false);
+  selection.removeAllRanges();
+  selection.addRange(range);
+  document.dispatchEvent(new Event("selectionchange"));
+}
+
+function selectLastCharacter(element: HTMLElement): void {
+  element.focus();
+  const walker = document.createTreeWalker(element, NodeFilter.SHOW_TEXT);
+  let lastTextNode: Text | null = null;
+  while (walker.nextNode()) lastTextNode = walker.currentNode as Text;
+  if (!lastTextNode || lastTextNode.data.length === 0) {
+    throw new Error("Editor has no text to select");
+  }
+  const selection = window.getSelection();
+  if (!selection) throw new Error("Selection API is unavailable");
+  const range = document.createRange();
+  range.setStart(lastTextNode, lastTextNode.data.length - 1);
+  range.setEnd(lastTextNode, lastTextNode.data.length);
+  selection.removeAllRanges();
+  selection.addRange(range);
+  document.dispatchEvent(new Event("selectionchange"));
+}
+
 describe("MarkdownEditor", () => {
   it("keeps the representative GFM fixture stable without losing links or media", () => {
     const fixture = [
@@ -143,6 +173,60 @@ describe("MarkdownEditor", () => {
 
     await waitFor(() => expect(screen.getByRole("alert")).toHaveTextContent("Достигнут предел"));
     expect(container.querySelector('input[name="body_md"]')).toHaveValue("12345");
+  });
+
+  it("allows an over-limit initial value to shrink but rejects equal or increasing edits", async () => {
+    const user = userEvent.setup();
+    const { container } = render(
+      <MarkdownEditor name="body_md" defaultValue="1234567" maxLength={5} />,
+    );
+    const textbox = await findEditor(container);
+
+    placeCaretAtEnd(textbox);
+    await user.keyboard("{Backspace}");
+    await waitFor(() =>
+      expect(container.querySelector('input[name="body_md"]')).toHaveValue("123456"),
+    );
+    expect(screen.getByRole("alert")).toHaveTextContent("Достигнут предел");
+
+    selectLastCharacter(textbox);
+    await user.keyboard("X");
+    await waitFor(() =>
+      expect(container.querySelector('input[name="body_md"]')).toHaveValue("123456"),
+    );
+
+    placeCaretAtEnd(textbox);
+    await user.keyboard("7");
+    await waitFor(() =>
+      expect(container.querySelector('input[name="body_md"]')).toHaveValue("123456"),
+    );
+
+    placeCaretAtEnd(textbox);
+    await user.keyboard("{Backspace}");
+    await waitFor(() => expect(container.querySelector('input[name="body_md"]')).toHaveValue("12345"));
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+
+    placeCaretAtEnd(textbox);
+    await user.keyboard("6");
+    await waitFor(() => expect(container.querySelector('input[name="body_md"]')).toHaveValue("12345"));
+    expect(screen.getByRole("alert")).toHaveTextContent("Достигнут предел");
+  });
+
+  it("allows a controlled over-limit value to be reduced progressively", async () => {
+    const onChange = vi.fn();
+    const user = userEvent.setup();
+    const { container } = render(
+      <MarkdownEditor name="body_md" value="abcdefg" maxLength={5} onChange={onChange} />,
+    );
+    const textbox = await findEditor(container);
+
+    placeCaretAtEnd(textbox);
+    await user.keyboard("{Backspace}");
+
+    await waitFor(() =>
+      expect(container.querySelector('input[name="body_md"]')).toHaveValue("abcdef"),
+    );
+    expect(onChange).toHaveBeenLastCalledWith("abcdef");
   });
 
   it("accepts an external controlled value without emitting a local change", async () => {

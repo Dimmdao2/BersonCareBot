@@ -14,6 +14,7 @@ import {
   SelectValue,
 } from "@/shared/ui/doctor/primitives/select";
 import { Textarea } from "@/shared/ui/doctor/primitives/textarea";
+import { MarkdownContent } from "@/shared/ui/doctor/markdown/MarkdownContent";
 import { MarkdownEditor } from "@/shared/ui/doctor/markdown/MarkdownEditor";
 import type { ContentSectionRow } from "@/infra/repos/pgContentSections";
 import {
@@ -107,7 +108,10 @@ export function ContentForm({
     defaultSectionSlugForSelect === HELP_SECTION_SLUG || page?.section === HELP_SECTION_SLUG;
 
   // ─── state for controlled fields (needed for dirty detection + preview) ───
-  const initialBodyMd = page ? (page.bodyMd.trim().length > 0 ? page.bodyMd : page.bodyHtml) : "";
+  const initialBodyMd = page?.bodyMd ?? "";
+  const hasLegacyHtmlOnly = Boolean(
+    page && page.bodyMd.trim().length === 0 && page.bodyHtml.trim().length > 0,
+  );
 
   const [titleValue, setTitleValue] = useState(page?.title ?? "");
   const [summaryValue, setSummaryValue] = useState(page?.summary ?? "");
@@ -119,6 +123,7 @@ export function ContentForm({
   const [requiresAuthValue, setRequiresAuthValue] = useState(page?.requiresAuth ?? false);
   const [sectionValue, setSectionValue] = useState(defaultSectionSlugForSelect);
   const [linkedCourseIdValue, setLinkedCourseIdValue] = useState(page?.linkedCourseId ?? "");
+  const [legacyReplacementStarted, setLegacyReplacementStarted] = useState(false);
 
   const [previewOpen, setPreviewOpen] = useState(false);
   const slugManualRef = useRef(false);
@@ -142,7 +147,7 @@ export function ContentForm({
 
   // ─── record-keyed reset (ExerciseForm pattern) ────────────────────────────
   useEffect(() => {
-    const newBodyMd = page ? (page.bodyMd.trim().length > 0 ? page.bodyMd : page.bodyHtml) : "";
+    const newBodyMd = page?.bodyMd ?? "";
     const newSection =
       page?.section ??
       (initialSectionSlug && sections.some((s) => s.slug === initialSectionSlug)
@@ -159,6 +164,7 @@ export function ContentForm({
     setRequiresAuthValue(page?.requiresAuth ?? false);
     setSectionValue(newSection);
     setLinkedCourseIdValue(page?.linkedCourseId ?? "");
+    setLegacyReplacementStarted(false);
     slugManualRef.current = false;
 
     // reset dirty baseline
@@ -454,15 +460,41 @@ export function ContentForm({
             />
           </div>
 
-          {/* Содержимое (markdown editor) */}
-          <MarkdownEditor
-            name="body_md"
-            defaultValue={
-              page ? (page.bodyMd.trim().length > 0 ? page.bodyMd : page.bodyHtml) : ""
-            }
-            key={`body-${page?.id ?? "new"}`}
-            onChange={setBodyMdValue}
-          />
+          {/* Содержимое (markdown editor or protected legacy HTML preview) */}
+          {hasLegacyHtmlOnly ? (
+            <input type="hidden" name="body_html" value={page?.bodyHtml ?? ""} readOnly />
+          ) : null}
+          {hasLegacyHtmlOnly && !legacyReplacementStarted ? (
+            <>
+              <input type="hidden" name="body_md" value="" readOnly />
+              <div className="flex flex-col gap-3 rounded-xl border border-border bg-muted/10 p-[18px]">
+                <div className="flex flex-col gap-1">
+                  <span className={fieldLabelClass}>Содержимое в старом формате</span>
+                  <p className="m-0 text-sm text-muted-foreground">
+                    Пока вы явно не начнёте замену и не сохраните новый текст, текущее содержимое останется без изменений.
+                  </p>
+                </div>
+                <div className="max-h-80 overflow-auto rounded-lg border border-border bg-white p-[18px]">
+                  <MarkdownContent text={page?.bodyHtml ?? ""} bodyFormat="legacy-html" />
+                </div>
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="self-start"
+                  onClick={() => setLegacyReplacementStarted(true)}
+                >
+                  Начать замену на Markdown
+                </Button>
+              </div>
+            </>
+          ) : (
+            <MarkdownEditor
+              name="body_md"
+              defaultValue={bodyMdValue}
+              key={`body-${page?.id ?? "new"}`}
+              onChange={setBodyMdValue}
+            />
+          )}
 
           {/* #4 — Hidden is_published.
                Uncontrolled so we can set .value synchronously in publish/unpublish handlers
