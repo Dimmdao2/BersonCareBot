@@ -436,8 +436,10 @@ card; запрещено строить временный resolver, второ�
   в правую половину page header на одну линию с title. Это не patient/public UI и не изменение data/metric semantics.
 - **Order after presentation:** UI-5 является U5B и стартует после U5A + record-class policy; затем остальные
   dependency-ready UI stages. UI-8 строится только на уже принятом S4 engine `#888` внутри C4D/C5 и не создаёт
-  parallel registry/polarity/seed/keys; только organization/clinic axis. UI-9 `#564` owner-approved, но ждёт C4D
-  exact-org isolation. UI-2 — bounded built-in toggleable «Онлайн» location на существующей модели, гейтящая
+  parallel registry/polarity/seed/keys; только organization/clinic axis. UI-9 `#564` после закрытого C4D exact-org
+  isolation интегрирован в `feat/doctor-ui-rebuild`: personal exercise остаётся instance-scoped по умолчанию,
+  org-catalog save только явный, patient video использует существующий exact-org media path. UI-2 — bounded built-in
+  toggleable «Онлайн» location на существующей модели, гейтящая
   существующие service checkboxes; новую schema/booking engine не вводить. UI-9 media scope и любые
   identity/schema/tenant/data изменения проходят полный risk-sized цикл.
 - **Owner decisions G1–G6 closed:** G1 `#564` — да; G2 voice/STT — post-production `#922`, сейчас не трогать; G3

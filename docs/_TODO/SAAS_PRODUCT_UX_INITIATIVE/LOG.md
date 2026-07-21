@@ -3738,3 +3738,43 @@ No new audit round or full CI was added.
 This closes only the email-first invite/activation slice. Task `#806` remains `doing` for the separately manifested
 owner-required patient/card creation without phone or email. U3B also retains its named SMS/PBK/PWA/install/push and
 milestone acceptance work; no DEV/TEST/PROD database, deploy or external delivery action occurred.
+
+## 2026-07-21 — UI-9 individual exercises integrated (`#564`)
+
+UI-9 is integrated as `b3ef8fdf7` with the bounded correction `2675c1ebe`. A doctor can create a personal exercise
+inside an existing patient program, optionally attach a ready video from that exact organization's exact-patient
+`client_patient` folder, and explicitly choose whether to save a separate organization-owned catalog copy. The
+default remains personal/instance-only; assigned media is immutable while the personal title and prescription remain
+editable. Patient rendering reuses the existing snapshot and `/api/media/:id` playback path; no second catalog,
+folder, upload or playback engine was introduced. Migration `0221` adds only the personal/catalog discriminator and
+its hot ownership index.
+
+The first independent high-risk audit found three owner-mapped P1 gaps: generic media usage counted personal items,
+tampered batch payloads could target system groups, and tenant/media negatives were source-level rather than
+behavioral. One coherent correction excluded personal rows from catalog usage, enforced the existing system-group
+contract in batch plus both ports, and added executable exact-org, wrong-patient/folder/status, system-group and
+media-usage negatives. The terminal full re-audit passed `0 P0 / 0 P1 / 0 P2`. Worker evidence was `102/102`
+targeted tests plus typecheck, scoped ESLint, journal/frozen-migration/C4D/media checkers and diff-check; auditor
+evidence was `91/91` focused tests and the same structural gates. Rebase range-diff proved both reviewed commits
+patch-equivalent before fast-forward integration. No DB migration/apply, live DEV, TEST/PROD, deploy, external send
+or full CI occurred; runtime/live and full-CI evidence remains accumulated for the next authorized milestone.
+
+## 2026-07-21 — U3B no-contact identity readiness (`#806`)
+
+The remaining owner-required no-phone/no-email path has a bounded engineering design and no open owner question.
+Manual creation must create one real canonical client anchor with structured FIO, null contacts and an exact
+organization enrollment; FIO is never a deduplication key and no fake phone/email is generated. An unbound invite
+then lets a newly verified email claim that same placeholder identity atomically. If the email already belongs to a
+different canonical user, activation and contact mutation fail closed and one organization-attributed merge
+candidate is recorded; automatic merge/rebind is forbidden because the current merge engine does not cover invite
+and enrollment identity safely.
+
+This follow-on reserves migration `0222` after UI-9's integrated `0221`: make invite email nullable only behind an
+explicit bound/unbound discriminator, preserve all existing bound-email invitations, and add one narrow atomic
+claim/redeem capability to the existing patient-invite RLS overlay. The stage must reuse the current manual-visit
+transaction, invite bearer/OTP/throttling/lifecycle, exact enrollment and session paths. Phone/OAuth, SMS/PBK/PWA,
+conflict-resolution UI, production and real delivery remain outside this slice. Required proof includes no-contact
+card/scheduled/walk-in idempotency, exact-placeholder claim, existing-email conflict with zero partial activation,
+two-organization negatives, concurrent registration-versus-claim convergence, rollback-safe pending-invite handling,
+targeted tests, disposable PostgreSQL proof, typecheck/lint/build, milestone full CI and one independent high-risk
+audit. No file, database, server or provider action was performed by the readiness pass.
