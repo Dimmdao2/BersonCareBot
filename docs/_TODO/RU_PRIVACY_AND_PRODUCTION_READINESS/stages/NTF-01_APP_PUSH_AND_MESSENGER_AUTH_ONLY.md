@@ -321,6 +321,17 @@ This stage owns auth/binding policy only, never product notification preferences
   one integrated correction/re-audit only if an owner-mapped or repository-rule defect exists, with the universal
   two-correction hard stop.
 
+#### U9A prerequisite closure — 2026-07-21
+
+Integrated as `7c9d94bea` + `f48c4b8af`. The first audit found the missing Drizzle role translation/cleanup,
+guard negatives and repository gate; one coherent correction also closed the mirror HTTP-fallback privilege gap
+without granting the platform role generic outbox DML. Terminal re-audit passed `0 P0 / 0 P1 / 0 P2`.
+
+Evidence: db-principal `7/7`; targeted webapp `82/82`; webapp typecheck and scoped lint; U9A/static DB gates;
+disposable PostgreSQL 16 real-role matrix; diff check. No working DB, role apply, deploy, TEST/PROD, provider or
+real send was touched. N1A remains `doing`: the four flags, UI/discovery and crafted-request enforcement are not
+claimed by this prerequisite.
+
 ### N1B — managed notification templates and branded presentation (`AI`, taskdb `#930`, after N1)
 
 Reuse base is mandatory: `modules/notif-templates/notifTemplatesService.ts`, existing admin/doctor routes,

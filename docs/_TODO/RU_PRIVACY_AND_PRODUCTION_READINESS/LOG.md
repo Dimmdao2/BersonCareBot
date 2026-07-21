@@ -1,5 +1,16 @@
 # Execution log
 
+## 2026-07-21 — U9A platform-settings prerequisite integrated (`#929`)
+
+- Integrated `7c9d94bea` + `f48c4b8af`: dedicated no-organization platform principal/guard, whitelisted global
+  settings API and the existing service/UoW/audit/mirror path.
+- One correction closed the first audit's Drizzle role setup/cleanup, guard-matrix and root-gate findings. It also
+  kept mirror fallback reliable through an exact-key SECURITY DEFINER function without direct platform-role outbox
+  DML. Terminal re-audit passed `0 P0 / 0 P1 / 0 P2`.
+- Evidence: db-principal `7/7`, targeted webapp `82/82`, typecheck, scoped lint, static DB gates and a disposable
+  PostgreSQL 16 real-role matrix. No working DB, role apply, deploy, TEST/PROD, provider or real send was touched.
+- N1A remains active: Email/SMS/Telegram/MAX policy flags, UI/discovery and server enforcement are not U9A scope.
+
 ## 2026-07-21 — N1B editor boundary synchronized with independent Tiptap task (`#930/#931`)
 
 - `#931` owns only current markdown write-surfaces and preserves markdown storage. It is independent and cannot

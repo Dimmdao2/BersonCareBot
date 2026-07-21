@@ -1236,6 +1236,12 @@ dedicated API guard, least-privilege global-settings DB principal/role and a whi
 system-settings service/mirror/audit. This does not complete the U9 shell, organization operations, billing,
 diagnostics or support chat, and it cannot borrow organization membership or widen clinical access.
 
+**U9A closure (2026-07-21).** Integrated as `7c9d94bea` + `f48c4b8af`. The dedicated platform principal,
+guarded global-settings API, canonical service/audit/mirror path and closed mirror-outbox fallback passed the
+terminal independent audit (`0 P0 / 0 P1 / 0 P2`), targeted tests, typecheck/lint/static gates and a disposable
+PostgreSQL real-role matrix. The role artifact was not applied to DEV/TEST/PROD; the four auth-channel flags and
+their discovery/execution enforcement remain the following N1A work under `#929`.
+
 **Outcome:** platform operator manages organizations, commercial state, platform configuration/reliability and
 system identity diagnostics from a dedicated shell without patient browsing or patient-record repair.
 

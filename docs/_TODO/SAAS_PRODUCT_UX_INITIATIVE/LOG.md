@@ -1,5 +1,17 @@
 # Log — SaaS Product UX Initiative
 
+## 2026-07-21 — U9A platform-settings prerequisite integrated (`#929`)
+
+The bounded global-settings spine is integrated as `7c9d94bea` + `f48c4b8af`: dedicated platform API guard and
+least-privilege principal, canonical system-settings service/audit/mirror writes, and a closed SECURITY DEFINER
+mirror fallback which derives the payload from the exact global DB row and cannot enqueue arbitrary work.
+
+The initial security audit found missing Drizzle role translation/cleanup, guard negatives and root gate wiring.
+One coherent correction closed them; the terminal independent re-audit passed `0 P0 / 0 P1 / 0 P2`. Targeted
+tests, typecheck/lint/static checks and the disposable real-role PostgreSQL matrix passed. The role SQL was not
+applied anywhere; no working DB, TEST/PROD, deploy, provider or real send was touched. The four auth-channel flags
+and their runtime enforcement remain the active N1A part of `#929`.
+
 ## 2026-07-21 — Tiptap checklist accepted as independent UI work; N1B boundary corrected (`#931/#930`)
 
 Owner provenance for `#931` is recorded in taskdb: replace every current markdown write-editor with one Tiptap
