@@ -39,13 +39,14 @@ function verifySignature(timestamp: string, rawBody: string, signature: string, 
 export type BersoncareSendSmsDeps = {
   dispatchPort: DispatchPort;
   sharedSecret: string;
+  isAuthChannelEnabled: (channel: 'sms') => Promise<boolean>;
 };
 
 export async function registerBersoncareSendSmsRoute(
   app: FastifyInstance,
   deps: BersoncareSendSmsDeps,
 ): Promise<void> {
-  const { dispatchPort, sharedSecret } = deps;
+  const { dispatchPort, sharedSecret, isAuthChannelEnabled } = deps;
 
   app.addContentTypeParser('application/json', { parseAs: 'string' }, (req, body, done) => {
     const raw: string =
@@ -79,6 +80,10 @@ export async function registerBersoncareSendSmsRoute(
     const code = typeof request.body?.code === 'string' ? request.body.code.trim() : '';
     if (!phone || !code) {
       return reply.code(400).send({ ok: false, error: 'phone and code required' });
+    }
+
+    if (!(await isAuthChannelEnabled('sms'))) {
+      return reply.code(403).send({ ok: false, error: 'auth_channel_disabled' });
     }
 
     // Build smsc-channel UnifiedOutgoingMessage and dispatch via the single chokepoint.

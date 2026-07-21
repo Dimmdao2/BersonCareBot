@@ -227,6 +227,31 @@ describe("writePort user.upsert projection payload", () => {
     expect(meta).toMatchObject({ userPhoneLinkApplied: true });
   });
 
+  it("user.phone.link does not mutate either schema when the messenger auth channel is disabled", async () => {
+    const query = vi.fn();
+    const tx = vi.fn();
+    const db = { query, tx } as unknown as DbPort;
+    const authChannelPolicy = vi.fn().mockResolvedValue(false);
+    const writePort = createDbWritePort({ db, authChannelPolicy });
+
+    const meta = await writePort.writeDb({
+      type: "user.phone.link",
+      params: {
+        resource: "max",
+        channelUserId: "555123",
+        phoneNormalized: "+79990001122",
+      },
+    });
+
+    expect(meta).toEqual({
+      userPhoneLinkApplied: false,
+      phoneLinkReason: "auth_channel_disabled",
+    });
+    expect(authChannelPolicy).toHaveBeenCalledWith("max");
+    expect(tx).not.toHaveBeenCalled();
+    expect(query).not.toHaveBeenCalled();
+  });
+
   it("user.phone.link strict no_channel_binding: no integrator contacts write", async () => {
     let contactsAttempts = 0;
     const query = vi.fn(async (sql: string, params: unknown[]) => {

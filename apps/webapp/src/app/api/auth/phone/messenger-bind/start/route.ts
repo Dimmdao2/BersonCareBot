@@ -20,6 +20,7 @@ import { isValidPhoneE164 } from "@/modules/auth/phoneValidation";
 import { getMaxLoginBotNickname } from "@/modules/system-settings/maxLoginBotNickname";
 import { getTelegramLoginBotUsername } from "@/modules/system-settings/telegramLoginBotUsername";
 import { canAccessPatient } from "@/modules/roles/service";
+import { isAuthChannelEnabled } from "@/modules/auth/authChannelPolicy";
 
 const bodySchema = z.object({
   phone: z.string().min(1),
@@ -46,6 +47,10 @@ export async function POST(request: Request) {
       { ok: false, error: "invalid_phone", message: "Неверный формат номера" },
       { status: 400 },
     );
+  }
+
+  if (!(await isAuthChannelEnabled(parsed.data.channelCode))) {
+    return NextResponse.json({ ok: false, error: "auth_channel_disabled" }, { status: 403 });
   }
 
   let sessionUserId: string | null = null;

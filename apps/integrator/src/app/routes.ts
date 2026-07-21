@@ -24,6 +24,7 @@ import { startTelegramLongPolling } from '../integrations/telegram/longPolling.j
 import type { AppDeps, ProjectionHealthSnapshot } from './di.js';
 import { runWithBootstrapPrincipal } from '../infra/principal/organizationPrincipal.js';
 import { reportIntegratorIsolationFailure } from '../infra/observability/saasIsolationTelemetry.js';
+import { isAuthChannelEnabled } from '../infra/db/authChannelPolicy.js';
 
 /** Public response shape for the health endpoint. */
 export type HealthResponse = {
@@ -118,6 +119,9 @@ export async function registerRoutes(app: FastifyInstance, deps: AppDeps): Promi
   const resolveOrganizationIdForMessengerIdentity = createResolveOrganizationIdForMessengerIdentity();
   const resolveOrganizationIdForIntegratorUserId = createResolveOrganizationIdForIntegratorUserId();
   const resolveDeploymentOrganizationId = createResolveDeploymentOrganizationId();
+  const authChannelPolicyDb = createDbPort();
+  const authChannelPolicy = (channel: 'email' | 'sms' | 'telegram' | 'max') =>
+    isAuthChannelEnabled(authChannelPolicyDb, channel);
 
   app.get<{ Reply: HealthResponse }>('/health', async (_request, _reply) => {
     const dbOk = await deps.healthCheckDb();
@@ -147,12 +151,14 @@ export async function registerRoutes(app: FastifyInstance, deps: AppDeps): Promi
   await registerBersoncareSendSmsRoute(app, {
     dispatchPort: deps.dispatchPort,
     sharedSecret: integratorWebhookSecret(),
+    isAuthChannelEnabled: authChannelPolicy,
   });
 
   await registerBersoncareSendEmailRoute(app, {
     sharedSecret: integratorWebhookSecret(),
     db: createDbPort(),
     dispatchPort: deps.dispatchPort,
+    isAuthChannelEnabled: authChannelPolicy,
   });
 
   await registerBersoncareRelayOutboundRoute(app, {
@@ -172,6 +178,7 @@ export async function registerRoutes(app: FastifyInstance, deps: AppDeps): Promi
   await registerBersoncareSendOtpRoute(app, {
     dispatchPort: deps.dispatchPort,
     sharedSecret: integratorWebhookSecret(),
+    isAuthChannelEnabled: authChannelPolicy,
   });
 
   await registerBersoncareReminderRulesRoute(app, {

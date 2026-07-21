@@ -48,13 +48,18 @@ function makeHeaders(rawBody: string, secret = TEST_SECRET) {
 }
 
 /** Build a test app with a stub dispatchPort that records calls. */
-async function buildTestApp(secret = TEST_SECRET, dispatchPort?: DispatchPort) {
+async function buildTestApp(
+  secret = TEST_SECRET,
+  dispatchPort?: DispatchPort,
+  isAuthChannelEnabled: (channel: 'email') => Promise<boolean> = vi.fn().mockResolvedValue(true),
+) {
   const app = Fastify();
   const dp: DispatchPort = dispatchPort ?? { dispatchOutgoing: vi.fn().mockResolvedValue({}) };
   await registerBersoncareSendEmailRoute(app, {
     sharedSecret: secret,
     db: noopDb,
     dispatchPort: dp,
+    isAuthChannelEnabled,
   });
   return { app, dp };
 }
@@ -119,6 +124,31 @@ describe('POST /api/bersoncare/send-email', () => {
     const intent = dispatchOutgoing.mock.calls[0]![0] as { meta: Record<string, unknown> };
     expect(intent.meta).not.toHaveProperty('outboundMessageClass');
     expect(intent.meta).not.toHaveProperty('outboundCapability');
+  });
+
+  it('returns 403 before provider lookup or dispatch when email auth is disabled', async () => {
+    const providerLookup = vi
+      .spyOn(smtpOutbound, resolveSmtpOutboundCfg)
+      .mockResolvedValue(MOCK_RESOLVED_CONFIGURED);
+    const dispatchOutgoing = vi.fn().mockResolvedValue({});
+    const { app } = await buildTestApp(
+      TEST_SECRET,
+      { dispatchOutgoing },
+      vi.fn().mockResolvedValue(false),
+    );
+    const body = JSON.stringify({ to: 'user@example.com', code: '123456' });
+
+    const response = await app.inject({
+      method: 'POST',
+      url: '/api/bersoncare/send-email',
+      headers: makeHeaders(body),
+      body,
+    });
+
+    expect(response.statusCode).toBe(403);
+    expect(JSON.parse(response.body)).toEqual({ ok: false, error: 'auth_channel_disabled' });
+    expect(providerLookup).not.toHaveBeenCalled();
+    expect(dispatchOutgoing).not.toHaveBeenCalled();
   });
 
   it('OTP code: eventId is otp:email:* prefixed so dispatchPort redacts it from delivery logs', async () => {

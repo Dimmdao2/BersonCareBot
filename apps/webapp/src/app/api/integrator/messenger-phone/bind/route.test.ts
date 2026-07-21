@@ -2,9 +2,14 @@ import { createHmac } from "node:crypto";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { resetIdempotencyStoreForTests } from "@/infra/idempotency/store";
 
-const { verifySignatureMock, executeMessengerPhoneHttpBindMock } = vi.hoisted(() => ({
+const { verifySignatureMock, executeMessengerPhoneHttpBindMock, isAuthChannelEnabledMock } = vi.hoisted(() => ({
   verifySignatureMock: vi.fn(),
   executeMessengerPhoneHttpBindMock: vi.fn(),
+  isAuthChannelEnabledMock: vi.fn(),
+}));
+
+vi.mock("@/modules/auth/authChannelPolicy", () => ({
+  isAuthChannelEnabled: (...args: unknown[]) => isAuthChannelEnabledMock(...args),
 }));
 
 vi.mock("@/app-layer/integrator/verifyIntegratorSignature", () => ({
@@ -38,6 +43,8 @@ describe("POST /api/integrator/messenger-phone/bind", () => {
     verifySignatureMock.mockReset();
     verifySignatureMock.mockReturnValue(true);
     executeMessengerPhoneHttpBindMock.mockReset();
+    isAuthChannelEnabledMock.mockReset();
+    isAuthChannelEnabledMock.mockResolvedValue(true);
   });
 
   it("returns 401 for invalid signature without calling bind", async () => {
@@ -86,6 +93,29 @@ describe("POST /api/integrator/messenger-phone/bind", () => {
     expect(json.ok).toBe(true);
     expect(json.platformUserId).toBe("pu-uuid-1");
     expect(executeMessengerPhoneHttpBindMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("returns 403 before cache lookup or bind mutation for a disabled signed channel", async () => {
+    isAuthChannelEnabledMock.mockResolvedValue(false);
+    const body = JSON.stringify(baseBody());
+    const timestamp = String(Math.floor(Date.now() / 1000));
+
+    const res = await POST(
+      new Request("http://localhost/api/integrator/messenger-phone/bind", {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          "x-bersoncare-timestamp": timestamp,
+          "x-bersoncare-signature": sign(timestamp, body),
+          "x-bersoncare-idempotency-key": "idem-bind-disabled",
+        },
+        body,
+      }),
+    );
+
+    expect(res.status).toBe(403);
+    await expect(res.json()).resolves.toEqual({ ok: false, error: "auth_channel_disabled" });
+    expect(executeMessengerPhoneHttpBindMock).not.toHaveBeenCalled();
   });
 
   it("returns 422 when there is no channel binding (strict)", async () => {

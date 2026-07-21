@@ -13,6 +13,7 @@ import {
 import { enterStaffSecuritySelfPrincipal } from "@/app-layer/principal/staffSecuritySelfPrincipal";
 import { isPlatformUserUuid } from "@/shared/platform-user/isPlatformUserUuid";
 import { prepareVerifiedPrimaryLogin } from "@/modules/auth/verifiedStaffPrimaryLogin";
+import { isAuthChannelEnabled } from "@/modules/auth/authChannelPolicy";
 
 const bodySchema = z.object({
   challengeId: z.string().trim().min(1),
@@ -39,6 +40,10 @@ export async function POST(request: Request) {
 
   const deps = buildAppDeps();
   const challenge = await deps.auth.getPhoneChallenge(challengeId);
+  const deliveryChannel = challenge?.deliveryChannel ?? "sms";
+  if (!(await isAuthChannelEnabled(deliveryChannel))) {
+    return NextResponse.json({ ok: false, error: "auth_channel_disabled" }, { status: 403 });
+  }
   const attemptId =
     parsed.data.attemptId?.trim() ||
     challenge?.registrationAttemptId?.trim() ||
@@ -91,7 +96,7 @@ export async function POST(request: Request) {
   if (!sessionUser) {
     return NextResponse.json({ ok: false, error: "server_error" }, { status: 500 });
   }
-  const postLoginHints = { phoneOtpChannel: result.deliveryChannel ?? "sms" } as const;
+  const postLoginHints = { phoneOtpChannel: result.deliveryChannel ?? deliveryChannel } as const;
 
   const tz = browserCalendarIana?.trim();
   if (tz) {

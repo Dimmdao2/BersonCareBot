@@ -3,6 +3,11 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const getCurrentSessionMock = vi.fn();
 const confirmEmailChallengeMock = vi.fn();
 const getCurrentDbPrincipalOrganizationIdMock = vi.fn();
+const isAuthChannelEnabledMock = vi.hoisted(() => vi.fn());
+
+vi.mock("@/modules/auth/authChannelPolicy", () => ({
+  isAuthChannelEnabled: (...args: unknown[]) => isAuthChannelEnabledMock(...args),
+}));
 
 vi.mock("@/modules/auth/service", () => ({
   getCurrentSession: (...args: unknown[]) => getCurrentSessionMock(...args),
@@ -24,6 +29,8 @@ describe("POST /api/auth/email/confirm", () => {
     getCurrentSessionMock.mockReset();
     confirmEmailChallengeMock.mockReset();
     getCurrentDbPrincipalOrganizationIdMock.mockReset();
+    isAuthChannelEnabledMock.mockReset();
+    isAuthChannelEnabledMock.mockResolvedValue(true);
     getCurrentDbPrincipalOrganizationIdMock.mockReturnValue("00000000-0000-4000-8000-000000000001");
   });
 
@@ -89,5 +96,26 @@ describe("POST /api/auth/email/confirm", () => {
       "123456",
       { profileBindOrganizationId: "00000000-0000-4000-8000-000000000001" },
     );
+  });
+
+  it("does not bind email when the channel is disabled", async () => {
+    getCurrentSessionMock.mockResolvedValueOnce({
+      user: { userId: "u-1", role: "doctor" },
+    });
+    isAuthChannelEnabledMock.mockResolvedValue(false);
+
+    const res = await POST(
+      new Request("http://localhost/api/auth/email/confirm", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          challengeId: "00000000-0000-4000-8000-000000000001",
+          code: "123456",
+        }),
+      }),
+    );
+
+    expect(res.status).toBe(403);
+    expect(confirmEmailChallengeMock).not.toHaveBeenCalled();
   });
 });

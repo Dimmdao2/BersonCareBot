@@ -21,6 +21,7 @@ import { getPublicRuntimeBool } from "@/modules/system-settings/configAdapter";
 import { getCurrentSession } from "@/modules/auth/service";
 import { canAccessPatient } from "@/modules/roles/service";
 import { getCurrentDbPrincipalOrganizationId } from "@bersoncare/db-principal";
+import { isAuthChannelEnabled } from "@/modules/auth/authChannelPolicy";
 
 const bodySchema = z.object({
   phone: z.string().min(1),
@@ -80,6 +81,13 @@ export async function POST(request: Request) {
     return NextResponse.json(
       { ok: false, error: "invalid_phone", message: "Неверный формат номера" },
       { status: 400 }
+    );
+  }
+
+  if (!(await isAuthChannelEnabled(deliveryChannel))) {
+    return NextResponse.json(
+      { ok: false, error: "auth_channel_disabled" },
+      { status: 403 },
     );
   }
 

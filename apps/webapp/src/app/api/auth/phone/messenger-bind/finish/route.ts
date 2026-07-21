@@ -16,6 +16,7 @@ import { readStaffLoginContinuation } from "@/modules/auth/staffLoginContinuatio
 import { enterStaffSecuritySelfPrincipal } from "@/app-layer/principal/staffSecuritySelfPrincipal";
 import { isPlatformUserUuid } from "@/shared/platform-user/isPlatformUserUuid";
 import { prepareVerifiedPrimaryLogin } from "@/modules/auth/verifiedStaffPrimaryLogin";
+import { isAuthChannelEnabled } from "@/modules/auth/authChannelPolicy";
 
 const bodySchema = z
   .object({
@@ -71,6 +72,10 @@ export async function POST(request: Request) {
   }
 
   const challenge = await deps.auth.getPhoneChallenge(resolved.challengeId);
+  const deliveryChannel = challenge?.deliveryChannel ?? "telegram";
+  if (!(await isAuthChannelEnabled(deliveryChannel))) {
+    return NextResponse.json({ ok: false, error: "auth_channel_disabled" }, { status: 403 });
+  }
   const isRegistrationIntent = challenge?.isRegistrationIntent === true;
 
   const result = await deps.auth.confirmPhoneAuth(resolved.challengeId, resolved.code);
@@ -115,7 +120,7 @@ export async function POST(request: Request) {
   if (!sessionUser) {
     return NextResponse.json({ ok: false, error: "server_error" }, { status: 500 });
   }
-  const postLoginHints = { phoneOtpChannel: result.deliveryChannel ?? "telegram" } as const;
+  const postLoginHints = { phoneOtpChannel: result.deliveryChannel ?? deliveryChannel } as const;
 
   const tz = parsed.data.browserCalendarIana?.trim();
   if (tz) {

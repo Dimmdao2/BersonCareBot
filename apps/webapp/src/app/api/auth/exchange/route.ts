@@ -16,6 +16,8 @@ import { logAuthRouteTiming } from "@/modules/auth/authRouteObservability";
 import { logger } from "@/app-layer/logging/logger";
 import { getServerRuntimeBool } from "@/modules/system-settings/configAdapter";
 import { PLATFORM_COOKIE_MAX_AGE, PLATFORM_COOKIE_NAME } from "@/shared/lib/platform";
+import { classifyVerifiedIntegratorTokenChannel } from "@/modules/auth/service";
+import { isAuthChannelEnabled } from "@/modules/auth/authChannelPolicy";
 
 const ROUTE = "auth/exchange";
 
@@ -50,6 +52,14 @@ export async function POST(request: Request) {
     return res;
   }
   const { token } = parsed.data;
+  const verifiedChannel = await classifyVerifiedIntegratorTokenChannel(token);
+  if (
+    verifiedChannel !== null &&
+    verifiedChannel !== "dev_bypass" &&
+    !(await isAuthChannelEnabled(verifiedChannel))
+  ) {
+    return NextResponse.json({ ok: false, error: "auth_channel_disabled" }, { status: 403 });
+  }
   const attemptId = newRegistrationAttemptId();
   await recordAuthRegistrationAttempt({
     attemptId,

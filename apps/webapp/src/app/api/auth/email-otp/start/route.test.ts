@@ -1,6 +1,11 @@
 import { describe, expect, it, vi, beforeEach } from "vitest";
 
 const startPublicEmailOtpChallengeMock = vi.fn();
+const isAuthChannelEnabledMock = vi.hoisted(() => vi.fn());
+
+vi.mock("@/modules/auth/authChannelPolicy", () => ({
+  isAuthChannelEnabled: (...args: unknown[]) => isAuthChannelEnabledMock(...args),
+}));
 
 vi.mock("@/app-layer/di/buildAppDeps", () => ({
   buildAppDeps: () => ({
@@ -27,6 +32,8 @@ function makeStartRequest(body: unknown, ip: string): Request {
 describe("POST /api/auth/email-otp/start", () => {
   beforeEach(() => {
     startPublicEmailOtpChallengeMock.mockReset();
+    isAuthChannelEnabledMock.mockReset();
+    isAuthChannelEnabledMock.mockResolvedValue(true);
     startPublicEmailOtpChallengeMock.mockResolvedValue({
       ok: true as const,
       challengeId: "ch-test-123",
@@ -56,6 +63,16 @@ describe("POST /api/auth/email-otp/start", () => {
     const data = await res.json() as Record<string, unknown>;
     expect(data.ok).toBe(false);
     expect(data.error).toBe("invalid_email");
+  });
+
+  it("rejects a disabled email channel before rate limiting or challenge creation", async () => {
+    isAuthChannelEnabledMock.mockResolvedValue(false);
+
+    const res = await POST(makeStartRequest({ email: "user@example.com" }, "10.0.0.10"));
+
+    expect(res.status).toBe(403);
+    await expect(res.json()).resolves.toEqual({ ok: false, error: "auth_channel_disabled" });
+    expect(startPublicEmailOtpChallengeMock).not.toHaveBeenCalled();
   });
 
   it("returns 400 for invalid email format", async () => {

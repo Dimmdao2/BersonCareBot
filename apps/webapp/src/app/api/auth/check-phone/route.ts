@@ -9,6 +9,7 @@ import { isCheckPhoneRateLimited } from "@/modules/auth/checkPhoneRateLimit";
 import { normalizePhone } from "@/modules/auth/phoneNormalize";
 import { isValidPhoneE164 } from "@/modules/auth/phoneValidation";
 import { getTelegramLoginBotUsername } from "@/modules/system-settings/telegramLoginBotUsername";
+import { getAuthChannelPolicy } from "@/modules/auth/authChannelPolicy";
 
 const bodySchema = z.object({
   phone: z.string().min(1).max(32),
@@ -42,9 +43,10 @@ export async function POST(request: Request) {
     );
   }
 
+  const channelPolicy = await getAuthChannelPolicy();
   const deps = buildAppDeps();
-  const botUsername = (await getTelegramLoginBotUsername()).trim();
-  const telegramLoginAvailable = botUsername.length > 0;
+  const botUsername = channelPolicy.telegram ? (await getTelegramLoginBotUsername()).trim() : "";
+  const telegramLoginAvailable = channelPolicy.telegram && botUsername.length > 0;
   const result = await resolveAuthMethodsForPhone(
     phone,
     {
@@ -52,12 +54,15 @@ export async function POST(request: Request) {
       userPinsPort: deps.userPins,
       oauthBindingsPort: deps.oauthBindings,
     },
-    { telegramLoginAvailable, suppressSmsForPublicWebLogin: true },
+    { telegramLoginAvailable, suppressSmsForPublicWebLogin: true, channelPolicy },
   );
 
   let preferredOtpChannel: OtpUiChannel | null = null;
   if (result.exists) {
     preferredOtpChannel = await deps.channelPreferences.getPreferredAuthOtpChannel(result.userId);
+    if (preferredOtpChannel && channelPolicy[preferredOtpChannel] === false) {
+      preferredOtpChannel = null;
+    }
   }
 
   return NextResponse.json({

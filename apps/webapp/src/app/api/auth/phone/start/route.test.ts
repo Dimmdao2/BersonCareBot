@@ -91,7 +91,7 @@ describe("POST /api/auth/phone/start", () => {
   });
 
   it("fails closed when the projected public SMS policy is disabled", async () => {
-    getPublicRuntimeBool.mockResolvedValue(false);
+    getPublicRuntimeBool.mockImplementation(async (key: string) => key === "auth_sms_enabled");
     const res = await POST(
       new Request("http://localhost/api/auth/phone/start", {
         method: "POST",
@@ -107,6 +107,22 @@ describe("POST /api/auth/phone/start", () => {
     expect(res.status).toBe(403);
     await expect(res.json()).resolves.toMatchObject({ error: "sms_disabled_by_policy" });
     expect(getPublicRuntimeBool).toHaveBeenCalledWith("public_sms_fallback_enabled");
+    expect(startPhoneAuth).not.toHaveBeenCalled();
+  });
+
+  it("rejects a disabled auth channel before user lookup or challenge creation", async () => {
+    getPublicRuntimeBool.mockImplementation(async (key: string) => key !== "auth_telegram_enabled");
+    const res = await POST(
+      new Request("http://localhost/api/auth/phone/start", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ phone: "+79991234567", deliveryChannel: "telegram" }),
+      }),
+    );
+
+    expect(res.status).toBe(403);
+    await expect(res.json()).resolves.toEqual({ ok: false, error: "auth_channel_disabled" });
+    expect(findByPhone).not.toHaveBeenCalled();
     expect(startPhoneAuth).not.toHaveBeenCalled();
   });
 

@@ -3,6 +3,7 @@ import { z } from "zod";
 import { ensureAuthModulePortsBound } from "@/app-layer/di/bindAuthModulePorts";
 import { verifyIntegratorSignature } from "@/app-layer/integrator/verifyIntegratorSignature";
 import { completeChannelLinkFromIntegrator } from "@/modules/auth/channelLink";
+import { isAuthChannelEnabled } from "@/modules/auth/authChannelPolicy";
 
 const bodySchema = z.object({
   linkToken: z.string().min(4).max(500),
@@ -36,6 +37,10 @@ export async function POST(request: Request) {
   const parsed = bodySchema.safeParse(json);
   if (!parsed.success) {
     return NextResponse.json({ ok: false, error: "validation_error" }, { status: 400 });
+  }
+
+  if (!(await isAuthChannelEnabled(parsed.data.channelCode))) {
+    return NextResponse.json({ ok: false, error: "auth_channel_disabled" }, { status: 403 });
   }
 
   const result = await completeChannelLinkFromIntegrator({

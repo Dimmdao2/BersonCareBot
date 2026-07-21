@@ -8,6 +8,7 @@ import { getRedirectPathForRole } from "@/modules/auth/redirectPolicy";
 import { setSessionFromUser } from "@/modules/auth/service";
 import { enterStaffSecuritySelfPrincipal } from "@/app-layer/principal/staffSecuritySelfPrincipal";
 import { isPlatformUserUuid } from "@/shared/platform-user/isPlatformUserUuid";
+import { isAuthChannelEnabled } from "@/modules/auth/authChannelPolicy";
 
 const bodySchema = z.object({
   token: z.string().min(1),
@@ -26,7 +27,6 @@ export async function POST(request: Request) {
 
   const deps = buildAppDeps();
   const now = new Date();
-  await deps.loginTokens.markExpiredIfPast(now);
 
   const tokenHash = hashLoginTokenPlain(parsed.data.token.trim());
   const row = await deps.loginTokens.findByTokenHash(tokenHash);
@@ -36,6 +36,12 @@ export async function POST(request: Request) {
       { status: 404 }
     );
   }
+
+  if (!(await isAuthChannelEnabled(row.method))) {
+    return NextResponse.json({ ok: false, error: "auth_channel_disabled" }, { status: 403 });
+  }
+
+  await deps.loginTokens.markExpiredIfPast(now);
 
   if (row.expiresAt.getTime() < now.getTime() && row.status === "pending") {
     return NextResponse.json({

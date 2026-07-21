@@ -2,6 +2,7 @@ import { stampBootstrapPrincipal } from "@/app-layer/principal/bootstrapPrincipa
 import { NextResponse } from "next/server";
 import { logAuthRouteTiming } from "@/modules/auth/authRouteObservability";
 import { getTelegramLoginBotUsername } from "@/modules/system-settings/telegramLoginBotUsername";
+import { isAuthChannelEnabled } from "@/modules/auth/authChannelPolicy";
 
 const ROUTE = "auth/telegram-login/config";
 
@@ -9,7 +10,8 @@ const ROUTE = "auth/telegram-login/config";
 export async function GET(request: Request) {
   stampBootstrapPrincipal("api/auth/telegram-login/config:GET");
   const startedAt = Date.now();
-  const raw = (await getTelegramLoginBotUsername()).trim();
+  const enabled = await isAuthChannelEnabled("telegram");
+  const raw = enabled ? (await getTelegramLoginBotUsername()).trim() : "";
   const botUsername = raw.length > 0 ? raw : null;
   const res = NextResponse.json({ ok: true as const, botUsername });
   logAuthRouteTiming({

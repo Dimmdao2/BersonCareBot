@@ -8,6 +8,7 @@ import { getTelegramLoginBotUsername } from "@/modules/system-settings/telegramL
 import { isMessengerStartRateLimited } from "@/modules/auth/messengerStartRateLimit";
 import { normalizePhone } from "@/modules/auth/phoneNormalize";
 import { isValidPhoneE164 } from "@/modules/auth/phoneValidation";
+import { isAuthChannelEnabled } from "@/modules/auth/authChannelPolicy";
 
 const bodySchema = z.object({
   phone: z.string().min(1),
@@ -35,6 +36,10 @@ export async function POST(request: Request) {
       { ok: false, error: "invalid_phone", message: "Неверный формат номера" },
       { status: 400 }
     );
+  }
+
+  if (!(await isAuthChannelEnabled(parsed.data.method))) {
+    return NextResponse.json({ ok: false, error: "auth_channel_disabled" }, { status: 403 });
   }
 
   if (await isMessengerStartRateLimited(phone)) {

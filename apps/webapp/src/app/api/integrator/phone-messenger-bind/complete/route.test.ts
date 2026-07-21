@@ -2,6 +2,11 @@ import { createHmac } from "node:crypto";
 import { describe, expect, it, vi, beforeEach } from "vitest";
 
 const completeMock = vi.hoisted(() => vi.fn());
+const isAuthChannelEnabledMock = vi.hoisted(() => vi.fn());
+
+vi.mock("@/modules/auth/authChannelPolicy", () => ({
+  isAuthChannelEnabled: (...args: unknown[]) => isAuthChannelEnabledMock(...args),
+}));
 
 vi.mock("@/app-layer/di/buildAppDeps", () => ({
   buildAppDeps: () => ({
@@ -26,6 +31,8 @@ vi.mock("@/config/env", () => ({
 describe("POST /api/integrator/phone-messenger-bind/complete", () => {
   beforeEach(() => {
     completeMock.mockReset();
+    isAuthChannelEnabledMock.mockReset();
+    isAuthChannelEnabledMock.mockResolvedValue(true);
   });
 
   it("returns 401 for invalid signature", async () => {

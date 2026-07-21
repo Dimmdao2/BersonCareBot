@@ -13,6 +13,7 @@ import { isMiniappAuthVerboseServerLogEnabled } from "@/modules/auth/miniappAuth
 import { logAuthRouteTiming } from "@/modules/auth/authRouteObservability";
 import { logger } from "@/app-layer/logging/logger";
 import { PLATFORM_COOKIE_MAX_AGE, PLATFORM_COOKIE_NAME } from "@/shared/lib/platform";
+import { isAuthChannelEnabled } from "@/modules/auth/authChannelPolicy";
 
 const bodySchema = z.object({
   initData: z.string().trim().min(1),
@@ -92,6 +93,9 @@ export async function POST(request: Request) {
       errorType: "validation",
     });
     return res;
+  }
+  if (!(await isAuthChannelEnabled("max"))) {
+    return NextResponse.json({ ok: false, error: "auth_channel_disabled" }, { status: 403 });
   }
   const { initData } = parsed.data;
   const fields = maxInitDataLogFields(initData);

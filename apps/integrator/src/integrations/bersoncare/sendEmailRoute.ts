@@ -62,13 +62,14 @@ export type BersoncareSendEmailDeps = {
   db: DbPort;
   /** The single chokepoint for email delivery (PLAN S9). */
   dispatchPort: DispatchPort;
+  isAuthChannelEnabled: (channel: 'email') => Promise<boolean>;
 };
 
 export async function registerBersoncareSendEmailRoute(
   app: FastifyInstance,
   deps: BersoncareSendEmailDeps,
 ): Promise<void> {
-  const { sharedSecret, db, dispatchPort } = deps;
+  const { sharedSecret, db, dispatchPort, isAuthChannelEnabled } = deps;
 
   if (!app.hasContentTypeParser('application/json')) {
     app.addContentTypeParser('application/json', { parseAs: 'string' }, (req, body, done) => {
@@ -100,13 +101,6 @@ export async function registerBersoncareSendEmailRoute(
       return reply.code(401).send({ ok: false, error: 'invalid_signature' });
     }
 
-    // email_not_configured pre-check: return 503 synchronously so callers know immediately
-    // rather than failing later in the async delivery queue.
-    const resolved = await resolveSmtpOutboundConfig(db);
-    if (!isResolvedMailerConfigured(resolved)) {
-      return reply.code(503).send({ ok: false, error: 'email_not_configured' });
-    }
-
     const parsed = sendEmailBodySchema.safeParse(request.body);
     if (!parsed.success) {
       return reply.code(400).send({ ok: false, error: 'invalid_payload', details: parsed.error.flatten() });
@@ -114,6 +108,16 @@ export async function registerBersoncareSendEmailRoute(
 
     const payload = parsed.data;
     const isAuthCode = Boolean(payload.code?.trim());
+    if (isAuthCode && !(await isAuthChannelEnabled('email'))) {
+      return reply.code(403).send({ ok: false, error: 'auth_channel_disabled' });
+    }
+
+    // Provider readiness follows policy so a disabled channel cannot probe provider state.
+    const resolved = await resolveSmtpOutboundConfig(db);
+    if (!isResolvedMailerConfigured(resolved)) {
+      return reply.code(503).send({ ok: false, error: 'email_not_configured' });
+    }
+
     const subject = isAuthCode
       ? 'Код подтверждения BersonCare'
       : (payload.subject ?? 'BersonCare');

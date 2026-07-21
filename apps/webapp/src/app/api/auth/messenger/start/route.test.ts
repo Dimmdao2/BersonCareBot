@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const { findByPhoneMock, createPendingMock, rateLimitMock, tokenFactoryMock, hashTokenMock, getTgBotMock } = vi.hoisted(
+const { findByPhoneMock, createPendingMock, rateLimitMock, tokenFactoryMock, hashTokenMock, getTgBotMock, isAuthChannelEnabledMock } = vi.hoisted(
   () => ({
     findByPhoneMock: vi.fn(),
     createPendingMock: vi.fn(),
@@ -8,8 +8,13 @@ const { findByPhoneMock, createPendingMock, rateLimitMock, tokenFactoryMock, has
     tokenFactoryMock: vi.fn(),
     hashTokenMock: vi.fn(),
     getTgBotMock: vi.fn(),
+    isAuthChannelEnabledMock: vi.fn(),
   }),
 );
+
+vi.mock("@/modules/auth/authChannelPolicy", () => ({
+  isAuthChannelEnabled: (...args: unknown[]) => isAuthChannelEnabledMock(...args),
+}));
 
 vi.mock("@/app-layer/di/buildAppDeps", () => ({
   buildAppDeps: () => ({
@@ -35,8 +40,13 @@ import { POST } from "./route";
 
 describe("POST /api/auth/messenger/start", () => {
   beforeEach(() => {
+    findByPhoneMock.mockReset();
+    createPendingMock.mockReset();
+    rateLimitMock.mockReset();
     getTgBotMock.mockReset();
     getTgBotMock.mockResolvedValue("bersoncare_bot");
+    isAuthChannelEnabledMock.mockReset();
+    isAuthChannelEnabledMock.mockResolvedValue(true);
   });
 
   it("returns 400 when phone is not valid E.164", async () => {
@@ -73,6 +83,23 @@ describe("POST /api/auth/messenger/start", () => {
       })
     );
     expect(res.status).toBe(429);
+  });
+
+  it("rejects a disabled messenger before rate limit, identity lookup, or token creation", async () => {
+    isAuthChannelEnabledMock.mockResolvedValue(false);
+    const res = await POST(
+      new Request("http://localhost/api/auth/messenger/start", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ phone: "+79990000001", method: "max" }),
+      }),
+    );
+
+    expect(res.status).toBe(403);
+    await expect(res.json()).resolves.toEqual({ ok: false, error: "auth_channel_disabled" });
+    expect(rateLimitMock).not.toHaveBeenCalled();
+    expect(findByPhoneMock).not.toHaveBeenCalled();
+    expect(createPendingMock).not.toHaveBeenCalled();
   });
 
   it("returns deepLink without raw token field", async () => {

@@ -76,6 +76,7 @@ import {
 import { upsertAppointmentRecordFromBookingMutation } from './repos/publicAppointmentRecordSync.js';
 import { resolvePlatformUserIdForRubitimeBooking } from './repos/resolvePlatformUserIdForRubitimeBooking.js';
 import { buildAppointmentRecordUpsertedFanout } from './buildAppointmentRecordUpsertedFanout.js';
+import { isAuthChannelEnabled as readAuthChannelPolicy } from './authChannelPolicy.js';
 
 type BookingUpsertParams = {
   externalRecordId?: unknown;
@@ -187,11 +188,15 @@ export function createDbWritePort(input: {
   webappEventsPort?: WebappEventsPort;
   /** Filled after `buildDeps` constructs `dispatchPort` (avoid circular init). */
   getDispatchPort?: () => DispatchPort | undefined;
+  /** Injectable for deterministic tests; production reads canonical public.system_settings. */
+  authChannelPolicy?: (channel: 'telegram' | 'max') => Promise<boolean>;
 } = {}): DbWritePort {
   const db = input.db ?? createDbPort();
   const readPort = input.readPort;
   const webappEventsPort = input.webappEventsPort;
   const getDispatchPort = input.getDispatchPort;
+  const authChannelPolicy =
+    input.authChannelPolicy ?? ((channel: 'telegram' | 'max') => readAuthChannelPolicy(db, channel));
   const plainMutationsRequiringPrincipalTx: ReadonlySet<DbWriteMutationType> = new Set([
     'event.log',
     'user.state.set',
@@ -218,6 +223,7 @@ export function createDbWritePort(input: {
       ...(readPort !== undefined ? { readPort } : {}),
       ...(webappEventsPort !== undefined ? { webappEventsPort } : {}),
       ...(getDispatchPort !== undefined ? { getDispatchPort } : {}),
+      authChannelPolicy,
     });
   }
 
@@ -545,6 +551,10 @@ export function createDbWritePort(input: {
           if (!channelUserId || !phoneNormalized) {
             logger.warn({ ...bindLogBase, reason: 'missing_input' }, 'bind_tx_fail');
             return { userPhoneLinkApplied: false, phoneLinkIndeterminate: true };
+          }
+          if (!(await authChannelPolicy(resource))) {
+            logger.warn({ ...bindLogBase, reason: 'auth_channel_disabled' }, 'bind_tx_fail');
+            return { userPhoneLinkApplied: false, phoneLinkReason: 'auth_channel_disabled' };
           }
           const phoneSuffix = phoneLogSuffix(phoneNormalized);
           try {

@@ -4,6 +4,11 @@ const setSessionFromUserMock = vi.fn().mockResolvedValue(undefined);
 const trySetInitialIfEmptyMock = vi.fn().mockResolvedValue(undefined);
 const confirmPublicEmailOtpChallengeMock = vi.fn();
 const findByUserIdMock = vi.fn();
+const isAuthChannelEnabledMock = vi.hoisted(() => vi.fn());
+
+vi.mock("@/modules/auth/authChannelPolicy", () => ({
+  isAuthChannelEnabled: (...args: unknown[]) => isAuthChannelEnabledMock(...args),
+}));
 
 const testUser = {
   userId: "user-uuid-1",
@@ -42,6 +47,8 @@ describe("POST /api/auth/email-otp/confirm", () => {
     findByUserIdMock.mockReset();
     setSessionFromUserMock.mockClear();
     trySetInitialIfEmptyMock.mockClear();
+    isAuthChannelEnabledMock.mockReset();
+    isAuthChannelEnabledMock.mockResolvedValue(true);
 
     findByUserIdMock.mockResolvedValue(testUser);
     confirmPublicEmailOtpChallengeMock.mockResolvedValue({
@@ -98,6 +105,22 @@ describe("POST /api/auth/email-otp/confirm", () => {
     expect(data.redirectTo).toBe("/app/patient");
     expect(data.role).toBe("client");
     expect(setSessionFromUserMock).toHaveBeenCalledWith(testUser);
+  });
+
+  it("does not consume a challenge or issue a session when email auth is disabled", async () => {
+    isAuthChannelEnabledMock.mockResolvedValue(false);
+
+    const res = await POST(
+      new Request("http://localhost/api/auth/email-otp/confirm", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ email: "user@example.com", code: "123456" }),
+      }),
+    );
+
+    expect(res.status).toBe(403);
+    expect(confirmPublicEmailOtpChallengeMock).not.toHaveBeenCalled();
+    expect(setSessionFromUserMock).not.toHaveBeenCalled();
   });
 
   it("returns 400 on invalid code", async () => {

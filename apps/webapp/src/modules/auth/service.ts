@@ -232,6 +232,18 @@ function parseDevBypassToken(token: string): IntegratorTokenPayload | null {
   return presets[token] ?? null;
 }
 
+export async function classifyVerifiedIntegratorTokenChannel(
+  token: string,
+): Promise<"dev_bypass" | "telegram" | "max" | null> {
+  if (parseDevBypassToken(token)) return "dev_bypass";
+  const parsed = await parseIntegratorToken(token);
+  if (!parsed) return null;
+  const binding = effectiveMessengerBinding(parsed);
+  return binding?.channelCode === "telegram" || binding?.channelCode === "max"
+    ? binding.channelCode
+    : null;
+}
+
 
 async function isAllowedByWhitelist(
   parsed: IntegratorTokenPayload,

@@ -3,6 +3,7 @@ import { z } from "zod";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import { verifyIntegratorSignature } from "@/app-layer/integrator/verifyIntegratorSignature";
 import { normalizePhone } from "@/modules/auth/phoneNormalize";
+import { isAuthChannelEnabled } from "@/modules/auth/authChannelPolicy";
 
 const bodySchema = z.object({
   setupToken: z.string().min(4).max(500),
@@ -34,6 +35,10 @@ export async function POST(request: Request) {
   const parsed = bodySchema.safeParse(json);
   if (!parsed.success) {
     return NextResponse.json({ ok: false, error: "validation_error" }, { status: 400 });
+  }
+
+  if (!(await isAuthChannelEnabled(parsed.data.channelCode))) {
+    return NextResponse.json({ ok: false, error: "auth_channel_disabled" }, { status: 403 });
   }
 
   const result = await buildAppDeps().phoneMessengerBind.completeFromIntegrator(

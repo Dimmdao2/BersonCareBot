@@ -5,6 +5,7 @@ import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import type { TelegramLoginWidgetPayload } from "@/modules/auth/telegramLoginVerify";
 import { verifyTelegramLoginWidgetSignature } from "@/modules/auth/telegramLoginVerify";
 import { getTelegramBotToken } from "@/modules/system-settings/integrationRuntime";
+import { isAuthChannelEnabled } from "@/modules/auth/authChannelPolicy";
 
 const bodySchema = z.record(z.string(), z.unknown());
 
@@ -17,6 +18,10 @@ export async function POST(request: Request) {
   const parsed = bodySchema.safeParse(raw);
   if (!parsed.success) {
     return NextResponse.json({ ok: false, error: "invalid_body" }, { status: 400 });
+  }
+
+  if (!(await isAuthChannelEnabled("telegram"))) {
+    return NextResponse.json({ ok: false, error: "auth_channel_disabled" }, { status: 403 });
   }
 
   const botToken = (await getTelegramBotToken()).trim();

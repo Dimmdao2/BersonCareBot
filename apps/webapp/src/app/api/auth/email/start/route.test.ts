@@ -1,7 +1,12 @@
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const getCurrentSessionMock = vi.fn();
 const sendEmailCodeViaIntegratorMock = vi.fn();
+const isAuthChannelEnabledMock = vi.hoisted(() => vi.fn());
+
+vi.mock("@/modules/auth/authChannelPolicy", () => ({
+  isAuthChannelEnabled: (...args: unknown[]) => isAuthChannelEnabledMock(...args),
+}));
 
 vi.mock("@/modules/auth/service", () => ({
   getCurrentSession: (...args: unknown[]) => getCurrentSessionMock(...args),
@@ -12,27 +17,29 @@ vi.mock("@/infra/integrations/email/integratorEmailAdapter", () => ({
 }));
 
 import { POST } from "./route";
-import * as authChannelPolicy from "@/modules/auth/authChannelPolicy";
 
 describe("POST /api/auth/email/start", () => {
-  it("rejects a disabled email channel before session lookup or send", async () => {
-    const policy = vi.spyOn(authChannelPolicy, "isAuthChannelEnabled").mockResolvedValue(false);
-    try {
-      const res = await POST(
-        new Request("http://localhost/api/auth/email/start", {
-          method: "POST",
-          headers: { "content-type": "application/json" },
-          body: JSON.stringify({ email: "user@example.com" }),
-        }),
-      );
+  beforeEach(() => {
+    getCurrentSessionMock.mockReset();
+    sendEmailCodeViaIntegratorMock.mockReset();
+    isAuthChannelEnabledMock.mockReset();
+    isAuthChannelEnabledMock.mockResolvedValue(true);
+  });
 
-      expect(res.status).toBe(503);
-      await expect(res.json()).resolves.toEqual({ ok: false, error: "auth_channel_disabled" });
-      expect(getCurrentSessionMock).not.toHaveBeenCalled();
-      expect(sendEmailCodeViaIntegratorMock).not.toHaveBeenCalled();
-    } finally {
-      policy.mockRestore();
-    }
+  it("rejects a disabled email channel before session lookup or send", async () => {
+    isAuthChannelEnabledMock.mockResolvedValue(false);
+    const res = await POST(
+      new Request("http://localhost/api/auth/email/start", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ email: "user@example.com" }),
+      }),
+    );
+
+    expect(res.status).toBe(503);
+    await expect(res.json()).resolves.toEqual({ ok: false, error: "auth_channel_disabled" });
+    expect(getCurrentSessionMock).not.toHaveBeenCalled();
+    expect(sendEmailCodeViaIntegratorMock).not.toHaveBeenCalled();
   });
 
   it("returns 401 when session is missing", async () => {
@@ -68,4 +75,5 @@ describe("POST /api/auth/email/start", () => {
     expect(sendEmailCodeViaIntegratorMock).toHaveBeenCalledTimes(1);
     expect(sendEmailCodeViaIntegratorMock).toHaveBeenCalledWith("user@example.com", expect.stringMatching(/^\d{6}$/));
   });
+
 });

@@ -26,7 +26,11 @@ describe('POST /api/bersoncare/send-otp', () => {
   it('returns 200 and dispatches OTP intent', async () => {
     const dispatchOutgoing = vi.fn().mockResolvedValue(undefined);
     const app = Fastify();
-    await registerBersoncareSendOtpRoute(app, { dispatchPort: { dispatchOutgoing }, sharedSecret: TEST_SECRET });
+    await registerBersoncareSendOtpRoute(app, {
+      dispatchPort: { dispatchOutgoing },
+      sharedSecret: TEST_SECRET,
+      isAuthChannelEnabled: vi.fn().mockResolvedValue(true),
+    });
 
     const body = JSON.stringify({ channel: 'telegram', recipientId: '123456789', code: '654321' });
     const res = await app.inject({
@@ -63,7 +67,11 @@ describe('POST /api/bersoncare/send-otp', () => {
   it('returns 401 for invalid signature', async () => {
     const dispatchOutgoing = vi.fn().mockResolvedValue(undefined);
     const app = Fastify();
-    await registerBersoncareSendOtpRoute(app, { dispatchPort: { dispatchOutgoing }, sharedSecret: TEST_SECRET });
+    await registerBersoncareSendOtpRoute(app, {
+      dispatchPort: { dispatchOutgoing },
+      sharedSecret: TEST_SECRET,
+      isAuthChannelEnabled: vi.fn().mockResolvedValue(true),
+    });
 
     const body = JSON.stringify({ channel: 'telegram', recipientId: '123456789', code: '654321' });
     const res = await app.inject({
@@ -79,6 +87,29 @@ describe('POST /api/bersoncare/send-otp', () => {
 
     expect(res.statusCode).toBe(401);
     expect(JSON.parse(res.body)).toEqual({ ok: false, error: 'invalid_signature' });
+    expect(dispatchOutgoing).not.toHaveBeenCalled();
+  });
+
+  it('returns 403 without dispatch when the requested messenger auth channel is disabled', async () => {
+    const dispatchOutgoing = vi.fn().mockResolvedValue(undefined);
+    const app = Fastify();
+    const isAuthChannelEnabled = vi.fn().mockResolvedValue(false);
+    await registerBersoncareSendOtpRoute(app, {
+      dispatchPort: { dispatchOutgoing },
+      sharedSecret: TEST_SECRET,
+      isAuthChannelEnabled,
+    });
+
+    const body = JSON.stringify({ channel: 'max', recipientId: '123456789', code: '654321' });
+    const res = await app.inject({
+      method: 'POST',
+      url: '/api/bersoncare/send-otp',
+      headers: makeHeaders(body),
+      body,
+    });
+
+    expect(res.statusCode).toBe(403);
+    expect(JSON.parse(res.body)).toEqual({ ok: false, error: 'auth_channel_disabled' });
     expect(dispatchOutgoing).not.toHaveBeenCalled();
   });
 });

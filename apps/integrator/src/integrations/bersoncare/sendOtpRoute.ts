@@ -38,13 +38,14 @@ function verifySignature(timestamp: string, rawBody: string, signature: string, 
 export type BersoncareSendOtpDeps = {
   dispatchPort: DispatchPort;
   sharedSecret: string;
+  isAuthChannelEnabled: (channel: 'telegram' | 'max') => Promise<boolean>;
 };
 
 export async function registerBersoncareSendOtpRoute(
   app: FastifyInstance,
   deps: BersoncareSendOtpDeps,
 ): Promise<void> {
-  const { dispatchPort, sharedSecret } = deps;
+  const { dispatchPort, sharedSecret, isAuthChannelEnabled } = deps;
 
   if (!app.hasContentTypeParser('application/json')) {
     app.addContentTypeParser('application/json', { parseAs: 'string' }, (req, body, done) => {
@@ -81,6 +82,9 @@ export async function registerBersoncareSendOtpRoute(
     }
 
     const { channel, recipientId, code } = parsed.data;
+    if (!(await isAuthChannelEnabled(channel))) {
+      return reply.code(403).send({ ok: false, error: 'auth_channel_disabled' });
+    }
     const text = `Код для входа в BersonCare: ${code}`;
     const eventId = `otp:${channel}:${randomUUID()}`;
     const recipient =

@@ -109,4 +109,41 @@ describe("resolveAuthMethodsForPhone", () => {
     expect(r.methods.email).toBe(true);
     expect(r.methods.emailAddress).toBe("user@test.example");
   });
+
+  it("does not offer disabled auth channels even when bindings and provider data exist", async () => {
+    const userByPhonePort = {
+      ...inMemoryUserByPhonePort,
+      findByPhone: async () => ({
+        userId: "policy-user",
+        role: "client" as const,
+        displayName: "Policy User",
+        phone: "+79990000666",
+        bindings: { telegramId: "tg-policy", maxId: "max-policy" },
+      }),
+      getVerifiedEmailForUser: async () => "policy@test.example",
+    };
+
+    const r = await resolveAuthMethodsForPhone(
+      "+79990000666",
+      {
+        userByPhonePort,
+        userPinsPort: inMemoryUserPinsPort,
+        oauthBindingsPort: inMemoryOAuthBindingsPort,
+      },
+      {
+        telegramLoginAvailable: true,
+        channelPolicy: { email: false, sms: false, telegram: false, max: false },
+      },
+    );
+
+    expect(r.exists).toBe(true);
+    expect(r.methods).toMatchObject({
+      email: false,
+      sms: false,
+      telegram: false,
+      telegramLogin: false,
+      max: false,
+    });
+    expect(r.methods.emailAddress).toBeUndefined();
+  });
 });

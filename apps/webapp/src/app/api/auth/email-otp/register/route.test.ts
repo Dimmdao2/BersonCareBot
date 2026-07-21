@@ -1,6 +1,11 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const startPublicEmailOtpRegistrationMock = vi.fn();
+const isAuthChannelEnabledMock = vi.hoisted(() => vi.fn());
+
+vi.mock("@/modules/auth/authChannelPolicy", () => ({
+  isAuthChannelEnabled: (...args: unknown[]) => isAuthChannelEnabledMock(...args),
+}));
 
 vi.mock("@/app-layer/di/buildAppDeps", () => ({ buildAppDeps: () => ({ emailOtpPublicDb: {} }) }));
 vi.mock("@/modules/auth/emailOtpPublic", () => ({
@@ -19,6 +24,8 @@ function request(body: unknown, ip = "10.2.0.1") {
 describe("POST /api/auth/email-otp/register", () => {
   beforeEach(() => {
     startPublicEmailOtpRegistrationMock.mockReset();
+    isAuthChannelEnabledMock.mockReset();
+    isAuthChannelEnabledMock.mockResolvedValue(true);
     startPublicEmailOtpRegistrationMock.mockResolvedValue({ ok: true, challengeId: "registration-challenge", retryAfterSeconds: 60 });
   });
 
@@ -44,6 +51,20 @@ describe("POST /api/auth/email-otp/register", () => {
     expect(missing.status).toBe(400);
     const blank = await POST(request({ email: "patient@example.com", lastName: " ", firstName: "Иван" }, "10.2.0.3"));
     expect(blank.status).toBe(400);
+    expect(startPublicEmailOtpRegistrationMock).not.toHaveBeenCalled();
+  });
+
+  it("rejects registration before account lookup when email auth is disabled", async () => {
+    isAuthChannelEnabledMock.mockResolvedValue(false);
+
+    const response = await POST(
+      request(
+        { email: "patient@example.com", lastName: "Иванов", firstName: "Иван" },
+        "10.2.0.8",
+      ),
+    );
+
+    expect(response.status).toBe(403);
     expect(startPublicEmailOtpRegistrationMock).not.toHaveBeenCalled();
   });
 

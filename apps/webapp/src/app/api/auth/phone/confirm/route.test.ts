@@ -9,6 +9,11 @@ const findByUserIdMock = vi.fn();
 const getSecurityStatusMock = vi.fn();
 const beginLoginMock = vi.fn();
 const issueContinuationMock = vi.fn();
+const isAuthChannelEnabledMock = vi.hoisted(() => vi.fn());
+
+vi.mock("@/modules/auth/authChannelPolicy", () => ({
+  isAuthChannelEnabled: (...args: unknown[]) => isAuthChannelEnabledMock(...args),
+}));
 
 vi.mock("@/modules/auth/staffLoginContinuation", () => ({
   issueStaffLoginContinuation: (...args: unknown[]) => issueContinuationMock(...args),
@@ -47,6 +52,8 @@ describe("POST /api/auth/phone/confirm", () => {
       isRegistrationIntent: false,
       phone: "+79991234567",
     });
+    isAuthChannelEnabledMock.mockReset();
+    isAuthChannelEnabledMock.mockResolvedValue(true);
     const client = {
       userId: "phone:1",
       role: "client" as const,
@@ -94,6 +101,28 @@ describe("POST /api/auth/phone/confirm", () => {
     expect(setSessionFromUserMock).toHaveBeenCalledTimes(1);
     expect(findByUserIdMock).toHaveBeenCalledWith("phone:1");
     expect(trySetInitialIfEmptyMock).not.toHaveBeenCalled();
+  });
+
+  it("rejects a disabled stored delivery channel before confirming the challenge", async () => {
+    getPhoneChallengeMock.mockResolvedValue({
+      isRegistrationIntent: false,
+      phone: "+79991234567",
+      deliveryChannel: "max",
+    });
+    isAuthChannelEnabledMock.mockResolvedValue(false);
+
+    const res = await POST(
+      new Request("http://localhost/api/auth/phone/confirm", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ challengeId: "test-challenge", code: "123456" }),
+      }),
+    );
+
+    expect(res.status).toBe(403);
+    await expect(res.json()).resolves.toEqual({ ok: false, error: "auth_channel_disabled" });
+    expect(confirmPhoneAuthMock).not.toHaveBeenCalled();
+    expect(setSessionFromUserMock).not.toHaveBeenCalled();
   });
 
   it("passes browserCalendarIana to trySetInitialIfEmpty when provided", async () => {

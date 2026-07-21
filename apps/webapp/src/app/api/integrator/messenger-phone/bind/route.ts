@@ -5,6 +5,7 @@ import { getCachedResponse, isKeyValid, setCachedResponse } from "@/app-layer/id
 import { logger } from "@/app-layer/logging/logger";
 import { verifyIntegratorSignature } from "@/app-layer/integrator/verifyIntegratorSignature";
 import { executeMessengerPhoneHttpBindWithDefaultPool } from "@/app-layer/integrator/messengerPhoneHttpBindExecute";
+import { isAuthChannelEnabled } from "@/modules/auth/authChannelPolicy";
 
 const bodySchema = z.object({
   channelCode: z.enum(["telegram", "max"]),
@@ -50,6 +51,10 @@ export async function POST(request: Request) {
 
   if (validated.data.idempotencyKey && validated.data.idempotencyKey !== idempotencyKey) {
     return NextResponse.json({ ok: false, error: "idempotency key mismatch between header and body" }, { status: 400 });
+  }
+
+  if (!(await isAuthChannelEnabled(validated.data.channelCode))) {
+    return NextResponse.json({ ok: false, error: "auth_channel_disabled" }, { status: 403 });
   }
 
   const requestHash = computeMessengerPhoneBindRequestHash(parsed);
