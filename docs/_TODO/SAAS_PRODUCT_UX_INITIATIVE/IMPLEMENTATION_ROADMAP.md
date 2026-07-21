@@ -593,7 +593,7 @@ card; запрещено строить временный resolver, второ�
 - **Gate:** owner-review §§P1-P3; global operator vs organization payer vs ordinary specialist; webhook replay/
   amount/org negatives; audit, reconciliation, TEST provider-safe acceptance.
 
-**C5A status (2026-07-21, `#751`): terminal hard stop / not integrated.** The rebased candidate `e4b71cc34` passed 249
+**Historical C5A status (2026-07-21, superseded): terminal hard stop / not integrated.** The rebased candidate `e4b71cc34` passed 249
 targeted tests, the operational-role matrix, scoped lint and all journal/frozen/RLS/Phase4/finalizer/D3.4 static
 gates, but its final independent audit failed `0 P0 / 2 P1 / 2 P2`. First, explicit `no_trial` still resolves to
 `active` with no tariff and therefore enables 12/15 mechanics through compatibility defaults, violating the
@@ -628,7 +628,7 @@ matrix with targeted tests, typecheck/scoped lint and one independent audit. It 
 A1 after C5A; it closes before C5B/C7 and joins the next accumulated milestone CI rather than starting its own full
 CI loop.
 
-**Latest C5A terminal status (`e08ec320c`, post-F0 base `2b5fe23a6`): blocked / not integrated.** The bounded Online
+**Historical C5A terminal status (`e08ec320c`, superseded): blocked / not integrated.** The bounded Online
 mutation and async-`export const` census repair, 0225 migration ordering, quota proof and all changed tests passed,
 but the terminal full-stage audit returned `0 P0 / 2 P1 / 0 P2`. The restore/rehydration chain invokes C5A before
 installing/reapplying canonical `app_platform_settings` role/ACL/policies, and two declared exemptions still allow
@@ -637,7 +637,7 @@ unchanged twelve pre-base direct-resolver findings remain separate `#939` debt. 
 no further correction, integration or milestone CI starts automatically. `#751` is owner-waiting on one process
 choice: authorize one final convergence pass for these two exact P1 classes, or freeze the isolated candidate.
 
-**Superseding C5A terminal status (`8afec6853`, owner-authorized final pass, 2026-07-21): blocked / not integrated.**
+**Historical C5A terminal status (`8afec6853`, superseded by the integrated closure below): blocked / not integrated.**
 The final pass closed both previously authorized P1 classes, preserved read-versus-mutation notification-template
 behavior, and passed the focused lifecycle, rehydrate, quota, U9A/D3.4 and changed-test gates. Its terminal audit
 returned `0 P0 / 1 P1 / 0 P2`: the canonical disposable specialist signup/provisioning smoke still installs the
@@ -647,6 +647,20 @@ provisioned organization atomically receives the selected trial tariff and durat
 regression against the existing owner checklist, not a new product requirement. No further correction, integration,
 milestone CI, DB apply or deploy starts without a new explicit owner authorization. The unchanged twelve pre-base
 direct-resolver findings remain separate downstream task `#939`.
+
+**C5A closure (`#751`, 2026-07-21): [x] integrated through `a678d043d`.** The owner clarified that the remaining
+provisioning-smoke delta was a clear owner-mapped integration proof, not an ambiguous requirement or audit-driven
+scope expansion. The bounded closure installed the canonical `0180/0212/0213/0225` order, the signed platform
+principal accessor and exact runtime grants, then passed the disposable PostgreSQL specialist-provisioning proof:
+one organization receives the configured tariff, trial duration and grace atomically; replay/concurrency are
+idempotent and rollback leaves no partial commercial state. The accumulated milestone gate is green at
+`c6a8930c2` (lint, typecheck, all workspaces' tests, builds, SaaS/migration/static and registry audits). No working
+DEV database, TEST/PROD database, deploy or provider action was used by this implementation/verification stage.
+
+**S4 residual closure (`#939`, 2026-07-21): [x] integrated as `84bf193ac`.** All twelve pre-C5A direct resolver
+bypasses now use the canonical read/mutation entitlement boundary with exact organization ownership; the mandatory
+coverage checker reports `54` protected actions and `0` bypasses. Focused tests passed `34/34`, typecheck/scoped
+lint and the independent high-risk audit passed with no findings; the same green milestone gate covers integration.
 
 **C5C implementation checklist (owner policy resolved):** active specialist binding и pending invite потребляют/
 резервируют seat, non-clinical admin — нет; included count и per-seat price/purchase moment остаются tariff data;
@@ -769,14 +783,14 @@ downgrade/over-limit сохраняют memberships и блокируют нов
    matching-plan distinct-start P1 первого аудита закрыт одним correction-pass; terminal re-audit `0/0/0`, private
    PostgreSQL concurrency matrix, `31/31` targeted tests, typecheck/lint — PASS. Schedule-block semantics не
    расширялись из audit recommendation.
-   **B1 status (2026-07-21):** [ ] `#949` blocked / not integrated after the second and final correction-pass.
-   Candidate `1a07bc2e3` passes executable old-base crash/replay, private PostgreSQL lifecycle/UoW/concurrency,
-   `85` targeted tests, typecheck/lint and migration gates, and closes every earlier audit finding. The terminal
-   audit returned `0 P0 / 1 P1`: canonical locked roles deny the bootstrap webhook principal both table privilege
-   and pre-organization RLS visibility for the authority lookup now required before exact-org signature verification.
-   No third correction, full CI, merge, DB apply or deploy starts automatically. A narrow least-privilege authority
-   capability may be designed only after a new explicit owner authorization; general bootstrap payment-table access
-   is not an acceptable fallback.
+   **B1 status (2026-07-21):** [x] `#949` integrated through `ba6a9242b`. The owner confirmed that the remaining
+   direction was clear rather than an ambiguous product gate. A dedicated least-privilege webhook authority
+   resolver now returns only `organization_id` for a unique provider authority key; it grants no bootstrap read of
+   payment rows, payload, amount or PII, fixes its database search path and fails closed on unknown or ambiguous
+   authority. Exact organization context and signature verification still precede the atomic/replay-safe capture
+   path. Private PostgreSQL lifecycle/UoW/rollback/concurrency proofs, focused tests, typecheck/lint, D3.4/static
+   gates and the terminal independent audit passed with no findings. The accumulated milestone gate is green at
+   `c6a8930c2`; no working database, provider call, TEST/PROD or deploy was used by the stage.
 6. **Hardening Phase 2 до C7:** launch-relevant session revocation/TTL, CSRF/origin и integrator↔webapp contract
    SSOT. Общий HTTP response builder внедряется инкрементально и не превращается в обязательный mass-refactor перед
    release, если risk-relevant routes уже закрыты.
@@ -1375,6 +1389,15 @@ for new clinic locations (initially at least five values, extensible) and a sepa
 color. When physical locations outnumber palette entries, assignment cycles (`N mod palette length`); `Online` is
 separate and does not consume a palette slot. Existing location colors are never rewritten. This replaces the current hardcoded creation defaults only
 after a DB-backed global setting and migration-safe fallback exist; it is not part of N1A `#929`.
+
+**U9 palette implementation (`#932`, 2026-07-21): [x] repository stage integrated as `93114ed62` +
+`363e232a3`.** The global structured setting has an extensible physical palette plus a separate Online default;
+new physical locations cycle deterministically under an organization-scoped transaction lock, existing colors are
+unchanged, and clinic owner/admin can override the Online color afterward. The native accessible picker reuses the
+sanctioned U9A platform-settings path and introduces no second store or heavy UI package. Targeted tests, private
+role/static checks, typecheck/lint and the one presentation audit plus bounded matching correction passed; the
+accumulated milestone gate is green at `c6a8930c2`. Migration/role application and live platform/clinic acceptance
+remain the authorized TEST checkpoint, not evidence claimed by repository tests.
 
 **Outcome:** platform operator manages organizations, commercial state, platform configuration/reliability and
 system identity diagnostics from a dedicated shell without patient browsing or patient-record repair.

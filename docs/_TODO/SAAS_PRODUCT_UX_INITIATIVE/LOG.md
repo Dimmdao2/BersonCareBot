@@ -4271,3 +4271,48 @@ to authorize a separate narrow DB capability that returns only `organization_id`
 idempotency / event-type authority key, followed by one terminal audit, or freeze B1. Migration number `0225` remains
 owned only by this isolated candidate for now; isolated C5A must be renumbered/rebased if either branch is later
 authorized and integrated first.
+
+## 2026-07-21 — C5A, B1 and S4 residual integrated after bounded closure (`#751/#949/#939`)
+
+The owner clarified the execution rule: a further pass needs an owner decision only for ambiguous product scope,
+scope growth or a genuinely circular correction/audit loop. Clear owner-mapped integration defects are completed
+without an artificial process gate. C5A therefore closed through `a678d043d`: the canonical `0225` ordering,
+signed platform principal accessor and exact grants are installed by the disposable proof, and specialist
+provisioning atomically assigns the configured tariff/trial/grace with replay/concurrency idempotency and rollback.
+
+B1 integrated through `ba6a9242b`. Its public webhook bootstrap receives only a narrow authority capability that
+maps a unique provider key to `organization_id`; it cannot read payment rows, amount, payload or PII. Exact-org
+context and provider verification still precede the replay-safe capture UoW. The terminal independent audit passed
+without findings after private PostgreSQL lifecycle/rollback/concurrency and D3.4/static proofs.
+
+The twelve pre-C5A S4 bypass findings closed independently as `84bf193ac`: the canonical checker now reports `54`
+protected actions and `0` bypasses, focused tests passed `34/34`, and the independent high-risk audit passed. No
+working DEV database, TEST/PROD, provider call or deploy was used by these implementation stages.
+
+## 2026-07-21 — U9 location palette and Tiptap repository stages integrated (`#932/#931`)
+
+The platform-owned location palette landed as `93114ed62` plus the single presentation correction `363e232a3`.
+It keeps an extensible physical palette and separate Online default in the sanctioned global settings path, cycles
+new physical locations deterministically, leaves existing colors unchanged and allows a clinic to override Online
+after creation. Targeted tests, typecheck/lint, private role/static checks and the one independent presentation audit
+passed. Migration/role application and live platform/clinic behavior remain the TEST checkpoint.
+
+The Tiptap migration landed as `74bc30670`, `c3dc92127` and `998f0d67b` without changing markdown storage or patient
+rendering. The one independent compatibility audit found two plan-mapped issues: legacy HTML could enter the markdown
+editor and an over-limit legacy document could not be shortened progressively. The bounded correction closed both;
+its no-DB targeted suite passed `33/33`. Content and broadcasts were inspected live on DEV; complete manifest/live
+owner acceptance waits for TEST data and is not claimed by repository evidence.
+
+## 2026-07-21 — accumulated milestone gate green; TEST checkpoint authorized
+
+The command-equivalent milestone gate is green at `c6a8930c2` using resume-from-failure rather than restarting
+already-green heavy steps. Lint, typecheck, HLS sync, integrator (`177` files / `1319` tests), media-worker (`14` /
+`61`), root build, webapp build and all SaaS/migration/static/registry audits passed. The first full webapp run passed
+`1522` files / `8831` tests and exposed ten failures in six stale test harnesses; test-only commit `1b826b0b2` aligned
+them with the integrated entitlement/UoW/Drizzle contracts and the complete affected set passed `72/72`. Mechanical
+audit registries/checkers were synchronized in `2e2b59679` and `42861c314`. Fresh Hono advisories were closed by the
+minimal dependency-only `c6a8930c2`; frozen install and registry audit report no known vulnerabilities.
+
+The owner explicitly authorized the next TEST deployment. It must preserve the prepared TEST database: no dump,
+restore, full reset or database recreation. Only the feature code and required ordinary non-destructive migrations
+may be applied, followed by exact deployed-SHA, health and live owner-scenario verification. PROD remains forbidden.

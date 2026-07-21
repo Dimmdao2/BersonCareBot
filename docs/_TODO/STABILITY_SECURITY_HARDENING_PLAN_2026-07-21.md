@@ -165,11 +165,11 @@ apply, TEST/PROD or deploy is claimed.
       doctor/Today request-path, а lifetime state рос при churn. Один coherent correction выделил lightweight banner
       collector, ввёл hard cap `4096` и доказал active-set→zero/churn semantics. Terminal re-audit — PASS `0/0/0`;
       targeted suite `66/66`, typecheck и scoped lint — PASS. Production activation/deploy не выполнялись.
-- [ ] **B1. Атомарность захвата платежа.** СНАЧАЛА verify-spike (доказать окна краша живьём), затем: обернуть
+- [x] **B1. Атомарность захвата платежа.** СНАЧАЛА verify-spike (доказать окна краша живьём), затем: обернуть
       record-event + capture + mark-processed в одну транзакцию ЛИБО сделать capture полностью replay-safe
       (повторная доставка `duplicate` доводит незавершённый захват). Файлы: `payments/service.ts:330-461`.
       Размер: verify **S** + fix **M** · Аудит: **полный** (деньги).
-      **Terminal hard stop 2026-07-21:** изолированный кандидат `1a07bc2e3` закрывает прежние crash/replay,
+      **Исторический terminal hard stop 2026-07-21 (superseded):** изолированный кандидат `1a07bc2e3` закрывает прежние crash/replay,
       lifecycle-event, changed-body, delivery и product-UoW findings; executable old-base и private PostgreSQL
       proofs, `85` targeted tests, typecheck/lint/migration gates зелёные. После второго correction-pass финальный
       аудит всё же нашёл `0 P0 / 1 P1`: locked bootstrap principal публичного webhook не имеет grant/RLS path для
@@ -177,6 +177,14 @@ apply, TEST/PROD or deploy is claimed.
       organization до exact-org signature verification. По hard ceiling третья коррекция не открыта; `#949`
       blocked/owner-waiting. Возможное продолжение требует отдельного owner gate на узкую least-privilege authority
       capability, возвращающую только `organization_id`, а не общий доступ bootstrap к payment tables.
+      **Закрыто 2026-07-21:** owner clarification разрешило продолжить ясное направление без нового продуктового
+      решения. Интеграционные коммиты до `ba6a9242b` добавили узкий least-privilege authority resolver, который
+      возвращает только `organization_id`, не открывает bootstrap-чтение payment tables/сумм/payload/PII, имеет
+      фиксированный search path и fail-closed semantics для unknown/ambiguous key. После установки exact-org
+      principal webhook проверяет organization-specific authority/signature и использует атомарный replay-safe UoW.
+      Private PostgreSQL lifecycle/rollback/concurrency proofs, focused tests, typecheck/lint, D3.4/static gates и
+      terminal independent audit прошли без findings. Общий milestone gate зелёный на `c6a8930c2`; рабочая БД,
+      внешние провайдеры, TEST/PROD и deploy на этапе реализации не затрагивались.
 - [x] **B2. `fetchWithTimeout` на все платёжные/OAuth-вызовы** (Yookassa/Tinkoff/Apple/Google) — переиспользовать
       существующий `fetchWithTimeout` из `operatorHealthProbeRunner.ts`. Размер: **S** · Аудит: один.
       **Закрыто 2026-07-21:** интеграционные коммиты `ff11d416a` + `3f484ea60`; единая webapp-граница ограничивает
