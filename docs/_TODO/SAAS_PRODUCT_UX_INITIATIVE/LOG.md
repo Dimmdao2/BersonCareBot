@@ -3800,3 +3800,20 @@ targeted tests, scoped lint, migration journal/frozen-history, D3.4 and strict-f
 the structural gates and exact constraint parity. No working database, DEV/TEST/PROD, deploy, real delivery or full
 CI was used. Task `#806` is technically complete; broader U3B SMS/PBK/PWA/install/push and its milestone acceptance
 remain open and are not represented as closed by this entry.
+
+## 2026-07-21 — U5A live-seal readiness and exact owner gate (`#796`)
+
+A read-only current-state pass at `241367fde` produced the exact desktop/mobile manifest for the two remaining U5A
+seals without changing code, task data, databases or servers. Switching one patient between two active organizations
+is conditionally ready only on the canonical TEST shared-patient fixture: it provides ordinary patient login and
+exact Clinic A/B enrollments, whereas current DEV/dev-bypass has one prepared context and the TEST seeder explicitly
+refuses `bcb_webapp_dev`. The walkthrough must therefore be separately owner-authorized on the deployed TEST SHA;
+neither a privileged DEV enrollment writer nor a database reset is acceptable evidence.
+
+Recovery after the remembered organization is revoked is not yet executable through a sanctioned lifecycle path.
+The resolver, route and UI already have strong stale-preference, two-org, revoked-target and neutral-recovery tests,
+but the application has no port/API to move one active organization enrollment to `discharged`/`archived` and back.
+The doctor archive command explicitly returns `patient_archive_not_available`; deleting an invite revokes only a
+pending invite. Taskdb `#796` is therefore `blocked`, `owner_waiting=true`, on one precise choice: implement a product
+per-enrollment discharge/reactivate flow or authorize a narrow reversible TEST-only lifecycle harness. U5B/UI-5
+remains gated on these seals, while independent roadmap stages continue.

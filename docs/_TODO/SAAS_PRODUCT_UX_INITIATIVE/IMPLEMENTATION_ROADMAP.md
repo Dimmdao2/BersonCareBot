@@ -820,6 +820,15 @@ push and installed launches cannot leak or silently substitute another organizat
   proof; [x] UX08-05 resolved behavior explicit; [x] full audit PASS. The two unchecked live seals require the
   canonical TEST two-organization fixture or U3B's sanctioned invite→active enrollment transition; they must not be
   manufactured through a privileged DEV-only enrollment writer.
+- **Live-readiness status (2026-07-21, `#796`):** the A↔B switch seal is executable only on an owner-authorized TEST
+  walkthrough with the canonical shared-patient fixture; current DEV/dev-bypass has no sanctioned second enrollment
+  and the TEST seeder intentionally refuses the DEV database. The revoked-remembered-organization recovery seal is
+  additionally blocked because no product/API port can reversibly move one active organization enrollment to
+  discharged/archived and restore it: the doctor archive route returns `patient_archive_not_available`, while invite
+  revoke affects only a pending invite. Unit/component/API coverage proves stale-preference and neutral-recovery
+  behavior but does not replace these live seals. Task `#796` waits for one bounded owner choice: product
+  per-enrollment discharge/reactivate flow or a reversible TEST-only lifecycle harness, plus separate authorization
+  for the TEST walkthrough. Ad hoc SQL, a privileged DEV writer or a reset is forbidden evidence.
 - **Merge dependency:** U0/U1; later integration validation cannot become a reverse prerequisite.
 
 ### U3S — specialist self-signup, owner provisioning and secure first run
