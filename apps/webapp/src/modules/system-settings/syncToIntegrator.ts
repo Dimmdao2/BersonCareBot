@@ -9,7 +9,8 @@
  * `integrator_push_outbox` for {@link runIntegratorPushWorkerTick}.
  */
 import { getPool } from "@/infra/db/client";
-import { enqueueIntegratorPush } from "@/infra/integrator-push/integratorPushOutbox";
+import { getCurrentDbPrincipal } from "@bersoncare/db-principal";
+import { enqueueIntegratorPush, enqueuePlatformSystemSettingsPush } from "@/infra/integrator-push/integratorPushOutbox";
 import {
   postSystemSettingsSyncToIntegrator,
   type SystemSettingsSyncWireInput,
@@ -35,19 +36,25 @@ export async function syncSettingToIntegrator(input: SystemSettingsSyncWireInput
       return;
     }
     try {
-      const pool = getPool();
       const organizationKey = input.organizationId?.trim() || "global";
-      await enqueueIntegratorPush(pool, {
-        kind: "system_settings_sync",
-        idempotencyKey: `settings:${organizationKey}:${input.scope}:${input.key}`,
-        payload: {
+      if (getCurrentDbPrincipal()?.kind === "platform") {
+        await enqueuePlatformSystemSettingsPush({
           key: input.key,
-          scope: input.scope,
-          organizationId: input.organizationId ?? null,
-          valueJson: input.valueJson,
-          ...(input.updatedBy != null && input.updatedBy !== "" ? { updatedBy: String(input.updatedBy) } : {}),
-        },
-      });
+        });
+      } else {
+        const pool = getPool();
+        await enqueueIntegratorPush(pool, {
+          kind: "system_settings_sync",
+          idempotencyKey: `settings:${organizationKey}:${input.scope}:${input.key}`,
+          payload: {
+            key: input.key,
+            scope: input.scope,
+            organizationId: input.organizationId ?? null,
+            valueJson: input.valueJson,
+            ...(input.updatedBy != null && input.updatedBy !== "" ? { updatedBy: String(input.updatedBy) } : {}),
+          },
+        });
+      }
     } catch (enqueueErr) {
       console.error("[system_settings] syncToIntegrator: enqueue failed after HTTP error:", enqueueErr);
       return;

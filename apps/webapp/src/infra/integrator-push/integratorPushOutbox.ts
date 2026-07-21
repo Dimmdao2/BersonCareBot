@@ -75,6 +75,15 @@ export async function enqueueIntegratorPushDefault(
   await enqueueIntegratorPushWithExecutor(getWebappSqlDb(), input);
 }
 
+/**
+ * Platform-global settings use a closed SECURITY DEFINER enqueue function. The
+ * platform role never receives DML on the shared outbox and therefore cannot
+ * enqueue reminder-rule or other operational work.
+ */
+export async function enqueuePlatformSystemSettingsPush(input: { key: string }): Promise<void> {
+  await runWebappSql(getWebappSqlDb(), sql`SELECT app.enqueue_platform_system_settings_sync(${input.key})`);
+}
+
 async function enqueueIntegratorPushWithExecutor(
   d: WebappSqlExecutor,
   input: { kind: IntegratorPushKind; idempotencyKey: string; payload: Record<string, unknown> },

@@ -3,8 +3,9 @@ import {
   enterWithDbStaffPrincipal,
   runWithDbOrganizationPrincipal,
   runWithDbPatientPrincipal,
+  runWithDbPlatformPrincipal,
 } from "@bersoncare/db-principal";
-import type { SQL } from "drizzle-orm";
+import { sql, type SQL } from "drizzle-orm";
 import { PgDialect } from "drizzle-orm/pg-core";
 import type { Pool, PoolClient, PoolConfig } from "pg";
 import { createWebappPoolProvider } from "@/infra/db/webappPoolProvider";
@@ -33,6 +34,7 @@ vi.mock("drizzle-orm/node-postgres", () => ({
 }));
 
 import { getDrizzle } from "./drizzle";
+import { runWebappTransaction } from "@/infra/db/runWebappSql";
 
 const ORGANIZATION_ID = "22222222-2222-4222-8222-222222222222";
 
@@ -130,6 +132,87 @@ describe("getDrizzle transaction principal", () => {
     const compiled = dialect.sqlToQuery(principalSql);
     expect(compiled.sql).toBe("SELECT set_config('app.org', $1, true)");
     expect(compiled.params).toEqual([ORGANIZATION_ID]);
+  });
+
+  it("runs a platform write through the principal-aware transaction and resets the role", async () => {
+    process.env.DB_PRINCIPAL_CONTEXT_MODE = "locked";
+    process.env.DB_PRINCIPAL_SIGNING_SECRET = "test-db-principal-signing-secret";
+    executeMock.mockImplementation(async () => ({ rows: [], rowCount: 0 }));
+
+    await expect(
+      runWithDbPlatformPrincipal(
+        {
+          platformUserId: "77777777-7777-4777-8777-777777777777",
+          source: "drizzle-platform-write-test",
+        },
+        () =>
+          runWebappTransaction(async (tx) => {
+            await tx.execute(sql`UPDATE public.system_settings SET updated_at = now() WHERE key = ${"test"}`);
+            return "written";
+          }),
+      ),
+    ).resolves.toBe("written");
+
+    const statements = executeMock.mock.calls.map(([statement]) => dialect.sqlToQuery(statement as SQL));
+    expect(statements.map(({ sql: text }) => text)).toEqual([
+      "SET ROLE app_platform_settings",
+      "SELECT set_config('app.org', $1, true)",
+      "SELECT set_config('app.patient_user_id', $1, true)",
+      "SELECT set_config('app.integrator_user_id', $1, true)",
+      "UPDATE public.system_settings SET updated_at = now() WHERE key = $1",
+      "SELECT set_config('app.org', $1, true)",
+      "SELECT set_config('app.patient_user_id', $1, true)",
+      "SELECT set_config('app.integrator_user_id', $1, true)",
+      "RESET ROLE",
+    ]);
+    expect(statements[4]?.params).toEqual(["test"]);
+  });
+
+  it("resets the platform role when principal setup fails after SET ROLE", async () => {
+    const setupError = new Error("platform context clear failed");
+    let failedSetupClear = false;
+    executeMock.mockImplementation(async (statement: SQL) => {
+      const compiled = dialect.sqlToQuery(statement);
+      if (!failedSetupClear && compiled.sql === "SELECT set_config('app.org', $1, true)") {
+        failedSetupClear = true;
+        throw setupError;
+      }
+      return { rows: [], rowCount: 0 };
+    });
+
+    await expect(
+      runWithDbPlatformPrincipal({ platformUserId: "77777777-7777-4777-8777-777777777777" }, () =>
+        runWebappTransaction(async () => "not-run"),
+      ),
+    ).rejects.toBe(setupError);
+
+    const statements = executeMock.mock.calls.map(([statement]) => dialect.sqlToQuery(statement as SQL).sql);
+    expect(statements).toEqual([
+      "SET ROLE app_platform_settings",
+      "SELECT set_config('app.org', $1, true)",
+      "SELECT set_config('app.org', $1, true)",
+      "SELECT set_config('app.patient_user_id', $1, true)",
+      "SELECT set_config('app.integrator_user_id', $1, true)",
+      "RESET ROLE",
+    ]);
+  });
+
+  it("resets the platform role when the transaction callback fails", async () => {
+    const callbackError = new Error("platform write failed");
+    executeMock.mockImplementation(async () => ({ rows: [], rowCount: 0 }));
+
+    await expect(
+      runWithDbPlatformPrincipal({ platformUserId: "77777777-7777-4777-8777-777777777777" }, () =>
+        runWebappTransaction(async (tx) => {
+          await tx.execute(sql`UPDATE public.system_settings SET updated_at = now() WHERE key = ${"test"}`);
+          throw callbackError;
+        }),
+      ),
+    ).rejects.toBe(callbackError);
+
+    const statements = executeMock.mock.calls.map(([statement]) => dialect.sqlToQuery(statement as SQL).sql);
+    expect(statements.at(-1)).toBe("RESET ROLE");
+    expect(statements).toContain("UPDATE public.system_settings SET updated_at = now() WHERE key = $1");
   });
 
   it("keeps routed Drizzle checkout and signed transaction context on the captured patient contour", async () => {

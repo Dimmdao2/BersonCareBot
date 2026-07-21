@@ -2,8 +2,11 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import {
+  applyDbPrincipalToTransaction,
   applyDbOperationalOrganizationContextToConnection,
+  clearDbPrincipalFromTransaction,
   clearDbOperationalOrganizationContextFromConnection,
+  createDbPlatformPrincipal,
   resetDbOperationalRuntimeRole,
   setDbOperationalRuntimeRole,
 } from "../dist/index.js";
@@ -94,4 +97,48 @@ test("resets an operational runtime role with fixed SQL", async () => {
     },
   });
   assert.deepEqual(queries, ["RESET ROLE"]);
+});
+
+test("applies and clears the platform settings role in transaction scope", async () => {
+  const queries = [];
+  const client = {
+    async query(sql, values) {
+      queries.push([sql, values]);
+    },
+  };
+  const principal = createDbPlatformPrincipal({
+    platformUserId: "77777777-7777-4777-8777-777777777777",
+  });
+  const options = { mode: "locked", signer: { secret: "unit-test-secret" } };
+
+  assert.equal(await applyDbPrincipalToTransaction(client, principal, options), true);
+  await clearDbPrincipalFromTransaction(client, options, principal);
+
+  assert.deepEqual(queries, [
+    ["SET ROLE app_platform_settings", undefined],
+    ["SELECT set_config('app.org', $1, true)", [""]],
+    ["SELECT set_config('app.patient_user_id', $1, true)", [""]],
+    ["SELECT set_config('app.integrator_user_id', $1, true)", [""]],
+    ["SELECT set_config('app.org', $1, true)", [""]],
+    ["SELECT set_config('app.patient_user_id', $1, true)", [""]],
+    ["SELECT set_config('app.integrator_user_id', $1, true)", [""]],
+    ["RESET ROLE", undefined],
+  ]);
+});
+
+test("resets the platform role even when transaction-context cleanup fails", async () => {
+  const queries = [];
+  const cleanupError = new Error("context cleanup failed");
+  const client = {
+    async query(sql) {
+      queries.push(sql);
+      if (sql.startsWith("SELECT set_config")) throw cleanupError;
+    },
+  };
+  const principal = createDbPlatformPrincipal({
+    platformUserId: "77777777-7777-4777-8777-777777777777",
+  });
+
+  await assert.rejects(clearDbPrincipalFromTransaction(client, {}, principal), cleanupError);
+  assert.deepEqual(queries, ["SELECT set_config('app.org', $1, true)", "RESET ROLE"]);
 });

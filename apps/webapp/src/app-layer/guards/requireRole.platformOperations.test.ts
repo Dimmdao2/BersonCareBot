@@ -14,6 +14,13 @@ const platform = {
 describe("requirePlatformOperationsApiContext", () => {
   beforeEach(() => getCurrentSessionMock.mockReset());
 
+  it("returns 401 without a session", async () => {
+    getCurrentSessionMock.mockResolvedValue(null);
+    const result = await requirePlatformOperationsApiContext();
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.response.status).toBe(401);
+  });
+
   it("allows only the finite platform capability and installs no-org principal", async () => {
     getCurrentSessionMock.mockResolvedValue(platform);
     await runWithDbBootstrapPrincipal({ source: "test" }, async () => {
@@ -24,6 +31,10 @@ describe("requirePlatformOperationsApiContext", () => {
   });
 
   it.each([
+    {
+      user: { userId: "dddddddd-dddd-4ddd-8ddd-dddddddddddd", role: "admin", bindings: {} },
+      adminMode: false,
+    },
     { user: { userId: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb", role: "doctor", bindings: {} } },
     { user: { userId: "cccccccc-cccc-4ccc-8ccc-cccccccccccc", role: "patient", bindings: {} } },
   ])("denies non-platform sessions", async (session) => {

@@ -1,13 +1,21 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const fetchMock = vi.hoisted(() => vi.fn());
-const enqueueIntegratorPushMock = vi.hoisted(() => vi.fn().mockResolvedValue(undefined));
+const { enqueueIntegratorPushMock, enqueuePlatformSystemSettingsPushMock, getCurrentDbPrincipalMock } = vi.hoisted(
+  () => ({
+    enqueueIntegratorPushMock: vi.fn().mockResolvedValue(undefined),
+    enqueuePlatformSystemSettingsPushMock: vi.fn().mockResolvedValue(undefined),
+    getCurrentDbPrincipalMock: vi.fn(),
+  }),
+);
 
 vi.stubGlobal("fetch", fetchMock);
 
 vi.mock("@/infra/integrator-push/integratorPushOutbox", () => ({
   enqueueIntegratorPush: enqueueIntegratorPushMock,
+  enqueuePlatformSystemSettingsPush: enqueuePlatformSystemSettingsPushMock,
 }));
+vi.mock("@bersoncare/db-principal", () => ({ getCurrentDbPrincipal: getCurrentDbPrincipalMock }));
 
 import { normalizeStoredValueJsonForIntegratorSync, syncSettingToIntegrator } from "./syncToIntegrator";
 
@@ -37,6 +45,8 @@ describe("syncSettingToIntegrator", () => {
     fetchMock.mockReset();
     fetchMock.mockResolvedValue({ ok: true, text: async () => "" });
     enqueueIntegratorPushMock.mockClear();
+    enqueuePlatformSystemSettingsPushMock.mockClear();
+    getCurrentDbPrincipalMock.mockReturnValue(undefined);
   });
 
   it("POSTs signed body to integrator settings/sync", async () => {
@@ -82,6 +92,29 @@ describe("syncSettingToIntegrator", () => {
 	    });
 	    warnSpy.mockRestore();
 	  });
+
+  it("uses the closed platform-settings outbox function after a platform HTTP failure", async () => {
+    getCurrentDbPrincipalMock.mockReturnValue({
+      kind: "platform",
+      platformUserId: "77777777-7777-4777-8777-777777777777",
+    });
+    fetchMock.mockResolvedValue({ ok: false, status: 502, text: async () => "bad" });
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+
+    await syncSettingToIntegrator({
+      key: "specialist_signup_enabled",
+      scope: "admin",
+      organizationId: null,
+      valueJson: { value: true },
+      updatedBy: "77777777-7777-4777-8777-777777777777",
+    });
+
+    expect(enqueuePlatformSystemSettingsPushMock).toHaveBeenCalledWith({
+      key: "specialist_signup_enabled",
+    });
+    expect(enqueueIntegratorPushMock).not.toHaveBeenCalled();
+    warnSpy.mockRestore();
+  });
 
   it("includes organizationId in signed body and outbox idempotency", async () => {
     await syncSettingToIntegrator({

@@ -620,7 +620,16 @@ export async function clearDbPrincipalFromConnection(
 export async function clearDbPrincipalFromTransaction(
   client: DbPrincipalQueryable,
   options: DbPrincipalApplyOptions = {},
+  principal?: DbPrincipal,
 ): Promise<void> {
+  if (principal?.kind === "platform") {
+    try {
+      await clearDbPrincipalConfig(client, "transaction");
+    } finally {
+      await resetDbOperationalRuntimeRole(client);
+    }
+    return;
+  }
   if (options.mode === "locked" || options.mode === "shadow") {
     await releaseSignedDbPrincipal(client, options);
     return;

@@ -34,6 +34,8 @@ function drizzlePrincipalSql(queryText: string, values: readonly unknown[] = [])
       return sql.raw("SET ROLE app_staff");
     case "SET ROLE app_patient":
       return sql.raw("SET ROLE app_patient");
+    case "SET ROLE app_platform_settings":
+      return sql.raw("SET ROLE app_platform_settings");
     case "SELECT app.release_principal_context()":
       return sql`SELECT app.release_principal_context()`;
     case "SELECT set_config('app.org', $1, true)":
@@ -108,6 +110,13 @@ function withPrincipalAwareTransactions(rawDb: DrizzleDb): DrizzleDb {
             : await applyDbPrincipalToTransaction(queryable, principalSnapshot, principalApplyOptions);
       } catch (error) {
         await reportPrincipalSetupFailure(error);
+        if (principalSnapshot?.kind === "platform") {
+          try {
+            await clearCurrentDbPrincipalFromDrizzleTransaction(queryable, principalApplyOptions, principalSnapshot);
+          } catch {
+            await reportDbCleanupFailure();
+          }
+        }
         throw error;
       }
       try {
@@ -120,7 +129,7 @@ function withPrincipalAwareTransactions(rawDb: DrizzleDb): DrizzleDb {
       } finally {
         if (applied) {
           try {
-            await clearCurrentDbPrincipalFromDrizzleTransaction(queryable, principalApplyOptions);
+            await clearCurrentDbPrincipalFromDrizzleTransaction(queryable, principalApplyOptions, principalSnapshot);
           } catch (error) {
             await reportDbCleanupFailure();
             throw error;
@@ -137,8 +146,9 @@ function withPrincipalAwareTransactions(rawDb: DrizzleDb): DrizzleDb {
 async function clearCurrentDbPrincipalFromDrizzleTransaction(
   queryable: ReturnType<typeof drizzlePrincipalQueryable>,
   principalApplyOptions: DbPrincipalApplyOptions,
+  principalSnapshot: DbPrincipal | undefined,
 ): Promise<void> {
-  await clearDbPrincipalFromTransaction(queryable, principalApplyOptions);
+  await clearDbPrincipalFromTransaction(queryable, principalApplyOptions, principalSnapshot);
 }
 
 // ---------------------------------------------------------------------------

@@ -20,6 +20,7 @@ import {
   claimDueIntegratorPushJobs,
   completeIntegratorPushJob,
   enqueueIntegratorPush,
+  enqueuePlatformSystemSettingsPush,
   failIntegratorPushJobDead,
   isRecoverableIntegratorPushFailure,
   rescheduleIntegratorPushJob,
@@ -110,6 +111,20 @@ describe("integratorPushOutbox Drizzle producer/consumer contract", () => {
           lastError: null,
         }),
       }),
+    );
+  });
+
+  it("platform settings enqueue uses only the closed DB function", async () => {
+    runWebappSqlMock.mockResolvedValueOnce({ rows: [] });
+
+    await enqueuePlatformSystemSettingsPush({
+      key: "specialist_signup_enabled",
+    });
+
+    expect(drizzleDb.insert).not.toHaveBeenCalled();
+    expect(runWebappSqlMock).toHaveBeenCalledOnce();
+    expect(drizzleSqlNodeToText(runWebappSqlMock.mock.calls[0]?.[1])).toContain(
+      "app.enqueue_platform_system_settings_sync",
     );
   });
 
