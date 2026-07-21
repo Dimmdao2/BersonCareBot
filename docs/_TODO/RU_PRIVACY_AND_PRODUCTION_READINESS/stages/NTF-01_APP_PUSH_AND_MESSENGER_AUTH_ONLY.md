@@ -270,11 +270,21 @@ transport/config remains present and is controlled later by N1A rather than remo
 
 ### N1A — platform auth-channel policy (`AI`, taskdb `#929`, after N1)
 
+**U9A prerequisite / current-code correction (2026-07-21).** The existing `/api/admin/settings` route is an
+organization-management surface by design: it resolves one clinic membership and must remain the writer for
+per-organization settings. It is not a sanctioned platform-global writer. N1A therefore first lands one bounded U9
+platform-settings spine: a dedicated `platform.operations` API guard with no organization membership, a dedicated
+least-privilege DB principal/role for global settings, and a platform-only whitelisted API which still delegates every
+write to `systemSettings.updateSetting`. Borrowing a clinic, mapping the operator to generic `app_staff`, weakening
+RLS, using `adminMode` as universal authority, direct SQL, or adding a second sync/audit path is forbidden. This is
+not the full U9 admin console; it owns only global configuration read/write plus its existing atomic settings audit.
+
 - [ ] Add independent global admin runtime flags for `auth_email_enabled`, `auth_sms_enabled`,
       `auth_telegram_enabled` and `auth_max_enabled` through the existing DB-backed `system_settings` registry,
       service and public-runtime projection. Provider credentials/readiness remain separate.
-- [ ] Reuse the existing `/app/doctor/admin/auth` settings surface and `/api/admin/settings`; no second config store,
-      env flag or provider adapter is introduced.
+- [ ] Reuse the existing `/app/doctor/admin/auth` settings surface, the system-settings registry/service/UoW and
+      integrator mirror. Add a separate platform-only API/helper; do not redirect clinic settings through it and do
+      not introduce a second config store, env flag, provider adapter, route-level mirror or audit store.
 - [ ] Apply each flag to discovery and server execution: check-phone/channel picker/phone start, email OTP starts,
       Telegram Widget/login, MAX init, channel-link and messenger-bind paths. A crafted request cannot use a disabled
       channel; re-enable restores only an already configured provider path.
@@ -289,6 +299,27 @@ Acceptance: platform admin independently controls four auth/binding channels; di
 nor executable; account-existence responses remain neutral; missing provider config still fails closed; SMS OTP
 tests prove the existing module was retained; settings/mirror, route negatives, picker and auth regressions pass.
 This stage owns auth/binding policy only, never product notification preferences, templates or broadcasts.
+
+#### N1A launch checkpoint — 2026-07-21
+
+- **Base:** `3ee1537bd` (includes the independently completed capacity/index canon); N1 integrated at
+  `671ac2127`; taskdb `#929=doing`.
+- **Dependencies:** U1 capability spine is integrated. The exact missing dependency is the bounded U9A platform-
+  settings writer above; `#808` remains the umbrella for the later admin-console/support scope and is not claimed
+  complete by N1A.
+- **Ownership/file boundary:** platform-global `organization_id IS NULL`; no organization selection or clinical
+  object. Shared principal/role changes are limited to the new platform-settings capability. The old clinic settings
+  API and per-org settings remain protected and behavior-compatible.
+- **Acceptance/verification:** platform admin allow; clinic owner/admin, doctor, patient and unauthenticated deny;
+  real-role smoke proves global-settings access and denial on clinical/org tables; service mirror/audit stays atomic;
+  every disabled auth channel disappears from discovery and rejects crafted execution before identity lookup;
+  provider-not-ready stays denied and existing bindings/modules remain intact.
+- **Operational boundary:** repository files and tests only. No DB apply, deploy, TEST/PROD, env/secret read, provider
+  call, real message, account mutation or binding deletion. Targeted suites/typecheck/lint first; full CI waits the
+  accumulated milestone.
+- **Audit mode:** high-risk auth/tenant/config stage: one independent critical audit after the coherent worker pass;
+  one integrated correction/re-audit only if an owner-mapped or repository-rule defect exists, with the universal
+  two-correction hard stop.
 
 ### N1B — managed notification templates and branded presentation (`AI`, taskdb `#930`, after N1)
 

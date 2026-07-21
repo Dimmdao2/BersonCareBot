@@ -1,5 +1,21 @@
 # Execution log
 
+## 2026-07-21 — NTF-01/N1A launch checkpoint and U9 platform-settings dependency (`#929`)
+
+- Current code confirms `/api/admin/settings` is deliberately clinic-membership-scoped. Replacing its guard would
+  mix platform and organization authority, while `requirePlatformOperationsPage()` is page-only and leaves a
+  bootstrap DB principal which cannot write restricted settings in locked mode.
+- N1A therefore consumes one bounded U9 prerequisite: dedicated platform-operations API guard, least-privilege
+  global-settings DB principal/role and a platform-only whitelisted API. It reuses the existing registry,
+  `systemSettings.updateSetting`, transaction/UoW, audit and integrator mirror; no org borrowing, generic null-org
+  `app_staff`, direct SQL, route-level sync or second settings store is allowed.
+- The subsequent four flags remain exactly Email OTP, SMS OTP, Telegram auth/link and MAX auth/link. Discovery and
+  crafted execution are both denied before identity lookup; provider readiness is separate; bindings and existing
+  SMTP/SMSC/bot modules remain stored. Repository-only work is authorized; DB apply, deploy, TEST/PROD, env, real
+  sends and binding/account mutation are not.
+- Base `3ee1537bd`; taskdb `#929=doing`. Targeted auth/role/settings tests, typecheck and scoped lint are the step
+  gate; full CI is deferred to the accumulated milestone. This prerequisite does not complete U9/#808.
+
 ## 2026-07-21 — NTF-01/N1 central egress guard integrated (`#913`)
 
 - Integrated `671ac2127` on `feat/doctor-ui-rebuild`. Central typed policy runs before redirect, adapter selection,

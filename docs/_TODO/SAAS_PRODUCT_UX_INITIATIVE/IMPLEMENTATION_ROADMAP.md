@@ -1229,6 +1229,13 @@ presentation can change without affecting access, routing or recovery.
 
 ### U9 — global administration and bounded support
 
+**Bounded foundation start (2026-07-21, NTF N1A / taskdb `#929`).** Current code has a platform-only page
+capability but no platform API/DB writer principal; `/api/admin/settings` remains intentionally organization-scoped.
+Before the owner-approved Email/SMS/Telegram/MAX auth switches, N1A lands the narrow U9A platform-settings spine:
+dedicated API guard, least-privilege global-settings DB principal/role and a whitelisted endpoint over the existing
+system-settings service/mirror/audit. This does not complete the U9 shell, organization operations, billing,
+diagnostics or support chat, and it cannot borrow organization membership or widen clinical access.
+
 **Outcome:** platform operator manages organizations, commercial state, platform configuration/reliability and
 system identity diagnostics from a dedicated shell without patient browsing or patient-record repair.
 

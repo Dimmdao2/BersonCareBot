@@ -1,5 +1,17 @@
 # Log — SaaS Product UX Initiative
 
+## 2026-07-21 — U9A bounded platform-settings spine required by N1A (`#929`)
+
+The current clinic settings API cannot be reused as a platform writer: it resolves one organization membership and
+must stay scoped to that organization. The existing global-admin page capability has no corresponding API/DB writer
+principal. N1A will therefore land the smallest U9 foundation needed by the owner-approved channel controls: a
+dedicated platform API guard, a least-privilege global-settings DB principal/role and a whitelisted platform settings
+endpoint which still delegates to the canonical system-settings service, atomic audit and integrator mirror.
+
+This is not the U9 admin-console/support implementation and does not complete `#808`. It cannot borrow a clinic,
+map the operator to broad null-org staff access, weaken tenant RLS or create a parallel settings/audit path. The same
+sanctioned spine is later reused by platform-owned notification template defaults in `#930`.
+
 ## 2026-07-21 — Owner additions: auth-channel controls and editable branded templates (`#929/#930`)
 
 Platform admin must independently allow Email OTP, SMS OTP, Telegram auth/link and MAX auth/link. Existing SMTP,
