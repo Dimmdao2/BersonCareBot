@@ -446,6 +446,13 @@ card; запрещено строить временный resolver, второ�
   inset divider, спокойное выравнивание текста/иконок и selected state без отдельной карточки. Поиск «Клиентов»
   переносится в правую половину page header на одну линию с title. Это не patient/public UI и не изменение
   data/metric semantics.
+- **Latest presentation correction (owner 2026-07-22):** historical `#faf9f4` outcome из UI-P заменён возвратом
+  прежнего белого/inherited workspace background (`#967`), белая page header и primary `#406ca7` сохраняются.
+  Общие section tabs получают более округлённую doctor-control форму и более тёмный neutral hover. Clients и
+  Messages используют один shared flat-list contract: геометрия/границы как у «На сопровождении», full-row hover и
+  divider `#f0efeb`. Отдельный Today residual `#966` возвращает desktop `50/50`, превращает «Открыть расписание» в
+  кнопку и доказывает ровно час до первой записи без двойного calendar-window padding. Оба среза идут параллельно,
+  live DEV и тяжёлые проверки сериализуются; baseline stages целиком не переоткрываются.
 - **Order after presentation:** UI-5 разделён на layout/routing predecessor UI-5a `#958` и полный UI-5b/U5B.
   Последнее решение владельца 2026-07-22 заменяет `desktop list+content`: обычный экран «Клиенты» сохраняет
   `list + filters + functional preview`, а выбранная полная карточка заменяет весь рабочий content container,
@@ -468,7 +475,7 @@ card; запрещено строить временный resolver, второ�
   полного owner scope: schedule picker `#960`, communications gradient/broadcast IA `#961`, shared composer
   `#962`, configurable Today `#963`, scheduled messages `#964`. UI-4 normal-mode preview и UI-5a full-workspace
   reuse объединены в `#958`, полный composition/visibility — U5B с contract `#928`; Patient Today mood residual —
-  `#924`; bounded built-in Online location переиспользует `#197`, а expanded online
+  `#924`; latest Today/shared presentation deltas — `#966/#967`; bounded built-in Online location переиспользует `#197`, а expanded online
   booking остаётся blocked в `#215`; UI-P `#925`; manual patient/walk-in `#801`; mechanics/reminders C4D/C5 +
   `#191`; individual exercises `#564` + design `#565`; voice post-production `#922`; S4 engine `#888`; superseded
   Doctor DNA `#885`. Новые duplicate cards не

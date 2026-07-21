@@ -4460,3 +4460,14 @@ The owner clarified that the immediate «Клиенты» outcome is not a secon
 guards, data/API, direct URL and mobile one-screen-at-a-time behavior; it may start after route/guard-equivalence
 census. Full U5B section/history/visibility/export policy remains separately gated by U5A and `#928`. This prevents a
 layout request from being inflated into premature clinical data-policy work.
+
+## 2026-07-22 — latest Doctor UI correction launch manifest (`#966/#967`)
+
+Latest owner correction is recorded as two bounded presentation slices, without reopening completed C1/UI-P work.
+`#966` owns only the Today 50/50 desktop split, the standard «Открыть расписание» button and source-backed proof that
+the visible calendar begins exactly one hour before the first appointment when that appointment expands the lower
+edge. `#967` owns the verified pre-`77c77f02f` white/inherited workspace background, rounded/darker-hover shared
+section tabs and one Clients/Messages flat-list vocabulary with Today geometry, full-row hover and `#f0efeb`
+dividers. The slices have separate file scopes and may run in parallel; each gets one presentation audit. Live DEV,
+lint/typecheck contention and milestone full CI remain serialized. No DB, TEST, deploy, patient/public UI or data
+semantics are in scope.

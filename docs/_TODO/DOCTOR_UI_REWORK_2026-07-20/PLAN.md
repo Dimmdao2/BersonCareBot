@@ -208,13 +208,18 @@ counts/metadata или потерю standalone deep-link compatibility.
 
 - **UI-6a presentation:** компактные KPI, перестановка даты/ссылки календаря и удаление дублирующих подписей;
   launch manifest — §4.
+- **UI-6c owner correction 2026-07-22 (`#966`):** desktop-полотна возвращаются к точному `50/50`; ссылка
+  календаря становится стандартной doctor-кнопкой «Открыть расписание»; начало видимой сетки проверяется против
+  первого приёма и должно давать ровно один час до него, без локального форка общего calendar-window contract.
 - Настраиваемые owner signals, переключатель «на сопровождении»/«недавние с визитами», «самые активные», новые
   counters и скрытие клиентов не входят в косметику UI-6a, но остаются отдельным owner-requested product/behavior
   этапом. Их нельзя понижать до рекомендации или считать закрытыми вместе с compact presentation.
 
 ### UI-P — общий Doctor UI presentation-token pass
 
-- Фон между page-level блоками — `#faf9f4`; sticky page header с названием остаётся белой.
+- **Последняя owner correction 2026-07-22 (`#967`) заменяет прежний G6 background outcome:** отдельная тёплая
+  заливка `#faf9f4` убирается и возвращается прежний белый/inherited workspace background; sticky page header с
+  названием остаётся белой.
 - Радиусы задаются общими doctor primitives: page-level block `12px`, KPI `8px`, doctor button/input/select trigger
   `24px`. Основные блоки используют внутренний отступ `18px`; внутренний `input` имеет белый фон. Локальные копии
   этих классов по страницам не создаются.
@@ -224,6 +229,11 @@ counts/metadata или потерю standalone deep-link compatibility.
   а текст/иконки имеют тот же спокойный внутренний ритм. Этот behavioral reference применяется к «Клиентам» и
   спискам сообщений/диалогов и заменяет прежнее буквальное требование размножить `18px` на каждом экране.
   Выбранный диалог сохраняет понятное состояние, но не превращается в отдельную карточку и не ломает divider rhythm.
+- Единый flat-list vocabulary для «Клиентов» и списков сообщений берёт расположение и границы строк с блока
+  «На сопровождении» страницы «Сегодня», но hover подсвечивает всю ширину строки как в текущих интерактивных
+  списках. Цвет divider — точно `#f0efeb` через общий doctor token/class, без локальных копий.
+- Табы разделов используют более скруглённую doctor-control форму и более тёмный нейтральный hover; правка делается
+  через общий tab vocabulary, а не независимые классы «Расписания»/«Коммуникаций»/настроек записи.
 - На странице «Клиенты» поиск переносится из отдельного toolbar под header в правый слот белой page header, на
   одну линию с title. Desktop width совпадает с правой половиной 50/50 split; mobile остаётся доступным и компактным.
 - Это presentation-only stage: metric semantics, list sorting/filtering, patient UI, public booking и page data
@@ -273,12 +283,12 @@ draft semantics не являются owner rulings. Media access/presign и ten
 | UI-3 | `PARTIAL` | 45/55, name navigation, intake cleanup и no-overlap готовы. Не сделаны owner gradient, exact left-pane broadcast detail IA и shared composer четырёх consumers. |
 | UI-4 | `PARTIAL` | Presentation и metric semantics готовы; normal-mode functional preview отсутствует, хотя существующий `PatientPreviewPane` сохранён. |
 | UI-5 | `NOT DONE` | Ни full-workspace UI-5a/list-state restoration, ни full UI-5b composition не реализованы. UI-5b законно ждёт U5A/record-class gate. |
-| UI-6 | `PARTIAL` | Compact UI-6a готов; configurable signals/switch/counters остаются отдельным owner-requested этапом. |
+| UI-6 | `PARTIAL` | Compact UI-6a готов; новый correction `#966` возвращает 50/50, кнопку расписания и точную часовую границу; configurable signals/switch/counters остаются `#963`. |
 | UI-7 | `NOT DONE` | Scheduled messages и worker contract отсутствуют; Voice/STT корректно post-production. |
 | UI-8 | `PARTIAL` | S4/C5 organization-only commercial contour готов; default новых разминок `#191` (`12:00`/`15:00` в рабочие дни, без изменения существующих клиентов) не реализован. |
 | UI-9 | `DONE` | Personal exercises/media exact-org implementation и high-risk audit закрыты; live owner acceptance отдельно. |
 | Client mood residual | `DONE` | Empty chart скрывается, mood controls остаются. |
-| UI-P | `DONE` | Shared tokens/chrome/list rhythm реализованы; late list-row reference учтён. |
+| UI-P | `PARTIAL` | Базовый shared pass готов; latest correction `#967` возвращает прежний фон, уточняет tabs и единый list divider/hover. |
 
 Эта таблица отменяет прежние blanket-формулировки «baseline проверен» для полного UI-1/UI-3/UI-4/UI-6 scope:
 повторять закрытую часть нельзя, но перечисленный residual обязан получить собственный exact task/acceptance.
@@ -407,17 +417,24 @@ brief или заменять одним общим пунктом.
 - [x] KPI на «Сегодня» имеют compact presentation без искусственной пустой высоты.
 - [x] Дата и «Открыть календарь» находятся в compact calendar header, ссылка расположена справа.
 - [x] Дублирующая фраза/строка с количеством записей удалена.
+- [ ] Desktop-разделение страницы «Сегодня» возвращено к точному 50/50 (`#966`).
+- [ ] «Открыть расписание» оформлено стандартной doctor-кнопкой (`#966`).
+- [ ] Календарная сетка начинается ровно за один час до первого приёма, если именно приём расширяет нижнюю границу;
+  default window и рабочие границы не получают второй запас (`#966`).
 - [ ] Состав видимых сигналов настраивается через существующий settings path после exact data contract (`#963`).
 - [ ] Переключатель «на сопровождении» / «недавние с визитами» имеет доказанную семантику (`#963`).
 - [ ] «Самые активные», новые counters и hiding semantics реализуются только после exact contract (`#963`).
 
 #### UI-P — shared doctor presentation (`#925`)
 
-- [x] Gap background `#faf9f4`, белая page header и primary `#406ca7` применены через shared doctor primitives.
+- [ ] Latest owner correction вернула прежний белый/inherited workspace background; page header остаётся белой,
+  primary `#406ca7` не меняется (`#967`).
 - [x] Радиусы block/KPI/control `12/8/24px`, основной padding `18px` и белый input не размножены локально.
 - [x] KPI используют порядок label → value.
 - [x] Основной текст doctor-списков крупнее и легче без изменения meta/badge/calendar typography.
-- [x] Clients/messages list rhythm соответствует live-эталону «На сопровождении» с inset dividers.
+- [ ] Clients/messages используют один shared list-row contract: геометрия как «На сопровождении», full-row hover и
+  divider `#f0efeb` (`#967`).
+- [ ] Общие tabs имеют более округлые края и более тёмный нейтральный hover без page-local divergence (`#967`).
 - [x] Clients search находится в page-header slot.
 
 #### UI-7 — scheduled communications (`#964`)
@@ -451,11 +468,13 @@ Scope decision, не implementation checkbox: Voice/STT исключён из т
 
 ### Обязательный порядок исполнения — current selector 2026-07-22
 
-1. Закрытые UI-0, UI-2, UI-9, UI-P и Patient mood residual повторно не запускаются. Закрытый S4/C5 контур UI-8
+1. Закрытые UI-0, UI-2, UI-9 и Patient mood residual повторно не запускаются. UI-P baseline не повторяется, но
+   latest owner correction `#967` исполняется как отдельный exact residual. Закрытый S4/C5 контур UI-8
    также не повторяется, но его отдельный reminder-default residual `#191` остаётся открытым. UI-1/UI-3/UI-4/UI-6
    не переоткрываются целиком: workers получают только exact residual из current-truth table.
-2. Первый независимый residual cluster: UI-1 picker `#960`, UI-3a/b gradient+broadcast IA `#961` и UI-4 preview +
-   UI-5a full-workspace reuse `#958`; не более трёх workers, точные file scopes подтверждаются до запуска.
+2. Текущий independent presentation cluster: Today correction `#966` параллельно shared tabs/lists/background
+   correction `#967`; затем UI-1 picker `#960`, UI-3a/b gradient+broadcast IA `#961` и UI-4 preview + UI-5a
+   full-workspace reuse `#958`, не более трёх workers одновременно.
 3. UI-3c shared composer `#962` идёт после UI-3a/b из-за пересечения communications consumers. UI-6b `#963`
    стартует только после отдельного data/settings contract manifest и не смешивается с уже закрытой косметикой;
    reminder-default `#191` исполняется отдельным bounded behavior slice без изменения существующих назначений.
