@@ -118,3 +118,13 @@ jobs:
       - uses: ./.github/actions/setup-pnpm
       - run: pnpm run audit
       - uses: ./.github/actions/cancel-on-failure
+
+  saas-rls-conformance:
+    name: SaaS RLS conformance
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v5
+      - uses: ./.github/actions/setup-pnpm
+      - run: pnpm run check:saas-a1-rls-conformance
+      - uses: ./.github/actions/cancel-on-failure
