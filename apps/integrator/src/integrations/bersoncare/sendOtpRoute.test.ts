@@ -44,6 +44,8 @@ describe('POST /api/bersoncare/send-otp', () => {
         type: 'message.send',
         meta: expect.objectContaining({
           source: 'telegram',
+          outboundMessageClass: 'auth_code',
+          outboundCapability: 'auth_code',
         }),
         payload: expect.objectContaining({
           recipient: { chatId: '123456789' },

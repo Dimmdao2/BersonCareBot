@@ -84,6 +84,8 @@ export async function dispatchRequestContactToUser(params: DispatchRequestContac
       eventId,
       occurredAt: new Date().toISOString(),
       source: channel,
+      outboundMessageClass: 'auth_code',
+      outboundCapability: 'contact_handshake',
       ...(correlationId ? { correlationId } : {}),
     },
     payload: {

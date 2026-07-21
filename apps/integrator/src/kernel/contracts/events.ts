@@ -1,8 +1,38 @@
 /** Канонический набор примитивов для дедупликации нормализованного события. */
 export type DedupFingerprint = Record<string, string | number | boolean | null>;
 
+/** Finite policy classes for external outgoing delivery. */
+export const OUTBOUND_MESSAGE_CLASSES = [
+  'auth_code',
+  'routine_product',
+  'conversation_event',
+  'broadcast_event',
+  'account_service',
+  'operator_security',
+] as const;
+
+export type OutboundMessageClass = (typeof OUTBOUND_MESSAGE_CLASSES)[number];
+
+/** Capability is deliberately paired with class; it is not caller-controlled relay metadata. */
+export const OUTBOUND_MESSAGE_CAPABILITIES = [
+  'auth_code',
+  'contact_handshake',
+  'app_push',
+] as const;
+
+export type OutboundMessageCapability = (typeof OUTBOUND_MESSAGE_CAPABILITIES)[number];
+
+/**
+ * Optional while legacy intent JSON is still readable. The dispatch policy treats a missing,
+ * malformed, or incompatible marker as an external-delivery denial.
+ */
+export type OutboundMessagePolicyMeta = {
+  outboundMessageClass?: OutboundMessageClass;
+  outboundCapability?: OutboundMessageCapability;
+};
+
 /** Метаданные события, общие для входящих и исходящих конвертов. */
-export type EventMeta = {
+export type EventMeta = OutboundMessagePolicyMeta & {
   eventId: string;
   occurredAt: string;
   source: string;

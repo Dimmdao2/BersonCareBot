@@ -15,9 +15,7 @@ import Fastify from 'fastify';
 import type { DbPort, DispatchPort } from '../../kernel/contracts/index.js';
 import { registerBersoncareSendEmailRoute } from './sendEmailRoute.js';
 import * as smtpOutbound from '../../config/smtpOutbound.js';
-import * as mailer from '../email/mailer.js';
-import { createEmailDeliveryAdapter } from '../email/deliveryAdapter.js';
-import { createDefaultDispatchPort } from '../../infra/adapters/dispatchPort.js';
+import { OutboundMessagePolicyError } from '../../infra/adapters/outboundMessagePolicy.js';
 
 /** Assembled from parts to avoid eslint-plugin-no-secrets flagging the literal. */
 const resolveSmtpOutboundCfg = ('resolveSmtp' + 'OutboundConfig') as keyof typeof smtpOutbound;
@@ -91,9 +89,36 @@ describe('POST /api/bersoncare/send-email', () => {
 
     // The intent must carry channel:'email' in payload.delivery.channels[0]
     const intent = (dp.dispatchOutgoing as ReturnType<typeof vi.fn>).mock.calls[0]![0] as {
+      meta: { outboundMessageClass?: string; outboundCapability?: string };
       payload: { delivery: { channels: string[] } };
     };
     expect(intent.payload.delivery.channels[0]).toBe('email');
+    expect(intent.meta).toMatchObject({ outboundMessageClass: 'auth_code', outboundCapability: 'auth_code' });
+  });
+
+  it('denies generic email text or template input without an approved auth code', async () => {
+    vi.spyOn(smtpOutbound, resolveSmtpOutboundCfg).mockResolvedValue(MOCK_RESOLVED_CONFIGURED);
+    const dispatchOutgoing = vi.fn().mockRejectedValue(new OutboundMessagePolicyError('missing_or_invalid_marker'));
+    const { app, dp } = await buildTestApp(TEST_SECRET, { dispatchOutgoing });
+    const body = JSON.stringify({
+      to: 'user@example.com',
+      text: 'product fallback must not send',
+      templateId: 'legacy-template',
+    });
+
+    const response = await app.inject({
+      method: 'POST',
+      url: '/api/bersoncare/send-email',
+      headers: makeHeaders(body),
+      body,
+    });
+
+    expect(response.statusCode).toBe(403);
+    expect(JSON.parse(response.body)).toEqual({ ok: false, error: 'egress_policy_denied' });
+    expect(dp.dispatchOutgoing).toHaveBeenCalledTimes(1);
+    const intent = dispatchOutgoing.mock.calls[0]![0] as { meta: Record<string, unknown> };
+    expect(intent.meta).not.toHaveProperty('outboundMessageClass');
+    expect(intent.meta).not.toHaveProperty('outboundCapability');
   });
 
   it('OTP code: eventId is otp:email:* prefixed so dispatchPort redacts it from delivery logs', async () => {
@@ -179,10 +204,10 @@ describe('POST /api/bersoncare/send-email', () => {
     expect(dp.dispatchOutgoing).not.toHaveBeenCalled();
   });
 
-  it('dispatches via dispatchPort for transactional text body without code', async () => {
+  it('keeps the legacy transactional shape parse-compatible until central policy denies it', async () => {
     vi.spyOn(smtpOutbound, resolveSmtpOutboundCfg).mockResolvedValue(MOCK_RESOLVED_CONFIGURED);
-
-    const { app, dp } = await buildTestApp();
+    const dispatchOutgoing = vi.fn().mockRejectedValue(new OutboundMessagePolicyError('missing_or_invalid_marker'));
+    const { app, dp } = await buildTestApp(TEST_SECRET, { dispatchOutgoing });
     const body = JSON.stringify({
       to: 'user@example.com',
       subject: 'Подтвердите email',
@@ -196,7 +221,7 @@ describe('POST /api/bersoncare/send-email', () => {
       body,
     });
 
-    expect(res.statusCode).toBe(200);
+    expect(res.statusCode).toBe(403);
     expect(dp.dispatchOutgoing).toHaveBeenCalledTimes(1);
 
     const intent = (dp.dispatchOutgoing as ReturnType<typeof vi.fn>).mock.calls[0]![0] as {
@@ -226,56 +251,4 @@ describe('POST /api/bersoncare/send-email', () => {
     expect(dp.dispatchOutgoing).not.toHaveBeenCalled();
   });
 
-  describe('contract fix S9: content.subject reaches sendMail as the email subject', () => {
-    /**
-     * Wires a real EmailDeliveryAdapter (with a mocked sendMail) through a real
-     * dispatchPort to prove that content.subject set in the route flows through
-     * messageToIntent → payload.subject → EmailDeliveryAdapter → sendMail as the subject arg.
-     */
-    it('content.subject flows to sendMail via EmailDeliveryAdapter (end-to-end through the pipeline)', async () => {
-      vi.spyOn(smtpOutbound, resolveSmtpOutboundCfg).mockResolvedValue(MOCK_RESOLVED_CONFIGURED);
-      const sendMailMock = vi.spyOn(mailer, 'sendMail').mockResolvedValue({
-        accepted: ['user@example.com'],
-        rejected: [],
-        messageId: 'test-msg-id',
-      });
-
-      // Build a real dispatchPort with the real EmailDeliveryAdapter so we can assert sendMail args.
-      const emailAdapter = createEmailDeliveryAdapter({ getDb: () => noopDb });
-      const realDispatchPort = createDefaultDispatchPort({ adapters: [emailAdapter] });
-
-      // Force prod mode so the pre-fork dev redirect does NOT collapse to telegram.
-      // (No ALLOW_DEV_EMAIL needed — the interim guard was retired in S15.)
-      const origNodeEnv = process.env.NODE_ENV;
-      process.env.NODE_ENV = 'production';
-      try {
-        const { app } = await buildTestApp(TEST_SECRET, realDispatchPort);
-
-        const body = JSON.stringify({
-          to: 'user@example.com',
-          subject: 'Specific Subject Line',
-          text: 'Some message body',
-        });
-
-        const res = await app.inject({
-          method: 'POST',
-          url: '/api/bersoncare/send-email',
-          headers: makeHeaders(body),
-          body,
-        });
-
-        expect(res.statusCode).toBe(200);
-        expect(sendMailMock).toHaveBeenCalledWith(
-          expect.objectContaining({ configured: true }),
-          expect.objectContaining({
-            to: 'user@example.com',
-            subject: 'Specific Subject Line',
-            text: 'Some message body',
-          }),
-        );
-      } finally {
-        process.env.NODE_ENV = origNodeEnv;
-      }
-    });
-  });
 });

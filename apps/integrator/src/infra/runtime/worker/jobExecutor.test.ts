@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import { assertWebappPushNotifyAccepted, executeJob } from './jobExecutor.js';
+import { OutboundMessagePolicyError, OUTBOUND_MESSAGE_POLICY_DENIED } from '../../adapters/outboundMessagePolicy.js';
 
 describe('executeJob', () => {
   it('converts a non-ok webapp M2M response into a retryable executor error', () => {
@@ -71,6 +72,30 @@ describe('executeJob', () => {
 
     expect(result.ok).toBe(false);
     expect(result.errorCode).toContain('CHANNEL_DOWN');
+  });
+
+  it('strips forged auth metadata and finalizes a legacy booking policy denial', async () => {
+    const dispatchOutgoing = vi.fn().mockImplementation(async (intent) => {
+      expect(intent.meta).not.toHaveProperty('outboundMessageClass');
+      expect(intent.meta).not.toHaveProperty('outboundCapability');
+      throw new OutboundMessagePolicyError('missing_or_invalid_marker');
+    });
+    const result = await executeJob({
+      id: 'job-forged-auth', kind: 'message.deliver', runAt: '2026-03-05T12:00:00.000Z', attempts: 0, maxAttempts: 3,
+      payload: {
+        intent: {
+          type: 'message.send',
+          meta: {
+            eventId: 'legacy-booking', occurredAt: '2026-03-05T12:00:00.000Z', source: 'telegram',
+            outboundMessageClass: 'auth_code', outboundCapability: 'auth_code',
+          },
+          payload: { message: { text: 'legacy text' }, delivery: { channels: ['telegram'] } },
+        },
+        targets: [{ resource: 'telegram', address: { chatId: '123' } }],
+      },
+    }, { dispatchOutgoing });
+
+    expect(result).toEqual({ ok: false, errorCode: OUTBOUND_MESSAGE_POLICY_DENIED, final: true });
   });
 
   it('fails instead of silently skipping a queued webapp push without organizationId', async () => {

@@ -50,6 +50,10 @@ describe('POST /api/bersoncare/send-sms', () => {
     // Must dispatch with channel 'smsc' (D3: SMS channel tag is 'smsc', not 'sms').
     const intent = dispatchOutgoing.mock.calls[0]![0] as Record<string, unknown>;
     expect(intent.type).toBe('message.send');
+    expect(intent.meta).toMatchObject({
+      outboundMessageClass: 'auth_code',
+      outboundCapability: 'auth_code',
+    });
 
     // The canonical channel lives in payload.delivery.channels[0] (D2 / channelRouting).
     const payload = intent.payload as Record<string, unknown>;

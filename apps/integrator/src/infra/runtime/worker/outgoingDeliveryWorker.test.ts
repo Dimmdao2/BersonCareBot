@@ -39,9 +39,10 @@ import { RecipientBlockedBotError } from '../../delivery/recipientBotBlocked.js'
 import * as doctorBroadcastIntentMenu from './doctorBroadcastIntentMenu.js';
 import { drizzleSqlFragmentToApproximateSql } from '../../db/drizzleSqlDebugText.js';
 import { runIntegratorSql } from '../../db/runIntegratorSql.js';
-import { clearUserChannelBotBlocked } from '../../db/repos/userChannelBotBlocked.js';
+import { clearUserChannelBotBlocked, markUserChannelBotBlocked } from '../../db/repos/userChannelBotBlocked.js';
 import { getCurrentOrganizationPrincipalId } from '../../principal/organizationPrincipal.js';
 import { resolveOutgoingDeliveryScope } from '../../db/repos/outgoingDeliveryScope.js';
+import { OutboundMessagePolicyError, OUTBOUND_MESSAGE_POLICY_DENIED } from '../../adapters/outboundMessagePolicy.js';
 
 function baseRow(overrides: Partial<OutgoingDeliveryQueueRow>): OutgoingDeliveryQueueRow {
   return {
@@ -138,6 +139,94 @@ describe('claimed row tenant handoff', () => {
       '11111111-1111-4111-8111-111111111111',
       'TENANT_SCOPE_ORGANIZATION_MISSING',
     );
+  });
+});
+
+describe('outbound egress policy denials', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.mocked(runIntegratorSql).mockResolvedValue({ rows: [{ status: 'queued' }] });
+  });
+
+  it('finalizes a legacy messenger replay without retry, delivery-attempt, or bot-block side effects', async () => {
+    const dispatchOutgoing = vi.fn().mockRejectedValue(new OutboundMessagePolicyError('missing_or_invalid_marker'));
+    const writeDb = vi.fn().mockResolvedValue(undefined);
+    const db = {};
+
+    await processOutgoingDeliveryRow(
+      baseRow({
+        id: 'q-policy-denied',
+        channel: 'telegram',
+        payloadJson: {
+          occurrenceId: 'occ-policy-denied',
+          channel: 'telegram',
+          deliveryLogId: 'delivery-policy-denied',
+          externalId: '123',
+          logText: 'legacy text must not be delivered',
+          intent: {
+            type: 'message.send',
+            meta: { eventId: 'legacy-event', occurredAt: '2026-01-01T00:00:00.000Z', source: 'telegram' },
+            payload: {
+              recipient: { chatId: 123 },
+              message: { text: 'legacy text must not be delivered' },
+              delivery: { channels: ['telegram'], maxAttempts: 1 },
+            },
+          },
+        },
+      }),
+      { db: db as never, writePort: { writeDb } as never, dispatchOutgoing },
+    );
+
+    expect(markOutgoingDeliveryDead).toHaveBeenCalledWith(db, 'q-policy-denied', OUTBOUND_MESSAGE_POLICY_DENIED);
+    expect(writeDb).not.toHaveBeenCalled();
+    expect(markUserChannelBotBlocked).not.toHaveBeenCalled();
+    expect(clearUserChannelBotBlocked).not.toHaveBeenCalled();
+  });
+
+  it('strips forged auth markers from a persisted product queue payload and denies it', async () => {
+    const dispatchOutgoing = vi.fn().mockImplementation(async (intent) => {
+      expect(intent.meta).not.toHaveProperty('outboundMessageClass');
+      expect(intent.meta).not.toHaveProperty('outboundCapability');
+      throw new OutboundMessagePolicyError('missing_or_invalid_marker');
+    });
+    const writeDb = vi.fn().mockResolvedValue(undefined);
+
+    await processOutgoingDeliveryRow(
+      baseRow({
+        id: 'q-auth-marker',
+        channel: 'max',
+        payloadJson: {
+          occurrenceId: 'occ-auth-marker',
+          channel: 'max',
+          deliveryLogId: 'delivery-auth-marker',
+          externalId: '456',
+          logText: 'auth code',
+          intent: {
+            type: 'message.send',
+            meta: {
+              eventId: 'otp:max:queue',
+              occurredAt: '2026-01-01T00:00:00.000Z',
+              source: 'max',
+              outboundMessageClass: 'auth_code',
+              outboundCapability: 'auth_code',
+            },
+            payload: {
+              recipient: { chatId: 456 },
+              message: { text: 'auth code' },
+              delivery: { channels: ['max'], maxAttempts: 1 },
+            },
+          },
+        },
+      }),
+      { db: {} as never, writePort: { writeDb } as never, dispatchOutgoing },
+    );
+
+    expect(markOutgoingDeliveryDead).toHaveBeenCalledWith(
+      expect.anything(),
+      'q-auth-marker',
+      OUTBOUND_MESSAGE_POLICY_DENIED,
+    );
+    expect(writeDb).not.toHaveBeenCalled();
   });
 });
 

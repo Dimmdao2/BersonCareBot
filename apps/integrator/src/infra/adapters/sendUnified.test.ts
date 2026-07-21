@@ -108,7 +108,10 @@ describe('createUnifiedSender — PRE-FORK PER-CHANNEL DEV REDIRECT (PLAN S3 DoD
       channel: 'email',
       recipient: { email: 'real-patient@example.com' },
       content: { text: 'Your appointment is confirmed.', title: 'Appointment Reminder' },
-      meta: { eventId: 'email-001', occurredAt: now, source: 'email' },
+      meta: {
+        eventId: 'email-001', occurredAt: now, source: 'email',
+        outboundMessageClass: 'auth_code', outboundCapability: 'auth_code',
+      },
     };
 
     await sender.send(emailMsg);
@@ -142,7 +145,10 @@ describe('createUnifiedSender — PRE-FORK PER-CHANNEL DEV REDIRECT (PLAN S3 DoD
         title: 'BersonCare',
         pushExtras: { tag: 'chat-msg', topicCode: 'patient_chat' },
       },
-      meta: { eventId: 'push-001', occurredAt: now, source: 'web_push' },
+      meta: {
+        eventId: 'push-001', occurredAt: now, source: 'web_push',
+        outboundMessageClass: 'routine_product', outboundCapability: 'app_push',
+      },
     };
 
     await sender.send(pushMsg);
@@ -175,7 +181,10 @@ describe('createUnifiedSender — PRE-FORK PER-CHANNEL DEV REDIRECT (PLAN S3 DoD
       channel: 'email',
       recipient: { email: 'test@example.com' },
       content: { text: 'test' },
-      meta: { eventId: 'e-log', occurredAt: now, source: 'email' },
+      meta: {
+        eventId: 'e-log', occurredAt: now, source: 'email',
+        outboundMessageClass: 'auth_code', outboundCapability: 'auth_code',
+      },
     });
 
     const redirectLogs = warnSpy.mock.calls.filter(
@@ -208,7 +217,10 @@ describe('createUnifiedSender — telegram message delegated to dispatchPort (pr
       channel: 'telegram',
       recipient: { chatId: 364943522 },
       content: { text: 'Hello doctor!' },
-      meta: { eventId: 'tg-001', occurredAt: now, source: 'telegram' },
+      meta: {
+        eventId: 'tg-001', occurredAt: now, source: 'telegram',
+        outboundMessageClass: 'auth_code', outboundCapability: 'auth_code',
+      },
     });
 
     expect(captured).toHaveLength(1);

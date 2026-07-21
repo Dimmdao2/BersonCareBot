@@ -1,14 +1,30 @@
 import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest';
 import type { DeliveryAdapter, OutgoingIntent } from '../../kernel/contracts/index.js';
-import { createDefaultDispatchPort } from './dispatchPort.js';
+import { createDefaultDispatchPort as createDefaultDispatchPortImpl } from './dispatchPort.js';
 import { _resetDevRedirectActiveCache } from '../../shared/devDeliveryRedirect.js';
 import { readChannel } from './channelRouting.js';
 import { runWithDbOrganizationPrincipal } from '@bersoncare/db-principal';
 
 const sendPrimaryMock = vi.fn().mockResolvedValue(undefined);
 const sendSecondaryMock = vi.fn().mockResolvedValue(undefined);
-const channelPrimary = 'channel-a';
-const channelSecondary = 'channel-b';
+const channelPrimary = 'telegram';
+const channelSecondary = 'max';
+
+/** Existing redirect tests exercise transport mechanics; policy cases live in outboundMessagePolicy.test.ts. */
+function createDefaultDispatchPort(...args: Parameters<typeof createDefaultDispatchPortImpl>) {
+  const port = createDefaultDispatchPortImpl(...args);
+  return {
+    ...port,
+    dispatchOutgoing(intent: OutgoingIntent) {
+      if (intent.type !== 'message.send') return port.dispatchOutgoing(intent);
+      const channel = readChannel(intent);
+      const policy = channel === 'web_push'
+        ? { outboundMessageClass: 'routine_product' as const, outboundCapability: 'app_push' as const }
+        : { outboundMessageClass: 'auth_code' as const, outboundCapability: 'auth_code' as const };
+      return port.dispatchOutgoing({ ...intent, meta: { ...intent.meta, ...policy } });
+    },
+  };
+}
 
 function buildAdapters(): DeliveryAdapter[] {
   return [
@@ -192,7 +208,7 @@ describe('createDefaultDispatchPort', () => {
     expect(readDb).not.toHaveBeenCalled();
   });
 
-  it('dispatches non-message intent by intent source', async () => {
+  it('keeps non-message intent routing unchanged before N4', async () => {
     const send = vi.fn().mockResolvedValue(undefined);
     const dispatchPort = createDefaultDispatchPort({
       adapters: [{
@@ -201,11 +217,11 @@ describe('createDefaultDispatchPort', () => {
       }],
     });
 
-    await dispatchPort.dispatchOutgoing({
+    await expect(dispatchPort.dispatchOutgoing({
       type: 'callback.answer',
       meta: { eventId: 'evt-4', occurredAt: '2026-03-03T00:00:00.000Z', source: 'telegram' },
       payload: { callbackQueryId: 'cb-1' },
-    });
+    })).resolves.toEqual({});
 
     expect(send).toHaveBeenCalledTimes(1);
   });

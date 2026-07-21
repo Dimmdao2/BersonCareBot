@@ -128,6 +128,30 @@ describe('readChannelStrict', () => {
 describe('messageToIntent — round-trip samples', () => {
   const now = '2026-06-17T00:00:00.000Z';
 
+  it('preserves the typed outbound policy marker without introducing a payload class field', () => {
+    const msg: UnifiedOutgoingMessage = {
+      kind: 'message.send',
+      channel: 'web_push',
+      recipient: { pushUserId: 'user-1' },
+      content: { text: 'push body' },
+      meta: {
+        eventId: 'policy-push',
+        occurredAt: now,
+        source: 'web_push',
+        outboundMessageClass: 'routine_product',
+        outboundCapability: 'app_push',
+      },
+    };
+
+    const intent = messageToIntent(msg);
+    expect(intent.meta).toMatchObject({
+      outboundMessageClass: 'routine_product',
+      outboundCapability: 'app_push',
+    });
+    expect(intent.payload).not.toHaveProperty('outboundMessageClass');
+    expect(intent.payload).not.toHaveProperty('outboundCapability');
+  });
+
   it('telegram sample — matches reportOperatorFailure.ts hand-rolled shape', () => {
     // The expected shape matches exactly what reportOperatorFailure.ts produces
     // at line ~90 (chatId, channels:['telegram'], maxAttempts:1).

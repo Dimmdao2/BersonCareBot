@@ -1,4 +1,8 @@
 import type { DeliveryAttemptResult, DeliveryJob, DeliverySendResult, OutgoingIntent } from '../../../kernel/contracts/index.js';
+import {
+  OUTBOUND_MESSAGE_POLICY_DENIED,
+  isOutboundMessagePolicyDenied,
+} from '../../adapters/outboundMessagePolicy.js';
 
 export type JobExecutorDeps = {
   dispatchOutgoing: (intent: OutgoingIntent) => Promise<DeliverySendResult>;
@@ -22,6 +26,12 @@ function resolveIntentForAttempt(job: DeliveryJob): OutgoingIntent | null {
   const payload = asRecord(job.payload);
   const baseIntent = asRecord(payload.intent);
   if (baseIntent.type !== 'message.send') return null;
+  const baseMeta = asRecord(baseIntent.meta);
+  if (
+    typeof baseMeta.eventId !== 'string'
+    || typeof baseMeta.occurredAt !== 'string'
+    || typeof baseMeta.source !== 'string'
+  ) return null;
 
   const delivery = asRecord(asRecord(baseIntent.payload).delivery);
   const targets = Array.isArray(payload.targets)
@@ -47,7 +57,13 @@ function resolveIntentForAttempt(job: DeliveryJob): OutgoingIntent | null {
   const recipient = target ? asRecord(target.address) : asRecord(asRecord(baseIntent.payload).recipient);
   return {
     type: 'message.send',
-    meta: baseIntent.meta as OutgoingIntent['meta'],
+    // A persisted legacy booking row cannot grant itself an auth capability. Trusted
+    // auth routes construct markers in code; this replay spine never reconstructs them.
+    meta: {
+      eventId: baseMeta.eventId,
+      occurredAt: baseMeta.occurredAt,
+      source: baseMeta.source,
+    },
     payload: {
       ...asRecord(baseIntent.payload),
       recipient,
@@ -98,6 +114,9 @@ export async function executeJob(job: DeliveryJob, deps: JobExecutorDeps): Promi
     }
     return { ok: true, final: true };
   } catch (error) {
+    if (isOutboundMessagePolicyDenied(error)) {
+      return { ok: false, errorCode: OUTBOUND_MESSAGE_POLICY_DENIED, final: true };
+    }
     return {
       ok: false,
       errorCode: error instanceof Error ? error.message : String(error),

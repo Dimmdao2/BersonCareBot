@@ -15,6 +15,7 @@ import {
 import { logger } from '../observability/logger.js';
 import { getCurrentOrganizationPrincipalId } from '../principal/organizationPrincipal.js';
 import { readChannel } from './channelRouting.js';
+import { assertOutboundMessagePolicy } from './outboundMessagePolicy.js';
 
 type DeliveryPayload = {
   recipient?: { chatId?: unknown; phoneNormalized?: unknown };
@@ -214,6 +215,9 @@ export function createDefaultDispatchPort(deps: {
 }): DispatchPort {
   return {
     async dispatchOutgoing(intent: OutgoingIntent): Promise<DeliverySendResult> {
+      // Policy is the first egress operation: denied payloads cannot be redirected, logged,
+      // adapter-selected, or passed to a provider.
+      assertOutboundMessagePolicy(intent);
       // PRIMARY DEV REDIRECT: override before the channel fork so no adapter can
       // ever be reached with a real recipient in non-production environments.
       const safeIntent = applyPreForkDevRedirect(intent);

@@ -6,7 +6,7 @@
  * UnifiedOutgoingMessage and dispatches via dispatchPort (redirect-covered; smsc adapter delivers).
  * OTP redaction is preserved via the `otp:`-prefixed eventId (dispatchPort.ts::isOtpIntent).
  */
-import { createHmac, timingSafeEqual } from 'node:crypto';
+import { createHmac, randomUUID, timingSafeEqual } from 'node:crypto';
 import type { FastifyInstance, FastifyRequest } from 'fastify';
 import type { DispatchPort } from '../../kernel/contracts/index.js';
 import { messageToIntent } from '../../infra/adapters/channelRouting.js';
@@ -77,8 +77,6 @@ export async function registerBersoncareSendSmsRoute(
 
     const phone = typeof request.body?.phone === 'string' ? request.body.phone.trim() : '';
     const code = typeof request.body?.code === 'string' ? request.body.code.trim() : '';
-    const idempotencyKey =
-      typeof request.body?.idempotencyKey === 'string' ? request.body.idempotencyKey.trim() : '';
     if (!phone || !code) {
       return reply.code(400).send({ ok: false, error: 'phone and code required' });
     }
@@ -92,9 +90,12 @@ export async function registerBersoncareSendSmsRoute(
       recipient: { phoneNormalized: phone },
       content: { text: `Ваш код BersonCare: ${code}` },
       meta: {
-        eventId: `otp:sms:${idempotencyKey || phone}`,
+        // Delivery attempt logs retain eventId, so do not derive it from phone or code.
+        eventId: `otp:sms:${randomUUID()}`,
         occurredAt: new Date().toISOString(),
         source: 'smsc',
+        outboundMessageClass: 'auth_code',
+        outboundCapability: 'auth_code',
       },
     });
 

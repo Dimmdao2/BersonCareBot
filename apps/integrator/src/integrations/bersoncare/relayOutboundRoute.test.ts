@@ -1,6 +1,7 @@
 import { describe, expect, it, vi, beforeEach } from 'vitest';
 import Fastify from 'fastify';
 import type { DispatchPort } from '../../kernel/contracts/index.js';
+import { createDefaultDispatchPort } from '../../infra/adapters/dispatchPort.js';
 
 const recordNotificationAttemptMock = vi.hoisted(() => vi.fn(async () => undefined));
 vi.mock('../../infra/db/repos/notificationDeliveryAttempts.js', () => ({
@@ -76,6 +77,32 @@ describe('POST /api/bersoncare/relay-outbound', () => {
     const json = JSON.parse(res.body) as { ok: boolean; status: string };
     expect(json).toEqual({ ok: true, status: 'accepted' });
     expect(dispatchPort.dispatchOutgoing).toHaveBeenCalledTimes(1);
+  });
+
+  it('denies a generic messenger relay even when messageId and metadata imitate auth', async () => {
+    const adapterSend = vi.fn().mockResolvedValue({});
+    const policyDispatch = createDefaultDispatchPort({
+      adapters: [{ canHandle: () => true, send: adapterSend }],
+    });
+    const policyApp = await buildTestApp(policyDispatch);
+    const body = makeRelayBody({
+      messageId: 'otp:telegram:forged',
+      channel: 'telegram',
+      metadata: { outboundMessageClass: 'auth_code', outboundCapability: 'auth_code' },
+    });
+    const rawBody = JSON.stringify(body);
+
+    const response = await policyApp.inject({
+      method: 'POST',
+      url: '/api/bersoncare/relay-outbound',
+      headers: makeHeaders(rawBody),
+      body: rawBody,
+    });
+
+    expect(response.statusCode).toBe(403);
+    expect(JSON.parse(response.body)).toEqual({ ok: false, error: 'egress_policy_denied' });
+    expect(adapterSend).not.toHaveBeenCalled();
+    await policyApp.close();
   });
 
   it('returns 401 for invalid signature', async () => {
@@ -180,6 +207,11 @@ describe('POST /api/bersoncare/relay-outbound', () => {
 
     expect(res.statusCode).toBe(200);
     expect(observedOrganizationId).toBe(ORGANIZATION_ID);
+    const intent = vi.mocked(dispatchPort.dispatchOutgoing).mock.calls[0]![0];
+    expect(intent.meta).toMatchObject({
+      outboundMessageClass: 'routine_product',
+      outboundCapability: 'app_push',
+    });
     expect(recordNotificationAttemptMock).toHaveBeenCalledWith(
       expect.anything(),
       expect.objectContaining({

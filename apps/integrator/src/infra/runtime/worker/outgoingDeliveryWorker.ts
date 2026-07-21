@@ -1,5 +1,10 @@
 import { sql } from 'drizzle-orm';
-import type { DbPort, DbWritePort, DeliverySendResult, OutgoingIntent } from '../../../kernel/contracts/index.js';
+import {
+  type DbPort,
+  type DbWritePort,
+  type DeliverySendResult,
+  type OutgoingIntent,
+} from '../../../kernel/contracts/index.js';
 import {
   retryDelaySecondsAfterFailure,
   truncateDeliveryErrorMessage,
@@ -43,6 +48,10 @@ import {
   runWithOptionalOrganizationPrincipal,
   runWithOrganizationPrincipal,
 } from '../../principal/organizationPrincipal.js';
+import {
+  OUTBOUND_MESSAGE_POLICY_DENIED,
+  isOutboundMessagePolicyDenied,
+} from '../../adapters/outboundMessagePolicy.js';
 
 export type OutgoingDeliveryWorkerDeps = {
   db: DbPort;
@@ -478,6 +487,20 @@ async function handleDispatchFailure(
   await queueReschedule(db, row.id, delay, safe);
 }
 
+async function finalizeOutboundPolicyDenied(
+  db: DbPort,
+  row: OutgoingDeliveryQueueRow,
+): Promise<void> {
+  // This is a local topology decision, not a provider failure: do not retry, write a
+  // messenger attempt, or touch bot-block state. The queue row retains only a stable code.
+  await queueMarkDead(db, row.id, OUTBOUND_MESSAGE_POLICY_DENIED);
+  await incrementBroadcastAuditErrorIfDoctorBroadcast(db, row);
+  logger.warn(
+    { rowId: row.id, eventId: row.eventId, kind: row.kind, channel: row.channel },
+    'outgoing_delivery_egress_policy_denied',
+  );
+}
+
 export async function processOutgoingDeliveryRow(
   row: OutgoingDeliveryQueueRow,
   deps: OutgoingDeliveryWorkerDeps,
@@ -509,6 +532,10 @@ export async function processOutgoingDeliveryRow(
         logger.error({ error, incidentId, rowId: row.id }, 'operator_alert_mark_sent_failed_after_delivery');
       }
     } catch (err) {
+      if (isOutboundMessagePolicyDenied(err)) {
+        await finalizeOutboundPolicyDenied(db, row);
+        return;
+      }
       await handleDispatchFailure(db, row, err, writePort, intent);
     }
     return;
@@ -624,6 +651,10 @@ export async function processOutgoingDeliveryRow(
       await maybeClearMessengerBotBlockedMarker(db, row, intent);
       await queueMarkSent(db, row.id);
     } catch (err) {
+      if (isOutboundMessagePolicyDenied(err)) {
+        await finalizeOutboundPolicyDenied(db, row);
+        return;
+      }
       await handleDispatchFailure(db, row, err, writePort, intent);
     }
     return;
@@ -671,6 +702,10 @@ export async function processOutgoingDeliveryRow(
         'doctor_broadcast_delivery.sent',
       );
     } catch (err) {
+      if (isOutboundMessagePolicyDenied(err)) {
+        await finalizeOutboundPolicyDenied(db, row);
+        return;
+      }
       const msg = err instanceof Error ? err.message : String(err);
       const safeErr = truncateDeliveryErrorMessage(msg);
       const attempts = row.attemptCount;

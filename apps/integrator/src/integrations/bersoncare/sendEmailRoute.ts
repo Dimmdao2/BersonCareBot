@@ -3,9 +3,9 @@
  * Маршрут приёма запросов от webapp (bersoncare): отправка email с OTP-кодом.
  * Контракт: webapp/INTEGRATOR_CONTRACT.md, раздел «Flow 5: send-email».
  *
- * S9: route now dispatches an email UnifiedOutgoingMessage through dispatchPort (the chokepoint)
- * instead of calling sendMail directly. P21 (auth OTP email) + P19 (specialist email) ride this
- * route and are now redirect-covered automatically (PLAN D7).
+ * Dispatches only the existing authentication-code email through dispatchPort (the chokepoint)
+ * instead of calling sendMail directly. Generic text/template email is intentionally rejected by
+ * the route and by the central egress policy.
  *
  * email_not_configured: pre-checked via resolveSmtpOutboundConfig + isResolvedMailerConfigured
  * before dispatch, so callers still receive a 503 synchronously when SMTP is not set up.
@@ -20,6 +20,7 @@ import type { DispatchPort, DbPort } from '../../kernel/contracts/index.js';
 import { resolveSmtpOutboundConfig } from '../../config/smtpOutbound.js';
 import { isResolvedMailerConfigured } from '../email/mailer.js';
 import { messageToIntent } from '../../infra/adapters/channelRouting.js';
+import { isOutboundMessagePolicyDenied } from '../../infra/adapters/outboundMessagePolicy.js';
 import type { UnifiedOutgoingMessage } from '../../kernel/contracts/unifiedMessage.js';
 import { logger } from '../../infra/observability/logger.js';
 
@@ -112,17 +113,17 @@ export async function registerBersoncareSendEmailRoute(
     }
 
     const payload = parsed.data;
-    const subject = payload.subject ?? (payload.text ? 'BersonCare' : 'Код подтверждения BersonCare');
-    const text =
-      payload.text?.trim() ||
-      (payload.code ? `Ваш код BersonCare: ${payload.code}` : '');
+    const isAuthCode = Boolean(payload.code?.trim());
+    const subject = isAuthCode
+      ? 'Код подтверждения BersonCare'
+      : (payload.subject ?? 'BersonCare');
+    const text = isAuthCode
+      ? `Ваш код BersonCare: ${payload.code}`
+      : (payload.text?.trim() ?? '');
 
     // OTP safety: prefix eventId with 'otp:email:' when a code is present so that
     // sanitizePayloadForLogs (dispatchPort) redacts it from delivery_attempt_logs.
-    const isOtp = Boolean(payload.code?.trim());
-    const eventId = isOtp
-      ? `otp:email:${randomUUID()}`
-      : `email:send:${randomUUID()}`;
+    const eventId = isAuthCode ? `otp:email:${randomUUID()}` : `email:send:${randomUUID()}`;
 
     const msg: UnifiedOutgoingMessage = {
       kind: 'message.send',
@@ -136,12 +137,20 @@ export async function registerBersoncareSendEmailRoute(
         eventId,
         occurredAt: new Date().toISOString(),
         source: 'email',
+        ...(isAuthCode ? { outboundMessageClass: 'auth_code' as const, outboundCapability: 'auth_code' as const } : {}),
       },
     };
 
     // Dispatch through the single chokepoint — the pre-fork dev redirect inside
     // dispatchOutgoing applies automatically (PLAN D7).
-    await dispatchPort.dispatchOutgoing(messageToIntent(msg));
+    try {
+      await dispatchPort.dispatchOutgoing(messageToIntent(msg));
+    } catch (error) {
+      if (isOutboundMessagePolicyDenied(error)) {
+        return reply.code(403).send({ ok: false, error: 'egress_policy_denied' });
+      }
+      throw error;
+    }
 
     return reply.code(200).send({ ok: true });
   });

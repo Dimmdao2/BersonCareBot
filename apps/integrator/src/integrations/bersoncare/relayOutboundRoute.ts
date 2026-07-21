@@ -7,10 +7,11 @@ import { createHmac, timingSafeEqual } from 'node:crypto';
 import { randomUUID } from 'node:crypto';
 import type { FastifyInstance, FastifyRequest } from 'fastify';
 import { z } from 'zod';
-import type { DbPort, DispatchPort } from '../../kernel/contracts/index.js';
+import type { DbPort, DispatchPort, OutgoingIntent } from '../../kernel/contracts/index.js';
 import { logger } from '../../infra/observability/logger.js';
 import { runWithOptionalOrganizationPrincipal } from '../../infra/principal/organizationPrincipal.js';
 import { recordNotificationDeliveryAttemptBestEffort } from '../../infra/db/repos/notificationDeliveryAttempts.js';
+import { isOutboundMessagePolicyDenied } from '../../infra/adapters/outboundMessagePolicy.js';
 
 const WINDOW_SECONDS = 300;
 const DEDUP_TTL_MS = 24 * 60 * 60 * 1000; // 24 hours
@@ -50,7 +51,7 @@ function verifySignature(timestamp: string, rawBody: string, signature: string, 
   return left.length === right.length && timingSafeEqual(left, right);
 }
 
-function buildIntent(parsed: RelayPayload) {
+function buildIntent(parsed: RelayPayload): OutgoingIntent | null {
   const meta = {
     eventId: parsed.messageId,
     occurredAt: new Date().toISOString(),
@@ -133,7 +134,14 @@ function buildIntent(parsed: RelayPayload) {
         : undefined;
     return {
       type: 'message.send' as const,
-      meta: { ...meta, source: 'web_push' },
+      // The signed generic relay may create product-push capability only for Web Push.
+      // It never accepts a class/capability field from the caller body.
+      meta: {
+        ...meta,
+        source: 'web_push',
+        outboundMessageClass: 'routine_product',
+        outboundCapability: 'app_push',
+      },
       payload: {
         recipient: { pushUserId: parsed.recipient },
         message: { text: parsed.text },
@@ -270,6 +278,10 @@ export async function registerBersoncareRelayOutboundRoute(
       return reply.code(200).send({ ok: true, status: 'accepted' });
     } catch (err) {
       inFlight.delete(dedupKey);
+      if (isOutboundMessagePolicyDenied(err)) {
+        logger.warn({ channel: parsed.channel, messageId: parsed.messageId }, 'relay-outbound: egress policy denied');
+        return reply.code(403).send({ ok: false, error: 'egress_policy_denied' });
+      }
       if (db && parsed.channel === 'web_push') {
         await recordNotificationDeliveryAttemptBestEffort(db, {
           ...(parsed.organizationId ? { organizationId: parsed.organizationId } : {}),

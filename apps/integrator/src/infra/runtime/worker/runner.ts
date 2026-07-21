@@ -39,6 +39,17 @@ export async function runWorkerTick(deps: WorkerRunnerDeps): Promise<'idle' | 'p
     return 'processed';
   }
 
+  if (result.final) {
+    const failureLog: { ok: boolean; final: boolean; errorCode?: string } = {
+      ok: false,
+      final: true,
+      ...(result.errorCode ? { errorCode: result.errorCode } : {}),
+    };
+    await deps.logAttempt(job.id, failureLog);
+    await deps.failJob(job.id, result.errorCode ?? 'DELIVERY_FAILED');
+    return 'processed';
+  }
+
   const decision = decideRetry({
     job,
     nowIso: deps.nowIso(),

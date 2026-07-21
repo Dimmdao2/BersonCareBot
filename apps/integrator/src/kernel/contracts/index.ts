@@ -18,6 +18,9 @@ export type {
 
 export type {
   EventMeta,
+  OutboundMessageCapability,
+  OutboundMessageClass,
+  OutboundMessagePolicyMeta,
   IncomingEvent,
   IncomingEventType,
   IntentMeta,
@@ -25,6 +28,11 @@ export type {
   OutgoingEventType,
   OutgoingIntentType,
   OutgoingEvent,
+} from './events.js';
+
+export {
+  OUTBOUND_MESSAGE_CAPABILITIES,
+  OUTBOUND_MESSAGE_CLASSES,
 } from './events.js';
 
 export type {
