@@ -623,6 +623,45 @@ describe("doctorApplyInstanceEditorBatch", () => {
     expect(changed.settings).toMatchObject({ reps: 10, sets: 3, maxPain: 2 });
   });
 
+  it.each([
+    ["recommendations" as const, "В группу «Рекомендации» можно помещать только рекомендации"],
+    ["tests" as const, "В группу «Тестирование» можно помещать только клинические тесты"],
+  ])("rejects an individual exercise API payload targeting the %s system group", async (systemKind, message) => {
+    const tpl = await tplSvc.createTemplate({ title: "П", status: "published" }, null);
+    const s1 = await tplSvc.createStage(tpl.id, { title: "Э1" });
+    const inst = await instSvc.assignTemplateToPatient({
+      templateId: tpl.id,
+      patientUserId: "20202020-2020-4020-8020-202020202020",
+      assignedBy: doctor,
+    });
+    const stage = inst.stages.find((row) => row.sortOrder === 1)!;
+    const systemGroup = stage.groups.find((row) => row.systemKind === systemKind)!;
+
+    await expect(
+      instSvc.doctorApplyInstanceEditorBatch({
+        instanceId: inst.id,
+        actorId: doctor,
+        draft: {
+          ...emptyBatchDraft(),
+          itemCreates: [
+            {
+              kind: "individual_exercise",
+              clientId: "draft:21212121-2121-4121-8121-212121212121",
+              stageId: stage.id,
+              groupId: systemGroup.id,
+              title: "Недопустимое упражнение",
+              regionRefIds: [],
+              saveToCatalog: false,
+            },
+          ],
+        },
+      }),
+    ).rejects.toThrow(message);
+
+    const after = await persistence.instancePort.getInstanceById(inst.id);
+    expect(after?.stages.flatMap((row) => row.items)).toHaveLength(0);
+  });
+
   it("makes save-to-catalog explicit and rejects any post-assignment media patch", () => {
     const base = emptyBatchDraft();
     const validCreate = {

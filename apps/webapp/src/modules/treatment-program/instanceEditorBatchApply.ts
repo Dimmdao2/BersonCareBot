@@ -305,7 +305,18 @@ async function validateInstanceEditorBatchDraft(
     } else if (create.kind === "individual_exercise") {
       const stageId = resolveBatchId(create.stageId, previewIdMap, "Этап");
       assertPersistedStageInDetail(detail, stageId, previewIdMap);
-      resolveBatchId(create.groupId, previewIdMap, "Группа");
+      const groupId = resolveBatchId(create.groupId, previewIdMap, "Группа");
+      const stage = detail.stages.find((row) => row.id === stageId);
+      if (stage) {
+        if (isStageZero(stage)) {
+          throw new Error("На этапе «Общие рекомендации» разрешены только рекомендации");
+        }
+        const group = stage.groups.find((row) => row.id === groupId);
+        if (!group && !isInstanceEditorBatchClientId(create.groupId)) {
+          throw new Error("Группа не найдена");
+        }
+        assertTreatmentProgramStageItemFitsSystemGroup(group, "exercise");
+      }
       if (create.loadSettings) mergeLoadSettings(null, create.loadSettings);
     } else if (create.kind === "test_set_expand") {
       const stageId = resolveBatchId(create.stageId, previewIdMap, "Этап");
@@ -572,6 +583,14 @@ export async function applyInstanceEditorBatch(
     } else if (create.kind === "individual_exercise") {
       const stageId = resolveBatchId(create.stageId, idMap, "Элемент");
       const groupId = resolveBatchId(create.groupId, idMap, "Группа");
+      const stage = detail.stages.find((row) => row.id === stageId);
+      if (!stage) throw new Error("Этап не найден");
+      if (isStageZero(stage)) {
+        throw new Error("На этапе «Общие рекомендации» разрешены только рекомендации");
+      }
+      const group = stage.groups.find((row) => row.id === groupId);
+      if (!group) throw new Error("Группа не найдена");
+      assertTreatmentProgramStageItemFitsSystemGroup(group, "exercise");
       const settings = create.loadSettings ? mergeLoadSettings(null, create.loadSettings) : null;
       const result = await instances.createIndividualExerciseAndStageItem({
         instanceId: input.instanceId,

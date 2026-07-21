@@ -23,7 +23,10 @@ export async function pgMediaUsageSummaryForMediaId(mediaId: string): Promise<Me
              OR cp.body_html LIKE '%' || ${mediaUrl} || '%') AS materials,
         (SELECT COUNT(DISTINCT e.id)::text
            FROM lfk_exercise_media em
-           INNER JOIN lfk_exercises e ON e.id = em.exercise_id AND e.is_archived = false
+           INNER JOIN lfk_exercises e
+             ON e.id = em.exercise_id
+            AND e.is_archived = false
+            AND e.catalog_scope = 'catalog'
           WHERE em.media_url = ${mediaUrl}) AS exercises,
         (SELECT COUNT(*)::text
            FROM tests t

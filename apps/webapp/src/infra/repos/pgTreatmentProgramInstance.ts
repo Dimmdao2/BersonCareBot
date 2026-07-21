@@ -51,6 +51,7 @@ import {
   TREATMENT_PROGRAM_INSTANCE_SYSTEM_GROUP_TITLE_TESTS,
 } from "@/modules/treatment-program/types";
 import { withDefaultSystemGroupsIfNeededForTreeStage } from "@/modules/treatment-program/instance-tree-system-groups";
+import { assertTreatmentProgramStageItemFitsSystemGroup } from "@/modules/treatment-program/stage-semantics";
 import { createPgTreatmentProgramItemSnapshotPort } from "@/infra/repos/pgTreatmentProgramItemSnapshot";
 import { testSetItems, testSets } from "../../../db/schema/clinicalTests";
 import {
@@ -881,14 +882,23 @@ export function createPgTreatmentProgramInstancePort(): TreatmentProgramInstance
         if (!organizationId) throw new Error("organization_context_required");
 
         const [instance] = await tx
-          .select({ id: instTable.id, patientUserId: instTable.patientUserId })
+          .select({
+            id: instTable.id,
+            organizationId: instTable.organizationId,
+            patientUserId: instTable.patientUserId,
+          })
           .from(instTable)
           .where(and(eq(instTable.id, input.instanceId), eq(instTable.organizationId, organizationId)))
           .limit(1);
-        if (!instance) return null;
+        if (!instance || instance.organizationId !== organizationId) return null;
 
         const [stage] = await tx
-          .select()
+          .select({
+            id: stageTable.id,
+            instanceId: stageTable.instanceId,
+            organizationId: stageTable.organizationId,
+            sortOrder: stageTable.sortOrder,
+          })
           .from(stageTable)
           .where(
             and(
@@ -898,10 +908,22 @@ export function createPgTreatmentProgramInstancePort(): TreatmentProgramInstance
             ),
           )
           .limit(1);
-        if (!stage || stage.sortOrder === 0) return null;
+        if (
+          !stage ||
+          stage.instanceId !== input.instanceId ||
+          stage.organizationId !== organizationId ||
+          stage.sortOrder === 0
+        ) {
+          return null;
+        }
 
         const [group] = await tx
-          .select({ id: instGroupTable.id })
+          .select({
+            id: instGroupTable.id,
+            stageId: instGroupTable.stageId,
+            organizationId: instGroupTable.organizationId,
+            systemKind: instGroupTable.systemKind,
+          })
           .from(instGroupTable)
           .where(
             and(
@@ -911,7 +933,14 @@ export function createPgTreatmentProgramInstancePort(): TreatmentProgramInstance
             ),
           )
           .limit(1);
-        if (!group) return null;
+        if (
+          !group ||
+          group.stageId !== input.stageId ||
+          group.organizationId !== organizationId
+        ) {
+          return null;
+        }
+        assertTreatmentProgramStageItemFitsSystemGroup(group, "exercise");
 
         if (input.difficulty1_10 != null && (input.difficulty1_10 < 1 || input.difficulty1_10 > 10)) {
           throw new Error("Сложность: целое число от 1 до 10");
@@ -919,7 +948,16 @@ export function createPgTreatmentProgramInstancePort(): TreatmentProgramInstance
 
         if (input.mediaId) {
           const [media] = await tx
-            .select({ id: mediaFiles.id })
+            .select({
+              id: mediaFiles.id,
+              ownerKind: mediaFiles.ownerKind,
+              organizationId: mediaFiles.organizationId,
+              status: mediaFiles.status,
+              mimeType: mediaFiles.mimeType,
+              folderOrganizationId: mediaFolders.organizationId,
+              folderKind: mediaFolders.kind,
+              folderPatientUserId: mediaFolders.patientUserId,
+            })
             .from(mediaFiles)
             .innerJoin(mediaFolders, eq(mediaFolders.id, mediaFiles.folderId))
             .where(
@@ -935,7 +973,18 @@ export function createPgTreatmentProgramInstancePort(): TreatmentProgramInstance
               ),
             )
             .limit(1);
-          if (!media) throw new Error("Видео не найдено или недоступно для этого пациента");
+          if (
+            !media ||
+            media.ownerKind !== "organization" ||
+            media.organizationId !== organizationId ||
+            media.status !== "ready" ||
+            !media.mimeType.startsWith("video/") ||
+            media.folderOrganizationId !== organizationId ||
+            media.folderKind !== "client_patient" ||
+            media.folderPatientUserId !== instance.patientUserId
+          ) {
+            throw new Error("Видео не найдено или недоступно для этого пациента");
+          }
         }
 
         const title = input.title.trim();

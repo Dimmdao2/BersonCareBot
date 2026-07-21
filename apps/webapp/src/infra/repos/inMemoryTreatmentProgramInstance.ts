@@ -44,6 +44,7 @@ import {
   TREATMENT_PROGRAM_PLAN_MUTATION_EVENT_TYPES,
 } from "@/modules/treatment-program/types";
 import { withDefaultSystemGroupsIfNeededForTreeStage } from "@/modules/treatment-program/instance-tree-system-groups";
+import { assertTreatmentProgramStageItemFitsSystemGroup } from "@/modules/treatment-program/stage-semantics";
 
 function sameIdSet(ordered: string[], expected: Set<string>): boolean {
   if (ordered.length !== expected.size) return false;
@@ -629,6 +630,7 @@ export function createInMemoryTreatmentProgramPersistence(seed?: {
       ) {
         return null;
       }
+      assertTreatmentProgramStageItemFitsSystemGroup(group, "exercise");
       const title = input.title.trim();
       if (!title) throw new Error("Укажите название упражнения");
       const exerciseId = crypto.randomUUID();
