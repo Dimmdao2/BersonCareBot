@@ -1,5 +1,25 @@
 # Execution log
 
+## 2026-07-21 — PR-01 factual processing register (taskdb `#899`, docs-only)
+
+- Expanded the existing `stages/PR-01_PROCESSING_REGISTER.md` in place; no parallel register or roadmap was
+  created. Exact writable scope: that stage, `OWNER_AND_LEGAL_GATES.md`, `OWNER_ACTIONS.md` and this append-only log.
+- Evidence method: repository-only code-search/codeq attempt followed by targeted read of schema, adapter,
+  configuration, S3, payment, queue, logging, retention and backup sources. The register records only source paths
+  and category-level engineering facts; it contains no real PII, account identifiers, secret values, connection
+  strings, live logs or runtime queries.
+- Covered factual categories: account/auth and organization ownership paths; appointments; clinical record and
+  patient-file/health candidates; DB `public`/`integrator` boundary; S3/files; logs/queues/retries/backups;
+  Telegram, MAX, email/SMTP, SMS/SMSC, payment, Selectel/S3 and OAuth/Google Calendar candidate surfaces; and a
+  secret-name/access-surface inventory without values.
+- Open, not closed: `G-01`, `G-02`, `G-03`, `G-04`, `G-04A`, `G-05`, `G-05A` and related operations/security gates.
+  In particular, live provider activation, contracts, regions/transborder flows, subprocessors, RKN notice status,
+  legal roles/bases, consent, retention periods, actual DB grants, backup/offsite state and production topology are
+  unconfirmed and assigned to owner/legal/operations review.
+- Not done: no DB/host/ENV/secret/log inspection; no DEV/TEST/PROD action; no network, deploy, migration, app/schema
+  change, taskdb mutation, active SaaS/Product UX/FIO plan edit, external message or provider contact. `O-02` remains
+  the owner-only Selectel written-answer action; public provider pages do not close `G-04A`.
+
 Append-only журнал. Планирование не переводит ни один implementation stage в `doing`.
 
 ## 2026-07-19 — initiative authored
