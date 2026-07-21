@@ -14,9 +14,14 @@ composition is preserved without abbreviation; configurable Today signals remain
 messages cover all four chat/comment consumers with durable status and worker delivery. No parallel roadmap was
 created.
 
-The factual matrix is no longer blanket-green: UI-0/2/8/9/UI-P and the patient mood residual are repository-complete;
-UI-1, UI-3, UI-4 and UI-6 are partial; UI-5 and UI-7 are not implemented. Exact residual taskdb cards are `#960`–
-`#964`, while `#958` was corrected to the preview + full-workspace routing behavior. Stale hardening, S4,
+After the owner challenged checklist granularity, the Doctor UI artifact also gained one atomic completion tracker:
+every verifiable owner item is an individual checkbox, partial stages are split into closed and open requirements,
+and repository completion is explicitly separated from TEST/live owner acceptance. Future worker briefs may cite
+that checklist but may not compress it into a parent-stage summary.
+
+The factual matrix is no longer blanket-green: UI-0/2/9/UI-P and the patient mood residual are repository-complete;
+UI-1, UI-3, UI-4, UI-6 and UI-8 are partial (`#191` remains inside UI-8); UI-5 and UI-7 are not implemented. Exact
+residual taskdb cards are `#960`–`#964`, while `#958` was corrected to the preview + full-workspace routing behavior. Stale hardening, S4,
 outbound-alerting, dependency/editor and initiative-registry statuses were reconciled without rewriting historical
 log entries. No source code, DB, environment, deploy or CI action was performed in this docs-only stage.
 

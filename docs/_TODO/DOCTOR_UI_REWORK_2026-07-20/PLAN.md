@@ -275,7 +275,7 @@ draft semantics не являются owner rulings. Media access/presign и ten
 | UI-5 | `NOT DONE` | Ни full-workspace UI-5a/list-state restoration, ни full UI-5b composition не реализованы. UI-5b законно ждёт U5A/record-class gate. |
 | UI-6 | `PARTIAL` | Compact UI-6a готов; configurable signals/switch/counters остаются отдельным owner-requested этапом. |
 | UI-7 | `NOT DONE` | Scheduled messages и worker contract отсутствуют; Voice/STT корректно post-production. |
-| UI-8 | `DONE` | Выполнен внутри единого S4/C5 organization-only commercial contour. |
+| UI-8 | `PARTIAL` | S4/C5 organization-only commercial contour готов; default новых разминок `#191` (`12:00`/`15:00` в рабочие дни, без изменения существующих клиентов) не реализован. |
 | UI-9 | `DONE` | Personal exercises/media exact-org implementation и high-risk audit закрыты; live owner acceptance отдельно. |
 | Client mood residual | `DONE` | Empty chart скрывается, mood controls остаются. |
 | UI-P | `DONE` | Shared tokens/chrome/list rhythm реализованы; late list-row reference учтён. |
@@ -283,14 +283,182 @@ draft semantics не являются owner rulings. Media access/presign и ten
 Эта таблица отменяет прежние blanket-формулировки «baseline проверен» для полного UI-1/UI-3/UI-4/UI-6 scope:
 повторять закрытую часть нельзя, но перечисленный residual обязан получить собственный exact task/acceptance.
 
+### Atomic owner checklist — единственный completion tracker
+
+`[x]` ниже означает только доказанную repository-реализацию на текущей feature-ветке. Это не означает owner
+acceptance и не заменяет отдельный TEST/live checkpoint. `[ ]` означает фактический остаток либо ещё не пройденный
+gate. Этап нельзя называть выполненным по общему audit PASS, пока все его in-scope owner checkboxes не закрыты
+точными code/test/live evidence. Описательная часть выше задаёт смысл; этот список не разрешается сокращать в worker
+brief или заменять одним общим пунктом.
+
+#### UI-0 — booking funnel (`#923`)
+
+- [x] Устранён SSR/render failure после выбора услуги.
+- [x] Видимость услуг соблюдает выбранного специалиста, clinic-wide и solo правила владельца; одной location
+  assignment недостаточно.
+- [x] Запись из календаря создаёт видимого organization-owned клиента по действующему contract.
+- [x] ФИО в детали записи ведёт в существующую карточку пациента.
+- [ ] Owner live recheck остаётся отдельным acceptance-layer и не выводится из smoke.
+
+#### UI-1 — Schedule (`#851`, residual `#960`) и appointment detail (`#951`)
+
+- [x] Template-days используют существующие цвета локаций.
+- [x] Время и город выводятся один раз в weekday header, а не в каждой date-cell.
+- [x] Действие настройки времени называется «Установить».
+- [ ] Недельный график переиспользует canonical `DoctorDateTimePicker`, без локального picker fork (`#960`).
+- [x] Grid lines имеют согласованную спокойную presentation-плотность.
+- [x] Location filters независимы; «Все» включает все локации.
+- [x] В appointment detail остаётся ровно один доступный close-control в каждом host-context.
+- [x] ФИО крупнее, остаётся единственной card navigation и имеет existing chat/phone actions с mobile/desktop
+  поведением и отсутствующими-data states.
+- [x] Актуальные дата/время выделены; semantic status badge находится в той же строке; дублирующая подпись статуса
+  отсутствует.
+- [x] `Rubitime ID`, Rubitime manage-link и отдельная ссылка «Карточка пациента» не рендерятся.
+- [x] «Филиал / Услуга / Специалист» подписаны; specialist row скрывается только при server-proven solo-mode.
+- [x] Исходное время показывается только после фактического переноса.
+- [x] «Создать визит из записи» оформлено отдельным центрированным действием.
+- [x] Пустой/whitespace комментарий нельзя отправить.
+- [x] Диагностическая payment panel скрыта до доказанных provider/cash/invoice/pay-link/QR contracts; домен не удалён.
+- [ ] После отдельного money/provider gate карточка различает частичную предоплату с суммой.
+- [ ] После отдельного money/provider gate карточка различает полную оплату с суммой.
+- [ ] После отдельного money/provider gate состояние «Не оплачено» даёт server-authorized действия «Оплачено
+  наличными» и «Выставить счёт»; UI-1c не изобретает эти contracts.
+- [ ] UI-1c отсутствует на текущем TEST SHA и требует следующего owner live checkpoint.
+- [ ] SCH-G5 остаётся отдельным owner gate `#848`, не скрывается внутри UI-1 completion.
+
+#### UI-2 — built-in Online location
+
+- [x] «Онлайн» является встроенной включаемой локацией в существующей модели, а не вручную создаваемым workaround.
+- [x] Состояние Online location гейтит существующие online-галочки услуг.
+- [x] Не создана новая schema/delivery-mode/booking engine.
+- [ ] Отдельно доказано, что Online присутствует в существующих schedule location list/filters без второго
+  projection.
+- [ ] Отдельно доказано, что online services видны в существующем client booking wizard при включённой Online
+  location.
+- [ ] Online-only services на публичной странице попадают в online-block, а не в physical location; live proof
+  ждёт sanctioned published slug/U6B.
+
+#### UI-3 — Communications (`#852`, residual `#961/#962`)
+
+- [x] Desktop split во всех применимых вкладках — 45/55 с fallback 50/50; mobile master/detail сохранён.
+- [ ] Exact owner gradient применён одинаково к doctor/patient chat, modal и comments (`#961`).
+- [x] Имя в шапке является единственной card navigation с сохранённым route contract.
+- [ ] Убрана лишняя верхняя broadcast-фраза с отдельным current-code evidence (`#961`).
+- [ ] Выбор рассылки показывает слева title/text/audience/channel/error/non-delivery metrics (`#961`).
+- [ ] «Лог ошибок» открывает detail справа; стандартная верхняя панель имеет одно закрытие; overlap отсутствует во
+  всех summary/delivery/error states (`#961`).
+- [x] Intake left list не дублирует ссылку по имени из detail.
+- [ ] Один shared composer покрывает doctor chat/modal, patient chat, doctor comments и patient comments с parity
+  текущего поведения (`#962`).
+
+#### UI-4 — Clients list (`#850`, preview входит в `#958`)
+
+- [x] Обычный desktop mode использует split 50/50.
+- [x] Поиск находится в правом слоте page header; count/sort остаются над списком.
+- [x] KPI расположены по три в ряд, label сверху и value снизу.
+- [x] Filtered KPI value показан отдельной меньшей цифрой без slash и с filter icon.
+- [x] KPI имеют короткие delayed hover/focus tooltips и единый active state.
+- [x] «Все люди» использует настроенный patient plural label.
+- [x] Cancellations/reschedules имеют all-time semantics; membership KPI — active-only; expired membership отделён.
+- [x] Информационные иконки имеют стабильные слоты membership → program-or-supervision → appointment без boxes.
+- [ ] Правая половина содержит functional patient preview, а не только фильтры или пустое место (`#958`).
+
+#### UI-5a — full-workspace existing card reuse (`#958`)
+
+- [ ] Открытие полной карточки заменяет весь doctor content workspace; sidebar остаётся.
+- [ ] Карточка не втискивается в right pane и не создаёт второй component tree/iframe.
+- [ ] «К клиентам» восстанавливает search/sort/filters/selected preview/scroll.
+- [ ] Direct URL, reload и browser back/forward сохраняют card/list mode.
+- [ ] Переиспользованы exact standalone loader/guards/data/API; доказана guard-equivalence без visibility/schema
+  изменений.
+
+#### UI-5b — полный patient-card composition после U5A/U5B (`#928`)
+
+- [ ] При активной карточке поиск доступен, результаты показаны dropdown под полем.
+- [ ] Sticky header содержит только ФИО и полную подпись «Дата рождения»; пол/рост/вес/chips/mini-stats убраны.
+- [ ] Edit affordance ФИО имеет увеличенный отступ и не слипается с именем.
+- [ ] Справа находятся phone/email/messenger deep links; chat открывает существующую modal/messaging path.
+- [ ] Tabs находятся под header и sticky; рабочие tabs используют внутренний 50/50, mobile показывает одну часть.
+- [ ] `Overview`, `Communications` и `Visits` не дублируют данные; существующие блоки и messaging path
+  переиспользованы.
+- [ ] Выбранная запись о визите справа скрыта по умолчанию.
+- [ ] KPI `Визиты / Будущие записи / Абонементы` открывают соответствующий left content над диагнозом.
+- [ ] Справа находятся Notes/Tasks/Dynamics/Program/Completion; пустые Notes/Tasks показывают только add action.
+- [ ] Program summary содержит только название, дату контроля и этапы; состав упражнений скрыт.
+- [ ] Активный этап программы визуально выделен.
+- [ ] Клик по названию открывает существующую программу.
+- [ ] Оформленный визит предлагает «Открыть заметки», а не повторное создание визита.
+- [ ] Membership list и history перенесены из «Финансы» в левую часть card flow.
+- [ ] `Списать` доступно только активному абонементу; `Пересчитать` сохранено.
+- [ ] Верхнее `Добавить абонемент` открывает справа configuration/selection/payment; реальная online payment
+  остаётся `#819`.
+- [ ] Убрана пустая/объяснительная подпись про приоритет и выраженность.
+- [ ] Убран пустой текст «диагнозов нет».
+- [ ] Убраны тексты-инструкции «по клику ...».
+- [ ] Убран пустой текст об отсутствии сопутствующих состояний.
+- [ ] Убран пустой текст «травм не внесено».
+- [ ] Диагноз не называется «Актуальный»; preliminary diagnoses входят в единый список.
+- [ ] Symptom colors переиспользуют существующую Overview color logic.
+- [ ] Visibility, authorship, ownership, counts/search/export и access matrix закрыты после U5A без
+  cross-organization раскрытия.
+
+#### UI-6 — Today (`#850`, residual `#963`)
+
+- [x] KPI на «Сегодня» имеют compact presentation без искусственной пустой высоты.
+- [x] Дата и «Открыть календарь» находятся в compact calendar header, ссылка расположена справа.
+- [x] Дублирующая фраза/строка с количеством записей удалена.
+- [ ] Состав видимых сигналов настраивается через существующий settings path после exact data contract (`#963`).
+- [ ] Переключатель «на сопровождении» / «недавние с визитами» имеет доказанную семантику (`#963`).
+- [ ] «Самые активные», новые counters и hiding semantics реализуются только после exact contract (`#963`).
+
+#### UI-P — shared doctor presentation (`#925`)
+
+- [x] Gap background `#faf9f4`, белая page header и primary `#406ca7` применены через shared doctor primitives.
+- [x] Радиусы block/KPI/control `12/8/24px`, основной padding `18px` и белый input не размножены локально.
+- [x] KPI используют порядок label → value.
+- [x] Основной текст doctor-списков крупнее и легче без изменения meta/badge/calendar typography.
+- [x] Clients/messages list rhythm соответствует live-эталону «На сопровождении» с inset dividers.
+- [x] Clients search находится в page-header slot.
+
+#### UI-7 — scheduled communications (`#964`)
+
+- [ ] Scheduling покрывает doctor/patient chat и doctor/patient comments.
+- [ ] Schedule action рядом с Send открывает date/time picker и меняет основное действие на «Запланировать».
+- [ ] Pending message виден отправителю с clock-state вместо delivery checks.
+- [ ] Per-message `scheduled_at` и durable status хранятся с exact organization ownership.
+- [ ] Worker dispatch закрывает retry/cancel/idempotency без копирования broadcast storage вслепую.
+
+Scope decision, не implementation checkbox: Voice/STT исключён из текущего scope и сохранён post-production в
+`#922`.
+
+#### UI-8 / UI-9 / Client residual
+
+- [x] UI-8 использует единый S4/C5 organization-only entitlement/commercial contour без второго registry.
+- [ ] Для новых назначений разминок default = `12:00` и `15:00` в рабочие дни; существующие назначения не
+  изменяются (`#191`).
+- [x] UI-9 создаёт personal-scoped exercise из program editor; org-catalog save только явный.
+- [x] UI-9 media использует exact-org ownership/presign path, назначенное видео immutable.
+- [x] Пустой patient mood chart скрыт до первой отметки, controls не удалены.
+
+#### Milestone completion gates
+
+- [ ] Все открытые in-scope owner checkboxes текущего пакета закрыты отдельным evidence, без parent-stage shortcut.
+- [ ] Targeted tests/typecheck/lint закрыты для каждого изменённого scope; presentation audits выполнены ровно один
+  раз, high-risk stages — по их risk tier.
+- [ ] Один accumulated full CI прошёл на интегрированном milestone SHA, а не повторялся после каждого малого slice.
+- [ ] Разрешённый code-only TEST deploy указывает на тот же milestone SHA; никакого DB reset/dump refresh.
+- [ ] Owner прошёл live click-through по точным URL/ролям/viewports; `accepted` остаётся только owner action.
+
 ### Обязательный порядок исполнения — current selector 2026-07-22
 
-1. Закрытые UI-0, UI-2, UI-8, UI-9, UI-P и Patient mood residual повторно не запускаются. UI-1/UI-3/UI-4/UI-6
-   также не переоткрываются целиком: workers получают только exact residual из current-truth table.
+1. Закрытые UI-0, UI-2, UI-9, UI-P и Patient mood residual повторно не запускаются. Закрытый S4/C5 контур UI-8
+   также не повторяется, но его отдельный reminder-default residual `#191` остаётся открытым. UI-1/UI-3/UI-4/UI-6
+   не переоткрываются целиком: workers получают только exact residual из current-truth table.
 2. Первый независимый residual cluster: UI-1 picker `#960`, UI-3a/b gradient+broadcast IA `#961` и UI-4 preview +
    UI-5a full-workspace reuse `#958`; не более трёх workers, точные file scopes подтверждаются до запуска.
 3. UI-3c shared composer `#962` идёт после UI-3a/b из-за пересечения communications consumers. UI-6b `#963`
-   стартует только после отдельного data/settings contract manifest и не смешивается с уже закрытой косметикой.
+   стартует только после отдельного data/settings contract manifest и не смешивается с уже закрытой косметикой;
+   reminder-default `#191` исполняется отдельным bounded behavior slice без изменения существующих назначений.
 4. Полный UI-5b остаётся после U5A и record-class visibility/export readiness. UI-7a `#964` — отдельный high-risk
    backend/worker stage; UI-7b Voice/STT `#922` остаётся post-production.
 

@@ -416,7 +416,9 @@ card; запрещено строить временный resolver, второ�
 - **Authority:** продуктовые решения и вопросы находятся только в
   `docs/_TODO/SAAS_PRODUCT_UX_INITIATIVE/OWNER_REVIEW_2026-07-18.md` §16a. Детальный
   `docs/_TODO/DOCTOR_UI_REWORK_2026-07-20/PLAN.md` — исполнимый artifact этого roadmap, не второй источник статуса
-  или решений.
+  или решений. Его раздел `Atomic owner checklist` является обязательным completion tracker: stage нельзя закрыть
+  общим audit PASS или summary, пока каждый in-scope checkbox не имеет code/test/live evidence; owner acceptance
+  остаётся отдельным taskdb-layer.
 - **UI-0 — первый P0-этап:** DEV reproduction/trace/fix четырёх подтверждённых симптомов booking funnel: SSR после
   выбора услуги, service/location filtering, клиент из календаря и кликабельное ФИО. Это не утверждение единой
   первопричины. Owner ruling 2026-07-20 задаёт booking projection: выбран специалист — только его включённые услуги;
