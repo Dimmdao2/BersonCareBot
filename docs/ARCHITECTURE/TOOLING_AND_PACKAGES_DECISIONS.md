@@ -124,6 +124,26 @@ OSS/self-hosted) + генерится обязательный **plain-text fall
 механизм (текст + HTML для мессенджеров, markdown-форматирование = task #20). Тот же Tiptap можно переиспользовать
 для тела рассылки позже, но это НЕ скоуп N1B — отдельным решением.
 
+### Замена существующих markdown-редакторов на Tiptap (решение владельца 21.07 — **вариант 1**)
+
+Владелец: «поменять редактор ВЕЗДЕ, где стоит markdown». **Способ — вариант 1: WYSIWYG-начинка меняется, формат
+хранения остаётся markdown.** План: [`docs/_TODO/EDITOR_TIPTAP_MIGRATION_PLAN.md`](../_TODO/EDITOR_TIPTAP_MIGRATION_PLAN.md), taskdb `bcb`.
+
+- **Где сейчас markdown-редактор (3 экрана доктора, на 2 общих компонентах):** `/app/doctor/content` (Toast UI —
+  `MarkdownEditorToastUi`), `/app/doctor/broadcasts` и `/app/doctor/recommendations` (кастомный `MarkdownEditor`).
+  Контракт компонентов — **markdown-строка in / out** + скрытое поле формы.
+- **Чокпоинт:** менять только внутренности этих 2 компонентов (Tiptap читает markdown → WYSIWYG → сериализует
+  обратно в markdown, тот же `value`/`onChange`/`name`). 3 формы не трогаются.
+- **Формат хранения = markdown, миграции БД НЕТ. Пациентский рендер (`react-markdown`, `shared/ui/patient/markdown/*`)
+  НЕ трогается.** Диагноз феасибилити: markdown стандартный **GFM** (`remark-gfm`), кастомных директив нет —
+  «диплинки видео» это обычные `[текст](url)` на media/YouTube/Rutube, вся логика в рендер-`components`. Roundtrip
+  безопасен.
+- **Что переносится на Tiptap-команды:** вставка из медиатеки (`MediaLibraryInsertDialog` → сейчас вставляет
+  markdown-сниппет ссылки/картинки) — переезжает на Tiptap-ноды link/image с тем же URL.
+- **Убрать после миграции:** `@toast-ui/editor`, `@toast-ui/react-editor`.
+- **Аудит:** presentation-tier → воркер + ОДИН независимый аудит; критерий готово = зелёный CI + **живой скрин**
+  трёх экранов (owner acceptance), не «тесты зелёные».
+
 ## Penpot — уже развёрнут (пробел в доках закрыт)
 
 **Факт (владелец 19.07): Penpot уже развёрнут как сервер `penpot.bersonservicex.ru`.** В доках репозитория он ранее
