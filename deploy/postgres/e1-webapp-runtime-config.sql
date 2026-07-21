@@ -1,5 +1,4 @@
 -- Canonical strict/fresh overlay for the E1 safe runtime projection.
--- Keep executable content single-sourced in the registered Drizzle migration.
 \set ON_ERROR_STOP on
 \if :{?e1_webapp_runtime_role}
 \else
@@ -17,7 +16,7 @@ SELECT 1 / 0 AS e1_webapp_runtime_role_missing;
 \ir ../../apps/webapp/db/drizzle-migrations/0201_e1_webapp_auth_role_runtime_config.sql
 \ir ../../apps/webapp/db/drizzle-migrations/0202_current_patient_ui_capabilities.sql
 \ir ../../apps/webapp/db/drizzle-migrations/0216_current_patient_organization_context.sql
-\ir ../../apps/webapp/db/drizzle-migrations/0219_current_patient_organization_entitlements.sql
+\ir e1-current-patient-organization-entitlements.sql
 
 GRANT SELECT ON TABLE
   public.app_runtime_settings,
@@ -33,6 +32,7 @@ GRANT SELECT ON TABLE
   public.be_clinic_services,
   public.saas_tariffs,
   public.saas_org_entitlement_overrides,
+  public.saas_organization_trials,
   public.patient_bookings,
   public.treatment_program_instances,
   public.product_analytics_events_recent,
@@ -96,7 +96,8 @@ END
 $capability_acl_scrub$;
 REVOKE ALL ON TABLE public.system_settings, public.system_settings_audit FROM app_patient;
 REVOKE ALL ON TABLE public.product_analytics_events_recent, public.product_push_notifications FROM app_patient;
-REVOKE ALL ON TABLE public.saas_tariffs, public.saas_org_entitlement_overrides FROM app_patient;
+REVOKE ALL ON TABLE public.saas_tariffs, public.saas_org_entitlement_overrides,
+  public.saas_organization_trials FROM app_patient;
 GRANT SELECT ON TABLE public.app_runtime_settings TO app_patient;
 REVOKE SELECT ON TABLE public.app_runtime_settings, public.system_settings
   FROM :"e1_webapp_runtime_role";
@@ -242,6 +243,7 @@ SELECT 1 / (
   AND NOT has_table_privilege('app_patient','public.be_organizations','SELECT')
   AND NOT has_table_privilege('app_patient','public.saas_tariffs','SELECT')
   AND NOT has_table_privilege('app_patient','public.saas_org_entitlement_overrides','SELECT')
+  AND NOT has_table_privilege('app_patient','public.saas_organization_trials','SELECT')
   AND has_table_privilege('app_patient','public.org_enrollments','SELECT')
   AND has_table_privilege('app_patient','public.reference_categories','SELECT')
   AND has_table_privilege('app_patient','public.reference_items','SELECT')

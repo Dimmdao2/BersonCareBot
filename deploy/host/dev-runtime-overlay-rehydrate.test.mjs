@@ -47,6 +47,7 @@ const e1MigrationPaths = [
   "apps/webapp/db/drizzle-migrations/0201_e1_webapp_auth_role_runtime_config.sql",
   "apps/webapp/db/drizzle-migrations/0202_current_patient_ui_capabilities.sql",
   "apps/webapp/db/drizzle-migrations/0216_current_patient_organization_context.sql",
+  "deploy/postgres/e1-current-patient-organization-entitlements.sql",
 ];
 
 const canonicalOrder = [
@@ -802,7 +803,7 @@ test("canonical SQL reader anchors the opened descriptor and rejects symlinks an
   }
 });
 
-test("E1 canonical expansion pins all ten relative migrations in declared order", () => {
+test("E1 canonical expansion pins historical capabilities then the current entitlement overlay", () => {
   const expanded = expandCanonicalSqlFile(e1OverlayPath, dirname(e1OverlayPath), repoRoot);
   let cursor = 0;
   for (const relativePath of e1MigrationPaths) {

@@ -13,6 +13,8 @@ const files = {
   authRoleMigration: "apps/webapp/db/drizzle-migrations/0201_e1_webapp_auth_role_runtime_config.sql",
   patientUiMigration: "apps/webapp/db/drizzle-migrations/0202_current_patient_ui_capabilities.sql",
   patientEntitlementsMigration: "apps/webapp/db/drizzle-migrations/0219_current_patient_organization_entitlements.sql",
+  currentPatientEntitlementsMigration: "apps/webapp/db/drizzle-migrations/0225_saas_tariff_quotas_trial.sql",
+  currentPatientEntitlementsOverlay: "deploy/postgres/e1-current-patient-organization-entitlements.sql",
   overlay: "deploy/postgres/e1-webapp-runtime-config.sql",
   telemetryOverlay: "deploy/postgres/saas-isolation-telemetry.sql",
   runtime: "apps/webapp/src/modules/system-settings/runtimeConfig.ts",
@@ -58,6 +60,7 @@ const files = {
   p05bGenerator: "docs/_TODO/SAAS_FOUNDATION/scripts/p0-5b-grants-sql.mjs",
   p05bOverlay: "deploy/postgres/p0-5b-grants.sql",
   capabilityRehearsal: "docs/_TODO/SAAS_FOUNDATION/scripts/rehearse-e1-patient-runtime-capabilities.mjs",
+  c5aEntitlementRehearsal: "docs/_TODO/SAAS_FOUNDATION/scripts/rehearse-e1-c5a-entitlement-closure.mjs",
   patientUiRehearsal: "docs/_TODO/SAAS_FOUNDATION/scripts/rehearse-current-patient-ui-capabilities.mjs",
 };
 
@@ -228,6 +231,29 @@ function runChecks(overrides = {}) {
   forbidText(files.patientEntitlementsMigration, loaded.patientEntitlementsMigration, [
     "p_organization_id", "p_patient_user_id", "TO app_patient",
   ]);
+  requireText(files.currentPatientEntitlementsOverlay, loaded.currentPatientEntitlementsOverlay, [
+    "DROP FUNCTION IF EXISTS app.read_current_patient_organization_entitlements()",
+    "tariff_quotas jsonb", "override_quota jsonb", "override_expires_at timestamptz",
+    "lifecycle text", "effective_tariff_id uuid", "access_source text",
+    "FROM public.saas_organization_trials AS trial",
+    "entitlement_override.expires_at IS NULL OR entitlement_override.expires_at > v_now",
+    "saas_organization_trials_current_patient_capability_read",
+    "saas_tariffs_current_patient_capability_read",
+    "saas_org_entitlement_overrides_current_patient_capability_read",
+    "OWNER TO app_owner",
+    "FROM PUBLIC, app_staff, app_patient",
+    "TO app_patient",
+    "e1_current_patient_entitlements_signature_current",
+  ]);
+  requireText(files.currentPatientEntitlementsMigration, loaded.currentPatientEntitlementsMigration, [
+    "DROP FUNCTION IF EXISTS app.read_current_patient_organization_entitlements()",
+    "tariff_quotas jsonb", "override_quota jsonb", "override_expires_at timestamptz",
+    "lifecycle text", "effective_tariff_id uuid", "access_source text",
+  ]);
+  forbidText(files.currentPatientEntitlementsOverlay, loaded.currentPatientEntitlementsOverlay, [
+    "CREATE OR REPLACE FUNCTION app.read_current_patient_organization_entitlements()",
+    "p_organization_id", "p_patient_user_id",
+  ]);
   requireText(files.pgPatientBookings, loaded.pgPatientBookings, [
     "app.read_current_patient_booking_rows('upcoming'", "app.read_current_patient_booking_rows('history'",
   ]);
@@ -259,13 +285,24 @@ function runChecks(overrides = {}) {
   requireText(files.packageJson, loaded.packageJson, [
     "rehearse:e1-patient-capabilities",
     "rehearse-e1-patient-runtime-capabilities.mjs",
+    "rehearse:e1-c5a-entitlement-closure",
+    "rehearse-e1-c5a-entitlement-closure.mjs",
+  ]);
+  requireText(files.c5aEntitlementRehearsal, loaded.c5aEntitlementRehearsal, [
+    "bcb_saas_e1_c5a_scratch_", "createdb", "dropdb", "--if-exists",
+    "0219_current_patient_organization_entitlements.sql",
+    "e1-current-patient-organization-entitlements.sql",
+    "oldSignature", "currentSignature",
+    "TO PUBLIC, app_staff", "TO app_patient WITH GRANT OPTION",
+    "NOT has_function_privilege('app_staff'",
+    "NOT has_table_privilege('app_patient', 'public.saas_organization_trials', 'SELECT')",
   ]);
   requireText(files.overlay, loaded.overlay, [
     "0193_e1_safe_runtime_config.sql", "0194_e1_patient_identity_exception.sql",
     "0195_e1_patient_maintenance_history.sql", "0197_patient_plan_opened_capability.sql",
     "0198_patient_visible_catalog_reads.sql", "0199_current_patient_booking_rows.sql",
     "0200_current_patient_product_analytics.sql", "0201_e1_webapp_auth_role_runtime_config.sql",
-    "0202_current_patient_ui_capabilities.sql", "0219_current_patient_organization_entitlements.sql",
+    "0202_current_patient_ui_capabilities.sql", "e1-current-patient-organization-entitlements.sql",
     "e1_webapp_runtime_role",
     "GRANT EXECUTE ON FUNCTION app.read_public_runtime_setting(text, text)",
     "GRANT EXECUTE ON FUNCTION app.read_webapp_server_runtime_setting(text, text)",
@@ -330,9 +367,10 @@ function runChecks(overrides = {}) {
     "app.record_current_patient_push_open(timestamptz,text,uuid)",
     "GRANT USAGE ON SCHEMA app TO app_owner, app_patient",
     "REVOKE ALL ON TABLE public.product_analytics_events_recent, public.product_push_notifications FROM app_patient",
-    "REVOKE ALL ON TABLE public.saas_tariffs, public.saas_org_entitlement_overrides FROM app_patient",
+    "REVOKE ALL ON TABLE public.saas_tariffs, public.saas_org_entitlement_overrides,\n  public.saas_organization_trials FROM app_patient",
   ]);
   forbidText(files.overlay, loaded.overlay, [
+    "0219_current_patient_organization_entitlements.sql",
     "NOT has_table_privilege(:'e1_webapp_runtime_role', 'public.app_runtime_settings', 'SELECT')",
     "GRANT SELECT ON TABLE public.system_settings TO app_patient",
     "GRANT SELECT ON TABLE public.platform_users TO app_patient",
@@ -660,6 +698,7 @@ if (process.argv.includes("--self-test")) {
     ["push open patient proof", { productAnalyticsMigration: read(files.productAnalyticsMigration).replace("push.user_id = v_patient", "true") }],
     ["p0 raw analytics grant", { p05bOverlay: `${read(files.p05bOverlay)}\n('public', 'product_analytics_events_recent', 'SELECT, INSERT')\n` }],
     ["capability rehearsal raw denial", { capabilityRehearsal: read(files.capabilityRehearsal).replace("NOT has_table_privilege('app_patient','public.product_analytics_events_recent','SELECT,INSERT')", "true") }],
+    ["C5A old signature convergence proof", { c5aEntitlementRehearsal: read(files.c5aEntitlementRehearsal).replaceAll("oldSignature", "removedOldSignature") }],
     ["booking history attribution", { pgMaintenanceHistory: read(files.pgMaintenanceHistory).replace('runWithWebappDbOperationFamily("patient_booking_history"', 'runWithWebappDbOperationFamily("patient_runtime_config"') }],
     ["booking history accessor", { pgMaintenanceHistory: read(files.pgMaintenanceHistory).replace("SELECT * FROM app.read_current_patient_appointment_history()", "SELECT * FROM be_appointments") }],
     ["legacy booking callsite", { patientLayout: `${read(files.patientLayout)}\nvoid patientBooking.listMyBookings;\n` }],
@@ -696,6 +735,9 @@ if (process.argv.includes("--self-test")) {
     ["patient capability arbitrary grantee scrub", { overlay: read(files.overlay).replace("DO $acl_scrub$", "DO $removed_acl_scrub$") }],
     ["patient capability final ACL allowlist", { overlay: read(files.overlay).replace("WHERE procedure.oid = 'app.is_current_patient_test_account()'::regprocedure\n      AND privilege.grantee NOT IN (", "WHERE procedure.oid = 'app.is_current_patient_test_account()'::regprocedure\n      AND privilege.grantee IN (") }],
     ["patient capability owner membership path", { overlay: read(files.overlay).replace("AND NOT pg_has_role('app_patient', 'app_owner', 'MEMBER')", "") }],
+    ["current entitlement overlay signature", { currentPatientEntitlementsOverlay: read(files.currentPatientEntitlementsOverlay).replaceAll("tariff_quotas jsonb", "tariff_quotas text") }],
+    ["current entitlement overlay unsafe replace", { currentPatientEntitlementsOverlay: read(files.currentPatientEntitlementsOverlay).replace("CREATE FUNCTION app.read_current_patient_organization_entitlements()", "CREATE OR REPLACE FUNCTION app.read_current_patient_organization_entitlements()") }],
+    ["E1 frozen entitlement replay", { overlay: read(files.overlay).replace("e1-current-patient-organization-entitlements.sql", "../../apps/webapp/db/drizzle-migrations/0219_current_patient_organization_entitlements.sql") }],
     ["patient capability adversarial smoke", { smoke: read(files.smoke).replace("TO app_patient WITH GRANT OPTION", "TO app_patient") }],
     ["migration diagnostics allowlist", { migrateWrapper: `${read(files.migrateWrapper)}\nconsole.error(error);\n` }],
   ];
