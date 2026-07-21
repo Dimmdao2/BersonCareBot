@@ -1,5 +1,34 @@
 import type { AuthMethodsPayload } from "./checkPhoneMethods";
 
+/** Public UI projection of the platform auth-channel policy. */
+export type AuthChannelUiPolicy = Readonly<{
+  email: boolean;
+  sms: boolean;
+  telegram: boolean;
+  max: boolean;
+}>;
+
+/** Missing public policy data must never make a channel appear enabled. */
+export const FAIL_CLOSED_AUTH_CHANNEL_UI_POLICY: AuthChannelUiPolicy = Object.freeze({
+  email: false,
+  sms: false,
+  telegram: false,
+  max: false,
+});
+
+export function filterAuthMethodsByChannelPolicy(
+  methods: AuthMethodsPayload,
+  policy: AuthChannelUiPolicy,
+): AuthMethodsPayload {
+  return {
+    ...methods,
+    sms: methods.sms === true && policy.sms,
+    telegram: methods.telegram === true && policy.telegram,
+    max: methods.max === true && policy.max,
+    email: methods.email === true && policy.email,
+  };
+}
+
 /** Каналы доставки OTP в UI (вход / выбор способа). */
 export type OtpUiChannel = "sms" | "telegram" | "max" | "email";
 

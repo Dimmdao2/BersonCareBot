@@ -32,6 +32,7 @@ describe("getLoginAlternativesPublicConfig", () => {
       maxBotOpenUrl: "https://max.ru/my_public_bot",
       vkWebLoginUrl: "https://vk.com/example",
       smsFallbackEnabled: true,
+      authChannelPolicy: { email: true, sms: true, telegram: true, max: true },
     });
     expect(getPublicRuntimeBoolMock).toHaveBeenCalledWith("public_sms_fallback_enabled");
   });

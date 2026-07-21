@@ -3,7 +3,19 @@
 import { describe, expect, it, vi, beforeEach, afterEach } from "vitest";
 import { render, screen, waitFor, cleanup } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { PhoneMessengerAuthFlow } from "./PhoneMessengerAuthFlow";
+import {
+  PhoneMessengerAuthFlow as PhoneMessengerAuthFlowUnderTest,
+  type PhoneMessengerAuthFlowProps,
+} from "./PhoneMessengerAuthFlow";
+
+function PhoneMessengerAuthFlow(props: Omit<PhoneMessengerAuthFlowProps, "channelPolicy">) {
+  return (
+    <PhoneMessengerAuthFlowUnderTest
+      channelPolicy={{ email: true, sms: false, telegram: true, max: true }}
+      {...props}
+    />
+  );
+}
 
 const finishNav = vi.hoisted(() => vi.fn());
 const toastErrorMock = vi.hoisted(() => vi.fn());
@@ -37,6 +49,37 @@ describe("PhoneMessengerAuthFlow", () => {
   it("shows back button on phone step for login by default", () => {
     render(<PhoneMessengerAuthFlow purpose="login" onBack={() => {}} />);
     expect(screen.getByRole("button", { name: "Назад" })).toBeInTheDocument();
+  });
+
+  it("fails closed when no messenger channel is enabled", () => {
+    render(
+      <PhoneMessengerAuthFlowUnderTest
+        purpose="login"
+        onBack={() => {}}
+        channelPolicy={{ email: true, sms: false, telegram: false, max: false }}
+      />,
+    );
+    expect(screen.getByText("Вход и привязка по номеру сейчас недоступны.")).toBeInTheDocument();
+    expect(screen.queryByLabelText("Номер телефона")).not.toBeInTheDocument();
+  });
+
+  it("offers only messengers allowed by policy", async () => {
+    const user = userEvent.setup();
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(() => jsonRes({ ok: true, exists: false, methods: { sms: false } })),
+    );
+    render(
+      <PhoneMessengerAuthFlowUnderTest
+        purpose="login"
+        onBack={() => {}}
+        channelPolicy={{ email: true, sms: false, telegram: true, max: false }}
+      />,
+    );
+    await user.type(screen.getByLabelText("Номер телефона"), "9991234567");
+    await user.click(screen.getByRole("button", { name: "Продолжить" }));
+    expect(await screen.findByRole("button", { name: "Telegram" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Max" })).not.toBeInTheDocument();
   });
 
   it("hides back button on phone step when hideBackOnPhoneStep is set", () => {

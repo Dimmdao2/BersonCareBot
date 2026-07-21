@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { AuthMethodsPayload } from "./checkPhoneMethods";
 import {
+  filterAuthMethodsByChannelPolicy,
   isOtpChannelAvailable,
   isOtpChannelAvailablePublic,
   OTP_OTHER_CHANNELS_ORDER,
@@ -11,6 +12,17 @@ import {
   pickPrimaryOtpChannel,
   pickPrimaryOtpChannelPublic,
 } from "./otpChannelUi";
+
+describe("filterAuthMethodsByChannelPolicy", () => {
+  it("intersects provider readiness with the platform policy", () => {
+    expect(
+      filterAuthMethodsByChannelPolicy(
+        { sms: true, telegram: true, max: true, email: true, emailAddress: "a@example.com" },
+        { email: false, sms: true, telegram: true, max: false },
+      ),
+    ).toMatchObject({ sms: true, telegram: true, max: false, email: false });
+  });
+});
 
 describe("pickPrimaryOtpChannel", () => {
   it("prefers telegram over max and email", () => {

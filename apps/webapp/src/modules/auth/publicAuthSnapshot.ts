@@ -21,6 +21,7 @@ export async function buildPrefetchedPublicAuthConfig(): Promise<PrefetchedPubli
     telegramBotUsername: alt.telegramBotUsername,
     maxBotOpenUrl: alt.maxBotOpenUrl,
     specialistSignupEnabled,
+    authChannelPolicy: alt.authChannelPolicy,
     fetchedAt: Date.now(),
   };
 }

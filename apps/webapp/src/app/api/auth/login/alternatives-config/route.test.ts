@@ -26,6 +26,7 @@ describe("GET /api/auth/login/alternatives-config", () => {
       maxBotOpenUrl: "https://max.ru/botnick",
       vkWebLoginUrl: "https://id.vk.com/auth",
       smsFallbackEnabled: true,
+      authChannelPolicy: { email: true, sms: false, telegram: true, max: false },
     });
     const res = await GET(new Request("http://localhost/api/auth/login/alternatives-config"));
     expect(res.status).toBe(200);
@@ -37,6 +38,7 @@ describe("GET /api/auth/login/alternatives-config", () => {
     expect(data.vkWebLoginUrl).toBe("https://id.vk.com/auth");
     expect(data.smsFallbackEnabled).toBe(true);
     expect(data.specialistSignupEnabled).toBe(false);
+    expect(data.authChannelPolicy).toEqual({ email: true, sms: false, telegram: true, max: false });
   });
 
   it("exposes the safe specialist signup rollout flag", async () => {

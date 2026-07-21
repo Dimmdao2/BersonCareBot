@@ -49,7 +49,12 @@ describe("PatientBindPhoneClient", () => {
     gateMocks.getDetail.mockRejectedValueOnce(new Error("network"));
 
     render(
-      <PatientBindPhoneClient telegramId="1" maxId="" supportContactHref="/app/patient/support" />,
+      <PatientBindPhoneClient
+        telegramId="1"
+        maxId=""
+        supportContactHref="/app/patient/support"
+        channelPolicy={{ email: true, sms: false, telegram: true, max: true }}
+      />,
     );
 
     await waitFor(() => {
@@ -59,5 +64,18 @@ describe("PatientBindPhoneClient", () => {
     expect(screen.getByRole("alert")).toBeInTheDocument();
     expect(screen.getByText(/Не удалось проверить статус аккаунта/i)).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /Предоставить контакт/i })).toBeInTheDocument();
+  });
+
+  it("не показывает отключённые способы привязки", () => {
+    render(
+      <PatientBindPhoneClient
+        telegramId=""
+        maxId=""
+        channelPolicy={{ email: true, sms: false, telegram: false, max: false }}
+      />,
+    );
+    expect(screen.getByText("Привязка через мессенджеры сейчас недоступна.")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Телеграм" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Макс" })).not.toBeInTheDocument();
   });
 });

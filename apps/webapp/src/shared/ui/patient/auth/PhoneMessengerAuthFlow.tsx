@@ -6,7 +6,10 @@ import { Button } from "@/shared/ui/patient/primitives/button";
 import { cn } from "@/lib/utils";
 import type { AuthMethodsPayload } from "@/modules/auth/checkPhoneMethods";
 import {
+  FAIL_CLOSED_AUTH_CHANNEL_UI_POLICY,
+  filterAuthMethodsByChannelPolicy,
   pickOtpChannelWithPreferencePublic,
+  type AuthChannelUiPolicy,
   type OtpUiChannel,
 } from "@/modules/auth/otpChannelUi";
 import { getPostAuthRedirectTarget } from "@/modules/auth/redirectPolicy";
@@ -45,6 +48,7 @@ function messengerOtpDescription(channel: "telegram" | "max"): string {
 }
 
 export type PhoneMessengerAuthFlowProps = {
+  channelPolicy?: AuthChannelUiPolicy;
   purpose: "login" | "profile_bind";
   onBack: () => void;
   supportContactHref?: string;
@@ -62,6 +66,7 @@ export type PhoneMessengerAuthFlowProps = {
 type FlowStep = "phone" | "messenger_pick" | "code";
 
 export function PhoneMessengerAuthFlow({
+  channelPolicy = FAIL_CLOSED_AUTH_CHANNEL_UI_POLICY,
   purpose,
   onBack,
   supportContactHref,
@@ -71,6 +76,7 @@ export function PhoneMessengerAuthFlow({
   title = "Вход по номеру",
   hideBackOnPhoneStep = false,
 }: PhoneMessengerAuthFlowProps) {
+  const hasAnyMessenger = channelPolicy.telegram || channelPolicy.max;
   const [step, setStep] = useState<FlowStep>("phone");
   const [loading, setLoading] = useState(false);
   const [phone, setPhone] = useState("");
@@ -179,6 +185,7 @@ export function PhoneMessengerAuthFlow({
     normalized: string,
     deliveryChannel: "telegram" | "max",
   ): Promise<boolean> => {
+    if (!channelPolicy[deliveryChannel]) return false;
     setLoading(true);
     try {
       const chatId = getWebChatId();
@@ -234,14 +241,15 @@ export function PhoneMessengerAuthFlow({
       }
       setPhone(normalized);
       setExists(Boolean(data.exists));
-      setMethods(data.methods);
+      const allowedMethods = filterAuthMethodsByChannelPolicy(data.methods, channelPolicy);
+      setMethods(allowedMethods);
 
-      if (hasMessengerBinding(data.methods)) {
-        const primary = pickOtpChannelWithPreferencePublic(data.methods, data.preferredOtpChannel);
+      if (hasMessengerBinding(allowedMethods)) {
+        const primary = pickOtpChannelWithPreferencePublic(allowedMethods, data.preferredOtpChannel);
         const ch =
           primary === "telegram" || primary === "max"
             ? primary
-            : data.methods.telegram
+            : allowedMethods.telegram
               ? "telegram"
               : "max";
         const ok = await startPhoneOtp(normalized, ch);
@@ -257,7 +265,7 @@ export function PhoneMessengerAuthFlow({
   };
 
   const startMessengerBind = async (channelCode: "telegram" | "max") => {
-    if (!phone) return;
+    if (!phone || !channelPolicy[channelCode]) return;
     setLoading(true);
     clearPoll();
     try {
@@ -344,6 +352,18 @@ export function PhoneMessengerAuthFlow({
   };
 
   if (step === "phone") {
+    if (!hasAnyMessenger) {
+      return (
+        <div className="flex w-full flex-col gap-3 text-left">
+          {!hideBackOnPhoneStep ? (
+            <Button type="button" variant="link" className={patientInlineLinkClass} onClick={onBack}>
+              Назад
+            </Button>
+          ) : null}
+          <p className={patientMutedTextClass}>Вход и привязка по номеру сейчас недоступны.</p>
+        </div>
+      );
+    }
     return (
       <div id="phone-messenger-auth-phone" className="flex w-full flex-col gap-3 text-left">
         {!hideBackOnPhoneStep ? (
@@ -376,7 +396,7 @@ export function PhoneMessengerAuthFlow({
           Для {purpose === "login" ? "входа" : "привязки"} по номеру телефона выберите удобный мессенджер
         </p>
         <div className="flex flex-col gap-2">
-          <Button
+          {channelPolicy.telegram ? <Button
             type="button"
             variant="outline"
             className={AUTH_LOGIN_FORM_PRIMARY_BUTTON_CLASS}
@@ -384,8 +404,8 @@ export function PhoneMessengerAuthFlow({
             onClick={() => void startMessengerBind("telegram")}
           >
             Telegram
-          </Button>
-          <Button
+          </Button> : null}
+          {channelPolicy.max ? <Button
             type="button"
             variant="outline"
             className={AUTH_LOGIN_FORM_PRIMARY_BUTTON_CLASS}
@@ -393,7 +413,7 @@ export function PhoneMessengerAuthFlow({
             onClick={() => void startMessengerBind("max")}
           >
             Max
-          </Button>
+          </Button> : null}
         </div>
       </div>
     );
@@ -506,7 +526,7 @@ export function PhoneMessengerAuthFlow({
         ) : (
           <p className={cn(patientMutedTextClass, "text-center")}>Ожидание подтверждения в мессенджере…</p>
         )}
-        {!waitingForBot ? (
+        {!waitingForBot && channelPolicy.telegram && channelPolicy.max ? (
           <Button
             type="button"
             variant="link"

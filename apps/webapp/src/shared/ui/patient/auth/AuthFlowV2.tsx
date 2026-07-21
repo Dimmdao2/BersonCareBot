@@ -14,9 +14,12 @@ import { cn } from "@/lib/utils";
 import { isMessengerMiniAppHost } from "@/shared/lib/messengerMiniApp";
 import type { AuthMethodsPayload } from "@/modules/auth/checkPhoneMethods";
 import {
+  FAIL_CLOSED_AUTH_CHANNEL_UI_POLICY,
+  filterAuthMethodsByChannelPolicy,
   isOtpChannelAvailablePublic,
   OTP_PUBLIC_OTHER_CHANNELS_ORDER,
   pickOtpChannelWithPreferencePublic,
+  type AuthChannelUiPolicy,
 } from "@/modules/auth/otpChannelUi";
 import { getPostAuthRedirectTarget } from "@/modules/auth/redirectPolicy";
 import { markFreshLoginAfterAuth } from "@/shared/lib/webPush/freshLoginStorage";
@@ -182,6 +185,7 @@ export type PrefetchedPublicAuthConfig = {
   telegramBotUsername: string | null;
   maxBotOpenUrl: string | null;
   specialistSignupEnabled: boolean;
+  authChannelPolicy?: AuthChannelUiPolicy;
   fetchedAt: number;
 };
 
@@ -256,6 +260,10 @@ export function AuthFlowV2({
   const [pwNewPassword, setPwNewPassword] = useState("");
   const [emailSetupPromptEmail, setEmailSetupPromptEmail] = useState<string | null>(null);
   const specialistSignupEnabled = prefetchedAuthConfig?.specialistSignupEnabled === true;
+  const authChannelPolicy =
+    prefetchedAuthConfig?.authChannelPolicy ?? FAIL_CLOSED_AUTH_CHANNEL_UI_POLICY;
+  const emailOtpEnabled = authChannelPolicy.email;
+  const messengerPhoneEnabled = authChannelPolicy.telegram || authChannelPolicy.max;
 
   useEffect(() => {
     if (smsStartCooldownSec <= 0) return;
@@ -266,15 +274,21 @@ export function AuthFlowV2({
   useEffect(() => {
     if (isMessengerMiniAppHost()) {
       setOauthProviders({ yandex: false, google: false, apple: false });
-      setStep("phone");
+      if (messengerPhoneEnabled) {
+        setStep("phone");
+      } else {
+        setEmailAuthMode("password_login");
+        setStep("email_password");
+      }
       return;
     }
 
     const oauth = prefetchedAuthConfig?.oauthProviders ?? { yandex: false, google: false, apple: false };
     setOauthProviders(oauth);
     const oauthOn = oauth.yandex || oauth.google || oauth.apple;
+    if (!emailOtpEnabled) setEmailAuthMode("password_login");
     setStep(oauthOn ? "oauth_first" : "email_password");
-  }, [prefetchedAuthConfig]);
+  }, [prefetchedAuthConfig, emailOtpEnabled, messengerPhoneEnabled]);
 
   useEffect(() => {
     onStepChange?.(step);
@@ -287,9 +301,13 @@ export function AuthFlowV2({
     clearAuthFlowPending();
     engageInteractive();
     setStep("email_password");
-    setEmailVerifyPurpose("specialist_signup");
-    setEmailAuthMode(specialistSignupEnabled ? "specialist_signup" : "login");
-  }, [engageInteractive, initialDevView, specialistSignupEnabled, step]);
+    if (emailOtpEnabled && specialistSignupEnabled) {
+      setEmailVerifyPurpose("specialist_signup");
+      setEmailAuthMode("specialist_signup");
+    } else {
+      setEmailAuthMode("password_login");
+    }
+  }, [emailOtpEnabled, engageInteractive, initialDevView, specialistSignupEnabled, step]);
 
   useEffect(() => {
     if (pendingHydratedRef.current) return;
@@ -299,6 +317,11 @@ export function AuthFlowV2({
     pendingHydratedRef.current = true;
     const p = readAuthFlowPending();
     if (!p) return;
+    if (!emailOtpEnabled && p.mode !== "password_reset") {
+      clearAuthFlowPending();
+      setEmailAuthMode("password_login");
+      return;
+    }
     if (p.mode === "register_verify") {
       engageInteractive();
       setStep("email_password");
@@ -345,7 +368,7 @@ export function AuthFlowV2({
       setPwResetEmail(p.email);
       setPwResetChallengeId(p.challengeId ?? null);
     }
-  }, [step, prefetchedAuthConfig, engageInteractive, specialistSignupEnabled]);
+  }, [step, prefetchedAuthConfig, engageInteractive, specialistSignupEnabled, emailOtpEnabled]);
 
   const startOauth = async (provider: "yandex" | "google" | "apple") => {
     engageInteractive();
@@ -484,12 +507,14 @@ export function AuthFlowV2({
     engageInteractive();
     setEmailPasswordReturn(returnTo);
     resetEmailAuthFields();
+    if (!emailOtpEnabled) setEmailAuthMode("password_login");
     setStep("email_password");
   };
 
   /** New passwordless email-OTP start handler. */
   const submitEmailOtpStart = async (e: FormEvent) => {
     e.preventDefault();
+    if (!emailOtpEnabled) return;
     engageInteractive();
     const email = emailLoginEmail.trim();
     if (!email) {
@@ -528,6 +553,7 @@ export function AuthFlowV2({
   };
 
   const openPatientEmailRegistration = () => {
+    if (!emailOtpEnabled) return;
     engageInteractive();
     clearAuthFlowPending();
     setEmailAuthMode("patient_registration");
@@ -540,6 +566,7 @@ export function AuthFlowV2({
 
   const submitPatientEmailRegistration = async (e: FormEvent) => {
     e.preventDefault();
+    if (!emailOtpEnabled) return;
     engageInteractive();
     const email = emailLoginEmail.trim();
     const lastName = emailRegLastName.trim();
@@ -951,12 +978,13 @@ export function AuthFlowV2({
       }
       setPhone(normalized);
       setExists(Boolean(data.exists));
-      setMethods(data.methods);
+      const allowedMethods = filterAuthMethodsByChannelPolicy(data.methods, authChannelPolicy);
+      setMethods(allowedMethods);
       if (!data.exists) {
-        setStep(hasPublicWebOtpChannel(data.methods) ? "choose_channel" : "new_user_foreign");
+        setStep(hasPublicWebOtpChannel(allowedMethods) ? "choose_channel" : "new_user_foreign");
       } else {
-        const primary = pickOtpChannelWithPreferencePublic(data.methods, data.preferredOtpChannel);
-        const hasPublicChannel = hasPublicWebOtpChannel(data.methods);
+        const primary = pickOtpChannelWithPreferencePublic(allowedMethods, data.preferredOtpChannel);
+        const hasPublicChannel = hasPublicWebOtpChannel(allowedMethods);
         if (primary == null) {
           setStep(hasPublicChannel ? "choose_channel" : "foreign_no_otp_channel");
         } else {
@@ -1122,7 +1150,7 @@ export function AuthFlowV2({
                 >
                   Зарегистрироваться
                 </Button>
-                {specialistSignupEnabled ? (
+                {emailOtpEnabled && specialistSignupEnabled ? (
                   <Button
                     type="button"
                     variant="link"
@@ -1210,7 +1238,7 @@ export function AuthFlowV2({
                 >
                   Войти
                 </Button>
-                <Button
+                {emailOtpEnabled ? <Button
                   type="button"
                   variant="link"
                   className={authLinkButtonClass}
@@ -1221,7 +1249,7 @@ export function AuthFlowV2({
                   }}
                 >
                   Войти по коду
-                </Button>
+                </Button> : null}
               </form>
             ) : null}
 
@@ -1789,7 +1817,7 @@ export function AuthFlowV2({
         >
           Войти по email
         </Button>
-        <Button
+        {messengerPhoneEnabled ? <Button
           type="button"
           variant="link"
           className={authLinkButtonClass}
@@ -1797,7 +1825,7 @@ export function AuthFlowV2({
           onClick={() => setStep("phone_login")}
         >
           Войти по номеру телефона
-        </Button>
+        </Button> : null}
       </div>
     );
   }
@@ -1806,6 +1834,7 @@ export function AuthFlowV2({
     return (
       <div id="auth-flow-v2-phone-login" className={authFlowShellClass}>
         <PhoneMessengerAuthFlow
+          channelPolicy={authChannelPolicy}
           purpose="login"
           onBack={() => setStep("oauth_first")}
           onStaffFactorRequired={() => {

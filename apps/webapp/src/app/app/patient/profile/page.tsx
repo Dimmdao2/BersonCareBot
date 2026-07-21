@@ -15,13 +15,17 @@ import { LogoutSection } from "./LogoutSection";
 import { PatientCalendarTimezoneSection } from "./PatientCalendarTimezoneSection";
 import { PatientProfileHero } from "./PatientProfileHero";
 import { formatPatientGreetingName, type StructuredFio } from "@/shared/lib/fio";
+import { getAuthChannelPolicy } from "@/modules/auth/authChannelPolicy";
 
 /** Профиль в onboarding-allowlist: `requirePatientAccess`, не `WithPhone` — см. `patientRouteApiPolicy.ts` (`patientPageMinAccessTier` → onboarding). */
 export default async function PatientProfilePage() {
   const session = await requirePatientAccess(routePaths.profile);
   const deps = buildAppDeps();
-  const supportContactHref = await getSupportContactUrl();
-  const emailFields = await deps.userProjection.getProfileEmailFields(session.user.userId);
+  const [supportContactHref, emailFields, authChannelPolicy] = await Promise.all([
+    getSupportContactUrl(),
+    deps.userProjection.getProfileEmailFields(session.user.userId),
+    getAuthChannelPolicy(),
+  ]);
   const emailVerified = Boolean(emailFields.emailVerifiedAt);
   const channelCards = await deps.channelPreferences.getChannelCards(
     session.user.userId,
@@ -70,7 +74,11 @@ export default async function PatientProfilePage() {
 
         <section className={patientSectionSurfaceClass}>
           <h2 className={patientSectionTitleClass}>Мессенджеры</h2>
-          <ConnectMessengersBlock channelCards={channelCards} showHeading={false} />
+          <ConnectMessengersBlock
+            channelCards={channelCards}
+            channelPolicy={authChannelPolicy}
+            showHeading={false}
+          />
         </section>
 
         <section className={patientSectionSurfaceClass}>

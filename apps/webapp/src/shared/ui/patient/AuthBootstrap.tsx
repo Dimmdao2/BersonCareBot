@@ -46,6 +46,7 @@ import {
 } from "@/shared/lib/messengerMiniApp";
 import type { MessengerSurfaceHint } from "@/shared/lib/platform";
 import { PLATFORM_COOKIE_NAME, readMessengerSurfaceCookie } from "@/shared/lib/platform";
+import { FAIL_CLOSED_AUTH_CHANNEL_UI_POLICY } from "@/modules/auth/otpChannelUi";
 
 type BootstrapState = "idle" | "loading" | "error";
 
@@ -120,10 +121,11 @@ function miniappHelpLinksFromPrefetched(p: PrefetchedPublicAuthConfig | null): {
   maxHref: string | null;
 } {
   if (!p) return { telegramHref: null, maxHref: null };
+  const policy = p.authChannelPolicy ?? FAIL_CLOSED_AUTH_CHANNEL_UI_POLICY;
   const u = (p.telegramBotUsername ?? "").trim().replace(/^@/, "");
-  const telegramHref = u.length > 0 ? `https://t.me/${u}` : null;
+  const telegramHref = policy.telegram && u.length > 0 ? `https://t.me/${u}` : null;
   const maxRaw = (p.maxBotOpenUrl ?? "").trim();
-  const maxHref = maxRaw.length > 0 ? maxRaw : null;
+  const maxHref = policy.max && maxRaw.length > 0 ? maxRaw : null;
   return { telegramHref, maxHref };
 }
 
@@ -161,6 +163,8 @@ export function AuthBootstrap({
   const [browserSoftOk, setBrowserSoftOk] = useState(false);
   const [messengerSoftOk, setMessengerSoftOk] = useState(false);
   const prefetchedAuth = initialPublicAuthConfig ?? null;
+  const authChannelPolicy =
+    prefetchedAuth?.authChannelPolicy ?? FAIL_CLOSED_AUTH_CHANNEL_UI_POLICY;
   const prefetchedAuthRef = useRef(prefetchedAuth);
   prefetchedAuthRef.current = prefetchedAuth;
 
@@ -170,6 +174,10 @@ export function AuthBootstrap({
     const surface = serverMessengerSurface ?? readMessengerSurfaceCookie();
     const messengerCookie = serverPlatformMessengerCookie || readPlatformCookieBot();
 
+    if (!authChannelPolicy.max) {
+      setMaxBridgeActive(false);
+      return;
+    }
     if (surface === "max") {
       setMaxBridgeActive(true);
       return;
@@ -190,7 +198,7 @@ export function AuthBootstrap({
       }
     }, MAX_BRIDGE_LOAD_GRACE_MS);
     return () => window.clearTimeout(id);
-  }, [serverMessengerSurface, serverPlatformMessengerCookie]);
+  }, [authChannelPolicy.max, serverMessengerSurface, serverPlatformMessengerCookie]);
 
   const authEpochRef = useRef(0);
   const primaryAbortRef = useRef<AbortController | null>(null);
@@ -610,6 +618,7 @@ export function AuthBootstrap({
     };
 
     const runTelegramInit = (initData: string) => {
+      if (!authChannelPolicy.telegram) return;
       if (interactiveEngagedRef.current) {
         const dedupeKey = `telegram:${initData}`;
         if (lateBindingDedupeKeyRef.current === dedupeKey) return;
@@ -630,6 +639,7 @@ export function AuthBootstrap({
     };
 
     const runMaxInit = (initData: string) => {
+      if (!authChannelPolicy.max) return;
       if (interactiveEngagedRef.current) {
         const dedupeKey = `max:${initData}`;
         if (lateBindingDedupeKeyRef.current === dedupeKey) return;
@@ -752,7 +762,7 @@ export function AuthBootstrap({
       if (cancelled) return;
       const elapsed = Date.now() - t0;
       const webApp = window.Telegram?.WebApp;
-      const rawTg = readTelegramInitDataForAuth();
+      const rawTg = authChannelPolicy.telegram ? readTelegramInitDataForAuth() : "";
       const maxBridgeReady =
         typeof (window as Window & { WebApp?: { ready?: () => void } }).WebApp?.ready === "function";
       const rawMaxDirect =
@@ -762,7 +772,9 @@ export function AuthBootstrap({
           : "";
       /** Legacy `/app`: MAX скрывается, если уже есть TG initData (`messengerMiniApp.ts`). Route-bound `/app/tg`/`/app/max` — оба источника видны для surface-first выбора. */
       const rawMaxLegacyMessenger = getMaxWebAppInitDataForAuth();
-      const rawMaxForPick = flowHint === "browser" ? rawMaxLegacyMessenger : rawMaxDirect;
+      const rawMaxForPick = authChannelPolicy.max
+        ? flowHint === "browser" ? rawMaxLegacyMessenger : rawMaxDirect
+        : "";
 
       if (!contextDetectedEmittedRef.current) {
         contextDetectedEmittedRef.current = true;
@@ -985,6 +997,8 @@ export function AuthBootstrap({
     isMessengerMiniAppEntry,
     routeBoundMiniappEntry,
     searchParams,
+    authChannelPolicy.telegram,
+    authChannelPolicy.max,
   ]);
 
   const handleMessengerAuthRetry = () => {
@@ -1004,7 +1018,7 @@ export function AuthBootstrap({
   };
 
   /** MAX bridge: cookie `ctx=max`, либо отложенно если нет Telegram WebApp (legacy без surface-cookie). */
-  const loadMaxBridge = token == null && maxBridgeActive;
+  const loadMaxBridge = token == null && authChannelPolicy.max && maxBridgeActive;
 
   if (showPhoneFlow) {
     if (specialistSignupRequested && prefetchedAuth?.specialistSignupEnabled !== true) {

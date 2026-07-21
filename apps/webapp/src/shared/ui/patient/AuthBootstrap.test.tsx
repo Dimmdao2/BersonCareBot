@@ -1,9 +1,10 @@
 /** @vitest-environment jsdom */
 import { describe, expect, it, vi, beforeEach, afterEach } from "vitest";
+import type { ComponentProps } from "react";
 import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { PLATFORM_COOKIE_NAME } from "@/shared/lib/platform";
 import type { PrefetchedPublicAuthConfig } from "@/shared/ui/patient/auth/AuthFlowV2";
-import { AuthBootstrap } from "./AuthBootstrap";
+import { AuthBootstrap as AuthBootstrapUnderTest } from "./AuthBootstrap";
 
 function browserPrefetchOauthDisabled(): PrefetchedPublicAuthConfig {
   return {
@@ -11,8 +12,18 @@ function browserPrefetchOauthDisabled(): PrefetchedPublicAuthConfig {
     telegramBotUsername: null,
     maxBotOpenUrl: null,
     specialistSignupEnabled: false,
+    authChannelPolicy: { email: true, sms: false, telegram: true, max: true },
     fetchedAt: Date.now(),
   };
+}
+
+function AuthBootstrap(props: ComponentProps<typeof AuthBootstrapUnderTest>) {
+  return (
+    <AuthBootstrapUnderTest
+      initialPublicAuthConfig={browserPrefetchOauthDisabled()}
+      {...props}
+    />
+  );
 }
 
 function browserPrefetchSpecialistSignupEnabled(): PrefetchedPublicAuthConfig {

@@ -15,22 +15,33 @@ import toast from "react-hot-toast";
 import { PatientSharePhoneViaBotPanel } from "@/shared/ui/patient/PatientSharePhoneViaBotPanel";
 import { PatientBrowserMessengerBindPanel } from "./PatientBrowserMessengerBindPanel";
 import { patientMutedTextClass, PatientShimmerPanel } from "@/shared/ui/patient/patientVisual";
+import {
+  FAIL_CLOSED_AUTH_CHANNEL_UI_POLICY,
+  type AuthChannelUiPolicy,
+} from "@/modules/auth/otpChannelUi";
 
 type Props = {
   telegramId: string;
   maxId: string;
   supportContactHref?: string;
   hint?: string;
+  channelPolicy?: AuthChannelUiPolicy;
 };
 
 /**
  * Единый блок «контакт в боте» (`PatientSharePhoneViaBotPanel`) в Mini App и в браузере при привязке TG/Max.
  * Без привязки к мессенджеру — {@link PatientBrowserMessengerBindPanel}. SMS не используется.
  */
-export function PatientBindPhoneClient({ telegramId, maxId, supportContactHref, hint }: Props) {
+export function PatientBindPhoneClient({
+  telegramId,
+  maxId,
+  supportContactHref,
+  hint,
+  channelPolicy = FAIL_CLOSED_AUTH_CHANNEL_UI_POLICY,
+}: Props) {
   const phoneChrome = usePatientPhonePromptChrome();
-  const tg = telegramId?.trim() ?? "";
-  const mx = maxId?.trim() ?? "";
+  const tg = channelPolicy.telegram ? telegramId?.trim() ?? "" : "";
+  const mx = channelPolicy.max ? maxId?.trim() ?? "" : "";
   /** null — ждём решения или refresh после привязки номера. */
   const [useMessengerPanel, setUseMessengerPanel] = useState<boolean | null>(null);
   const [botHref, setBotHref] = useState<string | null>(null);
@@ -116,6 +127,7 @@ export function PatientBindPhoneClient({ telegramId, maxId, supportContactHref, 
   }, [runRecoveryAndDecide]);
 
   const requestContactBrowser = useCallback(async (channel: "telegram" | "max") => {
+    if (!channelPolicy[channel]) return;
     const r = await postPatientMessengerRequestContact(channel);
     if (!r.ok) {
       toast.error(
@@ -130,7 +142,7 @@ export function PatientBindPhoneClient({ telegramId, maxId, supportContactHref, 
       return;
     }
     toast.success("Откройте чат с ботом и отправьте контакт по кнопке.");
-  }, []);
+  }, [channelPolicy]);
 
   const onProvideContact = useCallback(async () => {
     if (isMessengerMiniAppHost()) {
@@ -192,5 +204,11 @@ export function PatientBindPhoneClient({ telegramId, maxId, supportContactHref, 
     );
   }
 
-  return <PatientBrowserMessengerBindPanel hint={hint} supportContactHref={supportContactHref} />;
+  return (
+    <PatientBrowserMessengerBindPanel
+      hint={hint}
+      supportContactHref={supportContactHref}
+      channelPolicy={channelPolicy}
+    />
+  );
 }

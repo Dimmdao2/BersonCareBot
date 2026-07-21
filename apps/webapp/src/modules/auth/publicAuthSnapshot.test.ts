@@ -32,6 +32,7 @@ describe("buildPrefetchedPublicAuthConfig", () => {
       maxBotOpenUrl: "https://max.ru/test_bot",
       vkWebLoginUrl: null,
       smsFallbackEnabled: true,
+      authChannelPolicy: { email: true, sms: false, telegram: true, max: false },
     });
     getSpecialistSignupEnabledMock.mockResolvedValue(false);
   });
@@ -48,5 +49,6 @@ describe("buildPrefetchedPublicAuthConfig", () => {
     expect(result.specialistSignupEnabled).toBe(false);
     expect(result.telegramBotUsername).toBe("test_bot");
     expect(result.maxBotOpenUrl).toBe("https://max.ru/test_bot");
+    expect(result.authChannelPolicy).toEqual({ email: true, sms: false, telegram: true, max: false });
   });
 });

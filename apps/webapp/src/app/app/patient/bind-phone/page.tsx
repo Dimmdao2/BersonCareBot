@@ -20,6 +20,7 @@ import { getPlatformEntry } from "@/shared/lib/platformCookie.server";
 import { PatientBindPhoneBrowser } from "./PatientBindPhoneBrowser";
 import { PatientBindPhoneClient } from "./PatientBindPhoneClient";
 import { patientMutedTextClass } from "@/shared/ui/patient/patientVisual";
+import { getAuthChannelPolicy } from "@/modules/auth/authChannelPolicy";
 
 type Props = { searchParams: Promise<{ next?: string; reason?: string }> };
 
@@ -53,9 +54,10 @@ export default async function BindPhonePage({ searchParams }: Props) {
     const target = next?.trim();
     redirect(target && target.startsWith("/app/patient") ? target : routePaths.patient);
   }
-  const [supportContactHref, platformEntry] = await Promise.all([
+  const [supportContactHref, platformEntry, authChannelPolicy] = await Promise.all([
     getSupportContactUrl(),
     getPlatformEntry(),
+    getAuthChannelPolicy(),
   ]);
   const telegramId = session.user.bindings.telegramId ?? "";
   const maxId = session.user.bindings.maxId ?? "";
@@ -87,12 +89,14 @@ export default async function BindPhonePage({ searchParams }: Props) {
             maxId={maxId}
             supportContactHref={supportContactHref}
             hint={hint}
+            channelPolicy={authChannelPolicy}
           />
         ) : (
           <PatientBindPhoneBrowser
             supportContactHref={supportContactHref}
             hint={hint}
             nextPath={next}
+            channelPolicy={authChannelPolicy}
           />
         )}
         {isBotMiniApp ? (

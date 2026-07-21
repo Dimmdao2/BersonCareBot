@@ -4,20 +4,23 @@ import { useRouter } from "next/navigation";
 import { routePaths } from "@/app-layer/routes/paths";
 import { PhoneMessengerAuthFlow } from "@/shared/ui/patient/auth/PhoneMessengerAuthFlow";
 import { patientMutedTextClass } from "@/shared/ui/patient/patientVisual";
+import type { AuthChannelUiPolicy } from "@/modules/auth/otpChannelUi";
 
 type Props = {
   supportContactHref: string;
   nextPath?: string | null;
   hint?: string;
+  channelPolicy: AuthChannelUiPolicy;
 };
 
-export function PatientBindPhoneBrowser({ supportContactHref, nextPath, hint }: Props) {
+export function PatientBindPhoneBrowser({ supportContactHref, nextPath, hint, channelPolicy }: Props) {
   const router = useRouter();
 
   return (
     <div id="patient-bind-phone-browser" className="flex flex-col gap-3">
       {hint ? <p className={patientMutedTextClass}>{hint}</p> : null}
       <PhoneMessengerAuthFlow
+        channelPolicy={channelPolicy}
         purpose="profile_bind"
         title="Привязать номер"
         supportContactHref={supportContactHref}

@@ -3,7 +3,21 @@
 import { describe, expect, it, vi, beforeEach } from "vitest";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { AuthFlowV2 } from "./AuthFlowV2";
+import type { ComponentProps } from "react";
+import { AuthFlowV2 as AuthFlowV2UnderTest } from "./AuthFlowV2";
+
+const ENABLED_AUTH_CHANNEL_POLICY = { email: true, sms: false, telegram: true, max: true } as const;
+
+function AuthFlowV2(props: ComponentProps<typeof AuthFlowV2UnderTest>) {
+  const prefetchedAuthConfig = props.prefetchedAuthConfig
+    ? {
+        ...props.prefetchedAuthConfig,
+        authChannelPolicy:
+          props.prefetchedAuthConfig.authChannelPolicy ?? ENABLED_AUTH_CHANNEL_POLICY,
+      }
+    : props.prefetchedAuthConfig;
+  return <AuthFlowV2UnderTest {...props} prefetchedAuthConfig={prefetchedAuthConfig} />;
+}
 
 const { replace, toastError, isMiniAppHost } = vi.hoisted(() => ({
   replace: vi.fn(),
@@ -53,6 +67,7 @@ const PRE_MINI_APP = {
   telegramBotUsername: "test_bot",
   maxBotOpenUrl: null as string | null,
   specialistSignupEnabled: false,
+  authChannelPolicy: ENABLED_AUTH_CHANNEL_POLICY,
   fetchedAt: Date.now(),
 } as const;
 
@@ -61,8 +76,29 @@ const PRE_WEB_OAUTH = {
   telegramBotUsername: "test_bot",
   maxBotOpenUrl: null as string | null,
   specialistSignupEnabled: false,
+  authChannelPolicy: ENABLED_AUTH_CHANNEL_POLICY,
   fetchedAt: Date.now(),
 } as const;
+
+describe("AuthFlowV2 — platform channel policy", () => {
+  it("keeps email/password login available while email OTP and messengers are disabled", async () => {
+    isMiniAppHost.mockReturnValue(false);
+    render(
+      <AuthFlowV2UnderTest
+        nextParam={null}
+        prefetchedAuthConfig={{
+          ...PRE_WEB_OAUTH,
+          authChannelPolicy: { email: false, sms: false, telegram: false, max: false },
+        }}
+      />,
+    );
+    expect(await screen.findByRole("button", { name: "Войти по email" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Войти по номеру телефона" })).not.toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "Войти по email" }));
+    expect(screen.getByLabelText("Пароль")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Получить код" })).not.toBeInTheDocument();
+  });
+});
 
 describe("AuthFlowV2 — mini-app (phone)", () => {
   beforeEach(() => {

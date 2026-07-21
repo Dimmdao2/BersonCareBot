@@ -8,6 +8,10 @@ import { finishChannelLinkNavigation } from "@/shared/lib/telegramChannelLinkOpe
 import { SupportContactLink } from "@/shared/ui/patient/SupportContactLink";
 import { cn } from "@/lib/utils";
 import { patientInlineLinkClass, patientMutedTextClass, PatientShimmerLine } from "@/shared/ui/patient/patientVisual";
+import {
+  FAIL_CLOSED_AUTH_CHANNEL_UI_POLICY,
+  type AuthChannelUiPolicy,
+} from "@/modules/auth/otpChannelUi";
 
 const POLL_MS = 4000;
 
@@ -16,6 +20,7 @@ type Props = {
   supportContactHref?: string;
   /** По умолчанию — копирай под подтверждение номера на bind-phone. В профиле — только уведомления/связь. */
   variant?: "bind_phone" | "notifications";
+  channelPolicy?: AuthChannelUiPolicy;
 };
 
 /**
@@ -24,7 +29,12 @@ type Props = {
 const NOTIFICATIONS_DEFAULT_HINT =
   "Можно приявзать бота для входа в приложение и получения уведомлений";
 
-export function PatientBrowserMessengerBindPanel({ hint, supportContactHref, variant = "bind_phone" }: Props) {
+export function PatientBrowserMessengerBindPanel({
+  hint,
+  supportContactHref,
+  variant = "bind_phone",
+  channelPolicy = FAIL_CLOSED_AUTH_CHANNEL_UI_POLICY,
+}: Props) {
   const router = useRouter();
   const [loading, setLoading] = useState<"telegram" | "max" | null>(null);
   const [telegramUrl, setTelegramUrl] = useState<string | null>(null);
@@ -32,6 +42,7 @@ export function PatientBrowserMessengerBindPanel({ hint, supportContactHref, var
   const [maxCommand, setMaxCommand] = useState<string | null>(null);
 
   const startLink = useCallback(async (channelCode: "telegram" | "max") => {
+    if (!channelPolicy[channelCode]) return;
     const blank = null as Window | null;
     setLoading(channelCode);
     setTelegramUrl(null);
@@ -97,14 +108,15 @@ export function PatientBrowserMessengerBindPanel({ hint, supportContactHref, var
     } finally {
       setLoading(null);
     }
-  }, []);
+  }, [channelPolicy]);
 
   useEffect(() => {
+    if (!channelPolicy.telegram && !channelPolicy.max) return;
     const id = window.setInterval(() => {
       router.refresh();
     }, POLL_MS);
     return () => window.clearInterval(id);
-  }, [router]);
+  }, [channelPolicy.max, channelPolicy.telegram, router]);
 
   return (
     <div id="patient-browser-messenger-bind-panel" className="flex flex-col gap-4">
@@ -120,8 +132,9 @@ export function PatientBrowserMessengerBindPanel({ hint, supportContactHref, var
           <p className="text-sm text-[var(--patient-text-primary)]">Выберите мессенджер, в котором удобнее подтвердить номер:</p>
         </>
       )}
+      {channelPolicy.telegram || channelPolicy.max ? (
       <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap">
-        <Button
+        {channelPolicy.telegram ? <Button
           type="button"
           size="sm"
           variant="outline"
@@ -138,8 +151,8 @@ export function PatientBrowserMessengerBindPanel({ hint, supportContactHref, var
               </span>
             </>
           : "Телеграм"}
-        </Button>
-        <Button
+        </Button> : null}
+        {channelPolicy.max ? <Button
           type="button"
           size="sm"
           variant="outline"
@@ -156,8 +169,11 @@ export function PatientBrowserMessengerBindPanel({ hint, supportContactHref, var
               </span>
             </>
           : "Макс"}
-        </Button>
+        </Button> : null}
       </div>
+      ) : (
+        <p className={patientMutedTextClass}>Привязка через мессенджеры сейчас недоступна.</p>
+      )}
       {telegramUrl ? (
         <p className={cn(patientMutedTextClass, "text-xs")}>
           Если окно не открылось, перейдите по ссылке:{" "}

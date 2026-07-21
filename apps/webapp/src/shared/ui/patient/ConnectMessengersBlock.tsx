@@ -12,6 +12,10 @@ import { Button, buttonVariants } from "@/shared/ui/patient/primitives/button";
 import { cn } from "@/lib/utils";
 import type { ChannelCard } from "@/modules/channel-preferences/types";
 import { finishChannelLinkNavigation } from "@/shared/lib/telegramChannelLinkOpen";
+import {
+  FAIL_CLOSED_AUTH_CHANNEL_UI_POLICY,
+  type AuthChannelUiPolicy,
+} from "@/modules/auth/otpChannelUi";
 
 const BIND_POLL_MS = 4000;
 
@@ -21,13 +25,24 @@ type Props = {
   implementedOnly?: boolean;
   /** Если false — без заголовка секции (родитель задаёт свой). */
   showHeading?: boolean;
+  channelPolicy?: AuthChannelUiPolicy;
 };
 
-export function ConnectMessengersBlock({ channelCards, implementedOnly = true, showHeading = true }: Props) {
+export function ConnectMessengersBlock({
+  channelCards,
+  implementedOnly = true,
+  showHeading = true,
+  channelPolicy = FAIL_CLOSED_AUTH_CHANNEL_UI_POLICY,
+}: Props) {
   const router = useRouter();
-  const cards = implementedOnly
+  const implementedCards = implementedOnly
     ? channelCards.filter((c): c is ChannelCard => c.code === "telegram" || c.code === "max")
     : channelCards.filter((c) => c.code !== "vk" && c.code !== "web_push");
+  const cards = implementedCards.filter((card) => {
+    if (card.code === "telegram") return channelPolicy.telegram;
+    if (card.code === "max") return channelPolicy.max;
+    return true;
+  });
   const linkedCount = cards.filter((c) => c.isLinked).length;
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -52,6 +67,7 @@ export function ConnectMessengersBlock({ channelCards, implementedOnly = true, s
   }
 
   async function startChannelLink(channelCode: "telegram" | "max"): Promise<void> {
+    if (!channelPolicy[channelCode]) return;
     const blank = null as Window | null;
     setError(null);
     setBusy(channelCode);
