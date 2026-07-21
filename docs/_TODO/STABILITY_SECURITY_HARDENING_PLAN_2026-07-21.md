@@ -155,10 +155,16 @@ already-green expensive steps. Working DEV migration `0224` remained fail-closed
 apply, TEST/PROD or deploy is claimed.
 
 ### Phase 1 — Максимальное снижение риска (параллельно, независимые file-scope)
-- [ ] **A3. Замкнуть детект в проде.** Завести isolation-события (`missing_principal`) в 5-минутный
+- [x] **A3. Замкнуть детект в проде.** Завести isolation-события (`missing_principal`) в 5-минутный
       `collectCriticalHealthSignals` алерт-тик + добавить per-org «went-dark» канарейку (падение row-count/активных орг в ноль).
       Файлы: `app-layer/health/collectCriticalHealthSignals.ts`, `infra/db/saasIsolationDbFailureReporting.ts`,
       `infra/db/webappPoolProvider.ts`. Размер: **S-M** · Аудит: полный (детект изоляции).
+      **Закрыто 2026-07-21:** интеграционные коммиты `3f684d135` + `7bc938e03`; существующие in-process
+      missing-principal/role counters, persisted isolation diagnostics и bounded per-org went-dark canary подключены
+      только к существующему 5-минутному critical tick. Первый полный аудит нашёл два P1: новые чтения попадали в
+      doctor/Today request-path, а lifetime state рос при churn. Один coherent correction выделил lightweight banner
+      collector, ввёл hard cap `4096` и доказал active-set→zero/churn semantics. Terminal re-audit — PASS `0/0/0`;
+      targeted suite `66/66`, typecheck и scoped lint — PASS. Production activation/deploy не выполнялись.
 - [ ] **B1. Атомарность захвата платежа.** СНАЧАЛА verify-spike (доказать окна краша живьём), затем: обернуть
       record-event + capture + mark-processed в одну транзакцию ЛИБО сделать capture полностью replay-safe
       (повторная доставка `duplicate` доводит незавершённый захват). Файлы: `payments/service.ts:330-461`.

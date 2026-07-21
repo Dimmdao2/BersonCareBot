@@ -4203,3 +4203,17 @@ JSON/text stall proofs; terminal re-audit passed `0/0`. Targeted tests passed `4
 raw-fetch census and diff check passed. Full CI is reserved for the accumulated Phase 1 milestone. No DB, network,
 deploy, TEST or PROD action ran. Three unbounded integrator Google Calendar delivery calls were recorded only as a
 P2 owner recommendation outside B2; no task was generated from that audit finding.
+
+## 2026-07-21 — Hardening A3 tenant-isolation detection integrated (`#946`)
+
+Integrated `3f684d135` plus the single audit correction `7bc938e03`. Existing pool counters and persisted isolation
+diagnostics now feed the existing five-minute critical alert tick; a bounded per-organization canary detects member
+visibility and full active-set collapse after a safe priming/debounce period. Alerts expose aggregate counts only,
+without organization/user identifiers, and no second scheduler or request instrumentation was introduced.
+
+The full independent audit found two matching-plan P1s: the first implementation reused the collector from the
+doctor Today banner and therefore added DB reads/state advancement to a page request, and its process-lifetime maps
+could exceed the declared bound under organization churn. One coherent correction separated the lightweight banner
+collector, enforced the lifetime `4096` cap and added exact churn/active-set-zero proofs. Terminal re-audit passed
+`0/0/0`; targeted tests passed `66/66`, typecheck, scoped lint and diff check passed. Full CI remains at the Phase 1
+milestone; production activation, DB apply, deploy, TEST and PROD were not performed.
