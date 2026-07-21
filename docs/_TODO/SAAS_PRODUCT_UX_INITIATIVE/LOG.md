@@ -4012,3 +4012,23 @@ Readiness reconnaissance found no worker, commit, audit or handoff for U6B despi
 The canonical DAG requires `U4 + U2`, and U4 still waits for U3S/U3B/U5A; U5A retains its separate owner gate in
 `#796`. Task `#926` was therefore returned to `todo` with `owner_waiting=false`. Its approved slug/public profile/
 booking-widget specification is preserved unchanged, but no implementation is claimed before the dependency opens.
+
+## 2026-07-21 — hardening/client-compatibility plans integrated into the canonical DAG
+
+Owner activated `STABILITY_SECURITY_HARDENING_PLAN_2026-07-21.md` and
+`UNSUPPORTED_CLIENT_FALLBACK_PLAN.md` for inclusion in the existing execution sequence. They are now explicitly
+subordinate artifacts of `IMPLEMENTATION_ROADMAP.md`, not parallel roadmaps. The sequence starts with a current-code/
+taskdb reconciliation against already completed locked-mode, tenant-diagnostics, milestone-CI and dependency work;
+only proven residual gaps may create tasks. Current UI-P/Tiptap/NTF work continues without interruption, hardening
+Phase 0 is the keystone for later money/booking/auth phases, and the unsupported-client watchdog/fallback may run in
+parallel after that contract check. Heavy CI and the single DEV server remain serialized.
+
+The integration also restores environment truth: normal implementation is repository/DEV-only; DEV schema changes
+use the non-destructive `migrate-dev.sh`; TEST and any real telemetry require explicit owner authorization; PROD/
+host/secrets/cutover remain under the privacy/readiness production gates. Persisted unsupported-client analytics
+waits for C6/LOG-01 payload/retention review and contains no raw account identifiers by default.
+
+The untracked `SESSION_HANDOFF_2026-07-17.md` was reconciled rather than treated as active work. Every commit named
+in it is already an ancestor of the current feature branch and none of its agent worktrees remains. Its fresh-reset
+TEST instruction is superseded by the current code-only/migrate-vs-reset runbooks, so the file moved to archive with
+an explicit historical warning instead of remaining as a misleading active handoff.

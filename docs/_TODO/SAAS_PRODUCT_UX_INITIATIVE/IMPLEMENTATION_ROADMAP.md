@@ -671,6 +671,52 @@ downgrade/over-limit сохраняют memberships и блокируют нов
   screenshots, два независимых visual/usability seals, rollback/runbook readiness. Переход в `main`/`test`, deploy
   и production data operations остаются отдельным прямым разрешением владельца.
 
+#### 2026-07-21 owner addendum — stability/security и unsupported-client в общем DAG
+
+Владелец включил два новых execution artifact в текущую программу. Они подчинены этому roadmap и не создают
+параллельный источник статуса/решений:
+
+- [`STABILITY_SECURITY_HARDENING_PLAN_2026-07-21.md`](../STABILITY_SECURITY_HARDENING_PLAN_2026-07-21.md) —
+  проверяемость tenant isolation, целостность денег/booking, auth/session security, observability и contracts;
+- [`UNSUPPORTED_CLIENT_FALLBACK_PLAN.md`](../UNSUPPORTED_CLIENT_FALLBACK_PLAN.md) — bounded patient-entry
+  watchdog/fallback и минимизированная telemetry для браузеров, где application bundle не стартует.
+
+Порядок включения:
+
+1. **Reconciliation сейчас, без нового кода:** каждый finding hardening-плана сверяется с текущим кодом/taskdb и
+   уже закрытыми `#770` (locked/FORCE), `#797` (tenant diagnostics), `#933` (milestone harness) и `#934`
+   (dependency advisories). Security CI остаётся в `#881`. Новая карта создаётся только для доказанного residual,
+   поэтому уже сделанная Foundation-работа не запускается заново.
+2. **Текущий milestone не прерывается:** закрываются активные UI-P/Tiptap/NTF slices `#925/#931/#930`. Их
+   непересекающиеся файлы не блокируют reconciliation. После освобождения file scope hardening Phase 0 может идти
+   отдельным потоком; heavy CI и единственный `:5200` сериализуются.
+3. **Hardening Phase 0 — keystone:** сначала доказать реальный residual A1 и актуальность CI/runtime conformance;
+   затем закрыть только оставшиеся C2/F1/D3 gaps. До этого B1/B3/A4 не стартуют. Full CI выполняется один раз на
+   phase milestone, targeted checks — на цельных stages.
+4. **Unsupported-client Ф0/Ф1 — параллельно после Phase 0 contract check:** repository/DEV watchdog, bounded
+   ingress, SSR fallback и synthetic old-client/zero-JS proof. Persisted analytics зависит от C6 + `LOG-01`;
+   TEST activation и сбор реальной telemetry требуют отдельного owner разрешения. Ф2 admin card создаётся только
+   если Ф0 докажет пользу; уведомления остаются исключены решением владельца.
+5. **Hardening Phase 1 до C5B/C7:** A3 residual, payment atomicity B1, external-call timeouts B2, booking TOCTOU B3
+   и self-hosted error-tracking code path. Production detection/host installation не включаются молча: repo/DEV
+   implementation передаётся в `SEC-02`/`PR-04` для owner-gated activation.
+6. **Hardening Phase 2 до C7:** launch-relevant session revocation/TTL, CSRF/origin и integrator↔webapp contract
+   SSOT. Общий HTTP response builder внедряется инкрементально и не превращается в обязательный mass-refactor перед
+   release, если risk-relevant routes уже закрыты.
+7. **Phase 3 только по доказанному Foundation residual:** A4/A2 не являются разрешением слепо переписать десятки
+   уже закрытых RLS paths. После reconciliation остаётся exact table/route matrix; только она идёт risk-sized
+   slices с real-role two-org proof. Launch-critical residual закрывается до U10/C7; остальное получает явный
+   post-launch status, а не притворную галочку.
+8. **Phase 4 по ёмкости/post-launch:** high-cardinality-safe metrics и structural god-component/module cleanup не
+   блокируют C7, кроме точных low-cardinality capacity/health signals, уже требуемых C6 или release gate.
+
+Privacy/readiness остаётся отдельным каноническим треком
+[`RU_PRIVACY_AND_PRODUCTION_READINESS/MASTER_PLAN.md`](../RU_PRIVACY_AND_PRODUCTION_READINESS/MASTER_PLAN.md):
+repository/DEV launch slices исполняются параллельно по его dependency gates; host encryption/firewall/SSH,
+реальные secrets, production telemetry/cutover и PROD FIO backfill — только в owner-approved production window.
+`SESSION_HANDOFF_2026-07-17.md` перенесён в archive как полностью superseded snapshot: все перечисленные там commits
+уже достижимы из текущей ветки, старых worktree нет, а fresh-reset TEST инструкция больше не применима.
+
 #### Dependency summary
 
 ```text
@@ -681,11 +727,15 @@ U0/U1 -> C2F ----------+-----------------------------> C7
 U1/U2/settings-root -> C3 --------+-> C5A/B/C -> C6 -> C7
 S4-0/S4-1 -----------> C4A-D -----+
 launch-included U-stages + U10 ---------------------> C7
+hardening reconciliation -> Phase 0 -> Phase 1 -> Phase 2 -> exact launch residual -> C7
+hardening Phase 0 -> unsupported-client F0/F1 -------------------------------> C7
+privacy/readiness launch-included repository slices --------------------------> C7
 ```
 
-Taskdb хранит status/owner/acceptance links, а не копию требований. Любая новая карта обязана ссылаться на
-конкретный раздел owner-review и один stage `C0…C7`/`C2F`; найденный аудитором scope без такого owner-пункта не
-добавляется.
+Taskdb хранит status/owner/acceptance links, а не копию требований. Любая новая Product UX карта обязана ссылаться
+на конкретный раздел owner-review и один stage `C0…C7`/`C2F`; hardening/unsupported-client/privacy карты вместо
+этого ссылаются на датированный owner addendum выше и точный subordinate-plan checklist. Найденный аудитором scope
+без строки в одном из этих owner-authorized источников не добавляется.
 
 ## 8. Stages
 
