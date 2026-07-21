@@ -8,6 +8,17 @@ literal padding number to every screen. The same shared presentation behavior no
 messages/conversations lists; selected chat state stays clear but does not turn the row into a separate card.
 No sorting, filtering, message or patient data behavior changes in this correction.
 
+## 2026-07-21 — Clients/messages list rhythm integrated (`#925`)
+
+The bounded presentation implementation is integrated and pushed as `5285e1843`. Clients and the conversation list
+now reuse the shared doctor flat-row vocabulary and the inset divider rhythm of Today «На сопровождении»; the client
+indicator rail remains fixed and the selected conversation uses a subtle marker without per-row card chrome.
+
+Targeted component evidence (`39` assertions), webapp typecheck, scoped lint and diff-check passed. The sole
+independent presentation audit passed `0 P0 / 0 P1 / 0 P2`; no serial correction round was opened. The temporary
+worker branch/worktree was removed. Taskdb `#925` remains `doing`: accumulated full CI and serialized DEV
+desktop/mobile acceptance are still required, and owner acceptance was not inferred from the audit.
+
 ## 2026-07-21 — Platform defaults for clinic-location colors (`#932`)
 
 Owner added a later platform setting for an ordered palette of default colors for newly created physical locations
