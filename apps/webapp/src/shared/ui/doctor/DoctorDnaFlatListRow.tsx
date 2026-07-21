@@ -7,6 +7,13 @@
 
 export const doctorDnaFlatListClass = "m-0 list-none p-0";
 
+/**
+ * Adds the same outer inset that a flat list gets inside a padded DoctorSection.
+ * Use it only when the list sits directly against an unpadded master-pane edge.
+ */
+export const doctorDnaFlatListInsetClass =
+  "mx-[var(--doctor-block-padding,18px)]";
+
 export const doctorDnaFlatListRowClass =
   "relative flex items-center gap-3 border-t border-border px-[var(--doctor-list-inline-padding,18px)] py-2.5 text-base font-normal first:border-t-0";
 

@@ -79,6 +79,32 @@ describe("DoctorSupportInbox — базовый рендер", () => {
     await userEvent.click(await screen.findByText("Пациент"));
     expect(screen.getByText(`chat:${BASE_CONV.conversationId}`)).toBeInTheDocument();
   });
+
+  it("uses the shared inset flat-list rhythm and a subtle selection marker", async () => {
+    render(<DoctorSupportInbox />);
+
+    const primaryName = await screen.findByText("Пациент");
+    const row = primaryName.closest("button");
+    const list = row?.closest("ul");
+
+    expect(row).toHaveClass(
+      "border-t-0",
+      "px-[var(--doctor-list-inline-padding,18px)]",
+      "text-base",
+      "font-normal",
+      "rounded-none",
+    );
+    expect(primaryName).toHaveClass("text-base", "font-normal");
+    expect(list).toHaveClass("mx-[var(--doctor-block-padding,18px)]");
+
+    await userEvent.click(primaryName);
+    expect(row?.querySelector("[aria-hidden]")).toHaveClass(
+      "absolute",
+      "w-[3px]",
+      "bg-primary",
+    );
+    expect(row).not.toHaveClass("bg-primary/15");
+  });
 });
 
 describe("DoctorSupportInbox — seam: onSupport и lastSenderRole", () => {

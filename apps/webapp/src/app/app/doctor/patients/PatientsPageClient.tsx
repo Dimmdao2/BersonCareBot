@@ -31,7 +31,13 @@ import {
   DialogTrigger,
 } from "@/shared/ui/doctor/primitives/dialog";
 import { TooltipProvider } from "@/shared/ui/doctor/primitives/tooltip";
-import { doctorDnaFlatListClass, doctorDnaFlatListClickableClass, doctorDnaFlatListPrimaryClass, doctorDnaFlatListRowClass } from "@/shared/ui/doctor/DoctorDnaFlatListRow";
+import {
+  doctorDnaFlatListClass,
+  doctorDnaFlatListClickableClass,
+  doctorDnaFlatListInsetClass,
+  doctorDnaFlatListPrimaryClass,
+  doctorDnaFlatListRowClass,
+} from "@/shared/ui/doctor/DoctorDnaFlatListRow";
 import { DoctorPageHeader } from "@/shared/ui/doctor/shell/DoctorPageHeader";
 import { CatalogSplitLayout } from "@/shared/ui/doctor/catalog/CatalogSplitLayout";
 import { CatalogRightPane } from "@/shared/ui/doctor/catalog/CatalogRightPane";
@@ -757,7 +763,10 @@ function PatientsContent({
             {filtered.length === 0 ? (
               <p className="px-3 py-4 text-sm text-muted-foreground">{searchQuery.trim() ? "Нет пациентов по запросу." : "Нет пациентов по заданным фильтрам."}</p>
             ) : (
-              <ul id="doctor-patients-list" className={`${doctorDnaFlatListClass} min-h-0 flex-1 overflow-y-auto`}>
+              <ul
+                id="doctor-patients-list"
+                className={`${doctorDnaFlatListClass} ${doctorDnaFlatListInsetClass} min-h-0 flex-1 overflow-y-auto`}
+              >
                 {filtered.map((c, index) => {
                   const futureAppointmentCount = c.activeAppointmentsCount ?? 0;
                   const programOrSupervision = c.isOnSupport === true || c.activeTreatmentProgram;

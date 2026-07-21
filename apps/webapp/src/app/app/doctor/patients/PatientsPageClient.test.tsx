@@ -137,6 +137,9 @@ describe("PatientsPageClient", () => {
       "text-base",
       "font-normal",
     );
+    expect(document.getElementById("doctor-patients-list")).toHaveClass(
+      "mx-[var(--doctor-block-padding,18px)]",
+    );
 
     await user.click(screen.getByRole("button", { name: /С записями/i }));
 

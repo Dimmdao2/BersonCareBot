@@ -4,6 +4,7 @@ import { render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 import { DoctorSection } from "@/shared/ui/doctor/DoctorSection";
 import {
+  doctorDnaFlatListInsetClass,
   doctorDnaFlatListPrimaryClass,
   doctorDnaFlatListRowClass,
 } from "@/shared/ui/doctor/DoctorDnaFlatListRow";
@@ -62,6 +63,9 @@ describe("doctor presentation chrome", () => {
   });
 
   it("uses 18px row alignment with larger, lighter primary list text", () => {
+    expect(doctorDnaFlatListInsetClass).toContain(
+      "mx-[var(--doctor-block-padding,18px)]",
+    );
     expect(doctorDnaFlatListRowClass).toContain(
       "px-[var(--doctor-list-inline-padding,18px)]",
     );
