@@ -78,7 +78,7 @@ AS $function$
   INNER JOIN public.be_organizations AS organization
     ON organization.id = member.organization_id
    AND organization.is_active
-  WHERE member.platform_user_id = NULLIF(current_setting('app.patient_user_id', true), '')::uuid
+  WHERE member.platform_user_id = app.current_patient_user_id()
     AND member.role = 'owner'
     AND member.status = 'active'
   ORDER BY member.created_at DESC

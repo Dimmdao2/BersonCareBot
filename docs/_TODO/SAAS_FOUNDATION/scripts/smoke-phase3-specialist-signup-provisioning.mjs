@@ -14,7 +14,9 @@
  *   4. a foreign challenge UUID is not authority and a pre-existing active membership prevents a
  *      second organization;
  *   5. the authorized first-run binding is exact-org and idempotent and creates one specialist;
- *   6. every scratch role, database, and private cluster is removed on exit/signals.
+ *   6. the configured C5A trial is assigned in the same provisioning transaction and replayed
+ *      confirmations do not duplicate it;
+ *   7. every scratch role, database, and private cluster is removed on exit/signals.
  *
  * `--static-only` runs source/contract guards without starting PostgreSQL.
  */
@@ -43,6 +45,10 @@ const paths = {
     repoRoot,
     'apps/webapp/db/drizzle-migrations/0176_specialist_signup_intents.sql',
   ),
+  migration0180: path.join(
+    repoRoot,
+    'apps/webapp/db/drizzle-migrations/0180_store_entitlements.sql',
+  ),
   migration0182: path.join(
     repoRoot,
     'apps/webapp/db/drizzle-migrations/0182_reference_catalog_snapshots.sql',
@@ -58,6 +64,22 @@ const paths = {
   migration0215: path.join(
     repoRoot,
     'apps/webapp/db/drizzle-migrations/0215_staff_security_profiles.sql',
+  ),
+  migration0212: path.join(
+    repoRoot,
+    'apps/webapp/db/drizzle-migrations/0212_clinic_team_seat_limit.sql',
+  ),
+  migration0213: path.join(
+    repoRoot,
+    'apps/webapp/db/drizzle-migrations/0213_clinic_team_seat_nonnegative.sql',
+  ),
+  migration0225: path.join(
+    repoRoot,
+    'apps/webapp/db/drizzle-migrations/0225_saas_tariff_quotas_trial.sql',
+  ),
+  c5aPlatformOperations: path.join(
+    repoRoot,
+    'deploy/postgres/c5a-platform-operations-runtime.sql',
   ),
   ownerProvisioningOverlay: path.join(
     repoRoot,
@@ -78,12 +100,15 @@ const suffix = `p${process.pid}_${randomBytes(4).toString('hex')}`.toLowerCase()
 const dbName = `bcb_saas_u3s_current_contract_scratch_${suffix}`;
 const ownerRole = `bcb_saas_u3s_owner_scratch_${suffix}`;
 const runtimeRole = `bcb_saas_u3s_runtime_scratch_${suffix}`;
+const appOwnerRole = 'app_owner';
+const platformSettingsRole = 'app_platform_settings';
 const runtimePassword = randomBytes(32).toString('base64url');
 const signingSecret = randomBytes(32).toString('hex');
 const clusterRoot = `/tmp/${dbName}_pg`;
 const clusterData = path.join(clusterRoot, 'data');
 const clusterSocket = path.join(clusterRoot, 'socket');
 const clusterPort = String(56000 + (process.pid % 5000));
+const trialTariffId = '30000000-0000-4000-8000-000000000001';
 
 const users = {
   first: {
@@ -272,6 +297,8 @@ function createScratchRolesAndDatabase() {
   psql(
     [
       `CREATE ROLE ${quoteIdent(ownerRole)} NOLOGIN NOBYPASSRLS;`,
+      `CREATE ROLE ${quoteIdent(appOwnerRole)} NOLOGIN BYPASSRLS;`,
+      `CREATE ROLE ${quoteIdent(platformSettingsRole)} NOLOGIN NOINHERIT NOBYPASSRLS;`,
       'CREATE ROLE app_staff NOLOGIN NOBYPASSRLS;',
       'CREATE ROLE app_patient NOLOGIN NOBYPASSRLS;',
       `CREATE ROLE ${quoteIdent(runtimeRole)} LOGIN NOINHERIT NOBYPASSRLS PASSWORD ${quoteLiteral(runtimePassword)};`,
@@ -288,12 +315,15 @@ function createScratchRolesAndDatabase() {
     ownerRole,
     dbName,
   ]);
+  psql(`GRANT CREATE ON SCHEMA public TO ${quoteIdent(appOwnerRole)};`, {
+    label: 'grant disposable schema ownership capability to canonical app owner',
+  });
 }
 
 function installCanonicalSchema() {
   psqlFile(paths.p2bOverlay, {
     prefix: [
-      `\\set p2_b_owner_role ${quoteLiteral(ownerRole)}`,
+      `\\set p2_b_owner_role ${quoteLiteral(appOwnerRole)}`,
       "\\set p2_b_staff_role 'app_staff'",
       "\\set p2_b_patient_role 'app_patient'",
       `\\set p2_b_signing_secret ${quoteLiteral(signingSecret)}`,
@@ -304,13 +334,17 @@ function installCanonicalSchema() {
   psql(baseSchemaSql(), { label: 'install minimal U3S base schema' });
   for (const migrationPath of [
     paths.migration0176,
+    paths.migration0180,
     paths.migration0182,
     paths.migration0183,
     paths.migration0184,
+    paths.migration0212,
+    paths.migration0213,
     paths.migration0215,
+    paths.migration0225,
   ]) {
     psqlFile(migrationPath, {
-      prefix: `BEGIN;\nSET ROLE ${quoteIdent(ownerRole)};`,
+      prefix: `BEGIN;\nSET ROLE ${quoteIdent(appOwnerRole)};`,
       suffix: 'COMMIT;',
       label: `apply canonical ${path.basename(migrationPath)}`,
     });
@@ -318,11 +352,14 @@ function installCanonicalSchema() {
   psqlFile(paths.ownerProvisioningOverlay, {
     label: 'apply canonical specialist owner provisioning overlay',
   });
+  psqlFile(paths.c5aPlatformOperations, {
+    label: 'apply canonical C5A platform operations capability',
+  });
 }
 
 function baseSchemaSql() {
   return `
-SET ROLE ${quoteIdent(ownerRole)};
+SET ROLE ${quoteIdent(appOwnerRole)};
 CREATE TABLE public.platform_users (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   display_name text NOT NULL DEFAULT '',
@@ -368,6 +405,10 @@ CREATE TABLE public.org_enrollments (
   created_at timestamptz NOT NULL DEFAULT now(),
   CONSTRAINT uq_org_enrollments_org_user UNIQUE (organization_id, platform_user_id)
 );
+CREATE TABLE public.courses (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  organization_id uuid NOT NULL REFERENCES public.be_organizations(id) ON DELETE CASCADE
+);
 CREATE TABLE public.reference_categories (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   organization_id uuid,
@@ -412,7 +453,8 @@ RESET ROLE;
 function installScratchRuntimeWall() {
   psql(`
 GRANT CONNECT ON DATABASE ${quoteIdent(dbName)} TO ${quoteIdent(runtimeRole)};
-GRANT USAGE ON SCHEMA app_ext TO ${quoteIdent(ownerRole)};
+GRANT USAGE ON SCHEMA app_ext TO ${quoteIdent(appOwnerRole)};
+GRANT USAGE ON SCHEMA app TO ${quoteIdent(platformSettingsRole)};
 GRANT USAGE ON SCHEMA public, app, app_ext TO app_staff, app_patient;
 GRANT SELECT, INSERT, UPDATE ON public.be_organization_members TO app_staff;
 GRANT SELECT, INSERT, UPDATE ON public.be_specialists TO app_staff;
@@ -488,6 +530,9 @@ async function runCurrentContractProof() {
   );
 
   const beforeSecondOrgAttempt = Number(psqlScalar('SELECT count(*) FROM public.be_organizations'));
+  const beforeSecondOrgTrialCount = Number(
+    psqlScalar('SELECT count(*) FROM public.saas_organization_trials'),
+  );
   const secondOrg = await provisionOnce(
     principal,
     lockedOptions,
@@ -501,6 +546,11 @@ async function runCurrentContractProof() {
   assert(
     Number(psqlScalar('SELECT count(*) FROM public.be_organizations')) === beforeSecondOrgAttempt,
     'second-organization denial must not create rows',
+  );
+  assert(
+    Number(psqlScalar('SELECT count(*) FROM public.saas_organization_trials')) ===
+      beforeSecondOrgTrialCount,
+    'second-organization denial must not create a trial outside provisioning',
   );
 
   assertProvisioningState(users.first, first);
@@ -523,7 +573,31 @@ function seedFixtures() {
     )
     .join(',\n');
   psql(`
-SET ROLE ${quoteIdent(ownerRole)};
+SET ROLE ${quoteIdent(appOwnerRole)};
+INSERT INTO public.saas_tariffs (
+  id, name, description, price_minor, currency, mechanics, billing_period, quotas, is_active
+) VALUES (
+  ${quoteLiteral(trialTariffId)}::uuid,
+  'U3S Scratch Trial',
+  'Disposable provisioning proof',
+  NULL,
+  NULL,
+  '{"clients": true}'::jsonb,
+  'month',
+  '{}'::jsonb,
+  true
+);
+INSERT INTO public.saas_trial_policy (
+  key, tariff_id, duration_days, grace_days, start_event, post_trial_behavior, is_active
+) VALUES (
+  'global',
+  ${quoteLiteral(trialTariffId)}::uuid,
+  14,
+  3,
+  'organization_provisioned',
+  'read_only',
+  true
+);
 INSERT INTO public.platform_users (id, display_name, role, updated_at, email_verified_at) VALUES
 ${values};
 INSERT INTO public.be_organizations (id, title)
@@ -653,7 +727,15 @@ SELECT json_build_object(
   'enrollments', (SELECT count(*) FROM public.org_enrollments WHERE organization_id = ${quoteLiteral(receipt.organizationId)}::uuid),
   'receipts', (SELECT count(*) FROM public.reference_catalog_snapshot_receipts WHERE organization_id = ${quoteLiteral(receipt.organizationId)}::uuid),
   'intent_status', (SELECT status FROM public.specialist_signup_intents WHERE challenge_id = ${quoteLiteral(seed.challengeId)}::uuid),
-  'intent_specialist', (SELECT provisioned_specialist_id FROM public.specialist_signup_intents WHERE challenge_id = ${quoteLiteral(seed.challengeId)}::uuid)
+  'intent_specialist', (SELECT provisioned_specialist_id FROM public.specialist_signup_intents WHERE challenge_id = ${quoteLiteral(seed.challengeId)}::uuid),
+  'organization_tariff', (SELECT tariff_id FROM public.be_organizations WHERE id = ${quoteLiteral(receipt.organizationId)}::uuid),
+  'commercial_access_state', (SELECT commercial_access_state FROM public.be_organizations WHERE id = ${quoteLiteral(receipt.organizationId)}::uuid),
+  'trials', (SELECT count(*) FROM public.saas_organization_trials WHERE organization_id = ${quoteLiteral(receipt.organizationId)}::uuid),
+  'trial_tariff', (SELECT tariff_id FROM public.saas_organization_trials WHERE organization_id = ${quoteLiteral(receipt.organizationId)}::uuid),
+  'trial_status', (SELECT status FROM public.saas_organization_trials WHERE organization_id = ${quoteLiteral(receipt.organizationId)}::uuid),
+  'trial_duration_days', (SELECT EXTRACT(EPOCH FROM (ends_at - started_at)) / 86400 FROM public.saas_organization_trials WHERE organization_id = ${quoteLiteral(receipt.organizationId)}::uuid),
+  'trial_grace_days', (SELECT EXTRACT(EPOCH FROM (grace_ends_at - ends_at)) / 86400 FROM public.saas_organization_trials WHERE organization_id = ${quoteLiteral(receipt.organizationId)}::uuid),
+  'trial_audit_events', (SELECT count(*) FROM public.admin_audit_log WHERE organization_id = ${quoteLiteral(receipt.organizationId)}::uuid AND action = 'saas_trial_start')
 )::text;
 `),
   );
@@ -667,6 +749,14 @@ SELECT json_build_object(
     row.intent_specialist === null,
     'intent specialist receipt must remain null before binding',
   );
+  assert(row.organization_tariff === trialTariffId, 'organization must receive the trial tariff');
+  assert(row.commercial_access_state === 'active', 'trial must activate commercial access');
+  assert(row.trials === 1, 'provisioning replay must retain exactly one trial');
+  assert(row.trial_tariff === trialTariffId, 'trial must snapshot the configured tariff');
+  assert(row.trial_status === 'active', 'newly provisioned trial must be active');
+  assert(Number(row.trial_duration_days) === 14, 'trial must use the configured duration');
+  assert(Number(row.trial_grace_days) === 3, 'trial must use the configured grace period');
+  assert(row.trial_audit_events === 1, 'trial assignment must emit exactly one audit event');
 }
 
 function runtimeDatabaseUrl() {
@@ -795,6 +885,31 @@ function assertStaticSourceGuards() {
     source.provisioningRepo.includes('async ensureOwnBookableSpecialist') &&
       source.provisioningRepo.includes('specialist_self_binding_created'),
     'specialist binding must remain in the canonical provisioning repository',
+  );
+  assert(
+    source.migration0225.includes('CREATE TABLE IF NOT EXISTS "saas_organization_trials"') &&
+      source.c5aPlatformOperations.includes(
+        'CREATE OR REPLACE FUNCTION app.start_provisioned_organization_trial()',
+      ) &&
+      source.c5aPlatformOperations.includes(
+        'v_patient_user_id uuid := app.current_patient_user_id();',
+      ) &&
+      source.c5aPlatformOperations.includes(
+        'GRANT EXECUTE ON FUNCTION app.current_patient_user_id() TO app_platform_settings;',
+      ) &&
+      source.c5aPlatformOperations.includes(
+        'GRANT UPDATE (tariff_id, commercial_access_state, updated_at)',
+      ) &&
+      source.c5aPlatformOperations.includes(
+        "NOT has_column_privilege('app_platform_settings', 'public.be_organizations', 'title', 'UPDATE')",
+      ) &&
+      source.ownerProvisioningOverlay.includes(
+        'PERFORM app.start_provisioned_organization_trial();',
+      ) &&
+      source.ownerProvisioningOverlay.includes(
+        'WHERE member.platform_user_id = app.current_patient_user_id()',
+      ),
+    'specialist provisioning must retain the canonical C5A trial-assignment chain',
   );
 }
 

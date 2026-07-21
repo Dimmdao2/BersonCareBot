@@ -36,7 +36,8 @@ GRANT SELECT, INSERT, UPDATE ON TABLE public.saas_trial_policy TO app_platform_s
 GRANT SELECT, INSERT, UPDATE ON TABLE public.saas_organization_trials TO app_platform_settings;
 GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE public.saas_org_entitlement_overrides TO app_platform_settings;
 GRANT SELECT ON TABLE public.be_organizations TO app_platform_settings;
-GRANT UPDATE (tariff_id, commercial_access_state) ON TABLE public.be_organizations TO app_platform_settings;
+GRANT UPDATE (tariff_id, commercial_access_state, updated_at)
+  ON TABLE public.be_organizations TO app_platform_settings;
 GRANT INSERT ON TABLE public.admin_audit_log TO app_platform_settings;
 
 ALTER TABLE public.saas_tariffs ENABLE ROW LEVEL SECURITY;
@@ -89,7 +90,7 @@ SECURITY DEFINER
 SET search_path = pg_catalog
 AS $function$
 DECLARE
-  v_patient_user_id uuid := NULLIF(current_setting('app.patient_user_id', true), '')::uuid;
+  v_patient_user_id uuid := app.current_patient_user_id();
   v_organization_id uuid;
   v_policy record;
   v_started_at timestamptz;
@@ -169,6 +170,7 @@ $function$;
 
 ALTER FUNCTION app.start_provisioned_organization_trial() OWNER TO app_platform_settings;
 REVOKE ALL ON FUNCTION app.start_provisioned_organization_trial() FROM PUBLIC, app_staff, app_patient;
+GRANT EXECUTE ON FUNCTION app.current_patient_user_id() TO app_platform_settings;
 GRANT EXECUTE ON FUNCTION app.current_provisioned_owner_organization() TO app_platform_settings;
 SELECT format(
   'GRANT EXECUTE ON FUNCTION app.start_provisioned_organization_trial() TO %I',
@@ -194,6 +196,12 @@ SELECT 1 / (
   AND NOT has_table_privilege('app_platform_settings', 'public.platform_users', 'SELECT')
   AND NOT has_table_privilege('app_platform_settings', 'public.platform_users', 'INSERT')
   AND NOT has_table_privilege('app_platform_settings', 'public.platform_users', 'UPDATE')
+  AND NOT has_table_privilege('app_platform_settings', 'public.be_organizations', 'UPDATE')
+  AND has_column_privilege('app_platform_settings', 'public.be_organizations', 'tariff_id', 'UPDATE')
+  AND has_column_privilege('app_platform_settings', 'public.be_organizations', 'commercial_access_state', 'UPDATE')
+  AND has_column_privilege('app_platform_settings', 'public.be_organizations', 'updated_at', 'UPDATE')
+  AND NOT has_column_privilege('app_platform_settings', 'public.be_organizations', 'title', 'UPDATE')
+  AND NOT has_column_privilege('app_platform_settings', 'public.be_organizations', 'is_active', 'UPDATE')
 )::int AS c5a_platform_operations_exact_role_wall;
 
 COMMIT;
