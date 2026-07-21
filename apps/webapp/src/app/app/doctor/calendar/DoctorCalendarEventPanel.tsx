@@ -4,8 +4,10 @@ import Link from "next/link";
 import { patientCardHref } from "../patients/patientCardHref";
 import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { DateTime } from "luxon";
+import { MessageCircle, Phone, X } from "lucide-react";
+import { cn } from "@/lib/utils";
 import { Badge } from "@/shared/ui/doctor/primitives/badge";
-import { Button } from "@/shared/ui/doctor/primitives/button";
+import { Button, buttonVariants } from "@/shared/ui/doctor/primitives/button";
 import { Input } from "@/shared/ui/doctor/primitives/input";
 import { Label } from "@/shared/ui/doctor/primitives/label";
 import {
@@ -44,8 +46,9 @@ import {
   cancellationDecisionTypeLabel,
   paymentStatusLabel,
 } from "@/modules/client-history/labels";
-import { BookingStaffPaymentPanel } from "@/app/app/settings/BookingStaffPaymentPanel";
 import { AppointmentStaffCommentsSection } from "@/app/app/doctor/clients/AppointmentStaffCommentsSection";
+import { DoctorOpenChatButton } from "@/shared/ui/doctor/DoctorOpenChatButton";
+import { phoneToTelHref } from "@/shared/lib/phoneLinks";
 import {
   DoctorCalendarPatientSearch,
   type CalendarPatientOption,
@@ -92,6 +95,8 @@ type Props = {
   createInitialBranchId?: string | null;
   createInitialServiceId?: string | null;
   onCreateDirtyChange?: (dirty: boolean) => void;
+  /** Dialog hosts keep their standard close; embedded schedule keeps this panel close. */
+  showCloseControl?: boolean;
 };
 
 type LifecycleResponse = {
@@ -122,6 +127,28 @@ function isSameCalendarMinute(left: string, right: string, timeZone: string): bo
   const l = parseEventDateTime(left, timeZone);
   const r = parseEventDateTime(right, timeZone);
   return l.isValid && r.isValid && l.toMillis() === r.toMillis();
+}
+
+function isDifferentCalendarMinute(left: string, right: string, timeZone: string): boolean {
+  const l = parseEventDateTime(left, timeZone);
+  const r = parseEventDateTime(right, timeZone);
+  return l.isValid && r.isValid && l.toMillis() !== r.toMillis();
+}
+
+function appointmentStatusToneClass(status: string): string {
+  if (["confirmed", "paid", "completed", "visit_confirmed", "charged_to_package"].includes(status)) {
+    return "border-emerald-500/40 bg-emerald-500/10 text-emerald-900 dark:text-emerald-100";
+  }
+  if (["cancelled_by_patient", "cancelled_by_specialist", "late_cancellation", "no_show"].includes(status)) {
+    return "border-destructive/30 bg-destructive/15 text-destructive";
+  }
+  if (status === "rescheduled") {
+    return "border-purple-500/40 bg-purple-500/10 text-purple-800 dark:text-purple-200";
+  }
+  if (["awaiting_payment", "manual_review_required"].includes(status)) {
+    return "border-amber-500/40 bg-amber-500/10 text-amber-900 dark:text-amber-100";
+  }
+  return "border-primary/30 bg-primary/10 text-primary";
 }
 
 function noneValue() {
@@ -168,6 +195,7 @@ function DoctorCalendarEventPanelInner({
   createInitialBranchId = null,
   createInitialServiceId = null,
   onCreateDirtyChange,
+  showCloseControl = true,
 }: Props) {
   // §3.6: если startInCreate=true — сразу в режиме создания, минуя плейсхолдер
   const [mode, setMode] = useState<"view" | "create" | "reschedule" | "cancel">(
@@ -185,6 +213,7 @@ function DoctorCalendarEventPanelInner({
   const [message, setMessage] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
   const [lifecycle, setLifecycle] = useState<LifecycleResponse | null>(null);
+  const [phoneCopyState, setPhoneCopyState] = useState<"shown" | "copied" | null>(null);
 
   const [createStart, setCreateStart] = useState("");
   const [createSpecialistId, setCreateSpecialistId] = useState<string | null>(null);
@@ -195,6 +224,16 @@ function DoctorCalendarEventPanelInner({
   // R16: комментарий, добавляемый сразу после создания записи (staff-коммент).
   const [createComment, setCreateComment] = useState("");
   const selectedId = selected?.id ?? null;
+
+  async function copyPatientPhone(phone: string) {
+    setPhoneCopyState("shown");
+    try {
+      await navigator.clipboard.writeText(phone);
+      setPhoneCopyState("copied");
+    } catch {
+      // The visible number remains available when clipboard permission is unavailable.
+    }
+  }
 
   useEffect(() => {
     if (!selectedId) return;
@@ -465,6 +504,12 @@ function DoctorCalendarEventPanelInner({
   }
 
   const statusLabel = appointmentStatusLabel(selected.status);
+  const patientPhoneHref = phoneToTelHref(selected.patientPhone);
+  const isSoloMode = filterMeta.specialists.length === 1;
+  const hasRealOriginalStart = Boolean(
+    selected.originalStartAt &&
+      isDifferentCalendarMinute(selected.originalStartAt, selected.startAt, timeZone),
+  );
   const relevantReschedules = (lifecycle?.reschedules ?? []).filter((r) =>
     isSameCalendarMinute(r.toStartAt, selected.startAt, timeZone) ||
     isSameCalendarMinute(r.fromStartAt, selected.startAt, timeZone) ||
@@ -473,63 +518,139 @@ function DoctorCalendarEventPanelInner({
 
   return (
     <div className={doctorClientOverviewPrimaryCardClass}>
-      <div className="mb-3 flex items-start justify-between gap-2">
-        <div>
-          <h2 className={doctorClientSectionTitleClass}>
-            {selected.platformUserId ? (
-              <Link
-                href={patientCardHref(selected.platformUserId)}
-                className="text-primary underline-offset-2 hover:underline"
-              >
-                {selected.patientName ?? "Запись"}
-              </Link>
-            ) : (
-              selected.patientName ?? "Запись"
-            )}
-          </h2>
-          <p className="text-xs text-muted-foreground">{formatEventAt(selected.startAt, timeZone)}</p>
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0 flex-1">
+          <div className="flex min-w-0 items-center justify-between gap-2">
+            <h2 className="min-w-0 truncate text-base font-semibold text-foreground">
+              {selected.platformUserId ? (
+                <Link
+                  href={patientCardHref(selected.platformUserId)}
+                  className="text-primary underline-offset-2 hover:underline"
+                >
+                  {selected.patientName ?? "Запись"}
+                </Link>
+              ) : (
+                selected.patientName ?? "Запись"
+              )}
+            </h2>
+            <div className="flex shrink-0 items-center gap-1.5">
+              {selected.platformUserId ? (
+                <DoctorOpenChatButton
+                  patientUserId={selected.platformUserId}
+                  patientName={selected.patientName}
+                  variant="outline"
+                  size="icon-sm"
+                  className="rounded-full"
+                  title="Чат"
+                >
+                  <MessageCircle aria-hidden />
+                  <span className="sr-only">Чат</span>
+                </DoctorOpenChatButton>
+              ) : null}
+              {selected.patientPhone && patientPhoneHref ? (
+                <>
+                  <a
+                    href={patientPhoneHref}
+                    className={buttonVariants({
+                      variant: "outline",
+                      size: "icon-sm",
+                      className: "rounded-full md:hidden",
+                    })}
+                    aria-label={`Позвонить: ${selected.patientPhone}`}
+                    title="Телефон"
+                  >
+                    <Phone aria-hidden />
+                  </a>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="hidden min-w-8 rounded-full px-2 md:inline-flex"
+                    onClick={() => void copyPatientPhone(selected.patientPhone!)}
+                    aria-label={`Показать и скопировать телефон: ${selected.patientPhone}`}
+                    title="Телефон"
+                  >
+                    <Phone aria-hidden />
+                    {phoneCopyState ? <span>{selected.patientPhone}</span> : null}
+                    {phoneCopyState === "copied" ? <span role="status">Скопировано</span> : null}
+                  </Button>
+                </>
+              ) : null}
+            </div>
+          </div>
         </div>
-        <Button type="button" size="sm" variant="ghost" onClick={onClose}>
-          ×
-        </Button>
+        {showCloseControl ? (
+          <Button
+            type="button"
+            size="icon-sm"
+            variant="ghost"
+            className="shrink-0 rounded-full"
+            onClick={onClose}
+            aria-label="Закрыть карточку записи"
+          >
+            <X aria-hidden />
+          </Button>
+        ) : null}
       </div>
 
-      <div className="space-y-2 text-sm">
-        <Badge variant="outline">{statusLabel}</Badge>
-        <p className="text-xs text-muted-foreground">Статус записи: {statusLabel}</p>
+      <div className="mt-5 flex items-center justify-between gap-3">
+        <p className="text-base font-semibold tabular-nums text-foreground">
+          {formatEventAt(selected.startAt, timeZone)}
+        </p>
+        <Badge
+          variant="outline"
+          className={cn(
+            "h-7 rounded-full px-3 text-sm font-medium",
+            appointmentStatusToneClass(selected.status),
+          )}
+        >
+          {statusLabel}
+        </Badge>
+      </div>
+      {hasRealOriginalStart && selected.originalStartAt ? (
+        <p className="mt-1 text-xs text-muted-foreground">
+          Исходное время: {formatEventAt(selected.originalStartAt, timeZone)}
+        </p>
+      ) : null}
+
+      <div className="mt-4 space-y-3 text-sm">
+        <dl className="space-y-2">
+          <div>
+            <dt className="text-xs text-muted-foreground">Филиал</dt>
+            <dd>{selected.branchTitle ?? "—"}</dd>
+          </div>
+          <div>
+            <dt className="text-xs text-muted-foreground">Услуга</dt>
+            <dd>{selected.serviceTitle ?? "—"}</dd>
+          </div>
+          {!isSoloMode ? (
+            <div>
+              <dt className="text-xs text-muted-foreground">Специалист</dt>
+              <dd>{selected.specialistName ?? "—"}</dd>
+            </div>
+          ) : null}
+          {selected.roomTitle ? (
+            <div>
+              <dt className="text-xs text-muted-foreground">Кабинет</dt>
+              <dd>{selected.roomTitle}</dd>
+            </div>
+          ) : null}
+        </dl>
         {selected.prepaymentPending ? <Badge variant="secondary">Ожидает предоплаты</Badge> : null}
-        {selected.serviceTitle ? <p>{selected.serviceTitle}</p> : null}
-        {selected.specialistName ? <p>{selected.specialistName}</p> : null}
-        {selected.branchTitle ? <p>{selected.branchTitle}</p> : null}
-        {selected.roomTitle ? <p>{selected.roomTitle}</p> : null}
-        {selected.rubitimeId ? <p className="text-xs text-muted-foreground">Rubitime ID: {selected.rubitimeId}</p> : null}
-        {selected.rubitimeManageUrl ? (
-          <Link
-            href={selected.rubitimeManageUrl}
-            target="_blank"
-            className="text-xs font-medium text-primary underline-offset-2 hover:underline"
-          >
-            Открыть в Rubitime
-          </Link>
-        ) : null}
-        {selected.patientPhone ? <p>{selected.patientPhone}</p> : null}
         {selected.platformUserId ? (
-          <div className="flex flex-wrap gap-2">
-            <Link
-              href={patientCardHref(selected.platformUserId)}
-              className="text-xs font-medium text-primary underline-offset-2 hover:underline"
-            >
-              Карточка пациента
-            </Link>
+          <div className="flex justify-center py-1">
             <Link
               href={patientCardHref(selected.platformUserId, {
                 tab: "karta",
                 createVisitFrom: selected.id,
                 visitDate: selected.startAt ? selected.startAt.slice(0, 10) : undefined,
               })}
-              className="rounded-md bg-primary px-2.5 py-1 text-xs font-medium text-primary-foreground hover:bg-primary/90"
+              className={buttonVariants({
+                size: "sm",
+                className: "h-9 px-4 text-sm",
+              })}
             >
-              + Создать визит из записи
+              Создать визит из записи
             </Link>
           </div>
         ) : null}
@@ -544,11 +665,6 @@ function DoctorCalendarEventPanelInner({
         ) : null}
         {selected.paymentStatus ? (
           <Badge variant="secondary">Оплата: {paymentStatusLabel(selected.paymentStatus)}</Badge>
-        ) : null}
-        {selected.originalStartAt ? (
-          <p className="text-xs text-muted-foreground">
-            Исходное время: {formatEventAt(selected.originalStartAt, timeZone)}
-          </p>
         ) : null}
         {selected.rescheduleCount > 0 ? (
           <p className="text-xs text-muted-foreground">Переносов: {selected.rescheduleCount}</p>
@@ -579,8 +695,6 @@ function DoctorCalendarEventPanelInner({
           </div>
         ) : null}
       </div>
-
-      <BookingStaffPaymentPanel apiBase={apiBase} appointmentId={selected.id} />
 
       <AppointmentStaffCommentsSection appointmentId={selected.id} onChanged={onChanged} />
 

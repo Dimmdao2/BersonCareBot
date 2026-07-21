@@ -96,7 +96,13 @@ export function AppointmentStaffCommentsSection({
         placeholder="Комментарий к записи"
         disabled={saving}
       />
-      <Button type="button" size="sm" variant="outline" disabled={saving} onClick={() => void submit()}>
+      <Button
+        type="button"
+        size="sm"
+        variant="outline"
+        disabled={saving || !draft.trim()}
+        onClick={() => void submit()}
+      >
         Добавить комментарий
       </Button>
       {error ? <p className="text-destructive text-xs">{error}</p> : null}

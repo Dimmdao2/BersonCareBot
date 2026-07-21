@@ -1,13 +1,19 @@
 /** @vitest-environment jsdom */
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import type { ReactNode } from "react";
 import type { CalendarAppointmentEvent } from "@/modules/booking-calendar/types";
 
 vi.mock("@/app/app/settings/BookingStaffPaymentPanel", () => ({
-  BookingStaffPaymentPanel: () => null,
+  BookingStaffPaymentPanel: () => <div data-testid="payment-panel" />,
 }));
 vi.mock("@/app/app/doctor/clients/AppointmentStaffCommentsSection", () => ({
   AppointmentStaffCommentsSection: () => null,
+}));
+vi.mock("@/shared/ui/doctor/DoctorOpenChatButton", () => ({
+  DoctorOpenChatButton: ({ children }: { children?: ReactNode }) => (
+    <button type="button">{children}</button>
+  ),
 }));
 vi.mock("./DoctorCalendarPatientSearch", () => ({
   DoctorCalendarPatientSearch: ({ onChange }: { onChange: (value: unknown) => void }) => (
@@ -87,6 +93,135 @@ describe("DoctorCalendarEventPanel patient heading", () => {
   afterEach(() => {
     cleanup();
     vi.unstubAllGlobals();
+  });
+
+  it("renders the compact appointment detail contract without duplicate legacy actions", async () => {
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    Object.defineProperty(navigator, "clipboard", {
+      configurable: true,
+      value: { writeText },
+    });
+    render(
+      <DoctorCalendarEventPanel
+        {...commonProps}
+        selected={{
+          ...baseEvent,
+          patientPhone: "+7 999 000-00-00",
+          branchTitle: "Филиал на Невском",
+          serviceTitle: "Реабилитация",
+          specialistName: "Петров Пётр",
+          rubitimeId: "legacy-42",
+          rubitimeManageUrl: "https://legacy.example.test/manage/42",
+        }}
+        filterMeta={{
+          specialists: [
+            { id: "specialist-1", label: "Петров Пётр" },
+            { id: "specialist-2", label: "Сидоров Семён" },
+          ],
+          branches: [],
+          rooms: [],
+          services: [],
+        }}
+      />,
+    );
+
+    expect(screen.getAllByRole("link", { name: "Иванов Иван" })).toHaveLength(1);
+    expect(screen.getByRole("button", { name: "Чат" })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: /Позвонить:/ })).toHaveAttribute(
+      "href",
+      "tel:+79990000000",
+    );
+    const copyButton = screen.getByRole("button", { name: /Показать и скопировать телефон:/ });
+    fireEvent.click(copyButton);
+    await waitFor(() => expect(writeText).toHaveBeenCalledWith("+7 999 000-00-00"));
+    expect(screen.getByRole("status")).toHaveTextContent("Скопировано");
+
+    const status = screen.getByText("Подтверждена");
+    expect(status).toHaveClass("h-7", "bg-emerald-500/10");
+    expect(screen.queryByText(/Статус записи:/)).not.toBeInTheDocument();
+    expect(screen.getByText("Филиал")).toBeInTheDocument();
+    expect(screen.getByText("Филиал на Невском")).toBeInTheDocument();
+    expect(screen.getByText("Услуга")).toBeInTheDocument();
+    expect(screen.getByText("Реабилитация")).toBeInTheDocument();
+    expect(screen.getByText("Специалист")).toBeInTheDocument();
+    expect(screen.getByText("Петров Пётр")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Создать визит из записи" })).toHaveAttribute(
+      "href",
+      expect.stringContaining("createVisitFrom=appointment-1"),
+    );
+    expect(screen.getByRole("button", { name: "Закрыть карточку записи" })).toBeInTheDocument();
+    expect(screen.queryByText(/Rubitime/i)).not.toBeInTheDocument();
+    expect(screen.queryByText("Карточка пациента")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("payment-panel")).not.toBeInTheDocument();
+    await waitFor(() => expect(fetch).toHaveBeenCalledTimes(1));
+  });
+
+  it("leaves close to the dialog host when the panel close is disabled", async () => {
+    render(
+      <DoctorCalendarEventPanel
+        {...commonProps}
+        selected={baseEvent}
+        showCloseControl={false}
+      />,
+    );
+    expect(
+      screen.queryByRole("button", { name: "Закрыть карточку записи" }),
+    ).not.toBeInTheDocument();
+    await waitFor(() => expect(fetch).toHaveBeenCalledTimes(1));
+  });
+
+  it("shows original time only after a real minute-level reschedule", async () => {
+    const { rerender } = render(
+      <DoctorCalendarEventPanel
+        {...commonProps}
+        selected={{ ...baseEvent, originalStartAt: "2026-07-20T10:00:45.000Z" }}
+      />,
+    );
+    expect(screen.queryByText(/Исходное время:/)).not.toBeInTheDocument();
+
+    rerender(
+      <DoctorCalendarEventPanel
+        {...commonProps}
+        selected={{ ...baseEvent, originalStartAt: "2026-07-20T09:30:00.000Z" }}
+      />,
+    );
+    expect(screen.getByText(/Исходное время:/)).toHaveTextContent("20.07.2026 12:30");
+    await waitFor(() => expect(fetch).toHaveBeenCalledTimes(1));
+  });
+
+  it("hides specialist only when server filter metadata proves solo mode", async () => {
+    const selected = { ...baseEvent, specialistName: "Петров Пётр" };
+    const { rerender } = render(
+      <DoctorCalendarEventPanel
+        {...commonProps}
+        selected={selected}
+        filterMeta={{
+          specialists: [{ id: "specialist-1", label: "Петров Пётр" }],
+          branches: [],
+          rooms: [],
+          services: [],
+        }}
+      />,
+    );
+    expect(screen.queryByText("Специалист")).not.toBeInTheDocument();
+
+    rerender(<DoctorCalendarEventPanel {...commonProps} selected={selected} />);
+    expect(screen.getByText("Специалист")).toBeInTheDocument();
+    await waitFor(() => expect(fetch).toHaveBeenCalledTimes(1));
+  });
+
+  it("uses the destructive semantic tone for cancelled appointments", async () => {
+    render(
+      <DoctorCalendarEventPanel
+        {...commonProps}
+        selected={{ ...baseEvent, status: "cancelled_by_patient" }}
+      />,
+    );
+    expect(screen.getByText("Отмена пациентом")).toHaveClass(
+      "bg-destructive/15",
+      "text-destructive",
+    );
+    await waitFor(() => expect(fetch).toHaveBeenCalledTimes(1));
   });
 
   it("links the FIO heading to the canonical patient card when a patient id exists", async () => {

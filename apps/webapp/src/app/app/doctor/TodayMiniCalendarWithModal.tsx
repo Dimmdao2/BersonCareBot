@@ -125,7 +125,7 @@ export function TodayMiniCalendarWithModal({
       />
 
       <Dialog open={selected !== null} onOpenChange={(open) => { if (!open) setSelected(null); }}>
-        <DialogContent className="max-w-sm p-0 overflow-hidden">
+        <DialogContent className="max-w-sm overflow-hidden p-0 [&>[data-slot=dialog-close]]:size-10 [&>[data-slot=dialog-close]>svg]:size-5">
           <div className="overflow-y-auto max-h-[90dvh]">
             {selected ? (
               <DoctorCalendarEventPanel
@@ -136,6 +136,7 @@ export function TodayMiniCalendarWithModal({
                 activeFilters={EMPTY_ACTIVE_FILTERS}
                 onClose={() => setSelected(null)}
                 onChanged={handleChanged}
+                showCloseControl={false}
               />
             ) : null}
           </div>

@@ -87,7 +87,7 @@ export function TodayAppointmentFullModal({
 
   return (
     <Dialog open={apptId !== null} onOpenChange={(open) => { if (!open) onClose(); }}>
-      <DialogContent className="max-w-sm p-0 overflow-hidden">
+      <DialogContent className="max-w-sm overflow-hidden p-0 [&>[data-slot=dialog-close]]:size-10 [&>[data-slot=dialog-close]>svg]:size-5">
         <div className="overflow-y-auto max-h-[90dvh]">
           {loading ? (
             <div className="p-4 text-sm text-muted-foreground">Загрузка записи…</div>
@@ -100,6 +100,7 @@ export function TodayAppointmentFullModal({
               activeFilters={EMPTY_ACTIVE_FILTERS}
               onClose={onClose}
               onChanged={handleChanged}
+              showCloseControl={false}
             />
           ) : apptId ? (
             <div className="p-4 text-sm text-muted-foreground">Запись не найдена</div>
