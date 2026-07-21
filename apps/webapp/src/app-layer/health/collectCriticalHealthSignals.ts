@@ -127,8 +127,10 @@ async function probeVideoTranscodeStatus(): Promise<VideoTranscodeHealthStatus> 
   }
 }
 
-async function loadBackupJobsMap(): Promise<Record<string, { lastStatus: string }>> {
-  const rows = await buildAppDeps().operatorHealthRead.listBackupJobStatus();
+async function loadBackupJobsMap(
+  read: ReturnType<typeof buildAppDeps>["operatorHealthRead"],
+): Promise<Record<string, { lastStatus: string }>> {
+  const rows = await read.listBackupJobStatus();
   const backupJobs: Record<string, { lastStatus: string }> = {};
   for (const row of rows) {
     backupJobs[row.jobKey] = { lastStatus: row.lastStatus };
@@ -136,13 +138,10 @@ async function loadBackupJobsMap(): Promise<Record<string, { lastStatus: string 
   return backupJobs;
 }
 
-/**
- * Облегчённый сбор сигналов для critical tick (без media/playback/engagement).
- */
-export async function collectCriticalHealthSignals(): Promise<CriticalHealthSignalsInput> {
-  const deps = buildAppDeps();
-  const read = deps.operatorHealthRead;
-
+/** Shared lightweight probes (without media/playback/engagement or isolation state). */
+async function collectCriticalHealthSignalsBase(
+  read: ReturnType<typeof buildAppDeps>["operatorHealthRead"],
+): Promise<CriticalHealthSignalsInput> {
   const [
     webappDb,
     integratorApi,
@@ -153,28 +152,17 @@ export async function collectCriticalHealthSignals(): Promise<CriticalHealthSign
     probeJob,
     videoTranscodeStatus,
     webhookBursts,
-    isolationDiagnostics,
-    isolationCanary,
   ] = await Promise.all([
     probeWebappDb(),
     probeIntegratorApi(),
     probeProjection(),
     read.getOutgoingDeliveryQueueHealth(),
     read.getIntegratorPushOutboxHealth(),
-    loadBackupJobsMap(),
+    loadBackupJobsMap(read),
     read.getOperatorJobStatus(OPERATOR_HEALTH_JOB_FAMILY, OPERATOR_OUTBOUND_PROBE_JOB_KEY),
     probeVideoTranscodeStatus(),
     read.listWebhookBurstSignals(WEBHOOK_BURST_WINDOW_MINUTES, WEBHOOK_BURST_MIN_COUNT),
-    deps.saasIsolationDiagnostics.readHealth().catch(() => null),
-    read.getTenantIsolationCanarySnapshot().catch(() => null),
   ]);
-
-  const observedAt = Date.now();
-  const tenantIsolation = {
-    runtime: observeTenantIsolationRuntimeCounters(getCurrentWebappPoolRoutingMetrics(), observedAt),
-    diagnostics: observeTenantIsolationDiagnostics(isolationDiagnostics, observedAt),
-    wentDark: observeTenantIsolationCanary(isolationCanary, observedAt),
-  };
 
   return {
     webappDb,
@@ -189,14 +177,38 @@ export async function collectCriticalHealthSignals(): Promise<CriticalHealthSign
     probeConsecutiveFailRuns: readProbeConsecutiveFailRuns(probeJob?.metaJson),
     videoTranscodeStatus,
     webhookBursts,
-    tenantIsolation,
+  };
+}
+
+/**
+ * Scheduled five-minute critical tick collector. Tenant-isolation reads and
+ * state advancement must stay on this scheduler boundary, never on page reads.
+ */
+export async function collectCriticalHealthSignals(): Promise<CriticalHealthSignalsInput> {
+  const deps = buildAppDeps();
+  const [base, isolationDiagnostics, isolationCanary] = await Promise.all([
+    collectCriticalHealthSignalsBase(deps.operatorHealthRead),
+    deps.saasIsolationDiagnostics.readHealth().catch(() => null),
+    deps.operatorHealthRead.getTenantIsolationCanarySnapshot().catch(() => null),
+  ]);
+  const observedAt = Date.now();
+  return {
+    ...base,
+    tenantIsolation: {
+      runtime: observeTenantIsolationRuntimeCounters(getCurrentWebappPoolRoutingMetrics(), observedAt),
+      diagnostics: observeTenantIsolationDiagnostics(isolationDiagnostics, observedAt),
+      wentDark: observeTenantIsolationCanary(isolationCanary, observedAt),
+    },
   };
 }
 
 /** Снимок для баннера «Сегодня». */
 export async function collectOperatorHealthBannerInput(): Promise<OperatorHealthBannerInput> {
   const read = buildAppDeps().operatorHealthRead;
-  const [base, incidents] = await Promise.all([collectCriticalHealthSignals(), read.listOpenIncidents(100)]);
+  const [base, incidents] = await Promise.all([
+    collectCriticalHealthSignalsBase(read),
+    read.listOpenIncidents(100),
+  ]);
   return {
     ...base,
     operatorIncidentsOpenCount: incidents.length,

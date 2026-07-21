@@ -5,6 +5,7 @@ import {
   type SaasIsolationHealthPayload,
 } from "./saasIsolationDiagnostics";
 import {
+  getTenantIsolationCriticalHealthStateForTest,
   observeTenantIsolationCanary,
   observeTenantIsolationDiagnostics,
   observeTenantIsolationRuntimeCounters,
@@ -112,6 +113,19 @@ describe("tenant isolation critical health runtime", () => {
     expect(observeTenantIsolationCanary(canary(inactive), 600_000).status).toBe("ok");
   });
 
+  it("detects the full active set collapsing to zero after a positive baseline", () => {
+    const healthy = [
+      { organizationId: "org-a", isActive: true, memberRowCount: 1 },
+      { organizationId: "org-b", isActive: true, memberRowCount: 1 },
+    ];
+    observeTenantIsolationCanary(canary(healthy), 0);
+    expect(observeTenantIsolationCanary(canary([]), 300_000).status).toBe("ok");
+    expect(observeTenantIsolationCanary(canary([]), 600_000)).toEqual({
+      status: "critical",
+      affectedOrganizations: 2,
+    });
+  });
+
   it("debounces a failed or truncated bounded read", () => {
     expect(observeTenantIsolationCanary(null, 0).status).toBe("degraded");
     expect(observeTenantIsolationCanary(null, 300_000).status).toBe("unavailable");
@@ -136,6 +150,32 @@ describe("tenant isolation critical health runtime", () => {
     expect(observeTenantIsolationCanary(canary(dark), 300_000).status).toBe("ok");
     expect(observeTenantIsolationCanary(canary(dark), 300_001).status).toBe("ok");
     expect(observeTenantIsolationCanary(canary(dark), 600_000).status).toBe("critical");
+  });
+
+  it("keeps a hard lifetime bound under full-cohort churn without hiding went-dark evidence", () => {
+    const firstCohort = Array.from(
+      { length: TENANT_ISOLATION_CANARY_MAX_ORGANIZATIONS },
+      (_, index) => ({ organizationId: `a-${index}`, isActive: true, memberRowCount: 1 }),
+    );
+    const replacementCohort = Array.from(
+      { length: TENANT_ISOLATION_CANARY_MAX_ORGANIZATIONS },
+      (_, index) => ({ organizationId: `b-${index}`, isActive: true, memberRowCount: 1 }),
+    );
+
+    expect(observeTenantIsolationCanary(canary(firstCohort), 0).status).toBe("priming");
+    expect(observeTenantIsolationCanary(canary(replacementCohort), 300_000).status).toBe("ok");
+    expect(getTenantIsolationCriticalHealthStateForTest()).toEqual({
+      trackedOrganizations: TENANT_ISOLATION_CANARY_MAX_ORGANIZATIONS,
+      organizationZeroSamples: TENANT_ISOLATION_CANARY_MAX_ORGANIZATIONS,
+    });
+    expect(observeTenantIsolationCanary(canary(replacementCohort), 600_000)).toEqual({
+      status: "critical",
+      affectedOrganizations: TENANT_ISOLATION_CANARY_MAX_ORGANIZATIONS,
+    });
+    expect(getTenantIsolationCriticalHealthStateForTest()).toEqual({
+      trackedOrganizations: TENANT_ISOLATION_CANARY_MAX_ORGANIZATIONS,
+      organizationZeroSamples: TENANT_ISOLATION_CANARY_MAX_ORGANIZATIONS,
+    });
   });
 
   it("keeps unsupported-client telemetry outside the tenant-isolation health path", () => {

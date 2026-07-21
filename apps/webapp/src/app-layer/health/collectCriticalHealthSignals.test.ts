@@ -48,13 +48,17 @@ vi.mock("@/app-layer/di/buildAppDeps", () => ({
       listBackupJobStatus: vi.fn().mockResolvedValue([]),
       getOperatorJobStatus: getOperatorJobStatusMock,
       listWebhookBurstSignals: vi.fn().mockResolvedValue([]),
+      listOpenIncidents: vi.fn().mockResolvedValue([]),
       getTenantIsolationCanarySnapshot: readIsolationCanaryMock,
     },
     saasIsolationDiagnostics: { readHealth: readIsolationHealthMock },
   }),
 }));
 
-import { collectCriticalHealthSignals } from "./collectCriticalHealthSignals";
+import {
+  collectCriticalHealthSignals,
+  collectOperatorHealthBannerInput,
+} from "./collectCriticalHealthSignals";
 import { resetTenantIsolationCriticalHealthForTest } from "@/modules/operator-health/tenantIsolationCriticalHealth";
 
 describe("collectCriticalHealthSignals", () => {
@@ -111,5 +115,13 @@ describe("collectCriticalHealthSignals", () => {
       diagnostics: { status: "critical", activeUnexplainedEvents: 3 },
       wentDark: { status: "priming", affectedOrganizations: 0 },
     });
+  });
+
+  it("keeps isolation reads and state advancement out of the doctor banner request path", async () => {
+    const input = await collectOperatorHealthBannerInput();
+    expect(input.tenantIsolation).toBeUndefined();
+    expect(readIsolationHealthMock).not.toHaveBeenCalled();
+    expect(readIsolationCanaryMock).not.toHaveBeenCalled();
+    expect(getPoolRoutingMetricsMock).not.toHaveBeenCalled();
   });
 });

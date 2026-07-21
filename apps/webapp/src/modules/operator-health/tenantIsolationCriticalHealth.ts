@@ -223,6 +223,10 @@ export function observeTenantIsolationCanary(
     }
     const tracked = trackedOrganizations.get(row.organizationId);
     if (!tracked) {
+      // Retain the previous bounded cohort until it either recovers or is
+      // explicitly inactive. This keeps in-flight went-dark evidence while
+      // refusing unbounded growth under organization churn.
+      if (trackedOrganizations.size >= TENANT_ISOLATION_CANARY_MAX_ORGANIZATIONS) continue;
       trackedOrganizations.set(row.organizationId, {
         active: row.isActive,
         hasHadMemberRows: row.memberRowCount > 0,
@@ -244,6 +248,16 @@ export function observeTenantIsolationCanary(
       : affectedOrganizations,
   };
   return lastCanarySignal;
+}
+
+export function getTenantIsolationCriticalHealthStateForTest(): {
+  trackedOrganizations: number;
+  organizationZeroSamples: number;
+} {
+  return {
+    trackedOrganizations: trackedOrganizations.size,
+    organizationZeroSamples: organizationZeroSamples.size,
+  };
 }
 
 export function resetTenantIsolationCriticalHealthForTest(): void {
