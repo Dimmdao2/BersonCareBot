@@ -204,7 +204,7 @@ function runChecks(overrides = {}) {
   ]);
 
   requireFragments(files.force, loaded.force, [
-    "v_expected_count <> 169",
+    "v_expected_count <> 168",
     "phase4_force_target_resolution_mismatch",
     "relation.relrowsecurity",
     "relation.relforcerowsecurity",
@@ -426,7 +426,7 @@ function runSelfTest() {
     { webappProd: baseline.webappProd.replace('psql "${DATABASE_URL}" -X -v ON_ERROR_STOP=1 -f "${PROJECT_ROOT}/deploy/postgres/patient-media-playback-telemetry-accessors.sql"', "") },
     { prod: baseline.prod.replace('psql "${DATABASE_URL}" -X -v ON_ERROR_STOP=1 -f "${PROJECT_ROOT}/${PATIENT_INVITES_RLS}"', "") },
     { webappProd: baseline.webappProd.replace('psql "${DATABASE_URL}" -X -v ON_ERROR_STOP=1 -f "${PROJECT_ROOT}/deploy/postgres/patient-invites-rls.sql"', "") },
-    { force: baseline.force.replace("v_expected_count <> 169", "v_expected_count < 1") },
+    { force: baseline.force.replace("v_expected_count <> 168", "v_expected_count < 1") },
     { hard: baseline.hard.replace('\nrun_strict_post_migration_closure\nlog "DONE', '\nlog "DONE') },
     { hard: baseline.hard.replace("  run_test_patient_identity_capability_gate\n", "") },
     { patientIdentityGate: baseline.patientIdentityGate.replace("00000000a201", "00000000a102") },
