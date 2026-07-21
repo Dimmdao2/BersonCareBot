@@ -95,6 +95,32 @@ const overlayManagedAppStaffTables = [
   "public.app_runtime_settings",
 ];
 
+const c5aStaffCurrentOrgReadPolicies = [
+  `CREATE POLICY saas_organization_trials_staff_current_org_read
+  ON public.saas_organization_trials
+  FOR SELECT TO app_staff
+  USING (
+    app.is_staff()
+    AND app.current_org_id() IS NOT NULL
+    AND organization_id = app.current_org_id()
+  );`,
+  `CREATE POLICY saas_org_entitlement_overrides_staff_current_org_read
+  ON public.saas_org_entitlement_overrides
+  FOR SELECT TO app_staff
+  USING (
+    app.is_staff()
+    AND app.current_org_id() IS NOT NULL
+    AND organization_id = app.current_org_id()
+  );`,
+  `CREATE POLICY be_organizations_staff_current_org_read ON public.be_organizations
+  FOR SELECT TO app_staff
+  USING (
+    app.is_staff()
+    AND app.current_org_id() IS NOT NULL
+    AND id = app.current_org_id()
+  );`,
+];
+
 function fail(message) {
   throw new Error(message);
 }
@@ -478,6 +504,16 @@ function runChecks(overrides = {}) {
     "NOT has_table_privilege('app_platform_settings', 'public.platform_users', 'UPDATE')",
     "DROP POLICY IF EXISTS saas_org_dormant_p0_8_3 ON public.saas_org_entitlement_overrides;",
     "DROP POLICY IF EXISTS saas_org_dormant_p0_8_3 ON public.saas_organization_trials;",
+    "GRANT SELECT ON TABLE public.be_organizations TO app_staff;",
+    "has_table_privilege('app_staff', 'public.be_organizations', 'SELECT')",
+    "has_table_privilege('app_staff', 'public.saas_tariffs', 'SELECT')",
+    "has_table_privilege('app_staff', 'public.saas_organization_trials', 'SELECT')",
+    "has_table_privilege('app_staff', 'public.saas_org_entitlement_overrides', 'SELECT')",
+    "c5a_staff_current_org_read_policy_wall",
+    "count(actual.polname) = 3",
+    "actual.polroles = ARRAY[(SELECT oid FROM pg_roles WHERE rolname = 'app_staff')]",
+    "position(actual.org_predicate IN actual.predicate) > 0",
+    ...c5aStaffCurrentOrgReadPolicies,
   ]);
   requireFragments(files.patientCourseWallSql, loaded.patientCourseWallSql, [
     "patient-course-assignment-wall UP complete",
@@ -796,7 +832,26 @@ function runChecks(overrides = {}) {
 }
 
 if (process.argv.includes("--self-test")) {
+  runChecks();
   const cases = [
+    {
+      c5aRuntimeSql: read(files.c5aRuntimeSql).replace(
+        c5aStaffCurrentOrgReadPolicies[0],
+        "CREATE POLICY saas_organization_trials_staff_current_org_read ON public.saas_organization_trials FOR SELECT TO app_staff USING (true);",
+      ),
+    },
+    {
+      c5aRuntimeSql: read(files.c5aRuntimeSql).replace(
+        c5aStaffCurrentOrgReadPolicies[1],
+        "CREATE POLICY saas_org_entitlement_overrides_staff_current_org_read ON public.saas_org_entitlement_overrides FOR SELECT TO app_staff USING (true);",
+      ),
+    },
+    {
+      c5aRuntimeSql: read(files.c5aRuntimeSql).replace(
+        c5aStaffCurrentOrgReadPolicies[2],
+        "CREATE POLICY be_organizations_staff_current_org_read ON public.be_organizations FOR SELECT TO app_staff USING (true);",
+      ),
+    },
     {
       grantSql: read(files.grantSql).replace(
         'GRANT SELECT ON TABLE public.platform_users TO :"d3_4_bootstrap_base_role";',

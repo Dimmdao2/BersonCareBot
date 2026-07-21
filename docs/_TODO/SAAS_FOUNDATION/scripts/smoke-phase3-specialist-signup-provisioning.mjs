@@ -16,7 +16,9 @@
  *   5. the authorized first-run binding is exact-org and idempotent and creates one specialist;
  *   6. the configured C5A trial is assigned in the same provisioning transaction and replayed
  *      confirmations do not duplicate it;
- *   7. every scratch role, database, and private cluster is removed on exit/signals.
+ *   7. a signed staff principal reads only its exact organization/trial/overrides while retaining
+ *      global tariff visibility and no commercial DML;
+ *   8. every scratch role, database, and private cluster is removed on exit/signals.
  *
  * `--static-only` runs source/contract guards without starting PostgreSQL.
  */
@@ -458,6 +460,7 @@ GRANT USAGE ON SCHEMA app TO ${quoteIdent(platformSettingsRole)};
 GRANT USAGE ON SCHEMA public, app, app_ext TO app_staff, app_patient;
 GRANT SELECT, INSERT, UPDATE ON public.be_organization_members TO app_staff;
 GRANT SELECT, INSERT, UPDATE ON public.be_specialists TO app_staff;
+GRANT SELECT ON public.org_enrollments TO app_staff;
 GRANT SELECT, INSERT ON public.admin_audit_log TO app_staff;
 
 ALTER TABLE public.be_organization_members ENABLE ROW LEVEL SECURITY;
@@ -555,6 +558,7 @@ async function runCurrentContractProof() {
 
   assertProvisioningState(users.first, first);
   assertProvisioningState(users.concurrent, concurrent[0]);
+  await assertStaffCommercialReadWall(principal, lockedOptions, first, concurrent[0]);
   runCanonicalBindingHelper(first, users.existingMember.organizationId);
   assertBindingState(users.first, first);
 }
@@ -648,6 +652,98 @@ async function applyPatientPrincipal(principal, lockedOptions, client, userId) {
     const applied = await principal.applyCurrentDbPrincipalToConnection(client, lockedOptions);
     assert(applied === true, 'locked patient principal must be applied');
   });
+}
+
+async function applyStaffPrincipal(
+  principal,
+  lockedOptions,
+  client,
+  organizationId,
+  platformUserId,
+) {
+  await principal.runWithDbStaffPrincipal({ organizationId, platformUserId }, async () => {
+    const applied = await principal.applyCurrentDbPrincipalToConnection(client, lockedOptions);
+    assert(applied === true, 'locked staff principal must be applied');
+  });
+}
+
+async function assertStaffCommercialReadWall(principal, lockedOptions, ownReceipt, otherReceipt) {
+  psql(`
+SET ROLE ${quoteIdent(appOwnerRole)};
+INSERT INTO public.saas_org_entitlement_overrides (
+  organization_id, mechanic, enabled, quota, expires_at
+) VALUES
+  (${quoteLiteral(ownReceipt.organizationId)}::uuid, 'clients', true, '{"kind":"unlimited"}'::jsonb, NULL),
+  (${quoteLiteral(otherReceipt.organizationId)}::uuid, 'clients', false, '{"kind":"numeric","limit":1}'::jsonb, NULL);
+RESET ROLE;
+`);
+
+  await withRuntimeClient(async (client) => {
+    await applyStaffPrincipal(
+      principal,
+      lockedOptions,
+      client,
+      ownReceipt.organizationId,
+      users.first.userId,
+    );
+    try {
+      const organizations = await client.query(
+        'SELECT id::text FROM public.be_organizations ORDER BY id',
+      );
+      assert(
+        organizations.rows.length === 1 && organizations.rows[0]?.id === ownReceipt.organizationId,
+        'staff must read only its signed current organization',
+      );
+
+      const trials = await client.query(
+        'SELECT organization_id::text FROM public.saas_organization_trials ORDER BY organization_id',
+      );
+      assert(
+        trials.rows.length === 1 && trials.rows[0]?.organization_id === ownReceipt.organizationId,
+        'staff must read only its signed current organization trial',
+      );
+
+      const overrides = await client.query(
+        'SELECT organization_id::text FROM public.saas_org_entitlement_overrides ORDER BY organization_id',
+      );
+      assert(
+        overrides.rows.length === 1 &&
+          overrides.rows[0]?.organization_id === ownReceipt.organizationId,
+        'staff must read only its signed current organization overrides',
+      );
+
+      const tariffs = await client.query('SELECT id::text FROM public.saas_tariffs ORDER BY id');
+      assert(
+        tariffs.rows.length === 1 && tariffs.rows[0]?.id === trialTariffId,
+        'staff must retain global read visibility of the tariff catalog',
+      );
+
+      await assertStaffCommercialStatementDenied(
+        client,
+        'UPDATE public.saas_organization_trials SET status = status WHERE organization_id = $1::uuid',
+        [ownReceipt.organizationId],
+        'staff trial mutation',
+      );
+      await assertStaffCommercialStatementDenied(
+        client,
+        'UPDATE public.saas_org_entitlement_overrides SET enabled = NOT enabled WHERE organization_id = $1::uuid',
+        [ownReceipt.organizationId],
+        'staff override mutation',
+      );
+    } finally {
+      await principal.clearDbPrincipalFromConnection(client, lockedOptions);
+    }
+  });
+}
+
+async function assertStaffCommercialStatementDenied(client, sql, parameters, label) {
+  try {
+    await client.query(sql, parameters);
+  } catch (error) {
+    assert(error?.code === '42501', `${label} must fail with insufficient_privilege`);
+    return;
+  }
+  throw new Error(`${label} unexpectedly succeeded`);
 }
 
 async function provisionOnce(principal, lockedOptions, userId, challengeId) {
@@ -902,6 +998,15 @@ function assertStaticSourceGuards() {
       ) &&
       source.c5aPlatformOperations.includes(
         "NOT has_column_privilege('app_platform_settings', 'public.be_organizations', 'title', 'UPDATE')",
+      ) &&
+      source.c5aPlatformOperations.includes(
+        'CREATE POLICY be_organizations_staff_current_org_read ON public.be_organizations',
+      ) &&
+      source.c5aPlatformOperations.includes(
+        'CREATE POLICY saas_organization_trials_staff_current_org_read',
+      ) &&
+      source.c5aPlatformOperations.includes(
+        'CREATE POLICY saas_org_entitlement_overrides_staff_current_org_read',
       ) &&
       source.ownerProvisioningOverlay.includes(
         'PERFORM app.start_provisioned_organization_trial();',

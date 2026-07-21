@@ -24,9 +24,13 @@ REVOKE INSERT, UPDATE, DELETE ON TABLE public.saas_organization_trials FROM app_
 REVOKE INSERT, UPDATE, DELETE ON TABLE public.saas_org_entitlement_overrides FROM app_staff;
 GRANT SELECT ON TABLE public.saas_tariffs, public.saas_organization_trials,
   public.saas_org_entitlement_overrides TO app_staff;
+GRANT SELECT ON TABLE public.be_organizations TO app_staff;
 
 DROP POLICY IF EXISTS saas_org_dormant_p0_8_3 ON public.saas_org_entitlement_overrides;
 DROP POLICY IF EXISTS saas_org_dormant_p0_8_3 ON public.saas_organization_trials;
+DROP POLICY IF EXISTS saas_org_entitlement_overrides_org_wall ON public.saas_org_entitlement_overrides;
+DROP POLICY IF EXISTS saas_org_entitlement_overrides_org_read ON public.saas_org_entitlement_overrides;
+DROP POLICY IF EXISTS saas_organization_trials_org_wall ON public.saas_organization_trials;
 DROP POLICY IF EXISTS saas_tariffs_staff_read_write ON public.saas_tariffs;
 DROP POLICY IF EXISTS saas_trial_policy_staff_read_write ON public.saas_trial_policy;
 
@@ -57,12 +61,32 @@ ALTER TABLE public.saas_organization_trials FORCE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS saas_organization_trials_platform_operations ON public.saas_organization_trials;
 CREATE POLICY saas_organization_trials_platform_operations ON public.saas_organization_trials
   FOR ALL TO app_platform_settings USING (true) WITH CHECK (true);
+DROP POLICY IF EXISTS saas_organization_trials_staff_current_org_read
+  ON public.saas_organization_trials;
+CREATE POLICY saas_organization_trials_staff_current_org_read
+  ON public.saas_organization_trials
+  FOR SELECT TO app_staff
+  USING (
+    app.is_staff()
+    AND app.current_org_id() IS NOT NULL
+    AND organization_id = app.current_org_id()
+  );
 
 ALTER TABLE public.saas_org_entitlement_overrides ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.saas_org_entitlement_overrides FORCE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS saas_org_entitlement_overrides_platform_operations ON public.saas_org_entitlement_overrides;
 CREATE POLICY saas_org_entitlement_overrides_platform_operations ON public.saas_org_entitlement_overrides
   FOR ALL TO app_platform_settings USING (true) WITH CHECK (true);
+DROP POLICY IF EXISTS saas_org_entitlement_overrides_staff_current_org_read
+  ON public.saas_org_entitlement_overrides;
+CREATE POLICY saas_org_entitlement_overrides_staff_current_org_read
+  ON public.saas_org_entitlement_overrides
+  FOR SELECT TO app_staff
+  USING (
+    app.is_staff()
+    AND app.current_org_id() IS NOT NULL
+    AND organization_id = app.current_org_id()
+  );
 
 ALTER TABLE public.be_organizations ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.be_organizations FORCE ROW LEVEL SECURITY;
@@ -72,6 +96,14 @@ CREATE POLICY be_organizations_platform_operations_select ON public.be_organizat
 DROP POLICY IF EXISTS be_organizations_platform_operations_update ON public.be_organizations;
 CREATE POLICY be_organizations_platform_operations_update ON public.be_organizations
   FOR UPDATE TO app_platform_settings USING (true) WITH CHECK (true);
+DROP POLICY IF EXISTS be_organizations_staff_current_org_read ON public.be_organizations;
+CREATE POLICY be_organizations_staff_current_org_read ON public.be_organizations
+  FOR SELECT TO app_staff
+  USING (
+    app.is_staff()
+    AND app.current_org_id() IS NOT NULL
+    AND id = app.current_org_id()
+  );
 
 ALTER TABLE public.admin_audit_log ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.admin_audit_log FORCE ROW LEVEL SECURITY;
@@ -181,7 +213,11 @@ WHERE procedure.oid = 'app.provision_specialist_owner(uuid)'::regprocedure
 \gexec
 
 SELECT 1 / (
-  NOT has_table_privilege('app_staff', 'public.saas_tariffs', 'INSERT')
+  has_table_privilege('app_staff', 'public.be_organizations', 'SELECT')
+  AND has_table_privilege('app_staff', 'public.saas_tariffs', 'SELECT')
+  AND has_table_privilege('app_staff', 'public.saas_organization_trials', 'SELECT')
+  AND has_table_privilege('app_staff', 'public.saas_org_entitlement_overrides', 'SELECT')
+  AND NOT has_table_privilege('app_staff', 'public.saas_tariffs', 'INSERT')
   AND NOT has_table_privilege('app_staff', 'public.saas_tariffs', 'UPDATE')
   AND NOT has_table_privilege('app_staff', 'public.saas_tariffs', 'DELETE')
   AND NOT has_table_privilege('app_staff', 'public.saas_trial_policy', 'INSERT')
@@ -203,6 +239,52 @@ SELECT 1 / (
   AND NOT has_column_privilege('app_platform_settings', 'public.be_organizations', 'title', 'UPDATE')
   AND NOT has_column_privilege('app_platform_settings', 'public.be_organizations', 'is_active', 'UPDATE')
 )::int AS c5a_platform_operations_exact_role_wall;
+
+WITH expected(policy_name, relation_name, org_predicate) AS (
+  VALUES
+    (
+      'be_organizations_staff_current_org_read',
+      'be_organizations',
+      'id = app.current_org_id()'
+    ),
+    (
+      'saas_organization_trials_staff_current_org_read',
+      'saas_organization_trials',
+      'organization_id = app.current_org_id()'
+    ),
+    (
+      'saas_org_entitlement_overrides_staff_current_org_read',
+      'saas_org_entitlement_overrides',
+      'organization_id = app.current_org_id()'
+    )
+), actual AS (
+  SELECT
+    expected.*,
+    policy.polname,
+    policy.polcmd,
+    policy.polroles,
+    policy.polqual,
+    policy.polwithcheck,
+    pg_get_expr(policy.polqual, policy.polrelid) AS predicate
+  FROM expected
+  LEFT JOIN pg_class AS relation ON relation.relname = expected.relation_name
+    AND relation.relnamespace = 'public'::regnamespace
+  LEFT JOIN pg_policy AS policy ON policy.polrelid = relation.oid
+    AND policy.polname = expected.policy_name
+)
+SELECT 1 / (
+  count(actual.polname) = 3
+  AND bool_and(
+    actual.polcmd = 'r'
+    AND actual.polroles = ARRAY[(SELECT oid FROM pg_roles WHERE rolname = 'app_staff')]
+    AND actual.polqual IS NOT NULL
+    AND actual.polwithcheck IS NULL
+    AND position('app.is_staff()' IN actual.predicate) > 0
+    AND position('app.current_org_id()' IN actual.predicate) > 0
+    AND position(actual.org_predicate IN actual.predicate) > 0
+  )
+)::int AS c5a_staff_current_org_read_policy_wall
+FROM actual;
 
 COMMIT;
 
