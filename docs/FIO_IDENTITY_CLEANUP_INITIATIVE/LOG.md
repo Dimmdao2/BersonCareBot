@@ -29,6 +29,10 @@
 
 ## 2026-07-19 — C2F Owner-Unambiguous Structured Registration Foundation
 
+**Historical note:** the final two bullets of this entry describe the intermediate state before the separate public
+patient email-registration flow above was integrated. They are superseded by the lookup-only ordinary OTP contract
+and structured registration closure; they are retained only as execution history and are not current blockers.
+
 - Updated the owned compatibility `POST /api/auth/email-password/register` contract and the shared
   password-credentials port to require normalized `lastName` + `firstName`, accept optional `patronymic`, and
   write only the derived `display_name` together with the existing structured `platform_users` columns through
@@ -46,9 +50,9 @@
 - Focused route/repository/UI/provisioning tests, webapp typecheck, scoped ESLint, Drizzle journal/frozen checks,
   and affected grant/protocol checkers passed locally. No DB, TEST, production, deploy, or real delivery action was
   performed.
-- This is not task completion: live patient `/api/auth/email-otp/start` remains passwordless and may create an
-  unknown identity without structured FIO. Restoring separate registration or asking email-OTP entrants for FIO is
-  an explicit owner decision and remains blocked.
+- Historical intermediate state (superseded): at this point live patient `/api/auth/email-otp/start` still could
+  create an unknown identity without structured FIO. The later separate structured registration flow and lookup-only
+  ordinary OTP contract above closed this gap.
 
 ## 2026-07-19 — Owner-reviewed TEST Apply Re-established After Fresh Restore
 
