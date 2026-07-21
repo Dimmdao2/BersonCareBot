@@ -494,7 +494,8 @@ function runChecks(overrides = {}) {
     "pg_has_role(:'expected_runtime_role', relation.relowner, 'MEMBER')",
     "aclexplode(COALESCE(relation.relacl, acldefault('r', relation.relowner)))",
     "aclexplode(COALESCE(procedure.proacl, acldefault('f', procedure.proowner)))",
-    'runtime_overlay_apply_post_migration_chain "$REPO_ROOT" "$TARGET_DB" "$TARGET_RUNTIME_ROLE" 1',
+    'runtime_overlay_apply_post_migration_chain',
+    '"$REPO_ROOT" "$TARGET_DB" "$TARGET_RUNTIME_ROLE" 1 >/dev/null',
     'd3_4_bootstrap_base_role=$TARGET_RUNTIME_ROLE',
     'd3_4_skip_media_worker=1',
     'd3_4_skip_bootstrap_role_normalization=1',
@@ -505,7 +506,8 @@ function runChecks(overrides = {}) {
     'runtime_overlay_admin_psql -d "$TARGET_DB" -X -v ON_ERROR_STOP=1 -f "$P0_5B_GRANTS"',
     '-v phase4_enforce_locked_context=1',
     '-f "$PHASE4_LOCKED_POLICIES"',
-    'runtime_overlay_apply_post_migration_chain "$REPO_ROOT" "$TARGET_DB" "$TARGET_RUNTIME_ROLE" 1',
+    'runtime_overlay_apply_post_migration_chain',
+    '"$REPO_ROOT" "$TARGET_DB" "$TARGET_RUNTIME_ROLE" 1 >/dev/null',
   ]);
   requireOrderedFragments(`${files.refreshDevFromTest} preflight before destructive refresh`, loaded.refreshDevFromTest, [
     'bash "$DEV_MIGRATE" --preflight',
