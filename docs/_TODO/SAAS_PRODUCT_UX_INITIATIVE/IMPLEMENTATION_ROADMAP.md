@@ -690,7 +690,9 @@ downgrade/over-limit сохраняют memberships и блокируют нов
 2. **Текущий milestone не прерывается:** закрываются активные UI-P/Tiptap/NTF slices `#925/#931/#930`. Их
    непересекающиеся файлы не блокируют reconciliation. После освобождения file scope hardening Phase 0 может идти
    отдельным потоком; heavy CI и единственный `:5200` сериализуются.
-3. **Hardening Phase 0 — keystone:** сначала доказать реальный residual A1 и актуальность CI/runtime conformance;
+3. **Hardening Phase 0 — keystone:** сначала закрыть A0/#938 — PII-free versioned baseline + ledger/seed verifier,
+   потому что disposable scratch доказал, что исторические migration chains не bootstrap-ят empty PostgreSQL;
+   затем доказать реальный residual A1/#937 и актуальность CI/runtime conformance;
    затем закрыть только оставшиеся C2/F1/D3 gaps. До этого B1/B3/A4 не стартуют. Full CI выполняется один раз на
    phase milestone, targeted checks — на цельных stages.
 4. **Unsupported-client Ф0/Ф1 — параллельно после Phase 0 contract check:** repository/DEV watchdog, bounded

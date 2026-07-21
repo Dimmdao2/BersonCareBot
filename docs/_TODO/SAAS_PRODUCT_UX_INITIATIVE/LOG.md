@@ -4047,3 +4047,19 @@ application modules, working `bcb_webapp_dev`, TEST/PROD databases, deploy/host 
 production credentials are protected. No shared DEV server is needed. Worker evidence is targeted harness/static
 checks; one independent adversarial audit follows the whole stage. Full CI runs once at the accumulated Phase 0
 milestone, not after every A1 edit. A1 is independent of active N1B notification-template files.
+
+## 2026-07-21 — Hardening A0 inserted after honest greenfield proof (`#938` → `#937`)
+
+Disposable private PostgreSQL probes (only `/tmp/bcb_saas_*`; no ambient DB URL and no DEV/TEST/PROD) disproved the
+initial A1 assumption that the current repository can run all migrations from an empty service. The canonical root
+chain first fails because integrator Telegram `20260306_0009` references identities before core `0012/0013` create
+users/identities. The documented webapp legacy bootstrap passes `001–081` and then fails at `082` because
+`recommendations` is created only by Drizzle `0001`. Existing PII-free schema-only snapshots progress further but
+late migrations intentionally require a default organization, primary specialist/appointment and later canonical
+owner state. The archived migration-unification audit already records the noop Drizzle baseline and greenfield gap.
+
+The orchestrator rejected a synthetic minimal schema because it would make A1 green without proving the owner's
+full-current-state requirement. Task `#938` is therefore the mandatory Phase-0 prerequisite: a versioned PII-free
+schema baseline, exact ledger manifest, minimal deterministic `.test` seed and disposable restore→pending-migrate→
+ledger/drift verifier. Historical SQL is not rewritten. A1 `#937` returns to `todo` until A0 passes, then resumes the
+real locked/FORCE two-org proof. This is CI/test infrastructure only; no database restore/deploy was authorized.

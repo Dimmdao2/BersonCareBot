@@ -47,7 +47,8 @@ taskdb-карта создаётся только для доказанного 
 
 | Item | Status | Current truth / exact residual |
 |---|---|---|
-| A1 | `residual_gap` | `#770/#933` закрывают runtime chokepoint и generic harness, но CI не поднимает реальный PostgreSQL с миграциями и locked/FORCE two-org/no-principal/principal-full route proof. Это первый keystone stage. |
+| A0 | `new_prerequisite` | Disposable scratch proof показал, что репозиторий не умеет честно поднять полную БД с нуля: integrator `telegram:20260306_0009` идёт раньше core users/identities; documented webapp legacy bootstrap падает на `082_recommendations_domain` до Drizzle `0001`; поздние data-state migrations требуют canonical seed. Нужен PII-free versioned baseline package до A1. |
+| A1 | `dependency_waiting` | `#770/#933` закрывают runtime chokepoint и generic harness, но CI не поднимает реальный PostgreSQL с миграциями и locked/FORCE two-org/no-principal/principal-full route proof. Ждёт A0/#938; synthetic minimal schema запрещена как ложное доказательство. |
 | C2 | `residual_gap` | Logger APIs существуют, но нет единого ALS/header correlation + organization context webapp→integrator→worker. Нужен typed low-cardinality context без DB/network hot-path. |
 | F1 | `residual_gap` | `#934` закрыл текущие advisories; updater automation отсутствует, `shadcn` остаётся runtime dependency. Не дублировать `#881/#934`. |
 | D3 | `residual_gap` | Dev bypass обычно fail-closed в PROD, но env parser не отвергает саму комбинацию `production + flag`, а clinic-invite callsite сохраняет неоднозначную ветку. Нужен startup hard guard + tests. |
@@ -66,7 +67,7 @@ taskdb-карта создаётся только для доказанного 
 | F2 | `post_launch` | God-components остаются, но их structural split идёт после UX stabilization. |
 | F3 | `post_launch` | Booking/notifications фрагментированы; сначала ownership map, без pre-launch behavioral rewrite. |
 
-Первый исполнимый порядок: **A1 целиком** → independent adversarial audit → **C2/F1/D3** в трёх непересекающихся
+Первый исполнимый порядок: **A0/#938 целиком** → **A1/#937 целиком** → independent adversarial audit → **C2/F1/D3** в трёх непересекающихся
 worktree после стабилизации A1 contract (допустимо начать, пока идёт независимый A1 audit) → один общий Phase 0
 full-CI milestone. Dependency install/audit, heavy lint/CI и единственный DEV server сериализуются. Только после этого
 открываются Phase 1 A3/B1/B2/B3/C1. Reconciliation не создаёт дочерние taskdb-карты заранее: exact stage card
@@ -103,6 +104,15 @@ RSS) как часть приёмки этапа.
 ## Фазы (секвенированы по риску и зависимостям)
 
 ### Phase 0 — Фундамент проверяемости (keystone, разблокирует всё)
+- [ ] **A0. PII-free greenfield baseline для CI (`#938`, prerequisite A1).** Версионированный структурный baseline
+      из текущей подготовленной DEV-схемы (`pg_dump --schema-only --no-owner --no-privileges`, без строк данных),
+      точный manifest обоих migration ledgers и минимальный детерминированный seed на зарезервированных
+      недоставляемых `.test` идентичностях, достаточный для data-state migration guards. Disposable verifier обязан:
+      восстановить baseline в приватный ephemeral PostgreSQL, проверить отсутствие data rows до seed, применить seed,
+      прогнать все pending current migrations и доказать ledger completeness/drift. Historical migrations не
+      переписываются; raw DEV dump, TEST/PROD, runtime DB и synthetic partial schema запрещены. Baseline обновляется
+      только отдельным осознанным schema-stage, не каждым code deploy.
+      Размер: **M** · Аудит: **полный адверсарный** (migration integrity + PII-free artifact).
 - [ ] **A1. RLS-conformance harness в CI.** Поднять Postgres-сервис в `ci.yml`, прогнать миграции в `locked`-режиме,
       посеять org A + org B, три ассерта: (а) принципал видит только свою орг; (б) **запрос без принципала под
       FORCE-RLS → пусто/ошибка, но НЕ строки чужой орг**; (в) principal-full видит строки. Завести в мерж-гейт.
@@ -180,7 +190,8 @@ RSS) как часть приёмки этапа.
 ---
 
 ## Карта параллелизации
-- **Phase 0**: reconciliation сначала доказывает состояние A1 и current conformance; после этого только
+- **Phase 0**: A0 сначала делает полную ephemeral DB воспроизводимой без PII; затем A1 доказывает current conformance.
+  Только после этого
   подтверждённые residual C2/F1/D3 могут идти параллельно друг другу. Старая схема «запустить всё рядом с A1» не
   применяется, потому что могла дублировать уже закрытый Foundation scope.
 - **Phase 1**: A3, B1, B2, B3, C1 — независимые file-scope → до 3 воркеров одновременно, каждый в своём worktree.
