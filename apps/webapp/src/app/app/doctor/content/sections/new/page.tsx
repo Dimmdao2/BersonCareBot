@@ -1,6 +1,6 @@
 import { notFound } from "next/navigation";
 import { requireDoctorWorkspaceContext } from "@/app-layer/guards/requireRole";
-import { requireEntitlementForAction } from "@/app-layer/guards/requireEntitlement";
+import { requireEntitlementForReadAction } from "@/app-layer/guards/requireEntitlement";
 import {
   parsePatientHomeCmsReturnQuery,
   type PatientHomeCmsReturnQuery,
@@ -26,7 +26,7 @@ function normalizeSuggestedSlug(raw: string | string[] | undefined): string | un
 
 export default async function DoctorContentSectionNewPage({ searchParams }: PageProps) {
   const workspace = await requireDoctorWorkspaceContext();
-  const entitlement = await requireEntitlementForAction(workspace, "cms_pages");
+  const entitlement = await requireEntitlementForReadAction(workspace, "cms_pages");
   if (!entitlement.ok) notFound();
   const session = workspace.session;
   const sp = searchParams ? await searchParams : {};

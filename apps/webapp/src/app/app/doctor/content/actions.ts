@@ -5,7 +5,7 @@ import { z } from "zod";
 import { revalidatePatientContentPaths } from "@/app-layer/content/revalidatePatientContentPaths";
 import { withDoctorWorkspacePrincipal } from "@/app-layer/guards/doctorWorkspacePrincipal";
 import { requireDoctorWorkspaceContext } from "@/app-layer/guards/requireRole";
-import { requireEntitlementForAction, requireEntitlementForMutationAction } from "@/app-layer/guards/requireEntitlement";
+import { requireEntitlementForReadAction, requireEntitlementForMutationAction } from "@/app-layer/guards/requireEntitlement";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import { API_MEDIA_URL_RE, isLegacyAbsoluteUrl } from "@/shared/lib/mediaUrlPolicy";
 
@@ -56,7 +56,7 @@ export async function saveContentPage(
       return { ok: false, error: "Связанный курс: укажите корректный UUID или оставьте пустым." };
     }
     linkedCourseId = uuidParsed.data;
-    const coursesEntitlement = await requireEntitlementForAction(workspace, "courses");
+    const coursesEntitlement = await requireEntitlementForReadAction(workspace, "courses");
     if (!coursesEntitlement.ok) return { ok: false, error: "entitlement_required" };
   }
 

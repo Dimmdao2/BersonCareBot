@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { env } from "@/config/env";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
-import { requireEntitlement, requireEntitlementForMutation } from "@/app-layer/guards/requireEntitlement";
+import { requireEntitlementForRead, requireEntitlementForMutation } from "@/app-layer/guards/requireEntitlement";
 import { requireClinicManagementApiContext } from "@/app-layer/guards/requireRole";
 import { sendEmailSetupLinkViaIntegrator } from "@/infra/integrations/email/integratorEmailAdapter";
 import { getAppBaseUrl } from "@/modules/system-settings/integrationRuntime";
@@ -21,7 +21,7 @@ function buildInviteUrl(baseUrl: string, token: string): string {
 export async function GET() {
   const gate = await requireClinicManagementApiContext();
   if (!gate.ok) return gate.response;
-  const entitlement = await requireEntitlement(gate.ctx, "clinic_team");
+  const entitlement = await requireEntitlementForRead(gate.ctx, "clinic_team");
   if (!entitlement.ok) return entitlement.response;
 
   const deps = buildAppDeps();

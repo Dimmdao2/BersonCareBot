@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const requireEntitlementMock = vi.hoisted(() => vi.fn());
 vi.mock("@/app-layer/guards/requireEntitlement", () => ({
-  requireEntitlement: requireEntitlementMock,
+  requireEntitlementForMutation: requireEntitlementMock,
 }));
 
 const requireAdminBookingEngineMock = vi.hoisted(() => vi.fn());

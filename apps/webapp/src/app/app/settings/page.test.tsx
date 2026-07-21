@@ -36,7 +36,7 @@ vi.mock("@/app-layer/guards/requireRole", () => ({
   requireOrganizationWorkspaceContext: requireWorkspaceMock,
 }));
 vi.mock("@/app-layer/guards/requireEntitlement", () => ({
-  requireEntitlementForAction: entitlementMock,
+  requireEntitlementForReadAction: entitlementMock,
 }));
 vi.mock("@/app-layer/di/buildAppDeps", () => ({
   buildAppDeps: () => ({

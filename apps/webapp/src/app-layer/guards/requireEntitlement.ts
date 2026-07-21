@@ -9,9 +9,7 @@ import type { OrgMechanic } from "@/modules/org-entitlements/types";
 
 /** A route/action may pass only an already-authorized, server-derived organization. */
 export type EntitlementContext = Readonly<{ organizationId: string }>;
-export type EntitlementMutationIntent = Readonly<{
-  kind: "mutation";
-}>;
+type EntitlementAccess = "read" | "mutation";
 export type EntitlementSuccess = { ok: true };
 export type EntitlementDenialReason =
   | "entitlement_required"
@@ -21,14 +19,14 @@ export type EntitlementDenialReason =
 async function checkEntitlement(
   ctx: EntitlementContext,
   mechanic: OrgMechanic,
-  intent?: EntitlementMutationIntent,
+  access: EntitlementAccess,
 ): Promise<EntitlementSuccess | { ok: false; reason: EntitlementDenialReason }> {
   const port = buildAppDeps().orgEntitlements;
   const snapshot = await resolveOrgEntitlementSnapshot(port, ctx.organizationId);
   if (!snapshot.entitlements[mechanic]) {
     return { ok: false, reason: "entitlement_required" };
   }
-  if (!intent) return { ok: true };
+  if (access === "read") return { ok: true };
 
   if (snapshot.access.lifecycle === "read_only") {
     return { ok: false, reason: "commercial_read_only" };
@@ -50,12 +48,12 @@ export async function assertMechanicEnabled(
   return isMechanicEnabled(buildAppDeps().orgEntitlements, organizationId, mechanic);
 }
 
-export async function requireEntitlement(
+/** Read-only API adapter. Lifecycle recovery reads remain available. */
+export async function requireEntitlementForRead(
   ctx: EntitlementContext,
   mechanic: OrgMechanic,
-  intent?: EntitlementMutationIntent,
 ): Promise<EntitlementSuccess | { ok: false; response: NextResponse }> {
-  const decision = await checkEntitlement(ctx, mechanic, intent);
+  const decision = await checkEntitlement(ctx, mechanic, "read");
   if (!decision.ok) {
     return {
       ok: false,
@@ -73,16 +71,25 @@ export async function requireEntitlementForMutation(
   ctx: EntitlementContext,
   mechanic: OrgMechanic,
 ): Promise<EntitlementSuccess | { ok: false; response: NextResponse }> {
-  return requireEntitlement(ctx, mechanic, { kind: "mutation" });
+  const decision = await checkEntitlement(ctx, mechanic, "mutation");
+  if (!decision.ok) {
+    return {
+      ok: false,
+      response: NextResponse.json(
+        { ok: false, error: decision.reason, mechanic },
+        { status: 403 },
+      ),
+    };
+  }
+  return decision;
 }
 
-/** Server Action adapter: same resolver, intentionally no NextResponse dependency in its result. */
-export async function requireEntitlementForAction(
+/** Read-only Server Action adapter. */
+export async function requireEntitlementForReadAction(
   ctx: EntitlementContext,
   mechanic: OrgMechanic,
-  intent?: EntitlementMutationIntent,
 ): Promise<EntitlementSuccess | { ok: false; mechanic: OrgMechanic; reason: EntitlementDenialReason }> {
-  const decision = await checkEntitlement(ctx, mechanic, intent);
+  const decision = await checkEntitlement(ctx, mechanic, "read");
   return decision.ok
     ? decision
     : { ok: false, mechanic, reason: decision.reason };
@@ -93,7 +100,10 @@ export async function requireEntitlementForMutationAction(
   ctx: EntitlementContext,
   mechanic: OrgMechanic,
 ): Promise<EntitlementSuccess | { ok: false; mechanic: OrgMechanic; reason: EntitlementDenialReason }> {
-  return requireEntitlementForAction(ctx, mechanic, { kind: "mutation" });
+  const decision = await checkEntitlement(ctx, mechanic, "mutation");
+  return decision.ok
+    ? decision
+    : { ok: false, mechanic, reason: decision.reason };
 }
 
 /**

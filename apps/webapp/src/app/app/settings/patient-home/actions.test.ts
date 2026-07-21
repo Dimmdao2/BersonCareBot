@@ -8,9 +8,11 @@ const reorderItemsMock = vi.fn();
 const updateItemMock = vi.fn();
 const deleteItemMock = vi.fn();
 const getItemByIdMock = vi.fn();
+const listCandidatesForBlockMock = vi.fn();
 const upsertSectionMock = vi.fn();
 const requireWorkspaceMock = vi.fn();
-const entitlementMock = vi.fn();
+const mutationEntitlementMock = vi.fn();
+const readEntitlementMock = vi.fn();
 
 vi.mock("next/cache", () => ({
   revalidatePath: vi.fn(),
@@ -31,7 +33,7 @@ vi.mock("@/app-layer/di/buildAppDeps", () => ({
       updateItem: updateItemMock,
       deleteItem: deleteItemMock,
       getItemById: getItemByIdMock,
-      listCandidatesForBlock: vi.fn().mockResolvedValue([]),
+      listCandidatesForBlock: listCandidatesForBlockMock,
     },
     contentSections: {
       upsert: upsertSectionMock,
@@ -44,8 +46,8 @@ vi.mock("@/app-layer/guards/requireRole", () => ({
 }));
 
 vi.mock("@/app-layer/guards/requireEntitlement", () => ({
-  requireEntitlementForAction: (...args: unknown[]) => entitlementMock(...args),
-  requireEntitlementForMutationAction: (...args: unknown[]) => entitlementMock(...args),
+  requireEntitlementForReadAction: (...args: unknown[]) => readEntitlementMock(...args),
+  requireEntitlementForMutationAction: (...args: unknown[]) => mutationEntitlementMock(...args),
 }));
 
 vi.mock("@/app-layer/guards/doctorWorkspacePrincipal", () => ({
@@ -57,6 +59,7 @@ import {
   addPatientHomeItem,
   createContentSectionForPatientHomeBlock,
   deletePatientHomeItem,
+  listPatientHomeCandidates,
   reorderPatientHomeItems,
   retargetPatientHomeItem,
   setPatientHomeBlockIcon,
@@ -82,14 +85,17 @@ describe("patient-home settings actions", () => {
     updateItemMock.mockReset();
     deleteItemMock.mockReset();
     getItemByIdMock.mockReset();
+    listCandidatesForBlockMock.mockReset().mockResolvedValue([]);
     upsertSectionMock.mockReset();
     requireWorkspaceMock.mockReset();
-    entitlementMock.mockReset();
+    mutationEntitlementMock.mockReset();
+    readEntitlementMock.mockReset();
     requireWorkspaceMock.mockResolvedValue({
       organizationId: "11111111-1111-4111-8111-111111111111",
       session: sessionWithRole("doctor"),
     });
-    entitlementMock.mockResolvedValue({ ok: true });
+    mutationEntitlementMock.mockResolvedValue({ ok: true });
+    readEntitlementMock.mockResolvedValue({ ok: true });
     vi.mocked(getCurrentSession).mockResolvedValue(sessionWithRole("admin"));
   });
 
@@ -108,8 +114,29 @@ describe("patient-home settings actions", () => {
     expect(setBlockVisibilityMock).toHaveBeenCalledWith("booking", true);
   });
 
+  it.each(["commercial_read_only", "commercial_blocked"])(
+    "keeps candidate reads available while %s denies mutations",
+    async (reason) => {
+      readEntitlementMock.mockResolvedValue({ ok: true });
+      mutationEntitlementMock.mockResolvedValue({ ok: false, mechanic: "cms_pages", reason });
+
+      await expect(listPatientHomeCandidates("booking")).resolves.toEqual({ ok: true, items: [] });
+      await expect(togglePatientHomeBlockVisibility("booking", false)).resolves.toEqual({
+        ok: false,
+        error: "forbidden",
+      });
+
+      expect(readEntitlementMock).toHaveBeenCalledWith(
+        expect.objectContaining({ organizationId: "11111111-1111-4111-8111-111111111111" }),
+        "cms_pages",
+      );
+      expect(listCandidatesForBlockMock).toHaveBeenCalledWith("booking");
+      expect(setBlockVisibilityMock).not.toHaveBeenCalled();
+    },
+  );
+
   it("toggle block visibility forbids client", async () => {
-    entitlementMock.mockResolvedValue({ ok: false });
+    mutationEntitlementMock.mockResolvedValue({ ok: false });
     const res = await togglePatientHomeBlockVisibility("booking", false);
     expect(res.ok).toBe(false);
     if (!res.ok) expect(res.error).toBe("forbidden");
@@ -213,7 +240,7 @@ describe("patient-home settings actions", () => {
   });
 
   it("setPatientHomeBlockIcon forbids client", async () => {
-    entitlementMock.mockResolvedValue({ ok: false });
+    mutationEntitlementMock.mockResolvedValue({ ok: false });
     const res = await setPatientHomeBlockIcon("booking", null);
     expect(res.ok).toBe(false);
     expect(setBlockIconMock).not.toHaveBeenCalled();
@@ -247,7 +274,7 @@ describe("patient-home settings actions", () => {
   });
 
   it("denies an OFF course reference after workspace/CMS authorization and before the patient-home write", async () => {
-    entitlementMock
+    mutationEntitlementMock
       .mockResolvedValueOnce({ ok: true })
       .mockResolvedValueOnce({ ok: false, mechanic: "courses" });
 
@@ -310,7 +337,7 @@ describe("patient-home settings actions", () => {
   });
 
   it("denies retargeting to a course while courses is OFF", async () => {
-    entitlementMock
+    mutationEntitlementMock
       .mockResolvedValueOnce({ ok: true })
       .mockResolvedValueOnce({ ok: false, mechanic: "courses" });
 
@@ -370,7 +397,7 @@ describe("patient-home settings actions", () => {
 
   describe("createContentSectionForPatientHomeBlock", () => {
     it("forbids client", async () => {
-      entitlementMock.mockResolvedValue({ ok: false });
+      mutationEntitlementMock.mockResolvedValue({ ok: false });
       const res = await createContentSectionForPatientHomeBlock({
         blockCode: "situations",
         title: "T",

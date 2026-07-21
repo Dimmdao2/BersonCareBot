@@ -47,12 +47,117 @@ describe("platform commercial persistence boundary", () => {
     await expect(createPgPlatformEntitlementsPort().listOrganizations()).resolves.toEqual([
       {
         ...organizationRows[0],
+        manualTariffId: null,
         effectiveAccess: { lifecycle: "active", tariffId: null, source: "no_trial" },
         overrides: [],
         trial: null,
       },
     ]);
     expect(select).toHaveBeenCalledTimes(3);
+  });
+
+  it("separates trial tariff persistence from manual assignment and projects effective trial time", async () => {
+    const trialTariffId = "33333333-3333-4333-8333-333333333333";
+    const organizations = [
+      { id: "11111111-1111-4111-8111-111111111111", title: "Live", tariffId: trialTariffId, isActive: true, commercialAccessState: "active" },
+      { id: "22222222-2222-4222-8222-222222222222", title: "Expired", tariffId: trialTariffId, isActive: true, commercialAccessState: "active" },
+    ];
+    const trialBase = {
+      tariffId: trialTariffId,
+      startedAt: "2025-01-01T00:00:00.000Z",
+      postTrialBehavior: "read_only",
+      postTrialTariffId: null,
+      status: "active",
+      extensionCount: 0,
+      createdBy: null,
+      createdAt: "2025-01-01T00:00:00.000Z",
+      updatedAt: "2025-01-01T00:00:00.000Z",
+    };
+    const trials = [
+      { ...trialBase, id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa", organizationId: organizations[0]!.id, endsAt: "2099-01-01T00:00:00.000Z", graceEndsAt: "2099-01-02T00:00:00.000Z" },
+      { ...trialBase, id: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb", organizationId: organizations[1]!.id, endsAt: "2025-01-02T00:00:00.000Z", graceEndsAt: "2025-01-03T00:00:00.000Z" },
+    ];
+    const select = vi
+      .fn()
+      .mockReturnValueOnce({ from: vi.fn(() => ({ orderBy: vi.fn().mockResolvedValue(organizations) })) })
+      .mockReturnValueOnce({ from: vi.fn().mockResolvedValue(trials) })
+      .mockReturnValueOnce({ from: vi.fn().mockResolvedValue([]) });
+    getDrizzleMock.mockReturnValue({
+      transaction: (callback: (tx: { select: typeof select }) => unknown) => callback({ select }),
+    });
+
+    const result = await createPgPlatformEntitlementsPort().listOrganizations();
+
+    expect(result[0]).toMatchObject({
+      tariffId: trialTariffId,
+      manualTariffId: null,
+      effectiveAccess: { lifecycle: "active", tariffId: trialTariffId, source: "trial" },
+      trial: { tariffId: trialTariffId, status: "active" },
+    });
+    expect(result[1]).toMatchObject({
+      tariffId: trialTariffId,
+      manualTariffId: null,
+      effectiveAccess: { lifecycle: "read_only", tariffId: trialTariffId, source: "trial" },
+      trial: { tariffId: trialTariffId, status: "expired" },
+    });
+  });
+
+  it("treats an unchanged manual assignment during a trial as a no-op", async () => {
+    const trialTariffId = "33333333-3333-4333-8333-333333333333";
+    const select = vi
+      .fn()
+      .mockReturnValueOnce({ from: vi.fn(() => ({ where: vi.fn(() => ({ limit: vi.fn().mockResolvedValue([{ tariffId: trialTariffId, commercialAccessState: "active" }]) })) })) })
+      .mockReturnValueOnce({ from: vi.fn(() => ({ where: vi.fn(() => ({ limit: vi.fn().mockResolvedValue([{ id: "trial-1", status: "active" }]) })) })) });
+    const update = vi.fn();
+    const insert = vi.fn();
+    getDrizzleMock.mockReturnValue({
+      transaction: (callback: (tx: { select: typeof select; update: typeof update; insert: typeof insert }) => unknown) => callback({ select, update, insert }),
+    });
+
+    await createPgPlatformEntitlementsPort().assignTariff(
+      "11111111-1111-4111-8111-111111111111",
+      null,
+      { actorId: null, reason: "unchanged" },
+    );
+
+    expect(update).not.toHaveBeenCalled();
+    expect(insert).not.toHaveBeenCalled();
+  });
+
+  it("audits an explicit different assignment as trial conversion", async () => {
+    const nextTariffId = "44444444-4444-4444-8444-444444444444";
+    const activeTrial = { id: "trial-1", organizationId: "11111111-1111-4111-8111-111111111111", status: "active" };
+    const select = vi
+      .fn()
+      .mockReturnValueOnce({ from: vi.fn(() => ({ where: vi.fn(() => ({ limit: vi.fn().mockResolvedValue([{ tariffId: "trial-tariff", commercialAccessState: "active" }]) })) })) })
+      .mockReturnValueOnce({ from: vi.fn(() => ({ where: vi.fn(() => ({ limit: vi.fn().mockResolvedValue([activeTrial]) })) })) })
+      .mockReturnValueOnce({ from: vi.fn(() => ({ where: vi.fn(() => ({ limit: vi.fn().mockResolvedValue([{ id: nextTariffId }]) })) })) });
+    const organizationAfter = { tariffId: nextTariffId, commercialAccessState: "active" };
+    const endedTrial = { ...activeTrial, status: "ended" };
+    const update = vi
+      .fn()
+      .mockReturnValueOnce({ set: vi.fn(() => ({ where: vi.fn(() => ({ returning: vi.fn().mockResolvedValue([organizationAfter]) })) })) })
+      .mockReturnValueOnce({ set: vi.fn(() => ({ where: vi.fn(() => ({ returning: vi.fn().mockResolvedValue([endedTrial]) })) })) });
+    const auditValues = vi.fn().mockResolvedValue(undefined);
+    const insert = vi.fn(() => ({ values: auditValues }));
+    getDrizzleMock.mockReturnValue({
+      transaction: (callback: (tx: { select: typeof select; update: typeof update; insert: typeof insert }) => unknown) => callback({ select, update, insert }),
+    });
+
+    await createPgPlatformEntitlementsPort().assignTariff(
+      activeTrial.organizationId,
+      nextTariffId,
+      { actorId: null, reason: "convert" },
+    );
+
+    expect(update).toHaveBeenCalledTimes(2);
+    expect(auditValues).toHaveBeenCalledWith(expect.objectContaining({
+      action: "saas_trial_convert_to_manual_tariff",
+      details: expect.objectContaining({
+        before: expect.objectContaining({ trial: activeTrial }),
+        after: expect.objectContaining({ trial: endedTrial }),
+      }),
+    }));
   });
 
   it("maps arbitrary persisted tariff mechanics and typed quotas without a product default", async () => {

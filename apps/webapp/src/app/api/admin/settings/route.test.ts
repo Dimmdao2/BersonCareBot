@@ -4,7 +4,7 @@ const ORGANIZATION_ID = "550e8400-e29b-41d4-a716-446655440010";
 
 const requireEntitlementMock = vi.hoisted(() => vi.fn());
 vi.mock("@/app-layer/guards/requireEntitlement", () => ({
-  requireEntitlement: requireEntitlementMock,
+  requireEntitlementForMutation: requireEntitlementMock,
 }));
 
 const {
@@ -320,7 +320,6 @@ describe("PATCH /api/admin/settings", () => {
     expect(requireEntitlementMock).toHaveBeenCalledWith(
       expect.objectContaining({ organizationId: ORGANIZATION_ID }),
       "payments",
-      { kind: "mutation" },
     );
     expect(updateSettingMock).not.toHaveBeenCalled();
   });

@@ -3,8 +3,10 @@ import { resolve } from "node:path";
 import {
   DECLARED_NO_SURFACE,
   PROTECTED_ACTION_EXEMPTIONS,
+  PROTECTED_ACTION_FAMILIES,
   PROTECTED_ACTION_MAPPINGS,
   type ProtectedActionExemption,
+  type ProtectedActionFamily,
   type ProtectedActionMapping,
 } from "../src/app-layer/entitlements/protectedActionRegistry";
 import { MECHANIC_REGISTRY, type OrgMechanic } from "../src/modules/org-entitlements/types";
@@ -48,11 +50,16 @@ export function validateProtectedActionMappings(
       findings.push({ id: mapping.id, message: `unknown exported action ${mapping.exportName}` });
       continue;
     }
-    const guardPattern = mapping.guard === "requireDoctorForPatientHomeBlocks"
-      ? /requireDoctorForPatientHomeBlocks\(\)/
+    const helperGuard = mapping.guard === "requireDoctorForPatientHomeMutation"
+      || mapping.guard === "requireDoctorForPatientHomeRead";
+    const guardPattern = helperGuard
+      ? new RegExp(`${mapping.guard}\\(\\)`)
       : new RegExp(`${mapping.guard}\\([^)]*,\\s*["']${mapping.mechanic}["']`);
-    const helperBoundaryIsTyped = mapping.guard !== "requireDoctorForPatientHomeBlocks"
-      || sourceFor(mapping.file).includes('requireEntitlementForMutationAction(workspace, "cms_pages")');
+    const helperBoundaryIsTyped = !helperGuard || sourceFor(mapping.file).includes(
+      mapping.guard === "requireDoctorForPatientHomeMutation"
+        ? 'requireEntitlementForMutationAction(workspace, "cms_pages")'
+        : 'requireEntitlementForReadAction(workspace, "cms_pages")',
+    );
     if (!guardPattern.test(actionSource) || !helperBoundaryIsTyped) {
       findings.push({ id: mapping.id, message: `missing ${mapping.guard}(${mapping.mechanic})` });
     }
@@ -72,9 +79,14 @@ export function validateMechanicBearingExports(
   mappings: readonly ProtectedActionMapping[],
   exemptions: readonly ProtectedActionExemption[],
   sourceFor: SourceFor,
+  declaredFiles: readonly string[] = [],
 ): Finding[] {
   const findings: Finding[] = [];
-  const files = new Set([...mappings.map((mapping) => mapping.file), ...exemptions.map((exemption) => exemption.file)]);
+  const files = new Set([
+    ...mappings.map((mapping) => mapping.file),
+    ...exemptions.map((exemption) => exemption.file),
+    ...declaredFiles,
+  ]);
   for (const file of files) {
     const mapped = new Set(mappings.filter((mapping) => mapping.file === file).map((mapping) => mapping.exportName));
     const exempt = new Set(exemptions.filter((exemption) => exemption.file === file).map((exemption) => exemption.exportName));
@@ -120,19 +132,41 @@ function productionBypassFiles(): SourceFile[] {
     .map((file) => ({ file: file.replace(`${WEBAPP_ROOT}/`, ""), source: readFileSync(file, "utf8") }));
 }
 
-function listTypeScriptFiles(root: string): string[] {
+function listTypeScriptFiles(root: string, recursive = true): string[] {
   return readdirSync(root, { withFileTypes: true }).flatMap((entry) => {
     const file = resolve(root, entry.name);
-    if (entry.isDirectory()) return listTypeScriptFiles(file);
+    if (entry.isDirectory()) return recursive ? listTypeScriptFiles(file) : [];
     return /\.tsx?$/.test(entry.name) ? [file] : [];
   });
 }
 
-export function runS4EntitlementCoverageCheck(): Finding[] {
+export function declaredActionFamilyFiles(
+  families: readonly ProtectedActionFamily[] = PROTECTED_ACTION_FAMILIES,
+): string[] {
+  return families.flatMap((family) => {
+    const pattern = new RegExp(family.filePattern);
+    return listTypeScriptFiles(resolve(WEBAPP_ROOT, family.root), family.recursive)
+      .map((file) => file.replace(`${WEBAPP_ROOT}/`, ""))
+      .filter((file) => pattern.test(file));
+  });
+}
+
+export function runS4ProtectedActionCoverageCheck(): Finding[] {
   const sourceFor = (file: string) => readFileSync(resolve(WEBAPP_ROOT, file), "utf8");
   return [
     ...validateProtectedActionMappings(PROTECTED_ACTION_MAPPINGS, sourceFor),
-    ...validateMechanicBearingExports(PROTECTED_ACTION_MAPPINGS, PROTECTED_ACTION_EXEMPTIONS, sourceFor),
+    ...validateMechanicBearingExports(
+      PROTECTED_ACTION_MAPPINGS,
+      PROTECTED_ACTION_EXEMPTIONS,
+      sourceFor,
+      declaredActionFamilyFiles(),
+    ),
+  ];
+}
+
+export function runS4EntitlementCoverageCheck(): Finding[] {
+  return [
+    ...runS4ProtectedActionCoverageCheck(),
     ...staticBypassFindings(productionBypassFiles()),
   ];
 }
@@ -141,12 +175,13 @@ export function runSelfTest(): Finding[] {
   const sample = PROTECTED_ACTION_MAPPINGS[0]!;
   const duplicate = { ...sample };
   const unknownExport = { ...sample, id: "self.unknown", exportName: "MISSING" };
-  const sourceFor = () => "export async function POST() { await requireEntitlement(ctx, 'courses'); }";
+  const sourceFor = () => "export async function POST() { await requireEntitlementForRead(ctx, 'courses'); }";
   const missingMechanic = validateProtectedActionMappings([sample], sourceFor, ["courses", "mailings"], {});
   const omittedExport = validateMechanicBearingExports(
     [sample],
     [],
     () => "export async function POST() {}\nexport async function PUT() {}",
+    ["src/app/app/doctor/content/omittedActions.ts"],
   );
   return [
     ...validateProtectedActionMappings([sample, duplicate, unknownExport], sourceFor),

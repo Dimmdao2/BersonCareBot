@@ -18,7 +18,12 @@ vi.mock("@/app-layer/di/buildAppDeps", () => ({
   })),
 }));
 
-import { requireEntitlement, requireEntitlementForAction, requireEntitlementForMutationAction } from "./requireEntitlement";
+import {
+  requireEntitlementForMutation,
+  requireEntitlementForMutationAction,
+  requireEntitlementForRead,
+  requireEntitlementForReadAction,
+} from "./requireEntitlement";
 
 const workspaceCtx = {
   organizationId: "11111111-1111-4111-8111-111111111111",
@@ -41,7 +46,7 @@ beforeEach(() => {
   });
 });
 
-describe("requireEntitlement", () => {
+describe("requireEntitlementForRead", () => {
   it("uses the supplied trusted context and has no auth side effect", async () => {
     getTariffForOrgMock.mockResolvedValueOnce(null);
     listOverridesMock.mockResolvedValueOnce([{ mechanic: "courses", enabled: true }]);
@@ -51,7 +56,7 @@ describe("requireEntitlement", () => {
       access: { lifecycle: "active", tariffId: null, source: "compatibility" },
     });
 
-    const gate = await requireEntitlement(workspaceCtx, "courses");
+    const gate = await requireEntitlementForRead(workspaceCtx, "courses");
 
     expect(gate).toEqual({ ok: true });
     expect(getSnapshotMock).toHaveBeenCalledWith(workspaceCtx.organizationId);
@@ -66,7 +71,7 @@ describe("requireEntitlement", () => {
       access: { lifecycle: "active", tariffId: null, source: "compatibility" },
     });
 
-    const gate = await requireEntitlement(workspaceCtx, "courses");
+    const gate = await requireEntitlementForRead(workspaceCtx, "courses");
 
     expect(gate.ok).toBe(false);
     if (gate.ok) return;
@@ -87,7 +92,7 @@ describe("requireEntitlement", () => {
       access: { lifecycle: "active", tariffId: null, source: "compatibility" },
     });
 
-    await expect(requireEntitlementForAction(workspaceCtx, "mailings")).resolves.toEqual({
+    await expect(requireEntitlementForReadAction(workspaceCtx, "mailings")).resolves.toEqual({
       ok: false,
       mechanic: "mailings",
       reason: "entitlement_required",
@@ -108,10 +113,10 @@ describe("requireEntitlement", () => {
       access: { lifecycle: "read_only", tariffId: null, source: "trial" },
     });
 
-    await expect(requireEntitlement(workspaceCtx, "files")).resolves.toEqual({
+    await expect(requireEntitlementForRead(workspaceCtx, "files")).resolves.toEqual({
       ok: true,
     });
-    const mutation = await requireEntitlement(workspaceCtx, "files", { kind: "mutation" });
+    const mutation = await requireEntitlementForMutation(workspaceCtx, "files");
     expect(mutation.ok).toBe(false);
     if (mutation.ok) return;
     await expect(mutation.response.json()).resolves.toMatchObject({
@@ -119,15 +124,16 @@ describe("requireEntitlement", () => {
     });
   });
 
-  it("uses the same snapshot for the mechanic and blocked lifecycle decision", async () => {
+  it("allows recovery reads in blocked lifecycle but rejects mutations", async () => {
     getSnapshotMock.mockResolvedValue({
       tariff: { mechanics: { files: true }, quotas: {}, includedSeats: null },
       overrides: [],
       access: { lifecycle: "blocked", tariffId: "tariff-1", source: "trial" },
     });
-    const mutation = await requireEntitlement(workspaceCtx, "files", { kind: "mutation" });
+    await expect(requireEntitlementForRead(workspaceCtx, "files")).resolves.toEqual({ ok: true });
+    const mutation = await requireEntitlementForMutation(workspaceCtx, "files");
     expect(mutation.ok).toBe(false);
-    expect(getSnapshotMock).toHaveBeenCalledOnce();
+    expect(getSnapshotMock).toHaveBeenCalledTimes(2);
     if (mutation.ok) return;
     await expect(mutation.response.json()).resolves.toMatchObject({ error: "commercial_blocked" });
   });

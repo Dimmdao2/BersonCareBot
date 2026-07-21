@@ -1,13 +1,13 @@
 import { NextResponse } from "next/server";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
-import { requireEntitlement } from "@/app-layer/guards/requireEntitlement";
+import { requireEntitlementForRead } from "@/app-layer/guards/requireEntitlement";
 import { requireClinicManagementApiContext } from "@/app-layer/guards/requireRole";
 import { isSeatConsumingMember } from "@/modules/clinic-seats/service";
 
 export async function GET() {
   const gate = await requireClinicManagementApiContext();
   if (!gate.ok) return gate.response;
-  const entitlement = await requireEntitlement(gate.ctx, "clinic_team");
+  const entitlement = await requireEntitlementForRead(gate.ctx, "clinic_team");
   if (!entitlement.ok) return entitlement.response;
 
   const deps = buildAppDeps();

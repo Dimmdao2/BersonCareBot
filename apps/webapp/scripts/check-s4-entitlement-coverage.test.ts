@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
-  runS4EntitlementCoverageCheck,
+  runS4ProtectedActionCoverageCheck,
   runSelfTest,
   staticBypassFindings,
   validateMechanicBearingExports,
@@ -13,11 +13,11 @@ import {
 
 describe("S4 entitlement coverage checker", () => {
   it("maps every known protected action exactly once without a bypass", () => {
-    expect(runS4EntitlementCoverageCheck()).toEqual([]);
+    expect(runS4ProtectedActionCoverageCheck()).toEqual([]);
   });
 
   it("rejects unknown exports and duplicate file/export mappings", () => {
-    const source = "export async function POST() { await requireEntitlement(ctx, 'courses'); }";
+    const source = "export async function POST() { await requireEntitlementForRead(ctx, 'courses'); }";
     const findings = validateProtectedActionMappings(
       [PROTECTED_ACTION_MAPPINGS[0]!, PROTECTED_ACTION_MAPPINGS[0]!, { ...PROTECTED_ACTION_MAPPINGS[0]!, id: "unknown", exportName: "PUT" }],
       () => source,
@@ -32,10 +32,11 @@ describe("S4 entitlement coverage checker", () => {
       [PROTECTED_ACTION_MAPPINGS[0]!],
       [],
       () => "export async function POST() {}\nexport async function PUT() {}",
+      ["src/app/app/doctor/content/omittedActions.ts"],
     );
     const unregisteredMechanic = validateProtectedActionMappings(
       [PROTECTED_ACTION_MAPPINGS[0]!],
-      () => "export async function POST() { await requireEntitlement(ctx, 'courses'); }",
+      () => "export async function POST() { await requireEntitlementForRead(ctx, 'courses'); }",
       ["courses", "mailings"],
       {},
     );

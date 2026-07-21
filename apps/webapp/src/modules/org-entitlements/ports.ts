@@ -31,17 +31,21 @@ export type OrgEntitlementsPort = {
 };
 
 export type PlatformMutationAudit = { actorId: string | null; reason: string };
+export type PlatformTrialStatus = "active" | "grace" | "expired" | "ended";
 export type PlatformOrganizationSummary = {
   id: string;
   title: string;
   tariffId: string | null;
+  /** Explicit operator assignment; excludes the tariff persisted for a live trial. */
+  manualTariffId: string | null;
   isActive: boolean;
   commercialAccessState: OrgCommercialAccessState;
   effectiveAccess: EffectiveOrgCommercialAccess;
   overrides: OrgEntitlementOverride[];
   trial: {
     id: string;
-    status: "active" | "ended";
+    tariffId: string;
+    status: PlatformTrialStatus;
     startedAt: string;
     endsAt: string;
     graceEndsAt: string;

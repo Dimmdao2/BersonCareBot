@@ -17,7 +17,7 @@ const {
   getChannelCountsMock,
   requireDoctorAccessMock,
   requireDoctorWorkspaceContextMock,
-  requireEntitlementForActionMock,
+  requireEntitlementForMutationActionMock,
 } = vi.hoisted(() => ({
   previewMock: vi.fn(),
   executeMock: vi.fn(),
@@ -28,7 +28,7 @@ const {
   getChannelCountsMock: vi.fn(),
   requireDoctorAccessMock: vi.fn(),
   requireDoctorWorkspaceContextMock: vi.fn(),
-  requireEntitlementForActionMock: vi.fn(),
+  requireEntitlementForMutationActionMock: vi.fn(),
 }));
 
 const ORGANIZATION_ID = "22222222-2222-4222-8222-222222222222";
@@ -45,7 +45,7 @@ vi.mock("@/app-layer/guards/requireRole", () => ({
 }));
 
 vi.mock("@/app-layer/guards/requireEntitlement", () => ({
-  requireEntitlementForAction: (...args: unknown[]) => requireEntitlementForActionMock(...args),
+  requireEntitlementForMutationAction: (...args: unknown[]) => requireEntitlementForMutationActionMock(...args),
 }));
 
 vi.mock("@/app-layer/di/buildAppDeps", () => ({
@@ -102,11 +102,11 @@ beforeEach(() => {
   getChannelCountsMock.mockReset();
   requireDoctorAccessMock.mockReset();
   requireDoctorWorkspaceContextMock.mockReset();
-  requireEntitlementForActionMock.mockReset();
+  requireEntitlementForMutationActionMock.mockReset();
 
   requireDoctorAccessMock.mockResolvedValue({ user: { userId: DOCTOR_USER_ID } });
   requireDoctorWorkspaceContextMock.mockResolvedValue(workspaceContext());
-  requireEntitlementForActionMock.mockResolvedValue({ ok: true });
+  requireEntitlementForMutationActionMock.mockResolvedValue({ ok: true });
   revalidatePathMock.mockImplementation(() => {
     expect(getCurrentDbPrincipalOrganizationId()).toBeUndefined();
   });
@@ -195,7 +195,7 @@ describe("executeBroadcastAction", () => {
   });
 
   it("checks entitlement after workspace auth and does not execute a disabled mailing", async () => {
-    requireEntitlementForActionMock.mockResolvedValueOnce({
+    requireEntitlementForMutationActionMock.mockResolvedValueOnce({
       ok: false,
       mechanic: "mailings",
       reason: "entitlement_required",
@@ -211,7 +211,7 @@ describe("executeBroadcastAction", () => {
 
     expect(executeMock).toHaveBeenCalledOnce();
     expect(requireDoctorWorkspaceContextMock.mock.invocationCallOrder[0]).toBeLessThan(
-      requireEntitlementForActionMock.mock.invocationCallOrder[0]!,
+      requireEntitlementForMutationActionMock.mock.invocationCallOrder[0]!,
     );
   });
 });

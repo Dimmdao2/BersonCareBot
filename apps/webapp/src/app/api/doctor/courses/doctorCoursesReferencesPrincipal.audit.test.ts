@@ -29,7 +29,7 @@ describe("doctor courses/references residual principal coverage", () => {
 
   it("POST /api/doctor/courses is gated by the courses entitlement", () => {
     const src = readSource("src/app/api/doctor/courses/route.ts");
-    expect(src).toContain('requireEntitlement(auth.ctx, "courses")');
+    expect(src).toContain('requireEntitlementForRead(auth.ctx, "courses")');
   });
 
   it("guards every doctor course list, direct and usage read with the same workspace entitlement and principal", () => {
@@ -38,7 +38,7 @@ describe("doctor courses/references residual principal coverage", () => {
     const usage = readSource("src/app/api/doctor/courses/[id]/usage/route.ts");
     for (const source of [collection, item, usage]) {
       expect(source).toContain("requireDoctorWorkspaceApiContext");
-      expect(source).toContain('requireEntitlement(auth.ctx, "courses")');
+      expect(source).toContain('requireEntitlementForRead(auth.ctx, "courses")');
       expect(source).toContain("withDoctorWorkspacePrincipal");
     }
   });
@@ -74,7 +74,7 @@ describe("doctor courses/references residual principal coverage", () => {
     ];
     for (const file of optionalDoctorPickers) {
       const source = readSource(file);
-      expect(source).toContain('requireEntitlementForAction(workspace, "courses")');
+      expect(source).toContain('requireEntitlementForReadAction(workspace, "courses")');
       expect(source).toContain("withDoctorWorkspacePrincipal");
     }
 
@@ -85,27 +85,26 @@ describe("doctor courses/references residual principal coverage", () => {
     for (const file of patientProjections) {
       const source = readSource(file);
       expect(source).toContain("resolvePatientEnrollmentOrganizationId");
-      expect(source).toContain("requireEntitlementForAction(patientOrganization, \"courses\")");
+      expect(source).toContain("requireEntitlementForReadAction(patientOrganization, \"courses\")");
       expect(source).toContain("withPatientOrganizationPrincipal");
     }
 
     const patientHomePage = readSource("src/app/app/patient/page.tsx");
     expect(patientHomePage).toContain("resolvePatientOrganizationRequestContext");
     expect(patientHomePage).toContain(
-      'requireEntitlementForAction({ organizationId: patientContext.organizationId }, "courses")',
+      'requireEntitlementForReadAction({ organizationId: patientContext.organizationId }, "courses")',
     );
     const patientHomeProjection = readSource("src/app/app/patient/home/PatientHomeToday.tsx");
     expect(patientHomeProjection).toContain("withPatientOrganizationPrincipal");
 
-    const courseReferenceWrites = [
-      "src/app/app/doctor/content/actions.ts",
-      "src/app/app/settings/patient-home/actions.ts",
-    ];
-    for (const file of courseReferenceWrites) {
-      const source = readSource(file);
-      expect(source).toContain('requireEntitlementForAction(workspace, "courses")');
-      expect(source).toContain("withDoctorWorkspacePrincipal");
-    }
+    const contentReferenceWrite = readSource("src/app/app/doctor/content/actions.ts");
+    expect(contentReferenceWrite).toContain('requireEntitlementForReadAction(workspace, "courses")');
+    expect(contentReferenceWrite).toContain("withDoctorWorkspacePrincipal");
+    const patientHomeReferenceWrite = readSource("src/app/app/settings/patient-home/actions.ts");
+    expect(patientHomeReferenceWrite).toContain(
+      'requireEntitlementForMutationAction(workspace, "courses")',
+    );
+    expect(patientHomeReferenceWrite).toContain("withDoctorWorkspacePrincipal");
 
     const paymentFulfillment = readSource("src/app-layer/di/buildAppDeps.ts");
     expect(paymentFulfillment).toContain("payments.product-capture.fulfillment");

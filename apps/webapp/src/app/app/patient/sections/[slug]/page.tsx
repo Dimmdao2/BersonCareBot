@@ -7,7 +7,7 @@ import { notFound, permanentRedirect, redirect } from "next/navigation";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import { routePaths } from "@/app-layer/routes/paths";
 import { getOptionalPatientSession } from "@/app-layer/guards/requireRole";
-import { requireEntitlementForAction } from "@/app-layer/guards/requireEntitlement";
+import { requireEntitlementForReadAction } from "@/app-layer/guards/requireEntitlement";
 import { resolvePatientEnrollmentOrganizationId } from "@/app/api/booking/bookingTenant";
 import { withPatientOrganizationPrincipal } from "@/app-layer/principal/withOrganizationPrincipal";
 import { resolvePatientContentSectionSlug } from "@/infra/repos/resolvePatientContentSectionSlug";
@@ -80,7 +80,7 @@ export default async function PatientSectionPage({ params }: Props) {
   const courseHighlightByLinkedId = new Map<string, string>();
   if (linkedCourseIds.length > 0 && session) {
     const patientOrganization = await resolvePatientEnrollmentOrganizationId(deps, session.user.userId);
-    if (patientOrganization.ok && (await requireEntitlementForAction(patientOrganization, "courses")).ok) {
+    if (patientOrganization.ok && (await requireEntitlementForReadAction(patientOrganization, "courses")).ok) {
       const courseRows = await withPatientOrganizationPrincipal(
         {
           organizationId: patientOrganization.organizationId,

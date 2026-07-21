@@ -1,7 +1,7 @@
 import { notFound } from "next/navigation";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import { requireDoctorWorkspaceContext } from "@/app-layer/guards/requireRole";
-import { requireEntitlementForAction } from "@/app-layer/guards/requireEntitlement";
+import { requireEntitlementForReadAction } from "@/app-layer/guards/requireEntitlement";
 import { withDoctorWorkspacePrincipal } from "@/app-layer/guards/doctorWorkspacePrincipal";
 import { cn } from "@/lib/utils";
 import { DoctorAppShell } from "@/shared/ui/doctor/DoctorAppShell";
@@ -14,7 +14,7 @@ type Props = {
 
 export default async function DoctorContentSectionEditPage({ params }: Props) {
   const workspace = await requireDoctorWorkspaceContext();
-  const entitlement = await requireEntitlementForAction(workspace, "cms_pages");
+  const entitlement = await requireEntitlementForReadAction(workspace, "cms_pages");
   if (!entitlement.ok) notFound();
   const session = workspace.session;
   const deps = buildAppDeps();

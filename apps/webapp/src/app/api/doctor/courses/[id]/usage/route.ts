@@ -1,14 +1,14 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
-import { requireEntitlement } from "@/app-layer/guards/requireEntitlement";
+import { requireEntitlementForRead } from "@/app-layer/guards/requireEntitlement";
 import { requireDoctorWorkspaceApiContext } from "@/app-layer/guards/requireRole";
 import { withDoctorWorkspacePrincipal } from "@/app-layer/principal/withOrganizationPrincipal";
 
 export async function GET(_request: Request, ctx: { params: Promise<{ id: string }> }) {
   const auth = await requireDoctorWorkspaceApiContext();
   if (!auth.ok) return auth.response;
-  const entitlement = await requireEntitlement(auth.ctx, "courses");
+  const entitlement = await requireEntitlementForRead(auth.ctx, "courses");
   if (!entitlement.ok) return entitlement.response;
 
   const { id } = await ctx.params;

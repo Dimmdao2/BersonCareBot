@@ -48,6 +48,16 @@ const COMMERCIAL_LIFECYCLE_LABELS: Record<
   blocked: 'Заблокирован',
 };
 
+const TRIAL_STATUS_LABELS: Record<
+  NonNullable<PlatformOrganizationSummary['trial']>['status'],
+  string
+> = {
+  active: 'Активен',
+  grace: 'Льготный период',
+  expired: 'Истёк',
+  ended: 'Завершён',
+};
+
 type TariffDraft = {
   id: string | null;
   name: string;
@@ -291,6 +301,13 @@ export function CommercialConstructorClient() {
     () => state.organizations.find((organization) => organization.id === organizationId) ?? null,
     [organizationId, state.organizations],
   );
+  const selectedManualTariffId = assignedTariffId === 'none' ? null : assignedTariffId;
+  const manualAssignmentChanged = Boolean(
+    selectedOrganization && selectedManualTariffId !== selectedOrganization.manualTariffId,
+  );
+  const assignmentEndsTrial = Boolean(
+    selectedOrganization?.trial && selectedOrganization.trial.status !== 'ended',
+  );
   const canStartTrial = Boolean(
     selectedOrganization && selectedOrganization.trial === null && state.trialPolicy?.isActive,
   );
@@ -302,7 +319,7 @@ export function CommercialConstructorClient() {
   );
 
   useEffect(() => {
-    setAssignedTariffId(selectedOrganization?.tariffId ?? 'none');
+    setAssignedTariffId(selectedOrganization?.manualTariffId ?? 'none');
   }, [selectedOrganization]);
 
   useEffect(() => {
@@ -586,7 +603,7 @@ export function CommercialConstructorClient() {
                 if (value) setOrganizationId(value);
               }}
             >
-              <SelectTrigger>
+              <SelectTrigger displayLabel={selectedOrganization?.title ?? ''}>
                 <SelectValue placeholder="Выберите организацию" />
               </SelectTrigger>
               <SelectContent>
@@ -599,18 +616,24 @@ export function CommercialConstructorClient() {
             </Select>
           </div>
           <div className="space-y-1">
-            <Label>Тариф</Label>
+            <Label>Ручной тариф</Label>
             <Select
               value={assignedTariffId}
               onValueChange={(value) => {
                 if (value) setAssignedTariffId(value);
               }}
             >
-              <SelectTrigger>
+              <SelectTrigger
+                displayLabel={
+                  assignedTariffId === 'none'
+                    ? 'Без ручного тарифа'
+                    : state.tariffs.find((item) => item.id === assignedTariffId)?.name ?? ''
+                }
+              >
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="none">Без тарифа</SelectItem>
+                <SelectItem value="none">Без ручного тарифа</SelectItem>
                 {state.tariffs
                   .filter((item) => item.isActive)
                   .map((item) => (
@@ -626,13 +649,25 @@ export function CommercialConstructorClient() {
               <p>
                 Доступ: {COMMERCIAL_LIFECYCLE_LABELS[selectedOrganization.effectiveAccess.lifecycle]}
               </p>
-              <p>Источник: {selectedOrganization.effectiveAccess.source}</p>
+              <p>
+                Тариф доступа:{' '}
+                {state.tariffs.find(
+                  (item) => item.id === selectedOrganization.effectiveAccess.tariffId,
+                )?.name ?? 'не назначен'}
+              </p>
               {selectedOrganization.trial ? (
-                <p>
-                  Триал: {selectedOrganization.trial.status === 'active' ? 'активен' : 'завершён'};
-                  до {new Date(selectedOrganization.trial.endsAt).toLocaleString('ru-RU')}, grace до{' '}
-                  {new Date(selectedOrganization.trial.graceEndsAt).toLocaleString('ru-RU')}
-                </p>
+                <>
+                  <p>Статус триала: {TRIAL_STATUS_LABELS[selectedOrganization.trial.status]}</p>
+                  <p>
+                    Тариф триала:{' '}
+                    {state.tariffs.find((item) => item.id === selectedOrganization.trial?.tariffId)
+                      ?.name ?? 'не найден'}
+                  </p>
+                  <p>
+                    До {new Date(selectedOrganization.trial.endsAt).toLocaleString('ru-RU')}, grace до{' '}
+                    {new Date(selectedOrganization.trial.graceEndsAt).toLocaleString('ru-RU')}
+                  </p>
+                </>
               ) : (
                 <p>Триал не запускался.</p>
               )}
@@ -647,20 +682,20 @@ export function CommercialConstructorClient() {
             />
           </div>
           <Button
-            disabled={busy || !organizationId || !reason.trim()}
+            disabled={busy || !organizationId || !reason.trim() || !manualAssignmentChanged}
             onClick={() =>
               void mutate(
                 {
                   action: 'assign_tariff',
                   organizationId,
-                  tariffId: assignedTariffId === 'none' ? null : assignedTariffId,
+                  tariffId: selectedManualTariffId,
                   reason,
                 },
                 'Тариф организации изменён',
               )
             }
           >
-            Назначить
+            {assignmentEndsTrial ? 'Завершить триал и назначить' : 'Назначить'}
           </Button>
         </DoctorSection>
         <DoctorSection className="space-y-4">

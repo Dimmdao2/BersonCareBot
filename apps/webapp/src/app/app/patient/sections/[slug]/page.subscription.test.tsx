@@ -54,7 +54,7 @@ vi.mock("@/app/api/booking/bookingTenant", () => ({
 }));
 
 vi.mock("@/app-layer/guards/requireEntitlement", () => ({
-  requireEntitlementForAction: requireEntitlementForActionMock,
+  requireEntitlementForReadAction: requireEntitlementForActionMock,
 }));
 
 vi.mock("@/app-layer/principal/withOrganizationPrincipal", () => ({

@@ -6,7 +6,7 @@ import type { ReactNode } from "react";
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import "../../styles/doctor.css";
-import { requireEntitlementForAction } from "@/app-layer/guards/requireEntitlement";
+import { requireEntitlementForReadAction } from "@/app-layer/guards/requireEntitlement";
 import { requireOrganizationWorkspaceContext } from "@/app-layer/guards/requireRole";
 import { getCurrentSession } from "@/modules/auth/service";
 import { hasLaunchCapability, resolveLaunchCapabilities } from "@/app-layer/guards/workspaceCapabilities";
@@ -56,7 +56,7 @@ export default async function DoctorSectionLayout({ children }: { children: Reac
       organizationId: workspaceAccess.organizationId,
     }),
   ]);
-  const coursesEnabled = (await requireEntitlementForAction(workspaceAccess, "courses")).ok;
+  const coursesEnabled = (await requireEntitlementForReadAction(workspaceAccess, "courses")).ok;
   const workspaceContext: DoctorWorkspaceContext = {
     organizationId: workspaceAccess.organizationId,
     organizationName: organization?.title ?? null,

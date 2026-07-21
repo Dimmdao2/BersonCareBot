@@ -4,6 +4,7 @@ import { getDrizzle } from "@/app-layer/db/drizzle";
 import type {
   PlatformEntitlementsPort,
   PlatformMutationAudit,
+  PlatformTrialStatus,
 } from "@/modules/org-entitlements/ports";
 import type {
   EffectiveOrgCommercialAccess,
@@ -148,6 +149,16 @@ function effectiveAccessForPlatform(input: {
   };
 }
 
+function effectiveTrialStatus(
+  trial: typeof saasOrganizationTrials.$inferSelect,
+  now: number,
+): PlatformTrialStatus {
+  if (trial.status !== "active") return "ended";
+  if (now <= new Date(trial.endsAt).getTime()) return "active";
+  if (now <= new Date(trial.graceEndsAt).getTime()) return "grace";
+  return "expired";
+}
+
 function toOverride(row: typeof saasOrgEntitlementOverrides.$inferSelect): OrgEntitlementOverride {
   return { ...row, quota: row.quota as TariffQuota | null };
 }
@@ -236,20 +247,23 @@ export function createPgPlatformEntitlementsPort(): PlatformEntitlementsPort {
         return organizations.map((organization) => {
           const trial = trialByOrg.get(organization.id) ?? null;
           const commercialAccessState = organization.commercialAccessState as OrgCommercialAccessState;
+          const effectiveAccess = effectiveAccessForPlatform({
+            tariffId: organization.tariffId,
+            commercialAccessState,
+            trial,
+            now,
+          });
           return {
             ...organization,
+            manualTariffId: effectiveAccess.source === "assignment" ? organization.tariffId : null,
             commercialAccessState,
-            effectiveAccess: effectiveAccessForPlatform({
-              tariffId: organization.tariffId,
-              commercialAccessState,
-              trial,
-              now,
-            }),
+            effectiveAccess,
             overrides: overridesByOrg.get(organization.id) ?? [],
             trial: trial
               ? {
                   id: trial.id,
-                  status: trial.status as "active" | "ended",
+                  tariffId: trial.tariffId,
+                  status: effectiveTrialStatus(trial, now),
                   startedAt: trial.startedAt,
                   endsAt: trial.endsAt,
                   graceEndsAt: trial.graceEndsAt,
@@ -303,12 +317,39 @@ export function createPgPlatformEntitlementsPort(): PlatformEntitlementsPort {
     async assignTariff(organizationId, tariffId, audit) {
       assertPlatformOperationsPrincipal();
       await getDrizzle().transaction(async (tx) => {
-          if (tariffId) await requireActiveTariff(tx, tariffId);
           const [before] = await tx.select({ tariffId: beOrganizations.tariffId, commercialAccessState: beOrganizations.commercialAccessState }).from(beOrganizations).where(eq(beOrganizations.id, organizationId)).limit(1);
           if (!before) throw new Error("organization_not_found");
+          const [activeTrial] = await tx
+            .select()
+            .from(saasOrganizationTrials)
+            .where(and(eq(saasOrganizationTrials.organizationId, organizationId), eq(saasOrganizationTrials.status, "active")))
+            .limit(1);
+          const currentManualTariffId = activeTrial ? null : before.tariffId;
+          if (tariffId === currentManualTariffId) return;
+          if (tariffId) await requireActiveTariff(tx, tariffId);
           const [after] = await tx.update(beOrganizations).set({ tariffId, commercialAccessState: tariffId ? "active" : "no_trial" }).where(eq(beOrganizations.id, organizationId)).returning({ tariffId: beOrganizations.tariffId, commercialAccessState: beOrganizations.commercialAccessState });
-          await tx.update(saasOrganizationTrials).set({ status: "ended", updatedAt: new Date().toISOString() }).where(and(eq(saasOrganizationTrials.organizationId, organizationId), eq(saasOrganizationTrials.status, "active")));
-          await appendAudit(tx, { audit, action: tariffId ? "saas_tariff_assign" : "saas_tariff_unassign", targetId: organizationId, organizationId, before, after });
+          let endedTrial: typeof saasOrganizationTrials.$inferSelect | null = null;
+          if (activeTrial) {
+            const [ended] = await tx
+              .update(saasOrganizationTrials)
+              .set({ status: "ended", updatedAt: new Date().toISOString() })
+              .where(and(eq(saasOrganizationTrials.id, activeTrial.id), eq(saasOrganizationTrials.status, "active")))
+              .returning();
+            if (!ended) throw new Error("trial_conversion_conflict");
+            endedTrial = ended;
+          }
+          await appendAudit(tx, {
+            audit,
+            action: activeTrial
+              ? "saas_trial_convert_to_manual_tariff"
+              : tariffId
+                ? "saas_tariff_assign"
+                : "saas_tariff_unassign",
+            targetId: organizationId,
+            organizationId,
+            before: { organization: before, trial: activeTrial ?? null },
+            after: { organization: after, trial: endedTrial },
+          });
         });
     },
 

@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
-import { requireEntitlement } from "@/app-layer/guards/requireEntitlement";
+import { requireEntitlementForRead } from "@/app-layer/guards/requireEntitlement";
 import { requirePatientApiBusinessAccess } from "@/app-layer/guards/requireRole";
 import { resolvePatientEnrollmentOrganizationId } from "@/app/api/booking/bookingTenant";
 import { withPatientOrganizationPrincipal } from "@/app-layer/principal/withOrganizationPrincipal";
@@ -17,7 +17,7 @@ export async function GET() {
   const deps = buildAppDeps();
   const patientOrganization = await resolvePatientEnrollmentOrganizationId(deps, gate.session.user.userId);
   if (!patientOrganization.ok) return patientOrganization.response;
-  const entitlement = await requireEntitlement({ organizationId: patientOrganization.organizationId }, "courses");
+  const entitlement = await requireEntitlementForRead({ organizationId: patientOrganization.organizationId }, "courses");
   if (!entitlement.ok) return entitlement.response;
   const items = await withPatientOrganizationPrincipal(
     {

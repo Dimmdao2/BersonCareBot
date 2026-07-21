@@ -5,7 +5,7 @@ import { buttonVariants } from "@/shared/ui/doctor/primitives/button-variants";
 import { logServerRuntimeError } from "@/infra/logging/serverRuntimeLog";
 import { cn } from "@/lib/utils";
 import { requireDoctorWorkspaceContext } from "@/app-layer/guards/requireRole";
-import { requireEntitlementForAction } from "@/app-layer/guards/requireEntitlement";
+import { requireEntitlementForReadAction } from "@/app-layer/guards/requireEntitlement";
 import { withDoctorWorkspacePrincipal } from "@/app-layer/guards/doctorWorkspacePrincipal";
 import { DoctorAppShell } from "@/shared/ui/doctor/DoctorAppShell";
 import { DoctorPageHeader } from "@/shared/ui/doctor/shell/DoctorPageHeader";
@@ -15,7 +15,7 @@ import { ContentSectionsListClient } from "./ContentSectionsListClient";
 
 export default async function DoctorContentSectionsPage() {
   const workspace = await requireDoctorWorkspaceContext();
-  const entitlement = await requireEntitlementForAction(workspace, "cms_pages");
+  const entitlement = await requireEntitlementForReadAction(workspace, "cms_pages");
   if (!entitlement.ok) notFound();
   const session = workspace.session;
   const deps = buildAppDeps();

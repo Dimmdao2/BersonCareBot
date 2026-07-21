@@ -16,7 +16,7 @@ vi.mock("@/app-layer/guards/requireRole", () => ({
   })),
 }));
 vi.mock("@/app-layer/guards/requireEntitlement", () => ({
-  requireEntitlementForAction: requireEntitlementForActionMock,
+  requireEntitlementForReadAction: requireEntitlementForActionMock,
 }));
 vi.mock("@/app-layer/guards/doctorWorkspacePrincipal", () => ({
   withDoctorWorkspacePrincipal: async (_workspace: unknown, _source: string, fn: () => Promise<unknown>) => fn(),

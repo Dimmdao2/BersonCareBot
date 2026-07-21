@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
-import { requireEntitlement, requireEntitlementForMutation } from "@/app-layer/guards/requireEntitlement";
+import { requireEntitlementForRead, requireEntitlementForMutation } from "@/app-layer/guards/requireEntitlement";
 import { requireDoctorWorkspaceApiContext } from "@/app-layer/guards/requireRole";
 import { withDoctorWorkspacePrincipal } from "@/app-layer/principal/withOrganizationPrincipal";
 
@@ -26,7 +26,7 @@ const postBodySchema = z.object({
 export async function GET(request: Request) {
   const auth = await requireDoctorWorkspaceApiContext();
   if (!auth.ok) return auth.response;
-  const entitlement = await requireEntitlement(auth.ctx, "courses");
+  const entitlement = await requireEntitlementForRead(auth.ctx, "courses");
   if (!entitlement.ok) return entitlement.response;
 
   const { searchParams } = new URL(request.url);

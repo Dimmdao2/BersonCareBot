@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("@/app-layer/guards/requireEntitlement", () => ({
-  requireEntitlement: async () => ({ ok: true }),
+  requireEntitlementForMutation: async () => ({ ok: true }),
 }));
 
 const buildAppDepsMock = vi.hoisted(() => vi.fn());

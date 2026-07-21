@@ -1,7 +1,7 @@
 "use server";
 
 import { requireDoctorWorkspaceContext } from "@/app-layer/guards/requireRole";
-import { requireEntitlementForAction } from "@/app-layer/guards/requireEntitlement";
+import { requireEntitlementForReadAction } from "@/app-layer/guards/requireEntitlement";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import { withDoctorWorkspacePrincipal } from "@/app-layer/guards/doctorWorkspacePrincipal";
 
@@ -27,7 +27,7 @@ export async function loadContentPageForInlineEdit(id: string): Promise<{
   linkedCourseId: string | null;
 } | null> {
   const workspace = await requireDoctorWorkspaceContext();
-  const entitlement = await requireEntitlementForAction(workspace, "cms_pages");
+  const entitlement = await requireEntitlementForReadAction(workspace, "cms_pages");
   if (!entitlement.ok) return null;
   const deps = buildAppDeps();
   const page = await withDoctorWorkspacePrincipal(workspace, "doctor.content.inline-editor.read", () => deps.contentPages.getById(id));

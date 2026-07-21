@@ -3,7 +3,7 @@ import { getCurrentDbPrincipalOrganizationId } from "@bersoncare/db-principal";
 
 const updateSection = vi.fn();
 const requireDoctorWorkspaceContext = vi.fn();
-const requireEntitlementForAction = vi.fn();
+const requireEntitlementForReadAction = vi.fn();
 const revalidatePath = vi.fn();
 
 const ORGANIZATION_ID = "22222222-2222-4222-8222-222222222222";
@@ -13,8 +13,7 @@ vi.mock("@/app-layer/guards/requireRole", () => ({
 }));
 
 vi.mock("@/app-layer/guards/requireEntitlement", () => ({
-  requireEntitlementForAction: (...args: unknown[]) => requireEntitlementForAction(...args),
-  requireEntitlementForMutationAction: (...args: unknown[]) => requireEntitlementForAction(...args),
+  requireEntitlementForMutationAction: (...args: unknown[]) => requireEntitlementForReadAction(...args),
 }));
 
 vi.mock("@/app-layer/di/buildAppDeps", () => ({
@@ -34,8 +33,8 @@ describe("section visibility actions", () => {
     updateSection.mockReset();
     revalidatePath.mockReset();
     requireDoctorWorkspaceContext.mockReset();
-    requireEntitlementForAction.mockReset();
-    requireEntitlementForAction.mockResolvedValue({ ok: true });
+    requireEntitlementForReadAction.mockReset();
+    requireEntitlementForReadAction.mockResolvedValue({ ok: true });
     requireDoctorWorkspaceContext.mockResolvedValue({
       session: { user: { userId: "11111111-1111-4111-8111-111111111111" } },
       organizationId: ORGANIZATION_ID,
