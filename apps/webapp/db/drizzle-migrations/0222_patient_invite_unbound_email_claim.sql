@@ -18,7 +18,6 @@ BEGIN
         (
           recipient_binding = 'bound_email'
           AND invited_email_normalized IS NOT NULL
-          AND position('@' IN invited_email_normalized) > 1
         )
         OR (
           recipient_binding = 'unbound_email_claim'
@@ -153,6 +152,113 @@ BEGIN
     RETURN;
   END IF;
 
+  RETURN QUERY SELECT true, NULL::text, v_organization_title, v_hint, v_invite.expires_at;
+END
+$function$;
+
+-- A successfully claimed unbound invite remains reopenable only while the exact invite-scoped
+-- proof is still valid. This lets the confirm route recreate a session after a post-commit
+-- cookie/session failure without reopening accepted bound invitations.
+CREATE OR REPLACE FUNCTION app.lookup_patient_invite_continuation(p_continuation_hash text)
+RETURNS TABLE (
+  ok boolean,
+  code text,
+  organization_title text,
+  recipient_hint text,
+  invite_expires_at timestamptz
+)
+LANGUAGE plpgsql
+VOLATILE
+SECURITY DEFINER
+SET search_path = pg_catalog
+AS $function$
+#variable_conflict use_column
+DECLARE
+  v_invite public.patient_invites%ROWTYPE;
+  v_organization_title text;
+  v_enrollment_status text;
+  v_portal_activated_at timestamptz;
+  v_portal_activated_via text;
+  v_hint text;
+  v_reopen boolean := false;
+BEGIN
+  SELECT invite.* INTO v_invite
+  FROM public.patient_invites AS invite
+  WHERE invite.continuation_hash = p_continuation_hash
+  LIMIT 1;
+  IF NOT FOUND THEN
+    RETURN QUERY SELECT false, 'invalid_continuation'::text, NULL::text, NULL::text, NULL::timestamptz;
+    RETURN;
+  END IF;
+  IF v_invite.status = 'accepted' THEN
+    IF v_invite.recipient_binding = 'unbound_email_claim'
+       AND v_invite.invited_email_normalized IS NULL
+       AND v_invite.accepted_by_platform_user_id = v_invite.patient_user_id
+       AND v_invite.accepted_via = 'email_otp'
+       AND v_invite.proof_verified_at IS NOT NULL
+       AND v_invite.proof_code_hash IS NOT NULL
+       AND v_invite.proof_expires_at IS NOT NULL
+       AND v_invite.proof_expires_at > now() THEN
+      v_reopen := true;
+    ELSE
+      RETURN QUERY SELECT false, 'already_linked'::text, NULL::text, NULL::text, NULL::timestamptz;
+      RETURN;
+    END IF;
+  ELSIF v_invite.status = 'revoked' THEN
+    RETURN QUERY SELECT false, 'revoked_token'::text, NULL::text, NULL::text, NULL::timestamptz;
+    RETURN;
+  ELSIF v_invite.status = 'superseded' THEN
+    RETURN QUERY SELECT false, 'superseded_token'::text, NULL::text, NULL::text, NULL::timestamptz;
+    RETURN;
+  ELSIF v_invite.status = 'expired'
+     OR v_invite.expires_at <= now()
+     OR v_invite.continuation_expires_at IS NULL
+     OR v_invite.continuation_expires_at <= now() THEN
+    IF v_invite.status = 'pending' AND v_invite.expires_at <= now() THEN
+      UPDATE public.patient_invites SET status = 'expired', updated_at = now() WHERE id = v_invite.id;
+    END IF;
+    RETURN QUERY SELECT false, 'expired_token'::text, NULL::text, NULL::text, NULL::timestamptz;
+    RETURN;
+  END IF;
+
+  SELECT enrollment.status, enrollment.portal_activated_at, enrollment.portal_activated_via
+  INTO v_enrollment_status, v_portal_activated_at, v_portal_activated_via
+  FROM public.org_enrollments AS enrollment
+  WHERE enrollment.id = v_invite.enrollment_id
+    AND enrollment.organization_id = v_invite.organization_id
+    AND enrollment.platform_user_id = v_invite.patient_user_id
+  LIMIT 1;
+  IF v_reopen THEN
+    IF v_enrollment_status <> 'active'
+       OR v_portal_activated_at IS NULL
+       OR v_portal_activated_via <> 'patient_invite_email_otp' THEN
+      RETURN QUERY SELECT false, 'inactive_relationship'::text, NULL::text, NULL::text, NULL::timestamptz;
+      RETURN;
+    END IF;
+  ELSIF v_portal_activated_at IS NOT NULL THEN
+    RETURN QUERY SELECT false, 'already_linked'::text, NULL::text, NULL::text, NULL::timestamptz;
+    RETURN;
+  ELSIF v_enrollment_status NOT IN ('invited', 'active') OR v_enrollment_status IS NULL THEN
+    RETURN QUERY SELECT false, 'inactive_relationship'::text, NULL::text, NULL::text, NULL::timestamptz;
+    RETURN;
+  END IF;
+
+  SELECT organization.title INTO v_organization_title
+  FROM public.be_organizations AS organization
+  WHERE organization.id = v_invite.organization_id
+    AND organization.is_active = true;
+  IF NOT FOUND THEN
+    RETURN QUERY SELECT false, 'organization_unavailable'::text, NULL::text, NULL::text, NULL::timestamptz;
+    RETURN;
+  END IF;
+  v_hint := CASE
+    WHEN v_invite.recipient_binding = 'bound_email'
+      AND v_invite.invited_email_normalized IS NOT NULL
+      AND position('@' IN v_invite.invited_email_normalized) > 1
+      THEN left(v_invite.invited_email_normalized, 1)
+        || '***@' || split_part(v_invite.invited_email_normalized, '@', 2)
+    ELSE NULL
+  END;
   RETURN QUERY SELECT true, NULL::text, v_organization_title, v_hint, v_invite.expires_at;
 END
 $function$;
@@ -315,6 +421,8 @@ DECLARE
   v_email_owner_id uuid;
   v_enrollment_status text;
   v_portal_activated_at timestamptz;
+  v_portal_activated_via text;
+  v_reopen boolean := false;
   v_email text := lower(btrim(p_email_normalized));
   v_secret text;
   v_expected text;
@@ -357,8 +465,12 @@ BEGIN
     RETURN;
   END IF;
   IF v_invite.status = 'accepted' THEN
-    RETURN QUERY SELECT false, 'already_linked'::text, NULL::uuid, NULL::uuid;
-    RETURN;
+    IF v_invite.accepted_by_platform_user_id IS DISTINCT FROM v_invite.patient_user_id
+       OR v_invite.accepted_via IS DISTINCT FROM 'email_otp' THEN
+      RETURN QUERY SELECT false, 'conflicting_identity'::text, NULL::uuid, NULL::uuid;
+      RETURN;
+    END IF;
+    v_reopen := true;
   ELSIF v_invite.status = 'revoked' THEN
     RETURN QUERY SELECT false, 'revoked_token'::text, NULL::uuid, NULL::uuid;
     RETURN;
@@ -378,7 +490,10 @@ BEGIN
     RETURN;
   END IF;
   IF v_invite.proof_verified_at IS NULL
-     OR v_invite.proof_email_normalized IS DISTINCT FROM v_email THEN
+     OR v_invite.proof_email_normalized IS DISTINCT FROM v_email
+     OR v_invite.proof_code_hash IS NULL
+     OR v_invite.proof_expires_at IS NULL
+     OR v_invite.proof_expires_at <= now() THEN
     RETURN QUERY SELECT false, 'unproved_identity'::text, NULL::uuid, NULL::uuid;
     RETURN;
   END IF;
@@ -425,15 +540,24 @@ BEGIN
     RETURN;
   END IF;
 
-  SELECT enrollment.status, enrollment.portal_activated_at
-  INTO v_enrollment_status, v_portal_activated_at
+  SELECT enrollment.status, enrollment.portal_activated_at, enrollment.portal_activated_via
+  INTO v_enrollment_status, v_portal_activated_at, v_portal_activated_via
   FROM public.org_enrollments AS enrollment
   WHERE enrollment.id = v_invite.enrollment_id
     AND enrollment.organization_id = v_invite.organization_id
     AND enrollment.platform_user_id = v_invite.patient_user_id
   LIMIT 1
   FOR UPDATE;
-  IF v_portal_activated_at IS NOT NULL THEN
+  IF v_reopen THEN
+    IF v_enrollment_status = 'active'
+       AND v_portal_activated_at IS NOT NULL
+       AND v_portal_activated_via = 'patient_invite_email_otp' THEN
+      RETURN QUERY SELECT true, NULL::text, v_invite.organization_id, v_invite.patient_user_id;
+      RETURN;
+    END IF;
+    RETURN QUERY SELECT false, 'inactive_relationship'::text, NULL::uuid, NULL::uuid;
+    RETURN;
+  ELSIF v_portal_activated_at IS NOT NULL THEN
     RETURN QUERY SELECT false, 'already_linked'::text, NULL::uuid, NULL::uuid;
     RETURN;
   ELSIF v_enrollment_status NOT IN ('invited', 'active') OR v_enrollment_status IS NULL THEN
@@ -484,8 +608,7 @@ BEGIN
   END IF;
   UPDATE public.patient_invites AS invite
   SET status = 'accepted', accepted_by_platform_user_id = v_invite.patient_user_id,
-      accepted_via = 'email_otp', accepted_at = now(), updated_at = now(),
-      proof_code_hash = NULL, proof_expires_at = NULL
+      accepted_via = 'email_otp', accepted_at = now(), updated_at = now()
   WHERE invite.id = v_invite.id AND invite.status = 'pending';
   IF NOT FOUND THEN
     RAISE EXCEPTION 'patient_invite_accept_failed';
@@ -647,7 +770,7 @@ BEGIN
   WHERE invite.continuation_hash = p_continuation_hash
   LIMIT 1
   FOR UPDATE;
-  IF NOT FOUND OR v_invite.status <> 'pending'
+  IF NOT FOUND
      OR v_invite.continuation_expires_at IS NULL
      OR v_invite.continuation_expires_at <= now()
      OR v_invite.expires_at <= now() THEN
@@ -659,6 +782,25 @@ BEGIN
   FOR SHARE;
   IF NOT FOUND THEN
     RETURN QUERY SELECT false, 'organization_unavailable'::text;
+    RETURN;
+  END IF;
+  IF v_invite.status = 'accepted' THEN
+    IF v_invite.recipient_binding = 'unbound_email_claim'
+       AND v_invite.invited_email_normalized IS NULL
+       AND v_invite.accepted_by_platform_user_id = v_invite.patient_user_id
+       AND v_invite.accepted_via = 'email_otp'
+       AND v_invite.proof_verified_at IS NOT NULL
+       AND v_invite.proof_email_normalized = v_email
+       AND v_invite.proof_code_hash = p_code_hash
+       AND v_invite.proof_expires_at IS NOT NULL
+       AND v_invite.proof_expires_at > now() THEN
+      RETURN QUERY SELECT true, NULL::text;
+      RETURN;
+    END IF;
+    RETURN QUERY SELECT false, 'invalid_code'::text;
+    RETURN;
+  ELSIF v_invite.status <> 'pending' THEN
+    RETURN QUERY SELECT false, 'expired_code'::text;
     RETURN;
   END IF;
   IF v_invite.proof_verified_at IS NOT NULL

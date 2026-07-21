@@ -65,6 +65,7 @@ describe('POST patient invite email confirm', () => {
     });
     claimUnboundEmailProofMock.mockResolvedValue({ ok: true, organizationId, patientUserId });
     findByUserIdMock.mockResolvedValue({ userId: patientUserId, role: 'client' });
+    setSessionFromUserMock.mockResolvedValue(undefined);
   });
 
   it('claims the unbound invite without generic email lookup or registration', async () => {
@@ -100,5 +101,32 @@ describe('POST patient invite email confirm', () => {
     expect(setSessionFromUserMock).not.toHaveBeenCalled();
     expect(cookieSetMock).not.toHaveBeenCalled();
     expect(clearContinuationMock).not.toHaveBeenCalled();
+  });
+
+  it('retries the same committed claim when the first session write fails', async () => {
+    setSessionFromUserMock.mockRejectedValueOnce(new Error('simulated_session_write_failure'));
+
+    await expect(POST(request())).rejects.toThrow('simulated_session_write_failure');
+    expect(claimUnboundEmailProofMock).toHaveBeenCalledOnce();
+    expect(cookieSetMock).not.toHaveBeenCalled();
+    expect(clearContinuationMock).not.toHaveBeenCalled();
+
+    const retry = await POST(request());
+
+    expect(retry.status).toBe(200);
+    expect(await retry.json()).toMatchObject({ ok: true });
+    expect(verifyEmailProofMock).toHaveBeenCalledTimes(2);
+    expect(lookupContinuationMock).toHaveBeenCalledTimes(2);
+    expect(claimUnboundEmailProofMock).toHaveBeenCalledTimes(2);
+    expect(claimUnboundEmailProofMock).toHaveBeenNthCalledWith(
+      2,
+      'continuation-token-with-at-least-thirty-two-characters',
+      'new@example.test',
+    );
+    expect(findPublicEmailUserMock).not.toHaveBeenCalled();
+    expect(findByUserIdMock).toHaveBeenCalledTimes(2);
+    expect(setSessionFromUserMock).toHaveBeenCalledTimes(2);
+    expect(cookieSetMock).toHaveBeenCalledOnce();
+    expect(clearContinuationMock).toHaveBeenCalledOnce();
   });
 });

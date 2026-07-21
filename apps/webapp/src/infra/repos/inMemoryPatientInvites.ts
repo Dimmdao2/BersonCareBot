@@ -19,6 +19,8 @@ type StoredInvite = PatientInviteRecord & {
   proofAttempts: number;
   proofVerifiedAt: string | null;
   organizationTitle: string;
+  acceptedByPlatformUserId: string | null;
+  acceptedVia: 'email_otp' | null;
   revokedByPlatformUserId: string | null;
   supersededByInviteId: string | null;
 };
@@ -26,6 +28,7 @@ type StoredInvite = PatientInviteRecord & {
 type EnrollmentState = {
   status: 'invited' | 'active' | 'inactive';
   portalActivatedAt: string | null;
+  portalActivatedVia: 'patient_invite_email_otp' | null;
 };
 
 const invites: StoredInvite[] = [];
@@ -94,6 +97,7 @@ export function setInMemoryPatientInviteEnrollmentForTests(input: {
   enrollments.set(key(input.organizationId, input.patientUserId), {
     status: input.status,
     portalActivatedAt: input.portalActivated ? new Date().toISOString() : null,
+    portalActivatedVia: null,
   });
 }
 
@@ -103,6 +107,7 @@ export function createInMemoryPatientInvitesPort(): PatientInvitesPort {
       enrollments.get(key(organizationId, patientUserId)) ?? {
         status: 'invited',
         portalActivatedAt: null,
+        portalActivatedVia: null,
       }
     );
   }
@@ -180,6 +185,8 @@ export function createInMemoryPatientInvitesPort(): PatientInvitesPort {
         proofAttempts: 0,
         proofVerifiedAt: null,
         organizationTitle: 'Тестовая клиника',
+        acceptedByPlatformUserId: null,
+        acceptedVia: null,
         revokedByPlatformUserId: null,
         supersededByInviteId: null,
       };
@@ -224,8 +231,25 @@ export function createInMemoryPatientInvitesPort(): PatientInvitesPort {
     async lookupContinuation(continuationHash) {
       const invite = byContinuation(continuationHash);
       if (!invite) return { ok: false, code: 'invalid_continuation' };
-      const lifecycle = lifecycleFailure(invite);
-      if (lifecycle) return lifecycle;
+      if (invite.status === 'accepted') {
+        const enrollment = relationship(invite.organizationId, invite.patientUserId);
+        if (
+          invite.recipientBinding !== 'unbound_email_claim' ||
+          invite.acceptedByPlatformUserId !== invite.patientUserId ||
+          invite.acceptedVia !== 'email_otp' ||
+          !invite.proofVerifiedAt ||
+          !invite.proofCodeHash ||
+          !invite.proofExpiresAt ||
+          Date.parse(invite.proofExpiresAt) <= Date.now() ||
+          !enrollment.portalActivatedAt ||
+          enrollment.portalActivatedVia !== 'patient_invite_email_otp'
+        ) {
+          return { ok: false, code: 'already_linked' };
+        }
+      } else {
+        const lifecycle = lifecycleFailure(invite);
+        if (lifecycle) return lifecycle;
+      }
       if (!invite.continuationExpiresAt || Date.parse(invite.continuationExpiresAt) <= Date.now()) {
         return { ok: false, code: 'invalid_continuation' };
       }
@@ -263,7 +287,23 @@ export function createInMemoryPatientInvitesPort(): PatientInvitesPort {
 
     async verifyEmailProof({ continuationHash, emailNormalized, codeHash }) {
       const invite = byContinuation(continuationHash);
-      if (!invite || lifecycleFailure(invite)) return { ok: false, code: 'invalid_continuation' };
+      if (!invite) return { ok: false, code: 'invalid_continuation' };
+      if (invite.status === 'accepted') {
+        if (
+          invite.recipientBinding === 'unbound_email_claim' &&
+          invite.acceptedByPlatformUserId === invite.patientUserId &&
+          invite.acceptedVia === 'email_otp' &&
+          invite.proofVerifiedAt &&
+          invite.proofEmailNormalized === emailNormalized &&
+          invite.proofCodeHash === codeHash &&
+          invite.proofExpiresAt &&
+          Date.parse(invite.proofExpiresAt) > Date.now()
+        ) {
+          return { ok: true };
+        }
+        return { ok: false, code: 'invalid_code' };
+      }
+      if (lifecycleFailure(invite)) return { ok: false, code: 'invalid_continuation' };
       if (invite.proofAttempts >= 5) return { ok: false, code: 'too_many_attempts' };
       if (!invite.proofExpiresAt || Date.parse(invite.proofExpiresAt) <= Date.now()) {
         return { ok: false, code: 'expired_code' };
@@ -278,8 +318,6 @@ export function createInMemoryPatientInvitesPort(): PatientInvitesPort {
         return { ok: false, code: 'invalid_code' };
       }
       invite.proofVerifiedAt = new Date().toISOString();
-      invite.proofCodeHash = null;
-      invite.proofExpiresAt = null;
       return { ok: true };
     },
 
@@ -300,14 +338,40 @@ export function createInMemoryPatientInvitesPort(): PatientInvitesPort {
       enrollments.set(key(invite.organizationId, invite.patientUserId), {
         status: 'active',
         portalActivatedAt: new Date().toISOString(),
+        portalActivatedVia: 'patient_invite_email_otp',
       });
       invite.status = 'accepted';
+      invite.acceptedByPlatformUserId = invite.patientUserId;
+      invite.acceptedVia = 'email_otp';
       return { ok: true, organizationId: invite.organizationId };
     },
 
     async claimUnboundEmailProof({ continuationHash, emailNormalized }) {
       const invite = byContinuation(continuationHash);
       if (!invite) return { ok: false, code: 'invalid_continuation' };
+      if (invite.status === 'accepted') {
+        const owner = emailOwners.get(emailNormalized);
+        if (
+          invite.recipientBinding === 'unbound_email_claim' &&
+          invite.acceptedByPlatformUserId === invite.patientUserId &&
+          invite.acceptedVia === 'email_otp' &&
+          invite.proofVerifiedAt &&
+          invite.proofEmailNormalized === emailNormalized &&
+          invite.proofCodeHash &&
+          invite.proofExpiresAt &&
+          Date.parse(invite.proofExpiresAt) > Date.now() &&
+          owner === invite.patientUserId &&
+          relationship(invite.organizationId, invite.patientUserId).portalActivatedVia ===
+            'patient_invite_email_otp'
+        ) {
+          return {
+            ok: true,
+            organizationId: invite.organizationId,
+            patientUserId: invite.patientUserId,
+          };
+        }
+        return { ok: false, code: 'conflicting_identity' };
+      }
       const lifecycle = lifecycleFailure(invite);
       if (lifecycle) return lifecycle;
       if (invite.recipientBinding !== 'unbound_email_claim') {
@@ -332,8 +396,11 @@ export function createInMemoryPatientInvitesPort(): PatientInvitesPort {
       enrollments.set(key(invite.organizationId, invite.patientUserId), {
         status: 'active',
         portalActivatedAt: new Date().toISOString(),
+        portalActivatedVia: 'patient_invite_email_otp',
       });
       invite.status = 'accepted';
+      invite.acceptedByPlatformUserId = invite.patientUserId;
+      invite.acceptedVia = 'email_otp';
       return {
         ok: true,
         organizationId: invite.organizationId,

@@ -46,6 +46,11 @@ const unboundInvite = "50000000-0000-4000-8000-000000000004";
 const conflictInvite = "50000000-0000-4000-8000-000000000005";
 const raceInvite = "50000000-0000-4000-8000-000000000006";
 const raceRegistrant = "20000000-0000-4000-8000-000000000098";
+const legacyOrg = "10000000-0000-4000-8000-000000000010";
+const legacyPatient = "20000000-0000-4000-8000-000000000010";
+const legacyStaff = "30000000-0000-4000-8000-000000000010";
+const legacyEnrollment = "40000000-0000-4000-8000-000000000010";
+const legacyInvite = "50000000-0000-4000-8000-000000000010";
 const proofSecret = randomBytes(32).toString("hex");
 
 let started = false;
@@ -73,7 +78,10 @@ async function main() {
     run(path.join(pgBin, "createdb"), ["-h", socket, "-p", port, dbName]);
 
     psql(setupSql());
-    for (const migration of migrations) psqlFile(migration);
+    psqlFile(migrations[0]);
+    psqlFile(migrations[1]);
+    psql(legacyBoundFixtureSql());
+    psqlFile(migrations[2]);
     psqlFile(overlay);
     psql(seedAndReissueSql());
 
@@ -93,7 +101,7 @@ async function main() {
     } finally {
       await admin.end();
     }
-    process.stdout.write("patient-invite-disposable-proof: PASS (0220→0221→0222, rollback guard, reissue, single-use, cross-org, concurrent redeem/claim/issue/registration)\n");
+    process.stdout.write("patient-invite-disposable-proof: PASS (0220→0221→legacy-bound fixture→0222, retry-safe claim, rollback guard, reissue, single-use, cross-org, concurrent redeem/claim/issue/registration)\n");
   } finally {
     cleanup();
   }
@@ -270,6 +278,25 @@ INSERT INTO public.patient_invites(
 `;
 }
 
+function legacyBoundFixtureSql() {
+  return `
+INSERT INTO public.be_organizations(id,title,is_active)
+VALUES ('${legacyOrg}','Legacy Org',true);
+INSERT INTO public.platform_users(id,role,email,email_normalized) VALUES
+  ('${legacyPatient}','client','legacy-local','legacy-local'),
+  ('${legacyStaff}','doctor','legacy-staff','legacy-staff');
+INSERT INTO public.org_enrollments(id,organization_id,platform_user_id,status)
+VALUES ('${legacyEnrollment}','${legacyOrg}','${legacyPatient}','invited');
+INSERT INTO public.patient_invites(
+  id, organization_id, patient_user_id, enrollment_id, token_hash,
+  created_by_platform_user_id, invited_email_normalized, expires_at
+) VALUES (
+  '${legacyInvite}','${legacyOrg}','${legacyPatient}','${legacyEnrollment}',
+  'legacy-local-token','${legacyStaff}','legacy-local',now()+interval '1 day'
+);
+`;
+}
+
 async function proveForwardState(db) {
   const result = await db.query(`
     SELECT enrollment.portal_activated_at, old.superseded_by_invite_id
@@ -279,6 +306,13 @@ async function proveForwardState(db) {
   `, [oldInvite, enrollmentA]);
   assert(result.rows[0]?.portal_activated_at == null, "legacy active relationship was guessed as portal-linked");
   assert(result.rows[0]?.superseded_by_invite_id === newInvite, "replacement FK was not linked after insert");
+  const legacy = await db.query(`
+    SELECT recipient_binding, invited_email_normalized
+    FROM public.patient_invites WHERE id=$1
+  `, [legacyInvite]);
+  assert(legacy.rows[0]?.recipient_binding === "bound_email"
+    && legacy.rows[0]?.invited_email_normalized === "legacy-local",
+  "0222 rejected or rewrote a legal pre-0222 bound recipient without an at-sign");
 }
 
 async function proveBearerAndProof(db) {
@@ -376,10 +410,9 @@ async function proveUnboundClaim(db) {
       claimUnbound(second, "continuation-unbound", "new@example.test"),
     ]);
     const rows = [a.rows[0], b.rows[0]];
-    assert(rows.filter((row) => row?.ok === true && row?.patient_user_id === patientC).length === 1,
-      "concurrent unbound claim did not keep the original placeholder as the one winner");
-    assert(rows.filter((row) => row?.ok === false && row?.code === "already_linked").length === 1,
-      "concurrent unbound claim loser was not terminal");
+    assert(rows.filter((row) => row?.ok === true
+      && row?.organization_id === orgA && row?.patient_user_id === patientC).length === 2,
+    "concurrent same-principal claims did not converge on the canonical organization and patient");
   } finally {
     await Promise.all([first.end(), second.end()]);
   }
@@ -400,6 +433,44 @@ async function proveUnboundClaim(db) {
     "unbound claim rebound an existing patient FK");
   assert(row?.status === "active" && row?.portal_activated_at != null && row?.invite_status === "accepted",
     "unbound claim left a partial activation");
+
+  const retryVerifyAuth = proofAuthorization(
+    "verify", "continuation-unbound", "new@example.test", "unbound-code", null,
+  );
+  const retryVerify = await db.query(
+    "SELECT * FROM app.verify_patient_invite_email_proof($1,$2,$3,$4,$5,$6)",
+    ["continuation-unbound", "new@example.test", "unbound-code", retryVerifyAuth.nonce,
+      retryVerifyAuth.expiresEpoch, retryVerifyAuth.signature],
+  );
+  assert(retryVerify.rows[0]?.ok === true,
+    "accepted unbound invite did not retain the exact valid proof for session retry");
+  const retryLookup = await db.query(
+    "SELECT * FROM app.lookup_patient_invite_continuation($1)",
+    ["continuation-unbound"],
+  );
+  assert(retryLookup.rows[0]?.ok === true && retryLookup.rows[0]?.recipient_hint == null,
+    "accepted unbound invite could not reopen the confirm route after session failure");
+  const retryClaim = await claimUnbound(db, "continuation-unbound", "new@example.test");
+  assert(retryClaim.rows[0]?.ok === true
+    && retryClaim.rows[0]?.organization_id === orgA
+    && retryClaim.rows[0]?.patient_user_id === patientC,
+  "post-commit retry did not return the same trusted organization and patient ids");
+
+  const wrongCodeAuth = proofAuthorization(
+    "verify", "continuation-unbound", "new@example.test", "wrong-code", null,
+  );
+  const wrongCode = await db.query(
+    "SELECT * FROM app.verify_patient_invite_email_proof($1,$2,$3,$4,$5,$6)",
+    ["continuation-unbound", "new@example.test", "wrong-code", wrongCodeAuth.nonce,
+      wrongCodeAuth.expiresEpoch, wrongCodeAuth.signature],
+  );
+  assert(wrongCode.rows[0]?.ok === false && wrongCode.rows[0]?.code === "invalid_code",
+    "accepted unbound invite reopened for a different proof");
+  const wrongEmailClaim = await claimUnbound(db, "continuation-unbound", "other@example.test");
+  assert(wrongEmailClaim.rows[0]?.ok === false
+    && wrongEmailClaim.rows[0]?.organization_id == null
+    && wrongEmailClaim.rows[0]?.patient_user_id == null,
+  "accepted unbound invite exposed trusted ids to a different email identity");
 }
 
 async function proveRepeatedConflict(db) {

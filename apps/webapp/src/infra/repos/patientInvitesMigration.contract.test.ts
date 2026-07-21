@@ -191,6 +191,32 @@ describe('patient invite migration contract', () => {
   });
 
   it('adds a narrow unbound-email claim without changing the 0220 bound-email contract', () => {
+    const migrationConstraint = claimMigration.match(
+      /ADD CONSTRAINT patient_invites_recipient_binding_check CHECK \(([\s\S]*?)\n\s*\);/,
+    )?.[1];
+    const schemaConstraint = schema.match(
+      /'patient_invites_recipient_binding_check',\s*sql`([^`]*)`/,
+    )?.[1];
+    expect(migrationConstraint).toBeDefined();
+    expect(schemaConstraint).toBeDefined();
+    expect(migrationConstraint).toContain("recipient_binding = 'bound_email'");
+    expect(migrationConstraint).toContain('invited_email_normalized IS NOT NULL');
+    expect(migrationConstraint).toContain("recipient_binding = 'unbound_email_claim'");
+    expect(migrationConstraint).toContain('invited_email_normalized IS NULL');
+    expect(migrationConstraint).not.toContain("position('@'");
+    expect(schemaConstraint).not.toContain("position('@'");
+    const exactConstraint =
+      "recipient_binding = 'bound_email' AND invited_email_normalized IS NOT NULL OR " +
+      "recipient_binding = 'unbound_email_claim' AND invited_email_normalized IS NULL";
+    const normalizeConstraint = (value: string) =>
+      value
+        .replaceAll('${table.recipientBinding}', 'recipient_binding')
+        .replaceAll('${table.invitedEmailNormalized}', 'invited_email_normalized')
+        .replace(/[()]/g, '')
+        .replace(/\s+/g, ' ')
+        .trim();
+    expect(normalizeConstraint(migrationConstraint ?? '')).toBe(exactConstraint);
+    expect(normalizeConstraint(schemaConstraint ?? '')).toBe(exactConstraint);
     expect(claimMigration).toContain("recipient_binding text NOT NULL DEFAULT 'bound_email'");
     expect(claimMigration).toContain("recipient_binding = 'unbound_email_claim'");
     expect(claimMigration).toContain(
@@ -212,6 +238,32 @@ describe('patient invite migration contract', () => {
     );
     expect(overlay).not.toMatch(
       /GRANT\s+(?:SELECT|INSERT|UPDATE|DELETE|ALL)[^;]*patient_invites[^;]*app_patient/i,
+    );
+  });
+
+  it('keeps an accepted unbound claim retryable only with the same live proof', () => {
+    const claimFunction = claimMigration.slice(
+      claimMigration.indexOf('CREATE OR REPLACE FUNCTION app.claim_unbound_patient_invite_email'),
+      claimMigration.indexOf(
+        'REVOKE ALL ON FUNCTION app.claim_unbound_patient_invite_email',
+      ),
+    );
+    const verifyFunction = claimMigration.slice(
+      claimMigration.indexOf('CREATE OR REPLACE FUNCTION app.verify_patient_invite_email_proof'),
+    );
+    expect(claimFunction).toContain("v_invite.status = 'accepted'");
+    expect(claimFunction).toContain("v_invite.accepted_via IS DISTINCT FROM 'email_otp'");
+    expect(claimFunction).toContain('v_invite.proof_code_hash IS NULL');
+    expect(claimFunction).toContain('v_invite.proof_expires_at <= now()');
+    expect(claimFunction).toContain(
+      'RETURN QUERY SELECT true, NULL::text, v_invite.organization_id, v_invite.patient_user_id',
+    );
+    expect(claimFunction).not.toContain('proof_code_hash = NULL');
+    expect(verifyFunction).toContain("v_invite.status = 'accepted'");
+    expect(verifyFunction).toContain('v_invite.proof_code_hash = p_code_hash');
+    expect(verifyFunction).toContain('v_invite.proof_expires_at > now()');
+    expect(claimMigration).toContain(
+      'CREATE OR REPLACE FUNCTION app.lookup_patient_invite_continuation',
     );
   });
 

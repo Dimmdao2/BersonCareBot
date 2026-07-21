@@ -101,6 +101,50 @@ describe('patient invite activation', () => {
     });
   });
 
+  it('reopens the same accepted unbound claim after a post-commit session failure', async () => {
+    const { service, deliveredCode } = buildService();
+    const issued = await issueInvite(service, null);
+    expect(issued.ok).toBe(true);
+    if (!issued.ok) return;
+    const exchanged = await service.exchangeBearer(bearerFrom(issued.relativeUrl));
+    expect(exchanged.ok).toBe(true);
+    if (!exchanged.ok) return;
+
+    await service.startEmailProof(exchanged.continuation, 'retry@example.test');
+    const code = deliveredCode();
+    await expect(
+      service.verifyEmailProof(exchanged.continuation, 'retry@example.test', code),
+    ).resolves.toEqual({ ok: true });
+    await expect(
+      service.claimUnboundEmailProof(exchanged.continuation, 'retry@example.test'),
+    ).resolves.toEqual({ ok: true, organizationId, patientUserId });
+
+    // The database commit may succeed before the route can persist its session cookie. The same
+    // still-valid invite proof must therefore converge on the already-claimed canonical identity.
+    await expect(
+      service.verifyEmailProof(exchanged.continuation, 'retry@example.test', code),
+    ).resolves.toEqual({ ok: true });
+    await expect(service.lookupContinuation(exchanged.continuation)).resolves.toMatchObject({
+      ok: true,
+      preview: { recipientBinding: 'unbound_email_claim' },
+    });
+    const retries = await Promise.all([
+      service.claimUnboundEmailProof(exchanged.continuation, 'retry@example.test'),
+      service.claimUnboundEmailProof(exchanged.continuation, 'retry@example.test'),
+    ]);
+    expect(retries).toEqual([
+      { ok: true, organizationId, patientUserId },
+      { ok: true, organizationId, patientUserId },
+    ]);
+
+    await expect(
+      service.verifyEmailProof(exchanged.continuation, 'retry@example.test', '000000'),
+    ).resolves.toEqual({ ok: false, code: 'invalid_code' });
+    await expect(
+      service.claimUnboundEmailProof(exchanged.continuation, 'other@example.test'),
+    ).resolves.toEqual({ ok: false, code: 'conflicting_identity' });
+  });
+
   it('rejects an unbound claim when the verified email belongs to another identity', async () => {
     const { service, deliveredCode } = buildService();
     setInMemoryPatientInviteEmailOwnerForTests('owned@example.test', otherUserId);
