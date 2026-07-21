@@ -9,21 +9,21 @@
  * the compatibility resolver.
  */
 export const MECHANIC_REGISTRY = {
-  booking: { label: "Онлайн-запись", quotaUnits: ["appointments"] },
-  exercise_catalog: { label: "Каталог упражнений", quotaUnits: ["items"] },
-  exercise_packages: { label: "Пакеты упражнений", quotaUnits: ["items"] },
-  courses: { label: "Курсы", quotaUnits: ["items"] },
-  cms_pages: { label: "Страницы CMS", quotaUnits: ["items"] },
-  files: { label: "Файлы пациентов", quotaUnits: ["bytes", "items"] },
-  patient_card: { label: "Карточка пациента", quotaUnits: ["clients"] },
-  subscriptions: { label: "Абонементы пациентов", quotaUnits: ["items"] },
-  payments: { label: "Оплата записи", quotaUnits: ["transactions"] },
-  mailings: { label: "Рассылки", quotaUnits: ["messages"] },
-  patient_app: { label: "Приложение пациента", quotaUnits: ["clients"] },
-  patient_app_paid_subscription: { label: "Платная подписка пациента", quotaUnits: ["clients"] },
-  branding: { label: "Брендирование", quotaUnits: [] },
-  custom_domain: { label: "Собственный домен", quotaUnits: [] },
-  clinic_team: { label: "Режим клиники", quotaUnits: ["seats"] },
+  booking: { label: "Онлайн-запись", quotaUnits: ["appointments"], quotaEnforcement: "declared_no_enforcement" },
+  exercise_catalog: { label: "Каталог упражнений", quotaUnits: ["items"], quotaEnforcement: "declared_no_enforcement" },
+  exercise_packages: { label: "Пакеты упражнений", quotaUnits: ["items"], quotaEnforcement: "declared_no_enforcement" },
+  courses: { label: "Курсы", quotaUnits: ["items"], quotaEnforcement: "atomic_snapshot" },
+  cms_pages: { label: "Страницы CMS", quotaUnits: ["items"], quotaEnforcement: "declared_no_enforcement" },
+  files: { label: "Файлы пациентов", quotaUnits: ["bytes", "items"], quotaEnforcement: "declared_no_enforcement" },
+  patient_card: { label: "Карточка пациента", quotaUnits: ["clients"], quotaEnforcement: "declared_no_enforcement" },
+  subscriptions: { label: "Абонементы пациентов", quotaUnits: ["items"], quotaEnforcement: "declared_no_enforcement" },
+  payments: { label: "Оплата записи", quotaUnits: ["transactions"], quotaEnforcement: "declared_no_enforcement" },
+  mailings: { label: "Рассылки", quotaUnits: ["messages"], quotaEnforcement: "declared_no_enforcement" },
+  patient_app: { label: "Приложение пациента", quotaUnits: ["clients"], quotaEnforcement: "declared_no_enforcement" },
+  patient_app_paid_subscription: { label: "Платная подписка пациента", quotaUnits: ["clients"], quotaEnforcement: "declared_no_enforcement" },
+  branding: { label: "Брендирование", quotaUnits: [], quotaEnforcement: "declared_no_enforcement" },
+  custom_domain: { label: "Собственный домен", quotaUnits: [], quotaEnforcement: "declared_no_enforcement" },
+  clinic_team: { label: "Режим клиники", quotaUnits: ["seats"], quotaEnforcement: "declared_no_enforcement" },
 } as const;
 
 export type OrgMechanic = keyof typeof MECHANIC_REGISTRY;
@@ -111,7 +111,7 @@ export type OrgEntitlementOverride = {
 export type OrgEntitlements = Record<OrgMechanic, boolean>;
 
 export type TrialPostBehavior = "read_only" | "blocked" | "tariff";
-export type TrialStartEvent = "organization_provisioned" | "email_verified" | "manual";
+export type TrialStartEvent = "organization_provisioned";
 
 export type TrialPolicy = {
   tariffId: string;
@@ -123,16 +123,6 @@ export type TrialPolicy = {
   isActive: boolean;
 };
 
-export type QuotaAccessDecision = {
-  allowed: boolean;
-  warning: boolean;
-  used: number;
-  projected: number;
-  limit: number | null;
-  utilizationPercent: number | null;
-  reason: "allowed" | "warning_80" | "quota_reached";
-};
-
 export type OrgCommercialLifecycleState = "active" | "grace" | "read_only" | "blocked";
 
 export type OrgCommercialAccessState =
@@ -141,16 +131,24 @@ export type OrgCommercialAccessState =
   | "trial_pending"
   | "active";
 
-export type QuotaGrowthByUnit = Partial<Record<TariffQuotaUnit, number>>;
-
-export type QuotaReservationDecision = QuotaAccessDecision & {
-  mechanic: OrgMechanic;
-  periodKey: string | null;
-  reserved: number;
-};
-
 export type EffectiveOrgCommercialAccess = {
   lifecycle: OrgCommercialLifecycleState;
   tariffId: string | null;
   source: "compatibility" | "assignment" | "trial" | "post_trial_tariff" | "no_trial";
+};
+
+export type OrgEntitlementSnapshot = {
+  tariff: {
+    mechanics: Record<string, boolean>;
+    quotas: TariffQuotaMap;
+    includedSeats: number | null;
+  } | null;
+  overrides: Array<{
+    mechanic: string;
+    enabled: boolean;
+    quota: TariffQuota | null;
+    expiresAt: string | null;
+    seatLimitOverride: number | null;
+  }>;
+  access: EffectiveOrgCommercialAccess;
 };

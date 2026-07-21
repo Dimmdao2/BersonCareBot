@@ -3,61 +3,40 @@ import { notFound } from "next/navigation";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import {
   isMechanicEnabled,
-  resolveEffectiveCommercialAccess,
-  resolveQuotaGrowthAccess,
+  resolveOrgEntitlementSnapshot,
 } from "@/modules/org-entitlements/service";
-import type {
-  OrgMechanic,
-  QuotaGrowthByUnit,
-  QuotaReservationDecision,
-} from "@/modules/org-entitlements/types";
+import type { OrgMechanic } from "@/modules/org-entitlements/types";
 
 /** A route/action may pass only an already-authorized, server-derived organization. */
 export type EntitlementContext = Readonly<{ organizationId: string }>;
 export type EntitlementMutationIntent = Readonly<{
   kind: "mutation";
-  growthByUnit?: QuotaGrowthByUnit;
 }>;
-export type EntitlementSuccess = { ok: true; quota: QuotaReservationDecision | null };
+export type EntitlementSuccess = { ok: true };
 export type EntitlementDenialReason =
   | "entitlement_required"
   | "commercial_read_only"
-  | "commercial_blocked"
-  | "quota_reached";
+  | "commercial_blocked";
 
 async function checkEntitlement(
   ctx: EntitlementContext,
   mechanic: OrgMechanic,
   intent?: EntitlementMutationIntent,
-): Promise<EntitlementSuccess | { ok: false; reason: EntitlementDenialReason; quota: QuotaReservationDecision | null }> {
+): Promise<EntitlementSuccess | { ok: false; reason: EntitlementDenialReason }> {
   const port = buildAppDeps().orgEntitlements;
-  if (!(await isMechanicEnabled(port, ctx.organizationId, mechanic))) {
-    return { ok: false, reason: "entitlement_required", quota: null };
+  const snapshot = await resolveOrgEntitlementSnapshot(port, ctx.organizationId);
+  if (!snapshot.entitlements[mechanic]) {
+    return { ok: false, reason: "entitlement_required" };
   }
-  if (!intent) return { ok: true, quota: null };
+  if (!intent) return { ok: true };
 
-  const effective = await resolveEffectiveCommercialAccess(port, ctx.organizationId);
-  if (effective.lifecycle === "read_only") {
-    return { ok: false, reason: "commercial_read_only", quota: null };
+  if (snapshot.access.lifecycle === "read_only") {
+    return { ok: false, reason: "commercial_read_only" };
   }
-  if (effective.lifecycle === "blocked") {
-    return { ok: false, reason: "commercial_blocked", quota: null };
+  if (snapshot.access.lifecycle === "blocked") {
+    return { ok: false, reason: "commercial_blocked" };
   }
-  if (!intent.growthByUnit) return { ok: true, quota: null };
-  for (const value of Object.values(intent.growthByUnit)) {
-    if (value !== undefined && (!Number.isSafeInteger(value) || value < 0)) {
-      throw new Error("quota_growth_invalid");
-    }
-  }
-  const quota = await resolveQuotaGrowthAccess({
-    port,
-    organizationId: ctx.organizationId,
-    mechanic,
-    growthByUnit: intent.growthByUnit,
-  });
-  return quota.allowed
-    ? { ok: true, quota }
-    : { ok: false, reason: "quota_reached", quota };
+  return { ok: true };
 }
 
 /**
@@ -81,7 +60,7 @@ export async function requireEntitlement(
     return {
       ok: false,
       response: NextResponse.json(
-        { ok: false, error: decision.reason, mechanic, quota: decision.quota },
+        { ok: false, error: decision.reason, mechanic },
         { status: 403 },
       ),
     };

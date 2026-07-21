@@ -190,7 +190,6 @@ VALUES
   ('"public"."reminder_journal"'),
   ('"public"."reminder_rules"'),
   ('"public"."saas_org_entitlement_overrides"'),
-  ('"public"."saas_organization_quota_usage"'),
   ('"public"."saas_organization_trials"'),
   ('"public"."specialist_tasks"'),
   ('"public"."support_conversations"'),
@@ -288,8 +287,8 @@ DECLARE
 BEGIN
   SELECT count(*) INTO v_expected_count FROM phase4_force_rls_targets;
 
-  IF v_expected_count <> 169 THEN
-    RAISE EXCEPTION 'phase4_force_target_count_mismatch: expected 169, got %', v_expected_count;
+  IF v_expected_count <> 168 THEN
+    RAISE EXCEPTION 'phase4_force_target_count_mismatch: expected 168, got %', v_expected_count;
   END IF;
 
   SELECT count(*)

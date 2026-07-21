@@ -5,9 +5,9 @@
 import type {
   EffectiveOrgCommercialAccess,
   OrgCommercialAccessState,
+  OrgEntitlementSnapshot,
   OrgMechanic,
-  QuotaGrowthByUnit,
-  QuotaReservationDecision,
+  OrgEntitlementOverride,
   Tariff,
   TariffQuota,
   TariffQuotaMap,
@@ -15,6 +15,8 @@ import type {
 } from "./types";
 
 export type OrgEntitlementsPort = {
+  /** One server-authoritative effective snapshot used by mutation guards. */
+  getSnapshot(organizationId: string): Promise<OrgEntitlementSnapshot>;
   /** Resolves the org's tariff via be_organizations.tariff_id. Null when unset (no tariff assigned). */
   getTariffForOrg(
     organizationId: string,
@@ -24,11 +26,6 @@ export type OrgEntitlementsPort = {
     organizationId: string,
   ): Promise<{ mechanic: string; enabled: boolean; quota?: TariffQuota | null; expiresAt?: string | null; seatLimitOverride: number | null }[]>;
   getEffectiveCommercialAccess(organizationId: string): Promise<EffectiveOrgCommercialAccess>;
-  reserveQuotaGrowth(
-    organizationId: string,
-    mechanic: OrgMechanic,
-    growthByUnit: QuotaGrowthByUnit,
-  ): Promise<QuotaReservationDecision>;
 };
 
 export type PlatformMutationAudit = { actorId: string | null; reason: string };
@@ -38,6 +35,15 @@ export type PlatformOrganizationSummary = {
   tariffId: string | null;
   isActive: boolean;
   commercialAccessState: OrgCommercialAccessState;
+  effectiveAccess: EffectiveOrgCommercialAccess;
+  overrides: OrgEntitlementOverride[];
+  trial: {
+    id: string;
+    status: "active" | "ended";
+    startedAt: string;
+    endsAt: string;
+    graceEndsAt: string;
+  } | null;
 };
 
 export type PlatformEntitlementsPort = {

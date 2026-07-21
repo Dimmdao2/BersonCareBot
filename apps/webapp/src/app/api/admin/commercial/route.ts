@@ -33,7 +33,7 @@ const trialPolicySchema = z.object({
   tariffId: z.string().uuid(),
   durationDays: z.number().int().positive(),
   graceDays: z.number().int().nonnegative(),
-  startEvent: z.enum(['organization_provisioned', 'email_verified', 'manual']),
+  startEvent: z.literal('organization_provisioned'),
   postTrialBehavior: z.enum(['read_only', 'blocked', 'tariff']),
   postTrialTariffId: z.string().uuid().nullable(),
   isActive: z.boolean(),

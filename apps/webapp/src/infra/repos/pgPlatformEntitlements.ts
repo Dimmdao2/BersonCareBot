@@ -6,7 +6,9 @@ import type {
   PlatformMutationAudit,
 } from "@/modules/org-entitlements/ports";
 import type {
+  EffectiveOrgCommercialAccess,
   OrgCommercialAccessState,
+  OrgEntitlementOverride,
   Tariff,
   TariffQuota,
   TariffQuotaMap,
@@ -111,6 +113,45 @@ function assertPlatformOperationsPrincipal(): void {
   }
 }
 
+function effectiveAccessForPlatform(input: {
+  tariffId: string | null;
+  commercialAccessState: OrgCommercialAccessState;
+  trial: typeof saasOrganizationTrials.$inferSelect | null;
+  now: number;
+}): EffectiveOrgCommercialAccess {
+  const trial = input.trial?.status === "active" ? input.trial : null;
+  if (!trial) {
+    return {
+      lifecycle: "active",
+      tariffId: input.tariffId,
+      source:
+        input.commercialAccessState === "compatibility"
+          ? "compatibility"
+          : input.commercialAccessState === "no_trial"
+            ? "no_trial"
+            : "assignment",
+    };
+  }
+  if (input.now <= new Date(trial.endsAt).getTime()) {
+    return { lifecycle: "active", tariffId: trial.tariffId, source: "trial" };
+  }
+  if (input.now <= new Date(trial.graceEndsAt).getTime()) {
+    return { lifecycle: "grace", tariffId: trial.tariffId, source: "trial" };
+  }
+  if (trial.postTrialBehavior === "tariff") {
+    return { lifecycle: "active", tariffId: trial.postTrialTariffId, source: "post_trial_tariff" };
+  }
+  return {
+    lifecycle: trial.postTrialBehavior === "blocked" ? "blocked" : "read_only",
+    tariffId: trial.tariffId,
+    source: "trial",
+  };
+}
+
+function toOverride(row: typeof saasOrgEntitlementOverrides.$inferSelect): OrgEntitlementOverride {
+  return { ...row, quota: row.quota as TariffQuota | null };
+}
+
 async function startTrialForOrganization(
   organizationId: string,
   audit: PlatformMutationAudit,
@@ -175,14 +216,48 @@ export function createPgPlatformEntitlementsPort(): PlatformEntitlementsPort {
 
     async listOrganizations() {
       assertPlatformOperationsPrincipal();
-      const rows = await getDrizzle()
-        .select({ id: beOrganizations.id, title: beOrganizations.title, tariffId: beOrganizations.tariffId, isActive: beOrganizations.isActive, commercialAccessState: beOrganizations.commercialAccessState })
-        .from(beOrganizations)
-        .orderBy(beOrganizations.title);
-      return rows.map((row) => ({
-        ...row,
-        commercialAccessState: row.commercialAccessState as OrgCommercialAccessState,
-      }));
+      return getDrizzle().transaction(async (tx) => {
+        const [organizations, trials, overrides] = await Promise.all([
+          tx
+            .select({ id: beOrganizations.id, title: beOrganizations.title, tariffId: beOrganizations.tariffId, isActive: beOrganizations.isActive, commercialAccessState: beOrganizations.commercialAccessState })
+            .from(beOrganizations)
+            .orderBy(beOrganizations.title),
+          tx.select().from(saasOrganizationTrials),
+          tx.select().from(saasOrgEntitlementOverrides),
+        ]);
+        const trialByOrg = new Map(trials.map((trial) => [trial.organizationId, trial]));
+        const overridesByOrg = new Map<string, OrgEntitlementOverride[]>();
+        for (const override of overrides) {
+          const current = overridesByOrg.get(override.organizationId) ?? [];
+          current.push(toOverride(override));
+          overridesByOrg.set(override.organizationId, current);
+        }
+        const now = Date.now();
+        return organizations.map((organization) => {
+          const trial = trialByOrg.get(organization.id) ?? null;
+          const commercialAccessState = organization.commercialAccessState as OrgCommercialAccessState;
+          return {
+            ...organization,
+            commercialAccessState,
+            effectiveAccess: effectiveAccessForPlatform({
+              tariffId: organization.tariffId,
+              commercialAccessState,
+              trial,
+              now,
+            }),
+            overrides: overridesByOrg.get(organization.id) ?? [],
+            trial: trial
+              ? {
+                  id: trial.id,
+                  status: trial.status as "active" | "ended",
+                  startedAt: trial.startedAt,
+                  endsAt: trial.endsAt,
+                  graceEndsAt: trial.graceEndsAt,
+                }
+              : null,
+          };
+        });
+      });
     },
 
     async getTrialPolicy() {
@@ -275,9 +350,9 @@ export function createPgPlatformEntitlementsPort(): PlatformEntitlementsPort {
     async extendTrial(organizationId, days, audit) {
       assertPlatformOperationsPrincipal();
       return getDrizzle().transaction(async (tx) => {
-          const [before] = await tx.select().from(saasOrganizationTrials).where(eq(saasOrganizationTrials.organizationId, organizationId)).limit(1);
+          const [before] = await tx.select().from(saasOrganizationTrials).where(and(eq(saasOrganizationTrials.organizationId, organizationId), eq(saasOrganizationTrials.status, "active"))).limit(1);
           if (!before) throw new Error("organization_trial_not_found");
-          const [after] = await tx.update(saasOrganizationTrials).set({ endsAt: sql`${saasOrganizationTrials.endsAt} + (${days} * interval '1 day')`, graceEndsAt: sql`${saasOrganizationTrials.graceEndsAt} + (${days} * interval '1 day')`, extensionCount: sql`${saasOrganizationTrials.extensionCount} + 1`, updatedAt: new Date().toISOString() }).where(eq(saasOrganizationTrials.organizationId, organizationId)).returning();
+          const [after] = await tx.update(saasOrganizationTrials).set({ endsAt: sql`${saasOrganizationTrials.endsAt} + (${days} * interval '1 day')`, graceEndsAt: sql`${saasOrganizationTrials.graceEndsAt} + (${days} * interval '1 day')`, extensionCount: sql`${saasOrganizationTrials.extensionCount} + 1`, updatedAt: new Date().toISOString() }).where(and(eq(saasOrganizationTrials.organizationId, organizationId), eq(saasOrganizationTrials.status, "active"))).returning();
           if (!after) throw new Error("trial_extension_failed");
           await appendAudit(tx, { audit, action: "saas_trial_extend", targetId: after.id, organizationId, before, after });
           return { endsAt: after.endsAt };

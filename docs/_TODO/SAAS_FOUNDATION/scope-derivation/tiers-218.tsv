@@ -207,7 +207,6 @@ SCOPED|public.reminder_journal
 SCOPED|public.reminder_occurrence_history
 SCOPED|public.reminder_rules
 SCOPED|public.saas_org_entitlement_overrides
-SCOPED|public.saas_organization_quota_usage
 SCOPED|public.saas_organization_trials
 SCOPED|public.specialist_tasks
 SCOPED|public.support_conversation_messages

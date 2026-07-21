@@ -1,24 +1,25 @@
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 import { describe, expect, it, vi } from "vitest";
 import type { OrgEntitlementsPort } from "./ports";
 import {
   createPlatformEntitlementsService,
-  evaluateQuotaGrowth,
   isMechanicEnabled,
   resolveClinicSeatLimit,
   resolveOrgEntitlements,
 } from "./service";
-import { MECHANICS } from "./types";
+import { MECHANIC_REGISTRY, MECHANICS } from "./types";
 
 function portFor(
   tariff: { mechanics: Record<string, boolean>; includedSeats?: number | null } | null,
   overrides: { mechanic: string; enabled: boolean; seatLimitOverride?: number | null; expiresAt?: string | null }[],
 ): OrgEntitlementsPort {
-  const totalGrowth = (growthByUnit: Parameters<OrgEntitlementsPort["reserveQuotaGrowth"]>[2]) => {
-    let total = 0;
-    for (const value of Object.values(growthByUnit)) total += value ?? 0;
-    return total;
-  };
-  return {
+  const port: OrgEntitlementsPort = {
+    getSnapshot: vi.fn(async () => ({
+      tariff: tariff ? { mechanics: tariff.mechanics, quotas: {}, includedSeats: tariff.includedSeats ?? null } : null,
+      overrides: overrides.map((override) => ({ ...override, quota: null, expiresAt: override.expiresAt ?? null, seatLimitOverride: override.seatLimitOverride ?? null })),
+      access: { lifecycle: "active" as const, tariffId: null, source: "compatibility" as const },
+    })),
     getTariffForOrg: vi.fn(async () =>
       tariff ? { mechanics: tariff.mechanics, includedSeats: tariff.includedSeats ?? null } : null,
     ),
@@ -30,19 +31,8 @@ function portFor(
       tariffId: null,
       source: "compatibility" as const,
     })),
-    reserveQuotaGrowth: vi.fn(async (_organizationId, mechanic, growthByUnit) => ({
-      allowed: true,
-      warning: false,
-      used: 0,
-      projected: totalGrowth(growthByUnit),
-      limit: null,
-      utilizationPercent: null,
-      reason: "allowed" as const,
-      mechanic,
-      periodKey: null,
-      reserved: totalGrowth(growthByUnit),
-    })),
   };
+  return port;
 }
 
 describe("resolveOrgEntitlements", () => {
@@ -105,10 +95,10 @@ describe("resolveOrgEntitlements", () => {
       ["org-b", portFor(null, [])],
     ]);
     const scopedPort: OrgEntitlementsPort = {
+      getSnapshot: (organizationId) => ports.get(organizationId)!.getSnapshot(organizationId),
       getTariffForOrg: (organizationId) => ports.get(organizationId)!.getTariffForOrg(organizationId),
       listOverrides: (organizationId) => ports.get(organizationId)!.listOverrides(organizationId),
       getEffectiveCommercialAccess: (organizationId) => ports.get(organizationId)!.getEffectiveCommercialAccess(organizationId),
-      reserveQuotaGrowth: (organizationId, mechanic, growthByUnit) => ports.get(organizationId)!.reserveQuotaGrowth(organizationId, mechanic, growthByUnit),
     };
     await expect(isMechanicEnabled(scopedPort, "org-a", "courses")).resolves.toBe(true);
     await expect(isMechanicEnabled(scopedPort, "org-b", "courses")).resolves.toBe(false);
@@ -173,50 +163,13 @@ describe("resolveClinicSeatLimit", () => {
       ["org-b", portFor(null, [])],
     ]);
     const scopedPort: OrgEntitlementsPort = {
+      getSnapshot: (organizationId) => ports.get(organizationId)!.getSnapshot(organizationId),
       getTariffForOrg: (organizationId) => ports.get(organizationId)!.getTariffForOrg(organizationId),
       listOverrides: (organizationId) => ports.get(organizationId)!.listOverrides(organizationId),
       getEffectiveCommercialAccess: (organizationId) => ports.get(organizationId)!.getEffectiveCommercialAccess(organizationId),
-      reserveQuotaGrowth: (organizationId, mechanic, growthByUnit) => ports.get(organizationId)!.reserveQuotaGrowth(organizationId, mechanic, growthByUnit),
     };
     await expect(resolveClinicSeatLimit(scopedPort, "org-a")).resolves.toBe(5);
     await expect(resolveClinicSeatLimit(scopedPort, "org-b")).resolves.toBe(0);
-  });
-});
-
-describe("quota growth policy", () => {
-  const numeric = {
-    kind: "numeric" as const,
-    limit: 100,
-    unit: "items",
-    period: "month" as const,
-    usagePolicy: "consumption" as const,
-  };
-
-  it("warns at 80 percent without blocking existing access", () => {
-    expect(evaluateQuotaGrowth({ quota: numeric, used: 79, growth: 1 })).toMatchObject({
-      allowed: true,
-      warning: true,
-      reason: "warning_80",
-    });
-  });
-
-  it("blocks only new growth above the limit", () => {
-    expect(evaluateQuotaGrowth({ quota: numeric, used: 100, growth: 1 })).toMatchObject({
-      allowed: false,
-      reason: "quota_reached",
-    });
-    expect(evaluateQuotaGrowth({ quota: numeric, used: 120, growth: 0 })).toMatchObject({
-      allowed: true,
-      reason: "warning_80",
-    });
-  });
-
-  it("never blocks an explicit unlimited quota", () => {
-    expect(evaluateQuotaGrowth({
-      quota: { ...numeric, kind: "unlimited", limit: null },
-      used: 1_000_000,
-      growth: 10,
-    })).toMatchObject({ allowed: true, limit: null });
   });
 });
 
@@ -252,5 +205,45 @@ describe("platform tariff constructor validation", () => {
       includedSeats: null,
       isActive: true,
     }, { actorId: null, reason: "test" })).toThrow("tariff_quota_unit_invalid");
+  });
+
+  it("accepts arbitrary declared quota shapes but restricts the enforced courses quota to its atomic shape", () => {
+    const port = { createTariff: vi.fn() };
+    const service = createPlatformEntitlementsService(port as never);
+    const base = {
+      name: "Base",
+      description: "",
+      priceMinor: null,
+      currency: null,
+      billingPeriod: "month" as const,
+      mechanics: { booking: true, courses: true },
+      includedSeats: null,
+      isActive: true,
+    };
+    service.createTariff({
+      ...base,
+      quotas: { booking: { kind: "numeric", limit: 10, unit: "appointments", period: "month", usagePolicy: "consumption" } },
+    }, { actorId: null, reason: "test" });
+    expect(port.createTariff).toHaveBeenCalledOnce();
+    expect(() => service.createTariff({
+      ...base,
+      quotas: { courses: { kind: "unlimited", limit: null, unit: "items", period: "month", usagePolicy: "consumption" } },
+    }, { actorId: null, reason: "test" })).toThrow("tariff_quota_enforcement_shape_invalid");
+  });
+
+  it("declares only courses as enforced and keeps the SQL path tied to the successful insert", () => {
+    expect(MECHANIC_REGISTRY.courses.quotaEnforcement).toBe("atomic_snapshot");
+    expect(MECHANIC_REGISTRY.booking.quotaEnforcement).toBe("declared_no_enforcement");
+    const migration = readFileSync(
+      resolve(process.cwd(), "db/drizzle-migrations/0223_saas_tariff_quotas_trial.sql"),
+      "utf8",
+    );
+    expect(migration).toContain("CREATE TRIGGER courses_snapshot_quota_guard");
+    expect(migration).toContain("AFTER INSERT ON public.courses");
+    expect(migration).toContain("pg_advisory_xact_lock");
+    expect(migration).toContain("SELECT count(*) INTO v_count");
+    expect(migration).toContain("v_count * 5 >= v_limit * 4");
+    expect(migration).toContain("saas_quota_reached:courses");
+    expect(migration).not.toContain("saas_organization_quota_usage");
   });
 });

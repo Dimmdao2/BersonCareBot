@@ -4,7 +4,7 @@ import type { OrgEntitlementsPort } from "@/modules/org-entitlements/ports";
 const getTariffForOrgMock = vi.hoisted(() => vi.fn());
 const listOverridesMock = vi.hoisted(() => vi.fn());
 const getEffectiveCommercialAccessMock = vi.hoisted(() => vi.fn());
-const reserveQuotaGrowthMock = vi.hoisted(() => vi.fn());
+const getSnapshotMock = vi.hoisted(() => vi.fn());
 
 vi.mock("@/app-layer/di/buildAppDeps", () => ({
   buildAppDeps: vi.fn(() => ({
@@ -12,7 +12,7 @@ vi.mock("@/app-layer/di/buildAppDeps", () => ({
       getTariffForOrg: getTariffForOrgMock,
       listOverrides: listOverridesMock,
       getEffectiveCommercialAccess: getEffectiveCommercialAccessMock,
-      reserveQuotaGrowth: reserveQuotaGrowthMock,
+      getSnapshot: getSnapshotMock,
     } satisfies OrgEntitlementsPort,
   })),
 }));
@@ -27,11 +27,16 @@ beforeEach(() => {
   getTariffForOrgMock.mockReset();
   listOverridesMock.mockReset();
   getEffectiveCommercialAccessMock.mockReset();
-  reserveQuotaGrowthMock.mockReset();
+  getSnapshotMock.mockReset();
   getEffectiveCommercialAccessMock.mockResolvedValue({
     lifecycle: "active",
     tariffId: null,
     source: "compatibility",
+  });
+  getSnapshotMock.mockResolvedValue({
+    tariff: null,
+    overrides: [],
+    access: { lifecycle: "active", tariffId: null, source: "compatibility" },
   });
 });
 
@@ -39,17 +44,26 @@ describe("requireEntitlement", () => {
   it("uses the supplied trusted context and has no auth side effect", async () => {
     getTariffForOrgMock.mockResolvedValueOnce(null);
     listOverridesMock.mockResolvedValueOnce([{ mechanic: "courses", enabled: true }]);
+    getSnapshotMock.mockResolvedValueOnce({
+      tariff: null,
+      overrides: [{ mechanic: "courses", enabled: true, quota: null, expiresAt: null, seatLimitOverride: null }],
+      access: { lifecycle: "active", tariffId: null, source: "compatibility" },
+    });
 
     const gate = await requireEntitlement(workspaceCtx, "courses");
 
-    expect(gate).toEqual({ ok: true, quota: null });
-    expect(getTariffForOrgMock).toHaveBeenCalledWith(workspaceCtx.organizationId);
-    expect(listOverridesMock).toHaveBeenCalledWith(workspaceCtx.organizationId);
+    expect(gate).toEqual({ ok: true });
+    expect(getSnapshotMock).toHaveBeenCalledWith(workspaceCtx.organizationId);
   });
 
   it("returns 403 entitlement_required when mechanic is disabled by an override", async () => {
     getTariffForOrgMock.mockResolvedValueOnce(null);
     listOverridesMock.mockResolvedValueOnce([{ mechanic: "courses", enabled: false }]);
+    getSnapshotMock.mockResolvedValueOnce({
+      tariff: null,
+      overrides: [{ mechanic: "courses", enabled: false, quota: null, expiresAt: null, seatLimitOverride: null }],
+      access: { lifecycle: "active", tariffId: null, source: "compatibility" },
+    });
 
     const gate = await requireEntitlement(workspaceCtx, "courses");
 
@@ -60,13 +74,17 @@ describe("requireEntitlement", () => {
       ok: false,
       error: "entitlement_required",
       mechanic: "courses",
-      quota: null,
     });
   });
 
   it("uses the same resolver through the Server Action adapter without NextResponse", async () => {
     getTariffForOrgMock.mockResolvedValueOnce(null);
     listOverridesMock.mockResolvedValueOnce([{ mechanic: "mailings", enabled: false }]);
+    getSnapshotMock.mockResolvedValueOnce({
+      tariff: null,
+      overrides: [{ mechanic: "mailings", enabled: false, quota: null, expiresAt: null, seatLimitOverride: null }],
+      access: { lifecycle: "active", tariffId: null, source: "compatibility" },
+    });
 
     await expect(requireEntitlementForAction(workspaceCtx, "mailings")).resolves.toEqual({
       ok: false,
@@ -83,10 +101,14 @@ describe("requireEntitlement", () => {
       tariffId: null,
       source: "trial",
     });
+    getSnapshotMock.mockResolvedValue({
+      tariff: null,
+      overrides: [{ mechanic: "files", enabled: true, quota: null, expiresAt: null, seatLimitOverride: null }],
+      access: { lifecycle: "read_only", tariffId: null, source: "trial" },
+    });
 
     await expect(requireEntitlement(workspaceCtx, "files")).resolves.toEqual({
       ok: true,
-      quota: null,
     });
     const mutation = await requireEntitlement(workspaceCtx, "files", { kind: "mutation" });
     expect(mutation.ok).toBe(false);
@@ -96,39 +118,16 @@ describe("requireEntitlement", () => {
     });
   });
 
-  it("returns the atomic quota decision and never reserves for a read", async () => {
-    getTariffForOrgMock.mockResolvedValue(null);
-    listOverridesMock.mockResolvedValue([{ mechanic: "files", enabled: true }]);
-    reserveQuotaGrowthMock.mockResolvedValue({
-      allowed: false,
-      warning: true,
-      used: 100,
-      projected: 101,
-      limit: 100,
-      utilizationPercent: 101,
-      reason: "quota_reached",
-      mechanic: "files",
-      periodKey: "2026-07",
-      reserved: 0,
+  it("uses the same snapshot for the mechanic and blocked lifecycle decision", async () => {
+    getSnapshotMock.mockResolvedValue({
+      tariff: { mechanics: { files: true }, quotas: {}, includedSeats: null },
+      overrides: [],
+      access: { lifecycle: "blocked", tariffId: "tariff-1", source: "trial" },
     });
-
-    await requireEntitlement(workspaceCtx, "files");
-    expect(reserveQuotaGrowthMock).not.toHaveBeenCalled();
-
-    const mutation = await requireEntitlement(workspaceCtx, "files", {
-      kind: "mutation",
-      growthByUnit: { items: 1 },
-    });
+    const mutation = await requireEntitlement(workspaceCtx, "files", { kind: "mutation" });
     expect(mutation.ok).toBe(false);
-    expect(reserveQuotaGrowthMock).toHaveBeenCalledWith(
-      workspaceCtx.organizationId,
-      "files",
-      { items: 1 },
-    );
+    expect(getSnapshotMock).toHaveBeenCalledOnce();
     if (mutation.ok) return;
-    await expect(mutation.response.json()).resolves.toMatchObject({
-      error: "quota_reached",
-      quota: { reserved: 0, used: 100 },
-    });
+    await expect(mutation.response.json()).resolves.toMatchObject({ error: "commercial_blocked" });
   });
 });

@@ -10,6 +10,7 @@ const files = {
   organizationMemberInvitesSql: "deploy/postgres/organization-member-invites-rls.sql",
   storeEntitlementsSql: "deploy/postgres/store-p0-entitlements-rls.sql",
   c5aMigrationSql: "apps/webapp/db/drizzle-migrations/0223_saas_tariff_quotas_trial.sql",
+  c5aRuntimeSql: "deploy/postgres/c5a-platform-operations-runtime.sql",
   patientCourseWallSql: "deploy/postgres/patient-course-assignment-wall.sql",
   publicBootstrapSql: "deploy/postgres/specialist-signup-public-bootstrap-rls.sql",
   specialistOwnerProvisioningSql: "deploy/postgres/specialist-owner-provisioning-rls.sql",
@@ -85,7 +86,6 @@ const requiredFunctions = [
 const overlayManagedAppStaffTables = [
   "public.organization_member_invites",
   "public.saas_org_entitlement_overrides",
-  "public.saas_organization_quota_usage",
   "public.saas_organization_trials",
   "public.saas_tariffs",
   "public.saas_trial_policy",
@@ -443,14 +443,33 @@ function runChecks(overrides = {}) {
   ]);
   requireFragments(files.storeEntitlementsSql, loaded.storeEntitlementsSql, [
     "Store P0 — entitlement foundation (dormant)",
-    "GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE public.saas_tariffs TO app_staff;",
-    "GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE public.saas_org_entitlement_overrides TO app_staff;",
+    "REVOKE INSERT, UPDATE, DELETE ON TABLE public.saas_tariffs FROM app_staff;",
+    "REVOKE INSERT, UPDATE, DELETE ON TABLE public.saas_org_entitlement_overrides FROM app_staff;",
+    "GRANT SELECT ON TABLE public.saas_tariffs TO app_staff;",
+    "GRANT SELECT ON TABLE public.saas_org_entitlement_overrides TO app_staff;",
   ]);
   requireFragments(files.c5aMigrationSql, loaded.c5aMigrationSql, [
-    "GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE \"saas_trial_policy\" TO app_staff;",
-    "GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE \"saas_organization_trials\" TO app_staff;",
-    "GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE \"saas_organization_quota_usage\" TO app_staff;",
-    "GRANT EXECUTE ON FUNCTION app.reserve_saas_quota_growth(uuid, text, jsonb) TO app_staff;",
+    "REVOKE ALL PRIVILEGES ON TABLE \"saas_trial_policy\", \"saas_organization_trials\" FROM app_staff;",
+    "GRANT SELECT ON TABLE \"saas_organization_trials\" TO app_staff;",
+    "platform_commercial_capability_required",
+  ]);
+  forbidFragments(files.c5aMigrationSql, loaded.c5aMigrationSql, [
+    "reserve_saas_quota_growth",
+    "saas_organization_quota_usage",
+  ]);
+  requireFragments(files.c5aRuntimeSql, loaded.c5aRuntimeSql, [
+    "REVOKE INSERT, UPDATE, DELETE ON TABLE public.saas_tariffs FROM app_staff;",
+    "REVOKE INSERT, UPDATE, DELETE ON TABLE public.saas_trial_policy FROM app_staff;",
+    "REVOKE INSERT, UPDATE, DELETE ON TABLE public.saas_organization_trials FROM app_staff;",
+    "REVOKE INSERT, UPDATE, DELETE ON TABLE public.saas_org_entitlement_overrides FROM app_staff;",
+    "NOT has_table_privilege('app_staff', 'public.saas_tariffs', 'UPDATE')",
+    "NOT has_table_privilege('app_staff', 'public.saas_trial_policy', 'UPDATE')",
+    "NOT has_table_privilege('app_staff', 'public.saas_organization_trials', 'UPDATE')",
+    "NOT has_table_privilege('app_staff', 'public.saas_org_entitlement_overrides', 'UPDATE')",
+    "NOT has_table_privilege('app_platform_operations', 'public.platform_users', 'SELECT')",
+    "NOT has_table_privilege('app_platform_operations', 'public.platform_users', 'UPDATE')",
+    "DROP POLICY IF EXISTS saas_org_dormant_p0_8_3 ON public.saas_org_entitlement_overrides;",
+    "DROP POLICY IF EXISTS saas_org_dormant_p0_8_3 ON public.saas_organization_trials;",
   ]);
   requireFragments(files.patientCourseWallSql, loaded.patientCourseWallSql, [
     "patient-course-assignment-wall UP complete",

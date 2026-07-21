@@ -24,22 +24,35 @@ describe("platform commercial persistence boundary", () => {
   });
 
   it("returns the persisted typed organization commercial state through the capability", async () => {
-    const rows = [{
+    const organizationRows = [{
       id: "11111111-1111-4111-8111-111111111111",
       title: "Клиника",
       tariffId: null,
       isActive: true,
       commercialAccessState: "no_trial",
     }];
-    const orderBy = vi.fn().mockResolvedValue(rows);
-    const from = vi.fn(() => ({ orderBy }));
-    const select = vi.fn(() => ({ from }));
-    getDrizzleMock.mockReturnValue({ select });
+    const organizationOrderBy = vi.fn().mockResolvedValue(organizationRows);
+    const organizationFrom = vi.fn(() => ({ orderBy: organizationOrderBy }));
+    const trialFrom = vi.fn().mockResolvedValue([]);
+    const overrideFrom = vi.fn().mockResolvedValue([]);
+    const select = vi
+      .fn()
+      .mockReturnValueOnce({ from: organizationFrom })
+      .mockReturnValueOnce({ from: trialFrom })
+      .mockReturnValueOnce({ from: overrideFrom });
+    getDrizzleMock.mockReturnValue({
+      transaction: (callback: (tx: { select: typeof select }) => unknown) => callback({ select }),
+    });
 
-    await expect(createPgPlatformEntitlementsPort().listOrganizations()).resolves.toEqual(rows);
-    expect(select).toHaveBeenCalledOnce();
-    expect(from).toHaveBeenCalledOnce();
-    expect(orderBy).toHaveBeenCalledOnce();
+    await expect(createPgPlatformEntitlementsPort().listOrganizations()).resolves.toEqual([
+      {
+        ...organizationRows[0],
+        effectiveAccess: { lifecycle: "active", tariffId: null, source: "no_trial" },
+        overrides: [],
+        trial: null,
+      },
+    ]);
+    expect(select).toHaveBeenCalledTimes(3);
   });
 
   it("maps arbitrary persisted tariff mechanics and typed quotas without a product default", async () => {
@@ -70,5 +83,29 @@ describe("platform commercial persistence boundary", () => {
     getDrizzleMock.mockReturnValue({ select: vi.fn(() => ({ from })) });
 
     await expect(createPgPlatformEntitlementsPort().listTariffs()).resolves.toEqual([persisted]);
+  });
+
+  it("refuses to extend a trial unless the persisted row is active", async () => {
+    const update = vi.fn();
+    const tx = {
+      select: vi.fn(() => ({
+        from: vi.fn(() => ({
+          where: vi.fn(() => ({ limit: vi.fn().mockResolvedValue([]) })),
+        })),
+      })),
+      update,
+    };
+    getDrizzleMock.mockReturnValue({
+      transaction: (callback: (value: typeof tx) => unknown) => callback(tx),
+    });
+
+    await expect(
+      createPgPlatformEntitlementsPort().extendTrial(
+        "11111111-1111-4111-8111-111111111111",
+        3,
+        { actorId: null, reason: "support" },
+      ),
+    ).rejects.toThrow("organization_trial_not_found");
+    expect(update).not.toHaveBeenCalled();
   });
 });

@@ -5,10 +5,8 @@ import {
   MECHANICS,
   type OrgEntitlements,
   type EffectiveOrgCommercialAccess,
+  type OrgEntitlementSnapshot,
   type OrgMechanic,
-  type QuotaGrowthByUnit,
-  type QuotaAccessDecision,
-  type QuotaReservationDecision,
   type Tariff,
   type TariffQuota,
   type TariffQuotaMap,
@@ -27,6 +25,12 @@ function assertMechanic(value: string): asserts value is OrgMechanic {
 function assertQuota(mechanic: OrgMechanic, quota: TariffQuota): void {
   if (!MECHANIC_REGISTRY[mechanic].quotaUnits.includes(quota.unit as never)) {
     throw new Error("tariff_quota_unit_invalid");
+  }
+  if (
+    mechanic === "courses" &&
+    (quota.unit !== "items" || quota.period !== "snapshot" || quota.usagePolicy !== "snapshot")
+  ) {
+    throw new Error("tariff_quota_enforcement_shape_invalid");
   }
   if (quota.kind === "unlimited") {
     if (quota.limit !== null) throw new Error("tariff_quota_unlimited_limit_invalid");
@@ -71,6 +75,9 @@ function normalizeTariffInput(input: Omit<Tariff, "id" | "createdAt" | "updatedA
 }
 
 function assertTrialPolicy(policy: TrialPolicy): void {
+  if (policy.startEvent !== "organization_provisioned") {
+    throw new Error("trial_start_event_unsupported");
+  }
   if (!Number.isSafeInteger(policy.durationDays) || policy.durationDays <= 0) {
     throw new Error("trial_duration_invalid");
   }
@@ -87,6 +94,32 @@ function assertTrialPolicy(policy: TrialPolicy): void {
 
 function isOverrideActive(expiresAt: string | null | undefined): boolean {
   return !expiresAt || new Date(expiresAt).getTime() > Date.now();
+}
+
+function entitlementsFromSnapshot(
+  snapshot: Pick<OrgEntitlementSnapshot, "tariff" | "overrides">,
+): OrgEntitlements {
+  const overrideByMechanic = new Map(
+    snapshot.overrides
+      .filter((override) => isOverrideActive(override.expiresAt))
+      .map((override) => [override.mechanic, override.enabled]),
+  );
+  const result = {} as OrgEntitlements;
+  for (const mechanic of MECHANICS) {
+    result[mechanic] =
+      overrideByMechanic.get(mechanic) ??
+      snapshot.tariff?.mechanics[mechanic] ??
+      MECHANIC_DEFAULT_ENABLED[mechanic];
+  }
+  return result;
+}
+
+export async function resolveOrgEntitlementSnapshot(
+  port: OrgEntitlementsPort,
+  organizationId: string,
+): Promise<{ entitlements: OrgEntitlements; access: EffectiveOrgCommercialAccess }> {
+  const snapshot = await port.getSnapshot(organizationId);
+  return { entitlements: entitlementsFromSnapshot(snapshot), access: snapshot.access };
 }
 
 /**
@@ -107,17 +140,14 @@ export async function resolveOrgEntitlements(
     port.listOverrides(organizationId),
   ]);
 
-  const overrideByMechanic = new Map(
-    overrides.filter((override) => isOverrideActive(override.expiresAt)).map((override) => [override.mechanic, override.enabled]),
-  );
-
-  const result = {} as OrgEntitlements;
-  for (const mechanic of MECHANICS) {
-    const overrideValue = overrideByMechanic.get(mechanic);
-    const tariffValue = tariff?.mechanics[mechanic];
-    result[mechanic] = overrideValue ?? tariffValue ?? MECHANIC_DEFAULT_ENABLED[mechanic];
-  }
-  return result;
+  return entitlementsFromSnapshot({
+    tariff: tariff ? { ...tariff, quotas: tariff.quotas ?? {} } : null,
+    overrides: overrides.map((override) => ({
+      ...override,
+      quota: override.quota ?? null,
+      expiresAt: override.expiresAt ?? null,
+    })),
+  });
 }
 
 export async function isMechanicEnabled(
@@ -153,51 +183,6 @@ export async function resolveClinicSeatLimit(
   const seatOverride = activeOverrides.find((entry) => entry.mechanic === "clinic_team");
   if (seatOverride?.seatLimitOverride != null) return seatOverride.seatLimitOverride;
   return tariff?.includedSeats ?? CLINIC_TEAM_FAIL_CLOSED_SEAT_BASELINE;
-}
-
-/**
- * Quotas protect only creation/growth. Existing data remains readable and can be reduced or
- * exported even after a downgrade. The caller must pass a positive `growth` only for a new unit.
- */
-export function evaluateQuotaGrowth(input: {
-  quota: TariffQuota | null;
-  used: number;
-  growth: number;
-}): QuotaAccessDecision {
-  const used = Math.max(0, input.used);
-  const growth = Math.max(0, input.growth);
-  const projected = used + growth;
-  if (!input.quota || input.quota.kind === "unlimited") {
-    return { allowed: true, warning: false, used, projected, limit: null, utilizationPercent: null, reason: "allowed" };
-  }
-  const limit = input.quota.limit ?? 0;
-  const utilizationPercent = limit === 0 ? (projected === 0 ? 0 : 100) : Math.round((projected / limit) * 100);
-  if (growth > 0 && projected > limit) {
-    return { allowed: false, warning: true, used, projected, limit, utilizationPercent, reason: "quota_reached" };
-  }
-  const warning = utilizationPercent >= 80;
-  return {
-    allowed: true,
-    warning,
-    used,
-    projected,
-    limit,
-    utilizationPercent,
-    reason: warning ? "warning_80" : "allowed",
-  };
-}
-
-export async function resolveQuotaGrowthAccess(input: {
-  port: OrgEntitlementsPort;
-  organizationId: string;
-  mechanic: OrgMechanic;
-  growthByUnit: QuotaGrowthByUnit;
-}): Promise<QuotaReservationDecision> {
-  return input.port.reserveQuotaGrowth(
-    input.organizationId,
-    input.mechanic,
-    input.growthByUnit,
-  );
 }
 
 export async function resolveEffectiveCommercialAccess(

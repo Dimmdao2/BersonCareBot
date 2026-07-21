@@ -35,14 +35,14 @@ type CommercialState = {
   trialPolicy: TrialPolicy | null;
 };
 
-const COMMERCIAL_ACCESS_LABELS: Record<
-  PlatformOrganizationSummary['commercialAccessState'],
+const COMMERCIAL_LIFECYCLE_LABELS: Record<
+  PlatformOrganizationSummary['effectiveAccess']['lifecycle'],
   string
 > = {
-  compatibility: 'Совместимость без коммерческого ограничения',
-  no_trial: 'Триал не назначен',
-  trial_pending: 'Триал ожидает настроенного события старта',
-  active: 'Коммерческий доступ активен',
+  active: 'Активен',
+  grace: 'Льготный период',
+  read_only: 'Только чтение',
+  blocked: 'Заблокирован',
 };
 
 type TariffDraft = {
@@ -109,6 +109,7 @@ function QuotaEditor({
   onChange: (quota: TariffQuota | null) => void;
 }) {
   const units = MECHANIC_REGISTRY[mechanic].quotaUnits;
+  const atomicSnapshot = MECHANIC_REGISTRY[mechanic].quotaEnforcement === 'atomic_snapshot';
   if (units.length === 0) return null;
 
   function changeKind(kind: 'none' | TariffQuota['kind']) {
@@ -120,13 +121,18 @@ function QuotaEditor({
       kind,
       limit: kind === 'numeric' ? (quota?.limit ?? 0) : null,
       unit: quota?.unit && units.includes(quota.unit as never) ? quota.unit : (units[0] ?? 'items'),
-      period: quota?.period ?? 'month',
-      usagePolicy: quota?.usagePolicy ?? 'consumption',
+      period: atomicSnapshot ? 'snapshot' : (quota?.period ?? 'month'),
+      usagePolicy: atomicSnapshot ? 'snapshot' : (quota?.usagePolicy ?? 'consumption'),
     });
   }
 
   return (
     <div className="grid gap-2 sm:grid-cols-2">
+      <p className="text-xs text-muted-foreground sm:col-span-2">
+        {atomicSnapshot
+          ? 'Лимит применяется атомарно к существующим курсам; с 80% фиксируется предупреждение, сверх лимита новый курс не создаётся.'
+          : 'Квота сохраняется как конфигурация. Автоматический контроль этого лимита ещё не активирован.'}
+      </p>
       <Select
         value={quota?.kind ?? 'none'}
         onValueChange={(value) => {
@@ -153,7 +159,9 @@ function QuotaEditor({
           }
         />
       ) : null}
-      {quota ? (
+      {quota ? atomicSnapshot ? (
+        <p className="self-center text-xs text-muted-foreground">Единица: items · текущее значение</p>
+      ) : (
         <>
           <Select
             value={quota.unit}
@@ -223,18 +231,20 @@ export function CommercialConstructorClient() {
   const [overrideQuota, setOverrideQuota] = useState<TariffQuota | null>(null);
   const [overrideExpiresAt, setOverrideExpiresAt] = useState('');
   const [trialTariffId, setTrialTariffId] = useState('');
-  const [trialDuration, setTrialDuration] = useState('14');
-  const [trialGrace, setTrialGrace] = useState('7');
+  const [trialDuration, setTrialDuration] = useState('');
+  const [trialGrace, setTrialGrace] = useState('');
   const [trialStartEvent, setTrialStartEvent] = useState<TrialPolicy['startEvent']>(
     'organization_provisioned',
   );
   const [postTrialBehavior, setPostTrialBehavior] =
     useState<TrialPolicy['postTrialBehavior']>('read_only');
   const [postTrialTariffId, setPostTrialTariffId] = useState('none');
-  const [trialActive, setTrialActive] = useState(true);
-  const [extensionDays, setExtensionDays] = useState('7');
+  const [trialActive, setTrialActive] = useState(false);
+  const [extensionDays, setExtensionDays] = useState('');
   const [message, setMessage] = useState('');
   const [busy, setBusy] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
 
   const loadState = useCallback(async () => {
     const response = await fetch('/api/admin/commercial', { cache: 'no-store' });
@@ -244,14 +254,27 @@ export function CommercialConstructorClient() {
   }, []);
 
   useEffect(() => {
-    void loadState().catch((error: unknown) =>
-      setMessage(error instanceof Error ? error.message : 'Не удалось загрузить данные'),
-    );
+    setLoading(true);
+    setLoadError(null);
+    void loadState()
+      .catch((error: unknown) =>
+        setLoadError(error instanceof Error ? error.message : 'Не удалось загрузить данные'),
+      )
+      .finally(() => setLoading(false));
   }, [loadState]);
 
   useEffect(() => {
     const policy = state.trialPolicy;
-    if (!policy) return;
+    if (!policy) {
+      setTrialTariffId('');
+      setTrialDuration('');
+      setTrialGrace('');
+      setTrialStartEvent('organization_provisioned');
+      setPostTrialBehavior('read_only');
+      setPostTrialTariffId('none');
+      setTrialActive(false);
+      return;
+    }
     setTrialTariffId(policy.tariffId);
     setTrialDuration(String(policy.durationDays));
     setTrialGrace(String(policy.graceDays));
@@ -269,6 +292,15 @@ export function CommercialConstructorClient() {
   useEffect(() => {
     setAssignedTariffId(selectedOrganization?.tariffId ?? 'none');
   }, [selectedOrganization]);
+
+  useEffect(() => {
+    const current = selectedOrganization?.overrides.find(
+      (override) => override.mechanic === overrideMechanic,
+    );
+    setOverrideEnabled(current?.enabled ?? true);
+    setOverrideQuota(current?.quota ?? null);
+    setOverrideExpiresAt(current?.expiresAt ? current.expiresAt.slice(0, 16) : '');
+  }, [overrideMechanic, selectedOrganization]);
 
   async function mutate(body: Record<string, unknown>, success: string) {
     setBusy(true);
@@ -314,6 +346,33 @@ export function CommercialConstructorClient() {
     if (!tariff.id) setTariff(emptyTariffDraft());
   }
 
+  if (loading) {
+    return <p role="status">Загрузка коммерческих настроек…</p>;
+  }
+
+  if (loadError) {
+    return (
+      <DoctorSection className="space-y-3" role="alert">
+        <p>Не удалось загрузить коммерческие настройки: {loadError}</p>
+        <Button
+          type="button"
+          variant="outline"
+          onClick={() => {
+            setLoading(true);
+            setLoadError(null);
+            void loadState()
+              .catch((error: unknown) =>
+                setLoadError(error instanceof Error ? error.message : 'Не удалось загрузить данные'),
+              )
+              .finally(() => setLoading(false));
+          }}
+        >
+          Повторить
+        </Button>
+      </DoctorSection>
+    );
+  }
+
   return (
     <Tabs defaultValue="tariffs" className="space-y-3">
       <TabsList>
@@ -336,6 +395,9 @@ export function CommercialConstructorClient() {
             <DoctorSectionTitle>Созданные тарифы</DoctorSectionTitle>
           </DoctorSectionHeader>
           <div className="divide-y divide-border/70">
+            {state.tariffs.length === 0 ? (
+              <p className="px-[18px] py-3 text-sm text-muted-foreground">Тарифы ещё не созданы.</p>
+            ) : null}
             {state.tariffs.map((item) => (
               <button
                 type="button"
@@ -498,6 +560,9 @@ export function CommercialConstructorClient() {
           <DoctorSectionHeader>
             <DoctorSectionTitle>Тариф организации</DoctorSectionTitle>
           </DoctorSectionHeader>
+          {state.organizations.length === 0 ? (
+            <p className="text-sm text-muted-foreground">Организации ещё не созданы.</p>
+          ) : null}
           <div className="space-y-1">
             <Label>Организация</Label>
             <Select
@@ -542,9 +607,21 @@ export function CommercialConstructorClient() {
             </Select>
           </div>
           {selectedOrganization ? (
-            <p className="text-sm text-muted-foreground">
-              Состояние: {COMMERCIAL_ACCESS_LABELS[selectedOrganization.commercialAccessState]}
-            </p>
+            <div className="space-y-1 text-sm text-muted-foreground">
+              <p>
+                Доступ: {COMMERCIAL_LIFECYCLE_LABELS[selectedOrganization.effectiveAccess.lifecycle]}
+              </p>
+              <p>Источник: {selectedOrganization.effectiveAccess.source}</p>
+              {selectedOrganization.trial ? (
+                <p>
+                  Триал: {selectedOrganization.trial.status === 'active' ? 'активен' : 'завершён'};
+                  до {new Date(selectedOrganization.trial.endsAt).toLocaleString('ru-RU')}, grace до{' '}
+                  {new Date(selectedOrganization.trial.graceEndsAt).toLocaleString('ru-RU')}
+                </p>
+              ) : (
+                <p>Триал не запускался.</p>
+              )}
+            </div>
           ) : null}
           <div className="space-y-1">
             <Label htmlFor="organization-reason">Причина</Label>
@@ -613,6 +690,24 @@ export function CommercialConstructorClient() {
               onChange={setOverrideQuota}
             />
           </div>
+          {selectedOrganization ? (
+            <div className="space-y-1 text-sm text-muted-foreground">
+              <p>Текущие исключения:</p>
+              {selectedOrganization.overrides.length === 0 ? (
+                <p>Нет исключений.</p>
+              ) : (
+                selectedOrganization.overrides.map((override) => (
+                  <p key={override.id}>
+                    {MECHANIC_REGISTRY[override.mechanic as OrgMechanic]?.label ?? override.mechanic}:{' '}
+                    {override.enabled ? 'разрешено' : 'запрещено'}; действует до{' '}
+                    {override.expiresAt
+                      ? new Date(override.expiresAt).toLocaleString('ru-RU')
+                      : 'без срока'}
+                  </p>
+                ))
+              )}
+            </div>
+          ) : null}
           <div className="space-y-1">
             <Label htmlFor="override-expires">Действует до (необязательно)</Label>
             <Input
@@ -624,7 +719,7 @@ export function CommercialConstructorClient() {
           </div>
           <div className="flex flex-wrap gap-2">
             <Button
-              disabled={busy || !organizationId || !reason.trim()}
+              disabled={busy || !organizationId || !reason.trim() || selectedOrganization?.trial !== null}
               onClick={() =>
                 void mutate(
                   {
@@ -644,7 +739,14 @@ export function CommercialConstructorClient() {
             </Button>
             <Button
               variant="outline"
-              disabled={busy || !organizationId || !reason.trim()}
+              disabled={
+                busy ||
+                !organizationId ||
+                !reason.trim() ||
+                selectedOrganization?.trial?.status !== 'active' ||
+                !Number.isSafeInteger(Number(extensionDays)) ||
+                Number(extensionDays) <= 0
+              }
               onClick={() =>
                 void mutate(
                   { action: 'delete_override', organizationId, mechanic: overrideMechanic, reason },
@@ -746,23 +848,7 @@ export function CommercialConstructorClient() {
             </div>
             <div className="space-y-1">
               <Label>Старт</Label>
-              <Select
-                value={trialStartEvent}
-                onValueChange={(value) => {
-                  if (value) setTrialStartEvent(value);
-                }}
-              >
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="organization_provisioned">
-                    После создания организации
-                  </SelectItem>
-                  <SelectItem value="email_verified">После подтверждения email</SelectItem>
-                  <SelectItem value="manual">Вручную</SelectItem>
-                </SelectContent>
-              </Select>
+              <p className="text-sm text-muted-foreground">После создания организации</p>
             </div>
             <div className="space-y-1">
               <Label htmlFor="trial-duration">Триал, дней</Label>

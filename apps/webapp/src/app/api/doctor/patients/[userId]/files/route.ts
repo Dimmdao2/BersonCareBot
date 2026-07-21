@@ -139,10 +139,7 @@ export async function POST(
   }
   const patientUserId = identity.userId;
 
-  const entitlement = await requireEntitlement(gate.ctx, "files", {
-    kind: "mutation",
-    growthByUnit: { bytes: sizeBytes, items: 1 },
-  });
+  const entitlement = await requireEntitlement(gate.ctx, "files", { kind: "mutation" });
   if (!entitlement.ok) return entitlement.response;
 
   // Get/create the patient's «Пациенты»/<ФИО> media library folder (PFI rule 4).

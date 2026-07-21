@@ -101,7 +101,6 @@ export async function saveContentPage(
   const editingId = pageIdParsed?.success ? pageIdParsed.data : null;
   const entitlement = await requireEntitlementForAction(workspace, "cms_pages", {
     kind: "mutation",
-    ...(editingId ? {} : { growthByUnit: { items: 1 } }),
   });
   if (!entitlement.ok) return { ok: false, error: entitlement.reason };
 

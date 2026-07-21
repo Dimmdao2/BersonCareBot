@@ -76,7 +76,6 @@ export async function executeBroadcastAction(
       reserveAudienceGrowth: async (audienceSize) => {
         const entitlement = await requireEntitlementForAction(workspace, "mailings", {
           kind: "mutation",
-          ...(audienceSize > 0 ? { growthByUnit: { messages: audienceSize } } : {}),
         });
         if (!entitlement.ok) throw new Error(`${entitlement.reason}:${entitlement.mechanic}`);
       },

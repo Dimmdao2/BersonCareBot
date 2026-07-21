@@ -1,7 +1,6 @@
 import { sql } from "drizzle-orm";
 import {
   boolean,
-  bigint,
   check,
   foreignKey,
   index,
@@ -126,7 +125,7 @@ export const saasTrialPolicy = pgTable(
     check("saas_trial_policy_grace_check", sql`${table.graceDays} >= 0`),
     check(
       "saas_trial_policy_start_event_check",
-      sql`${table.startEvent} = ANY (ARRAY['organization_provisioned'::text, 'email_verified'::text, 'manual'::text])`,
+      sql`${table.startEvent} = 'organization_provisioned'`,
     ),
     check(
       "saas_trial_policy_post_behavior_check",
@@ -175,24 +174,5 @@ export const saasOrganizationTrials = pgTable(
       "saas_organization_trials_post_tariff_check",
       sql`(${table.postTrialBehavior} = 'tariff' AND ${table.postTrialTariffId} IS NOT NULL) OR (${table.postTrialBehavior} <> 'tariff' AND ${table.postTrialTariffId} IS NULL)`,
     ),
-  ],
-);
-
-/** Current quota usage. Hot list key is exact org+mechanic+period; no patient identity is stored. */
-export const saasOrganizationQuotaUsage = pgTable(
-  "saas_organization_quota_usage",
-  {
-    id: uuid().defaultRandom().primaryKey().notNull(),
-    organizationId: uuid("organization_id").notNull(),
-    mechanic: text().notNull(),
-    periodKey: text("period_key").notNull(),
-    used: bigint({ mode: "number" }).default(0).notNull(),
-    updatedAt: timestamp("updated_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
-  },
-  (table) => [
-    unique("saas_organization_quota_usage_scope_uidx").on(table.organizationId, table.mechanic, table.periodKey),
-    index("idx_saas_organization_quota_usage_org_updated").on(table.organizationId, table.updatedAt),
-    foreignKey({ columns: [table.organizationId], foreignColumns: [beOrganizations.id], name: "saas_organization_quota_usage_org_fkey" }).onDelete("cascade"),
-    check("saas_organization_quota_usage_nonnegative_check", sql`${table.used} >= 0`),
   ],
 );

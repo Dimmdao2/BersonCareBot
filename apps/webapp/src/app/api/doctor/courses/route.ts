@@ -55,10 +55,7 @@ export async function POST(request: Request) {
   if (!parsed.success) {
     return NextResponse.json({ ok: false, error: "invalid_body" }, { status: 400 });
   }
-  const entitlement = await requireEntitlement(auth.ctx, "courses", {
-    kind: "mutation",
-    growthByUnit: { items: 1 },
-  });
+  const entitlement = await requireEntitlement(auth.ctx, "courses", { kind: "mutation" });
   if (!entitlement.ok) return entitlement.response;
 
   const deps = buildAppDeps();
@@ -83,6 +80,12 @@ export async function POST(request: Request) {
     return NextResponse.json({ ok: true, item });
   } catch (e) {
     const msg = e instanceof Error ? e.message : "error";
+    if (msg.includes("saas_quota_reached:courses")) {
+      return NextResponse.json(
+        { ok: false, error: "quota_reached", mechanic: "courses" },
+        { status: 403 },
+      );
+    }
     return NextResponse.json({ ok: false, error: msg }, { status: 400 });
   }
 }

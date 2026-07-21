@@ -74,10 +74,7 @@ export async function POST(request: Request) {
   if (!parsed.success) {
     return NextResponse.json({ ok: false, error: "invalid_body" }, { status: 400 });
   }
-  const entitlement = await requireEntitlement(gate.ctx, "subscriptions", {
-    kind: "mutation",
-    growthByUnit: { items: 1 },
-  });
+  const entitlement = await requireEntitlement(gate.ctx, "subscriptions", { kind: "mutation" });
   if (!entitlement.ok) return entitlement.response;
   const deps = buildAppDeps();
   if (!deps.memberships) {

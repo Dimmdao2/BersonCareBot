@@ -94,7 +94,6 @@ export async function saveContentSection(
 
   const entitlement = await requireEntitlementForAction(workspace, "cms_pages", {
     kind: "mutation",
-    ...(existing ? {} : { growthByUnit: { items: 1 } }),
   });
   if (!entitlement.ok) return { ok: false, error: entitlement.reason };
 

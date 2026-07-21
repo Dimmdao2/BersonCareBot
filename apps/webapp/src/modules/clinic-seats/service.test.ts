@@ -68,6 +68,15 @@ function makeService(params: {
     acceptPendingByTokenHash: async () => ({ ok: false, code: "invalid_token" }),
   };
   const orgEntitlementsPort: OrgEntitlementsPort = {
+    getSnapshot: async () => ({
+      tariff: {
+        mechanics: { clinic_team: params.clinicTeamEnabled ?? true },
+        quotas: {},
+        includedSeats: params.seatLimit ?? null,
+      },
+      overrides: [],
+      access: { lifecycle: "active", tariffId: null, source: "compatibility" },
+    }),
     getTariffForOrg: async () => ({
       mechanics: { clinic_team: params.clinicTeamEnabled ?? true },
       includedSeats: params.seatLimit ?? null,
@@ -77,18 +86,6 @@ function makeService(params: {
           lifecycle: "active",
           tariffId: null,
           source: "compatibility",
-        }),
-        reserveQuotaGrowth: async (_organizationId, mechanic) => ({
-          allowed: true,
-          warning: false,
-          used: 0,
-          projected: 0,
-          limit: null,
-          utilizationPercent: null,
-          reason: "allowed",
-          mechanic,
-          periodKey: null,
-          reserved: 0,
         }),
   };
   return createClinicSeatsService({ membershipPort, invitesPort, orgEntitlementsPort });

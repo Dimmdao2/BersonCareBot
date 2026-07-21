@@ -65,7 +65,7 @@ const migrationOnlyTables = new Set([
 // These tables landed after the reviewed P0.5b snapshot. Their dedicated overlays own the
 // app_staff privilege contract, so regenerating D3.5 must not silently widen this broad full-DML batch:
 // - organization-member-invites-rls.sql grants reviewed staff DML;
-// - store-p0-entitlements-rls.sql grants reviewed staff DML for both dormant entitlement tables;
+// - store-p0-entitlements-rls.sql grants reviewed staff SELECT only; platform operations owns DML;
 // - specialist signup uses narrow SECURITY DEFINER bootstrap/provisioning functions, not direct staff DML.
 //   The staff MFA/recovery vault follows the same function-only boundary.
 // - reference catalog baseline/receipt metadata is immutable runtime infrastructure managed only by
@@ -77,7 +77,6 @@ const overlayManagedAppStaffTables = new Set([
   "public.organization_member_invites",
   "public.patient_invites",
   "public.saas_org_entitlement_overrides",
-  "public.saas_organization_quota_usage",
   "public.saas_organization_trials",
   "public.saas_tariffs",
   "public.saas_trial_policy",

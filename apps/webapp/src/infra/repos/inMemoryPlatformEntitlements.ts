@@ -4,12 +4,24 @@ import type { Tariff, TrialPolicy } from "@/modules/org-entitlements/types";
 export function createInMemoryPlatformEntitlementsPort(): PlatformEntitlementsPort {
   const tariffs = new Map<string, Tariff>();
   const organizationTariffs = new Map<string, string | null>();
-  const trials = new Map<string, { endsAt: string }>();
+  const trials = new Map<string, { endsAt: string; status: "active" | "ended" }>();
   let policy: TrialPolicy | null = null;
 
   return {
     async listTariffs() { return [...tariffs.values()]; },
-    async listOrganizations() { return [...organizationTariffs].map(([id, tariffId]) => ({ id, title: id, tariffId, isActive: true, commercialAccessState: tariffId ? "active" as const : "no_trial" as const })); },
+    async listOrganizations() { return [...organizationTariffs].map(([id, tariffId]) => {
+      const trial = trials.get(id) ?? null;
+      return {
+        id,
+        title: id,
+        tariffId,
+        isActive: true,
+        commercialAccessState: tariffId ? "active" as const : "no_trial" as const,
+        effectiveAccess: { lifecycle: "active" as const, tariffId, source: tariffId ? "assignment" as const : "no_trial" as const },
+        overrides: [],
+        trial: trial ? { id, status: trial.status, startedAt: trial.endsAt, endsAt: trial.endsAt, graceEndsAt: trial.endsAt } : null,
+      };
+    }); },
     async getTrialPolicy() { return policy; },
     async createTariff(input) {
       const now = new Date().toISOString();
@@ -36,9 +48,9 @@ export function createInMemoryPlatformEntitlementsPort(): PlatformEntitlementsPo
     async startTrial(organizationId) {
       if (!policy?.isActive) return null;
       const existing = trials.get(organizationId);
-      if (existing) return { created: false, ...existing };
+      if (existing) return { created: false, endsAt: existing.endsAt };
       const endsAt = new Date(Date.now() + policy.durationDays * 86_400_000).toISOString();
-      trials.set(organizationId, { endsAt });
+      trials.set(organizationId, { endsAt, status: "active" });
       organizationTariffs.set(organizationId, policy.tariffId);
       return { created: true, endsAt };
     },
@@ -46,7 +58,8 @@ export function createInMemoryPlatformEntitlementsPort(): PlatformEntitlementsPo
       const current = trials.get(organizationId);
       if (!current) throw new Error("organization_trial_not_found");
       const endsAt = new Date(new Date(current.endsAt).getTime() + days * 86_400_000).toISOString();
-      trials.set(organizationId, { endsAt });
+      if (current.status !== "active") throw new Error("organization_trial_not_found");
+      trials.set(organizationId, { endsAt, status: "active" });
       return { endsAt };
     },
   };

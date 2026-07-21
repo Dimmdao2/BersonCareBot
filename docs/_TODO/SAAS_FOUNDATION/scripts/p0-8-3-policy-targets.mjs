@@ -105,7 +105,6 @@ export const expectedP083PublicDirectOrgTargets = Object.freeze([
   "public.reminder_journal",
   "public.reminder_rules",
   "public.saas_org_entitlement_overrides",
-  "public.saas_organization_quota_usage",
   "public.saas_organization_trials",
   "public.specialist_tasks",
   "public.support_conversations",
@@ -144,8 +143,8 @@ export function assertP083PublicDirectOrgTargets(targets) {
   const actualTables = targets.map((descriptor) => descriptor.table);
   const actualSet = new Set(actualTables);
 
-  if (actualTables.length !== 111) {
-    throw new Error(`Expected 111 P0.8.3 public direct-org targets, got ${actualTables.length}`);
+  if (actualTables.length !== 110) {
+    throw new Error(`Expected 110 P0.8.3 public direct-org targets, got ${actualTables.length}`);
   }
 
   if (actualSet.size !== actualTables.length) {
