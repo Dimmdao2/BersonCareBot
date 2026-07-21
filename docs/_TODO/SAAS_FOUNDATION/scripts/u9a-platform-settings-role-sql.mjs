@@ -49,6 +49,7 @@ BEGIN
   IF p_key IS NULL OR p_key NOT IN (
     'debug_forward_to_admin',
     'specialist_signup_enabled',
+    'patient_unsupported_client_fallback_enabled',
     'patient_app_maintenance_enabled',
     'patient_app_maintenance_message',
     'auth_email_enabled',
