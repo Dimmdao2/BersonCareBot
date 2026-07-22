@@ -57,10 +57,17 @@ describe("ensureWarmupsReminderOnFirstPwaPush", () => {
         linkedObjectType: "content_section",
         linkedObjectId: "warmups",
         scheduleType: "slots_v1",
-        scheduleData: DEFAULT_WARMUP_PWA_PUSH_ONBOARDING_SLOTS,
+        scheduleData: {
+          timesLocal: ["12:00", "15:00"],
+          dayFilter: "weekdays",
+        },
         enabled: true,
       }),
     );
+    expect(DEFAULT_WARMUP_PWA_PUSH_ONBOARDING_SLOTS).toEqual({
+      timesLocal: ["12:00", "15:00"],
+      dayFilter: "weekdays",
+    });
   });
 
   it("skips when push was already registered before", async () => {

@@ -4573,3 +4573,11 @@ errors. The screenshots confirm the Today 50/50 layout and schedule button, Clie
 Communications 45/55, rounded section tabs, near-rectangular menu rows and mobile master surfaces. Runtime PNGs stay
 under `.claude/screenshots/UI-MILESTONE-TEST-20260722T0215Z/` and are not committed. Taskdb `#821` contains the exact
 SHA, role, URLs and morning owner interaction checklist; `accepted` remains owner-only.
+
+## 2026-07-22 — bounded warmup onboarding default `#191` closed
+
+Only newly created warmup rules now receive weekday slots at `12:00` and `15:00`. The existing first-PWA-push
+creation guard remains authoritative: any canonical or legacy warmup rule prevents creation, so no existing user
+schedule is rewritten. No migration, bulk update, setting, database operation or UI fork was introduced. Focused
+tests, scoped lint, webapp typecheck and diff-check passed. The single independent mechanical audit checked all
+production callsites and returned PASS with no in-scope finding.

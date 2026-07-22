@@ -289,7 +289,7 @@ SHA `eb64a495644` (code-only deploy 2026-07-22, без dump/restore/full reset).
 | UI-5 | `UI-5a TEST deployed / UI-5b gated` | Existing full card replaces the doctor workspace with list-state restoration; mandatory live route smoke прошёл. UI-5b composition законно ждёт U5A/record-class gate. |
 | UI-6 | `DONE current contract / TEST deployed / future gated` | 50/50, calendar button/window and existing-signal preferences/list switch находятся на TEST; «Самые активные»/new counters/hiding stay contract-gated. |
 | UI-7 | `NOT DONE` | Scheduled messages и worker contract отсутствуют; Voice/STT корректно post-production. |
-| UI-8 | `PARTIAL` | S4/C5 organization-only commercial contour готов; default новых разминок `#191` (`12:00`/`15:00` в рабочие дни, без изменения существующих клиентов) не реализован. |
+| UI-8 | `DONE current contract` | S4/C5 organization-only commercial contour готов; `#191` задаёт только новым правилам разминок `12:00`/`15:00` в рабочие дни и не изменяет существующие правила. |
 | UI-9 | `DONE` | Personal exercises/media exact-org implementation и high-risk audit закрыты; live owner acceptance отдельно. |
 | Client mood residual | `DONE` | Empty chart скрывается, mood controls остаются. |
 | UI-P | `DONE code / TEST deployed / owner pending` | Shared pass and latest background/tabs/list/menu correction are integrated, audited and visually checked on TEST desktop/mobile. |
@@ -458,7 +458,7 @@ Scope decision, не implementation checkbox: Voice/STT исключён из т
 #### UI-8 / UI-9 / Client residual
 
 - [x] UI-8 использует единый S4/C5 organization-only entitlement/commercial contour без второго registry.
-- [ ] Для новых назначений разминок default = `12:00` и `15:00` в рабочие дни; существующие назначения не
+- [x] Для новых назначений разминок default = `12:00` и `15:00` в рабочие дни; существующие назначения не
   изменяются (`#191`).
 - [x] UI-9 создаёт personal-scoped exercise из program editor; org-catalog save только явный.
 - [x] UI-9 media использует exact-org ownership/presign path, назначенное видео immutable.
