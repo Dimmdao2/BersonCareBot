@@ -15,11 +15,31 @@
   visible state. A row with repository evidence but without its required live state is `partial`; a gate explicitly
   waiting on an undefined owner contract is `owner-deferred`.
 
-## Reused validation and live evidence
+## Fresh targeted validation and reused live evidence
 
-No tests or full CI were repeated. The product diff from accumulated-green product SHA
-`45ffed7318c584cf501d6972e231d197bebce6f6` to audited HEAD is empty. The narrower Today/UI/settings product diff
-from live-evidence SHA `0eda771fe2d9152f9252248ebe11f586737b0eed` to audited HEAD is also empty.
+Full CI was not repeated. The audit worktree has no installed `node_modules`, so the targeted packet ran through
+the integration checkout after `cmp` proved that all six test files and their six directly audited implementation
+files were byte-identical between the two checkouts:
+
+```text
+pnpm --dir apps/webapp exec vitest run \
+  src/app/app/doctor/DoctorTodayDashboard.test.tsx \
+  src/app/app/doctor/DoctorTodayMiniCalendar.test.tsx \
+  src/app/app/doctor/loadDoctorTodayDashboard.test.ts \
+  src/modules/system-settings/doctorTodayPreferences.test.ts \
+  src/app/app/settings/DoctorTodayPreferencesSection.test.tsx \
+  src/app/api/admin/settings/route.test.ts
+
+PASS — 6 files / 81 tests
+```
+
+Vitest global setup printed the existing non-fatal DEV migration warning for
+`0229_operator_incident_alert_claims` (`permission_denied`, SQLSTATE `42501`) and explicitly continued with the
+in-memory/jsdom suites. All 81 selected tests ran and passed; no DB/runtime evidence is inferred from them.
+
+The product diff from accumulated-green product SHA `45ffed7318c584cf501d6972e231d197bebce6f6` to audited HEAD
+is empty. The narrower Today/UI/settings product diff from live-evidence SHA
+`0eda771fe2d9152f9252248ebe11f586737b0eed` to audited HEAD is also empty.
 
 Existing validation remains applicable:
 
