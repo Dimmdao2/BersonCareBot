@@ -96,7 +96,12 @@ describe("error tracking runtime", () => {
       exception: { values: [{
         type: "TypeError",
         value: "[REDACTED]",
-        stacktrace: { frames: [{ filename: "apps/integrator/src/main.ts", in_app: true, function: "start", lineno: 42 }] },
+        stacktrace: { frames: [{
+          filename: expect.stringMatching(/^apps\/_frame\/[0-9a-f]{16}\.ts$/),
+          in_app: true,
+          function: expect.stringMatching(/^fn_[0-9a-f]{16}$/),
+          lineno: 42,
+        }] },
       }] },
       release: "build-123",
       tags: {
@@ -106,6 +111,36 @@ describe("error tracking runtime", () => {
         release: "build-123",
       },
     });
+  });
+
+  it("never preserves an arbitrary marker in filename or function while keeping stable frame identity", () => {
+    const marker = ["PII", "MARKER", "123456789"].join("_");
+    const input = {
+      exception: { values: [{
+        type: "Error",
+        value: marker,
+        stacktrace: { frames: [{
+          filename: `/srv/repo/apps/integrator/src/${marker}/handler.ts`,
+          function: `handle_${marker}`,
+          lineno: 19,
+        }] },
+      }] },
+      tags: { capture_point: "integrator_http_error" },
+      extra: { recursive: { marker, values: [marker] } },
+    };
+    const fixed = { service: "integrator", processRole: "api", release: "build-123" } as const;
+    const first = sanitizeErrorTrackingEvent(input, fixed);
+    const second = sanitizeErrorTrackingEvent(input, fixed);
+    expect(JSON.stringify(first)).not.toContain(marker);
+    expect(first).toEqual(second);
+    expect(first).toEqual(expect.objectContaining({
+      exception: { values: [expect.objectContaining({
+        stacktrace: { frames: [expect.objectContaining({
+          filename: expect.stringMatching(/^apps\/_frame\/[0-9a-f]{16}\.ts$/),
+          function: expect.stringMatching(/^fn_[0-9a-f]{16}$/),
+        })] },
+      })] },
+    }));
   });
 
   it("resolves release from BUILD_ID, bounded git SHA, then dev/unknown", () => {

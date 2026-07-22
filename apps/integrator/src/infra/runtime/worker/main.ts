@@ -22,7 +22,8 @@ import {
 import { assertDeliveryWorkerPoolReady } from '../../db/operationalPoolReadiness.js';
 import { createOperatorAwareDeliveryAttemptWritePort } from './operatorDeliveryAttemptWritePort.js';
 import {
-  captureIntegratorError,
+  captureWorkerLoopError,
+  captureWorkerStartupFatal,
   closeIntegratorErrorTracking,
   initIntegratorErrorTracking,
 } from '../../observability/errorTracking.js';
@@ -111,7 +112,7 @@ async function startWorker(): Promise<void> {
             }
           });
         } catch (err) {
-          captureIntegratorError(err, 'worker_loop_error');
+          captureWorkerLoopError(err);
           reportWorkerQueueIsolationFailure(err);
           logger.error({ err }, 'Runtime worker tick failed');
         }
@@ -123,7 +124,7 @@ async function startWorker(): Promise<void> {
         try {
           await runProjectionWorkerTick(projectionDb, webappEvents);
         } catch (err) {
-          captureIntegratorError(err, 'worker_loop_error');
+          captureWorkerLoopError(err);
           reportWorkerProjectionIsolationFailure(err);
           logger.error({ err }, 'Projection worker tick failed');
         }
@@ -145,7 +146,7 @@ async function startWorker(): Promise<void> {
             },
           });
         } catch (err) {
-          captureIntegratorError(err, 'worker_loop_error');
+          captureWorkerLoopError(err);
           reportWorkerOutgoingIsolationFailure(err);
           logger.error({ err }, 'Outgoing delivery worker tick failed');
         }
@@ -162,7 +163,7 @@ process.once('SIGINT', closeOnSignal);
 process.once('SIGTERM', closeOnSignal);
 
 startWorker().catch(async (err) => {
-  captureIntegratorError(err, 'worker_startup_fatal');
+  captureWorkerStartupFatal(err);
   reportWorkerQueueIsolationFailure(err);
   logger.error({ err }, 'Runtime worker crashed');
   await closeIntegratorErrorTracking();

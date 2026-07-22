@@ -7,11 +7,11 @@ import { createMediaWorkerIsolationReporter } from "./saasIsolationTelemetry.js"
 import { runWithMediaWorkerInfraPrincipal } from "./runMediaWorkerSql.js";
 import { startMediaWorkerTransaction } from "./withClient.js";
 import {
-  captureErrorTrackingException,
-  closeErrorTracking,
-  initErrorTracking,
-} from "@bersoncare/error-tracking";
-import { readServerRuntimeString } from "./serverRuntimeConfig.js";
+  captureMediaWorkerLoopError,
+  captureMediaWorkerStartupFatal,
+  closeMediaWorkerErrorTracking,
+  runMediaWorkerStartupGate,
+} from "./errorTracking.js";
 
 function sleep(ms: number): Promise<void> {
   return new Promise((r) => setTimeout(r, ms));
@@ -21,7 +21,7 @@ async function main() {
   const env = loadMediaWorkerEnv();
   const log = createLogger(env);
   const pool = createMediaWorkerPoolProvider({ connectionString: env.DATABASE_URL });
-  await runWithMediaWorkerInfraPrincipal("media-worker:tick", async () => {
+  await runMediaWorkerStartupGate(pool, () => runWithMediaWorkerInfraPrincipal("media-worker:tick", async () => {
     const tx = await startMediaWorkerTransaction(pool);
     try {
       await tx.client.query("SELECT 1 FROM public.media_transcode_jobs WHERE false");
@@ -38,21 +38,7 @@ async function main() {
     } finally {
       await tx.release();
     }
-  });
-  try {
-    const [enabled, dsn] = await Promise.all([
-      readServerRuntimeString(pool, "error_tracking_enabled"),
-      readServerRuntimeString(pool, "error_tracking_dsn"),
-    ]);
-    await initErrorTracking({
-      enabled: enabled === "true",
-      dsn,
-      service: "media-worker",
-      processRole: "media-worker",
-    });
-  } catch {
-    // Optional telemetry must never affect media readiness.
-  }
+  }));
   const isolationTelemetry = createMediaWorkerIsolationReporter(env.DATABASE_URL);
   const s3Client = createS3Client({
     endpoint: env.S3_ENDPOINT,
@@ -97,7 +83,7 @@ async function main() {
         continue;
       }
     } catch (e) {
-      captureErrorTrackingException(e, "media_worker_loop_error");
+      captureMediaWorkerLoopError(e);
       isolationTelemetry.report(e);
       log.error({ err: e }, "main loop error");
       await sleep(env.POLL_MS);
@@ -106,14 +92,14 @@ async function main() {
 
   await pool.end();
   await isolationTelemetry.close();
-  await closeErrorTracking(1_500);
+  await closeMediaWorkerErrorTracking();
   log.info("media-worker stopped");
 }
 
 main().catch((e) => {
-  captureErrorTrackingException(e, "media_worker_startup_fatal");
+  captureMediaWorkerStartupFatal(e);
   console.error("media-worker fatal");
-  void closeErrorTracking(1_500).finally(() => {
+  void closeMediaWorkerErrorTracking().finally(() => {
     process.exitCode = 1;
   });
 });

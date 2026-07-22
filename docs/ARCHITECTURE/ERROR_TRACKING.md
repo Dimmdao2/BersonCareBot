@@ -23,22 +23,20 @@ Global administrators edit the pair atomically on `/app/doctor/admin/technical`.
 
 - exception type;
 - constant exception value `[REDACTED]`;
-- at most 40 cleaned repository-relative frames under `apps/`, `packages/`, or `scripts/`;
+- at most 40 repository-source frame identities: only `apps`/`packages`/`scripts`, a stable SHA-256-derived token, an allowlisted source extension, line and column numbers; raw filenames and function names are never emitted;
 - fixed `service`, `process_role`, `capture_point`, and `release` tags.
 
-Requests, headers, bodies, users, organization/patient/staff identifiers, IP addresses, URLs, query strings, cookies, extra/context objects, breadcrumbs, and original exception messages are never retained. Capture calls are non-blocking; a bounded 1.5-second flush/close happens only during shutdown/fatal handling.
+Requests, headers, bodies, users, organization/patient/staff identifiers, IP addresses, URLs, query strings, cookies, extra/context objects, breadcrumbs, arbitrary filename/function substrings, and original exception messages are never retained. Capture calls are non-blocking; a bounded 1.5-second flush/close happens only during shutdown/fatal handling.
 
 Release resolution is `BUILD_ID`, then a bounded local Git SHA lookup, then `dev`/`unknown`. Exact process roles are `webapp`, `api`, `worker`, `scheduler`, and `media-worker`.
 
-## Activation gate
+## Activation gates
 
-Keep disabled until all of the following are explicitly approved and completed in a separate infrastructure task:
+The capability remains disabled until both named owner gates pass:
 
-1. owner selects and provisions the backend outside this repository;
-2. retention, access control, backups, TLS, and data-location/privacy terms are accepted;
-3. the fake-receiver privacy test and synthetic load proof are green on the release commit;
-4. a global admin stores the DSN and enables the pair atomically;
-5. all five processes are restarted and one sanitized synthetic error per process is verified;
-6. the owner confirms the received payload contains only the documented allowlist.
+- **SEC-02 — privacy/security gate:** backend retention, access control, backups, TLS, data location, fake-receiver adversarial-marker proof, and received payload allowlist are owner-approved.
+- **PR-04 — production-readiness gate:** backend selection/provisioning is separately approved, three-run synthetic load proof is green, the global setting pair is saved atomically, and all five processes are restarted and verified with one sanitized synthetic error each.
+
+No backend provisioning, host configuration, live database mutation, or process restart belongs to C1 repository work.
 
 Rollback is atomic: disable the setting pair, which also clears the DSN, then restart the five processes. With the default disabled/empty state the SDK module is not imported and no network request is made.

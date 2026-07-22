@@ -15,7 +15,8 @@ import { assertSchedulerPoolReady } from '../../db/operationalPoolReadiness.js';
 import { listSchedulerReminderOrganizationIds } from '../../db/repos/schedulerReminderOrganizations.js';
 import { runSchedulerOrganizationTicks } from './organizationTicks.js';
 import {
-  captureIntegratorError,
+  captureSchedulerLoopError,
+  captureSchedulerStartupFatal,
   closeIntegratorErrorTracking,
   initIntegratorErrorTracking,
 } from '../../observability/errorTracking.js';
@@ -88,7 +89,7 @@ async function startScheduler(): Promise<void> {
         newEventId: randomUUID,
       });
     } catch (err) {
-      captureIntegratorError(err, 'scheduler_loop_error');
+      captureSchedulerLoopError(err);
       reportSchedulerDispatchIsolationFailure(err);
       logger.error({ err }, 'Runtime scheduler tick failed');
     }
@@ -98,7 +99,7 @@ async function startScheduler(): Promise<void> {
 }
 
 startScheduler().catch(async (err) => {
-  captureIntegratorError(err, 'scheduler_startup_fatal');
+  captureSchedulerStartupFatal(err);
   reportSchedulerDispatchIsolationFailure(err);
   logger.error({ err }, 'Runtime scheduler crashed');
   await closeIntegratorErrorTracking();

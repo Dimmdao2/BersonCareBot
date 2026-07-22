@@ -1,4 +1,5 @@
 import { execFileSync } from "node:child_process";
+import { createHash } from "node:crypto";
 
 import type {
   ErrorTrackingCapturePoint,
@@ -68,7 +69,7 @@ function isRecord(value: unknown): value is UnknownRecord {
 function boundedRelease(value: string | null | undefined): string | null {
   const normalized = value?.trim() ?? "";
   if (!normalized || normalized.length > MAX_RELEASE_LENGTH) return null;
-  if (!/^[A-Za-z0-9._:@/+\-]+$/.test(normalized)) return null;
+  if (!/^[A-Za-z0-9._:@/+-]+$/.test(normalized)) return null;
   return normalized;
 }
 
@@ -117,6 +118,10 @@ function sanitizeExceptionType(value: unknown): string {
   return /^[A-Za-z_$][A-Za-z0-9_.$-]*$/.test(normalized) ? normalized : "Error";
 }
 
+function stableSafeToken(value: string): string {
+  return createHash("sha256").update(value).digest("hex").slice(0, 16);
+}
+
 function repoRelativeFilename(value: unknown): string | null {
   if (typeof value !== "string") return null;
   const normalized = value.replaceAll("\\", "/").split(/[?#]/, 1)[0] ?? "";
@@ -126,7 +131,11 @@ function repoRelativeFilename(value: unknown): string | null {
   if (relative.includes("../") || relative.includes("node_modules/") || relative.length > MAX_FRAME_PATH_LENGTH) {
     return null;
   }
-  return relative;
+  const extensionCandidate = relative.match(/\.([A-Za-z0-9]+)$/)?.[1]?.toLowerCase();
+  const extension = extensionCandidate && ["ts", "tsx", "js", "mjs", "cjs"].includes(extensionCandidate)
+    ? `.${extensionCandidate}`
+    : "";
+  return `${match[1]}/_frame/${stableSafeToken(relative)}${extension}`;
 }
 
 function boundedPositiveInteger(value: unknown): number | undefined {
@@ -137,7 +146,9 @@ function boundedPositiveInteger(value: unknown): number | undefined {
 function sanitizedFunctionName(value: unknown): string | undefined {
   if (typeof value !== "string") return undefined;
   const normalized = value.trim().slice(0, 100);
-  return normalized && /^[A-Za-z0-9_.$<>-]+$/.test(normalized) ? normalized : undefined;
+  return normalized && /^[A-Za-z0-9_.$<>-]+$/.test(normalized)
+    ? `fn_${stableSafeToken(normalized)}`
+    : undefined;
 }
 
 function sanitizeFrames(value: unknown): UnknownRecord[] {

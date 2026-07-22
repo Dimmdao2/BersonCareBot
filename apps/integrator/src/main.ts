@@ -48,10 +48,10 @@ async function start() {
 }
 
 start().catch(async (error: unknown) => {
-  const { captureIntegratorError, closeIntegratorErrorTracking } = await import('./infra/observability/errorTracking.js');
+  const { captureIntegratorStartupFatal, closeIntegratorErrorTracking } = await import('./infra/observability/errorTracking.js');
   const { reportIntegratorIsolationFailure } = await import('./infra/observability/saasIsolationTelemetry.js');
   const { logger } = await import('./infra/observability/logger.js');
-  captureIntegratorError(error, 'integrator_startup_fatal');
+  captureIntegratorStartupFatal(error);
   reportIntegratorIsolationFailure(error);
   logger.error(error, 'Failed to start server');
   await closeIntegratorErrorTracking();

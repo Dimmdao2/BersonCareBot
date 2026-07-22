@@ -2,7 +2,6 @@ import {
   captureErrorTrackingException,
   closeErrorTracking,
   initErrorTracking,
-  type ErrorTrackingCapturePoint,
   type ErrorTrackingProcessRole,
 } from '@bersoncare/error-tracking';
 
@@ -29,12 +28,28 @@ export async function initIntegratorErrorTracking(
   }
 }
 
-export function captureIntegratorError(error: unknown, capturePoint: ErrorTrackingCapturePoint): void {
-  captureErrorTrackingException(error, capturePoint);
+export function captureIntegratorStartupFatal(error: unknown): void {
+  captureErrorTrackingException(error, 'integrator_startup_fatal');
 }
 
 export function captureUnexpectedIntegratorHttpError(error: unknown, statusCode: number): void {
   if (statusCode >= 500) captureErrorTrackingException(error, 'integrator_http_error');
+}
+
+export function captureWorkerLoopError(error: unknown): void {
+  captureErrorTrackingException(error, 'worker_loop_error');
+}
+
+export function captureWorkerStartupFatal(error: unknown): void {
+  captureErrorTrackingException(error, 'worker_startup_fatal');
+}
+
+export function captureSchedulerLoopError(error: unknown): void {
+  captureErrorTrackingException(error, 'scheduler_loop_error');
+}
+
+export function captureSchedulerStartupFatal(error: unknown): void {
+  captureErrorTrackingException(error, 'scheduler_startup_fatal');
 }
 
 export function closeIntegratorErrorTracking(): Promise<boolean> {

@@ -6,9 +6,11 @@ const files = {
   webapp: "apps/webapp/src/instrumentation.ts",
   webappAdapter: "apps/webapp/src/app-layer/observability/errorTracking.ts",
   api: "apps/integrator/src/main.ts",
+  integratorAdapter: "apps/integrator/src/infra/observability/errorTracking.ts",
   worker: "apps/integrator/src/infra/runtime/worker/main.ts",
   scheduler: "apps/integrator/src/infra/runtime/scheduler/main.ts",
   mediaWorker: "apps/media-worker/src/main.ts",
+  mediaWorkerAdapter: "apps/media-worker/src/errorTracking.ts",
 };
 
 const sources = Object.fromEntries(await Promise.all(
@@ -41,7 +43,13 @@ for (const [name, role, capture] of [
   ["scheduler", "scheduler", "scheduler_startup_fatal"],
   ["mediaWorker", "media-worker", "media_worker_startup_fatal"],
 ]) {
-  const source = name === "webapp" ? `${sources.webapp}\n${sources.webappAdapter}` : sources[name];
+  const source = name === "webapp"
+    ? `${sources.webapp}\n${sources.webappAdapter}`
+    : name === "mediaWorker"
+      ? `${sources.mediaWorker}\n${sources.mediaWorkerAdapter}`
+      : ["api", "worker", "scheduler"].includes(name)
+        ? `${sources[name]}\n${sources.integratorAdapter}`
+        : sources[name];
   requireMatch(source, new RegExp(`['"]${role}['"]`), `${name} process role is missing`);
   requireMatch(source, new RegExp(`['"]${capture}['"]`), `${name} fatal/request capture hook is missing`);
 }
