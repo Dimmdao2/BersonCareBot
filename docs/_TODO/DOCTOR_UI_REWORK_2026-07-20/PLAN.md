@@ -440,8 +440,9 @@ brief или заменять одним общим пунктом.
 - [x] Clients/messages используют один shared list-row contract: геометрия как «На сопровождении», full-row hover и
   divider `#f0efeb` (`#967`).
 - [x] Общие tabs имеют более округлые края и более тёмный нейтральный hover без page-local divergence (`#967`).
-- [x] Пункты основного sidebar/mobile menu остаются прямоугольными с минимальным скруглением и не наследуют 24px
-  doctor button radius (`#967`).
+- [ ] Пункты основного sidebar/mobile menu возвращены к прежней почти прямоугольной форме с действительно
+  минимальным скруглением и не наследуют 24px doctor button radius (`#967`). Owner live recheck 2026-07-22
+  отклонил промежуточный `rounded-md` как всё ещё слишком округлый; rounded section tabs этим пунктом не меняются.
 - [x] Clients search находится в page-header slot.
 
 #### UI-7 — scheduled communications (`#964`)

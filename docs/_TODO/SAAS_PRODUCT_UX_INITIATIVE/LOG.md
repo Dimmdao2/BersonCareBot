@@ -4624,3 +4624,11 @@ add zero DB reads, concurrent misses coalesce, version updates are monotonic and
 cookies within 30 seconds. Patient auth remains unchanged. The worker is intentionally owner-gated only on the exact
 staff/global-admin inactivity TTL and acceptance of the bounded cross-process SLA; recommended default is seven days
 for both privileged roles and `≤30s` revocation propagation.
+
+## 2026-07-22 — owner reopened the menu-radius subitem of UI-P2 `#967`
+
+The TEST/live observation supersedes the earlier visual claim that `rounded-md` was sufficiently rectangular. The
+shared sidebar and mobile-menu rows must return to the previous near-rectangular shape with genuinely minimal
+rounding; the more-rounded section tabs and the general 24px doctor control radius remain unchanged. Only this
+atomic checklist item is reopened. It receives one bounded presentation correction, focused checks, desktop/mobile
+live evidence and one independent presentation audit; the rest of UI-P2 is not rerun.
