@@ -275,24 +275,24 @@ draft semantics не являются owner rulings. Media access/presign и ten
 
 ### Current implementation truth — reconciliation 2026-07-22
 
-Статус ниже проверен против полного `f48f35a56`, integrated code through `8a49eeeec`, code/tests/LOG и TEST SHA
-`62b69b6a2`.
+Статус ниже проверен против полного `f48f35a56`, integrated code through `eb64a4956`, code/tests/LOG и exact TEST
+SHA `eb64a495644` (code-only deploy 2026-07-22, без dump/restore/full reset).
 `DONE` здесь означает repository implementation evidence; owner acceptance остаётся отдельным taskdb-layer.
 
 | Scope | Статус | Точный остаток |
 |---|---|---|
 | UI-0 | `DONE` | Четыре symptoms закрыты; отдельная owner live recheck не подменяется smoke. |
-| UI-1 | `DONE code / live gated` | Canonical picker reuse и UI-1c готовы на feature; новый TEST/live checkpoint ещё не выполнен. Money/provider и SCH-G5 остаются отдельными gates, не UI-1 debt. |
+| UI-1 | `DONE code / TEST deployed / owner pending` | Canonical picker reuse и UI-1c находятся на TEST; обязательный smoke и первичная read-only visual проверка прошли. Money/provider и SCH-G5 остаются отдельными gates, не UI-1 debt. |
 | UI-2 | `DONE code / live gated` | Built-in Online и gating готовы; public live требует sanctioned published slug/U6B. |
-| UI-3 | `DONE code / live gated` | 45/55, owner gradient, broadcast detail/error IA и shared composer закрыты; новый TEST/live checkpoint ещё не выполнен. |
-| UI-4 | `DONE code / live gated` | Presentation, metric semantics и normal-mode functional `PatientPreviewPane` готовы; новый TEST/live checkpoint ещё не выполнен. |
-| UI-5 | `UI-5a DONE / UI-5b gated` | Existing full card replaces the doctor workspace with list-state restoration; UI-5b composition законно ждёт U5A/record-class gate. |
-| UI-6 | `DONE current contract / future gated` | 50/50, calendar button/window and existing-signal preferences/list switch are integrated and audited; «Самые активные»/new counters/hiding stay contract-gated. |
+| UI-3 | `DONE code / TEST deployed / owner pending` | 45/55, owner gradient, broadcast detail/error IA и shared composer находятся на TEST; smoke и desktop/mobile read-only visual проверка прошли. |
+| UI-4 | `DONE code / TEST deployed / owner pending` | Presentation, metric semantics и normal-mode functional `PatientPreviewPane` находятся на TEST; smoke и desktop/mobile list check прошли. |
+| UI-5 | `UI-5a TEST deployed / UI-5b gated` | Existing full card replaces the doctor workspace with list-state restoration; mandatory live route smoke прошёл. UI-5b composition законно ждёт U5A/record-class gate. |
+| UI-6 | `DONE current contract / TEST deployed / future gated` | 50/50, calendar button/window and existing-signal preferences/list switch находятся на TEST; «Самые активные»/new counters/hiding stay contract-gated. |
 | UI-7 | `NOT DONE` | Scheduled messages и worker contract отсутствуют; Voice/STT корректно post-production. |
 | UI-8 | `PARTIAL` | S4/C5 organization-only commercial contour готов; default новых разминок `#191` (`12:00`/`15:00` в рабочие дни, без изменения существующих клиентов) не реализован. |
 | UI-9 | `DONE` | Personal exercises/media exact-org implementation и high-risk audit закрыты; live owner acceptance отдельно. |
 | Client mood residual | `DONE` | Empty chart скрывается, mood controls остаются. |
-| UI-P | `DONE code / live gated` | Shared pass and latest background/tabs/list/menu correction are integrated and audited; новый TEST/live checkpoint ещё не выполнен. |
+| UI-P | `DONE code / TEST deployed / owner pending` | Shared pass and latest background/tabs/list/menu correction are integrated, audited and visually checked on TEST desktop/mobile. |
 
 Эта таблица отменяет прежние blanket-формулировки «baseline проверен» для полного UI-1/UI-3/UI-4/UI-6 scope:
 повторять закрытую часть нельзя, но перечисленный residual обязан получить собственный exact task/acceptance.
@@ -337,7 +337,8 @@ brief или заменять одним общим пунктом.
 - [ ] После отдельного money/provider gate карточка различает полную оплату с суммой.
 - [ ] После отдельного money/provider gate состояние «Не оплачено» даёт server-authorized действия «Оплачено
   наличными» и «Выставить счёт»; UI-1c не изобретает эти contracts.
-- [ ] UI-1c отсутствует на текущем TEST SHA и требует следующего owner live checkpoint.
+- [x] UI-1c присутствует на exact TEST SHA `eb64a495644`; mandatory patient-card/schedule smoke и первичная
+  read-only visual проверка прошли. Owner interaction acceptance остаётся отдельным gate.
 - [ ] SCH-G5 остаётся отдельным owner gate `#848`, не скрывается внутри UI-1 completion.
 
 #### UI-2 — built-in Online location
@@ -468,8 +469,11 @@ Scope decision, не implementation checkbox: Voice/STT исключён из т
 - [ ] Все открытые in-scope owner checkboxes текущего пакета закрыты отдельным evidence, без parent-stage shortcut.
 - [ ] Targeted tests/typecheck/lint закрыты для каждого изменённого scope; presentation audits выполнены ровно один
   раз, high-risk stages — по их risk tier.
-- [ ] Один accumulated full CI прошёл на интегрированном milestone SHA, а не повторялся после каждого малого slice.
-- [ ] Разрешённый code-only TEST deploy указывает на тот же milestone SHA; никакого DB reset/dump refresh.
+- [x] Один accumulated full CI начат на `2a2cbda61`, продолжен canonical resume после единственного stale-test
+  failure и дополнен точечными delta-gates до deployed `eb64a495644`; полный прогон не повторялся после малых
+  correction slices.
+- [x] Разрешённый code-only TEST deploy указывает на exact SHA `eb64a495644`; dump/restore/full reset не запускались,
+  locked product smoke `22/22` и отдельный deny-smoke прошли.
 - [ ] Owner прошёл live click-through по точным URL/ролям/viewports; `accepted` остаётся только owner action.
 
 ### Обязательный порядок исполнения — current selector 2026-07-22

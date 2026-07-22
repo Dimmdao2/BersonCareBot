@@ -4551,3 +4551,25 @@ packages and a built-standalone native RGBA→JPEG probe. Focused media/Fastify 
 offline frozen install, standalone runtime and registry audit all passed; the final registry reports no known
 vulnerabilities at low or higher. Independent A–G compatibility audit returned PASS. Integrated dependency commit:
 `8a49eeeec`. This aggregate + resume evidence is the milestone CI gate; no TEST/DB/deploy action occurred yet.
+
+## 2026-07-22 — UI milestone deployed to TEST and primary visual gate passed
+
+The owner-authorized code-only TEST deploy now runs exact feature SHA `eb64a495644`. No dump, restore, fresh-copy
+workflow or full-reset entrypoint was invoked. The first deploy attempt correctly failed closed at `21/22` product
+smokes because the new full patient-card server route called a client-only button style helper. The failure was a
+`#958` runtime regression, not a TEST-data or RLS problem. Minimal correction `eb64a4956` moved the route to the
+existing server-safe variant helper, preserved the doctor control radius and added a source-boundary regression
+test; focused test, lint and webapp typecheck passed. The code-only deploy was then repeated from the failed gate,
+without rerunning full CI.
+
+The terminal deploy passed all five service checks, public health, nginx validation, locked product smoke `22/22`
+including the patient card, and the separate global-admin clinical-write denial. The existing E1 isolation coverage
+diagnostic still reports an older unexplained aggregate; TEST intentionally treats this diagnostic as warning-only,
+and it is not evidence of a current UI/data failure.
+
+Primary read-only visual acceptance used the protected Clinic A doctor fixture at `1440x900` and `390x844` for
+Today, Clients, Communications chats/broadcasts and Schedule. Every route returned `200` with no browser console
+errors. The screenshots confirm the Today 50/50 layout and schedule button, Clients 50/50/list/KPI presentation,
+Communications 45/55, rounded section tabs, near-rectangular menu rows and mobile master surfaces. Runtime PNGs stay
+under `.claude/screenshots/UI-MILESTONE-TEST-20260722T0215Z/` and are not committed. Taskdb `#821` contains the exact
+SHA, role, URLs and morning owner interaction checklist; `accepted` remains owner-only.
