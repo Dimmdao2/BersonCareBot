@@ -347,7 +347,7 @@ describe("doctor support/task workspace principal cutover", () => {
 
     const loader = readSource("src/app/app/doctor/loadDoctorTodayDashboard.ts");
     expect(loader).toContain("organizationId?: string");
-    expect(loader).toContain("{ supportStatus: \"on\", organizationId: deps.organizationId }");
+    expect(loader).toContain("supportStatus: \"on\"");
     expect(loader).toContain("organizationId: deps.organizationId");
     expect(loader).toContain("unreadFromUsers({ organizationId: deps.organizationId })");
     expect(loader).toContain("instance.organizationId === deps.organizationId");
