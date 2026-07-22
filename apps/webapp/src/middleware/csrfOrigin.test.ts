@@ -135,6 +135,10 @@ describe("CSRF origin policy", () => {
       .toMatchObject({ action: "reject", proof: "origin_invalid" });
     expect(decide({ origin: null, referer: "::::" }))
       .toMatchObject({ action: "reject", proof: "referer_invalid" });
+    expect(decide({
+      origin: null,
+      referer: "https://bersoncare.ru/app, https://evil.example/x",
+    })).toMatchObject({ action: "reject", proof: "referer_invalid" });
     expect(decide({ origin: null, referer: "https://test.bersoncare.ru/app" }))
       .toMatchObject({ action: "reject", proof: "referer_mismatch" });
   });

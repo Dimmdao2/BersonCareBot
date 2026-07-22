@@ -147,7 +147,7 @@ function parseCanonicalOrigin(raw: string): string | null {
 
 function parseRefererOrigin(raw: string): string | null {
   const value = raw.trim();
-  if (!value) return null;
+  if (!value || /,\s*https?:\/\//i.test(value)) return null;
   try {
     const parsed = new URL(value);
     if (
