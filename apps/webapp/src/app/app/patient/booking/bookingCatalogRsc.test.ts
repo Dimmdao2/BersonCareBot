@@ -109,7 +109,7 @@ describe("patient booking catalog RSC principal boundary", () => {
     expect(listBranchesMock).not.toHaveBeenCalled();
   });
 
-  it("projects Online only from the authenticated patient's exact organization and active assignment", async () => {
+  it("carries an enabled clinic-wide Online service into the authenticated booking wizard service step", async () => {
     const onlineBranchId = "33333333-3333-4333-8333-333333333339";
     const serviceId = "44444444-4444-4444-8444-444444444449";
     const specialistId = "55555555-5555-4555-8555-555555555559";
@@ -162,6 +162,21 @@ describe("patient booking catalog RSC principal boundary", () => {
       ok: true,
       cities: [],
       onlineLocation: { id: onlineBranchId, cityCode: "online", title: "Онлайн" },
+    });
+    await expect(loadInPersonServicesForCityRsc("online", PATIENT_ID)).resolves.toEqual({
+      ok: true,
+      branchId: onlineBranchId,
+      branchTitle: "Онлайн",
+      cityCode: "online",
+      services: [
+        {
+          id: serviceId,
+          title: "Онлайн-консультация",
+          description: null,
+          durationMinutes: 60,
+          priceMinor: 100000,
+        },
+      ],
     });
     expect(listBranchesMock).toHaveBeenCalledWith(ORGANIZATION_ID);
     expect(listServicesMock).toHaveBeenCalledWith(ORGANIZATION_ID);

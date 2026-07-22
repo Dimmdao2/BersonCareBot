@@ -167,12 +167,18 @@ vi.mock('@/shared/ui/doctor/KpiPreviewModal', () => ({
 vi.mock('../../calendar/DoctorCalendarToolbarFilter', () => ({
   DoctorCalendarToolbarFilter: ({
     noneLabel,
+    options,
     onChange,
   }: {
     noneLabel: string;
+    options: { id: string; label: string }[];
     onChange: (v: string | null) => void;
   }) => (
-    <button data-testid={`filter-${noneLabel}`} onClick={() => onChange('branch-1')}>
+    <button
+      data-testid={`filter-${noneLabel}`}
+      data-options={options.map((option) => `${option.id}:${option.label}`).join('|')}
+      onClick={() => onChange('branch-1')}
+    >
       {noneLabel}
     </button>
   ),
@@ -496,6 +502,27 @@ describe('ScheduleCalendarTab — v26 rebuild', () => {
       await waitFor(() => {
         expect(screen.getByTestId('filter-Локация')).toBeInTheDocument();
         expect(screen.getByTestId('filter-Услуга')).toBeInTheDocument();
+      });
+    });
+
+    it('passes the built-in Online branch through the existing calendar location filter', async () => {
+      setupFetchMock({
+        ...makeCalendarResponse(),
+        filters: {
+          specialists: [],
+          branches: [{ id: 'branch-online', label: 'Онлайн', shortLabel: 'Онлайн', color: '#7c3aed' }],
+          rooms: [],
+          services: [],
+        },
+      });
+      const Tab = await setup();
+      render(<Tab deepLinkParams={{}} onDeepLinkChange={vi.fn()} />);
+
+      await waitFor(() => {
+        expect(screen.getByTestId('filter-Локация')).toHaveAttribute(
+          'data-options',
+          'branch-online:Онлайн',
+        );
       });
     });
   });

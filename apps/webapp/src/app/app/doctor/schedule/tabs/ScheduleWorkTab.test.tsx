@@ -134,9 +134,11 @@ async function chooseTime(testId: string, value: string) {
 async function renderWorkTab(
   deepLinkParams: Record<string, string> = {},
   {
+    branches = BRANCHES,
     workingDayRows = WORKING_DAY_ROWS,
     workingHourRows = WORKING_HOUR_ROWS,
   }: {
+    branches?: MockBranch[];
     workingDayRows?: WorkingDayFixture[];
     workingHourRows?: WorkingHourFixture[];
   } = {},
@@ -144,7 +146,7 @@ async function renderWorkTab(
   const { fetchDoctorScheduleBootstrap } = await import("../doctorScheduleApi");
   (fetchDoctorScheduleBootstrap as ReturnType<typeof vi.fn>).mockResolvedValue({
     organizationTitle: "Клиника",
-    branches: BRANCHES.filter((b) => b.isActive),
+    branches: branches.filter((b) => b.isActive),
     specialistId: "spec-1",
   });
 
@@ -430,6 +432,33 @@ describe("ScheduleWorkTab", () => {
       expect(spbButton).toHaveAttribute("aria-pressed", "true");
       expect(spbButton).toHaveStyle("--branch-fg: #2563eb");
     });
+  });
+
+  it("keeps the built-in Online location in the existing schedule location filters", async () => {
+    await renderWorkTab(
+      { month: "2026-06" },
+      {
+        branches: [
+          ...BRANCHES,
+          {
+            id: "branch-online",
+            title: "Онлайн",
+            shortTitle: "Онлайн",
+            color: "#7c3aed",
+            isActive: true,
+            cityCode: "online",
+            address: null,
+            timezone: "Europe/Moscow",
+            sortOrder: 2,
+          },
+        ],
+      },
+    );
+
+    const onlineFilter = await screen.findByTestId("branch-btn-branch-online");
+    expect(onlineFilter).toHaveTextContent("Онлайн");
+    expect(onlineFilter).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByTestId("branch-filter-all")).toHaveAttribute("aria-pressed", "true");
   });
 
   it("E2: day cell with schedule shows time", async () => {

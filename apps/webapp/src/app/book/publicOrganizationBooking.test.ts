@@ -95,11 +95,21 @@ describe("public /book/{slug} chokepoint", () => {
       expect(listBranchesMock).toHaveBeenCalledWith(ORGANIZATION_A);
     });
 
-    it("shows Online only when the slug-resolved organization has an active assigned service", async () => {
+    it("keeps an online-only service in the public Online block and out of the physical location", async () => {
+      const physicalBranchId = "33333333-3333-4333-8333-333333333333";
       const onlineBranchId = "33333333-3333-4333-8333-333333333339";
       const serviceId = "44444444-4444-4444-8444-444444444449";
       const specialistId = "55555555-5555-4555-8555-555555555559";
       listBranchesMock.mockResolvedValue([
+        {
+          id: physicalBranchId,
+          organizationId: ORGANIZATION_A,
+          cityCode: "moscow",
+          title: "Москва",
+          shortTitle: "Москва",
+          isActive: true,
+          sortOrder: 0,
+        },
         {
           id: onlineBranchId,
           organizationId: ORGANIZATION_A,
@@ -107,15 +117,29 @@ describe("public /book/{slug} chokepoint", () => {
           title: "Онлайн",
           shortTitle: "Онлайн",
           isActive: true,
-          sortOrder: 0,
+          sortOrder: 1,
         },
       ]);
-      getBranchMock.mockResolvedValue({
-        id: onlineBranchId,
-        organizationId: ORGANIZATION_A,
-        cityCode: "online",
-        title: "Онлайн",
-        isActive: true,
+      getBranchMock.mockImplementation(async (branchId: string) => {
+        if (branchId === physicalBranchId) {
+          return {
+            id: physicalBranchId,
+            organizationId: ORGANIZATION_A,
+            cityCode: "moscow",
+            title: "Москва",
+            isActive: true,
+          };
+        }
+        if (branchId === onlineBranchId) {
+          return {
+            id: onlineBranchId,
+            organizationId: ORGANIZATION_A,
+            cityCode: "online",
+            title: "Онлайн",
+            isActive: true,
+          };
+        }
+        return null;
       });
       listServicesMock.mockResolvedValue([
         {
@@ -146,8 +170,28 @@ describe("public /book/{slug} chokepoint", () => {
 
       await expect(loadPublicOrganizationCitiesRsc(ORGANIZATION_A)).resolves.toEqual({
         ok: true,
-        cities: [],
+        cities: [
+          {
+            id: physicalBranchId,
+            code: "moscow",
+            title: "Москва",
+            isActive: true,
+            sortOrder: 0,
+            createdAt: "",
+            updatedAt: "",
+          },
+        ],
         onlineLocation: { id: onlineBranchId, cityCode: "online", title: "Онлайн" },
+      });
+      await expect(loadPublicOrganizationServicesForCityRsc(ORGANIZATION_A, "moscow")).resolves.toMatchObject({
+        ok: true,
+        branchId: physicalBranchId,
+        services: [],
+      });
+      await expect(loadPublicOrganizationServicesForCityRsc(ORGANIZATION_A, "online")).resolves.toMatchObject({
+        ok: true,
+        branchId: onlineBranchId,
+        services: [{ id: serviceId, title: "Онлайн-консультация" }],
       });
       expect(listServicesMock).toHaveBeenCalledWith(ORGANIZATION_A);
       expect(listServicesMock).not.toHaveBeenCalledWith(ORGANIZATION_B);

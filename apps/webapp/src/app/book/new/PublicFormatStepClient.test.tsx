@@ -1,7 +1,7 @@
 /** @vitest-environment jsdom */
 
 import { describe, it, expect } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import { PublicFormatStepClient } from "./PublicFormatStepClient";
 import type { BookingCity } from "@/modules/booking-catalog/types";
 
@@ -44,5 +44,24 @@ describe("PublicFormatStepClient", () => {
     expect(link.getAttribute("href")).toContain("cityCode=online");
     expect(link.getAttribute("href")).toContain("orgSlug=clinic-a");
     expect(screen.queryByRole("link", { name: "Реабилитация онлайн" })).not.toBeInTheDocument();
+  });
+
+  it("renders the configured Online entry in the Online block, not the physical-locations block", () => {
+    render(
+      <PublicFormatStepClient
+        cities={[city()]}
+        onlineLocation={{ id: "online-a", cityCode: "online", title: "Онлайн" }}
+        catalogError={null}
+        orgSlug="clinic-a"
+      />,
+    );
+
+    const physicalBlock = screen.getByText("Очный приём").parentElement;
+    const onlineBlock = screen.getByText("Онлайн").parentElement;
+    expect(physicalBlock).not.toBeNull();
+    expect(onlineBlock).not.toBeNull();
+    expect(within(physicalBlock!).getByRole("link", { name: "Москва" })).toBeInTheDocument();
+    expect(within(physicalBlock!).queryByRole("link", { name: "Онлайн-приём" })).not.toBeInTheDocument();
+    expect(within(onlineBlock!).getByRole("link", { name: "Онлайн-приём" })).toBeInTheDocument();
   });
 });
