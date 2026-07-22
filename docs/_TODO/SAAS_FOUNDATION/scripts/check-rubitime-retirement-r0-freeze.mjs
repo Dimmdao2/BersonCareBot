@@ -104,6 +104,33 @@ const frozenBaselines = {
   ]),
 };
 
+// Reviewed compatibility/declaration contexts are removed before the generic
+// occurrence baseline is counted. Keeping the exact source snippets here is
+// deliberately stricter than raising a whole-file count: moving the provider
+// token to another branch or restoring a retired default becomes visible again.
+const reviewedReadSourceContexts = new Map([
+  [
+    'apps/webapp/src/modules/system-settings/registry.ts',
+    [
+      '  booking_rubitime_bridge_enabled: runtime("admin", "global", "server", "boolean", "false"),',
+      '  booking_doctor_appointments_read_source: runtime("admin", "global", "server", "string", "canonical"),',
+      '  booking_slots_read_source: runtime("admin", "global", "server", "string", "canonical"),',
+    ],
+  ],
+  [
+    'apps/webapp/src/infra/repos/pgBookingEngine.ts',
+    [
+      `                    eq(beExternalEntityMappings.organizationId, input.organizationId),
+                    eq(beExternalEntityMappings.entityType, "availability"),
+                    eq(beExternalEntityMappings.externalSystem, "rubitime"),
+                    inArray(
+                      beExternalEntityMappings.canonicalId,
+                      exactSpecialistRows.map((row) => row.id),
+                    ),`,
+    ],
+  ],
+]);
+
 const readSourceBranchTokens = [
   'booking_doctor_appointments_read_source',
   'booking_slots_read_source',
@@ -160,6 +187,14 @@ function countMatches(src, patterns) {
   }, 0);
 }
 
+function withoutReviewedReadSourceContexts(rel, src) {
+  let remaining = src;
+  for (const context of reviewedReadSourceContexts.get(rel) ?? []) {
+    remaining = remaining.replace(context, '');
+  }
+  return remaining;
+}
+
 function webappRubitimeRouteCount(rel) {
   return rel.startsWith('apps/webapp/src/app/api/') && rel.endsWith('/route.ts') && rel.includes('rubitime')
     ? 1
@@ -193,8 +228,8 @@ function collectOffenders(files) {
     bookingSyncImports: collectGrowthOffenders(files, 'bookingSyncImports', ({ src }) =>
       countMatches(src, patternGroups.bookingSyncImports),
     ),
-    readSourceBranches: collectGrowthOffenders(files, 'readSourceBranches', ({ src }) =>
-      countMatches(src, patternGroups.readSourceBranches),
+    readSourceBranches: collectGrowthOffenders(files, 'readSourceBranches', ({ rel, src }) =>
+      countMatches(withoutReviewedReadSourceContexts(rel, src), patternGroups.readSourceBranches),
     ),
     webappRoutes: collectGrowthOffenders(files, 'webappRoutes', ({ rel }) => webappRubitimeRouteCount(rel)),
     integratorRoutes: collectGrowthOffenders(files, 'integratorRoutes', ({ src }) =>
@@ -238,6 +273,32 @@ if (process.argv.includes('--self-test')) {
       src: Array.from({ length: 12 }, () => 'const source = "rubitime";').join('\n'),
     },
     {
+      rel: 'apps/webapp/src/modules/system-settings/registry.ts',
+      src: [
+        '  booking_rubitime_bridge_enabled: runtime("admin", "global", "server", "boolean", "false"),',
+        '  booking_doctor_appointments_read_source: runtime("admin", "global", "server", "string", "canonical"),',
+        '  booking_slots_read_source: runtime("admin", "global", "server", "string", "canonical"),',
+      ].join('\n'),
+    },
+    {
+      rel: 'apps/webapp/src/modules/system-settings/registry.ts',
+      src: '  booking_doctor_appointments_read_source: runtime("admin", "global", "server", "string", "rubitime_legacy"),',
+    },
+    {
+      rel: 'apps/webapp/src/infra/repos/pgBookingEngine.ts',
+      src: `${Array.from({ length: 5 }, () => 'const source = "rubitime";').join('\n')}\n+                    eq(beExternalEntityMappings.organizationId, input.organizationId),
+                    eq(beExternalEntityMappings.entityType, "availability"),
+                    eq(beExternalEntityMappings.externalSystem, "rubitime"),
+                    inArray(
+                      beExternalEntityMappings.canonicalId,
+                      exactSpecialistRows.map((row) => row.id),
+                    ),`,
+    },
+    {
+      rel: 'apps/webapp/src/infra/repos/pgBookingEngine.ts',
+      src: Array.from({ length: 6 }, () => 'const source = "rubitime";').join('\n'),
+    },
+    {
       rel: 'apps/webapp/src/app/api/admin/new-rubitime/route.ts',
       src: 'export async function GET() {}',
     },
@@ -247,10 +308,22 @@ if (process.argv.includes('--self-test')) {
     },
   ]);
 
+  const readSourceOffenderSignature = offenders.readSourceBranches
+    .map(({ rel, baseline, count }) => `${rel}:${count}>${baseline}`)
+    .sort();
+  const expectedReadSourceOffenderSignature = [
+    'apps/webapp/src/app/app/settings/BookingEngineSection.tsx:12>11',
+    'apps/webapp/src/infra/repos/pgBookingEngine.ts:6>5',
+    'apps/webapp/src/modules/new-booking/plainSource.ts:1>0',
+    'apps/webapp/src/modules/new-booking/readSource.ts:1>0',
+    'apps/webapp/src/modules/system-settings/registry.ts:2>0',
+  ].sort();
+
   const expected =
     offenders.integratorImports.length === 1 &&
     offenders.bookingSyncImports.length === 1 &&
-    offenders.readSourceBranches.length === 3 &&
+    JSON.stringify(readSourceOffenderSignature) ===
+      JSON.stringify(expectedReadSourceOffenderSignature) &&
     offenders.webappRoutes.length === 1 &&
     offenders.integratorRoutes.length === 1;
 

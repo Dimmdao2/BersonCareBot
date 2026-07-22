@@ -807,7 +807,7 @@ Use these checklists as the operational tracker. A phase is not complete until e
 - [x] Rubitime settings UI is marked deprecated/internal-only or hidden from ordinary clinic flows.
 - [x] New route/feature work is blocked from adding `rubitime` / `rubitime_legacy` branches.
 - [x] New plain read-source literal `"rubitime"` / `'rubitime'` is blocked by the R0 guard.
-- [x] New matching occurrences inside existing high-risk baseline files are blocked by frozen per-file counts.
+- [x] New matching occurrences inside existing high-risk baseline files are blocked by frozen per-file counts; post-R0 setting declarations and the R3C-11 exact-org availability mapping are exempted only by exact reviewed source context, not by an open-ended count increase. *(`RUBITIME_RETIREMENT_R0_FREEZE_REPORT.md`, guard-drift correction 2026-07-22.)*
 - [x] Current Rubitime route map is recorded.
 - [x] Current Rubitime table/reference map is recorded.
 - [x] R0 review confirms no runtime behavior changed.

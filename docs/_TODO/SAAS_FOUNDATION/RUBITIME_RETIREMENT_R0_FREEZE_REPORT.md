@@ -4,6 +4,8 @@ Run id: `R0-freeze-codex-2026-07-14`
 
 Audit-fix run id: `R0-freeze-dalton-fix-codex-2026-07-14`
 
+Guard-drift correction run id: `R0-freeze-guard-drift-983-2026-07-22`
+
 Scope: Phase R0 only. No R1/R2/R3 work, no backfill, no DB writes, no production/env/crontab changes, no Rubitime runtime removal.
 
 ## Static search report summary
@@ -111,11 +113,29 @@ The guard freezes current baseline and fails on:
 
 - growth above the frozen per-file baseline for imports from `apps/integrator/src/integrations/rubitime/**`;
 - growth above the frozen per-file baseline for imports from `@bersoncare/booking-rubitime-sync`;
-- growth above the frozen per-file baseline for read-source/bridge tokens: `booking_doctor_appointments_read_source`, `booking_slots_read_source`, `booking_rubitime_bridge_enabled`, `rubitime_legacy`, and the plain read-source literal `"rubitime"` / `'rubitime'`;
+- growth above the frozen per-file baseline for read-source/bridge tokens: `booking_doctor_appointments_read_source`, `booking_slots_read_source`, `booking_rubitime_bridge_enabled`, `rubitime_legacy`, and the plain read-source literal `"rubitime"` / `'rubitime'`; reviewed declarations/compatibility are exempted only by exact source context before the baseline count;
 - new webapp API route files with `rubitime` in `apps/webapp/src/app/api/**/route.ts`;
 - growth above the frozen per-file baseline for integrator `app.get/post/put/patch/delete(...rubitime...)` route literals.
 
 This means allowlisted high-risk files are no longer open-ended: adding another matching Rubitime branch/import/route occurrence inside an existing baseline file fails the guard unless the baseline is intentionally reviewed and updated.
+
+### Guard drift reconciliation, 2026-07-22
+
+The current gate later exposed two post-R0 additions instead of silently accepting them:
+
+- `apps/webapp/src/modules/system-settings/registry.ts` contributed five matches. Three are required setting-key
+  declarations. The other two were stale registry metadata defaults (`rubitime_legacy` and `rubitime`) even though
+  the current parsers and admin write contract are canonical-only. Those two defaults are now `canonical`; the
+  three declarations are exempted by exact full-line context, so restoring a retired default or moving a token to
+  another branch fails the guard.
+- `apps/webapp/src/infra/repos/pgBookingEngine.ts` contributed a sixth provider literal in the exact-org
+  availability-mapping path added after R0. It preserves the still-live `branchServiceId` compatibility described
+  by R3-CATALOG/R3C-11 and was not removed. The guard exempts only the exact organization + `availability` mapping
+  block that chooses the existing SSA row. A new provider literal elsewhere in the file still exceeds the original
+  baseline of five.
+
+The correction changes no DB row, setting write, read-source parser, route, provider call or compatibility mapping.
+It only aligns registry metadata with the already-canonical contract and makes the R0 allowlist context-specific.
 
 Connected checks:
 
@@ -140,7 +160,7 @@ No controls were disabled and no setting value semantics changed.
 - [x] Rubitime settings UI is marked deprecated/internal-only.
 - [x] New route/feature work is blocked from adding `rubitime` / `rubitime_legacy` branches through the R0 guard.
 - [x] New plain read-source literal `"rubitime"` / `'rubitime'` is blocked through the R0 guard.
-- [x] Growth inside baseline high-risk files is blocked through frozen per-file occurrence counts.
+- [x] Growth inside baseline high-risk files is blocked through frozen per-file occurrence counts; post-R0 reviewed declarations/compatibility are allowlisted only by exact context, while stale defaults and token growth remain blocked.
 - [x] Current Rubitime route map is recorded.
 - [x] Current Rubitime table/reference map is recorded.
 - [x] R0 review confirms no runtime behavior changed.
@@ -164,6 +184,13 @@ Commands and results:
 | `rg -n "appointment_records"` and targeted `rg` for `rubitime_records`, `rubitime_events`, read-source keys, `booking_calendar_map`, `patient_bookings`, `be_external_entity_mappings`, and public `booking_*` catalog tables | Passed; line-level/file-level evidence added above. |
 | `pnpm run check:rubitime-retirement-r0` | Passed after Dalton fixes; baseline guard accepts current legitimate surface. |
 | `node docs/_TODO/SAAS_FOUNDATION/scripts/check-rubitime-retirement-r0-freeze.mjs --self-test` | Passed after Dalton fixes; synthetic new `const source = "rubitime"` and synthetic growth inside `BookingEngineSection.tsx` are detected. |
+| `node docs/_TODO/SAAS_FOUNDATION/scripts/check-rubitime-retirement-r0-freeze.mjs --self-test` (2026-07-22 drift correction) | Passed; exact reviewed registry/SSA contexts are accepted, while stale registry defaults and sixth unreviewed `pgBookingEngine` tokens are detected. |
+| `node docs/_TODO/SAAS_FOUNDATION/scripts/check-rubitime-retirement-r0-freeze.mjs` (2026-07-22 drift correction) | Passed; current source is back inside the R0 freeze contract. |
+| `/home/dev/dev-projects/BersonCareBot/apps/webapp/node_modules/.bin/vitest run src/modules/system-settings/registry.test.ts` from the isolated worktree's `apps/webapp` (2026-07-22 drift correction) | Passed, 6 tests; canonical metadata defaults are asserted. The temporary ignored dependency symlinks used by the isolated worktree were removed before commit. |
+| `pnpm run check:rubitime-retirement-current` (2026-07-22 drift correction) | Passed, 8/8 current non-destructive sub-gates. |
+| `pnpm --dir apps/webapp typecheck` (2026-07-22 drift correction) | Passed after linking the existing main-worktree dependency installation into the isolated worktree; generated symlinks were removed before commit. |
+| `pnpm exec eslint src/modules/system-settings/registry.ts src/modules/system-settings/registry.test.ts` from `apps/webapp` (2026-07-22 drift correction) | Passed. |
+| `node --check docs/_TODO/SAAS_FOUNDATION/scripts/check-rubitime-retirement-r0-freeze.mjs && git diff --check` (2026-07-22 drift correction) | Passed. |
 | `git diff --check` | Passed after Dalton fixes. |
 | `pnpm exec eslint docs/_TODO/SAAS_FOUNDATION/scripts/check-rubitime-retirement-r0-freeze.mjs` | Passed after Dalton fixes. |
 | `pnpm exec eslint docs/_TODO/SAAS_FOUNDATION/scripts/check-rubitime-retirement-r0-freeze.mjs apps/webapp/src/app/app/settings/BookingEngineSection.tsx apps/webapp/src/app/app/doctor/admin/booking/bookingAdminTabs.ts apps/webapp/src/app/app/doctor/admin/booking/integrations/page.tsx` | Passed with 0 errors; app files were reported as ignored by current ESLint patterns. |
