@@ -52,6 +52,14 @@ Packet никогда не shell-source-ится: единый parser требу
 JSON-quoted ключей и отклоняет unknown/duplicate/malformed/shell-конструкции.
 Канон: `docs/_TODO/SAAS_FOUNDATION/HARD_MIGRATION_PROTOCOL.md`.
 
+**Protected product-smoke fixture — canonical public slots:** если versioned smoke contract добавил
+`publicBookingBranchId` + `publicBookingClinicServiceId`, внешний `/run/bersoncarebot/saas-smoke.fixture` обновляется
+только root/operator entrypoint `deploy/host/update-saas-product-smoke-fixture-canonical-slots.sh`. Он принимает
+только exact TEST checkout/env/DB, выполняет read-only разрешение одной активной same-org canonical пары по уже
+сохранённому public slug и legacy ref, не печатает opaque refs, прогоняет существующие metadata validator и offline
+`--check-fixture`, сохраняет защищённый `.previous` и заменяет файл атомарно. Полная команда и recovery boundary:
+`docs/_TODO/SAAS_FOUNDATION/SAAS_PRODUCT_SMOKE_FIXTURE_OPERATOR_PACKET.md`.
+
 Остальные скрипты (`backfill-*`, `reconcile-*`, `*.sql`, …) — назначение и параметры в комментариях в начале каждого файла.
 
 **Rubitime ↔ канон (переход):** [`rubitime-appointment-mapping-audit.sql`](rubitime-appointment-mapping-audit.sql) (dry-run метрики), [`backfill-rubitime-appointment-mappings.sql`](backfill-rubitime-appointment-mappings.sql) (восстановление `be_external_entity_mappings` для orphan `rubitime_projection`). См. [`docs/OWN_BOOKING_ENGINE_INITIATIVE/LOG.md`](../../../docs/OWN_BOOKING_ENGINE_INITIATIVE/LOG.md) §2026-05-30 transitional read. Перед изменением данных в `platform_users` сверяйтесь с **PLATFORM_IDENTITY_OPS.md**.

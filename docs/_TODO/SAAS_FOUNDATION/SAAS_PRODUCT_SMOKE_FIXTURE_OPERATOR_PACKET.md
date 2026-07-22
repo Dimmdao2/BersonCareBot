@@ -76,6 +76,33 @@ pnpm run smoke:saas-product -- \
   --categories=doctor,schedule,working_hours,bookings,client_card,admin_settings,system_health
 ```
 
+### Canonical public-slot refs upgrade (root operator only)
+
+When the protected fixture predates the canonical public-slots contract and still has only
+`publicBookingServiceId`, do not discover or paste database identifiers by hand. After the exact code revision is
+present in `/opt/projects/bersoncarebot-test`, run this single command from a root session:
+
+```bash
+bash /opt/projects/bersoncarebot-test/deploy/host/update-saas-product-smoke-fixture-canonical-slots.sh
+```
+
+The entrypoint is pinned to `/opt/env/bersoncarebot/webapp.test`, exact database `bersoncarebot_test`, exact fixture
+`/run/bersoncarebot/saas-smoke.fixture`, and the canonical TEST checkout. It performs only a read-only catalog query.
+It verifies the canonical env-file boundary but deliberately does not source or print that file; the fixed local
+PostgreSQL operator query independently verifies `current_database()` before accepting any result.
+The existing public slug must resolve to exactly one active organization; when the old
+`publicBookingServiceId` legacy ref is present it must resolve to the same organization and the same single active
+branch/service availability. Zero or multiple matches fail closed. Opaque refs and env values are never printed.
+
+Before replacement, the tool checks the candidate with both
+`validate-saas-product-smoke-fixture.sh` and the existing DB/network-free product-smoke `--check-fixture`. It copies
+the current protected JSON to `/run/bersoncarebot/saas-smoke.fixture.previous`, preserving `root:deploy 0640`, then
+atomically renames the validated candidate. A failed post-replace validation automatically restores the exact
+previous bytes atomically. Therefore recovery for a reported failure is: do not edit either file and rerun the same
+command after fixing the reported repo/tool condition; the live fixture is already rolled back. After a successful
+upgrade, `.previous` is the operator recovery copy and must remain protected; any manual reversal is an explicit
+owner/operator action and must repeat the same metadata and offline fixture gates before replacement.
+
 2. Owner-authorized live TEST smoke only after the operator confirms the fixture path is readable:
 
 ```bash
