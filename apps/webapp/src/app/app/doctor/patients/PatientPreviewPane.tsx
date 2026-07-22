@@ -24,6 +24,8 @@ import { Button, buttonVariants } from "@/shared/ui/doctor/primitives/button";
 type PatientPreviewPaneProps = {
   /** Currently selected patient list item (for instant render). Null = no selection. */
   patient: ClientListItem | null;
+  /** Canonical full-card route with the current list workspace encoded for return navigation. */
+  cardHref?: string;
 };
 
 // ---------------------------------------------------------------------------
@@ -97,12 +99,12 @@ function DetailRow({ label, children }: DetailRowProps) {
 
 type PatientDetailProps = {
   header: PatientCardHeader;
-  userId: string;
+  cardHref: string;
   /** App presence from the list item (PatientCardHeader has no app field). */
   hasApp: boolean;
 };
 
-function PatientDetail({ header, userId, hasApp }: PatientDetailProps) {
+function PatientDetail({ header, cardHref, hasApp }: PatientDetailProps) {
   const { identity, support, lastVisit, nextAppointment, totalVisits, cancellationsCount } = header;
 
   // Full name
@@ -255,7 +257,7 @@ function PatientDetail({ header, userId, hasApp }: PatientDetailProps) {
       {/* Open full card */}
       <div className="pt-1">
         <Link
-          href={routePaths.doctorPatientCard(userId)}
+          href={cardHref}
           className={cn(buttonVariants({ size: "sm" }), "h-7 px-3 text-xs")}
         >
           Открыть карточку
@@ -269,7 +271,7 @@ function PatientDetail({ header, userId, hasApp }: PatientDetailProps) {
 // Main component
 // ---------------------------------------------------------------------------
 
-export function PatientPreviewPane({ patient }: PatientPreviewPaneProps) {
+export function PatientPreviewPane({ patient, cardHref }: PatientPreviewPaneProps) {
   // Placeholder when nothing selected
   if (!patient) {
     return (
@@ -286,10 +288,16 @@ export function PatientPreviewPane({ patient }: PatientPreviewPaneProps) {
     );
   }
 
-  return <LoadedPatientPreviewPane key={patient.userId} patient={patient} />;
+  return (
+    <LoadedPatientPreviewPane
+      key={patient.userId}
+      patient={patient}
+      cardHref={cardHref ?? routePaths.doctorPatientCard(patient.userId)}
+    />
+  );
 }
 
-function LoadedPatientPreviewPane({ patient }: { patient: ClientListItem }) {
+function LoadedPatientPreviewPane({ patient, cardHref }: { patient: ClientListItem; cardHref: string }) {
   const [header, setHeader] = useState<PatientCardHeader | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [fetchError, setFetchError] = useState(false);
@@ -385,9 +393,17 @@ function LoadedPatientPreviewPane({ patient }: { patient: ClientListItem }) {
 
       {/* Loading state */}
       {isLoading && (
-        <div className="flex items-center gap-2 py-2 text-xs text-muted-foreground">
-          <Loader2 className="size-3 animate-spin" aria-hidden />
-          <span>Загрузка…</span>
+        <div className="flex flex-col items-start gap-2 py-2">
+          <div className="flex items-center gap-2 text-xs text-muted-foreground">
+            <Loader2 className="size-3 animate-spin" aria-hidden />
+            <span>Загрузка…</span>
+          </div>
+          <Link
+            href={cardHref}
+            className={cn(buttonVariants({ size: "sm" }), "h-7 px-3 text-xs")}
+          >
+            Открыть карточку
+          </Link>
         </div>
       )}
 
@@ -397,7 +413,7 @@ function LoadedPatientPreviewPane({ patient }: { patient: ClientListItem }) {
           <p className="text-xs text-muted-foreground">Не удалось загрузить детали пациента.</p>
           <div className="mt-2">
             <Link
-              href={routePaths.doctorPatientCard(patient.userId)}
+              href={cardHref}
               className={cn(buttonVariants({ size: "sm" }), "h-7 px-3 text-xs")}
             >
               Открыть карточку
@@ -408,14 +424,18 @@ function LoadedPatientPreviewPane({ patient }: { patient: ClientListItem }) {
 
       {/* Rich detail from API */}
       {header && !isLoading && (
-        <PatientDetail header={header} userId={patient.userId} hasApp={patient.hasApp === true} />
+        <PatientDetail
+          header={header}
+          cardHref={cardHref}
+          hasApp={patient.hasApp === true}
+        />
       )}
 
       {/* Fallback open-card button when still loading (before API resolves) */}
       {!header && !isLoading && !fetchError && (
         <div className="mt-2">
           <Link
-            href={routePaths.doctorPatientCard(patient.userId)}
+            href={cardHref}
             className={cn(buttonVariants({ size: "sm" }), "h-7 px-3 text-xs")}
           >
             Открыть карточку

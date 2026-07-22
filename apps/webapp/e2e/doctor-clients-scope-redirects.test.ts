@@ -4,6 +4,7 @@
  * Импорты `page.tsx` — один раз в `beforeAll` (проект `fast` с жёстким testTimeout; холодный граф не дублируем в каждом `it`).
  */
 import { beforeAll, describe, expect, it, vi } from "vitest";
+import { readFileSync } from "node:fs";
 
 const redirectMock = vi.fn((url: string) => {
   const e = new Error("redirect");
@@ -61,5 +62,25 @@ describe("doctor clients scope and subscribers redirects", () => {
     const uid = "550e8400-e29b-41d4-a716-446655440099";
     await expect(SubscribersProfilePage({ params: Promise.resolve({ userId: uid }) })).rejects.toThrow("redirect");
     expect(redirectMock).toHaveBeenCalledWith(`/app/doctor/clients/${encodeURIComponent(uid)}?scope=all`);
+  });
+
+  it("opens the canonical standalone patient route instead of duplicating its loader or card tree", () => {
+    const listSource = readFileSync(
+      new URL("../src/app/app/doctor/patients/PatientsPageClient.tsx", import.meta.url),
+      "utf8",
+    );
+    const cardPageSource = readFileSync(
+      new URL("../src/app/app/doctor/patients/[userId]/page.tsx", import.meta.url),
+      "utf8",
+    );
+
+    expect(listSource).toContain("<PatientPreviewPane");
+    expect(listSource).toContain("patientCardHrefWithReturnTo");
+    expect(listSource).not.toContain("<PatientCardClient");
+    expect(listSource).not.toContain("<iframe");
+    expect(cardPageSource).toContain("await requireDoctorWorkspaceContext()");
+    expect(cardPageSource).toContain("getClientIdentityForOrganization(");
+    expect(cardPageSource).toContain("withDoctorWorkspacePrincipal(workspace");
+    expect(cardPageSource).toContain("<PatientCardClient");
   });
 });

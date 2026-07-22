@@ -5,13 +5,12 @@
  *
  * Layout (desktop, 2-column):
  *   LEFT  – patient list with count and sorting
- *   RIGHT – filter panel (segment stat cards + channel row + additional filters)
+ *   RIGHT – selected patient preview + filter panel
  *
  * Search logic: debounced client-side match across the loaded organization roster.
  */
 
-import { Suspense, use, useCallback, useEffect, useRef, useState, type ReactNode } from "react";
-import Link from "next/link";
+import { Suspense, use, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import { ArrowDown, ArrowUp, Bell, CalendarDays, Dumbbell, Filter, Handshake, Plus, Search, Ticket, X } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -42,6 +41,15 @@ import { DoctorPageHeader } from "@/shared/ui/doctor/shell/DoctorPageHeader";
 import { CatalogSplitLayout } from "@/shared/ui/doctor/catalog/CatalogSplitLayout";
 import { CatalogRightPane } from "@/shared/ui/doctor/catalog/CatalogRightPane";
 import { formatDoctorFio } from "@/shared/lib/fio";
+import { PatientPreviewPane } from "./PatientPreviewPane";
+import {
+  buildPatientListWorkspaceHref,
+  patientCardHrefWithReturnTo,
+  type PatientListSegmentKey,
+  type PatientListSort,
+  type PatientListSortDirection,
+  type PatientListWorkspaceState,
+} from "./patientListWorkspaceState";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -59,19 +67,13 @@ import { formatDoctorFio } from "@/shared/lib/fio";
  * незадействованную категорию.
  */
 export type ClientCategory = "all" | "client" | "subscriber_only";
-type ClientListSort = "recent_appointments" | "fio";
-type ClientListSortDirection = "asc" | "desc";
-
-type InitialFilters = {
-  q: string;
-  segment: string | null;
-  archivedOnly: boolean;
-};
+type ClientListSort = PatientListSort;
+type ClientListSortDirection = PatientListSortDirection;
 
 export type PatientsPageClientProps = {
   listPromise: Promise<ClientListItem[]>;
   metricsPromise: Promise<DoctorDashboardPatientMetrics>;
-  initialFilters: InitialFilters;
+  initialFilters: PatientListWorkspaceState;
   patientPluralLabel?: string;
   displayIana?: string;
 };
@@ -94,103 +96,72 @@ type LegacyFiltersState = {
 // Segment definitions (merged: old 4-card model + new extended segments)
 // ---------------------------------------------------------------------------
 
-type SegmentKey =
-  | "all"
-  | "appointments"
-  | "on_support"
-  | "with_program"
-  | "without_appointments"
-  | "visits"
-  | "former"
-  | "cancellations"
-  | "reschedules"
-  | "memberships"
-  | "expired_memberships"
-  | "visited_month";
+type SegmentKey = "all" | PatientListSegmentKey;
 
 type SegmentDef = {
   key: SegmentKey;
   title: string;
   tooltip: string;
-  /** URL param value (null = no filter / "Все") */
-  urlValue: string | null;
 };
 
 const SEGMENTS: SegmentDef[] = [
-  { key: "all", title: "Все", tooltip: "Все люди организации.", urlValue: null },
+  { key: "all", title: "Все", tooltip: "Все люди организации." },
   {
     key: "appointments",
     title: "С записями",
     tooltip: "Есть будущая или прошедшая запись без отмены.",
-    urlValue: "appointments",
   },
   {
     key: "on_support",
     title: "На сопровождении",
     tooltip: "Сейчас на активном сопровождении.",
-    urlValue: "on_support",
   },
   {
     key: "with_program",
     title: "С программой",
     tooltip: "Есть активная программа.",
-    urlValue: "with_program",
   },
   {
     key: "without_appointments",
     title: "Без приёмов",
     tooltip: "Нет визитов и будущих записей.",
-    urlValue: "without_appointments",
   },
   {
     key: "visits",
     title: "С визитами",
     tooltip: "Есть состоявшийся визит.",
-    urlValue: "visits",
   },
   {
     key: "former",
     title: "Без будущих",
     tooltip: "Визиты были, будущих записей нет.",
-    urlValue: "former",
   },
   {
     key: "cancellations",
     title: "С отменами",
     tooltip: "Есть хотя бы одна отмена за всё время.",
-    urlValue: "cancellations",
   },
   {
     key: "reschedules",
     title: "С переносами",
     tooltip: "Есть хотя бы один перенос за всё время.",
-    urlValue: "reschedules",
   },
   {
     key: "memberships",
     title: "С абонементами",
     tooltip: "Есть действующий абонемент.",
-    urlValue: "memberships",
   },
   {
     key: "expired_memberships",
     title: "Истёкшие абонементы",
     tooltip: "Есть истёкший абонемент.",
-    urlValue: "expired_memberships",
   },
   {
     key: "visited_month",
     title: "Приём в этом мес.",
     tooltip: "Есть визит в текущем месяце.",
-    urlValue: "visited_month",
   },
 ];
-
-function segmentKeyFromUrl(value: string | null): SegmentKey[] {
-  if (!value || value === "all") return [];
-  const segment = SEGMENTS.find((item) => item.urlValue === value);
-  return segment && segment.key !== "all" ? [segment.key] : [];
-}
 
 // ---------------------------------------------------------------------------
 function applyChannelFilter(list: ClientListItem[], activeChannel: string | null): ClientListItem[] {
@@ -583,7 +554,12 @@ type PatientsContentProps = {
   mobileFiltersOpen: boolean;
   sort: ClientListSort;
   sortDirection: ClientListSortDirection;
+  selectedPatientId: string | null;
+  listScrollTop: number;
+  workspaceState: PatientListWorkspaceState;
   onSortSelect: (sort: ClientListSort) => void;
+  onPatientSelect: (userId: string) => void;
+  onListScroll: (scrollTop: number) => void;
   onSegmentToggle: (key: SegmentKey) => void;
   onChannelChange: (channel: string | null, archived: boolean) => void;
   onClearSearch: () => void;
@@ -605,7 +581,12 @@ function PatientsContent({
   mobileFiltersOpen,
   sort,
   sortDirection,
+  selectedPatientId,
+  listScrollTop,
+  workspaceState,
   onSortSelect,
+  onPatientSelect,
+  onListScroll,
   onSegmentToggle,
   onChannelChange,
   onClearSearch,
@@ -615,6 +596,7 @@ function PatientsContent({
   const allClients = use(listPromise);
   const metrics = use(metricsPromise);
   const activeCategory: ClientCategory = "all";
+  const listRef = useRef<HTMLUListElement>(null);
 
   // Apply category filter first, then segment, channel, and legacy filters.
   let filtered = applyCategoryFilter(allClients, activeCategory);
@@ -635,6 +617,18 @@ function PatientsContent({
     );
   }
   filtered = sortClients(filtered, sort, sortDirection);
+  const selectedPatient = selectedPatientId
+    ? (allClients.find((client) => client.userId === selectedPatientId) ?? null)
+    : null;
+  const fullCardHref = selectedPatient
+    ? patientCardHrefWithReturnTo(selectedPatient.userId, workspaceState)
+    : undefined;
+
+  useEffect(() => {
+    const list = listRef.current;
+    if (!list || Math.abs(list.scrollTop - listScrollTop) < 1) return;
+    list.scrollTop = listScrollTop;
+  }, [filtered.length, listScrollTop]);
 
   // Context base for segment card counts (PAT-02/06/#540):
   // KPI cards are multi-select filters with AND policy. Each card shows the
@@ -764,22 +758,27 @@ function PatientsContent({
               <p className="px-3 py-4 text-sm text-muted-foreground">{searchQuery.trim() ? "Нет пациентов по запросу." : "Нет пациентов по заданным фильтрам."}</p>
             ) : (
               <ul
+                ref={listRef}
                 id="doctor-patients-list"
                 className={`${doctorDnaFlatListClass} ${doctorDnaFlatListInsetClass} min-h-0 flex-1 overflow-y-auto`}
+                onScroll={(event) => onListScroll(event.currentTarget.scrollTop)}
               >
                 {filtered.map((c, index) => {
                   const futureAppointmentCount = c.activeAppointmentsCount ?? 0;
                   const programOrSupervision = c.isOnSupport === true || c.activeTreatmentProgram;
                   return (
                     <li key={c.userId} id={`doctor-patients-item-${c.userId}`}>
-                      <Link
+                      <button
+                        type="button"
                         id={`doctor-patients-card-${c.userId}`}
-                        href={routePaths.doctorPatientCard(c.userId)}
+                        aria-pressed={selectedPatientId === c.userId}
+                        onClick={() => onPatientSelect(c.userId)}
                         className={cn(
                           buttonVariants({ variant: "ghost" }),
                           doctorDnaFlatListRowClass,
                           doctorDnaFlatListClickableClass,
                           "h-auto w-full rounded-none bg-transparent text-left shadow-none active:bg-muted/80 md:gap-3",
+                          selectedPatientId === c.userId && "bg-primary/15 text-primary hover:bg-primary/20",
                           index === 0 && "border-t-0",
                         )}
                       >
@@ -797,7 +796,7 @@ function PatientsContent({
                             <CalendarDays className="size-3.5" aria-hidden />
                           </IconSlot>
                         </div>
-                      </Link>
+                      </button>
                     </li>
                   );
                 })}
@@ -807,6 +806,7 @@ function PatientsContent({
         }
         right={
           <CatalogRightPane className="h-full bg-transparent" contentClassName="gap-3 p-0">
+            <PatientPreviewPane patient={selectedPatient} cardHref={fullCardHref} />
             {/* Filter panel */}
             <section className="rounded-[var(--doctor-page-block-radius,12px)] border border-border bg-card p-[var(--doctor-block-padding,18px)]">
               {/* Factual filters in the desktop right panel. */}
@@ -918,24 +918,42 @@ export function PatientsPageClient({ listPromise: initialListPromise, metricsPro
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Segment / channel / archive state (segment and channel are client-side only)
-  const [activeSegments, setActiveSegments] = useState<SegmentKey[]>(() => segmentKeyFromUrl(initialFilters.segment));
-  const [activeChannel, setActiveChannel] = useState<string | null>(null);
+  const [activeSegments, setActiveSegments] = useState<PatientListSegmentKey[]>(initialFilters.segments);
+  const [activeChannel, setActiveChannel] = useState<string | null>(initialFilters.channel);
   const [archivedOnly, setArchivedOnly] = useState(initialFilters.archivedOnly);
 
   // Legacy per-button filter state (client-side only)
   const [legacyFilters] = useState<LegacyFiltersState>(DEFAULT_LEGACY_FILTERS);
 
   // Category mechanism remains dormant/reversible; this page defaults to all organization people.
-  const [sort, setSort] = useState<ClientListSort>("recent_appointments");
-  const [sortDirection, setSortDirection] = useState<ClientListSortDirection>("desc");
+  const [sort, setSort] = useState<ClientListSort>(initialFilters.sort);
+  const [sortDirection, setSortDirection] = useState<ClientListSortDirection>(initialFilters.sortDirection);
+  const [selectedPatientId, setSelectedPatientId] = useState<string | null>(initialFilters.selectedPatientId);
+  const [listScrollTop, setListScrollTop] = useState(initialFilters.scrollTop);
 
   const [mobileFiltersOpen, setMobileFiltersOpen] = useState(false);
 
+  const workspaceState = useMemo<PatientListWorkspaceState>(
+    () => ({
+      q: searchInput,
+      segments: activeSegments,
+      channel: activeChannel,
+      archivedOnly,
+      sort,
+      sortDirection,
+      selectedPatientId,
+      scrollTop: listScrollTop,
+    }),
+    [activeChannel, activeSegments, archivedOnly, listScrollTop, searchInput, selectedPatientId, sort, sortDirection],
+  );
+
   useEffect(() => {
-    const url = new URL(window.location.href);
-    if (!url.searchParams.has("channel")) return;
-    url.searchParams.delete("channel");
-    window.history.replaceState(window.history.state, "", `${url.pathname}${url.search}${url.hash}`);
+    const href = buildPatientListWorkspaceHref(workspaceState);
+    window.history.replaceState(window.history.state, "", href);
+  }, [workspaceState]);
+
+  useEffect(() => () => {
+    if (debounceRef.current) clearTimeout(debounceRef.current);
   }, []);
 
   const handleSegmentToggle = useCallback((key: SegmentKey) => {
@@ -972,9 +990,14 @@ export function PatientsPageClient({ listPromise: initialListPromise, metricsPro
   useEffect(() => {
     setListPromise(initialListPromise);
     setSearchInput(initialFilters.q);
-    setActiveSegments(segmentKeyFromUrl(initialFilters.segment));
-    setActiveChannel(null);
+    setSearchQuery(initialFilters.q);
+    setActiveSegments(initialFilters.segments);
+    setActiveChannel(initialFilters.channel);
     setArchivedOnly(initialFilters.archivedOnly);
+    setSort(initialFilters.sort);
+    setSortDirection(initialFilters.sortDirection);
+    setSelectedPatientId(initialFilters.selectedPatientId);
+    setListScrollTop(initialFilters.scrollTop);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [initialListPromise]);
 
@@ -989,6 +1012,11 @@ export function PatientsPageClient({ listPromise: initialListPromise, metricsPro
     },
     [sort],
   );
+
+  const handlePatientSelect = useCallback((userId: string) => {
+    setSelectedPatientId(userId);
+    setMobileFiltersOpen(true);
+  }, []);
 
   return (
     <Suspense fallback={<PatientListSkeleton />}>
@@ -1006,7 +1034,12 @@ export function PatientsPageClient({ listPromise: initialListPromise, metricsPro
         mobileFiltersOpen={mobileFiltersOpen}
         sort={sort}
         sortDirection={sortDirection}
+        selectedPatientId={selectedPatientId}
+        listScrollTop={listScrollTop}
+        workspaceState={workspaceState}
         onSortSelect={handleSortSelect}
+        onPatientSelect={handlePatientSelect}
+        onListScroll={setListScrollTop}
         onSegmentToggle={handleSegmentToggle}
         onChannelChange={handleChannelChange}
         onClearSearch={clearSearch}

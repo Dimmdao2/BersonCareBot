@@ -8,6 +8,7 @@ import { DoctorAppShell } from "@/shared/ui/doctor/DoctorAppShell";
 import { getAppDisplayTimeZone } from "@/modules/system-settings/appDisplayTimezone";
 import { resolvePatientTerms } from "@/modules/system-settings/patientTerms";
 import { PatientsPageClient } from "./PatientsPageClient";
+import { parsePatientListWorkspaceState } from "./patientListWorkspaceState";
 
 function getValueJson<T>(v: unknown, fallback: T): T {
   if (v !== null && typeof v === "object" && "value" in (v as Record<string, unknown>)) {
@@ -17,20 +18,14 @@ function getValueJson<T>(v: unknown, fallback: T): T {
 }
 
 type PageProps = {
-  searchParams?: Promise<{
-    q?: string;
-    segment?: string;
-    archived?: string;
-  }>;
+  searchParams?: Promise<Record<string, string | string[] | undefined>>;
 };
 
 export default async function DoctorPatientsPage({ searchParams }: PageProps) {
   const workspace = await requireDoctorWorkspaceContext();
   const session = workspace.session;
   const sp = (await searchParams) ?? {};
-  const q = typeof sp.q === "string" ? sp.q.trim() : "";
-  const segment = typeof sp.segment === "string" ? sp.segment : null;
-  const archivedOnly = sp.archived === "true";
+  const initialFilters = parsePatientListWorkspaceState(sp);
 
   const deps = buildAppDeps();
 
@@ -44,7 +39,7 @@ export default async function DoctorPatientsPage({ searchParams }: PageProps) {
 
   const listPromise = deps.doctorClients.listClients({
     // PAT-10: search is done client-side — do not pass q to DB
-    archivedOnly,
+    archivedOnly: initialFilters.archivedOnly,
     organizationId: workspace.organizationId,
     viewerUserId: session.user.userId,
     // Segment and channel filters are applied client-side so toggles do not reload the list.
@@ -59,7 +54,7 @@ export default async function DoctorPatientsPage({ searchParams }: PageProps) {
       <PatientsPageClient
         listPromise={listPromise}
         metricsPromise={metricsPromise}
-        initialFilters={{ q, segment, archivedOnly }}
+        initialFilters={initialFilters}
         patientPluralLabel={patientPluralLabel}
         displayIana={displayIana}
       />

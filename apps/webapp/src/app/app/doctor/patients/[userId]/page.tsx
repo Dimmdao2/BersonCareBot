@@ -3,18 +3,22 @@
  * Pattern: requireDoctorAccess → buildAppDeps → pass promise to PatientCardClient.
  */
 import { notFound } from "next/navigation";
+import Link from "next/link";
 import { z } from "zod";
 import { requireDoctorWorkspaceContext } from "@/app-layer/guards/requireRole";
 import { withDoctorWorkspacePrincipal } from "@/app-layer/guards/doctorWorkspacePrincipal";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import { DoctorAppShell } from "@/shared/ui/doctor/DoctorAppShell";
+import { DoctorPageHeader } from "@/shared/ui/doctor/shell/DoctorPageHeader";
+import { buttonVariants } from "@/shared/ui/doctor/primitives/button";
 import { doctorPageStackClass } from "@/shared/ui/doctor/doctorVisual";
-import { routePaths } from "@/app-layer/routes/paths";
+import { cn } from "@/lib/utils";
 import { getAppDisplayTimeZone } from "@/modules/system-settings/appDisplayTimezone";
 import { toDoctorSupplementaryContacts } from "@/modules/platform-user-contacts/bookingContactUpsert";
 import { loadDoctorPatientProgramActivity } from "../loadDoctorPatientProgramActivity";
 import { PatientCardClient } from "./PatientCardClient";
 import type { PatientProgramInteractionPolicy } from "@/modules/doctor-clients/supportPolicy";
+import { sanitizePatientListReturnHref } from "../patientListWorkspaceState";
 
 type PageProps = {
   params: Promise<{ userId: string }>;
@@ -194,9 +198,22 @@ export default async function DoctorPatientCardPage({ params, searchParams }: Pa
   const initialTab = typeof sp.tab === "string" ? sp.tab : undefined;
   const createVisitFrom = typeof sp.createVisitFrom === "string" ? sp.createVisitFrom : undefined;
   const visitDate = typeof sp.visitDate === "string" ? sp.visitDate : undefined;
+  const patientListHref = sanitizePatientListReturnHref(sp.returnTo);
 
   return (
-    <DoctorAppShell title="Карточка пациента" user={session.user} backHref={routePaths.doctorPatients}>
+    <DoctorAppShell title="Карточка пациента" user={session.user} backHref={patientListHref}>
+      <DoctorPageHeader
+        id="doctor-patient-card-header"
+        title="Карточка пациента"
+        tabs={
+          <Link
+            href={patientListHref}
+            className={cn(buttonVariants({ size: "sm", variant: "outline" }), "h-8 px-3")}
+          >
+            К клиентам
+          </Link>
+        }
+      />
       <section className={doctorPageStackClass}>
         <PatientCardClient
           cardHeader={cardHeaderPromise}

@@ -1,10 +1,16 @@
 /** @vitest-environment jsdom */
 
-import { act, render, screen, waitFor, within } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { getClientCategory, PatientsPageClient } from "./PatientsPageClient";
 import type { ClientListItem, DoctorDashboardPatientMetrics } from "@/modules/doctor-clients/ports";
+import type { PatientListWorkspaceState } from "./patientListWorkspaceState";
+import {
+  buildPatientListWorkspaceHref,
+  parsePatientListWorkspaceState,
+  sanitizePatientListReturnHref,
+} from "./patientListWorkspaceState";
 
 const routerPushMock = vi.hoisted(() => vi.fn());
 const routerRefreshMock = vi.hoisted(() => vi.fn());
@@ -59,13 +65,27 @@ const metrics: DoctorDashboardPatientMetrics = {
   reschedulesCount: 0,
 };
 
-async function renderPatientsPage(clients: ClientListItem[]) {
+const defaultWorkspaceState: PatientListWorkspaceState = {
+  q: "",
+  segments: [],
+  channel: null,
+  archivedOnly: false,
+  sort: "recent_appointments",
+  sortDirection: "desc",
+  selectedPatientId: null,
+  scrollTop: 0,
+};
+
+async function renderPatientsPage(
+  clients: ClientListItem[],
+  initialFilters: Partial<PatientListWorkspaceState> = {},
+) {
   await act(async () => {
     render(
       <PatientsPageClient
         listPromise={Promise.resolve(clients)}
         metricsPromise={Promise.resolve(metrics)}
-        initialFilters={{ q: "", segment: null, archivedOnly: false }}
+        initialFilters={{ ...defaultWorkspaceState, ...initialFilters }}
         patientPluralLabel="Клиенты"
         displayIana="Europe/Moscow"
       />,
@@ -76,6 +96,7 @@ async function renderPatientsPage(clients: ClientListItem[]) {
 afterEach(() => {
   vi.unstubAllGlobals();
   vi.clearAllMocks();
+  window.history.replaceState({}, "", "/");
 });
 
 describe("PatientsPageClient", () => {
@@ -139,7 +160,7 @@ describe("PatientsPageClient", () => {
     );
     expect(document.getElementById("doctor-patients-card-support-only")).toHaveClass(
       "border-t",
-      "border-border",
+      "border-[var(--doctor-flat-list-divider,#f0efeb)]",
     );
     expect(document.getElementById("doctor-patients-card-support-only")).not.toHaveClass("border-0");
     expect(document.getElementById("doctor-patients-list")).toHaveClass(
@@ -270,7 +291,6 @@ describe("PatientsPageClient", () => {
 
   it("filters channel buttons client-side without reloading the list", async () => {
     const user = userEvent.setup();
-    window.history.pushState({}, "", "/app/doctor/patients?channel=max");
     await renderPatientsPage([
       client({
         userId: "telegram",
@@ -291,7 +311,7 @@ describe("PatientsPageClient", () => {
     expect(screen.queryByText("Telegram client")).not.toBeInTheDocument();
     expect(screen.getByText("Push client")).toBeInTheDocument();
     expect(screen.queryByText("Plain client")).not.toBeInTheDocument();
-    expect(window.location.search).toBe("");
+    expect(window.location.search).toBe("?channel=web_push");
   });
 
   it("sorts recent occurred appointments first, supports FIO sorting, and preserves search", async () => {
@@ -404,8 +424,40 @@ describe("PatientsPageClient", () => {
     expect(screen.queryByText("Старая строка")).not.toBeInTheDocument();
   });
 
-  it("keeps the standalone patient-card route and uses Exercises-style mobile switching for filters", async () => {
+  it("uses the existing preview before opening the standalone full-workspace patient card", async () => {
     const user = userEvent.setup();
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        ok: true,
+        header: {
+          identity: {
+            userId: "u1",
+            displayName: "Петров Иван",
+            firstName: "Иван",
+            lastName: "Петров",
+            patronymic: null,
+            phone: "+79990000001",
+            email: "patient@example.com",
+            bindings: { telegramId: "123456", maxId: "max-1" },
+            hasConversation: true,
+            isArchived: false,
+            isBlocked: false,
+            birthDate: null,
+            age: null,
+            gender: null,
+          },
+          support: { isOnSupport: true, startedAt: null, supportMonthsApprox: null },
+          lastVisit: null,
+          nextAppointment: null,
+          totalVisits: 1,
+          cancellationsCount: 0,
+          reschedulesCount: 0,
+          firstVisitDate: null,
+        },
+      }),
+    });
+    vi.stubGlobal("fetch", fetchMock);
     await renderPatientsPage([
       client({
         userId: "u1",
@@ -425,7 +477,9 @@ describe("PatientsPageClient", () => {
       }),
     ]);
 
-    expect(screen.getByRole("link", { name: /Петров Иван/i })).toHaveAttribute("href", "/app/doctor/patients/u1");
+    expect(screen.getByText("Выберите пациента, чтобы открыть превью")).toBeInTheDocument();
+    const patientRow = screen.getByRole("button", { name: /Петров Иван/i });
+    expect(patientRow).toHaveAttribute("aria-pressed", "false");
     expect(screen.queryByRole("button", { name: "Закрыть" })).not.toBeInTheDocument();
     expect(screen.getByLabelText("Сортировка: клиенты")).toHaveClass(
       "w-full",
@@ -441,6 +495,74 @@ describe("PatientsPageClient", () => {
 
     await user.click(screen.getByRole("button", { name: "← Назад" }));
     expect(screen.queryByRole("button", { name: "← Назад" })).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: /С записями/i }));
+    await user.click(screen.getByRole("button", { name: "По фамилии: А–Я" }));
+    await user.type(screen.getByRole("searchbox", { name: "Поиск: клиенты" }), "Петров");
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 220));
+    });
+    const list = document.getElementById("doctor-patients-list") as HTMLUListElement;
+    list.scrollTop = 64;
+    fireEvent.scroll(list);
+    await user.click(patientRow);
+
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledWith("/api/doctor/patients/u1", expect.any(Object)));
+    expect(patientRow).toHaveAttribute("aria-pressed", "true");
+    const fullCardLink = await screen.findByRole("link", { name: "Открыть карточку" });
+    const cardUrl = new URL(fullCardLink.getAttribute("href") ?? "", "https://bersoncare.local");
+    expect(cardUrl.pathname).toBe("/app/doctor/patients/u1");
+    const returnTo = new URL(cardUrl.searchParams.get("returnTo") ?? "", "https://bersoncare.local");
+    expect(returnTo.pathname).toBe("/app/doctor/patients");
+    expect(returnTo.searchParams.get("q")).toBe("Петров");
+    expect(returnTo.searchParams.get("segments")).toBe("appointments");
+    expect(returnTo.searchParams.get("sort")).toBe("fio");
+    expect(returnTo.searchParams.get("selected")).toBe("u1");
+    expect(returnTo.searchParams.get("scroll")).toBe("64");
+  });
+
+  it("restores search, sort, selected preview, and list scroll from the list URL state", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: false, json: async () => ({ ok: false }) }));
+    await renderPatientsPage(
+      [client({ userId: "u1", displayName: "Петров Иван", firstName: "Иван", lastName: "Петров" })],
+      {
+        q: "Петров",
+        sort: "fio",
+        sortDirection: "asc",
+        selectedPatientId: "u1",
+        scrollTop: 42,
+      },
+    );
+
+    expect(screen.getByRole("searchbox", { name: "Поиск: клиенты" })).toHaveValue("Петров");
+    expect(screen.getByRole("button", { name: "По фамилии: А–Я" })).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByRole("button", { name: /Петров Иван/i })).toHaveAttribute("aria-pressed", "true");
+    await waitFor(() => expect(document.getElementById("doctor-patients-list")).toHaveProperty("scrollTop", 42));
+    const fullCardLink = await screen.findByRole("link", { name: "Открыть карточку" });
+    expect(fullCardLink.getAttribute("href")).toContain("returnTo=");
+    expect(window.location.search).toContain("selected=u1");
+    expect(window.location.search).toContain("scroll=42");
+  });
+
+  it("round-trips only validated list workspace state and rejects non-list return targets", () => {
+    const parsed = parsePatientListWorkspaceState({
+      q: " Иван ",
+      segments: "appointments,on_support,unknown",
+      channel: "telegram",
+      archived: "true",
+      sort: "fio",
+      direction: "asc",
+      selected: "patient-1",
+      scroll: "75",
+    });
+    const href = buildPatientListWorkspaceHref(parsed);
+
+    expect(href).toBe(
+      "/app/doctor/patients?q=%D0%98%D0%B2%D0%B0%D0%BD&segments=appointments%2Con_support&channel=telegram&archived=true&sort=fio&direction=asc&selected=patient-1&scroll=75",
+    );
+    expect(sanitizePatientListReturnHref(href)).toBe(href);
+    expect(sanitizePatientListReturnHref("/app/doctor/patients/patient-1")).toBe("/app/doctor/patients");
+    expect(sanitizePatientListReturnHref("https://example.com/app/doctor/patients")).toBe("/app/doctor/patients");
   });
 
   it("creates a structured walk-in without sending organization or specialist authority", async () => {
