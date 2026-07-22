@@ -8,6 +8,8 @@ const listSpecialistsMock = vi.hoisted(() => vi.fn());
 const listServicesMock = vi.hoisted(() => vi.fn());
 const listServiceLocationAvailabilityMock = vi.hoisted(() => vi.fn());
 const listSpecialistServiceAvailabilityMock = vi.hoisted(() => vi.fn());
+const resolveCanonicalInPersonContextMock = vi.hoisted(() => vi.fn());
+const getMaxConsecutiveSlotHoursMock = vi.hoisted(() => vi.fn());
 const withExplicitOrganizationPrincipalMock = vi.hoisted(() =>
   vi.fn(async (_ctx: { organizationId: string; source: string }, fn: () => Promise<unknown>) => fn()),
 );
@@ -33,7 +35,15 @@ vi.mock("@/app-layer/di/buildAppDeps", () => ({
         listSpecialistServiceAvailability: listSpecialistServiceAvailabilityMock,
       },
     },
+    bookingScheduling: {
+      resolveCanonicalInPersonContext: resolveCanonicalInPersonContextMock,
+      getMaxConsecutiveSlotHours: getMaxConsecutiveSlotHoursMock,
+    },
   }),
+}));
+
+vi.mock("@/modules/system-settings/appDisplayTimezone", () => ({
+  getAppDisplayTimeZone: vi.fn(async () => "Europe/Moscow"),
 }));
 
 vi.mock("@/app-layer/principal/withOrganizationPrincipal", () => ({
@@ -42,6 +52,7 @@ vi.mock("@/app-layer/principal/withOrganizationPrincipal", () => ({
 
 import {
   loadPublicOrganizationCitiesRsc,
+  loadPublicInPersonSlotContextForSlugRsc,
   loadPublicOrganizationServicesForCityRsc,
   resolvePublicOrganizationBySlugRsc,
 } from "./publicOrganizationBooking";
@@ -52,6 +63,7 @@ const ORGANIZATION_B = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb";
 describe("public /book/{slug} chokepoint", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    getMaxConsecutiveSlotHoursMock.mockResolvedValue(3);
   });
 
   describe("resolvePublicOrganizationBySlugRsc", () => {
@@ -257,6 +269,66 @@ describe("public /book/{slug} chokepoint", () => {
         error: "city_not_found",
         services: [],
       });
+    });
+  });
+
+  describe("loadPublicInPersonSlotContextForSlugRsc", () => {
+    it("derives display metadata from the slug-scoped canonical catalog and availability", async () => {
+      const branchId = "33333333-3333-4333-8333-333333333333";
+      const serviceId = "44444444-4444-4444-8444-444444444444";
+      const specialistId = "55555555-5555-4555-8555-555555555555";
+      resolveOrganizationIdBySlugMock.mockResolvedValue(ORGANIZATION_A);
+      getBranchMock.mockResolvedValue({
+        id: branchId,
+        organizationId: ORGANIZATION_A,
+        cityCode: "moscow",
+        title: "Не из URL",
+        isActive: true,
+      });
+      listServicesMock.mockResolvedValue([
+        {
+          id: serviceId,
+          organizationId: ORGANIZATION_A,
+          title: "Каноническая услуга",
+          durationMinutes: 60,
+          priceMinor: 120000,
+          isActive: true,
+          publicWidgetVisible: true,
+          adminManualOnly: false,
+        },
+      ]);
+      listSpecialistsMock.mockResolvedValue([{ id: specialistId, organizationId: ORGANIZATION_A, isActive: true }]);
+      listSpecialistServiceAvailabilityMock.mockResolvedValue([
+        { organizationId: ORGANIZATION_A, specialistId, serviceId, branchId, isActive: true },
+      ]);
+      resolveCanonicalInPersonContextMock.mockResolvedValue({
+        organizationId: ORGANIZATION_A,
+        branchId,
+        serviceId,
+        durationMinutes: 75,
+      });
+
+      await expect(
+        loadPublicInPersonSlotContextForSlugRsc({ orgSlug: "clinic-a", branchId, serviceId }),
+      ).resolves.toMatchObject({
+        ok: true,
+        cityCode: "moscow",
+        cityTitle: "Москва",
+        serviceTitle: "Каноническая услуга",
+        durationMinutes: 75,
+      });
+    });
+
+    it("fails closed when the canonical availability is absent", async () => {
+      resolveOrganizationIdBySlugMock.mockResolvedValue(ORGANIZATION_A);
+      getBranchMock.mockResolvedValue(null);
+      await expect(
+        loadPublicInPersonSlotContextForSlugRsc({
+          orgSlug: "clinic-a",
+          branchId: "33333333-3333-4333-8333-333333333333",
+          serviceId: "44444444-4444-4444-8444-444444444444",
+        }),
+      ).resolves.toEqual({ ok: false });
     });
   });
 });

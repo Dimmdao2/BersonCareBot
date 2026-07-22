@@ -10,6 +10,7 @@ import { suggestOrganizationSlug, validateOrganizationSlugCandidate } from './or
 
 export type ClinicDirectoryService = {
   resolveOrganizationIdBySlug(slug: string): Promise<string | null>;
+  getPublishedSlugForOrganization(organizationId: string): Promise<string | null>;
   resolveCanonicalSlug(slug: string): Promise<OrganizationSlugResolution | null>;
   reserveSlug(input: ReserveOrganizationSlugInput): Promise<OrganizationSlugMutationResult>;
   claimReservedSlug(input: ClaimOrganizationSlugInput): Promise<OrganizationSlugMutationResult>;
@@ -32,6 +33,10 @@ export function createClinicDirectoryService(port: ClinicDirectoryPort): ClinicD
       // (null), never throws, so callers cannot distinguish malformed input from unknown slug.
       if (!SLUG_PATTERN.test(slug)) return null;
       return port.resolveOrganizationIdBySlug(slug);
+    },
+
+    async getPublishedSlugForOrganization(organizationId) {
+      return port.getPublishedSlugForOrganization(organizationId);
     },
 
     async resolveCanonicalSlug(slugRaw) {

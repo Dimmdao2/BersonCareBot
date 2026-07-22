@@ -1,7 +1,9 @@
+import { notFound, redirect } from "next/navigation";
 import { parseBookingAttributionFromSearchParams } from "@/modules/booking-attribution/parseBookingAttribution";
 import { publicBookPaths } from "@/shared/publicBook/paths";
 import { PublicBookingShell } from "../PublicBookingShell";
 import { PublicFormatStepClient } from "./PublicFormatStepClient";
+import { loadPublicInPersonSlotContextForSlugRsc } from "../publicOrganizationBooking";
 import type { BookingCity } from "@/modules/booking-catalog/types";
 
 export const dynamic = "force-dynamic";
@@ -31,8 +33,6 @@ export default async function PublicBookNewPage({ searchParams }: Props) {
   const cities: BookingCity[] = [];
   const catalogError: string | null = "Каталог недоступен.";
 
-  const { redirect } = await import("next/navigation");
-
   const onlineCategory = first(raw.category)?.trim();
   if (first(raw.type) === "online" && (onlineCategory === "rehab_lfk" || onlineCategory === "nutrition")) {
     redirect(`${publicBookPaths.newSlot}?type=online&category=${encodeURIComponent(onlineCategory)}`);
@@ -47,10 +47,19 @@ export default async function PublicBookNewPage({ searchParams }: Props) {
   }
 
   if (attr.branchId && attr.serviceId) {
+    const orgSlug = first(raw.orgSlug)?.trim();
+    if (!orgSlug) return notFound();
+    const context = await loadPublicInPersonSlotContextForSlugRsc({
+      orgSlug,
+      branchId: attr.branchId,
+      serviceId: attr.serviceId,
+    });
+    if (!context.ok) return notFound();
     redirect(
       `${publicBookPaths.newSlot}?type=in_person` +
-        `&branchId=${encodeURIComponent(attr.branchId)}` +
-        `&serviceId=${encodeURIComponent(attr.serviceId)}`,
+        `&orgSlug=${encodeURIComponent(orgSlug)}` +
+        `&branchId=${encodeURIComponent(context.branchId)}` +
+        `&serviceId=${encodeURIComponent(context.serviceId)}`,
     );
   }
 

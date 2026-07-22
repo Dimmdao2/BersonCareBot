@@ -7,9 +7,11 @@ import {
   listInPersonServicesForBranch,
   resolveBookableOnlineLocationForOrganization,
   resolveActiveBranchForCity,
+  titleForBookingCityCode,
   type InPersonServiceListItem,
   type OnlineBookingLocationOption,
 } from "@/modules/patient-booking/inPersonServicesCatalog";
+import { getAppDisplayTimeZone } from "@/modules/system-settings/appDisplayTimezone";
 
 export type LoadCitiesResult =
   | { ok: true; cities: BookingCity[]; onlineLocation: OnlineBookingLocationOption | null }
@@ -24,6 +26,21 @@ export type LoadInPersonServicesResult =
       services: InPersonServiceListItem[];
     }
   | { ok: false; error: "catalog_unavailable" | "city_not_found"; services: [] };
+
+export type LoadPublicInPersonSlotContextResult =
+  | {
+      ok: true;
+      branchId: string;
+      serviceId: string;
+      cityCode: string;
+      cityTitle: string;
+      serviceTitle: string;
+      durationMinutes: number;
+      priceMinor: number;
+      maxConsecutiveSlotHours: number;
+      appDisplayTimeZone: string;
+    }
+  | { ok: false };
 
 /**
  * Single chokepoint: resolves the canonical public booking link `/book/{publicSlug}` to an
@@ -91,5 +108,61 @@ export async function loadPublicOrganizationServicesForCityRsc(
     };
   } catch {
     return { ok: false, error: "catalog_unavailable", services: [] };
+  }
+}
+
+/**
+ * Resolves a direct public-widget selection under the published slug's organization principal.
+ * URL labels are intentionally discarded: branch/service availability is read from canonical
+ * catalog and scheduling state before the slot page receives display metadata.
+ */
+export async function loadPublicInPersonSlotContextForSlugRsc(input: {
+  orgSlug: string;
+  branchId: string;
+  serviceId: string;
+}): Promise<LoadPublicInPersonSlotContextResult> {
+  const resolved = await resolvePublicOrganizationBySlugRsc(input.orgSlug);
+  const deps = buildAppDeps();
+  if (!resolved || !deps.bookingEngine || !deps.bookingScheduling) return { ok: false };
+  try {
+    return await withExplicitOrganizationPrincipal(
+      { organizationId: resolved.organizationId, source: "app/book:load-direct-slot-context" },
+      async () => {
+        const listed = await listInPersonServicesForBranch(deps, resolved.organizationId, input.branchId);
+        const service = listed?.services.find((item) => item.id === input.serviceId);
+        if (!listed || !service) return { ok: false } as const;
+        const context = await deps.bookingScheduling!.resolveCanonicalInPersonContext({
+          organizationId: resolved.organizationId,
+          branchId: input.branchId,
+          serviceId: input.serviceId,
+        });
+        if (
+          !context ||
+          context.organizationId !== resolved.organizationId ||
+          context.branchId !== input.branchId ||
+          context.serviceId !== input.serviceId
+        ) {
+          return { ok: false } as const;
+        }
+        const [maxConsecutiveSlotHours, appDisplayTimeZone] = await Promise.all([
+          deps.bookingScheduling!.getMaxConsecutiveSlotHours(resolved.organizationId),
+          getAppDisplayTimeZone(),
+        ]);
+        return {
+          ok: true,
+          branchId: context.branchId,
+          serviceId: context.serviceId,
+          cityCode: listed.branch.cityCode,
+          cityTitle: titleForBookingCityCode(listed.branch.cityCode),
+          serviceTitle: service.title,
+          durationMinutes: context.durationMinutes,
+          priceMinor: service.priceMinor,
+          maxConsecutiveSlotHours,
+          appDisplayTimeZone,
+        } as const;
+      },
+    );
+  } catch {
+    return { ok: false };
   }
 }

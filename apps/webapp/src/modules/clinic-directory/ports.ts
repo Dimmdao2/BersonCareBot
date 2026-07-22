@@ -15,6 +15,9 @@ export type ClinicDirectoryPort = {
    */
   resolveOrganizationIdBySlug(slug: string): Promise<string | null>;
 
+  /** Staff-only management read. Returns no value until the organization is explicitly published. */
+  getPublishedSlugForOrganization(organizationId: string): Promise<string | null>;
+
   /** Internal foundation resolver. Public callers must still require a published projection. */
   resolveCanonicalSlug(slug: string): Promise<OrganizationSlugResolution | null>;
 

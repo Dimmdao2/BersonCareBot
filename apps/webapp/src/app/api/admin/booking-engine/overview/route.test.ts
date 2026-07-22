@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 
 const requireClinicManagementBookingEngineMock = vi.hoisted(() => vi.fn());
 const getSettingMock = vi.hoisted(() => vi.fn());
+const getPublishedSlugForOrganizationMock = vi.hoisted(() => vi.fn());
 
 vi.mock("../_requireAdminBookingEngine", () => ({
   requireClinicManagementBookingEngine: requireClinicManagementBookingEngineMock,
@@ -10,6 +11,7 @@ vi.mock("../_requireAdminBookingEngine", () => ({
 vi.mock("@/app-layer/di/buildAppDeps", () => ({
   buildAppDeps: () => ({
     systemSettings: { getSetting: getSettingMock },
+    clinicDirectory: { getPublishedSlugForOrganization: getPublishedSlugForOrganizationMock },
   }),
 }));
 
@@ -17,6 +19,7 @@ import { GET } from "./route";
 
 describe("GET /api/admin/booking-engine/overview", () => {
   it("returns canonical doctor read source even when the retired setting row is legacy", async () => {
+    getPublishedSlugForOrganizationMock.mockResolvedValue("clinic-a");
     const bridge = {
       getMappingSummary: vi.fn().mockResolvedValue({
         branches: 1,
@@ -64,11 +67,14 @@ describe("GET /api/admin/booking-engine/overview", () => {
       doctorAppointmentsReadSource?: string;
       bookingSlotsReadSource?: string;
       calendarReadSource?: string;
+      publicWidget?: { publicSlug?: string | null };
     };
     expect(res.status).toBe(200);
     expect(json.ok).toBe(true);
     expect(json.doctorAppointmentsReadSource).toBe("canonical");
     expect(json.bookingSlotsReadSource).toBe("canonical");
     expect(json.calendarReadSource).toBe("canonical");
+    expect(json.publicWidget).toEqual({ publicSlug: "clinic-a", specialists: [], specialistAvailability: [] });
+    expect(getPublishedSlugForOrganizationMock).toHaveBeenCalledWith("org-1");
   });
 });
