@@ -166,6 +166,9 @@ async function collectCriticalHealthSignalsBase(
     read.listWebhookBurstSignals(WEBHOOK_BURST_WINDOW_MINUTES, WEBHOOK_BURST_MIN_COUNT),
     read.listOpenIncidents(100),
   ]);
+  const outboundProviderIncidents = operatorIncidents.filter(
+    (incident) => incident.direction === "outbound_delivery_provider",
+  );
 
   return {
     webappDb,
@@ -177,6 +180,8 @@ async function collectCriticalHealthSignalsBase(
     },
     outboundDeliveryProvider: {
       recentIncidentCount: countRecentOutboundProviderFailureIncidents(operatorIncidents),
+      openIncidentCount: outboundProviderIncidents.length,
+      openIncidents: outboundProviderIncidents,
     },
     integratorPushOutbox,
     backupJobs,

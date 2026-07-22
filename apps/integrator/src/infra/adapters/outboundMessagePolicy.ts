@@ -52,10 +52,16 @@ export function assertOutboundMessagePolicy(intent: OutgoingIntent): string {
     || hasMarker(intent, 'conversation_event', 'app_push')
     || hasMarker(intent, 'broadcast_event', 'app_push')
     || hasMarker(intent, 'account_service', 'app_push')
-    || hasMarker(intent, 'operator_security', 'app_push');
+    || hasMarker(intent, 'operator_security', 'app_push')
+    || hasMarker(intent, 'operator_security', 'operator_alert');
   if (!hasRecognizedMarker) {
     throw new OutboundMessagePolicyError('missing_or_invalid_marker');
   }
+
+  if (
+    hasMarker(intent, 'operator_security', 'operator_alert')
+    && ['telegram', 'max', 'smsc', 'web_push'].includes(channel)
+  ) return channel;
 
   if (channel === 'telegram' || channel === 'max') {
     if (hasMarker(intent, 'auth_code', 'auth_code') || hasMarker(intent, 'auth_code', 'contact_handshake')) {

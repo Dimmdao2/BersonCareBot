@@ -10,6 +10,8 @@ export type OperatorHealthDigestInput = {
   jobFailures: OperatorJobFailureDigestRow[];
   /** Текущий health-snapshot: ongoing critical + non-critical degraded. */
   snapshotLines: string[];
+  /** Delivery-provider failure is a red stop, not an ordinary warning. */
+  hasStopIssue?: boolean;
   /** true после ручного resolve-all в окне — без строк recovery. */
   suppressRecovery: boolean;
 };
@@ -17,7 +19,7 @@ export type OperatorHealthDigestInput = {
 export type OperatorHealthDigestResult = {
   lines: string[];
   hasIssues: boolean;
-  icon: "⚠️" | "✅";
+  icon: "🛑" | "⚠️" | "✅";
 };
 
 export function buildOperatorHealthDigest(input: OperatorHealthDigestInput): OperatorHealthDigestResult {
@@ -54,8 +56,12 @@ export function buildOperatorHealthDigest(input: OperatorHealthDigestInput): Ope
   }
 
   const hasIssues = detailLines.length > 0;
-  const icon = hasIssues ? "⚠️" : "✅";
-  const header = hasIssues ? "⚠️ Сводка здоровья системы" : "✅ Всё в порядке";
+  const icon = input.hasStopIssue ? "🛑" : hasIssues ? "⚠️" : "✅";
+  const header = input.hasStopIssue
+    ? "🛑 ! Критический сбой исходящей доставки"
+    : hasIssues
+      ? "⚠️ Сводка здоровья системы"
+      : "✅ Всё в порядке";
 
   const lines = [header];
   if (hasIssues) {

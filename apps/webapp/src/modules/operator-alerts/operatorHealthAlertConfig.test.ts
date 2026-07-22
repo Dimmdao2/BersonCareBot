@@ -10,6 +10,7 @@ import {
 describe("operatorHealthAlertConfig", () => {
   it("defaults digestTime to 09:00", () => {
     expect(defaultOperatorHealthAlertConfig().digestTime).toBe("09:00");
+    expect(defaultOperatorHealthAlertConfig().channels.critical.sms).toBe(true);
   });
 
   it("merges legacy identity topics into account_conflicts", () => {
@@ -39,7 +40,7 @@ describe("operatorHealthAlertConfig", () => {
           topics: { critical_enabled: false, digest_enabled: true, account_conflicts: false },
           digestTime: "10:30",
           channels: {
-            critical: { telegram: true, max: false, web_push: false },
+            critical: { telegram: true, max: false, web_push: false, sms: false },
             digest: { telegram: true, max: true, web_push: true },
             account_conflicts: { telegram: false, max: false, web_push: false },
           },
@@ -50,6 +51,7 @@ describe("operatorHealthAlertConfig", () => {
     expect(cfg.topics.critical_enabled).toBe(false);
     expect(cfg.digestTime).toBe("10:00");
     expect(cfg.channels.critical.max).toBe(false);
+    expect(cfg.channels.critical.sms).toBe(false);
   });
 
   it("parseOperatorHealthAlertConfig normalizes digestTime", () => {

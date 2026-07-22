@@ -13,6 +13,7 @@ export const PROBE_CRITICAL_CONSECUTIVE_FAIL_RUNS = 3;
 export const OUTBOUND_PROVIDER_FAILURE_DIRECTION = "outbound_delivery_provider";
 export const OUTBOUND_PROVIDER_FAILURE_WINDOW_MINUTES = 15;
 export const OUTBOUND_PROVIDER_FAILURE_MIN_INCIDENTS = 1;
+export const OUTBOUND_PROVIDER_STOP_PREFIX = "🛑 !";
 
 export type DbStatus = "up" | "down";
 export type IntegratorApiStatus = "ok" | "unreachable" | "error";
@@ -31,7 +32,12 @@ export type CriticalHealthSignalsInput = {
   integratorApi: IntegratorApiStatus;
   projection: CriticalHealthProjectionInput;
   outgoingDelivery: Pick<OutgoingDeliveryQueueHealthSnapshot, "deadTotal" | "dueBacklog">;
-  outboundDeliveryProvider?: { recentIncidentCount: number };
+  outboundDeliveryProvider?: {
+    recentIncidentCount: number;
+    openIncidentCount?: number;
+    /** Server-only cadence rows; never exposed by the classifier or UI API. */
+    openIncidents?: OperatorIncidentOpenRow[];
+  };
   integratorPushOutbox: IntegratorPushOutboxHealthSnapshot;
   backupJobs: Record<string, { lastStatus: string }>;
   /** Из `operator_job_status.meta_json.consecutiveFailRuns` (outbound probe). */
@@ -76,6 +82,7 @@ export function classifyOperatorHealthBannerSignals(input: OperatorHealthBannerI
   if (input.probeConsecutiveFailRuns >= PROBE_CRITICAL_CONSECUTIVE_FAIL_RUNS) return true;
   if ((input.webhookBursts ?? []).some(isWebhookBurstCritical)) return true;
   const od = input.outgoingDelivery;
+  if ((input.outboundDeliveryProvider?.openIncidentCount ?? 0) >= OUTBOUND_PROVIDER_FAILURE_MIN_INCIDENTS) return true;
   if ((input.outboundDeliveryProvider?.recentIncidentCount ?? 0) >= OUTBOUND_PROVIDER_FAILURE_MIN_INCIDENTS) return true;
   if (od.deadTotal > 0 || od.dueBacklog >= ADMIN_DELIVERY_DUE_BACKLOG_WARNING) return true;
   if (classifyIntegratorPushOutboxSystemHealthStatus(input.integratorPushOutbox) !== "ok") return true;
@@ -185,16 +192,21 @@ export function classifyCriticalHealthSignals(input: CriticalHealthSignalsInput)
   }
 
   const recentProviderIncidents = input.outboundDeliveryProvider?.recentIncidentCount ?? 0;
+  const openProviderIncidents = input.outboundDeliveryProvider?.openIncidentCount ?? 0;
   if (
     input.outgoingDelivery.deadTotal > 0 ||
+    openProviderIncidents >= OUTBOUND_PROVIDER_FAILURE_MIN_INCIDENTS ||
     recentProviderIncidents >= OUTBOUND_PROVIDER_FAILURE_MIN_INCIDENTS
   ) {
     out.push({
       topic: "outbound_delivery_provider",
       dedupKey: "critical:outbound_delivery_provider:active",
-      pushTitle: "Критичный сбой: провайдер доставки",
+      pushTitle: `${OUTBOUND_PROVIDER_STOP_PREFIX} Отказ провайдера доставки`,
       lines: [
-        "Исходящая доставка: отказ провайдера",
+        `${OUTBOUND_PROVIDER_STOP_PREFIX} Исходящая доставка: отказ провайдера`,
+        ...(openProviderIncidents >= OUTBOUND_PROVIDER_FAILURE_MIN_INCIDENTS
+          ? [`Открытых инцидентов провайдера: ${openProviderIncidents}`]
+          : []),
         ...(recentProviderIncidents >= OUTBOUND_PROVIDER_FAILURE_MIN_INCIDENTS
           ? [
               `Свежих классов синхронного отказа за ${OUTBOUND_PROVIDER_FAILURE_WINDOW_MINUTES} мин: ${recentProviderIncidents}`,

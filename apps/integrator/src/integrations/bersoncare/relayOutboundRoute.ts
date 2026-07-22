@@ -28,6 +28,7 @@ const relayPayloadSchema = z.object({
   html: z.string().optional(),
   idempotencyKey: z.string().min(1),
   metadata: z.record(z.string(), z.unknown()).optional(),
+  purpose: z.enum(['operator_alert'] as const).optional(),
 }).superRefine((value, ctx) => {
   if (value.channel === 'web_push' && !value.organizationId) {
     ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['organizationId'], message: 'organizationId required' });
@@ -57,6 +58,12 @@ function buildIntent(parsed: RelayPayload): OutgoingIntent | null {
     occurredAt: new Date().toISOString(),
     source: parsed.channel,
     correlationId: parsed.idempotencyKey,
+    ...(parsed.purpose === 'operator_alert'
+      ? {
+          outboundMessageClass: 'operator_security' as const,
+          outboundCapability: 'operator_alert' as const,
+        }
+      : {}),
   };
 
   if (parsed.channel === 'telegram' || parsed.channel === 'max') {
@@ -139,8 +146,12 @@ function buildIntent(parsed: RelayPayload): OutgoingIntent | null {
       meta: {
         ...meta,
         source: 'web_push',
-        outboundMessageClass: 'routine_product',
-        outboundCapability: 'app_push',
+        ...(parsed.purpose === 'operator_alert'
+          ? {}
+          : {
+              outboundMessageClass: 'routine_product' as const,
+              outboundCapability: 'app_push' as const,
+            }),
       },
       payload: {
         recipient: { pushUserId: parsed.recipient },
@@ -160,13 +171,14 @@ export type BersoncareRelayOutboundDeps = {
   db?: DbPort;
   dispatchPort: DispatchPort;
   sharedSecret: string;
+  isSmsProviderConnected?: () => Promise<boolean>;
 };
 
 export async function registerBersoncareRelayOutboundRoute(
   app: FastifyInstance,
   deps: BersoncareRelayOutboundDeps,
 ): Promise<void> {
-  const { db, dispatchPort, sharedSecret } = deps;
+  const { db, dispatchPort, sharedSecret, isSmsProviderConnected } = deps;
 
   // In-memory dedup: key → expiry timestamp. This closes concurrent duplicates in one
   // process. Persistent exactly-once/outbox across process restarts is deliberately
@@ -218,6 +230,14 @@ export async function registerBersoncareRelayOutboundRoute(
     }
 
     const parsed = parseResult.data;
+
+    if (parsed.channel === 'sms' && isSmsProviderConnected && !(await isSmsProviderConnected())) {
+      logger.info(
+        { channel: 'sms', messageId: parsed.messageId },
+        'relay-outbound: SMS provider not connected, skipping',
+      );
+      return reply.code(200).send({ ok: true, status: 'skipped' });
+    }
 
     const dedupKey = scopedKey(parsed);
     if (isDuplicate(dedupKey)) {

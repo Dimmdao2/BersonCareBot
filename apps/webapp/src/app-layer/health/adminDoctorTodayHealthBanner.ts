@@ -6,14 +6,30 @@ import type { OperatorHealthBannerInput } from "@/modules/operator-health/critic
 const SYSTEM_HEALTH_HREF = "/app/doctor/system-health";
 
 export type AdminDoctorTodayHealthBanner =
-  | { show: true; href: string; title: string }
+  | { show: true; href: string; title: string; tone?: "warning" | "stop" }
   | { show: false };
 
 const BANNER_ON: AdminDoctorTodayHealthBanner = {
   show: true,
   href: SYSTEM_HEALTH_HREF,
   title: "Требуется внимание к здоровью системы",
+  tone: "warning",
 };
+
+const DELIVERY_STOP_BANNER: AdminDoctorTodayHealthBanner = {
+  show: true,
+  href: SYSTEM_HEALTH_HREF,
+  title: "🛑 ! Остановлена исходящая доставка",
+  tone: "stop",
+};
+
+function hasOutboundDeliveryStop(input: OperatorHealthBannerInput): boolean {
+  return (
+    input.outgoingDelivery.deadTotal > 0 ||
+    (input.outboundDeliveryProvider?.openIncidentCount ?? 0) > 0 ||
+    (input.outboundDeliveryProvider?.recentIncidentCount ?? 0) > 0
+  );
+}
 
 function mapSystemHealthToBannerInput(s: SystemHealthResponse): OperatorHealthBannerInput {
   const snap = s.projection.snapshot;
@@ -50,7 +66,9 @@ function mapSystemHealthToBannerInput(s: SystemHealthResponse): OperatorHealthBa
  * Критерии баннера «Сегодня» — `classifyOperatorHealthBannerSignals` (матрица §3, warn + critical).
  */
 export function adminDoctorTodayHealthBannerFromSystemHealth(s: SystemHealthResponse): AdminDoctorTodayHealthBanner {
-  if (classifyOperatorHealthBannerSignals(mapSystemHealthToBannerInput(s))) {
+  const input = mapSystemHealthToBannerInput(s);
+  if (hasOutboundDeliveryStop(input)) return DELIVERY_STOP_BANNER;
+  if (classifyOperatorHealthBannerSignals(input)) {
     return BANNER_ON;
   }
   return { show: false };
@@ -58,6 +76,7 @@ export function adminDoctorTodayHealthBannerFromSystemHealth(s: SystemHealthResp
 
 export async function loadAdminDoctorTodayHealthBanner(): Promise<AdminDoctorTodayHealthBanner> {
   const input = await collectOperatorHealthBannerInput();
+  if (hasOutboundDeliveryStop(input)) return DELIVERY_STOP_BANNER;
   if (classifyOperatorHealthBannerSignals(input)) {
     return BANNER_ON;
   }

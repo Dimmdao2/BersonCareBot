@@ -19,6 +19,7 @@ export type OperatorAlertChannels = {
   telegram: boolean;
   max: boolean;
   web_push: boolean;
+  sms: boolean;
 };
 
 export type OperatorHealthAlertConfig = {
@@ -43,6 +44,7 @@ const DEFAULT_CHANNELS: OperatorAlertChannels = {
   telegram: true,
   max: true,
   web_push: true,
+  sms: true,
 };
 
 export function defaultOperatorHealthAlertConfig(): OperatorHealthAlertConfig {
@@ -72,6 +74,7 @@ function parseChannelsBlock(raw: unknown, fallback: OperatorAlertChannels): Oper
     telegram: isBool(o.telegram) ? o.telegram : fallback.telegram,
     max: isBool(o.max) ? o.max : fallback.max,
     web_push: isBool(o.web_push) ? o.web_push : fallback.web_push,
+    sms: isBool(o.sms) ? o.sms : fallback.sms,
   };
 }
 
@@ -152,6 +155,7 @@ export function mergeOperatorHealthAlertConfigFromLegacy(
     telegram: legacy.channels.telegram,
     max: legacy.channels.max,
     web_push: legacy.channels.web_push ?? true,
+    sms: true,
   };
   return out;
 }
@@ -198,7 +202,7 @@ export function normalizeOperatorHealthAlertConfigForAdminPatch(
     const blockRaw = cObj[block];
     if (blockRaw === null || typeof blockRaw !== "object" || Array.isArray(blockRaw)) return { ok: false };
     const b = blockRaw as Record<string, unknown>;
-    for (const ch of ["telegram", "max", "web_push"] as const) {
+    for (const ch of ["telegram", "max", "web_push", "sms"] as const) {
       if (!(ch in b)) continue;
       if (!isBool(b[ch])) return { ok: false };
       channels[block][ch] = b[ch]!;

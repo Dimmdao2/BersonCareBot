@@ -91,7 +91,12 @@ export async function runOperatorHealthDigestTick(
     topic: "operator_health_digest",
     dedupKey,
     lines: digest.lines,
-    pushTitle: digest.hasIssues ? "Сводка здоровья системы" : "Всё в порядке",
+    pushTitle:
+      digest.icon === "🛑"
+        ? "🛑 ! Отказ провайдера доставки"
+        : digest.hasIssues
+          ? "Сводка здоровья системы"
+          : "Всё в порядке",
     pushUrl: "/app/doctor/system-health",
   });
 

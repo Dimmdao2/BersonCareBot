@@ -23,7 +23,7 @@ export type DigestHealthSnapshotInput = {
     includeStalePendingLine: boolean;
   };
   outgoingDelivery: { dueBacklog: number; deadTotal: number };
-  outboundDeliveryProvider: { recentIncidentCount: number };
+  outboundDeliveryProvider: { recentIncidentCount: number; openIncidentCount?: number };
   integratorPushOutbox: IntegratorPushOutboxHealthSnapshot;
   backupJobs: Record<string, { lastStatus: string }>;
   probeConsecutiveFailRuns: number;

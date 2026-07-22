@@ -76,6 +76,9 @@ export async function collectOperatorHealthDigestInput(params: {
     },
     outboundDeliveryProvider: {
       recentIncidentCount: countRecentOutboundProviderFailureIncidents(openIncidents, nowMs),
+      openIncidentCount: openIncidents.filter(
+        (incident) => incident.direction === "outbound_delivery_provider",
+      ).length,
     },
     integratorPushOutbox: health.integratorPushOutbox,
     backupJobs: Object.fromEntries(
@@ -93,6 +96,9 @@ export async function collectOperatorHealthDigestInput(params: {
     incidentsResolved,
     jobFailures,
     snapshotLines,
+    hasStopIssue:
+      health.outgoingDelivery.deadTotal > 0 ||
+      openIncidents.some((incident) => incident.direction === "outbound_delivery_provider"),
     suppressRecovery: params.suppressRecovery,
   };
 }

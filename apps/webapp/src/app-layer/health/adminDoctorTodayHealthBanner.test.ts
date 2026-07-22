@@ -69,6 +69,23 @@ describe("adminDoctorTodayHealthBannerFromSystemHealth", () => {
       }),
     );
     expect(banner.show).toBe(true);
+    expect(banner).toMatchObject({ tone: "warning", title: "Требуется внимание к здоровью системы" });
+  });
+
+  it("uses the red stop presentation for a delivery-provider failure", () => {
+    const banner = adminDoctorTodayHealthBannerFromSystemHealth(
+      healthyShell({
+        outgoingDelivery: {
+          deadTotal: 1,
+          dueBacklog: 0,
+        } as SystemHealthResponse["outgoingDelivery"],
+      }),
+    );
+    expect(banner).toMatchObject({
+      show: true,
+      tone: "stop",
+      title: "🛑 ! Остановлена исходящая доставка",
+    });
   });
 
   it("shows banner when integrator API is unreachable", () => {

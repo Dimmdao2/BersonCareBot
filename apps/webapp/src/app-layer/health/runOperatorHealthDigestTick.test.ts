@@ -116,6 +116,22 @@ describe("runOperatorHealthDigestTick", () => {
     );
   });
 
+  it("uses a red stop push title when the digest contains an open provider incident", async () => {
+    collectInputMock.mockResolvedValue({
+      auditErrorCount: 0,
+      incidentsOpened: [],
+      incidentsResolved: [],
+      jobFailures: [],
+      snapshotLines: ["🛑 ! Исходящая доставка: отказ провайдера"],
+      hasStopIssue: true,
+      suppressRecovery: false,
+    });
+    await runOperatorHealthDigestTick(new Date("2026-06-09T06:00:00.000Z"));
+    expect(dispatchMock).toHaveBeenCalledWith(
+      expect.objectContaining({ pushTitle: "🛑 ! Отказ провайдера доставки" }),
+    );
+  });
+
   it("passes suppressRecovery when resolve-all happened in window", async () => {
     hadResolveAllMock.mockResolvedValue(true);
     const now = new Date("2026-06-09T06:00:00.000Z");

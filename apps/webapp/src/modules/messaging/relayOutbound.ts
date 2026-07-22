@@ -40,6 +40,8 @@ type RelayOutboundBaseParams<C extends string> = {
    * Имя файла .ics вложения (по умолчанию `bersoncare-booking.ics`).
    */
   icsFilename?: string;
+  /** Trusted signed relay purpose. The integrator creates the policy marker; metadata cannot forge it. */
+  purpose?: "operator_alert";
 };
 
 export type RelayOutboundParams<C extends string = string> = RelayOutboundBaseParams<C> &
@@ -156,6 +158,9 @@ export async function relayOutbound<C extends string>(
   }
   if (params.icsFilename) {
     bodyObj.icsFilename = params.icsFilename;
+  }
+  if (params.purpose) {
+    bodyObj.purpose = params.purpose;
   }
   const rawBody = JSON.stringify(bodyObj);
 

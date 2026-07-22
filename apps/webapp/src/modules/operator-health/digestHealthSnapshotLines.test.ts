@@ -59,8 +59,17 @@ describe("buildDigestHealthSnapshotLines", () => {
       webappDb: "up",
       outboundDeliveryProvider: { recentIncidentCount: 1 },
     });
-    expect(lines).toContain("Исходящая доставка: отказ провайдера");
+    expect(lines).toContain("🛑 ! Исходящая доставка: отказ провайдера");
     expect(lines.some((line) => line.includes("Свежих классов синхронного отказа"))).toBe(true);
+  });
+
+  it("keeps an old but open provider incident red in the morning snapshot", () => {
+    const lines = buildDigestHealthSnapshotLines({
+      ...base,
+      webappDb: "up",
+      outboundDeliveryProvider: { recentIncidentCount: 0, openIncidentCount: 1 },
+    });
+    expect(lines).toContain("🛑 ! Исходящая доставка: отказ провайдера");
   });
 
   it("includes projection retries only when debounce allows", () => {

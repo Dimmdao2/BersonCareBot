@@ -67,6 +67,7 @@ export async function sendAdminIncidentStaffWebPush(
       channel: "web_push",
       recipient: userId,
       text: input.pushBody,
+      purpose: "operator_alert",
       metadata: {
         title: input.pushTitle,
         url: input.pushUrl,

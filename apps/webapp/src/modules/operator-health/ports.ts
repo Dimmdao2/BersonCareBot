@@ -10,6 +10,7 @@ export type OperatorIncidentOpenRow = {
   openedAt: string;
   lastSeenAt: string;
   occurrenceCount: number;
+  alertSentAt: string | null;
 };
 
 export type OperatorBackupJobStatusRow = {
@@ -149,6 +150,8 @@ export type OperatorHealthWritePort = {
   }): Promise<void>;
   /** Закрыть все открытые строки `operator_incidents` (ручной сброс из «Здоровье системы»). */
   resolveAllOpenIncidents(): Promise<{ resolved: number }>;
+  /** Durable cadence marker for open incidents; resolved rows are never changed. */
+  markOpenIncidentsAlertSent(input: { incidentIds: string[]; alertSentAtIso: string }): Promise<{ updated: number }>;
   /** TTL purge `integration_webhook_error_events` (burst P8). */
   purgeIntegrationWebhookErrorEventsOlderThanHours(hours: number): Promise<{ deleted: number }>;
 };

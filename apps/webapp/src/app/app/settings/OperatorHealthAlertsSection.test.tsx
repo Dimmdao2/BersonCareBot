@@ -18,6 +18,7 @@ describe("OperatorHealthAlertsSection", () => {
     expect(screen.getByText("Суточная сводка")).toBeInTheDocument();
     expect(screen.getByText("Конфликты аккаунтов")).toBeInTheDocument();
     expect(screen.getByLabelText("Время суточной сводки")).toHaveValue("09:00");
+    expect(screen.getAllByLabelText("SMS")).toHaveLength(3);
   });
 
   it("account_conflicts toggle controls single conflicts block", async () => {

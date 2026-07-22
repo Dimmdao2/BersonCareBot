@@ -9,7 +9,7 @@ import { createDefaultDispatchPort } from './dispatchPort.js';
 function intent(input: {
   channel: string;
   messageClass?: 'auth_code' | 'routine_product' | 'conversation_event' | 'broadcast_event' | 'account_service' | 'operator_security';
-  capability?: 'auth_code' | 'contact_handshake' | 'app_push';
+  capability?: 'auth_code' | 'contact_handshake' | 'app_push' | 'operator_alert';
   type?: OutgoingIntent['type'];
 }): OutgoingIntent {
   return {
@@ -42,6 +42,10 @@ describe('central outbound message policy', () => {
     ['web_push', 'broadcast_event', 'app_push'],
     ['web_push', 'account_service', 'app_push'],
     ['web_push', 'operator_security', 'app_push'],
+    ['telegram', 'operator_security', 'operator_alert'],
+    ['max', 'operator_security', 'operator_alert'],
+    ['smsc', 'operator_security', 'operator_alert'],
+    ['web_push', 'operator_security', 'operator_alert'],
   ] as const)('allows %s only with %s/%s capability', (channel, messageClass, capability) => {
     expect(assertOutboundMessagePolicy(intent({ channel, messageClass, capability }))).toBe(channel);
   });
@@ -54,6 +58,7 @@ describe('central outbound message policy', () => {
     intent({ channel: 'web_push' }),
     intent({ channel: 'legacy' as string, messageClass: 'auth_code', capability: 'auth_code' }),
     intent({ channel: 'telegram', messageClass: 'auth_code', capability: 'app_push' }),
+    intent({ channel: 'email', messageClass: 'operator_security', capability: 'operator_alert' }),
   ])('denies missing, forged, and legacy message sends', (candidate) => {
     expect(() => assertOutboundMessagePolicy(candidate)).toThrow(OUTBOUND_MESSAGE_POLICY_DENIED);
   });

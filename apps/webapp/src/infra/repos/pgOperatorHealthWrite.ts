@@ -1,4 +1,4 @@
-import { isNull, lt, sql } from "drizzle-orm";
+import { and, inArray, isNull, lt, sql } from "drizzle-orm";
 import { getDrizzle } from "@/app-layer/db/drizzle";
 import {
   integrationWebhookErrorEvents,
@@ -166,6 +166,18 @@ export const pgOperatorHealthWritePort: OperatorHealthWritePort = {
       .where(isNull(operatorIncidents.resolvedAt))
       .returning({ id: operatorIncidents.id });
     return { resolved: rows.length };
+  },
+
+  async markOpenIncidentsAlertSent(input) {
+    const incidentIds = [...new Set(input.incidentIds)].filter(Boolean);
+    if (incidentIds.length === 0) return { updated: 0 };
+    const db = getDrizzle();
+    const rows = await db
+      .update(operatorIncidents)
+      .set({ alertSentAt: input.alertSentAtIso })
+      .where(and(isNull(operatorIncidents.resolvedAt), inArray(operatorIncidents.id, incidentIds)))
+      .returning({ id: operatorIncidents.id });
+    return { updated: rows.length };
   },
 
   async purgeIntegrationWebhookErrorEventsOlderThanHours(hours: number) {

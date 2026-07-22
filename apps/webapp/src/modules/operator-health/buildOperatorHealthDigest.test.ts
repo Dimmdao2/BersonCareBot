@@ -36,6 +36,20 @@ describe("buildOperatorHealthDigest", () => {
     expect(result.lines.some((l) => l.includes("Ошибки в журнале админки: 2"))).toBe(true);
   });
 
+  it("uses a red stop header while a provider incident remains open", () => {
+    const result = buildOperatorHealthDigest({
+      auditErrorCount: 0,
+      incidentsOpened: [],
+      incidentsResolved: [],
+      jobFailures: [],
+      snapshotLines: ["🛑 ! Исходящая доставка: отказ провайдера"],
+      hasStopIssue: true,
+      suppressRecovery: false,
+    });
+    expect(result.icon).toBe("🛑");
+    expect(result.lines[0]).toBe("🛑 ! Критический сбой исходящей доставки");
+  });
+
   it("includes recovery line when incident resolved in window", () => {
     const result = buildOperatorHealthDigest({
       auditErrorCount: 0,

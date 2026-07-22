@@ -90,7 +90,11 @@ export function DoctorTodayDashboard({
             <Link
               id="doctor-today-health-attention"
               href={adminHealthBanner.href}
-              className="inline-flex items-center gap-1.5 rounded-md border border-destructive/30 bg-destructive/5 px-2 py-1 text-xs font-medium text-destructive no-underline hover:bg-destructive/10"
+              className={
+                adminHealthBanner.tone === "stop"
+                  ? "inline-flex items-center gap-1.5 rounded-md border border-destructive/40 bg-destructive/10 px-2 py-1 text-xs font-semibold text-destructive no-underline hover:bg-destructive/15"
+                  : "inline-flex items-center gap-1.5 rounded-md border border-amber-500/40 bg-amber-500/10 px-2 py-1 text-xs font-medium text-amber-900 no-underline hover:bg-amber-500/15 dark:text-amber-100"
+              }
             >
               {adminHealthBanner.title}
             </Link>

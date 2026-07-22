@@ -114,11 +114,16 @@ describe("collectCriticalHealthSignals", () => {
         openedAt: new Date(Date.now() - 10 * 60_000).toISOString(),
         lastSeenAt: new Date(Date.now() - 5 * 60_000).toISOString(),
         occurrenceCount: 1,
+        alertSentAt: null,
       },
     ]);
 
     const input = await collectCriticalHealthSignals();
-    expect(input.outboundDeliveryProvider).toEqual({ recentIncidentCount: 1 });
+    expect(input.outboundDeliveryProvider).toMatchObject({
+      recentIncidentCount: 1,
+      openIncidentCount: 1,
+      openIncidents: [expect.objectContaining({ id: "incident-id", alertSentAt: null })],
+    });
     expect(listOpenIncidentsMock).toHaveBeenCalledWith(100);
   });
 

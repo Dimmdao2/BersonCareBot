@@ -18,6 +18,7 @@ export const OUTBOUND_MESSAGE_CAPABILITIES = [
   'auth_code',
   'contact_handshake',
   'app_push',
+  'operator_alert',
 ] as const;
 
 export type OutboundMessageCapability = (typeof OUTBOUND_MESSAGE_CAPABILITIES)[number];

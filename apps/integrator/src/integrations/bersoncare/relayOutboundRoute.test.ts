@@ -25,7 +25,11 @@ function makeDispatchPort(overrides: Partial<DispatchPort> = {}): DispatchPort {
   };
 }
 
-async function buildTestApp(dispatchPort: DispatchPort, secret = TEST_SECRET) {
+async function buildTestApp(
+  dispatchPort: DispatchPort,
+  secret = TEST_SECRET,
+  isSmsProviderConnected?: () => Promise<boolean>,
+) {
   const app = Fastify();
 
   // Replicate the raw-body content type parser from sendSmsRoute
@@ -39,7 +43,12 @@ async function buildTestApp(dispatchPort: DispatchPort, secret = TEST_SECRET) {
     }
   });
 
-  await registerBersoncareRelayOutboundRoute(app, { db: {} as never, dispatchPort, sharedSecret: secret });
+  await registerBersoncareRelayOutboundRoute(app, {
+    db: {} as never,
+    dispatchPort,
+    sharedSecret: secret,
+    ...(isSmsProviderConnected ? { isSmsProviderConnected } : {}),
+  });
   return app;
 }
 
@@ -441,6 +450,53 @@ describe('POST /api/bersoncare/relay-outbound', () => {
         payload: expect.objectContaining({
           recipient: { phoneNormalized: '+79990001122' },
           delivery: { channels: ['smsc'] },
+        }),
+      }),
+    );
+  });
+
+  it('skips SMS before dispatch when the provider is not connected', async () => {
+    const disconnectedApp = await buildTestApp(dispatchPort, TEST_SECRET, async () => false);
+    const body = makeRelayBody({
+      channel: 'sms',
+      recipient: '+79990001122',
+      text: 'operator alert',
+      purpose: 'operator_alert',
+    });
+    const rawBody = JSON.stringify(body);
+    const response = await disconnectedApp.inject({
+      method: 'POST',
+      url: '/api/bersoncare/relay-outbound',
+      headers: makeHeaders(rawBody),
+      body: rawBody,
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(JSON.parse(response.body)).toEqual({ ok: true, status: 'skipped' });
+    expect(dispatchPort.dispatchOutgoing).not.toHaveBeenCalled();
+    await disconnectedApp.close();
+  });
+
+  it('creates the trusted operator marker for an operator SMS relay', async () => {
+    const body = makeRelayBody({
+      channel: 'sms',
+      recipient: '+79990001122',
+      text: 'operator alert',
+      purpose: 'operator_alert',
+    });
+    const rawBody = JSON.stringify(body);
+    await app.inject({
+      method: 'POST',
+      url: '/api/bersoncare/relay-outbound',
+      headers: makeHeaders(rawBody),
+      body: rawBody,
+    });
+
+    expect(dispatchPort.dispatchOutgoing).toHaveBeenCalledWith(
+      expect.objectContaining({
+        meta: expect.objectContaining({
+          outboundMessageClass: 'operator_security',
+          outboundCapability: 'operator_alert',
         }),
       }),
     );

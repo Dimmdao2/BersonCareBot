@@ -26,6 +26,8 @@ import { runWithBootstrapPrincipal } from '../infra/principal/organizationPrinci
 import { reportIntegratorIsolationFailure } from '../infra/observability/saasIsolationTelemetry.js';
 import { isAuthChannelEnabled } from '../infra/db/authChannelPolicy.js';
 import { recordOperatorFailureIncident } from '../infra/operatorIncident/reportOperatorFailure.js';
+import { smscConfig } from '../integrations/smsc/config.js';
+import { getSmscApiKey } from '../integrations/smsc/runtimeConfig.js';
 
 /** Public response shape for the health endpoint. */
 export type HealthResponse = {
@@ -179,6 +181,7 @@ export async function registerRoutes(app: FastifyInstance, deps: AppDeps): Promi
     db: createDbPort(),
     dispatchPort: deps.dispatchPort,
     sharedSecret: integratorWebhookSecret(),
+    isSmsProviderConnected: async () => smscConfig.enabled && (await getSmscApiKey()).trim().length > 0,
   });
 
   await registerBersoncareRequestContactRoute(app, {

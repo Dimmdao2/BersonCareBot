@@ -65,6 +65,7 @@ describe("sendAdminIncidentStaffWebPush — CANARY MIGRATION (S14a)", () => {
     expect(params.channel).toBe("web_push");
     expect(params.recipient).toBe(STAFF_ID);
     expect(params.text).toBe("binding conflict body");
+    expect(params.purpose).toBe("operator_alert");
     expect(params.metadata?.title).toBe("Конфликт привязки канала");
     expect(params.metadata?.url).toBe("/app/doctor/admin/technical");
     expect((params.metadata?.pushExtras as Record<string, string>)?.tag).toContain("channel_link");

@@ -116,6 +116,7 @@ describe("classifyCriticalHealthSignals", () => {
         }),
       ]),
     );
+    expect(dead[0]?.pushTitle).toBe("🛑 ! Отказ провайдера доставки");
 
     const synchronous = classifyCriticalHealthSignals(
       healthyInput({ outboundDeliveryProvider: { recentIncidentCount: 1 } }),
@@ -160,6 +161,7 @@ describe("classifyCriticalHealthSignals", () => {
       openedAt: "2026-07-22T09:00:00.000Z",
       lastSeenAt: "2026-07-22T09:55:00.000Z",
       occurrenceCount: 1,
+      alertSentAt: null,
       ...overrides,
     });
 

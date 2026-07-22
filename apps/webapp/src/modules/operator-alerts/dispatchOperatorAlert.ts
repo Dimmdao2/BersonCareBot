@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { logger } from "@/infra/logging/logger";
 import { relayOutbound } from "@/modules/messaging/relayOutbound";
 import { getConfigValue } from "@/modules/system-settings/configAdapter";
@@ -49,14 +50,16 @@ async function loadConfig(): Promise<OperatorHealthAlertConfig> {
   }
 }
 
-async function loadAdminRelayTargets(): Promise<{ telegram: string[]; max: string[] }> {
-  const [adminTg, adminMax] = await Promise.all([
+async function loadAdminRelayTargets(): Promise<{ telegram: string[]; max: string[]; sms: string[] }> {
+  const [adminTg, adminMax, adminPhones] = await Promise.all([
     getConfigValue("admin_telegram_ids", ""),
     getConfigValue("admin_max_ids", ""),
+    getConfigValue("admin_phones", ""),
   ]);
   return {
     telegram: dedupe(parseIdTokens(adminTg)),
     max: dedupe(parseIdTokens(adminMax)),
+    sms: dedupe(parseIdTokens(adminPhones)),
   };
 }
 
@@ -69,6 +72,8 @@ export type DispatchOperatorAlertInput = {
   lines: string[];
   pushTitle?: string;
   pushUrl?: string;
+  /** Incident rows own cadence; do not consult/write the flat alert-sent dedup table. */
+  deduplication?: "default" | "incident_cadence";
 };
 
 export type DispatchOperatorAlertResult = {
@@ -76,8 +81,44 @@ export type DispatchOperatorAlertResult = {
   reason?: "disabled" | "dedup" | "empty_text" | "no_recipients";
 };
 
+function fireOperatorRelay(input: {
+  messageId: string;
+  channel: "telegram" | "max" | "sms";
+  recipient: string;
+  recipientRef?: string;
+  text: string;
+  block: OperatorAlertBlock;
+  topic: string;
+}): void {
+  void relayOutbound({
+    messageId: input.messageId,
+    channel: input.channel,
+    recipient: input.recipient,
+    text: input.text,
+    purpose: "operator_alert",
+  })
+    .then((result) => {
+      if (result.ok) return;
+      logger.warn(
+        {
+          scope: "operator_alert",
+          event: "operator_alert_relay_failed",
+          block: input.block,
+          topic: input.topic,
+          channel: input.channel,
+          ...(input.recipientRef ? { recipientRef: input.recipientRef } : { recipient: input.recipient }),
+          reason: result.reason,
+        },
+        "relay failed",
+      );
+    })
+    .catch((err: unknown) => {
+      logger.warn({ err, block: input.block, topic: input.topic, channel: input.channel }, "relay failed");
+    });
+}
+
 /**
- * Единый диспетчер операторских алертов (TG / Max / staff Web Push).
+ * Единый диспетчер операторских алертов (TG / Max / staff Web Push / SMS).
  * Fire-and-forget для каналов; dedup — 24 ч по `dedup_key`.
  */
 export async function dispatchOperatorAlert(input: DispatchOperatorAlertInput): Promise<DispatchOperatorAlertResult> {
@@ -88,7 +129,8 @@ export async function dispatchOperatorAlert(input: DispatchOperatorAlertInput): 
 
   const dk = clip(input.dedupKey.replace(/[^a-zA-Z0-9:_-]/g, "_"), 120);
   const dedupPort = getOperatorAlertDedupPort();
-  if (dedupPort) {
+  const usesFlatDedup = input.deduplication !== "incident_cadence";
+  if (dedupPort && usesFlatDedup) {
     const recent = await dedupPort.wasSentWithinHours(dk, DEDUP_HOURS);
     if (recent) return { dispatched: false, reason: "dedup" };
   }
@@ -111,21 +153,13 @@ export async function dispatchOperatorAlert(input: DispatchOperatorAlertInput): 
       anyChannelAttempted = true;
       for (const id of targets.telegram) {
         const messageId = `operator-alert:${input.block}:${input.topic}:${dk}:telegram:${id}`;
-        void relayOutbound({ messageId, channel: "telegram", recipient: id, text }).then((r) => {
-          if (!r.ok) {
-            logger.warn(
-              {
-                scope: "operator_alert",
-                event: "operator_alert_relay_failed",
-                block: input.block,
-                topic: input.topic,
-                channel: "telegram",
-                recipient: id,
-                reason: r.reason,
-              },
-              "relay failed",
-            );
-          }
+        fireOperatorRelay({
+          messageId,
+          channel: "telegram",
+          recipient: id,
+          text,
+          block: input.block,
+          topic: input.topic,
         });
       }
     }
@@ -138,21 +172,36 @@ export async function dispatchOperatorAlert(input: DispatchOperatorAlertInput): 
       anyChannelAttempted = true;
       for (const id of targets.max) {
         const messageId = `operator-alert:${input.block}:${input.topic}:${dk}:max:${id}`;
-        void relayOutbound({ messageId, channel: "max", recipient: id, text }).then((r) => {
-          if (!r.ok) {
-            logger.warn(
-              {
-                scope: "operator_alert",
-                event: "operator_alert_relay_failed",
-                block: input.block,
-                topic: input.topic,
-                channel: "max",
-                recipient: id,
-                reason: r.reason,
-              },
-              "relay failed",
-            );
-          }
+        fireOperatorRelay({
+          messageId,
+          channel: "max",
+          recipient: id,
+          text,
+          block: input.block,
+          topic: input.topic,
+        });
+      }
+    }
+  }
+
+  if (channels.sms) {
+    if (targets.sms.length === 0) {
+      logger.info({ scope: "operator_alert", event: "operator_alert_skipped_no_recipients", channel: "sms" });
+    } else {
+      anyChannelAttempted = true;
+      for (const phone of targets.sms) {
+        const recipientDigest = createHash("sha256").update(phone).digest("hex").slice(0, 16);
+        const messageId = `operator-alert:${input.block}:${input.topic}:${dk}:sms:${recipientDigest}`;
+        // The signed integrator relay checks SMSC readiness and returns a no-op success
+        // before adapter dispatch when the provider is not connected.
+        fireOperatorRelay({
+          messageId,
+          channel: "sms",
+          recipient: phone,
+          recipientRef: `sms:…${phone.slice(-4)}`,
+          text,
+          block: input.block,
+          topic: input.topic,
         });
       }
     }
@@ -195,7 +244,7 @@ export async function dispatchOperatorAlert(input: DispatchOperatorAlertInput): 
     }
   }
 
-  if (dedupPort && anyChannelAttempted) {
+  if (dedupPort && usesFlatDedup && anyChannelAttempted) {
     await dedupPort.recordSent({ dedupKey: dk, severity: input.block });
   }
 
