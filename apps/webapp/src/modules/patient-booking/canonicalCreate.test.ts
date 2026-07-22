@@ -1,6 +1,12 @@
 import { describe, expect, it, vi } from "vitest";
 import { createBookingOnCanonicalEngine } from "./canonicalCreate";
 
+// Confirmation delivery is a best-effort side effect covered by its own tests.
+// Canonical booking unit tests must not call the configured SMTP relay.
+vi.mock("./sendBookingConfirmationEmail", () => ({
+  sendBookingConfirmationEmail: vi.fn().mockResolvedValue(false),
+}));
+
 const BRANCH_ID = "550e8400-e29b-41d4-a716-446655440001";
 const SERVICE_ID = "550e8400-e29b-41d4-a716-446655440002";
 const ORG_ID = "22222222-2222-4222-8222-222222222222";

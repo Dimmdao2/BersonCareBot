@@ -132,10 +132,10 @@ describe('SaaS TEST walkthrough reconciliation', () => {
     expect(source.match(/"\+12025550101","\+12025550102"/g)).toHaveLength(2);
     expect(source).not.toContain('+12025550103');
     expect(source).toContain(
-      "ARRAY['patient_app_maintenance_enabled','dev_mode','test_account_identifiers','smtp_outbound','specialist_signup_enabled','patient_program_discussion_ui_enabled']",
+      "ARRAY['patient_app_maintenance_enabled','dev_mode','test_account_identifiers','specialist_signup_enabled','patient_program_discussion_ui_enabled']",
     );
     expect(source).toContain(
-      "ARRAY['smtp_outbound','app_base_url','test_account_identifiers','specialist_signup_enabled','patient_program_discussion_ui_enabled']",
+      "ARRAY['app_base_url','test_account_identifiers','specialist_signup_enabled','patient_program_discussion_ui_enabled']",
     );
   });
 
