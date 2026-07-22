@@ -4632,3 +4632,9 @@ shared sidebar and mobile-menu rows must return to the previous near-rectangular
 rounding; the more-rounded section tabs and the general 24px doctor control radius remain unchanged. Only this
 atomic checklist item is reopened. It receives one bounded presentation correction, focused checks, desktop/mobile
 live evidence and one independent presentation audit; the rest of UI-P2 is not rerun.
+
+The bounded correction `b4e43eb25` replaces the rejected shared `rounded-md` menu token with `rounded-sm`; desktop
+sidebar links, group/flyout rows, mobile sheet/back rows and logout inherit it, while 24px section tabs remain on
+their separate token. Focused integration tests passed `28/28`, the single independent presentation audit returned
+PASS, and live DEV evidence at `1440×900` plus the opened mobile sheet at `390×844` confirms the near-rectangular
+rows. Runtime screenshots remain uncommitted under `.claude/screenshots/UI967-MENU-20260722/`.
