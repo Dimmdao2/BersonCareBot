@@ -439,8 +439,8 @@ card; запрещено строить временный resolver, второ�
   blank comment disabled. Диагностический payment panel скрывается до отдельной proof полной organization payment
   readiness и server contracts cash/invoice/pay-link/QR; money backend не входит в UI-1c. Exact manifest и live
   matrix — в Doctor UI execution artifact.
-- **UI-P shared presentation delta (owner 2026-07-20):** taskdb `#925`; doctor workspace получает единый
-  shared-primitives pass для gap background `#faf9f4`, белой page header, радиусов block/KPI/control `12/8/24px`,
+- **UI-P shared presentation delta (owner 2026-07-20; background subpoint SUPERSEDED 2026-07-22):** taskdb `#925`;
+  doctor workspace получил единый shared-primitives pass для исторического gap background `#faf9f4`, белой page header, радиусов block/KPI/control `12/8/24px`,
   padding основных блоков `18px`, белого input, порядка KPI label→value и более крупного/лёгкого основного list
   text. Поздняя live-коррекция 2026-07-21 заменяет буквальное копирование padding эталоном строк «На сопровождении»:
   inset divider, спокойное выравнивание текста/иконок и selected state без отдельной карточки. Поиск «Клиентов»
@@ -453,6 +453,9 @@ card; запрещено строить временный resolver, второ�
   divider `#f0efeb`. Отдельный Today residual `#966` возвращает desktop `50/50`, превращает «Открыть расписание» в
   кнопку и доказывает ровно час до первой записи без двойного calendar-window padding. Оба среза идут параллельно,
   live DEV и тяжёлые проверки сериализуются; baseline stages целиком не переоткрываются.
+  Latest clarification: sidebar/mobile menu items — не rounded control pills; им возвращается прежняя почти
+  прямоугольная форма с минимальным скруглением, тогда как более округлённые section tabs остаются отдельным
+  требованием.
 - **Order after presentation:** UI-5 разделён на layout/routing predecessor UI-5a `#958` и полный UI-5b/U5B.
   Последнее решение владельца 2026-07-22 заменяет `desktop list+content`: обычный экран «Клиенты» сохраняет
   `list + filters + functional preview`, а выбранная полная карточка заменяет весь рабочий content container,

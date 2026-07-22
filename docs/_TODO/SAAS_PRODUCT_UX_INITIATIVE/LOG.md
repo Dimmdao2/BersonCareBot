@@ -4471,3 +4471,7 @@ section tabs and one Clients/Messages flat-list vocabulary with Today geometry, 
 dividers. The slices have separate file scopes and may run in parallel; each gets one presentation audit. Live DEV,
 lint/typecheck contention and milestone full CI remain serialized. No DB, TEST, deploy, patient/public UI or data
 semantics are in scope.
+
+The same-day clarification distinguishes navigation from controls: main sidebar/mobile menu rows return to their
+previous near-rectangular minimal radius and must not inherit the 24px doctor button radius. Rounded section tabs
+remain required. This clarification is an additional `#967` checkbox, not a reversal of the tab requirement.

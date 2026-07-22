@@ -62,8 +62,11 @@
 | Панель внутри карточки | `rounded-lg` |
 | Строка списка / item | `rounded-md` |
 | Doctor button / input / select trigger | `24px` (`--doctor-control-radius`) |
+| Main sidebar / mobile menu item | минимальный shared menu radius; не 24px pill |
 
 `rounded-2xl` — запрещён для page-level секций. Явные caller overrides (`rounded-none`, icon-only форма и т.п.) сохраняются.
+Пункты основного меню не относятся к control-radius: они остаются почти прямоугольными. Section tabs используют
+отдельный shared tab vocabulary и не задают форму menu rows.
 
 ### A.4. Состояния (единая система)
 

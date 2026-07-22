@@ -27,7 +27,7 @@
 | G3 — тумблеры механик | **решено: только organization/clinic**, не специалист | строить на существующем S4 engine `#888`, не форкать |
 | G4 — split коммуникаций | **решено: 45/55** | согласованный fallback: 50/50 |
 | G5 — онлайн-приём | **решено:** online уже существует; нужна только встроенная включаемая локация «Онлайн» | её toggle гейтит существующие online-галочки услуг; новой схемы не вводить |
-| G6 — общий Doctor UI chrome | **решено:** gap background `#faf9f4`, белая page header, радиусы blocks/KPI/controls `12/8/24px`, padding основных блоков `18px`, белый input, KPI label сверху/value снизу. **Live correction 2026-07-21:** фактический эталон строк — список «На сопровождении» на «Сегодня»; его спокойные укороченные divider, внутреннее выравнивание и крупный лёгкий текст важнее прежней числовой формулировки padding. Применить к спискам «Клиенты» и сообщений/диалогов через shared primitive. | один shared-primitives presentation pass; doctor workspace only, без локального style fork |
+| G6 — общий Doctor UI chrome | **SUPERSEDED частично 2026-07-22:** прежний gap background `#faf9f4` заменён белым/inherited workspace background. Сохраняются белая page header, primary `#406ca7`, радиусы blocks/KPI/controls `12/8/24px`, padding `18px`, белый input и KPI label сверху/value снизу. 24px не применяется к sidebar/mobile menu rows: меню почти прямоугольное с минимальным radius; section tabs имеют отдельную округлённую форму. Flat lists используют геометрию «На сопровождении», full-row hover и divider `#f0efeb`. | latest shared-primitives residual `#967`; doctor workspace only, без локального style fork |
 | SCH-G5 — fallback слотов | **owner question `#848`** | не менять строгую/резервную семантику без ответа |
 
 Отдельное точное решение по `#191`: разминки по умолчанию в `12:00` и `15:00` в рабочие дни; существующих клиентов
@@ -234,6 +234,9 @@ counts/metadata или потерю standalone deep-link compatibility.
   списках. Цвет divider — точно `#f0efeb` через общий doctor token/class, без локальных копий.
 - Табы разделов используют более скруглённую doctor-control форму и более тёмный нейтральный hover; правка делается
   через общий tab vocabulary, а не независимые классы «Расписания»/«Коммуникаций»/настроек записи.
+- **Latest correction того же дня:** пункты основного doctor-меню не являются button/control pills. Для sidebar и
+  mobile menu возвращается прежняя почти прямоугольная форма с минимальным скруглением; правило 24px на menu items
+  не распространяется. Это не отменяет отдельно более округлённые section tabs.
 - На странице «Клиенты» поиск переносится из отдельного toolbar под header в правый слот белой page header, на
   одну линию с title. Desktop width совпадает с правой половиной 50/50 split; mobile остаётся доступным и компактным.
 - Это presentation-only stage: metric semantics, list sorting/filtering, patient UI, public booking и page data
@@ -435,6 +438,8 @@ brief или заменять одним общим пунктом.
 - [ ] Clients/messages используют один shared list-row contract: геометрия как «На сопровождении», full-row hover и
   divider `#f0efeb` (`#967`).
 - [ ] Общие tabs имеют более округлые края и более тёмный нейтральный hover без page-local divergence (`#967`).
+- [ ] Пункты основного sidebar/mobile menu остаются прямоугольными с минимальным скруглением и не наследуют 24px
+  doctor button radius (`#967`).
 - [x] Clients search находится в page-header slot.
 
 #### UI-7 — scheduled communications (`#964`)

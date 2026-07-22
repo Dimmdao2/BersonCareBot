@@ -718,11 +718,14 @@ pnpm run ci
 
 Первый шаг аудита **всегда** строго в таком порядке:
 
-1. Анализ изменённых файлов / диффа.
-2. Определение scope и пакета (`local` | `app` | `repo`).
-3. Сверка с тем, что исполнитель уже гонял; менялся ли код после последнего прогона (reuse).
+1. Прочитать latest atomic owner checklist, linked detailed plan и supersession map; выписать in-scope IDs.
+2. Анализ изменённых файлов / диффа и матрица `checkbox → evidence`.
+3. Определение scope и пакета (`local` | `app` | `repo`).
+4. Сверка с тем, что исполнитель уже гонял; менялся ли код после последнего прогона (reuse).
 
-Только **после** пунктов 1–3 допускается запуск **недостающих** проверок по уровням из этого раздела.
+Только **после** пунктов 1–4 допускается запуск **недостающих** проверок по уровням из этого раздела. Финальный
+audit report содержит строку `PASS|FAIL|BLOCKED + evidence` на каждый checkbox; общий PASS при пропуске пункта
+недействителен. Находка вне owner checklist — только regression/repo-rule, owner question или recommendation.
 
 #### Уровни и full CI в аудите
 
@@ -792,6 +795,10 @@ pnpm run ci
    - Для каждого шага добавлять короткий checklist с **локальными** проверяемыми пунктами: `rg`, релевантные unit/интеграционные тесты, `lint` / `typecheck` по затронутому пакету при необходимости, короткий smoke.
    - **Не требовать** в плане полный корневой `pnpm run ci` после **каждого** шага или после **каждого** небольшого плана — это дорого и снижает готовность планов к исполнению.
    - Не помечать шаг как закрытый без фактической проверки, подходящей по масштабу шага.
+   - Roadmap/epic summary не заменяет linked detailed plan. Каждый owner requirement и позднее уточнение — отдельный
+     atomic checkbox; worker и auditor получают exact IDs/текст и возвращают построчную evidence matrix.
+   - Новое owner-уточнение сразу заменяет старое; противоречащий текст удалить либо пометить
+     `SUPERSEDED — <date>, replaced by <section/id>`. Missing/unclassified checkbox запрещает `done/PASS`.
 
 3. **Scope boundaries (безопасные рамки)**
    - Явно указывать, какие директории/файлы **разрешено** трогать.
@@ -969,11 +976,15 @@ pnpm run ci
 
 ### Единый визуальный язык и шкала (гайд §A–§C)
 
-- Межблочный фон кабинета — `#faf9f4`; page header с названием и основные поверхности — белые. Глубина — тонкие границы/лёгкие поверхности, не тени (§A). `shadow-*` — только floating (медиакарточки §11, поповеры, drag), **не** на page-level секциях/KPI.
+- **SUPERSEDED 2026-07-22:** прежний `#faf9f4` заменён возвратом белого/inherited workspace background; page header
+  и основные поверхности — белые. Глубина — тонкие границы/лёгкие поверхности, не тени (§A). `shadow-*` — только
+  floating, **не** на page-level секциях/KPI.
 - Semantic primary кабинета врача — ровно `#406ca7` через зональный `--primary`; кнопки, ссылки, active/focus и другие primary-consumers используют semantic-классы, а не локальный hex. Patient/public tokens и destructive/warning/info роли не перекрашивать.
 - Chrome-типографика — закрытый набор §B.1: page-title `text-base`, section `text-sm`, обычный body `text-sm`, **первичная строка списка** `text-base font-normal`, meta `text-xs`, KPI `doctorMetricValueClass` (`text-2xl`). Micro-роль `text-[10px]`/`text-[11px]` — только бейджи/календарь/оси графиков/mono. Запрещено: `text-[13px]`, `text-lg`, `text-xl`, `text-3xl`.
 - Контролы doctor-zone: input/select-триггер/база кнопки — `h-8`/`h-[32px]` + радиус `24px`; фактическая поверхность input белая; поле и кнопка/select в одной строке совпадают.
 - Радиусы owner G6 (§A.3): page-block `12px`, KPI `8px`, doctor button/input/select trigger `24px`; `rounded-2xl` запрещён. Явный радиус caller (`rounded-none`, icon override и т.п.) сохраняется.
+- Navigation exception: main sidebar/mobile menu items не являются button pills и сохраняют минимальный shared
+  menu radius; 24px control radius на menu rows не распространяется. Section tabs имеют отдельный rounded contract.
 - Основные flat-list строки: горизонтальный отступ `18px`, между пунктами `1px` серая граница; первичная строка крупнее и легче (`text-base font-normal`).
 - active/hover/focus — словарь §A.4 (active = `bg-primary/15 text-primary`/`ring`, не жирная заливка и не хардкод-hex).
 - KPI-метрика — `doctorMetricValueClass` из `doctorVisual.ts`, не локальный `text-3xl`.
@@ -1246,7 +1257,9 @@ Patient zone и doctor zone — `no-restricted-imports` в `eslint.config.mjs`:
   dev-сервер под живой скрин, heavy CI под mutex).
 
 ### Бриф агента (self-contained)
-- В брифе: пути, эталон, ограничения, шаги проверки, **запрет commit в main / push**. Холодный старт — агент ничего не доводит «по памяти».
+- В брифе: пути, эталон, ограничения, шаги проверки, **exact atomic checkbox IDs/текст + supersession map**,
+  **запрет commit в main / push**. Ссылка только на roadmap summary — неполный brief; холодный старт — агент ничего
+  не доводит «по памяти». Worker и auditor получают один checklist и сдают построчную evidence matrix.
 - **Запрещать бесконечные циклы ожидания** (напр. «жди, пока поднимется порт N») — только с таймаутом/числом попыток. Иначе агент НЕ падает, а ВИСНЕТ навсегда (в панели — «Running» часами).
 - По возможности **не давать агенту поднимать dev-сервер**: реализация = код + typecheck + тесты + commit (в своём worktree, без push). Живую проверку (скриншоты) делать отдельно — оркестратором или коротким verify-агентом. Меньше зависаний.
 
