@@ -472,10 +472,8 @@ describe("createPatientBookingService", () => {
     bookingsPort.getByIdForUser.mockResolvedValue(row);
     bookingsPort.updateSlotsAfterReschedule.mockResolvedValue({ ...row, slotStart: newStart, slotEnd: newEnd });
     syncPort.emitBookingEvent.mockResolvedValue(undefined);
-    const resolveCanonicalFromBranchService = vi.fn();
     const listBusyIntervals = vi.fn().mockResolvedValue([]);
     const bookingScheduling = createBookingSchedulingService({
-      resolveCanonicalFromBranchService,
       listBusyIntervals,
     } as never);
     const appointmentLifecycle = {
@@ -518,7 +516,6 @@ describe("createPatientBookingService", () => {
       userId: row.userId!, bookingId: row.id, slotStart: newStart, slotEnd: newEnd,
     })).resolves.toMatchObject({ ok: true });
 
-    expect(resolveCanonicalFromBranchService).not.toHaveBeenCalled();
     expect(listBusyIntervals).toHaveBeenCalledWith({
       organizationId: "org-1",
       specialistId: "specialist-1",

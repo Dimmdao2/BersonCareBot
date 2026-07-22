@@ -34,7 +34,6 @@ function dbWithSelectResults(results: ReadonlyArray<ReadonlyArray<unknown>>) {
 
 const orgId = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
 const ssaId = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb";
-const legacyId = "cccccccc-cccc-4ccc-8ccc-cccccccccccc";
 const branchId = "dddddddd-dddd-4ddd-8ddd-dddddddddddd";
 const serviceId = "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee";
 const specialistId = "ffffffff-ffff-4fff-8fff-ffffffffffff";
@@ -56,13 +55,13 @@ const ssa = {
 const branch = { id: branchId, organizationId: orgId, timezone: "Europe/Moscow" };
 const service = { id: serviceId, organizationId: orgId, durationMinutes: 60, bufferAfterMinutes: 10 };
 
-describe("pgBookingScheduling canonical-native availability compatibility", () => {
+describe("pgBookingScheduling canonical availability", () => {
   beforeEach(() => vi.clearAllMocks());
 
-  it("keeps a mapped legacy branch-service id as the compatibility projection", async () => {
+  it("resolves a canonical branchId+serviceId pair without a legacy catalog key", async () => {
     getDrizzleMock.mockReturnValue(
       dbWithSelectResults([
-        [{ organizationId: orgId, canonicalId: ssaId }],
+        [{ organizationId: orgId, id: ssaId, createdAt: ssa.createdAt }],
         [ssa],
         [{ id: specialistId }],
         [branch],
@@ -70,38 +69,30 @@ describe("pgBookingScheduling canonical-native availability compatibility", () =
       ]),
     );
 
-    await expect(createPgBookingSchedulingPort().resolveCanonicalFromBranchService(legacyId)).resolves.toEqual(
+    await expect(
+      createPgBookingSchedulingPort().resolveCanonicalInPersonContext({ organizationId: orgId, branchId, serviceId }),
+    ).resolves.toEqual(
       expect.objectContaining({
         organizationId: orgId,
-        branchServiceId: legacyId,
-        legacyBranchServiceId: legacyId,
         branchId,
         serviceId,
       }),
     );
   });
 
-  it("accepts an active canonical SSA id without inventing a Rubitime mapping", async () => {
+  it("rejects an ambiguous canonical pair before selecting an availability", async () => {
     getDrizzleMock.mockReturnValue(
       dbWithSelectResults([
-        [],
-        [{ organizationId: orgId, id: ssaId }],
-        [ssa],
-        [{ id: specialistId }],
-        [branch],
-        [service],
+        [
+          { organizationId: orgId, id: ssaId, createdAt: ssa.createdAt },
+          { organizationId: "11111111-1111-4111-8111-111111111111", id: "22222222-2222-4222-8222-222222222222", createdAt: ssa.createdAt },
+        ],
       ]),
     );
 
-    await expect(createPgBookingSchedulingPort().resolveCanonicalFromBranchService(ssaId)).resolves.toEqual(
-      expect.objectContaining({
-        organizationId: orgId,
-        branchServiceId: ssaId,
-        legacyBranchServiceId: null,
-        branchId,
-        serviceId,
-      }),
-    );
+    await expect(
+      createPgBookingSchedulingPort().resolveCanonicalInPersonContext({ branchId, serviceId }),
+    ).rejects.toThrow("ambiguous_booking_tenant");
   });
 
   it("returns the canonical SSA key when the preferred availability has no legacy mapping", async () => {
@@ -114,30 +105,4 @@ describe("pgBookingScheduling canonical-native availability compatibility", () =
     ).resolves.toBe(ssaId);
   });
 
-  it("rejects a mapped legacy id when its SSA is inactive", async () => {
-    getDrizzleMock.mockReturnValue(
-      dbWithSelectResults([
-        [{ organizationId: orgId, canonicalId: ssaId }],
-        [],
-      ]),
-    );
-
-    await expect(
-      createPgBookingSchedulingPort().resolveCanonicalFromBranchService(legacyId),
-    ).resolves.toBeNull();
-  });
-
-  it("rejects a mapped legacy id when its specialist is not active in the same organization", async () => {
-    getDrizzleMock.mockReturnValue(
-      dbWithSelectResults([
-        [{ organizationId: orgId, canonicalId: ssaId }],
-        [ssa],
-        [],
-      ]),
-    );
-
-    await expect(
-      createPgBookingSchedulingPort().resolveCanonicalFromBranchService(legacyId),
-    ).resolves.toBeNull();
-  });
 });
