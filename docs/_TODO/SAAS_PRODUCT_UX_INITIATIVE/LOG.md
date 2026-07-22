@@ -4912,3 +4912,51 @@ throughput were recorded for every run; blocking instrumentation measured `pg.Po
 RSS samples stayed flat at `137310208` bytes. The eleven-route static gate, five adversarial mutations and
 `git diff --check` passed. E2-10 and the repository stage are closed; full CI remains the accumulated Phase 2
 milestone gate. No DB/server/network/send/deploy/TEST/PROD action, push or merge ran.
+
+## 2026-07-22 — stability E3 source contract frozen (`#980`)
+
+**НАШЁЛ.** Read-only census на exact integrated base `63de21030` исправил существенную ошибку roadmap summary:
+`apps/integrator/src/kernel/contracts/schemas.ts:56` — не outgoing integrator→webapp schema, а внутренний
+`incomingEventSchema` channel/pipeline, который `EventGateway` валидирует до rate-limit/dedup. Он и весь
+`IncomingEvent` pipeline объявлены protected/non-target. Реальный `POST /api/integrator/events` envelope сейчас
+продублирован в пяти местах: устаревший `contracts/integrator-events-body.json`, integrator `WebappEventBody`,
+builder input в `jsonStableStringify`, ручной receiver `eventBodyFromParsed` и webapp `IntegratorEventBody`.
+JSON расходится с runtime: в нём нет `idempotencyKey`, `occurredAt` заявлен `date-time`, а receiver принимает любую
+строку и ошибочно считает array объектом payload.
+
+Receiver dispatch содержит `23` event variants. У `21` подтверждены active producer paths через generic/direct
+diary emit, central projection fanout/writePort и appointment builder; `contact.linked` и `user.email.autobind`
+сохраняются только как consumer/legacy compatibility variants без найденного active exact-string producer. Envelope
+остаётся unversioned и с open-string `eventType`: обязательный version, closed enum или новый discriminated payload
+union изменили бы generic content, legacy outbox и unsupported-event semantics. Event-specific payload guards,
+producer payloads и tenant model не становятся scope E3.
+
+**ИЗМЕНИЛ.** Owning Stability plan получил source-backed correction, полный atomic `E3-01…E3-12`, exact
+compatibility/error/retry/load matrix, `23/21+2` variant census, closed writable implementation manifest и protected
+scope. `E3-01` закрывает только census/contract freeze; `E3-02…E3-12` и общий E3 остаются открыты. Минимальный путь
+runtime SSOT — dedicated workspace package `@bersoncare/integrator-webapp-event-contract`: оба приложения уже
+потребляют workspace packages, direct cross-app import нарушает границы и integrator `rootDir`, а существующие
+DB/error-tracking packages имеют другое владение. Поэтому package/workspace/lock/build changes явно включены как
+необходимая E3 dependency, а не скрытое расширение manifest.
+
+**Frozen runtime semantics.** Producer валидирует до `getAppBaseUrl`, подписи/fetch и возвращает fixed permanent
+`422` без Zod details или payload; receiver сохраняет порядок headers/key → raw-body signature → JSON parse → shared
+schema → special tenant principal → idempotency → DI/handler и fixed `400` для invalid schema. Stable bytes,
+normalized body/header idempotency, semantic replay `202/409/503`, handler permanent `422`, unknown open-string
+fallback, immediate outbox observability и worker retry/DLQ classes сохраняются. Только
+`support.delivery.attempt.logged` продолжает ставить organization principal; общий tenant redesign — owner question,
+не E3. Удаляется только `contracts/integrator-events-body.json` после нулевых current refs; остальные contract JSON
+и archived history protected.
+
+**Load и audit stop.** Старая классификация E3 как init-time исправлена: shared schema выполняется на producer и
+receiver для каждого доставленного M2M event. Приёмка требует три одинаковых representative/max-payload microbench
+run с p50/p95/p99/throughput/RSS и blocking proof нулевых дополнительных DB/network calls. Implementation worker
+возвращает построчную матрицу `E3-01…E3-11`; отдельный независимый auditor проверяет тот же scope. При `FAIL`
+разрешён coherent correction + fresh re-audit; после двух correction rounds — жёсткий stop и один owner question,
+без третьего круга и самоаудита.
+
+**Provenance и границы author pass.** Discovery использовал обязательный code-search, затем exact source/ref census
+на branch `codex/e3-contract-980` в isolated worktree `/home/dev/dev-projects/BersonCareBot-wt-e3-contract`.
+Изменены только owning Stability plan и этот LOG; code/packages/lock/taskdb/runtime/tests/processes/network/deploy,
+TEST/PROD, push и merge не затрагивались. Это presentation/docs author stage: требуется один независимый аудит
+source consistency; implementation/PASS из этой записи не следует.

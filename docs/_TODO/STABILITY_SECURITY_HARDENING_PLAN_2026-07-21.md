@@ -98,7 +98,10 @@ RSS) как часть приёмки этапа.
 - _Снижают нагрузку:_ B2 (таймауты освобождают зависшие коннекты), B1 (tx дешевле recovery орфанов).
 - _Нулевая hot-path:_ A1 (CI-only), A3/C2 (переиспользуют уже собираемые in-process счётчики и principal-ALS),
   B3 (advisory-lock только на booking-create, редкий путь; ещё лучше — partial constraint = 0 рантайма),
-  D2/D3/E2/E3 (string-compare / build-time / init-time), C1 (событие только на ошибке, async, traces sample=0).
+  D2/D3/E2 (string-compare / build-time / init-time), C1 (событие только на ошибке, async, traces sample=0).
+- _Bounded per-event:_ E3 выполняет Zod-валидацию на producer и receiver для каждого M2M event. Это не init-time:
+  приёмка требует трёх одинаковых representative/max-payload прогонов с p95/RSS и доказательством нулевых
+  дополнительных DB/network вызовов.
 - _Load-чувствительные (делать по cheap-дизайну ниже):_ **D1 сессии**, **C3 метрики**, и присущая цена **RLS (A4)**.
 
 ---
@@ -491,10 +494,135 @@ apply, TEST/PROD or deploy is claimed.
       unknown errors сохранить текущие HTTP statuses; (2) не нормализовать пропущенный
       `Retry-After` в старых `429` в этой волне; (3) оставить pre-existing boundary debt для Phase 3 E1.
       Эти safe defaults уже вшиты в checklist/matrix и не блокируют следующую implementation-карточку.
-- [ ] **E3. Единая zod-схема границы integrator↔webapp** — заменить 3 определения (JSON-док + zod интегратора +
-      ручные `typeof` в приёмнике) одним SSOT, рантайм-валидировать на обоих концах. Убрать осиротевшие `contracts/*.json`.
-      Файлы: `apps/webapp/src/app/api/integrator/events/route.ts:18-31`, `apps/integrator/src/kernel/contracts/schemas.ts:56`.
-      Размер: **M** · Аудит: полный (кросс-сервисный контракт).
+- [ ] **E3. Единая Zod-схема границы integrator↔webapp** — заменить фактические дубли transport-envelope одним
+      shared runtime SSOT, валидировать им producer и receiver и удалить только подтверждённо осиротевший
+      `contracts/integrator-events-body.json`. Размер: **M** · Аудит: полный независимый
+      (кросс-сервисный контракт).
+
+      **Source-backed correction (`#980`, census на `63de21030`).** Старая ссылка на
+      `apps/integrator/src/kernel/contracts/schemas.ts:56` была ошибочной: `incomingEventSchema` описывает внутренний
+      channel/pipeline envelope `{ type, meta, payload }` и вызывается `EventGateway` в
+      `apps/integrator/src/kernel/eventGateway/index.ts:31-43`. Он не является transport-contract
+      `POST /api/integrator/events`, поэтому `incomingEventSchema`, `domainContextSchema`, EventGateway и их tests —
+      **protected/non-target** E3.
+
+      Фактические outgoing definitions/artifacts:
+      `contracts/integrator-events-body.json:1-17`;
+      `apps/integrator/src/kernel/contracts/ports.ts:382-389` (`WebappEventBody`);
+      `apps/integrator/src/infra/adapters/jsonStableStringify.ts:38-60` (дублированный builder input);
+      `apps/webapp/src/app/api/integrator/events/route.ts:18-32` (`eventBodyFromParsed`);
+      `apps/webapp/src/modules/integrator/events.ts:65-71` (`IntegratorEventBody`). JSON уже расходится с runtime:
+      он не знает `idempotencyKey`, заявляет `occurredAt` как `date-time`, а current receiver принимает любую строку.
+
+      Receiver dispatch содержит **23** event variants: `diary.symptom.tracking.created`,
+      `diary.lfk.complex.created`, `diary.lfk.session.created`, `diary.symptom.entry.created`, `user.upserted`,
+      `contact.linked`, `preferences.updated`, `support.conversation.opened`,
+      `support.conversation.message.appended`, `support.conversation.status.changed`, `support.question.created`,
+      `support.question.message.appended`, `support.question.answered`, `support.delivery.attempt.logged`,
+      `reminder.rule.upserted`, `reminder.occurrence.finalized`, `reminder.delivery.logged`,
+      `content.access.granted`, `appointment.record.upserted`, `mailing.topic.upserted`,
+      `user.subscription.upserted`, `user.email.autobind`, `mailing.log.sent`. У **21** есть текущие producer paths;
+      `contact.linked` и `user.email.autobind` остаются consumer/legacy compatibility variants без найденного active
+      exact-string producer. E3 унифицирует transport envelope, а не переписывает event-specific domain validation.
+
+      **Compatibility freeze.** Shared unversioned envelope сохраняет:
+      `eventType` как open string, непустую после `trim`, но без transform; optional string `eventId`, `occurredAt`,
+      `idempotencyKey`; optional plain JSON object `payload` с рекурсивно JSON-safe значениями; дополнительные
+      top-level JSON-поля через passthrough/catchall. `eventType` не превращается в enum: generic content action,
+      legacy outbox и текущий unsupported-event fallback используют open string. `occurredAt` не ужесточается до ISO
+      без отдельного compatibility/migration решения. Обязательный wire `version` не добавляется: queued legacy rows
+      его не имеют. Payload-array, bigint/function/symbol/non-finite number/cycle на producer отвергаются до wire;
+      receiver принимает только результат `JSON.parse`. Event-specific payload guards остаются в
+      `apps/webapp/src/modules/integrator/events.ts` и не становятся новым discriminated union в E3.
+
+      **Compatibility / error / retry / load matrix:**
+
+      | Boundary / case | Frozen result | Evidence / invariant |
+      |---|---|---|
+      | Producer, valid event | Текущие stable bytes, normalized header/body idempotency, подпись и fallback-key semantics | `webappEventsClient.ts:126-151`, `jsonStableStringify.ts:1-60` |
+      | Producer, invalid envelope | Fixed permanent `{ ok:false, status:422, error:"invalid integrator event envelope" }` до `getAppBaseUrl`, подписи, fetch и любого нового I/O; Zod paths/payload не логируются | Новый shared-schema/client test |
+      | Receiver auth order | headers/key → signature над raw body → JSON parse → shared schema → tenant specialization → idempotency → DI/handler | `route.ts:35-110`; invalid signature остаётся `401` до schema |
+      | Receiver malformed/schema-invalid | Fixed `400`; без raw body, Zod details, payload, secret или arbitrary message; idempotency/DI/handler не вызываются | Route adversarial tests |
+      | Header/body idempotency mismatch | Точный текущий `400`; non-Latin producer key сначала нормализуется, затем body совпадает с header | `route.ts:63-65`, `webappEventsClient.test.ts:163-184` |
+      | Semantic replay | Hash считается по passthrough parsed object; `occurredAt` и body idempotency исключены; accepted `202` cache, mismatch `409`, transient `503` не cache | `integratorEventSemanticHash.ts:109-126`, route replay tests |
+      | Handler permanent / unknown | Текущий permanent handler result остаётся `422`; unknown open-string event сохраняет `durable ingest is not implemented`, а не превращается в schema `400` | `route.ts:233-260`, `events.ts:1329-1332` |
+      | Tenant specialization | `support.delivery.attempt.logged` по-прежнему требует UUID `payload.organizationId` и ставит verified organization principal до idempotency/handler; tenant model остальных событий не меняется | `route.ts:67-81`, route principal tests |
+      | Immediate emit failure | Существующий outbox fallback сохраняется для наблюдаемости; E3 не меняет projection payloads/transactions | `projectionFanout.ts:12-44` |
+      | Worker retry / DLQ | `status=0`, `5xx`, `408`, `429` retry; permanent `4xx`, включая local schema `422`, уходит в DLQ без retry burn | `projectionEmitFailure.ts:4-15`, `projectionWorker.ts:30-58` |
+      | Load | Две pure schema validations на доставленный M2M event; никаких новых DB/network вызовов, scheduler или high-cardinality metrics | Три одинаковых representative/max-payload microbench runs; p50/p95/p99/throughput/RSS |
+
+      **Exact checklist после source-backed discovery:**
+
+      - [x] **E3-01 — source correction/freeze.** Исправлена неверная plan-ссылка; `incomingEventSchema` и
+            EventGateway объявлены protected; зафиксированы пять реальных дублей, 23 consumer variants,
+            21 active + 2 legacy-only, compatibility/error/retry/load matrix, exact writable manifest и protected
+            sibling scope. `#980` пишет только source contract; implementation получает отдельный worker pass.
+      - [ ] **E3-02 — dedicated runtime SSOT.** Создать минимальный workspace package
+            `@bersoncare/integrator-webapp-event-contract` с одной Zod-схемой и inferred type; JSON-safe recursive
+            payload, passthrough top-level, без wire version/enum/domain payload union.
+      - [ ] **E3-03 — package graph.** Подключить package к обоим apps, workspace/lock и существующему
+            build/ensure graph; доказать fresh-clone build/typecheck без stale `dist`.
+      - [ ] **E3-04 — producer validation.** `emit` выполняет `safeParse` до `getAppBaseUrl`, подписи, fetch и прочего
+            I/O. Невалидный event возвращает fixed permanent result
+            `status:422,error:"invalid integrator event envelope"`, без Zod paths/payload в логах.
+      - [ ] **E3-05 — wire stability.** Для валидного события сохранить normalized body/header idempotency,
+            stable serialization/signature bytes, fallback-key derivation и `200/202 + {ok:true}` contract.
+      - [ ] **E3-06 — receiver validation/order.** Порядок остаётся headers/key → signature over raw body → JSON
+            parse → shared schema → tenant specialization → idempotency → DI/handler. Invalid schema: fixed `400`,
+            без Zod details, payload или raw body; DI/idempotency/handler не вызываются.
+      - [ ] **E3-07 — idempotency/error semantics.** Сохранить body/header mismatch `400`, semantic hash на
+            passthrough object, cached `202`, uncached `503` retry, `409` mismatch, handler permanent `422` и
+            unknown-event behavior.
+      - [ ] **E3-08 — tenant/auth/correlation protection.** Сохранить special principal для
+            `support.delivery.attempt.logged` до idempotency/handler; не менять signature secret, timestamp policy,
+            correlation/idempotency logging и tenant model остальных событий.
+      - [ ] **E3-09 — retry/DLQ proof.** Invalid producer event не вызывает network; immediate fanout сохраняет
+            существующий наблюдаемый fallback, а worker переводит permanent `422` в DLQ без retry burn. Не менять
+            retry classes без отдельного owner scope.
+      - [ ] **E3-10 — JSON retirement/docs.** Обновить обе текущие docs-ссылки и module comment, затем удалить только
+            `contracts/integrator-events-body.json`; остальные три `contracts/*.json` protected. Exact current refs
+            в runtime/current contract docs после удаления = `0` (owning plan/LOG и archived history не считаются
+            live consumers и не переписываются).
+      - [ ] **E3-11 — validation/load.** Shared schema valid/invalid/adversarial tests; producer/receiver order и
+            redaction tests; targeted integrator/webapp tests, package test/typecheck/build, app typecheck/lint/build.
+            Три одинаковых microbench run на representative/max JSON payload: no I/O, bounded p95/RSS.
+      - [ ] **E3-12 — high-risk acceptance.** Worker отдаёт матрицу по `E3-01…E3-11`. Независимый auditor проверяет
+            тот же полный набор. При `FAIL` — один integrated correction + fresh re-audit; второй correction только
+            после классификации полноценного провала; после двух correction rounds жёсткий stop и owner question.
+            Самоаудит и общий `PASS` недействительны.
+
+      **Exact writable implementation manifest:**
+      - new `packages/integrator-webapp-event-contract/package.json`,
+        `packages/integrator-webapp-event-contract/tsconfig.json`,
+        `packages/integrator-webapp-event-contract/src/index.ts`,
+        `packages/integrator-webapp-event-contract/src/integratorWebappEvent.ts`,
+        `packages/integrator-webapp-event-contract/src/integratorWebappEvent.test.ts`;
+      - package/build graph: `pnpm-workspace.yaml`, `pnpm-lock.yaml`, root `package.json`,
+        `scripts/ensure-booking-sync-built.sh`, `apps/integrator/package.json`, `apps/webapp/package.json`;
+      - producer: `apps/integrator/src/kernel/contracts/ports.ts`,
+        `apps/integrator/src/infra/adapters/jsonStableStringify.ts`,
+        `apps/integrator/src/infra/adapters/jsonStableStringify.test.ts`,
+        `apps/integrator/src/infra/adapters/webappEventsClient.ts`,
+        `apps/integrator/src/infra/adapters/webappEventsClient.test.ts`,
+        `apps/integrator/src/infra/db/repos/projectionFanout.test.ts`;
+      - receiver: `apps/webapp/src/app/api/integrator/events/route.ts`,
+        `apps/webapp/src/app/api/integrator/events/route.test.ts`,
+        `apps/webapp/src/modules/integrator/events.ts`;
+      - docs/artifact: `apps/webapp/INTEGRATOR_CONTRACT.md`,
+        `apps/webapp/src/modules/integrator/integrator.md`, delete `contracts/integrator-events-body.json`;
+      - load proof: new `scripts/prove-integrator-webapp-event-contract-load.mjs` и соответствующая root script entry.
+
+      Dedicated package — минимальный существующий workspace pattern: оба приложения уже потребляют `packages/*`;
+      direct cross-app import нарушит границы и integrator `rootDir`, а `operator-db-schema`/`error-tracking`
+      семантически чужие. Поэтому package/workspace/lock/build changes являются dependency E3, а не scope expansion.
+      Канонический Stability plan/LOG/taskdb обновляет оркестратор при integration/closure, не implementation worker.
+
+      **Protected scope:** `apps/integrator/src/kernel/contracts/schemas.ts`, EventGateway и channel `IncomingEvent`;
+      event-specific payload handlers/projection domain services; writePort producer payloads и content scripts;
+      DB schema/migrations/outbox data; signature implementation/secrets, idempotency algorithms и общий principal
+      model; C1/D1/D2/E1/E2 manifests; остальные `contracts/*.json`; env/deploy/TEST/PROD/data actions. Обязательная
+      wire version, closed enum/discriminated union всех payloads или общий `organizationId` для остальных событий —
+      только отдельный owner question, не автоматический E3 scope.
 
 ### Phase 3 — Большой cutover (длинный полюс, высший риск, приёмка владельца по кускам)
 - [ ] **A4. Довести класс #821/#815** (объём per F-1): «нет принципала → fail-closed», ретайр несущих ручных
