@@ -10,7 +10,7 @@ import { withDoctorWorkspacePrincipal } from "@/app-layer/guards/doctorWorkspace
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import { DoctorAppShell } from "@/shared/ui/doctor/DoctorAppShell";
 import { DoctorPageHeader } from "@/shared/ui/doctor/shell/DoctorPageHeader";
-import { buttonVariants } from "@/shared/ui/doctor/primitives/button";
+import { buttonVariants } from "@/shared/ui/doctor/primitives/button-variants";
 import { doctorPageStackClass } from "@/shared/ui/doctor/doctorVisual";
 import { cn } from "@/lib/utils";
 import { getAppDisplayTimeZone } from "@/modules/system-settings/appDisplayTimezone";
@@ -208,7 +208,10 @@ export default async function DoctorPatientCardPage({ params, searchParams }: Pa
         tabs={
           <Link
             href={patientListHref}
-            className={cn(buttonVariants({ size: "sm", variant: "outline" }), "h-8 px-3")}
+            className={cn(
+              buttonVariants({ size: "sm", variant: "outline" }),
+              "h-8 rounded-[var(--doctor-control-radius,24px)] px-3",
+            )}
           >
             К клиентам
           </Link>
