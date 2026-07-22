@@ -194,6 +194,7 @@ Tier **`patient`** (доступ к основному пациентскому 
 
 - **resolveRoleAsync** — приоритет whitelist из `system_settings` (admin), fallback на env для совместимости.
 - **resolveRoleFromEnv** — синхронный fallback по env (Telegram/Max/телефоны).
+- **`admin_emails`** — отдельное DB-only правило: только подтверждённый email получает `admin` в текущей сессии. Оно читается fresh без env/cache fallback и при удалении адреса или ошибке чтения сразу возвращает базовую роль из БД. Email-derived admin не сохраняется в `platform_users.role`.
 
 ## Поддержка пациента (форма → Telegram админу)
 

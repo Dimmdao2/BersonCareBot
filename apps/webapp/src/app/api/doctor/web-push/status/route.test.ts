@@ -3,7 +3,7 @@ import { NextResponse } from "next/server";
 
 const mockRequireStaffWebPushSelfApiSession = vi.hoisted(() => vi.fn());
 const mockBuildAppDeps = vi.hoisted(() => vi.fn());
-const mockGetWebPushVapidKeyPair = vi.hoisted(() => vi.fn());
+const mockGetWebPushVapidPublicKeyOnly = vi.hoisted(() => vi.fn());
 
 vi.mock("@/app-layer/guards/requireRole", () => ({
   requireStaffWebPushSelfApiSession: mockRequireStaffWebPushSelfApiSession,
@@ -11,10 +11,6 @@ vi.mock("@/app-layer/guards/requireRole", () => ({
 
 vi.mock("@/app-layer/di/buildAppDeps", () => ({
   buildAppDeps: mockBuildAppDeps,
-}));
-
-vi.mock("@/modules/system-settings/webPushVapidRuntime", () => ({
-  getWebPushVapidKeyPair: mockGetWebPushVapidKeyPair,
 }));
 
 import { GET } from "./route";
@@ -28,7 +24,7 @@ describe("GET /api/doctor/web-push/status", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockBuildAppDeps.mockReturnValue({
-      systemSettings: {},
+      systemSettings: { getWebPushVapidPublicKeyOnly: mockGetWebPushVapidPublicKeyOnly },
       webPushSubscriptions: {
         hasAnyForUserId: vi.fn().mockResolvedValue(false),
       },
@@ -36,7 +32,7 @@ describe("GET /api/doctor/web-push/status", () => {
         getPreferences: vi.fn().mockResolvedValue([]),
       },
     });
-    mockGetWebPushVapidKeyPair.mockResolvedValue(null);
+    mockGetWebPushVapidPublicKeyOnly.mockResolvedValue(null);
   });
 
   it("returns 200 with vapidConfigured false when keys missing", async () => {
@@ -63,5 +59,15 @@ describe("GET /api/doctor/web-push/status", () => {
     });
     const res = await GET();
     expect(res.status).toBe(401);
+  });
+
+  it("uses only the public-key accessor when VAPID is configured", async () => {
+    mockRequireStaffWebPushSelfApiSession.mockResolvedValue({ ok: true, session: GLOBAL_ADMIN_SESSION });
+    mockGetWebPushVapidPublicKeyOnly.mockResolvedValue("public-vapid-key");
+
+    const res = await GET();
+
+    expect(await res.json()).toMatchObject({ vapidConfigured: true, publicKey: "public-vapid-key" });
+    expect(mockGetWebPushVapidPublicKeyOnly).toHaveBeenCalledTimes(1);
   });
 });

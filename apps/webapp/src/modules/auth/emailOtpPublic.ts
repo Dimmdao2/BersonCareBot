@@ -28,7 +28,7 @@ export type StartPublicEmailOtpRegistrationResult =
   | { ok: false; code: "duplicate_email" | "invalid_fio" };
 
 export type ConfirmPublicEmailOtpResult =
-  /** No redirectTo here on purpose: the route derives the redirect from the REAL user role after loading the session user. */
+  /** No redirectTo here on purpose: the route loads the DB base role, then may apply the fresh session-only email-admin policy. */
   | { ok: true; userId: string }
   | { ok: false; code: "invalid_code" | "expired_code" | "too_many_attempts" | "email_conflict"; retryAfterSeconds?: number };
 

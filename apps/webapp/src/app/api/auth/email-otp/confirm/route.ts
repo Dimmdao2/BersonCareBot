@@ -81,6 +81,9 @@ export async function POST(request: Request) {
   // The code proves control of `email`; policy decides whether that verified identity is a global admin.
   // Email-derived staff access intentionally stays session-derived: every later session refresh rechecks the
   // DB-backed allowlist, so removing the address revokes access without a stale role row.
+  // On policy removal/outage, use the freshly loaded DB role rather than retaining
+  // an earlier email-derived session role. The B1c migration removes the only
+  // historical persisted owner-email artifact.
   const role = (await isVerifiedEmailGlobalAdminAsync(email)) ? "admin" : user.role;
   const sessionUser = role === user.role ? user : { ...user, role };
 

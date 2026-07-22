@@ -109,8 +109,10 @@ function ensureAdminMode(session: AppSession): AppSession {
 async function finalizeCurrentSession(
   session: AppSession,
   patientOrganizationHint?: string | null,
+  options: { stampDbPrincipal?: boolean } = {},
 ): Promise<AppSession> {
   const normalized = ensureAdminMode(session);
+  if (options.stampDbPrincipal === false) return normalized;
   try {
     // Central chokepoint (see also ensureDbPrincipalContext() at the top of getCurrentSession()
     // above, and its doc comment in packages/db-principal). Uses a static import — a dynamic
@@ -868,7 +870,9 @@ export async function exchangeTelegramLoginWidget(
  * При наличии `DATABASE_URL` и UUID `userId` сессия сверяется с `platform_users`: удалённый пользователь
  * даёт `null` (клиент увидит «не авторизован»), даже если cookie ещё не истёк.
  */
-export async function getCurrentSession(): Promise<AppSession | null> {
+async function getCurrentSessionWithPrincipalMode(
+  options: { stampDbPrincipal?: boolean } = {},
+): Promise<AppSession | null> {
   // MUST run before the first `await cookies()` below — this is the other half of the central
   // DB-principal fix (see the doc comment on ensureDbPrincipalContext() in
   // packages/db-principal/src/index.ts). Diagnostic proof (TEST, live logging of
@@ -954,8 +958,10 @@ export async function getCurrentSession(): Promise<AppSession | null> {
       verifiedEmail = undefined;
     }
   }
-  if (isDevBypassSession) return finalizeCurrentSession(session, patientOrganizationHint);
+  if (isDevBypassSession) return finalizeCurrentSession(session, patientOrganizationHint, options);
 
+  // This is the base role. A false/error result from the email policy must return
+  // to it; `admin_emails` is only a fresh session elevation, never a fallback.
   let roleFromBindings = session.user.role;
   if (hasMessengerOrPhoneIdentity) {
     roleFromBindings = await resolveRoleAsync({ phone, telegramId, maxId });
@@ -989,10 +995,29 @@ export async function getCurrentSession(): Promise<AppSession | null> {
       reauth: nextSession.reauth,
       staffSecurity: nextSession.staffSecurity,
     };
-    return finalizeCurrentSession(emailAdminSession, patientOrganizationHint);
+    return finalizeCurrentSession(emailAdminSession, patientOrganizationHint, options);
   }
 
-  return finalizeCurrentSession(nextSession, patientOrganizationHint);
+  return finalizeCurrentSession(nextSession, patientOrganizationHint, options);
+}
+
+/**
+ * Normal session resolution plus the standard organization-derived DB principal stamp.
+ * Use {@link getCurrentSessionForIdentitySelf} for the deliberately narrow personal
+ * surfaces that must not resolve or preserve an organization membership.
+ */
+export async function getCurrentSession(): Promise<AppSession | null> {
+  return getCurrentSessionWithPrincipalMode();
+}
+
+/**
+ * Resolves and verifies the signed session (including verified-email global-admin
+ * elevation), but deliberately does not resolve an organization or stamp a staff
+ * principal. The caller must authorize its narrow personal capability and install the
+ * exact identity-self principal before any DB work.
+ */
+export async function getCurrentSessionForIdentitySelf(): Promise<AppSession | null> {
+  return getCurrentSessionWithPrincipalMode({ stampDbPrincipal: false });
 }
 
 export async function clearSession(): Promise<void> {

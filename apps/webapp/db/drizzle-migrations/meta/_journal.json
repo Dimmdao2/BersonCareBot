@@ -1632,6 +1632,13 @@
       "when": 1793539200028,
       "tag": "0232_email_otp_atomic_consume",
       "breakpoints": true
+    },
+    {
+      "idx": 233,
+      "version": "7",
+      "when": 1793539200029,
+      "tag": "0233_demote_legacy_email_admin_artifact",
+      "breakpoints": true
     }
   ]
 }

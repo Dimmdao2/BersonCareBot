@@ -9,7 +9,7 @@ import {
   getCurrentDbPrincipal,
 } from "@bersoncare/db-principal";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
-import { getCurrentSession } from "@/modules/auth/service";
+import { getCurrentSession, getCurrentSessionForIdentitySelf } from "@/modules/auth/service";
 import { patientClientBusinessGate, resolvePlatformAccessContext } from "@/app-layer/platform-access";
 import { canAccessDoctor, canAccessPatient } from "@/modules/roles/service";
 import { routePaths } from "@/app-layer/routes/paths";
@@ -105,7 +105,9 @@ export async function requireStaffAccountPage(): Promise<AppSession> {
  * does not turn that operator into a staff account or organization member.
  */
 export async function requireStaffPersonalInstallPage(): Promise<AppSession> {
-  const session = await requireSession();
+  ensureDbPrincipalContext({ source: "requireStaffPersonalInstallPage:pending" });
+  const session = await getCurrentSessionForIdentitySelf();
+  if (!session) redirect(routePaths.root);
   const capabilities = resolveLaunchCapabilities({
     sessionRole: session.user.role,
     adminMode: session.adminMode,
@@ -114,6 +116,7 @@ export async function requireStaffPersonalInstallPage(): Promise<AppSession> {
     hasLaunchCapability(capabilities, "account.self") ||
     hasLaunchCapability(capabilities, "platform.operations")
   ) {
+    enterStaffSecuritySelfPrincipal(session.user.userId, "requireStaffPersonalInstallPage:self");
     return session;
   }
   redirect(buildOwnHubUrlWithAccessDeniedToast(session.user.role));
@@ -394,7 +397,7 @@ export async function requireStaffWebPushSelfApiSession(): Promise<
   { ok: true; session: AppSession } | { ok: false; response: NextResponse }
 > {
   ensureDbPrincipalContext({ source: "requireStaffWebPushSelfApiSession:pending" });
-  const session = await getCurrentSession();
+  const session = await getCurrentSessionForIdentitySelf();
   if (!session) {
     return { ok: false, response: NextResponse.json({ ok: false, error: "unauthorized" }, { status: 401 }) };
   }
@@ -403,18 +406,8 @@ export async function requireStaffWebPushSelfApiSession(): Promise<
     sessionRole: session.user.role,
     adminMode: session.adminMode,
   });
-  if (hasLaunchCapability(capabilities, "account.self")) {
-    if (isRestrictedStaffSecuritySession(session)) {
-      return {
-        ok: false,
-        response: NextResponse.json({ ok: false, error: "security_setup_required" }, { status: 403 }),
-      };
-    }
-    await stampBestEffortStaffPrincipal(session, "requireStaffWebPushSelfApiSession");
-    return { ok: true, session };
-  }
   if (
-    !hasLaunchCapability(capabilities, "platform.operations") ||
+    (!hasLaunchCapability(capabilities, "account.self") && !hasLaunchCapability(capabilities, "platform.operations")) ||
     isRestrictedStaffSecuritySession(session) ||
     !isPlatformUserUuid(session.user.userId)
   ) {

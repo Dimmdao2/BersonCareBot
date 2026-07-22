@@ -75,7 +75,7 @@ import {
   runWithDbBootstrapPrincipal,
 } from "@bersoncare/db-principal";
 import type { AppSession, SessionUser, UserRole } from "@/shared/types/session";
-import { getCurrentSession } from "./service";
+import { getCurrentSession, getCurrentSessionForIdentitySelf } from "./service";
 
 const USER_ID = "11111111-1111-4111-8111-111111111111";
 const ORGANIZATION_ID = "22222222-2222-4222-8222-222222222222";
@@ -219,5 +219,89 @@ describe("getCurrentSession identity-self concurrency", () => {
     expect(session?.user.role).toBe("client");
     expect(mocks.isVerifiedEmailGlobalAdminAsync).toHaveBeenCalledWith(undefined);
     expect(mocks.updateRole).not.toHaveBeenCalled();
+  });
+
+  it.each(["allowlist removal", "policy database failure"])(
+    "revokes a stale persisted owner-email admin cookie after %s",
+    async (_reason) => {
+      const legacyArtifactNowDemoted = {
+        ...doctorUser(),
+        role: "client" as const,
+        bindings: {},
+      };
+      mocks.decodedSession = {
+        // This is the pre-0233 persisted-admin cookie shape. The fresh DB identity
+        // is the migration-demoted base role, which must win if email policy is false.
+        user: { ...legacyArtifactNowDemoted, role: "admin" as const },
+        issuedAt: 1,
+        expiresAt: 9_999_999_999,
+      } satisfies AppSession;
+      mocks.findByUserId.mockResolvedValue(legacyArtifactNowDemoted);
+      mocks.getVerifiedEmailForUser.mockResolvedValue("dimmdao@gmail.com");
+      mocks.isVerifiedEmailGlobalAdminAsync.mockResolvedValue(false);
+
+      const session = await runWithDbBootstrapPrincipal(
+        { source: "service.sessionConcurrency.legacy-email-admin-revocation" },
+        () => getCurrentSession(),
+      );
+
+      expect(session?.user.role).toBe("client");
+      expect(mocks.isVerifiedEmailGlobalAdminAsync).toHaveBeenCalledWith("dimmdao@gmail.com");
+      expect(mocks.resolveRoleAsync).not.toHaveBeenCalled();
+      expect(mocks.updateRole).not.toHaveBeenCalled();
+    },
+  );
+
+  it("keeps a legitimate non-email global admin base role when email policy is negative", async () => {
+    const admin = {
+      ...doctorUser(),
+      role: "admin" as const,
+      phone: "+75550000003",
+      bindings: { telegramId: "tg-independent-admin" },
+    };
+    mocks.decodedSession = {
+      user: admin,
+      issuedAt: 1,
+      expiresAt: 9_999_999_999,
+    } satisfies AppSession;
+    mocks.findByUserId.mockResolvedValue(admin);
+    mocks.getVerifiedEmailForUser.mockResolvedValue("dimmdao@gmail.com");
+    mocks.isVerifiedEmailGlobalAdminAsync.mockResolvedValue(false);
+    mocks.resolveRoleAsync.mockResolvedValue("admin");
+
+    const session = await runWithDbBootstrapPrincipal(
+      { source: "service.sessionConcurrency.independent-admin" },
+      () => getCurrentSession(),
+    );
+
+    expect(session?.user.role).toBe("admin");
+    expect(mocks.resolveRoleAsync).toHaveBeenCalledWith({
+      phone: admin.phone,
+      telegramId: admin.bindings.telegramId,
+      maxId: undefined,
+    });
+    expect(mocks.updateRole).not.toHaveBeenCalled();
+  });
+
+  it("resolves a verified-email global admin without organization principal stamping for identity-self paths", async () => {
+    const user = { ...doctorUser(), role: "client" as const, bindings: {} };
+    mocks.decodedSession = {
+      user,
+      issuedAt: 1,
+      expiresAt: 9_999_999_999,
+    } satisfies AppSession;
+    mocks.findByUserId.mockResolvedValue(user);
+    mocks.getVerifiedEmailForUser.mockResolvedValue("dimmdao@gmail.com");
+    mocks.isVerifiedEmailGlobalAdminAsync.mockResolvedValue(true);
+    mocks.resolveRoleAsync.mockResolvedValue("client");
+
+    const session = await runWithDbBootstrapPrincipal(
+      { source: "service.sessionConcurrency.identity-self" },
+      () => getCurrentSessionForIdentitySelf(),
+    );
+
+    expect(session?.user.role).toBe("admin");
+    expect(mocks.stampDbPrincipalFromSession).not.toHaveBeenCalled();
+    expect(getCurrentDbPrincipal()).toBeUndefined();
   });
 });
