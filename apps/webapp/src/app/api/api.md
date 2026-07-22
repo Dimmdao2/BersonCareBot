@@ -2,6 +2,31 @@
 
 Обработчики HTTP API вебаппа (Next.js route handlers).
 
+## CSRF / Origin gate
+
+Все небезопасные browser-мутации (`POST`, `PUT`, `PATCH`, `DELETE`) под `/api/**` и Server Actions под
+`/app/**` проходят единый fail-closed guard в `src/proxy.ts`. Если `Sec-Fetch-Site` присутствует, допустимо
+только точное значение `same-origin`. `Origin` обязан быть одним каноническим non-null HTTP(S) origin и точно
+совпадать с origin запроса; только при отсутствии `Origin` разрешён fallback на `Referer`. Origin запроса
+строится из точного `Host` и первого валидного токена `X-Forwarded-Proto` (`http`/`https`), иначе из protocol
+request URL; `X-Forwarded-Host` намеренно не доверяется. Отказ происходит до auth/session/cookie/redirect/route
+dispatch и имеет стабильный контракт: **403** `{ "ok": false, "error": "csrf_origin_forbidden" }`,
+`Cache-Control: no-store` и bounded correlation id без отражения входных origin/host.
+
+Единственные POST-exemptions — точные M2M контракты: 18 `/api/integrator/*` с HMAC, 13 `/api/internal/*`
+с bearer-secret, по одному сегменту провайдера у `/api/payments/webhook/[provider]` и
+`/api/payments/patient-acquiring-webhook/[provider]`, а также Apple `form_post` callback
+`/api/auth/oauth/callback/apple` с signed state/nonce. Prefix-wide bypass нет; похожие пути и пять
+`*/payments/mock-complete` остаются browser-origin protected. Прямые Node/curl callers browser-маршрутов обязаны
+передавать согласованные `Host`, `Origin`, `Sec-Fetch-Site: same-origin` и, при TLS termination,
+`X-Forwarded-Proto: https`.
+
+Frozen census в `src/middleware/csrfOrigin.test.ts` фиксирует текущую поверхность: 518 route files,
+353 files / 392 unsafe handlers, 28 Server Action files и digest каждого списка. Девять stateful GET остаются
+вне изменения семантики этого этапа: Google Calendar callback; dev-bypass; dev-public; logout; legacy Yandex,
+Google и Yandex OAuth callbacks; media playback telemetry; patient organization-context open. Они явно
+инвентаризированы тестом и не считаются CSRF-exempt POST.
+
 **Справочники:** `GET /api/doctor/references/[categoryCode]` читает tenant-owned snapshot только в
 контексте выбранной организации врача. Read-only `GET /api/references/[categoryCode]` отдаёт текущий
 публичный baseline, но никогда не читает изменяемую копию клиники и скрывает `visit_manipulation`.

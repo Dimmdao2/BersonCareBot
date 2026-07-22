@@ -7,6 +7,7 @@ import {
   applyMessengerEntryPathCookies,
   handlePlatformContextRequest,
 } from "@/middleware/platformContext";
+import { decideCsrfOrigin } from "@/middleware/csrfOrigin";
 
 export function proxy(request: NextRequest) {
   // Only UUID-shaped values cross the trust boundary. Free-form/oversized caller text is replaced,
@@ -14,6 +15,25 @@ export function proxy(request: NextRequest) {
   const correlationId = resolveCorrelationId(
     request.headers.get(BC_CORRELATION_ID_HEADER) ?? request.headers.get("x-bc-auth-correlation-id"),
   );
+  const csrfDecision = decideCsrfOrigin({
+    method: request.method,
+    pathname: request.nextUrl.pathname,
+    host: request.headers.get("host"),
+    requestUrlProtocol: request.nextUrl.protocol,
+    forwardedProto: request.headers.get("x-forwarded-proto"),
+    secFetchSite: request.headers.get("sec-fetch-site"),
+    origin: request.headers.get("origin"),
+    referer: request.headers.get("referer"),
+  });
+  if (csrfDecision.action === "reject") {
+    const response = NextResponse.json(
+      { ok: false, error: "csrf_origin_forbidden" },
+      { status: 403 },
+    );
+    response.headers.set("Cache-Control", "no-store");
+    response.headers.set(BC_CORRELATION_ID_HEADER, correlationId);
+    return response;
+  }
   const doctorResponse = doctorRouteRedirectResponse(request);
   if (doctorResponse) {
     // 308-редиректы отдаём как есть: браузер сразу делает новый запрос,

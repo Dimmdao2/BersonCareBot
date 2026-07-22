@@ -204,6 +204,9 @@ async function postJson(url, body, cookie) {
     headers: {
       "Content-Type": "application/json",
       Host: publicCookieHost,
+      Origin: `https://${publicCookieHost}`,
+      "Sec-Fetch-Site": "same-origin",
+      "X-Forwarded-Proto": "https",
       ...(cookie ? { Cookie: `${sessionCookieName}=${cookie}` } : {}),
     },
     body: JSON.stringify(body),
