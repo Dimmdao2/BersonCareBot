@@ -275,23 +275,24 @@ draft semantics не являются owner rulings. Media access/presign и ten
 
 ### Current implementation truth — reconciliation 2026-07-22
 
-Статус ниже проверен против полного `f48f35a56`, current HEAD `1c77c207d`, code/tests/LOG и TEST SHA `62b69b6a2`.
+Статус ниже проверен против полного `f48f35a56`, integrated code through `baa27d6e3`, code/tests/LOG и TEST SHA
+`62b69b6a2`.
 `DONE` здесь означает repository implementation evidence; owner acceptance остаётся отдельным taskdb-layer.
 
 | Scope | Статус | Точный остаток |
 |---|---|---|
 | UI-0 | `DONE` | Четыре symptoms закрыты; отдельная owner live recheck не подменяется smoke. |
-| UI-1 | `PARTIAL` | Colors/header/multiselect/label/grid готовы, но Schedule использует локальный `ScheduleTimePicker`, а не требуемый reuse `DoctorDateTimePicker`. UI-1c готов на feature, но отсутствует на текущем TEST SHA. |
+| UI-1 | `DONE code / live gated` | Canonical picker reuse и UI-1c готовы на feature; новый TEST/live checkpoint ещё не выполнен. Money/provider и SCH-G5 остаются отдельными gates, не UI-1 debt. |
 | UI-2 | `DONE code / live gated` | Built-in Online и gating готовы; public live требует sanctioned published slug/U6B. |
-| UI-3 | `PARTIAL` | 45/55, name navigation, intake cleanup и no-overlap готовы. Не сделаны owner gradient, exact left-pane broadcast detail IA и shared composer четырёх consumers. |
-| UI-4 | `PARTIAL` | Presentation и metric semantics готовы; normal-mode functional preview отсутствует, хотя существующий `PatientPreviewPane` сохранён. |
-| UI-5 | `NOT DONE` | Ни full-workspace UI-5a/list-state restoration, ни full UI-5b composition не реализованы. UI-5b законно ждёт U5A/record-class gate. |
-| UI-6 | `PARTIAL` | Compact UI-6a готов; новый correction `#966` возвращает 50/50, кнопку расписания и точную часовую границу; configurable signals/switch/counters остаются `#963`. |
+| UI-3 | `DONE code / live gated` | 45/55, owner gradient, broadcast detail/error IA и shared composer закрыты; новый TEST/live checkpoint ещё не выполнен. |
+| UI-4 | `DONE code / live gated` | Presentation, metric semantics и normal-mode functional `PatientPreviewPane` готовы; новый TEST/live checkpoint ещё не выполнен. |
+| UI-5 | `UI-5a DONE / UI-5b gated` | Existing full card replaces the doctor workspace with list-state restoration; UI-5b composition законно ждёт U5A/record-class gate. |
+| UI-6 | `DONE current contract / future gated` | 50/50, calendar button/window and existing-signal preferences/list switch are integrated and audited; «Самые активные»/new counters/hiding stay contract-gated. |
 | UI-7 | `NOT DONE` | Scheduled messages и worker contract отсутствуют; Voice/STT корректно post-production. |
 | UI-8 | `PARTIAL` | S4/C5 organization-only commercial contour готов; default новых разминок `#191` (`12:00`/`15:00` в рабочие дни, без изменения существующих клиентов) не реализован. |
 | UI-9 | `DONE` | Personal exercises/media exact-org implementation и high-risk audit закрыты; live owner acceptance отдельно. |
 | Client mood residual | `DONE` | Empty chart скрывается, mood controls остаются. |
-| UI-P | `PARTIAL` | Базовый shared pass готов; latest correction `#967` возвращает прежний фон, уточняет tabs и единый list divider/hover. |
+| UI-P | `DONE code / live gated` | Shared pass and latest background/tabs/list/menu correction are integrated and audited; новый TEST/live checkpoint ещё не выполнен. |
 
 Эта таблица отменяет прежние blanket-формулировки «baseline проверен» для полного UI-1/UI-3/UI-4/UI-6 scope:
 повторять закрытую часть нельзя, но перечисленный residual обязан получить собственный exact task/acceptance.
@@ -424,8 +425,8 @@ brief или заменять одним общим пунктом.
 - [x] «Открыть расписание» оформлено стандартной doctor-кнопкой (`#966`).
 - [x] Календарная сетка начинается ровно за один час до первого приёма, если именно приём расширяет нижнюю границу;
   default window и рабочие границы не получают второй запас (`#966`).
-- [ ] Состав видимых сигналов настраивается через существующий settings path после exact data contract (`#963`).
-- [ ] Переключатель «на сопровождении» / «недавние с визитами» имеет доказанную семантику (`#963`).
+- [x] Состав видимых сигналов настраивается через существующий settings path после exact data contract (`#963`).
+- [x] Переключатель «на сопровождении» / «недавние с визитами» имеет доказанную семантику (`#963`).
 - [ ] «Самые активные», новые counters и hiding semantics реализуются только после exact contract (`#963`).
 
 #### UI-P — shared doctor presentation (`#925`)

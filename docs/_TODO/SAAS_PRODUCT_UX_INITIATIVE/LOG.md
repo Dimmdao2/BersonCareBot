@@ -4520,3 +4520,18 @@ to the existing patient-comment feature-gated surface; scheduling and Voice/STT 
 presentation audit found one hidden doctor program-detail reply fork. Bounded correction integrated that sixth
 adapter into the same primitive; no second audit round was opened. Final focused validation passed `48/48`, webapp
 typecheck, scoped lint and diff-check. Integrated commit: `386218113`.
+
+## 2026-07-22 — evidence-backed Today preferences `#963` closed
+
+Organization managers can now configure the visibility of the two existing proactive signals and switch the Today
+people list between exact organization-owned «На сопровождении» and all-time «Недавние с визитами» semantics. The
+preference uses the sanctioned per-organization S5/system-settings service and UI path; unknown values fail closed.
+No «Самые активные», new counter or patient-hiding meaning was invented: that product subitem remains unchecked
+until the owner defines its source event, window, ranking/ties and hiding contract.
+
+The first high-risk audit found two matching P1 defects: an invited on-support row could disagree with the active-only
+count and be hidden by the empty state, while an identical replay of migration `0228` could create a spurious audit
+record. Bounded correction `baa27d6e3` derives count and preview from the same complete org result and makes the
+backfill source-labelled, newer-row-safe and audit-idempotent. Terminal A–G re-audit passed with no findings. Evidence:
+`62` focused tests, `6` migration-contract tests, private PostgreSQL repeat-apply smoke, typecheck, lint, journal and
+settings-accessor gates. No working DEV/TEST/PROD database or deploy was used.
