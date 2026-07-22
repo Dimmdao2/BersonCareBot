@@ -1,6 +1,4 @@
-import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import { parseBookingAttributionFromSearchParams } from "@/modules/booking-attribution/parseBookingAttribution";
-import { titleForBookingCityCode } from "@/modules/patient-booking/inPersonServicesCatalog";
 import { publicBookPaths } from "@/shared/publicBook/paths";
 import { PublicBookingShell } from "../PublicBookingShell";
 import { PublicFormatStepClient } from "./PublicFormatStepClient";
@@ -30,7 +28,6 @@ export default async function PublicBookNewPage({ searchParams }: Props) {
   const sp = toSearchParams(raw);
   const attr = parseBookingAttributionFromSearchParams(sp);
 
-  const deps = buildAppDeps();
   const cities: BookingCity[] = [];
   const catalogError: string | null = "Каталог недоступен.";
 
@@ -49,31 +46,12 @@ export default async function PublicBookNewPage({ searchParams }: Props) {
     );
   }
 
-  const branchServiceId = attr.branchServiceId;
-  if (branchServiceId && deps.bookingScheduling && deps.bookingEngine) {
-    try {
-      const ctx = await deps.bookingScheduling.resolveInPersonContext(branchServiceId);
-      if (ctx?.branchId && ctx.serviceId) {
-        const [branch, service] = await Promise.all([
-          deps.bookingEngine.catalog.getBranch(ctx.branchId),
-          deps.bookingEngine.services.getService(ctx.serviceId),
-        ]);
-        if (!branch || !service || branch.organizationId !== ctx.organizationId || service.organizationId !== ctx.organizationId) {
-          throw new Error("branch_service_not_found");
-        }
-        redirect(
-          `${publicBookPaths.newSlot}?type=in_person` +
-            `&cityCode=${encodeURIComponent(branch.cityCode)}` +
-            `&cityTitle=${encodeURIComponent(titleForBookingCityCode(branch.cityCode))}` +
-            `&branchId=${encodeURIComponent(ctx.branchId)}` +
-            `&serviceId=${encodeURIComponent(ctx.serviceId)}` +
-            `&serviceTitle=${encodeURIComponent(service.title)}` +
-            `&durationMinutes=${encodeURIComponent(String(service.durationMinutes))}`,
-        );
-      }
-    } catch {
-      // unknown branch service — stay on format step
-    }
+  if (attr.branchId && attr.serviceId) {
+    redirect(
+      `${publicBookPaths.newSlot}?type=in_person` +
+        `&branchId=${encodeURIComponent(attr.branchId)}` +
+        `&serviceId=${encodeURIComponent(attr.serviceId)}`,
+    );
   }
 
   return (

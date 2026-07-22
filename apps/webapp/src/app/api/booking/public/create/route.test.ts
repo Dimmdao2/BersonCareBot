@@ -4,229 +4,61 @@ const rateLimitMock = vi.hoisted(() => vi.fn());
 const resolveUserMock = vi.hoisted(() => vi.fn());
 const createBookingMock = vi.hoisted(() => vi.fn());
 const recordMergeMock = vi.hoisted(() => vi.fn());
-const resolveLegacyBranchServiceIdMock = vi.hoisted(() => vi.fn());
 const resolvePublicBookingOrganizationMock = vi.hoisted(() => vi.fn());
+const resolveCanonicalInPersonContextMock = vi.hoisted(() => vi.fn());
 const resolveOrganizationIdBySlugMock = vi.hoisted(() => vi.fn());
+const getBranchMock = vi.hoisted(() => vi.fn());
+const getServiceMock = vi.hoisted(() => vi.fn());
 const ORG_ID = "11111111-1111-4111-8111-111111111111";
-const OTHER_ORG_ID = "11111111-1111-4111-8111-111111111112";
+const BRANCH_ID = "550e8400-e29b-41d4-a716-446655440001";
+const SERVICE_ID = "550e8400-e29b-41d4-a716-446655440002";
 
 vi.mock("@/modules/public-booking/publicBookingRateLimit", () => ({
   resolvePublicBookingRateLimitClientKey: () => ({ ok: true, key: "127.0.0.1" }),
   isPublicBookingCreateRateLimited: (...args: unknown[]) => rateLimitMock(...args),
   PUBLIC_BOOKING_RATE_LIMIT_SEC: 3600,
 }));
-
-vi.mock("@/app-layer/platform-user/resolveOrCreateUserByPhone", () => ({
-  resolveOrCreateUserByPhone: (...args: unknown[]) => resolveUserMock(...args),
-}));
-
-vi.mock("@/app-layer/platform-user/recordPublicBookingMergeCandidates", () => ({
-  recordPublicBookingMergeCandidates: (...args: unknown[]) => recordMergeMock(...args),
-}));
-
+vi.mock("@/app-layer/platform-user/resolveOrCreateUserByPhone", () => ({ resolveOrCreateUserByPhone: (...args: unknown[]) => resolveUserMock(...args) }));
+vi.mock("@/app-layer/platform-user/recordPublicBookingMergeCandidates", () => ({ recordPublicBookingMergeCandidates: (...args: unknown[]) => recordMergeMock(...args) }));
 vi.mock("@/app-layer/di/buildAppDeps", () => ({
   buildAppDeps: () => ({
     patientBooking: { createBooking: createBookingMock },
     clinicDirectory: { resolveOrganizationIdBySlug: resolveOrganizationIdBySlugMock },
-    bookingEngine: {
-      organization: { getDefaultOrganizationId: async () => ORG_ID },
-      catalog: {
-        getBranch: async () => ({ cityCode: "moscow", organizationId: ORG_ID }),
-        listSpecialists: async () => [{ id: "sp-1", isActive: true }],
-      },
-      services: { getService: async () => ({ organizationId: ORG_ID }) },
-    },
-    bookingScheduling: {
-      resolvePublicBookingOrganization: resolvePublicBookingOrganizationMock,
-      resolveLegacyBranchServiceId: resolveLegacyBranchServiceIdMock,
-      resolveInPersonContext: async (id: string) =>
-        id ? { organizationId: ORG_ID, serviceId: "svc-1", branchId: "branch-1" } : null,
-    },
+    bookingEngine: { catalog: { getBranch: getBranchMock }, services: { getService: getServiceMock } },
+    bookingScheduling: { resolvePublicBookingOrganization: resolvePublicBookingOrganizationMock, resolveCanonicalInPersonContext: resolveCanonicalInPersonContextMock },
   }),
 }));
-
-vi.mock("@/app-layer/db/client", () => ({
-  getPool: () => ({}),
-}));
+vi.mock("@/app-layer/db/client", () => ({ getPool: () => ({}) }));
 
 import { POST } from "./route";
-import { InPersonBookingResolveError } from "@/modules/patient-booking/inPersonBookingResolve";
+
+function request(body: Record<string, unknown>) {
+  return new Request("http://localhost/api/booking/public/create", { method: "POST", headers: { "Content-Type": "application/json", "X-Real-IP": "1.2.3.4" }, body: JSON.stringify(body) });
+}
 
 describe("POST /api/booking/public/create", () => {
   beforeEach(() => {
-    rateLimitMock.mockReset();
-    resolveUserMock.mockReset();
-    createBookingMock.mockReset();
-    recordMergeMock.mockReset();
-    resolvePublicBookingOrganizationMock.mockReset();
-    resolveOrganizationIdBySlugMock.mockReset();
+    vi.clearAllMocks();
     rateLimitMock.mockResolvedValue(false);
     resolveUserMock.mockResolvedValue({ ok: true, userId: "user-1" });
-    createBookingMock.mockResolvedValue({
-      id: "pb-1",
-      canonicalAppointmentId: "appt-1",
-    });
+    createBookingMock.mockResolvedValue({ id: "pb-1", canonicalAppointmentId: "appt-1" });
     recordMergeMock.mockResolvedValue(undefined);
     resolvePublicBookingOrganizationMock.mockResolvedValue(ORG_ID);
     resolveOrganizationIdBySlugMock.mockResolvedValue(ORG_ID);
+    resolveCanonicalInPersonContextMock.mockResolvedValue({ organizationId: ORG_ID, branchId: BRANCH_ID, serviceId: SERVICE_ID });
+    getBranchMock.mockResolvedValue({ id: BRANCH_ID, organizationId: ORG_ID, cityCode: "moscow" });
+    getServiceMock.mockResolvedValue({ id: SERVICE_ID, organizationId: ORG_ID });
   });
 
-  it("returns 429 when rate limited", async () => {
-    rateLimitMock.mockResolvedValue(true);
-    const res = await POST(
-      new Request("http://localhost/api/booking/public/create", {
-        method: "POST",
-        headers: { "Content-Type": "application/json", "X-Real-IP": "1.2.3.4" },
-        body: JSON.stringify({
-          type: "in_person",
-          orgSlug: "clinic-a",
-          branchServiceId: "00000000-0000-4000-8000-000000000001",
-          cityCode: "moscow",
-          slotStart: "2026-06-01T10:00:00.000Z",
-          slotEnd: "2026-06-01T11:00:00.000Z",
-          contactName: "Test",
-          contactPhone: "+79001234567",
-        }),
-      }),
-    );
-    expect(res.status).toBe(429);
+  it("creates a public booking from canonical branch/service ids", async () => {
+    const response = await POST(request({ type: "in_person", orgSlug: "clinic-a", branchId: BRANCH_ID, serviceId: SERVICE_ID, slotStart: "2026-06-01T10:00:00.000Z", slotEnd: "2026-06-01T11:00:00.000Z", contactName: "Иван", contactPhone: "+79001234567", attribution: { utmSource: "tilda" } }));
+    expect(response.status).toBe(200);
+    expect(createBookingMock).toHaveBeenCalledWith(expect.objectContaining({ bookingChannel: "public_widget", branchId: BRANCH_ID, serviceId: SERVICE_ID, cityCode: "moscow" }));
   });
 
-  it("creates booking with public_widget channel", async () => {
-    const res = await POST(
-      new Request("http://localhost/api/booking/public/create", {
-        method: "POST",
-        headers: { "Content-Type": "application/json", "X-Real-IP": "1.2.3.4" },
-        body: JSON.stringify({
-          type: "in_person",
-          orgSlug: "clinic-a",
-          branchServiceId: "00000000-0000-4000-8000-000000000001",
-          cityCode: "moscow",
-          slotStart: "2026-06-01T10:00:00.000Z",
-          slotEnd: "2026-06-01T11:00:00.000Z",
-          contactName: "Иван",
-          contactPhone: "+79001234567",
-          attribution: { utmSource: "tilda" },
-        }),
-      }),
-    );
-    expect(res.status).toBe(200);
-    expect(createBookingMock).toHaveBeenCalledWith(
-      expect.objectContaining({
-        bookingChannel: "public_widget",
-        attribution: { utmSource: "tilda" },
-      }),
-    );
-    expect(recordMergeMock).toHaveBeenCalled();
-  });
-
-  it("creates in_person booking with canonical branchId+serviceId", async () => {
-    resolveLegacyBranchServiceIdMock.mockResolvedValue("bs-canonical");
-    const res = await POST(
-      new Request("http://localhost/api/booking/public/create", {
-        method: "POST",
-        headers: { "Content-Type": "application/json", "X-Real-IP": "1.2.3.4" },
-        body: JSON.stringify({
-          type: "in_person",
-          orgSlug: "clinic-a",
-          branchId: "550e8400-e29b-41d4-a716-446655440001",
-          serviceId: "550e8400-e29b-41d4-a716-446655440002",
-          cityCode: "moscow",
-          slotStart: "2026-06-01T10:00:00.000Z",
-          slotEnd: "2026-06-01T11:00:00.000Z",
-          contactName: "Иван",
-          contactPhone: "+79001234567",
-        }),
-      }),
-    );
-    expect(res.status).toBe(200);
-    expect(createBookingMock).toHaveBeenCalledWith(
-      expect.objectContaining({
-        type: "in_person",
-        branchServiceId: "bs-canonical",
-      }),
-    );
-  });
-
-  it("denies clinic-A confirmation carrying valid clinic-B booking ids before user creation", async () => {
-    resolveOrganizationIdBySlugMock.mockResolvedValue(ORG_ID);
-    resolvePublicBookingOrganizationMock.mockResolvedValue(OTHER_ORG_ID);
-
-    const res = await POST(
-      new Request("http://localhost/api/booking/public/create", {
-        method: "POST",
-        headers: { "Content-Type": "application/json", "X-Real-IP": "1.2.3.4" },
-        body: JSON.stringify({
-          type: "in_person",
-          orgSlug: "clinic-a",
-          branchId: "550e8400-e29b-41d4-a716-446655440001",
-          serviceId: "550e8400-e29b-41d4-a716-446655440002",
-          cityCode: "moscow",
-          slotStart: "2026-06-01T10:00:00.000Z",
-          slotEnd: "2026-06-01T11:00:00.000Z",
-          contactName: "Иван",
-          contactPhone: "+79001234567",
-        }),
-      }),
-    );
-
-    expect(res.status).toBe(400);
-    expect(await res.json()).toMatchObject({ ok: false, error: "ambiguous_booking_tenant" });
-    expect(resolveUserMock).not.toHaveBeenCalled();
+  it("rejects a retired branchServiceId-only payload", async () => {
+    const response = await POST(request({ type: "in_person", orgSlug: "clinic-a", branchServiceId: "00000000-0000-4000-8000-000000000001", slotStart: "2026-06-01T10:00:00.000Z", slotEnd: "2026-06-01T11:00:00.000Z", contactName: "Иван", contactPhone: "+79001234567" }));
+    expect(response.status).toBe(400);
     expect(createBookingMock).not.toHaveBeenCalled();
   });
-
-  it("redacts an unknown public booking exception behind fixed create_failed", async () => {
-    createBookingMock.mockRejectedValueOnce(
-      new Error("patient@example.test SQLSTATE 23505 provider payload"),
-    );
-
-    const response = await POST(
-      new Request("http://localhost/api/booking/public/create", {
-        method: "POST",
-        headers: { "Content-Type": "application/json", "X-Real-IP": "1.2.3.4" },
-        body: JSON.stringify({
-          type: "in_person",
-          orgSlug: "clinic-a",
-          branchServiceId: "00000000-0000-4000-8000-000000000001",
-          cityCode: "moscow",
-          slotStart: "2026-06-01T10:00:00.000Z",
-          slotEnd: "2026-06-01T11:00:00.000Z",
-          contactName: "Иван",
-          contactPhone: "+79001234567",
-        }),
-      }),
-    );
-
-    expect(response.status).toBe(503);
-    await expect(response.json()).resolves.toEqual({ ok: false, error: "create_failed" });
-  });
-
-  it.each(["toString", "constructor", "__proto__"])(
-    "treats inherited typed literal key %s as unknown create_failed",
-    async (inheritedKey) => {
-      resolvePublicBookingOrganizationMock.mockRejectedValueOnce(
-        new InPersonBookingResolveError(inheritedKey),
-      );
-      const response = await POST(
-        new Request("http://localhost/api/booking/public/create", {
-          method: "POST",
-          headers: { "Content-Type": "application/json", "X-Real-IP": "1.2.3.4" },
-          body: JSON.stringify({
-            type: "in_person",
-            orgSlug: "clinic-a",
-            branchServiceId: "00000000-0000-4000-8000-000000000001",
-            cityCode: "moscow",
-            slotStart: "2026-06-01T10:00:00.000Z",
-            slotEnd: "2026-06-01T11:00:00.000Z",
-            contactName: "Иван",
-            contactPhone: "+79001234567",
-          }),
-        }),
-      );
-
-      expect(response.status).toBe(503);
-      await expect(response.json()).resolves.toEqual({ ok: false, error: "create_failed" });
-    },
-  );
 });

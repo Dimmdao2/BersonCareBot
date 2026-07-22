@@ -52,7 +52,8 @@ describe("SlotStepClient", () => {
     render(
       <SlotStepClient
         type="in_person"
-        branchServiceId="11111111-1111-4111-8111-111111111111"
+        branchId="11111111-1111-4111-8111-111111111111"
+        serviceId="22222222-2222-4222-8222-222222222222"
         cityCode="msk"
         cityTitle="Москва"
         serviceTitle="Сеанс"
@@ -133,7 +134,8 @@ describe("SlotStepClient", () => {
     render(
       <SlotStepClient
         type="in_person"
-        branchServiceId="11111111-1111-4111-8111-111111111111"
+        branchId="11111111-1111-4111-8111-111111111111"
+        serviceId="22222222-2222-4222-8222-222222222222"
         cityCode="msk"
         cityTitle="Москва"
         serviceTitle="Сеанс"
@@ -161,7 +163,8 @@ describe("SlotStepClient", () => {
     render(
       <SlotStepClient
         type="in_person"
-        branchServiceId="11111111-1111-4111-8111-111111111111"
+        branchId="11111111-1111-4111-8111-111111111111"
+        serviceId="22222222-2222-4222-8222-222222222222"
         cityCode="msk"
         cityTitle="Москва"
         serviceTitle="Сеанс"
@@ -186,7 +189,8 @@ describe("SlotStepClient", () => {
     render(
       <SlotStepClient
         type="in_person"
-        branchServiceId="11111111-1111-4111-8111-111111111111"
+        branchId="11111111-1111-4111-8111-111111111111"
+        serviceId="22222222-2222-4222-8222-222222222222"
         cityCode="msk"
         cityTitle="Москва"
         serviceTitle="Сеанс"

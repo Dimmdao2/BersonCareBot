@@ -27,10 +27,11 @@ type Props = {
 
 function buildRescheduleHref(row: PatientBookingRecord): string | null {
   if (!row.canonicalAppointmentId) return null;
-  if (row.bookingType === "in_person" && row.branchServiceId && row.cityCodeSnapshot) {
+  if (row.bookingType === "in_person" && row.branchId && row.serviceId && row.cityCodeSnapshot) {
     const qs = new URLSearchParams({
       type: "in_person",
-      branchServiceId: row.branchServiceId,
+      branchId: row.branchId,
+      serviceId: row.serviceId,
       cityCode: row.cityCodeSnapshot,
       cityTitle: row.city ?? row.cityCodeSnapshot,
       serviceTitle: row.serviceTitleSnapshot ?? "",

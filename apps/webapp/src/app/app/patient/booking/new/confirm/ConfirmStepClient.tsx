@@ -78,7 +78,6 @@ type Props = ConfirmStepOptions & {
   cityTitle?: string;
   branchId?: string;
   serviceId?: string;
-  branchServiceId?: string;
   orgSlug?: string;
   serviceTitle?: string;
   category?: string;
@@ -98,7 +97,6 @@ export function ConfirmStepClient({
   cityTitle,
   branchId,
   serviceId,
-  branchServiceId,
   orgSlug,
   serviceTitle,
   category,
@@ -149,12 +147,10 @@ export function ConfirmStepClient({
     if (branchId && serviceId) {
       params.set("branchId", branchId);
       params.set("serviceId", serviceId);
-    } else if (branchServiceId) {
-      params.set("branchServiceId", branchServiceId);
     }
     const qs = params.toString();
     return qs ? `${formFieldsApiPath}?${qs}` : formFieldsApiPath;
-  }, [type, formFieldsApiPath, branchId, serviceId, branchServiceId]);
+  }, [type, formFieldsApiPath, branchId, serviceId]);
 
   useEffect(() => {
     let cancelled = false;
@@ -177,14 +173,11 @@ export function ConfirmStepClient({
   }, [resolvedFormFieldsApiPath]);
 
   useEffect(() => {
-    const hasCanonical = Boolean(branchId && serviceId);
-    if (type !== "in_person" || (!hasCanonical && !branchServiceId) || isReschedule) return;
+    if (type !== "in_person" || !branchId || !serviceId || isReschedule) return;
     let cancelled = false;
     startPackagesLoad(() => {
       void (async () => {
-        const q = hasCanonical
-          ? new URLSearchParams({ branchId: branchId!, serviceId: serviceId! })
-          : new URLSearchParams({ branchServiceId: branchServiceId! });
+        const q = new URLSearchParams({ branchId, serviceId });
         const res = await fetch(`/api/booking/memberships/available?${q.toString()}`);
         const json = (await res.json()) as {
           ok?: boolean;
@@ -203,17 +196,14 @@ export function ConfirmStepClient({
     return () => {
       cancelled = true;
     };
-  }, [type, branchId, serviceId, branchServiceId, isReschedule, startPackagesLoad]);
+  }, [type, branchId, serviceId, isReschedule, startPackagesLoad]);
 
   useEffect(() => {
-    const hasCanonical = Boolean(branchId && serviceId);
-    if (type !== "in_person" || (!hasCanonical && !branchServiceId) || isReschedule) return;
+    if (type !== "in_person" || !branchId || !serviceId || isReschedule) return;
     let cancelled = false;
     startProductsLoad(() => {
       void (async () => {
-        const q = hasCanonical
-          ? new URLSearchParams({ branchId: branchId!, serviceId: serviceId! })
-          : new URLSearchParams({ branchServiceId: branchServiceId! });
+        const q = new URLSearchParams({ branchId, serviceId });
         const res = await fetch(`/api/booking/products/available?${q.toString()}`);
         const json = (await res.json()) as {
           ok?: boolean;
@@ -228,7 +218,7 @@ export function ConfirmStepClient({
     return () => {
       cancelled = true;
     };
-  }, [type, branchId, serviceId, branchServiceId, isReschedule, startProductsLoad]);
+  }, [type, branchId, serviceId, isReschedule, startProductsLoad]);
 
   const selection: BookingSelection | null = useMemo(() => {
     if (
@@ -249,29 +239,11 @@ export function ConfirmStepClient({
         ...(orgSlug ? { orgSlug } : {}),
       };
     }
-    if (
-      type === "in_person" &&
-      cityCode &&
-      cityTitle &&
-      branchServiceId &&
-      serviceTitle
-    ) {
-      return {
-        type: "in_person",
-        cityCode,
-        cityTitle,
-        branchId: "",
-        serviceId: "",
-        serviceTitle,
-        branchServiceId,
-        ...(orgSlug ? { orgSlug } : {}),
-      };
-    }
     if (type === "online" && category) {
       return { type: "online", category: category as BookingCategory };
     }
     return null;
-  }, [type, cityCode, cityTitle, branchId, serviceId, branchServiceId, serviceTitle, category, orgSlug]);
+  }, [type, cityCode, cityTitle, branchId, serviceId, serviceTitle, category, orgSlug]);
 
   const slot: BookingSlot = useMemo(
     () => ({ startAt: slotStart, endAt: slotEnd }),

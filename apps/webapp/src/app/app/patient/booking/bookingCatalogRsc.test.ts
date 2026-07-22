@@ -7,8 +7,7 @@ const listSpecialistsMock = vi.hoisted(() => vi.fn());
 const listServicesMock = vi.hoisted(() => vi.fn());
 const listServiceLocationAvailabilityMock = vi.hoisted(() => vi.fn());
 const listSpecialistServiceAvailabilityMock = vi.hoisted(() => vi.fn());
-const resolveInPersonContextMock = vi.hoisted(() => vi.fn());
-const resolveLegacyBranchServiceIdMock = vi.hoisted(() => vi.fn());
+const resolveCanonicalInPersonContextMock = vi.hoisted(() => vi.fn());
 const getMaxConsecutiveSlotHoursMock = vi.hoisted(() => vi.fn());
 const getAppDisplayTimeZoneMock = vi.hoisted(() => vi.fn());
 const withExplicitOrganizationPrincipalMock = vi.hoisted(() =>
@@ -33,8 +32,7 @@ vi.mock("@/app-layer/di/buildAppDeps", () => ({
       },
     },
     bookingScheduling: {
-      resolveInPersonContext: resolveInPersonContextMock,
-      resolveLegacyBranchServiceId: resolveLegacyBranchServiceIdMock,
+      resolveCanonicalInPersonContext: resolveCanonicalInPersonContextMock,
       getMaxConsecutiveSlotHours: getMaxConsecutiveSlotHoursMock,
     },
   }),
@@ -237,7 +235,6 @@ describe("patient booking catalog RSC principal boundary", () => {
   it("resolves and validates the full slot context inside the active patient organization", async () => {
     const branchId = "33333333-3333-4333-8333-333333333333";
     const serviceId = "44444444-4444-4444-8444-444444444444";
-    const branchServiceId = "55555555-5555-4555-8555-555555555555";
     const specialistId = "66666666-6666-4666-8666-666666666666";
     listBranchesMock.mockResolvedValue([]);
     getBranchMock.mockResolvedValue({
@@ -265,7 +262,7 @@ describe("patient booking catalog RSC principal boundary", () => {
     ]);
     listSpecialistServiceAvailabilityMock.mockResolvedValue([
       {
-        id: branchServiceId,
+        id: "55555555-5555-4555-8555-555555555555",
         organizationId: ORGANIZATION_ID,
         specialistId,
         serviceId,
@@ -276,14 +273,13 @@ describe("patient booking catalog RSC principal boundary", () => {
     listSpecialistsMock.mockResolvedValue([
       { id: specialistId, organizationId: ORGANIZATION_ID, isActive: true },
     ]);
-    resolveLegacyBranchServiceIdMock.mockResolvedValue(branchServiceId);
-    resolveInPersonContextMock.mockResolvedValue({
+    resolveCanonicalInPersonContextMock.mockResolvedValue({
       organizationId: ORGANIZATION_ID,
       branchId,
       serviceId,
       specialistId,
       roomId: null,
-      branchServiceId,
+      branchServiceId: "55555555-5555-4555-8555-555555555555",
       legacyBranchServiceId: null,
       durationMinutes: 75,
       bufferAfterMinutes: 0,
@@ -297,7 +293,6 @@ describe("patient booking catalog RSC principal boundary", () => {
       organizationId: ORGANIZATION_ID,
       branchId,
       serviceId,
-      branchServiceId,
       cityCode: "moscow",
       serviceTitle: "Приём",
       durationMinutes: 75,
@@ -309,7 +304,7 @@ describe("patient booking catalog RSC principal boundary", () => {
       { organizationId: ORGANIZATION_ID, source: "app/patient/booking:load-slot-context" },
       expect.any(Function),
     );
-    expect(resolveLegacyBranchServiceIdMock).toHaveBeenCalledWith({
+    expect(resolveCanonicalInPersonContextMock).toHaveBeenCalledWith({
       organizationId: ORGANIZATION_ID,
       branchId,
       serviceId,
@@ -317,38 +312,4 @@ describe("patient booking catalog RSC principal boundary", () => {
     expect(getMaxConsecutiveSlotHoursMock).toHaveBeenCalledWith(ORGANIZATION_ID);
   });
 
-  it("fails closed when a supplied branch-service mapping belongs to another organization", async () => {
-    resolveInPersonContextMock.mockResolvedValue({
-      organizationId: "77777777-7777-4777-8777-777777777777",
-      branchId: "33333333-3333-4333-8333-333333333333",
-      serviceId: "44444444-4444-4444-8444-444444444444",
-    });
-
-    await expect(
-      loadInPersonSlotContextForPatientRsc({
-        platformUserId: PATIENT_ID,
-        branchServiceId: "55555555-5555-4555-8555-555555555555",
-      }),
-    ).resolves.toEqual({ ok: false, error: "invalid_selection" });
-    expect(getBranchMock).not.toHaveBeenCalled();
-    expect(getAppDisplayTimeZoneMock).not.toHaveBeenCalled();
-  });
-
-  it("fails closed when explicit branch or service ids disagree with the canonical mapping", async () => {
-    resolveInPersonContextMock.mockResolvedValue({
-      organizationId: ORGANIZATION_ID,
-      branchId: "33333333-3333-4333-8333-333333333333",
-      serviceId: "44444444-4444-4444-8444-444444444444",
-    });
-
-    await expect(
-      loadInPersonSlotContextForPatientRsc({
-        platformUserId: PATIENT_ID,
-        branchId: "88888888-8888-4888-8888-888888888888",
-        serviceId: "44444444-4444-4444-8444-444444444444",
-        branchServiceId: "55555555-5555-4555-8555-555555555555",
-      }),
-    ).resolves.toEqual({ ok: false, error: "invalid_selection" });
-    expect(getBranchMock).not.toHaveBeenCalled();
-  });
 });

@@ -8,7 +8,6 @@ export const bookingAttributionBodySchema = z.object({
   branchId: uuid,
   specialistId: uuid,
   serviceId: uuid,
-  branchServiceId: uuid,
   promotionId: uuid,
   trafficSource: short,
   utmSource: short,

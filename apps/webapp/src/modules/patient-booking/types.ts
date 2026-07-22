@@ -110,9 +110,9 @@ export type CreatePatientBookingInput =
     })
   | (CreatePatientBookingCommon & {
       type: "in_person";
-      /** Catalog row `booking_branch_services.id` */
-      branchServiceId: string;
-      /** IANA-ish code from `booking_cities.code` (e.g. moscow, spb) */
+      /** Canonical branch and clinic-service ids. */
+      branchId: string;
+      serviceId: string;
       cityCode: string;
       slotStart: string;
       slotEnd: string;

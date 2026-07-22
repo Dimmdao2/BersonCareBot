@@ -21,9 +21,10 @@ export type BookingSlotsQuery =
     }
   | {
       type: "in_person";
-      /** Trusted server-side tenant context derived from branch-service mapping. */
+      /** Trusted server-side tenant context derived from canonical branch/service. */
       organizationId?: string;
-      branchServiceId: string;
+      branchId: string;
+      serviceId: string;
       date?: string;
       slotCount?: number;
     };

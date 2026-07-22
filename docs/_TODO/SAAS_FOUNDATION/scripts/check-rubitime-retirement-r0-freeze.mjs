@@ -12,6 +12,16 @@ const scanRoots = [
   'packages/operator-db-schema/src',
 ];
 
+const canonicalPatientPublicRoots = [
+  'apps/webapp/src/app/api/booking',
+  'apps/webapp/src/app/app/patient/booking',
+  'apps/webapp/src/app/app/patient/cabinet/useBookingSelection.ts',
+  'apps/webapp/src/app/app/patient/cabinet/useBookingSlots.ts',
+  'apps/webapp/src/app/app/patient/cabinet/useCreateBooking.ts',
+  'apps/webapp/src/app/book',
+  'apps/webapp/src/shared/publicBook',
+];
+
 const frozenBaselines = {
   integratorImports: new Map([
     ['apps/integrator/src/app/di.ts', 1],
@@ -238,6 +248,21 @@ function collectOffenders(files) {
   };
 }
 
+function collectLegacyBranchServicePatientPublicOffenders() {
+  const offenders = [];
+  for (const rel of canonicalPatientPublicRoots) {
+    const abs = join(repoRoot, rel);
+    const stat = statSync(abs);
+    const paths = stat.isDirectory() ? listSourceFiles(abs) : [abs];
+    for (const path of paths) {
+      const src = readFileSync(path, 'utf8');
+      if (!src.includes('branchServiceId')) continue;
+      offenders.push(relative(repoRoot, path).replace(/\\/g, '/'));
+    }
+  }
+  return offenders;
+}
+
 function printOffenders(label, offenders) {
   if (offenders.length === 0) return;
   console.error(`check-rubitime-retirement-r0-freeze: ${label}`);
@@ -346,6 +371,7 @@ const files = scanRoots.flatMap((root) =>
 );
 
 const offenders = collectOffenders(files);
+const legacyBranchServicePatientPublicOffenders = collectLegacyBranchServicePatientPublicOffenders();
 
 if (hasAnyOffenders(offenders)) {
   printOffenders(
@@ -368,6 +394,12 @@ if (hasAnyOffenders(offenders)) {
     'new integrator Rubitime route literals outside the R0 baseline',
     offenders.integratorRoutes,
   );
+  process.exit(1);
+}
+
+if (legacyBranchServicePatientPublicOffenders.length > 0) {
+  console.error('check-rubitime-retirement-r0-freeze: legacy branchServiceId remains in patient/public runtime');
+  for (const rel of legacyBranchServicePatientPublicOffenders) console.error(`  - ${rel}`);
   process.exit(1);
 }
 

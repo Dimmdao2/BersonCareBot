@@ -27,7 +27,6 @@ export async function GET(request: Request) {
     type: url.searchParams.get("type") ?? undefined,
     category: url.searchParams.get("category") ?? undefined,
     orgSlug: url.searchParams.get("orgSlug") ?? undefined,
-    branchServiceId: url.searchParams.get("branchServiceId") ?? undefined,
     branchId: url.searchParams.get("branchId") ?? undefined,
     serviceId: url.searchParams.get("serviceId") ?? undefined,
     date: url.searchParams.get("date") ?? undefined,
@@ -53,7 +52,8 @@ export async function GET(request: Request) {
         return deps.patientBooking.getSlots({
           type: "in_person",
           organizationId: ctx.organizationId,
-          branchServiceId: ctx.branchServiceId,
+          branchId: ctx.branchId,
+          serviceId: ctx.serviceId,
           date: parsed.data.date,
           slotCount: parsed.data.slotCount,
         });

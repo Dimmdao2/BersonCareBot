@@ -17,7 +17,6 @@ import { publicBookPaths } from "@/shared/publicBook/paths";
 import { BOOKING_FORM_MAX_WIDTH_CLASS } from "@/shared/ui/doctor/doctorWorkspaceLayout";
 
 const OVERVIEW = "/api/admin/booking-engine/overview";
-const RESOLVE = "/api/admin/booking-engine/resolve-branch-service";
 
 function originFromWindow(): string {
   if (typeof window === "undefined") return "";
@@ -34,9 +33,7 @@ export function BookingPublicWidgetSection() {
   const [utmCampaign, setUtmCampaign] = useState("");
   const [branchId, setBranchId] = useState("");
   const [serviceId, setServiceId] = useState("");
-  const [branchServiceId, setBranchServiceId] = useState("");
   const [cityCode, setCityCode] = useState("");
-  const [resolveError, setResolveError] = useState<string | null>(null);
   const [branches, setBranches] = useState<BranchRow[]>([]);
   const [services, setServices] = useState<ServiceRow[]>([]);
   const [showPreview, setShowPreview] = useState(false);
@@ -60,50 +57,16 @@ export function BookingPublicWidgetSection() {
     });
   }, []);
 
-  useEffect(() => {
-    if (!branchId || !serviceId) {
-      startTransition(() => {
-        setBranchServiceId("");
-        setCityCode("");
-        setResolveError(null);
-      });
-      return;
-    }
-    startTransition(async () => {
-      try {
-        const qs = new URLSearchParams({ branchId, serviceId });
-        const json = await apiJson<{
-          ok?: boolean;
-          error?: string;
-          branchServiceId?: string;
-          cityCode?: string;
-        }>(`${RESOLVE}?${qs.toString()}`);
-        if (!json.branchServiceId) {
-          setBranchServiceId("");
-          setCityCode("");
-          setResolveError("branch_service_mapping_missing");
-          return;
-        }
-        setBranchServiceId(json.branchServiceId);
-        setCityCode(json.cityCode ?? "");
-        setResolveError(null);
-      } catch (e) {
-        setBranchServiceId("");
-        setCityCode("");
-        setResolveError(e instanceof Error ? e.message : "resolve_failed");
-      }
-    });
-  }, [branchId, serviceId]);
-
   const query = useMemo(() => {
     const p = new URLSearchParams();
     if (cityCode.trim()) p.set("city", cityCode.trim());
     if (utmSource.trim()) p.set("utm_source", utmSource.trim());
     if (utmMedium.trim()) p.set("utm_medium", utmMedium.trim());
     if (utmCampaign.trim()) p.set("utm_campaign", utmCampaign.trim());
-    if (branchServiceId.trim()) p.set("branchServiceId", branchServiceId.trim());
+    if (branchId.trim()) p.set("branchId", branchId.trim());
+    if (serviceId.trim()) p.set("serviceId", serviceId.trim());
     return p.toString();
-  }, [cityCode, utmSource, utmMedium, utmCampaign, branchServiceId]);
+  }, [cityCode, utmSource, utmMedium, utmCampaign, branchId, serviceId]);
 
   const pageUrl = `${origin}${publicBookPaths.new}${query ? `?${query}` : ""}`;
   const previewUrl = `${pageUrl}${pageUrl.includes("?") ? "&" : "?"}embed=iframe`;
@@ -187,14 +150,7 @@ export function BookingPublicWidgetSection() {
         />
       </div>
 
-      {resolveError ? (
-        <p className="mt-3 text-sm text-destructive">
-          Не удалось подготовить ссылку: настройте доступность и Rubitime-маппинг для выбранной пары локация ×
-          услуга.
-        </p>
-      ) : null}
-
-      {origin && branchServiceId ? (
+      {origin && branchId && serviceId ? (
         <div className="mt-4 flex flex-wrap gap-2">
           <Link
             href={pageUrl}
@@ -210,7 +166,7 @@ export function BookingPublicWidgetSection() {
         </div>
       ) : null}
 
-      {showPreview && origin && branchServiceId ? (
+      {showPreview && origin && branchId && serviceId ? (
         <iframe
           src={previewUrl}
           title="Предпросмотр записи"
@@ -219,7 +175,7 @@ export function BookingPublicWidgetSection() {
         />
       ) : null}
 
-      {branchServiceId ? (
+      {branchId && serviceId ? (
         <div className="mt-4 space-y-4 text-sm">
           {[
             { label: "Ссылка", text: pageUrl },

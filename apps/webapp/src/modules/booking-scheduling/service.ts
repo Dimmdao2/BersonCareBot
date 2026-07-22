@@ -133,6 +133,10 @@ export function createBookingSchedulingService(port: BookingSchedulingPort): Boo
       return port.resolveCanonicalFromBranchService(branchServiceId);
     },
 
+    resolveCanonicalInPersonContext(input) {
+      return port.resolveCanonicalInPersonContext(input);
+    },
+
     nearestFreeWindow(input: NearestFreeWindowInput): Promise<NearestFreeWindowResult> {
       return port.nearestFreeWindow(input);
     },
@@ -141,8 +145,8 @@ export function createBookingSchedulingService(port: BookingSchedulingPort): Boo
       return port.resolveLegacyBranchServiceId(input);
     },
 
-    async getInPersonSlots({ branchServiceId, date, slotCount = 1 }) {
-      const ctx = await port.resolveCanonicalFromBranchService(branchServiceId);
+    async getInPersonSlots({ organizationId, branchId, serviceId, date, slotCount = 1 }) {
+      const ctx = await port.resolveCanonicalInPersonContext({ organizationId, branchId, serviceId });
       if (!ctx) throw new Error("branch_service_not_found");
       const { from, to } = defaultDateRange(date, ctx.branchTimezone);
       return port.getSlots({

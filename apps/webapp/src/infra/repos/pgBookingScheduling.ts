@@ -226,6 +226,42 @@ export function createPgBookingSchedulingPort(_getDefaultOrgId?: () => Promise<s
       } satisfies CanonicalBookingContext;
     },
 
+    async resolveCanonicalInPersonContext({ organizationId, branchId, serviceId }) {
+      const db = getDrizzle();
+      const conditions = [
+        eq(beSpecialistServiceAvailability.branchId, branchId),
+        eq(beSpecialistServiceAvailability.serviceId, serviceId),
+        eq(beSpecialistServiceAvailability.isActive, true),
+      ];
+      if (organizationId) {
+        conditions.push(eq(beSpecialistServiceAvailability.organizationId, organizationId));
+      }
+      const rows = await db
+        .select({
+          id: beSpecialistServiceAvailability.id,
+          organizationId: beSpecialistServiceAvailability.organizationId,
+          createdAt: beSpecialistServiceAvailability.createdAt,
+        })
+        .from(beSpecialistServiceAvailability)
+        .innerJoin(
+          beSpecialists,
+          and(
+            eq(beSpecialists.id, beSpecialistServiceAvailability.specialistId),
+            eq(beSpecialists.organizationId, beSpecialistServiceAvailability.organizationId),
+            eq(beSpecialists.isActive, true),
+          ),
+        )
+        .where(and(...conditions));
+      if (rows.length === 0) return null;
+      const organizations = new Set(rows.map((row) => row.organizationId));
+      if (organizations.size !== 1) throw new Error("ambiguous_booking_tenant");
+      const availabilityId = pickPreferredSsaId(
+        rows.map((row) => ({ id: row.id, createdAt: row.createdAt, isActive: true })),
+        new Map(),
+      );
+      return this.resolveCanonicalFromBranchService(availabilityId);
+    },
+
     async resolveLegacyBranchServiceId({ organizationId, branchId, serviceId, specialistId }) {
       const db = getDrizzle();
       const ssaConds = [

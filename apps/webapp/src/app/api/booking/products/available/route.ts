@@ -10,12 +10,10 @@ import {
 
 async function resolveServiceIdForBooking(
   deps: ReturnType<typeof buildAppDeps>,
-  input: { branchId?: string; serviceId?: string; branchServiceId?: string },
+  input: { branchId?: string; serviceId?: string },
 ): Promise<{ organizationId: string; serviceId: string } | NextResponse> {
   const branchId = input.branchId?.trim() ?? "";
   const serviceId = input.serviceId?.trim() ?? "";
-  const branchServiceId = input.branchServiceId?.trim() ?? "";
-
   if (branchId && serviceId) {
     try {
       const ctx = await resolveInPersonBookingContext(deps, { branchId, serviceId });
@@ -26,18 +24,6 @@ async function resolveServiceIdForBooking(
       }
       throw err;
     }
-  }
-
-  if (branchServiceId) {
-    if (!deps.bookingScheduling) {
-      return NextResponse.json({ ok: false, error: "service_id_required" }, { status: 400 });
-    }
-    const ctx = await deps.bookingScheduling.resolveInPersonContext(branchServiceId);
-    const resolved = ctx?.serviceId?.trim() ?? "";
-    if (!ctx || !resolved) {
-      return NextResponse.json({ ok: false, error: "branch_service_mapping_missing" }, { status: 404 });
-    }
-    return { organizationId: ctx.organizationId, serviceId: resolved };
   }
 
   return NextResponse.json({ ok: false, error: "service_id_required" }, { status: 400 });
@@ -56,7 +42,6 @@ export async function GET(request: Request) {
   const resolvedOrResponse = await resolveServiceIdForBooking(deps, {
     branchId: params.get("branchId") ?? undefined,
     serviceId: params.get("serviceId") ?? undefined,
-    branchServiceId: params.get("branchServiceId") ?? undefined,
   });
   if (resolvedOrResponse instanceof NextResponse) return resolvedOrResponse;
 

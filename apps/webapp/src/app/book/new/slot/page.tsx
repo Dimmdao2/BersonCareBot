@@ -43,8 +43,7 @@ export default async function PublicBookSlotPage({ searchParams }: Props) {
 
   const branchId = first(raw.branchId)?.trim();
   const serviceId = first(raw.serviceId)?.trim();
-  const branchServiceId = first(raw.branchServiceId)?.trim();
-  if ((!branchId || !serviceId) && !branchServiceId) {
+  if (!branchId || !serviceId) {
     redirect(publicBookPaths.new);
   }
 
@@ -63,7 +62,6 @@ export default async function PublicBookSlotPage({ searchParams }: Props) {
         type="in_person"
         branchId={branchId}
         serviceId={serviceId}
-        branchServiceId={branchServiceId}
         orgSlug={orgSlug}
         cityCode={cityCode}
         cityTitle={cityTitle}

@@ -118,12 +118,11 @@ function toPendingRowInPerson(
     contactName: input.contactName,
     contactPhone: input.contactPhone,
     contactEmail: input.contactEmail ?? null,
-    // `patient_bookings` is a legacy compatibility projection whose three IDs
-    // reference legacy catalog tables. Canonical-native SSA keys must not be
-    // written into those FKs; the canonical appointment keeps the real IDs.
-    branchId: context.legacyBranchServiceId ? context.branchId : null,
-    serviceId: context.legacyBranchServiceId ? context.serviceId : null,
-    branchServiceId: context.legacyBranchServiceId,
+    // `patient_bookings` is retained for historical projection only. New canonical
+    // bookings never create legacy catalog links; `be_appointments` owns the ids.
+    branchId: null,
+    serviceId: null,
+    branchServiceId: null,
     cityCodeSnapshot: branch.cityCode,
     branchTitleSnapshot: branch.title,
     serviceTitleSnapshot: service.title,
@@ -153,7 +152,7 @@ export async function createBookingOnCanonicalEngine(
   let canonicalServiceId: string | null = null;
   let canonicalRoomId: string | null = null;
   let orgId = createInput.organizationId?.trim() ?? "";
-  let inPersonCtx: Awaited<ReturnType<BookingSchedulingService["resolveInPersonContext"]>> | null = null;
+  let inPersonCtx: Awaited<ReturnType<BookingSchedulingService["resolveCanonicalInPersonContext"]>> | null = null;
 
   if (createInput.type === "online") {
     if (!orgId) throw new Error("ambiguous_booking_tenant");
@@ -168,7 +167,11 @@ export async function createBookingOnCanonicalEngine(
       slotCount,
     });
   } else {
-    inPersonCtx = await deps.bookingScheduling.resolveInPersonContext(createInput.branchServiceId);
+    inPersonCtx = await deps.bookingScheduling.resolveCanonicalInPersonContext({
+      organizationId: orgId || null,
+      branchId: createInput.branchId,
+      serviceId: createInput.serviceId,
+    });
     if (!inPersonCtx) throw new Error("branch_service_not_found");
     const [branch, service] = await Promise.all([
       deps.bookingEngine.catalog.getBranch(inPersonCtx.branchId),
@@ -191,7 +194,9 @@ export async function createBookingOnCanonicalEngine(
     pendingRow = toPendingRowInPerson(createInput, { context: inPersonCtx, branch, service });
     durationMinutes = inPersonCtx.durationMinutes;
     await deps.bookingScheduling.assertSlotAvailable({
-      branchServiceId: createInput.branchServiceId,
+      organizationId: inPersonCtx.organizationId,
+      specialistId: inPersonCtx.specialistId,
+      roomId: inPersonCtx.roomId,
       slotStart: createInput.slotStart,
       slotEnd: createInput.slotEnd,
       durationMinutes,

@@ -12,7 +12,6 @@ type InPersonProps = {
   cityTitle?: string;
   branchId?: string;
   serviceId?: string;
-  branchServiceId?: string;
   orgSlug?: string;
   serviceTitle?: string;
   slotStart: string;

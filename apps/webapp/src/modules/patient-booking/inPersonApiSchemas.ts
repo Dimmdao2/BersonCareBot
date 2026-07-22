@@ -1,15 +1,14 @@
 import { z } from "zod";
 
 export const inPersonKeysFields = {
-  branchServiceId: z.string().uuid().optional(),
   branchId: z.string().uuid().optional(),
   serviceId: z.string().uuid().optional(),
   cityCode: z.string().trim().min(1).optional(),
 };
 
-export const inPersonKeysRefine = <T extends { branchServiceId?: string; branchId?: string; serviceId?: string }>(
+export const inPersonKeysRefine = <T extends { branchId?: string; serviceId?: string }>(
   v: T,
-) => Boolean(v.branchServiceId) || (Boolean(v.branchId) && Boolean(v.serviceId));
+) => Boolean(v.branchId) && Boolean(v.serviceId);
 
 export const inPersonSlotsQuerySchema = z
   .object({

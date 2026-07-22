@@ -14,8 +14,6 @@ export type BookingSelection =
       serviceTitle: string;
       /** Public `/book/{slug}` tenant binding; absent in the authenticated cabinet. */
       orgSlug?: string;
-      /** Legacy reschedule / cabinet paths */
-      branchServiceId?: string;
     };
 
 export type InPersonDraft = {
@@ -52,7 +50,6 @@ export function useBookingSelection() {
       branchId: string,
       serviceId: string,
       serviceTitle: string,
-      branchServiceId?: string,
     ) {
       if (!inPersonDraft) return;
       const { cityCode, cityTitle } = inPersonDraft;
@@ -64,7 +61,6 @@ export function useBookingSelection() {
         branchId,
         serviceId,
         serviceTitle,
-        ...(branchServiceId ? { branchServiceId } : {}),
       });
     },
     clear() {

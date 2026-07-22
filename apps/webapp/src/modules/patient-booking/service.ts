@@ -118,7 +118,8 @@ function cacheKey(query: BookingSlotsQuery): string {
   }
   return JSON.stringify({
     type: query.type,
-    branchServiceId: query.branchServiceId,
+    branchId: query.branchId,
+    serviceId: query.serviceId,
     date: query.date ?? "",
     slotCount: query.slotCount ?? 1,
   });
@@ -212,7 +213,9 @@ export function createPatientBookingService(input: {
         });
       } else {
         value = await input.bookingScheduling.getInPersonSlots({
-          branchServiceId: query.branchServiceId,
+          organizationId: query.organizationId,
+          branchId: query.branchId,
+          serviceId: query.serviceId,
           date: query.date,
           slotCount: query.slotCount,
         });
@@ -232,7 +235,7 @@ export function createPatientBookingService(input: {
 
       const slotLockKey =
         createInput.type === "in_person"
-          ? `${createInput.branchServiceId}|${createInput.slotStart}|${createInput.slotEnd}`
+          ? `${createInput.branchId}:${createInput.serviceId}|${createInput.slotStart}|${createInput.slotEnd}`
           : `online:${createInput.category}|${createInput.slotStart}|${createInput.slotEnd}`;
       if (inFlightCreateBySlot.has(slotLockKey)) {
         throw new Error("slot_overlap");

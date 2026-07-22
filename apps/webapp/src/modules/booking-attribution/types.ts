@@ -4,7 +4,6 @@ export type BookingAttribution = {
   branchId?: string;
   specialistId?: string;
   serviceId?: string;
-  branchServiceId?: string;
   promotionId?: string;
   trafficSource?: string;
   utmSource?: string;

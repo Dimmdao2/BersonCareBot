@@ -40,15 +40,13 @@ export default async function BookingNewSlotPage({ searchParams }: Props) {
   if (type === "in_person") {
     const branchId = first(raw.branchId)?.trim();
     const serviceId = first(raw.serviceId)?.trim();
-    const branchServiceId = first(raw.branchServiceId)?.trim();
-    if ((!branchId || !serviceId) && !branchServiceId) {
+    if (!branchId || !serviceId) {
       redirect(routePaths.bookingNew);
     }
     const slotContext = await loadInPersonSlotContextForPatientRsc({
       platformUserId: session.user.userId,
       branchId,
       serviceId,
-      branchServiceId,
     });
     if (!slotContext.ok) {
       redirect(routePaths.bookingNew);
@@ -69,7 +67,6 @@ export default async function BookingNewSlotPage({ searchParams }: Props) {
           type="in_person"
           branchId={slotContext.branchId}
           serviceId={slotContext.serviceId}
-          branchServiceId={slotContext.branchServiceId}
           cityCode={slotContext.cityCode}
           cityTitle={slotContext.cityTitle}
           serviceTitle={slotContext.serviceTitle}
