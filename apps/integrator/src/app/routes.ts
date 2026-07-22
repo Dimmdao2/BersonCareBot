@@ -27,7 +27,7 @@ import { runWithBootstrapPrincipal } from '../infra/principal/organizationPrinci
 import { reportIntegratorIsolationFailure } from '../infra/observability/saasIsolationTelemetry.js';
 import { isAuthChannelEnabled } from '../infra/db/authChannelPolicy.js';
 import { recordOperatorFailureIncident } from '../infra/operatorIncident/reportOperatorFailure.js';
-import { isGlobalOperatorSmsReady } from '../infra/db/integratorSystemSettings.js';
+import { isSmscProviderReady } from '../integrations/smsc/runtimeConfig.js';
 
 /** Public response shape for the health endpoint. */
 export type HealthResponse = {
@@ -186,7 +186,7 @@ export async function registerRoutes(app: FastifyInstance, deps: AppDeps): Promi
   await registerOperatorAlertRelayRoute(app, {
     dispatchPort: deps.dispatchPort,
     sharedSecret: integratorWebhookSecret(),
-    isSmsProviderReady: () => isGlobalOperatorSmsReady(operatorAlertDb),
+    isSmsProviderReady: () => isSmscProviderReady(operatorAlertDb),
   });
 
   await registerBersoncareRequestContactRoute(app, {

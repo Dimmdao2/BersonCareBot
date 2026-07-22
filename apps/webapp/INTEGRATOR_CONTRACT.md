@@ -367,8 +367,10 @@ typed server-owned клиент `relayOperatorAlert`. Каналы фиксир�
 
 Для incident cadence `messageId` включает UUID строки incident и фазу (`initial` или
 `one_hour_repeat`). Поэтому повтор одной фазы попадает в 24h dedup, а T0, T+1h и новый incident
-после resolve получают разные стабильные ключи. SMS readiness читается fail-closed из глобального
-`integrator.system_settings` mirror (`smsc_enabled` + `smsc_api_key`); disabled/missing/read failure
+после resolve получают разные стабильные ключи. SMS readiness и фактический `SmsClient` читают одну
+fail-closed конфигурацию из глобального `public.system_settings` через integrator
+`publicSystemSettings` helper (`smsc_enabled` + `smsc_api_key`); `integrator.system_settings` остаётся
+compatibility mirror. Disabled/missing/read failure
 возвращает `200 skipped`, не блокируя остальные каналы. WebPush всегда передаёт фактическую пару
 `organizationId + platform user UUID`, полученную из активного staff membership.
 

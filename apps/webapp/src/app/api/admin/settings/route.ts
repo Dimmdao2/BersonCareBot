@@ -40,7 +40,6 @@ import {
 } from "@/modules/system-settings/webPushVapidPatch";
 import {
   redactAdminSettingsForClient,
-  redactWebPushVapidSettingForClient,
 } from "@/modules/system-settings/webPushVapidRuntime";
 import { normalizePatientDefaultPromoTreatmentProgramTemplatePatch } from "@/modules/system-settings/patientDefaultPromoTreatmentProgramTemplate";
 import { normalizeDoctorTodayPreferences } from "@/modules/system-settings/doctorTodayPreferences";
@@ -115,6 +114,7 @@ const ADMIN_SCOPE_KEYS = [
   "smtp_outbound",
   "web_push_vapid",
   "smsc_enabled",
+  "smsc_api_key",
   "yandex_oauth_client_id",
   "yandex_oauth_client_secret",
   "yandex_oauth_redirect_uri",
@@ -184,6 +184,7 @@ const SECRET_LIKE_KEYS = new Set<string>([
   "google_client_secret",
   "google_refresh_token",
   "apple_oauth_private_key",
+  "smsc_api_key",
 ]);
 
 /** Patient-home editorial controls are owner content controls, not ordinary clinic-management settings. */
@@ -690,11 +691,6 @@ export async function PATCH(request: Request) {
     throw error;
   }
 
-  const clientSetting =
-    setting.key === "web_push_vapid"
-      ? redactWebPushVapidSettingForClient(setting)
-      : setting.key === "booking_payment_providers"
-        ? redactAdminSettingsForClient([setting])[0]!
-        : setting;
+  const clientSetting = redactAdminSettingsForClient([setting])[0]!;
   return NextResponse.json({ ok: true, setting: clientSetting });
 }

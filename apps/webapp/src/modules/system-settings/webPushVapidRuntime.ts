@@ -74,6 +74,9 @@ function redactBookingPaymentProvidersSettingForClient(row: SystemSetting): Syst
 
 export function redactAdminSettingsForClient(settings: SystemSetting[]): SystemSetting[] {
   return settings.map((s) => {
+    if (s.key === "smsc_api_key") {
+      return { ...s, valueJson: { value: "[REDACTED]" } };
+    }
     if (s.key === "web_push_vapid") return redactWebPushVapidSettingForClient(s);
     if (s.key === "booking_payment_providers") return redactBookingPaymentProvidersSettingForClient(s);
     return s;

@@ -146,7 +146,7 @@ export async function dispatchOperatorAlert(input: DispatchOperatorAlertInput): 
   const pushBody = clip(input.lines.find((line) => line.trim().length > 0) ?? text, 160);
   const pushUrl = input.pushUrl ?? "/app/doctor/admin/technical";
 
-  let anyChannelAttempted = false;
+  const attempts: Array<Promise<boolean>> = [];
 
   if (channels.telegram) {
     if (targets.telegram.length === 0) {
@@ -154,14 +154,14 @@ export async function dispatchOperatorAlert(input: DispatchOperatorAlertInput): 
     } else {
       for (const id of targets.telegram) {
         const messageId = `operator-alert:${input.deliveryIdentity ?? dk}:telegram:${id}`;
-        anyChannelAttempted = (await fireOperatorRelay({
+        attempts.push(fireOperatorRelay({
           messageId,
           channel: "telegram",
           recipient: id,
           text,
           block: input.block,
           topic: input.topic,
-        })) || anyChannelAttempted;
+        }));
       }
     }
   }
@@ -172,14 +172,14 @@ export async function dispatchOperatorAlert(input: DispatchOperatorAlertInput): 
     } else {
       for (const id of targets.max) {
         const messageId = `operator-alert:${input.deliveryIdentity ?? dk}:max:${id}`;
-        anyChannelAttempted = (await fireOperatorRelay({
+        attempts.push(fireOperatorRelay({
           messageId,
           channel: "max",
           recipient: id,
           text,
           block: input.block,
           topic: input.topic,
-        })) || anyChannelAttempted;
+        }));
       }
     }
   }
@@ -193,7 +193,7 @@ export async function dispatchOperatorAlert(input: DispatchOperatorAlertInput): 
         const messageId = `operator-alert:${input.deliveryIdentity ?? dk}:sms:${recipientDigest}`;
         // The signed integrator relay checks SMSC readiness and returns a no-op success
         // before adapter dispatch when the provider is not connected.
-        anyChannelAttempted = (await fireOperatorRelay({
+        attempts.push(fireOperatorRelay({
           messageId,
           channel: "sms",
           recipient: phone,
@@ -201,7 +201,7 @@ export async function dispatchOperatorAlert(input: DispatchOperatorAlertInput): 
           text,
           block: input.block,
           topic: input.topic,
-        })) || anyChannelAttempted;
+        }));
       }
     }
   }
@@ -215,7 +215,7 @@ export async function dispatchOperatorAlert(input: DispatchOperatorAlertInput): 
         channel: "web_push",
       });
     } else {
-      const delivered = await sendAdminIncidentStaffWebPush(
+      attempts.push(sendAdminIncidentStaffWebPush(
         {
           ...(input.organizationId ? { organizationId: input.organizationId } : {}),
           topic: input.topic,
@@ -225,14 +225,18 @@ export async function dispatchOperatorAlert(input: DispatchOperatorAlertInput): 
           pushUrl,
         },
         pushDeps,
-      ).catch((err: unknown) => {
+      ).then((delivered) => {
+        if (delivered > 0) return true;
+        logger.info({ scope: "operator_alert", event: "operator_alert_skipped_no_recipients", channel: "web_push", block: input.block });
+        return false;
+      }).catch((err: unknown) => {
         logger.warn({ err, block: input.block, topic: input.topic }, "operator alert web push failed");
-        return 0;
-      });
-      if (delivered > 0) anyChannelAttempted = true;
-      else logger.info({ scope: "operator_alert", event: "operator_alert_skipped_no_recipients", channel: "web_push", block: input.block });
+        return false;
+      }));
     }
   }
+
+  const anyChannelAttempted = (await Promise.all(attempts)).some(Boolean);
 
   if (dedupPort && usesFlatDedup && anyChannelAttempted) {
     await dedupPort.recordSent({ dedupKey: dk, severity: input.block });

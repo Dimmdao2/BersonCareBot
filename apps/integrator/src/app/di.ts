@@ -46,7 +46,6 @@ import { createOrchestrator } from '../kernel/orchestrator/index.js';
 import { createSmscClient } from '../integrations/smsc/client.js';
 import { smscConfig } from '../integrations/smsc/config.js';
 import { createSmscDeliveryAdapter } from '../integrations/smsc/deliveryAdapter.js';
-import { createSmscStub } from '../integrations/smsc/stub.js';
 import { getSmscApiKey } from '../integrations/smsc/runtimeConfig.js';
 import type { SmsClient } from '../integrations/smsc/types.js';
 import { createEmailDeliveryAdapter } from '../integrations/email/deliveryAdapter.js';
@@ -157,15 +156,12 @@ export type AppDeps = {
 
 /** Собирает полностью связанный набор зависимостей app-слоя. */
 export function buildDeps(input: BuildDepsInput = {}): AppDeps {
-  const smsClient: SmsClient = smscConfig.enabled
-    ? createSmscClient({
-        getApiKey: getSmscApiKey,
-        baseUrl: smscConfig.baseUrl,
-        log: logger,
-      })
-    : createSmscStub(logger);
-
   const dbPort = createDbPort();
+  const smsClient: SmsClient = createSmscClient({
+    getApiKey: () => getSmscApiKey(dbPort),
+    baseUrl: smscConfig.baseUrl,
+    log: logger,
+  });
   const communicationReadsPort = createCommunicationReadsPort({ db: dbPort });
   /** Filled after `dispatchPort` is constructed (reminders reads need Telegram on display-TZ fallback). */
   const dispatchPortForReminders: { current?: DispatchPort } = {};

@@ -50,9 +50,7 @@ export async function sendAdminIncidentStaffWebPush(
       : [];
   if (recipients.length === 0) return 0;
 
-  let dispatched = 0;
-
-  for (const { userId, organizationId } of recipients) {
+  const results = await Promise.all(recipients.map(async ({ userId, organizationId }) => {
     const [prefs, hasSubs] = await Promise.all([
       deps.channelPreferences.getPreferences(userId),
       deps.webPushSubscriptions.hasAnyForUserId(userId),
@@ -61,7 +59,7 @@ export async function sendAdminIncidentStaffWebPush(
     const globalWebPushEnabled =
       prefs.find((p) => p.channelCode === "web_push")?.isEnabledForNotifications !== false;
 
-    if (!globalWebPushEnabled || !hasSubs) continue;
+    if (!globalWebPushEnabled || !hasSubs) return false;
 
     // Emit a web_push intent to the integrator via relay-outbound.
     // The integrator's WebPushDeliveryAdapter (S14a) performs the actual send.
@@ -87,10 +85,8 @@ export async function sendAdminIncidentStaffWebPush(
       return { ok: false as const, reason: "relay_error" };
     });
 
-    if (result.ok && result.status !== "skipped") {
-      dispatched += 1;
-    }
-  }
+    return result.ok && result.status !== "skipped";
+  }));
 
-  return dispatched;
+  return results.filter(Boolean).length;
 }

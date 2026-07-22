@@ -12,7 +12,15 @@ export type OperatorAlertRelayParams = {
   metadata?: Record<string, unknown>;
 };
 
-export async function relayOperatorAlert(input: OperatorAlertRelayParams): Promise<RelayResult> {
+export type OperatorAlertRelayDeps = {
+  fetchImpl?: typeof fetch;
+  timeoutMs?: number;
+};
+
+export async function relayOperatorAlert(
+  input: OperatorAlertRelayParams,
+  deps: OperatorAlertRelayDeps = {},
+): Promise<RelayResult> {
   const baseUrl = (await getIntegratorApiUrl()).trim();
   if (!baseUrl) return { ok: false, reason: "no_integrator_url" };
   const secret = (await getIntegratorWebhookSecret()).trim();
@@ -24,7 +32,7 @@ export async function relayOperatorAlert(input: OperatorAlertRelayParams): Promi
   const timestamp = String(Math.floor(Date.now() / 1000));
   const signature = createHmac("sha256", secret).update(`${timestamp}.${body}`).digest("base64url");
   try {
-    const response = await fetch(`${baseUrl.replace(/\/$/, "")}/api/bersoncare/operator-alert-relay`, {
+    const response = await (deps.fetchImpl ?? fetch)(`${baseUrl.replace(/\/$/, "")}/api/bersoncare/operator-alert-relay`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -33,6 +41,7 @@ export async function relayOperatorAlert(input: OperatorAlertRelayParams): Promi
         ...getCurrentCorrelationIdHeader(),
       },
       body,
+      signal: AbortSignal.timeout(deps.timeoutMs ?? 5_000),
     });
     const data = (await response.json().catch(() => ({}))) as { status?: string; error?: string };
     if (!response.ok) return { ok: false, reason: data.error ?? `http_${response.status}` };

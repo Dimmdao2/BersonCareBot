@@ -206,4 +206,41 @@ describe("dispatchOperatorAlert", () => {
     expect(relayOutboundMock).toHaveBeenCalledWith(expect.objectContaining({ channel: "sms" }));
     expect(sendAdminIncidentStaffWebPushMock).toHaveBeenCalledOnce();
   });
+
+  it("starts other channel attempts without waiting for a hanging relay", async () => {
+    getConfigValueMock.mockImplementation(async (key: string) => {
+      if (key === "operator_health_alert_config") {
+        return JSON.stringify({ value: {
+          topics: { critical_enabled: true, digest_enabled: true, account_conflicts: true },
+          digestTime: "09:00",
+          channels: {
+            critical: { telegram: true, max: true, web_push: false, sms: true },
+            digest: { telegram: false, max: false, web_push: false, sms: false },
+            account_conflicts: { telegram: false, max: false, web_push: false, sms: false },
+          },
+        } });
+      }
+      if (key === "admin_incident_alert_config") return "";
+      if (key === "admin_telegram_ids") return "111";
+      if (key === "admin_max_ids") return "222";
+      if (key === "admin_phones") return "+79990001122";
+      return "";
+    });
+    let releaseTelegram: ((value: { ok: false; reason: string }) => void) | undefined;
+    relayOutboundMock.mockImplementation((value: { channel: string }) => {
+      if (value.channel === "telegram") {
+        return new Promise((resolve) => { releaseTelegram = resolve; });
+      }
+      return Promise.resolve({ ok: true, status: "accepted" });
+    });
+
+    const pending = dispatchOperatorAlert({ block: "critical", topic: "provider", dedupKey: "parallel", lines: ["stop"] });
+    await vi.waitFor(() => {
+      expect(relayOutboundMock.mock.calls.map(([value]) => (value as { channel: string }).channel)).toEqual(
+        expect.arrayContaining(["telegram", "max", "sms"]),
+      );
+    });
+    releaseTelegram?.({ ok: false, reason: "timeout" });
+    await expect(pending).resolves.toMatchObject({ dispatched: true });
+  });
 });

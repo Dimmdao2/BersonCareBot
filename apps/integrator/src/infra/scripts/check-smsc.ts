@@ -1,5 +1,6 @@
 import { smscConfig } from '../../integrations/smsc/config.js';
 import { getSmscApiKey } from '../../integrations/smsc/runtimeConfig.js';
+import { createDbPort } from '../db/client.js';
 
 type BalanceResponse = {
   balance?: string | number;
@@ -50,7 +51,7 @@ async function requestJson<T>(url: string): Promise<T> {
 
 async function main(): Promise<void> {
   const { phone, message } = parseArgs(process.argv.slice(2));
-  const apiKey = await getSmscApiKey();
+  const apiKey = await getSmscApiKey(createDbPort());
   if (!apiKey) {
     throw new Error('smsc api key missing');
   }

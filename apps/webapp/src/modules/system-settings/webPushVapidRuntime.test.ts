@@ -72,6 +72,20 @@ describe("redactWebPushVapidSettingForClient", () => {
     expect(out[1]?.valueJson).toEqual({ value: { publicKey: "p", hasPrivateKey: true } });
   });
 
+  it("never returns the SMSC credential to browser-facing admin settings", () => {
+    const out = redactAdminSettingsForClient([
+      {
+        key: "smsc_api_key",
+        scope: "admin",
+        valueJson: { value: "private-smsc-key" },
+        updatedAt: "2026-07-22T00:00:00.000Z",
+        updatedBy: null,
+      },
+    ]);
+    expect(out[0]?.valueJson).toEqual({ value: "[REDACTED]" });
+    expect(JSON.stringify(out)).not.toContain("private-smsc-key");
+  });
+
   it("never serializes VAPID secret fields", () => {
     const out = redactAdminSettingsForClient([
       {

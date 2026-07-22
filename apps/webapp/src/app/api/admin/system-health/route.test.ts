@@ -524,7 +524,13 @@ describe("GET /api/admin/system-health", () => {
     expect(body.videoTranscode.status).toBe("ok");
     expect(body.videoTranscode.pendingCount).toBe(0);
     expect(body.meta?.probes?.videoTranscode?.status).toBe("ok");
-    expect(body.operatorIncidents).toEqual({ openCount: 0, occurrenceCount: 0, lastSeenAt: null });
+    expect(body.operatorIncidents).toEqual({
+      openCount: 0,
+      occurrenceCount: 0,
+      lastSeenAt: null,
+      outboundProviderOpenCount: 0,
+      outboundProviderAcknowledgedCount: 0,
+    });
     expect(body.backupJobs).toEqual({});
     expect(body.outgoingDelivery).toEqual(zeroOutgoingSnapshot);
     expect(body.integratorPushOutbox).toEqual(zeroIntegratorPushOutboxSnapshot);
@@ -828,6 +834,8 @@ describe("GET /api/admin/system-health", () => {
       openCount: 1,
       occurrenceCount: 3,
       lastSeenAt: "2026-04-16T10:05:00.000Z",
+      outboundProviderOpenCount: 0,
+      outboundProviderAcknowledgedCount: 0,
     });
     expect(body.backupJobs["backup.hourly"]?.lastStatus).toBe("failure");
     expect(body.meta?.probes?.operatorIncidents?.status).toBe("degraded");
@@ -871,7 +879,13 @@ describe("GET /api/admin/system-health", () => {
         };
       };
     };
-    expect(body.operatorIncidents).toEqual({ openCount: 0, occurrenceCount: 0, lastSeenAt: null });
+    expect(body.operatorIncidents).toEqual({
+      openCount: 0,
+      occurrenceCount: 0,
+      lastSeenAt: null,
+      outboundProviderOpenCount: 0,
+      outboundProviderAcknowledgedCount: 0,
+    });
     expect(body.backupJobs).toEqual({});
     expect(body.meta?.probes?.operatorIncidents?.status).toBe("error");
     expect(body.meta?.probes?.operatorIncidents?.errorCode).toBe("curated_system_health_read_failed");
