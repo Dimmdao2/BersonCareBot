@@ -69,6 +69,7 @@ describe('booking-calendar service', () => {
   const schedulingPort: BookingSchedulingPort = {
     resolvePublicBookingOrganization: vi.fn(),
     resolveCanonicalFromBranchService: vi.fn(),
+    resolveCanonicalInPersonContext: vi.fn(),
     resolveLegacyBranchServiceId: vi.fn(),
     listServicesByCityCode: vi.fn(),
     getSlots: vi.fn(async () => []),

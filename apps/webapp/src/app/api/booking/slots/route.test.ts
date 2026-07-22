@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const getCurrentSessionMock = vi.hoisted(() => vi.fn());
 const getSlotsMock = vi.hoisted(() => vi.fn());
@@ -23,6 +23,10 @@ const ORG_ID = "22222222-2222-4222-8222-222222222222";
 const session = { user: { userId: "u1", role: "client" as const, phone: "+79990001122" } };
 
 describe("GET /api/booking/slots", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
   it("uses canonical branchId+serviceId", async () => {
     getCurrentSessionMock.mockResolvedValue(session);
     getBranchMock.mockResolvedValue({ id: BRANCH_ID, organizationId: ORG_ID, cityCode: "moscow" });

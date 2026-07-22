@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { NextResponse } from "next/server";
 
 const createBookingMock = vi.hoisted(() => vi.fn());
@@ -28,6 +28,10 @@ function request(body: Record<string, unknown>) {
 }
 
 describe("POST /api/booking/create", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
   it("creates with canonical branchId+serviceId", async () => {
     requirePatientBookingTrustedPhoneAccessMock.mockResolvedValue({ ok: true, session });
     resolveCanonicalInPersonContextMock.mockResolvedValue({ organizationId: ORG_ID, branchId: BRANCH_ID, serviceId: SERVICE_ID });

@@ -259,6 +259,7 @@ export function createPgBookingSchedulingPort(_getDefaultOrgId?: () => Promise<s
         rows.map((row) => ({ id: row.id, createdAt: row.createdAt, isActive: true })),
         new Map(),
       );
+      if (!availabilityId) return null;
       return this.resolveCanonicalFromBranchService(availabilityId);
     },
 

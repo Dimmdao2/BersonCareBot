@@ -37,25 +37,13 @@ export async function GET(request: Request) {
     return NextResponse.json({ ok: false, error: "booking_unavailable" }, { status: 503 });
   }
 
-  const { organizationId, service } = gate.ctx;
-  const [branch, specialists, slotsReadSourceRow] = await Promise.all([
-    service.catalog.getBranch(parsed.data.branchId),
-    service.catalog.listSpecialists(organizationId),
+  const { organizationId } = gate.ctx;
+  const [branch, slotsReadSourceRow] = await Promise.all([
+    gate.ctx.service.catalog.getBranch(parsed.data.branchId),
     deps.systemSettings?.getSetting("booking_slots_read_source", "admin"),
   ]);
   if (!branch || branch.organizationId !== organizationId) {
     return NextResponse.json({ ok: false, error: "branch_not_found" }, { status: 404 });
-  }
-
-  const defaultSpecialist = specialists.find((s) => s.isActive) ?? specialists[0] ?? null;
-  const branchServiceId = await deps.bookingScheduling.resolveLegacyBranchServiceId({
-    organizationId,
-    branchId: parsed.data.branchId,
-    serviceId: parsed.data.serviceId,
-    specialistId: defaultSpecialist?.id ?? null,
-  });
-  if (!branchServiceId) {
-    return NextResponse.json({ ok: false, error: "branch_service_mapping_missing" }, { status: 404 });
   }
 
   const bookingSlotsReadSource = parseBookingSlotsReadSource(slotsReadSourceRow?.valueJson ?? null);
@@ -63,7 +51,9 @@ export async function GET(request: Request) {
   try {
     const byDate = await deps.patientBooking.getSlots({
       type: "in_person",
-      branchServiceId,
+      organizationId,
+      branchId: parsed.data.branchId,
+      serviceId: parsed.data.serviceId,
       date: parsed.data.date,
       slotCount: 1,
     });

@@ -1178,13 +1178,17 @@ describe("createPatientBookingService", () => {
     });
     const slots = await svc.getSlots({
       type: "in_person",
-      branchServiceId: r.branchService.id,
+      branchId: r.branch.id,
+      serviceId: r.service.id,
       date: "2026-05-01",
     });
     expect(slots).toHaveLength(1);
     expect(getInPersonSlots).toHaveBeenCalledWith({
-      branchServiceId: r.branchService.id,
+      organizationId: undefined,
+      branchId: r.branch.id,
+      serviceId: r.service.id,
       date: "2026-05-01",
+      slotCount: undefined,
     });
     expect(resolveBranchServiceMock).not.toHaveBeenCalled();
     expect(syncPort.fetchSlots).not.toHaveBeenCalled();
@@ -1234,14 +1238,13 @@ describe("createPatientBookingService", () => {
   });
 
   it("createBooking: inactive branch service (not found) propagates", async () => {
-    resolveBranchServiceMock.mockRejectedValue(new Error("branch_service_not_found"));
     const bookingEngine = {
       organization: { getDefaultOrganizationId: vi.fn().mockResolvedValue("org-1") },
       getAppointment: vi.fn().mockResolvedValue({ id: "appt-1", organizationId: "org-1" }),
     };
     const bookingScheduling = {
       assertSlotAvailable: vi.fn(),
-      resolveInPersonContext: vi.fn(),
+      resolveCanonicalInPersonContext: vi.fn().mockResolvedValue(null),
     };
     const svc = createPatientBookingService({
       bookingsPort: bookingsPort as never,
@@ -1254,7 +1257,8 @@ describe("createPatientBookingService", () => {
       svc.createBooking({
         userId: "u1111111-1111-4111-8111-111111111111",
         type: "in_person",
-        branchServiceId: "bbbbbbbb-bbbb-4bbb-bbbb-bbbbbbbbbbbb",
+        branchId: "b1000000-0000-4000-8000-000000000001",
+        serviceId: "51000000-0000-4000-8000-000000000002",
         cityCode: "moscow",
         slotStart: "2026-05-01T10:00:00.000Z",
         slotEnd: "2026-05-01T11:00:00.000Z",
@@ -1292,7 +1296,7 @@ describe("createPatientBookingService", () => {
     };
     const bookingScheduling = {
       assertSlotAvailable: vi.fn(),
-      resolveInPersonContext: vi.fn().mockResolvedValue({
+      resolveCanonicalInPersonContext: vi.fn().mockResolvedValue({
         organizationId: "org-1",
         branchId: r.branch.id,
         specialistId: r.specialist.id,
@@ -1311,7 +1315,8 @@ describe("createPatientBookingService", () => {
       svc.createBooking({
         userId: "u1111111-1111-4111-8111-111111111111",
         type: "in_person",
-        branchServiceId: r.branchService.id,
+        branchId: "b1000000-0000-4000-8000-000000000001",
+        serviceId: "51000000-0000-4000-8000-000000000002",
         cityCode: "spb",
         slotStart: "2026-05-01T10:00:00.000Z",
         slotEnd: "2026-05-01T11:00:00.000Z",

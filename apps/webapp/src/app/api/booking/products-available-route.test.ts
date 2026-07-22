@@ -1,8 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 
 const listActivePurchasesForBookingMock = vi.hoisted(() => vi.fn());
-const resolveInPersonContextMock = vi.hoisted(() => vi.fn());
-const resolveLegacyBranchServiceIdMock = vi.hoisted(() => vi.fn());
+const resolveCanonicalInPersonContextMock = vi.hoisted(() => vi.fn());
 const ORG_ID = "11111111-1111-4111-8111-111111111111";
 
 vi.mock("@/app-layer/di/buildAppDeps", () => ({
@@ -17,8 +16,7 @@ vi.mock("@/app-layer/di/buildAppDeps", () => ({
       services: { getService: async () => ({ organizationId: ORG_ID }) },
     },
     bookingScheduling: {
-      resolveInPersonContext: resolveInPersonContextMock,
-      resolveLegacyBranchServiceId: resolveLegacyBranchServiceIdMock,
+      resolveCanonicalInPersonContext: resolveCanonicalInPersonContextMock,
     },
   }),
 }));
@@ -33,11 +31,17 @@ vi.mock("@/app-layer/guards/requireRole", () => ({
 import { GET } from "./products/available/route";
 
 describe("GET /api/booking/products/available", () => {
-  it("resolves serviceId from branchServiceId", async () => {
-    resolveInPersonContextMock.mockResolvedValue({ organizationId: ORG_ID, serviceId: "svc-1" });
+  it("resolves serviceId from branchId+serviceId", async () => {
+    resolveCanonicalInPersonContextMock.mockResolvedValue({
+      organizationId: ORG_ID,
+      branchId: "550e8400-e29b-41d4-a716-446655440001",
+      serviceId: "svc-1",
+    });
     listActivePurchasesForBookingMock.mockResolvedValue([{ id: "pur-1", title: "T", visitsRemaining: 1 }]);
     const res = await GET(
-      new Request("http://localhost/api/booking/products/available?branchServiceId=bs-1"),
+      new Request(
+        "http://localhost/api/booking/products/available?branchId=550e8400-e29b-41d4-a716-446655440001&serviceId=svc-1",
+      ),
     );
     const json = (await res.json()) as { ok?: boolean; purchases?: unknown[] };
     expect(json.ok).toBe(true);
@@ -45,7 +49,7 @@ describe("GET /api/booking/products/available", () => {
   });
 
   it("returns 404 when canonical pair is unmapped", async () => {
-    resolveLegacyBranchServiceIdMock.mockResolvedValue(null);
+    resolveCanonicalInPersonContextMock.mockResolvedValue(null);
     const res = await GET(
       new Request(
         "http://localhost/api/booking/products/available?branchId=550e8400-e29b-41d4-a716-446655440001&serviceId=550e8400-e29b-41d4-a716-446655440002",
