@@ -1,7 +1,7 @@
 # NTF-01 — App push and messenger auth-only boundary
 
-Статус: `in_progress`; N0, N1, N1A и N1B0 repository slices закрыты 2026-07-21. N1B1 выполняется позже внутри
-соответствующих N3 family children; editor foundation не означает adoption/send cutover.
+Статус: `owner_gated`; N0, N1, N1A и N1B0 repository slices закрыты 2026-07-21. N1B1 выполняется позже внутри
+соответствующих N3 family children после единого owner field-matrix gate `#913`; editor foundation не означает adoption/send cutover.
 Текущий runtime всё ещё многоканальный до N3/N4/N6 cutover.
 
 ## Цель

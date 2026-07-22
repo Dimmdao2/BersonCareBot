@@ -12,12 +12,12 @@
 
 | Контур | Канон | Taskdb / состояние |
 |---|---|---|
-| Owner product/SaaS roadmap | [`_TODO/SAAS_PRODUCT_UX_INITIATIVE/README.md`](_TODO/SAAS_PRODUCT_UX_INITIATIVE/README.md) + [`IMPLEMENTATION_ROADMAP.md`](_TODO/SAAS_PRODUCT_UX_INITIATIVE/IMPLEMENTATION_ROADMAP.md) | CMS `#853` и C5A `#751` завершены; текущий reconciliation `#959`, затем только dependency-ready stages по DAG |
+| Owner product/SaaS roadmap | [`_TODO/SAAS_PRODUCT_UX_INITIATIVE/README.md`](_TODO/SAAS_PRODUCT_UX_INITIATIVE/README.md) + [`IMPLEMENTATION_ROADMAP.md`](_TODO/SAAS_PRODUCT_UX_INITIATIVE/IMPLEMENTATION_ROADMAP.md) | CMS `#853`, C5A `#751` и reconciliation `#959` завершены; текущие dependency-ready stages: stability C1 `#969` и D2 `#974`; U6B `#926` корректно ждёт U3B→U4 |
 | Tenant foundation | [`_TODO/SAAS_FOUNDATION/README.md`](_TODO/SAAS_FOUNDATION/README.md) + [`T0_TENANT_CONTEXT_CUTOVER_CHECKLIST.md`](_TODO/SAAS_FOUNDATION/T0_TENANT_CONTEXT_CUTOVER_CHECKLIST.md) | Phase 0 закрыта; дальнейшая работа — T0/R2 и явно связанные карточки, не старые D3.3–D3.5 записи |
 | RU privacy / production readiness | [`_TODO/RU_PRIVACY_AND_PRODUCTION_READINESS/README.md`](_TODO/RU_PRIVACY_AND_PRODUCTION_READINESS/README.md) + stage manifests | owner-activated umbrella `#898`; PR-02 `#907` ещё todo, поэтому broad PR-03 не исполняется за пределами отдельно закрытого A0 containment |
 | Doctor UI | [`_TODO/DOCTOR_UI_REWORK_2026-07-20/PLAN.md`](_TODO/DOCTOR_UI_REWORK_2026-07-20/PLAN.md) | подчинён Product UX DAG; полный Doctor DNA `#885` отменён владельцем и остаётся только исторической записью |
 | FIO identity | [`FIO_IDENTITY_CLEANUP_INITIATIVE/README.md`](FIO_IDENTITY_CLEANUP_INITIATIVE/README.md) + [`.cursor/plans/fio_identity_cleanup.plan.md`](../.cursor/plans/fio_identity_cleanup.plan.md) | phases 0–8 закрыты; `#857`/`#858` blocked до общего production cutover и последующего legacy audit |
-| Process/docs hygiene | этот индекс + [`_TODO/README.md`](_TODO/README.md) + [`CURSOR_PLANS_REVIEW_2026-05-01.md`](CURSOR_PLANS_REVIEW_2026-05-01.md) | `#959` owner-roadmap reconciliation; не меняет product scope |
+| Process/docs hygiene | этот индекс + [`_TODO/README.md`](_TODO/README.md) + [`CURSOR_PLANS_REVIEW_2026-05-01.md`](CURSOR_PLANS_REVIEW_2026-05-01.md) | `#959/#912` закрыли owner-roadmap и taskdb reconciliation; статус проверяется по current taskdb/agent/worktree census, не по старому snapshot |
 
 Датированный git-census на старте `#912`: интеграционная ветка `feat/doctor-ui-rebuild` и `origin` совпадали на
 `2f8147e91`; отдельные worktree существовали только для `#853`, `#899` и `#912`. Это evidence-снимок, а не

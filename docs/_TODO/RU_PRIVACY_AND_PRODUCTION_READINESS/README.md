@@ -45,8 +45,9 @@
 - `docs/_TODO/SAAS_FOUNDATION/SAAS_ENFORCE_ROADMAP.md`;
 - `docs/_TODO/SAAS_FOUNDATION/SAAS_S5_SETTINGS_ROOT_SPLIT.md`;
 - `docs/_TODO/SAAS_PRODUCT_UX_INITIATIVE/*`;
-- активные задачи taskdb `#23`, `#751`, `#773–775`, `#803`, `#805`, `#844`, `#845`, `#885` и их рабочие
-  ветки/логи.
+- фактически активные taskdb stages и их рабочие ветки/логи по current taskdb/agent/worktree census. Датированный
+  список `#23/#773–775/#803/#885` больше не является protected-active authority: часть карточек завершена,
+  superseded/cancelled либо возвращена в `todo`; совместимый `/book/{publicSlug}` residual остаётся `#805`.
 
 Завершённый FIO scope `#856` остаётся защищённой стабильной зависимостью и не переоткрывается этой инициативой.
 

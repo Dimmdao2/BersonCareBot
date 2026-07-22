@@ -59,9 +59,9 @@ taskdb-карта создаётся только для доказанного 
 | B1 | `covered` | `#949`, integration through `ba6a9242b`: least-privilege bootstrap lookup и atomic/replay-safe payment UoW; private PostgreSQL proofs and audit PASS. |
 | B2 | `covered` | `#947`, `ff11d416a` + `3f484ea60`: bounded payment/OAuth request and body-consumption deadlines; audit PASS. |
 | B3 | `covered` | `#948`, `fdbea3b0e` + `d640d93b9`: full-range ordered advisory locks and atomic online slot recheck/insert; concurrency proof and audit PASS. |
-| C1 | `residual_gap` | Repository/DEV self-hosted error tracker + release tags остаются не начаты; host/production activation — отдельный `SEC-02/PR-04` owner gate. |
+| C1 | `residual_gap` | `#969` implementation committed `7b680fc23`; independent full-checklist audit идёт до integration. Host/backend/production activation остаётся отдельным `SEC-02/PR-04` owner gate. |
 | D1 | `residual_gap` | `#919`/migration `0215` уже дают staff `session_version`, но doctor TTL остаётся 90 дней. Нужны короткий doctor TTL и revocation без per-request DB round-trip с p95 proof. |
-| D2 | `residual_gap` | `#973`: source census и atomic checklist зафиксированы; центрального Origin/Sec-Fetch-Site guard пока нет. Реализация обязана сохранить точные signed-M2M/internal-job/provider-webhook/Apple exemptions и закрыть browser/Server Action negatives. |
+| D2 | `residual_gap` | `#973` source census/contract закрыт; implementation `#974` запущен по D2-01…10. До audit/integration центральный guard не считается закрытым. |
 | E2 | `residual_gap` | Общего server response/error mapper нет. Внедрять только helper + launch-risk routes, не массовую косметическую миграцию. |
 | E3 | `residual_gap` | Integrator↔webapp event contract продублирован вручную и JSON artifact расходится. Нужен один shared Zod SSOT и runtime validation на обоих концах. |
 | A4 | `dependency_waiting` | Большой chokepoint уже в основном закрыт `#770/#797`; после ранних фаз выводится только exact launch-critical exception/manual-NULL matrix. Старое число файлов не является автоматическим scope. |

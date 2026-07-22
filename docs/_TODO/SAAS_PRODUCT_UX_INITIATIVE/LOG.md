@@ -4702,3 +4702,14 @@ snapshots/version/readiness, first-setup slug confirmation, public assets/contac
 routes, typed iframe protocol and booking/join continuation remain absent. The future launch manifest must also
 freeze the public-contact allowlist and embed-origin/CSP policy. No code, tests, DB, deploy, TEST or PROD action was
 performed; task `#926` is dependency-blocked on full U3B→U4 rather than marked done from the existing slug foundation.
+
+## 2026-07-22 — taskdb and active-plan hygiene reverified
+
+A read-only taskdb/branch/worktree/source census followed by exact port-only updates removed stale execution noise
+without deleting accepted history. `#197` and `#817` were closed from reachable implementation evidence
+(`5be6cb2117` and `bf12721b6`); old D3.3/D3.4 cards `#773/#774` were marked superseded without claiming the obsolete
+smoke passed; owner-cancelled Doctor DNA `#885` became historical done. Inactive `#23/#54/#803/#807` returned to
+truthful todo/residual states. `#913` now waits on one notification field matrix, `#950` on an explicitly safe TEST
+fault-injection window, and stale owner questions were removed from old TEST SHA `#821` and dependent UI-5b `#971`
+in favor of the single U5A question `#796`. Umbrellas `#898/#935` remain active because their programs/current
+children remain active. The initiative registry and subordinate plan headers were synchronized to the same state.
