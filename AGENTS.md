@@ -985,7 +985,9 @@ audit report содержит строку `PASS|FAIL|BLOCKED + evidence` на �
 - Радиусы owner G6 (§A.3): page-block `12px`, KPI `8px`, doctor button/input/select trigger `24px`; `rounded-2xl` запрещён. Явный радиус caller (`rounded-none`, icon override и т.п.) сохраняется.
 - Navigation exception: main sidebar/mobile menu items не являются button pills и сохраняют минимальный shared
   menu radius; 24px control radius на menu rows не распространяется. Section tabs имеют отдельный rounded contract.
-- Основные flat-list строки: горизонтальный отступ `18px`, между пунктами `1px` серая граница; первичная строка крупнее и легче (`text-base font-normal`).
+- Основные flat-list строки переиспользуют геометрию списка «На сопровождении» на странице «Сегодня», без локальных
+  числовых копий отступов; между пунктами divider ровно `1px #f0efeb`, hover покрывает всю полосу строки; первичная
+  строка крупнее и легче (`text-base font-normal`).
 - active/hover/focus — словарь §A.4 (active = `bg-primary/15 text-primary`/`ring`, не жирная заливка и не хардкод-hex).
 - KPI-метрика — `doctorMetricValueClass` из `doctorVisual.ts`, не локальный `text-3xl`.
 
