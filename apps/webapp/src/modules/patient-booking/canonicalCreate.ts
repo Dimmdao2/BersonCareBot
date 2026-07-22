@@ -564,7 +564,6 @@ export async function createBookingOnCanonicalEngine(
               ...(createInput.contactFio ? { contactFio: createInput.contactFio } : {}),
               contactPhone: row.contactPhone,
               contactEmail: row.contactEmail ?? undefined,
-              branchServiceId: row.branchServiceId,
               cityCodeSnapshot: row.cityCodeSnapshot,
               serviceTitleSnapshot: row.serviceTitleSnapshot,
               canonicalAppointmentId: item.id,

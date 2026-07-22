@@ -162,7 +162,6 @@ export type BookingSyncPort = {
       contactPhone: string;
       contactEmail?: string;
       reason?: string;
-      branchServiceId?: string | null;
       cityCodeSnapshot?: string | null;
       serviceTitleSnapshot?: string | null;
       canonicalAppointmentId?: string;
@@ -305,6 +304,7 @@ export type PatientBookingService = {
         error:
           | "not_found"
           | "no_canonical"
+          | "canonical_appointment_incomplete"
           | "too_late"
           | "limit_exceeded"
           | "change_not_allowed"
@@ -315,7 +315,7 @@ export type PatientBookingService = {
   >;
   previewReschedule(input: { userId: string; bookingId: string }): Promise<
     | { ok: true; allowed: boolean; messageKey: string; remainingSelfReschedules: number }
-    | { ok: false; error: "not_found" | "no_canonical" }
+    | { ok: false; error: "not_found" | "no_canonical" | "canonical_appointment_incomplete" }
   >;
   listMyBookings(userId: string): Promise<{
     upcoming: PatientBookingRecord[];
