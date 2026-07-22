@@ -382,16 +382,16 @@ metric semantics, patient/public UI, DB/env/deploy и полный CI вне sco
 - `P2B-06`/`P2B-13` — `DoctorDnaFlatListRow.tsx` is reused by Today support, `PatientsPageClient.tsx` and
   `DoctorSupportInbox.tsx`; it owns the full-row hover, one-pixel `#f0efeb` divider and `text-base font-normal`
   primary role. Focused Clients/Messages/presentation tests cover those consumers.
-- `P2B-09`/`P2B-10` — **OPEN after independent audit:** shared tokens and minimal `rounded-sm` menu contract are
-  correct, but Clients loading/filter shells and the two Messages panes still contain local `rounded-lg` and
-  `px-3`/`px-5`/`p-3` page-shell exceptions. The owner must confirm whether every such shell is a page-level block
-  governed by the exact `12px`/`18px` rule before another presentation pass.
+- `P2B-09`/`P2B-10`/`P2B-14` — **Owner decision recorded 2026-07-22:** Today is the visual reference and receives no
+  added side borders or enclosing side frame; Clients and Messages retain whole-row behavior. The ambiguity is
+  resolved. Live PNG evidence and owner acceptance remain open.
 - `P2B-11` — `DoctorStatCard.tsx` renders label before value and consumes the shared
   `doctorMetricValueClass`; this pass reconciled that class with the canonical Metric role `text-2xl` and added
   an exact regression assertion.
 - `P2B-12` — `PatientsPageClient.tsx` places the full-width search input in the `DoctorPageHeader` right slot;
   `DoctorPageHeader.tsx` gives title/right slots equal desktop flex while preserving full-width mobile wrapping.
-- `P2B-14` — patient/doctor isolation remains proven, but the no-local-forks half stays open with `P2B-09/10`.
+- `P2B-14` — patient/doctor isolation remains proven; the ambiguity is resolved by the 2026-07-22 owner decision.
+  Live PNG evidence and owner acceptance remain open.
 
 Validation from the isolated `#977` worktree: focused Vitest **6 files PASS** (worker reported 97 cases; static audit
 counted 96 generated cases, so the exact count is not used as closure evidence), scoped ESLint **PASS**,
