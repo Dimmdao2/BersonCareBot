@@ -4535,3 +4535,19 @@ record. Bounded correction `baa27d6e3` derives count and preview from the same c
 backfill source-labelled, newer-row-safe and audit-idempotent. Terminal A–G re-audit passed with no findings. Evidence:
 `62` focused tests, `6` migration-contract tests, private PostgreSQL repeat-apply smoke, typecheck, lint, journal and
 settings-accessor gates. No working DEV/TEST/PROD database or deploy was used.
+
+## 2026-07-22 — accumulated UI milestone CI and dependency security closure
+
+The accumulated milestone gate started once on `2a2cbda61`: lint, all workspace typechecks, HLS sync, integrator
+tests (`1326`), and `8861/8862` webapp tests passed. The sole failure was a stale source-string assertion after the
+intentional Today loader expansion; test-only correction `639dcee64` passed its focused `58/58` matrix. The canonical
+resume then passed media-worker (`61`), root build, webapp production build and every audit substep until the final
+dependency registry gate. The full CI was not restarted.
+
+Registry audit exposed current advisories in `fast-uri 3.1.3`, `sharp 0.34.5` and `@hono/node-server 2.0.5`.
+Bounded task `#968` updates them to `3.1.4`, `0.35.3` and `2.0.11` respectively. Because sharp 0.35 is outside
+Next 16.2.6's optional range, the stage includes a route-scoped output trace for the exact Linux x64 sharp/libvips
+packages and a built-standalone native RGBA→JPEG probe. Focused media/Fastify tests, both affected typechecks/builds,
+offline frozen install, standalone runtime and registry audit all passed; the final registry reports no known
+vulnerabilities at low or higher. Independent A–G compatibility audit returned PASS. Integrated dependency commit:
+`8a49eeeec`. This aggregate + resume evidence is the milestone CI gate; no TEST/DB/deploy action occurred yet.

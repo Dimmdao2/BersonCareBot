@@ -275,7 +275,7 @@ draft semantics не являются owner rulings. Media access/presign и ten
 
 ### Current implementation truth — reconciliation 2026-07-22
 
-Статус ниже проверен против полного `f48f35a56`, integrated code through `baa27d6e3`, code/tests/LOG и TEST SHA
+Статус ниже проверен против полного `f48f35a56`, integrated code through `8a49eeeec`, code/tests/LOG и TEST SHA
 `62b69b6a2`.
 `DONE` здесь означает repository implementation evidence; owner acceptance остаётся отдельным taskdb-layer.
 
