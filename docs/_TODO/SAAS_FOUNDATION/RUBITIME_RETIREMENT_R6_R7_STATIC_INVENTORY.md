@@ -38,7 +38,7 @@ blockers unless they are wired into live runtime code.
 
 ## Current pre-cutoff output summary
 
-Latest run time against current branch baseline: 2026-07-22 12:59 MSK.
+Latest run time against current branch baseline: 2026-07-22 21:25:58 MSK.
 
 | Category | Phase | Current result | Meaning |
 | --- | --- | ---: | --- |
@@ -47,7 +47,7 @@ Latest run time against current branch baseline: 2026-07-22 12:59 MSK.
 | `rubitimeApiClientRuntimeTokens` | R6 | 0 hits / 0 files | No Rubitime API client/throttle/post-create runtime tokens remain. |
 | `legacyAppointmentRecordRuntimeRefs` | R6/R7 | 150 hits / 28 files | Legacy appointment table references remain for archive/backfill/compat paths. |
 | `rubitimeRawTableRuntimeRefs` | R7 | 21 hits / 6 files | Raw Rubitime table/queue references remain in runtime/schema/readiness/active purge storage until R7 archive/drop/defer decision. Ops tooling is reported separately. |
-| `providerNeutralKeepTableRefs` | R7 keep-list | 157 hits / 41 files | Explicit keep-list references, not a drop signal. |
+| `providerNeutralKeepTableRefs` | R7 keep-list | 159 hits / 42 files | Explicit keep-list references, not a drop signal. |
 | `rubitimeOpsToolingRefs` | R6/R7 ops | 543 hits / 25 files | Ops/audit/backfill scripts with Rubitime references; reported, not a post-R6 runtime blocker. |
 
 The post-R6 static inventory gate now passes for runtime Rubitime route/API blockers:

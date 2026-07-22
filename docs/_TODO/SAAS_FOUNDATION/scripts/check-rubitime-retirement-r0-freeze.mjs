@@ -14,20 +14,19 @@ const scanRoots = [
 
 const canonicalPatientPublicRoots = [
   'apps/webapp/src/app/api/booking',
-  'apps/webapp/src/app/app/patient/booking',
-  'apps/webapp/src/app/app/patient/cabinet/useBookingSelection.ts',
-  'apps/webapp/src/app/app/patient/cabinet/useBookingSlots.ts',
-  'apps/webapp/src/app/app/patient/cabinet/useCreateBooking.ts',
+  'apps/webapp/src/app/app/patient',
   'apps/webapp/src/app/book',
   'apps/webapp/src/shared/publicBook',
   'apps/webapp/src/modules/patient-booking',
   'apps/webapp/src/modules/booking-scheduling',
+  'apps/webapp/src/app-layer/booking',
 ];
 
-// These are deliberately narrow passive compatibility surfaces. They retain
-// the opaque value for historical snapshots/type contracts, but must not be
-// widened to resolver/service/route code. Any new patient/public occurrence
-// remains an offender until it is reviewed here explicitly.
+// These are deliberately narrow passive compatibility surfaces: storage/type
+// contracts, plus canonical creation's explicit null shape. They retain the
+// opaque legacy value for historical rows, but must not be widened into active
+// patient/public behavior or lifecycle producers. Any new occurrence remains
+// an offender until it is reviewed here explicitly.
 const allowedPatientPublicBranchServiceIdFiles = new Set([
   'apps/webapp/src/modules/patient-booking/canonicalCreate.ts',
   'apps/webapp/src/modules/patient-booking/ports.ts',
@@ -262,6 +261,7 @@ function collectOffenders(files) {
 function collectLegacyBranchServicePatientPublicOffendersFromFiles(files) {
   const offenders = [];
   for (const { rel, src } of files) {
+    if (!canonicalPatientPublicRoots.some((root) => rel === root || rel.startsWith(`${root}/`))) continue;
     if (!src.includes('branchServiceId')) continue;
     if (allowedPatientPublicBranchServiceIdFiles.has(rel)) continue;
     offenders.push(rel);
@@ -357,8 +357,12 @@ if (process.argv.includes('--self-test')) {
 
   const branchServiceIdOffenders = collectLegacyBranchServicePatientPublicOffendersFromFiles([
     {
-      rel: 'apps/webapp/src/modules/booking-scheduling/service.ts',
-      src: 'resolveInPersonContext(branchServiceId) { return port.resolveCanonicalFromBranchService(branchServiceId); }',
+      rel: 'apps/webapp/src/app/app/patient/cabinet/patientBookingLabels.ts',
+      src: 'return row.branchServiceId ? "legacy label" : null;',
+    },
+    {
+      rel: 'apps/webapp/src/app-layer/booking/emitBookingDeletedEvent.ts',
+      src: 'payload.branchServiceId = row.branchServiceId;',
     },
     {
       rel: 'apps/webapp/src/modules/patient-booking/canonicalCreate.ts',
@@ -385,7 +389,10 @@ if (process.argv.includes('--self-test')) {
     offenders.webappRoutes.length === 1 &&
     offenders.integratorRoutes.length === 1 &&
     JSON.stringify(branchServiceIdOffenders) ===
-      JSON.stringify(['apps/webapp/src/modules/booking-scheduling/service.ts']);
+      JSON.stringify([
+        'apps/webapp/src/app/app/patient/cabinet/patientBookingLabels.ts',
+        'apps/webapp/src/app-layer/booking/emitBookingDeletedEvent.ts',
+      ]);
 
   if (!expected) {
     console.error(
