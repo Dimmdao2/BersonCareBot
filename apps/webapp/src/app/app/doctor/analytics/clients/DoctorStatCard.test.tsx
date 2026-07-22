@@ -12,6 +12,7 @@ describe("DoctorStatCard", () => {
     expect(card).toHaveClass("rounded-[var(--doctor-kpi-radius,8px)]");
     expect(card?.children[0]).toHaveTextContent("Записи");
     expect(card?.children[1]).toHaveTextContent("3");
+    expect(card?.children[1]).toHaveClass("text-2xl");
   });
 
   it("calls onClick when clicking the title area", () => {

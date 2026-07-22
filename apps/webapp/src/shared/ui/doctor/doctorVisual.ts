@@ -60,7 +60,7 @@ export const doctorPageTitleClass = "text-base font-semibold tracking-tight text
 export const doctorSectionTitleClass = "text-sm font-semibold text-foreground";
 
 /** KPI numeric value on compact stat cards (dashboard, analytics). */
-export const doctorMetricValueClass = "text-xl font-semibold tabular-nums leading-tight text-foreground";
+export const doctorMetricValueClass = "text-2xl font-semibold tabular-nums leading-tight text-foreground";
 
 /** KPI stat card label (uppercase, compact). */
 export const doctorMetricLabelClass =
