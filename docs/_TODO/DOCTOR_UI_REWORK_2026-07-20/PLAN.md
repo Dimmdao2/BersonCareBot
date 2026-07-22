@@ -354,11 +354,11 @@ brief или заменять одним общим пунктом.
 #### UI-3 — Communications (`#852`, residual `#961/#962`)
 
 - [x] Desktop split во всех применимых вкладках — 45/55 с fallback 50/50; mobile master/detail сохранён.
-- [ ] Exact owner gradient применён одинаково к doctor/patient chat, modal и comments (`#961`).
+- [x] Exact owner gradient применён одинаково к doctor/patient chat, modal и comments (`#961`).
 - [x] Имя в шапке является единственной card navigation с сохранённым route contract.
-- [ ] Убрана лишняя верхняя broadcast-фраза с отдельным current-code evidence (`#961`).
-- [ ] Выбор рассылки показывает слева title/text/audience/channel/error/non-delivery metrics (`#961`).
-- [ ] «Лог ошибок» открывает detail справа; стандартная верхняя панель имеет одно закрытие; overlap отсутствует во
+- [x] Убрана лишняя верхняя broadcast-фраза с отдельным current-code evidence (`#961`).
+- [x] Выбор рассылки показывает слева title/text/audience/channel/error/non-delivery metrics (`#961`).
+- [x] «Лог ошибок» открывает detail справа; стандартная верхняя панель имеет одно закрытие; overlap отсутствует во
   всех summary/delivery/error states (`#961`).
 - [x] Intake left list не дублирует ссылку по имени из detail.
 - [ ] Один shared composer покрывает doctor chat/modal, patient chat, doctor comments и patient comments с parity
@@ -374,15 +374,15 @@ brief или заменять одним общим пунктом.
 - [x] «Все люди» использует настроенный patient plural label.
 - [x] Cancellations/reschedules имеют all-time semantics; membership KPI — active-only; expired membership отделён.
 - [x] Информационные иконки имеют стабильные слоты membership → program-or-supervision → appointment без boxes.
-- [ ] Правая половина содержит functional patient preview, а не только фильтры или пустое место (`#958`).
+- [x] Правая половина содержит functional patient preview, а не только фильтры или пустое место (`#958`).
 
 #### UI-5a — full-workspace existing card reuse (`#958`)
 
-- [ ] Открытие полной карточки заменяет весь doctor content workspace; sidebar остаётся.
-- [ ] Карточка не втискивается в right pane и не создаёт второй component tree/iframe.
-- [ ] «К клиентам» восстанавливает search/sort/filters/selected preview/scroll.
-- [ ] Direct URL, reload и browser back/forward сохраняют card/list mode.
-- [ ] Переиспользованы exact standalone loader/guards/data/API; доказана guard-equivalence без visibility/schema
+- [x] Открытие полной карточки заменяет весь doctor content workspace; sidebar остаётся.
+- [x] Карточка не втискивается в right pane и не создаёт второй component tree/iframe.
+- [x] «К клиентам» восстанавливает search/sort/filters/selected preview/scroll.
+- [x] Direct URL, reload и browser back/forward сохраняют card/list mode.
+- [x] Переиспользованы exact standalone loader/guards/data/API; доказана guard-equivalence без visibility/schema
   изменений.
 
 #### UI-5b — полный patient-card composition после U5A/U5B (`#928`)

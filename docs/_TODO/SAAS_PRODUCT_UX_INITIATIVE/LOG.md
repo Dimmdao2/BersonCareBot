@@ -4490,3 +4490,24 @@ One independent package audit returned PASS for every atomic checkbox. Reused wo
 tests (`43`, `40`, `49` respectively), webapp typecheck and scoped lint. No DB, environment, deploy or full CI action
 was performed. Browser/TEST evidence remains an explicit accumulated milestone layer and is not inferred from the
 code audit.
+
+## 2026-07-22 — detailed-plan debt reconciliation and UI `#958/#961` closure
+
+A read-only reconciliation compared accepted/done parent cards with every linked atomic checklist. It found no
+reason to reopen accepted C1 foundations: the apparent mismatch was caused by later owner residuals being hidden
+behind broad parent wording. Those residuals are now tracked and executed only through exact cards `#958`,
+`#961`–`#964`; TEST/owner, money/provider, SCH-G5, production FIO and Rubitime items remain explicit gates rather
+than code debt. The next independent executable scopes remain the shared composer `#962` and evidence-first Today
+signals `#963`; future counters/«Самые активные» cannot be inferred without their exact contract.
+
+`#961` integrated the byte-identical owner chat gradient, broadcast left detail and right error archive while
+preserving 45/55 and data contracts. Its single audit found one in-scope mobile no-op back action; bounded correction
+`a3c963946` clears the archive deep-link and leaves one close route per breakpoint, with focused `5/5` tests,
+typecheck and lint green. No second presentation audit was opened.
+
+`#958` integrated the existing functional preview in normal Clients 50/50 mode and opens the canonical standalone
+patient card across the full doctor workspace while retaining the sidebar. Search/sort/filters/selection/scroll are
+encoded into a validated return URL; direct route/reload/back-forward preserve modes, and the exact existing org
+guard, loader, APIs and `PatientCardClient` tree remain authoritative. Its single audit found malformed return-state
+normalization; bounded correction `ecaa2f879` added strict channel/UUID/scroll validation and canonical rebuilding.
+Focused `20/20` tests, typecheck and lint passed. Live browser/TEST evidence remains part of the accumulated milestone.
