@@ -4948,8 +4948,9 @@ fallback, immediate outbox observability и worker retry/DLQ classes сохра�
 не E3. Удаляется только `contracts/integrator-events-body.json` после нулевых current refs; остальные contract JSON
 и archived history protected.
 
-**Load и audit stop.** Старая классификация E3 как init-time исправлена: shared schema выполняется на producer и
-receiver для каждого доставленного M2M event. Приёмка требует три одинаковых representative/max-payload microbench
+**Load и audit stop — SUPERSEDED следующей E3 FAIL-correction записью.** Старая классификация E3 как init-time
+исправлена: shared schema выполняется на producer и receiver для каждого доставленного M2M event. Приёмка требует
+три одинаковых representative/max-payload microbench
 run с p50/p95/p99/throughput/RSS и blocking proof нулевых дополнительных DB/network calls. Implementation worker
 возвращает построчную матрицу `E3-01…E3-11`; отдельный независимый auditor проверяет тот же scope. При `FAIL`
 разрешён coherent correction + fresh re-audit; после двух correction rounds — жёсткий stop и один owner question,
@@ -4960,3 +4961,40 @@ run с p50/p95/p99/throughput/RSS и blocking proof нулевых дополн�
 Изменены только owning Stability plan и этот LOG; code/packages/lock/taskdb/runtime/tests/processes/network/deploy,
 TEST/PROD, push и merge не затрагивались. Это presentation/docs author stage: требуется один независимый аудит
 source consistency; implementation/PASS из этой записи не следует.
+
+## 2026-07-22 — stability E3 source-contract FAIL correction (`#980`)
+
+Один независимый presentation/docs audit вернул `FAIL 0 P0 / 1 P1 / 1 P2`. P1: слова
+`representative/max-payload`, `bounded p95/RSS` не задавали исполнимых размеров, baseline и числовых бюджетов, а
+глобальный `55m` nginx ceiling оставлял неоднозначность с route-level limit. P2: новый package test был перечислен,
+но не был постоянно включён в root `pnpm test`, который уже является частью root CI. Это matching gaps owner E3
+contract, не новая implementation или product scope; исправлены одним разрешённым coherent docs-correction.
+
+**Request-size и load freeze.** Source-backed supported ingress однозначен: PROD vhost template и repo-managed TEST
+apply используют `client_max_body_size 55m`; production/test M2M domain через `/etc/hosts` идёт в loopback nginx,
+а webapp upstream не открыт публично. Поэтому exact max-ingress fixture — `57 671 679` raw UTF-8 bytes
+(`55 MiB − 1`), representative — `4 096` bytes. Оба строятся одной fixed
+`appointment.record.upserted` synthetic ASCII structure с padding только в `payloadJson.note`. Меньший application
+route cap не добавлен: source/outbox не доказывают его backward compatibility, а новый limit/status был бы новым
+wire behavior. Если current `55m` boundary не проходит load budget, E3 останавливается с owner question о cap/status,
+а не выбирает число молча.
+
+Три identical runs теперь полностью определены: interleaved baseline/current envelope path против after/shared-Zod,
+representative `1 280` и max-ingress `16` samples на path, alternating AB/BA после warm-up. Для каждого из шести
+fixture-runs отдельно требуется `p95_after ≤ p95_baseline × 1.05`; обе стороны записывают
+`p50/p95/p99/throughput`, median-only PASS запрещён. Baseline/after RSS снимается в isolated child processes под
+`node --expose-gc`; peak и max пяти post-GC after samples не выше
+`max(baseline × 1.05, baseline + 8 MiB)`, а пять after samples не строго монотонно растут. Blocking spies на
+`globalThis.fetch` и `pg.Pool.prototype.query` дают `0/0` или proof падает.
+
+**Persistent package test.** Future root `package.json#scripts.test` заморожен exact как
+`pnpm --dir packages/integrator-webapp-event-contract test && pnpm --dir apps/integrator test`; существующий root
+`ci` уже вызывает `pnpm test`, поэтому workflow edit запрещён и не нужен. Fresh-clone gate в новом clean isolated
+worktree выполняет `test ! -e packages/integrator-webapp-event-contract/dist/index.js`, затем
+`pnpm install --frozen-lockfile` и полный root `pnpm test`; это проверяет package unit suite и consumer resolution
+без stale artifacts.
+
+После correction `E3-01` остаётся `[x]` только как полностью уточнённый source/load freeze; общий E3 и
+`E3-02…E3-12` остаются `[ ]`. Изменены снова только owning Stability plan и этот LOG. Код, package manifests/lock,
+taskdb, tests/runtime/load, network/DB, deploy, TEST/PROD, push/merge не затрагивались и никакой implementation PASS
+не заявлен. Требуется fresh independent re-audit exact docs range; это correction round 1.

@@ -100,8 +100,9 @@ RSS) как часть приёмки этапа.
   B3 (advisory-lock только на booking-create, редкий путь; ещё лучше — partial constraint = 0 рантайма),
   D2/D3/E2 (string-compare / build-time / init-time), C1 (событие только на ошибке, async, traces sample=0).
 - _Bounded per-event:_ E3 выполняет Zod-валидацию на producer и receiver для каждого M2M event. Это не init-time:
-  приёмка требует трёх одинаковых representative/max-payload прогонов с p95/RSS и доказательством нулевых
-  дополнительных DB/network вызовов.
+  приёмка требует трёх одинаковых baseline→after прогонов для exact `4 096 B` representative и
+  `57 671 679 B` max-ingress body; p95 after ≤ baseline × `1.05` в каждом fixture/run, bounded RSS без
+  monotonic post-GC growth и доказательство нулевых дополнительных DB/network вызовов.
 - _Load-чувствительные (делать по cheap-дизайну ниже):_ **D1 сессии**, **C3 метрики**, и присущая цена **RLS (A4)**.
 
 ---
@@ -535,6 +536,35 @@ apply, TEST/PROD or deploy is claimed.
       receiver принимает только результат `JSON.parse`. Event-specific payload guards остаются в
       `apps/webapp/src/modules/integrator/events.ts` и не становятся новым discriminated union в E3.
 
+      **Source-backed request-size boundary и exact load fixtures.** Repo-managed PROD/TEST webapp vhosts задают
+      `client_max_body_size 55m` (`deploy/nginx/bersoncarebot-webapp.vhost.template.conf:21`,
+      `deploy/host/apply-test-nginx-webapp.sh:117`), то есть supported ingress ограничен `55 × 1 024 × 1 024 =
+      57 671 680` raw body bytes и превышение получает nginx `413` до Next.js. M2M production/test домены через
+      `/etc/hosts` резолвятся в loopback nginx (`docs/ARCHITECTURE/SERVER CONVENTIONS.md:84`), а upstream webapp
+      `127.0.0.1:6200/6300` не открыт публично (`deploy/HOST_DEPLOY_README.md:364`). У route нет меньшего
+      application-level limit, а в source/outbox нет доказательства, что новый cap будет backward-compatible.
+      Поэтому E3 **не добавляет** route-specific request-size guard или новый JSON/HTTP error contract: это было бы
+      новым поведением вне frozen manifest. Если implementation не укладывается в load budget на существующем
+      `55m` ingress ceiling, этап останавливается с owner question о новом route cap/status вместо молчаливого
+      ограничения payload.
+
+      Load proof строит оба raw UTF-8 JSON body одной и той же current variant-структурой:
+      `eventType="appointment.record.upserted"`, fixed ASCII `eventId`, `occurredAt`, `idempotencyKey`, payload
+      `{ integratorRecordId:"123456", status:"booked", payloadJson:{ name:"Synthetic Patient",
+      serviceName:"Synthetic Service", note:<ASCII x-padding> } }`. Helper подбирает только `note`, затем обязан
+      assert `Buffer.byteLength(body,"utf8")`: representative ровно `4 096 B`, max-ingress ровно
+      `57 671 679 B` (`55 MiB − 1`). Это synthetic contract/load data без PII; handler/DB не вызываются.
+
+      Каждый из **трёх identical runs** после warm-up измеряет interleaved baseline/current envelope path против
+      after/shared-Zod path для обоих fixtures: representative `1 280` samples/path, max-ingress `16` samples/path,
+      alternating `AB/BA` order. Baseline фиксирует текущие builder/stable serialization + HMAC/raw JSON parse +
+      ручной envelope guard; after выполняет тот же путь и добавляет shared schema на producer и receiver. Для каждого
+      из `3 × 2` fixture-runs отдельно: `p95_after ≤ p95_baseline × 1.05`; записываются обе стороны
+      `p50/p95/p99/throughput`, median-only PASS запрещён. Baseline/after RSS запускаются в изолированных child
+      processes под `node --expose-gc`: after peak и max из пяти post-GC samples не выше
+      `max(baseline × 1.05, baseline + 8 MiB)`, пять after post-GC samples не строго монотонно растут. Blocking spies
+      на `globalThis.fetch` и `pg.Pool.prototype.query` обязаны дать `0/0`; любой вызов немедленно роняет proof.
+
       **Compatibility / error / retry / load matrix:**
 
       | Boundary / case | Frozen result | Evidence / invariant |
@@ -549,19 +579,26 @@ apply, TEST/PROD or deploy is claimed.
       | Tenant specialization | `support.delivery.attempt.logged` по-прежнему требует UUID `payload.organizationId` и ставит verified organization principal до idempotency/handler; tenant model остальных событий не меняется | `route.ts:67-81`, route principal tests |
       | Immediate emit failure | Существующий outbox fallback сохраняется для наблюдаемости; E3 не меняет projection payloads/transactions | `projectionFanout.ts:12-44` |
       | Worker retry / DLQ | `status=0`, `5xx`, `408`, `429` retry; permanent `4xx`, включая local schema `422`, уходит в DLQ без retry burn | `projectionEmitFailure.ts:4-15`, `projectionWorker.ts:30-58` |
-      | Load | Две pure schema validations на доставленный M2M event; никаких новых DB/network вызовов, scheduler или high-cardinality metrics | Три одинаковых representative/max-payload microbench runs; p50/p95/p99/throughput/RSS |
+      | Request-size boundary | Supported PROD/TEST ingress остаётся repo-managed nginx `55m`; exact max fixture = `57 671 679 B`; меньший route cap/status не добавляется без compatibility evidence | vhost template `:21`, TEST apply `:117`, Server Conventions `:84`, HOST deploy `:364` |
+      | Load | Baseline/current envelope path против after с двумя shared-schema validations; никаких новых DB/network вызовов, scheduler или high-cardinality metrics | Три identical runs × exact `4 096 B`/`57 671 679 B`; каждый p95 ratio ≤ `1.05`; обе стороны p50/p95/p99/throughput; RSS ≤ `max(baseline×1.05, baseline+8 MiB)`, five-sample non-monotonic post-GC, DB/network `0/0` |
 
       **Exact checklist после source-backed discovery:**
 
       - [x] **E3-01 — source correction/freeze.** Исправлена неверная plan-ссылка; `incomingEventSchema` и
             EventGateway объявлены protected; зафиксированы пять реальных дублей, 23 consumer variants,
             21 active + 2 legacy-only, compatibility/error/retry/load matrix, exact writable manifest и protected
-            sibling scope. `#980` пишет только source contract; implementation получает отдельный worker pass.
+            sibling scope; supported nginx `55m` boundary, exact `4 096 B`/`57 671 679 B` fixtures и числовые
+            latency/RSS/zero-I/O gates заморожены. `#980` пишет только source contract; implementation получает
+            отдельный worker pass.
       - [ ] **E3-02 — dedicated runtime SSOT.** Создать минимальный workspace package
             `@bersoncare/integrator-webapp-event-contract` с одной Zod-схемой и inferred type; JSON-safe recursive
             payload, passthrough top-level, без wire version/enum/domain payload union.
       - [ ] **E3-03 — package graph.** Подключить package к обоим apps, workspace/lock и существующему
-            build/ensure graph; доказать fresh-clone build/typecheck без stale `dist`.
+            build/ensure graph. Root `package.json#scripts.test` обязан последовательно запускать
+            exact `pnpm --dir packages/integrator-webapp-event-contract test && pnpm --dir apps/integrator test`;
+            current root `ci` уже вызывает `pnpm test`, поэтому workflow/CI-файл не меняется. Доказать fresh-clone
+            в новом clean isolated worktree командами `test ! -e packages/integrator-webapp-event-contract/dist/index.js`,
+            `pnpm install --frozen-lockfile`, `pnpm test`; pre-existing/stale package `dist` запрещён как proof input.
       - [ ] **E3-04 — producer validation.** `emit` выполняет `safeParse` до `getAppBaseUrl`, подписи, fetch и прочего
             I/O. Невалидный event возвращает fixed permanent result
             `status:422,error:"invalid integrator event envelope"`, без Zod paths/payload в логах.
@@ -585,7 +622,12 @@ apply, TEST/PROD or deploy is claimed.
             live consumers и не переписываются).
       - [ ] **E3-11 — validation/load.** Shared schema valid/invalid/adversarial tests; producer/receiver order и
             redaction tests; targeted integrator/webapp tests, package test/typecheck/build, app typecheck/lint/build.
-            Три одинаковых microbench run на representative/max JSON payload: no I/O, bounded p95/RSS.
+            Unit package suite постоянно включён в root `pnpm test`, а значит и в existing root `pnpm run ci` без
+            workflow edit; fresh-clone/frozen-lock/no-dist proof обязателен. Три identical baseline→after runs на
+            exact `4 096 B` representative и `57 671 679 B` max-ingress JSON: в каждом fixture/run
+            `p95_after ≤ p95_baseline × 1.05`, записаны обе стороны p50/p95/p99/throughput, RSS ограничен
+            `max(baseline×1.05, baseline+8 MiB)` и не растёт монотонно по пяти post-GC samples, blocking DB/network
+            counters = `0/0`.
       - [ ] **E3-12 — high-risk acceptance.** Worker отдаёт матрицу по `E3-01…E3-11`. Независимый auditor проверяет
             тот же полный набор. При `FAIL` — один integrated correction + fresh re-audit; второй correction только
             после классификации полноценного провала; после двух correction rounds жёсткий stop и owner question.
@@ -611,6 +653,8 @@ apply, TEST/PROD or deploy is claimed.
       - docs/artifact: `apps/webapp/INTEGRATOR_CONTRACT.md`,
         `apps/webapp/src/modules/integrator/integrator.md`, delete `contracts/integrator-events-body.json`;
       - load proof: new `scripts/prove-integrator-webapp-event-contract-load.mjs` и соответствующая root script entry.
+        Root `package.json#scripts.test` также входит в этот manifest: package unit suite запускается перед current
+        integrator suite, а существующий root `ci` наследует её через `pnpm test`; `.github/workflows/**` не меняется.
 
       Dedicated package — минимальный существующий workspace pattern: оба приложения уже потребляют `packages/*`;
       direct cross-app import нарушит границы и integrator `rootDir`, а `operator-db-schema`/`error-tracking`
