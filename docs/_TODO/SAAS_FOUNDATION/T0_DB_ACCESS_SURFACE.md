@@ -79,6 +79,7 @@ These route files had `getPool`, `getDrizzle`, `runWebappPgText`, direct query, 
 - `apps/webapp/src/app/api/admin/audit-log/route.ts`
 - `apps/webapp/src/app/api/admin/booking-engine/public-appointments/route.ts`
 - `apps/webapp/src/app/api/admin/health-failure-archive/clear/route.ts`
+- `apps/webapp/src/app/api/admin/operator-incidents/acknowledge-all/route.ts`
 - `apps/webapp/src/app/api/admin/operator-incidents/resolve-all/route.ts`
 - `apps/webapp/src/app/api/admin/users/[userId]/profile/route.ts`
 - `apps/webapp/src/app/api/booking/public/create/route.ts`

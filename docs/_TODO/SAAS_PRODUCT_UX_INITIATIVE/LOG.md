@@ -4683,7 +4683,8 @@ separate U6B `#926` gate and is not inferred from repository tests.
 
 ## 2026-07-22 — stability D2 CSRF contract frozen as `#973`
 
-Read-only census on the current integration tree found `353` mutating route files / `392` mutating handlers and
+Historical read-only census on integration base `3e9d27490` (current totals superseded below) found `353` mutating
+route files / `392` mutating handlers and
 `28` Server Action files. The existing proxy is the single suitable pre-handler chokepoint; there is currently no
 Origin or Fetch Metadata guard. The D2 plan now has ten atomic acceptance items covering an exhaustive route census,
 a pure zero-I/O helper, fail-closed same-origin browser policy, early proxy rejection, exact signed-M2M/internal-job/
@@ -4725,6 +4726,14 @@ and adversarial test closed that exact D2-03/D2-09 finding in `2d3c98acc`; no se
 retirement scope was opened. Focused integration tests passed `26` with `4` opt-in live checks skipped; worker
 typecheck/lint and a `1.0021x` p95 zero-I/O load proof passed. Full CI remains the accumulated phase milestone; no
 DB, TEST/PROD, deploy, external send or second Next server was used.
+
+## 2026-07-22 — D2 census synchronized after C1 route integration
+
+Current post-C1 milestone census is `519` API route files, `354` mutating route files / `393` mutating handlers and
+`320` browser files / `359` browser handlers. The `+1` is the global-admin `platform/error-tracking` PUT introduced
+by C1; it remains a normal browser-origin-protected mutation and does not expand the `34` special exemptions. The
+historical exact-SHA `518` / `353` / `392` evidence in `#973/#974` and E2 remains provenance for those frozen
+integration bases rather than current-tree totals.
 
 ## 2026-07-22 — stability E2 source contract frozen as `#975`
 

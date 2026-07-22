@@ -290,8 +290,10 @@ apply, TEST/PROD or deploy is claimed.
 
       Exact checklist после source-backed discovery:
 
-      - [x] **D2-01 — frozen census.** Статическая перепись всех `518` `app/api/**/route.ts` доказывает unsafe
-            subset `353` mutating route files / `392` mutating handlers, исчерпывающе распределяет этот subset по
+      - [x] **D2-01 — frozen census.** Текущая post-C1 перепись всех `519` `app/api/**/route.ts` доказывает unsafe
+            subset `354` mutating route files / `393` mutating handlers, включая `320` browser files / `359`
+            browser handlers. Добавленный global-admin `platform/error-tracking` PUT остаётся обычной browser
+            mutation; special exemptions не расширены. Census исчерпывающе распределяет unsafe subset по
             browser/integrator/internal/webhook/Apple классам и отдельно фиксирует девять stateful GET и `28`
             Server Action files; новая, потерянная или осиротевшая route ломает gate.
       - [x] **D2-02 — pure shared helper.** Один синхронный helper в `src/middleware/` возвращает `allow | reject`

@@ -21,8 +21,10 @@ dispatch и имеет стабильный контракт: **403** `{ "ok": f
 передавать согласованные `Host`, `Origin`, `Sec-Fetch-Site: same-origin` и, при TLS termination,
 `X-Forwarded-Proto: https`.
 
-Frozen census в `src/middleware/csrfOrigin.test.ts` фиксирует текущую поверхность: 518 route files,
-353 files / 392 unsafe handlers, 28 Server Action files и digest каждого списка. Девять stateful GET остаются
+Frozen census в `src/middleware/csrfOrigin.test.ts` фиксирует текущую post-C1 поверхность: 519 route files,
+354 files / 393 unsafe handlers, из них 320 browser files / 359 browser handlers, 28 Server Action files и digest
+каждого списка. Добавленный global-admin `platform/error-tracking` PUT остаётся browser-origin protected и не
+расширяет special exemptions. Девять stateful GET остаются
 вне изменения семантики этого этапа: Google Calendar callback; dev-bypass; dev-public; logout; legacy Yandex,
 Google и Yandex OAuth callbacks; media playback telemetry; patient organization-context open. Они явно
 инвентаризированы тестом и не считаются CSRF-exempt POST.

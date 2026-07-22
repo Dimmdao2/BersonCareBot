@@ -116,7 +116,10 @@ function run(overrides = {}) {
   requireFragments('principal allowlist', files.principal, [
     "'integrator-server-runtime-config'",
   ]);
-  requireFragments('api startup', files.api, ['await getAppBaseUrl(createDbPort())']);
+  requireFragments('api startup', files.api, [
+    'const runtimeDb = createDbPort()',
+    'await getAppBaseUrl(runtimeDb)',
+  ]);
   requireFragments('worker startup', files.worker, [
     'const projectionDb = createDbPort()',
     'await getAppBaseUrl(projectionDb)',
