@@ -112,6 +112,8 @@ function runFixtureGateDocChecks(overrides = new Map()) {
     'Object.assign(headers, browserMutationHeadersForBaseUrl(baseUrl, scenario.method));',
     'mutation smoke must send only the canonical base URL Origin header',
     'read-only smoke must not synthesize mutation browser headers',
+    'canonical global-admin clinical-write denial scenario is required',
+    'canonical global-admin denial must reject csrf_origin_forbidden',
     "redirect: 'manual'",
     'path: scenario.path',
     "name: 'object expectation rejects object-valued error'",
@@ -182,6 +184,29 @@ function runFixtureGateDocChecks(overrides = new Map()) {
         `${files.contract} must keep ${scenarioId} as an explicit negative authorization probe`,
       );
     }
+  }
+  const clinicalWriteDenied = contract.mutationScenarios.find(
+    (scenario) => scenario.id === 'global-admin.clinical-write.denied',
+  );
+  const exactClinicalWriteDenials = [
+    'doctor_workspace_membership_required',
+    'forbidden',
+  ];
+  if (
+    clinicalWriteDenied?.actor !== 'global_admin' ||
+    clinicalWriteDenied.category !== 'bookings' ||
+    clinicalWriteDenied.method !== 'POST' ||
+    clinicalWriteDenied.path !==
+      '/api/doctor/booking-engine/appointments/{clinicAAppointmentId}/comments' ||
+    clinicalWriteDenied.expectStatus !== 403 ||
+    clinicalWriteDenied.expectAuthDenial !== true ||
+    clinicalWriteDenied.disabledByDefault !== true ||
+    JSON.stringify(clinicalWriteDenied.expectedErrorValues) !==
+      JSON.stringify(exactClinicalWriteDenials)
+  ) {
+    throw new Error(
+      `${files.contract} must keep global-admin.clinical-write.denied bound to the exact tenant authorization denial contract`,
+    );
   }
   for (const scenarioId of [
     'public.app.entry',
@@ -345,6 +370,15 @@ function runSelfTest() {
       'Object.assign(headers, browserMutationHeadersForBaseUrl(baseUrl, scenario.method));',
       '',
     ),
+  );
+  const csrfDenialEquivalentMutation = JSON.parse(contractText);
+  csrfDenialEquivalentMutation.mutationScenarios.find(
+    (scenario) => scenario.id === 'global-admin.clinical-write.denied',
+  ).expectedErrorValues.push('csrf_origin_forbidden');
+  expectDocMutationRejected(
+    'csrf origin denial accepted as tenant authorization proof',
+    files.contract,
+    JSON.stringify(csrfDenialEquivalentMutation),
   );
   const specialistAnalyticsAuthorityMutation = JSON.parse(contractText);
   specialistAnalyticsAuthorityMutation.readOnlyScenarios.find(

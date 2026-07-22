@@ -1313,32 +1313,34 @@ function runSelfTest(contract) {
     'global admin smoke profile must prove admin mode was enabled',
   );
 
-  const expectedDenialScenario = {
-    ...baseScenario,
-    actor: 'doctor',
-    expectStatus: 403,
-    expectAuthDenial: true,
-    expectedErrorValues: ['forbidden', 'admin_mode_required'],
-  };
-  assert(
-    classifyResponse({
-      scenario: expectedDenialScenario,
-      status: 403,
-      bodyText: '{"ok":false,"error":"forbidden"}',
-      expectedStatus: 403,
-      forbiddenBodyText: [],
-    }) === null,
-    'explicit negative auth probe must accept only its expected denial contract',
+  const expectedDenialScenario = contract.mutationScenarios.find(
+    (scenario) => scenario.id === 'global-admin.clinical-write.denied',
   );
   assert(
+    expectedDenialScenario,
+    'canonical global-admin clinical-write denial scenario is required',
+  );
+  for (const expectedError of ['doctor_workspace_membership_required', 'forbidden']) {
+    assert(
+      classifyResponse({
+        scenario: expectedDenialScenario,
+        status: 403,
+        bodyText: JSON.stringify({ ok: false, error: expectedError }),
+        expectedStatus: 403,
+        forbiddenBodyText: [],
+      }) === null,
+      `canonical global-admin denial must accept ${expectedError}`,
+    );
+  }
+  assert(
     classifyResponse({
       scenario: expectedDenialScenario,
       status: 403,
-      bodyText: '{"ok":false,"error":"different_denial"}',
+      bodyText: '{"ok":false,"error":"csrf_origin_forbidden"}',
       expectedStatus: 403,
       forbiddenBodyText: [],
     }) === 'unexpected_auth_denial_body',
-    'negative auth probe must reject a different denial body',
+    'canonical global-admin denial must reject csrf_origin_forbidden',
   );
   assert(
     classifyResponse({
