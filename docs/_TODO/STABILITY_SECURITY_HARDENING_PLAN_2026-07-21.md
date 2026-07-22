@@ -232,8 +232,9 @@ apply, TEST/PROD or deploy is claimed.
         unexpected 5xx/startup/fatal/loop errors, но не ожидаемые 4xx. Existing safe pino/isolation telemetry
         сохраняются; raw error logging не добавляется.
   - [ ] Migration/runtime overlays добавляют только disabled/empty defaults и server-reader allowlists, без записи
-        `system_settings`, новых RLS/policies/roles или live DB apply. UI-7 резервирует migration `0229`; C1 должен
-        проверить актуальный journal и использовать следующий свободный номер (ожидается `0230`).
+        `system_settings`, новых RLS/policies/roles или live DB apply. Alerting занял интегрированную migration
+        `0229`; C1 проверяет актуальный journal и использует следующий свободный номер `0230`. Blocked UI-7 больше
+        не является migration dependency и при возобновлении сам выбирает следующий свободный номер.
   - [ ] Tests рекурсивно доказывают отсутствие уникального PII marker во всём serialized envelope, disabled no-import,
         invalid config, release fallback, success/4xx zero capture, 5xx/fatal one sanitized capture и все пять process
         hooks. Static audit запрещает `SENTRY_*`, browser SDK, traces/logs/uploads и пропущенные entrypoints.
