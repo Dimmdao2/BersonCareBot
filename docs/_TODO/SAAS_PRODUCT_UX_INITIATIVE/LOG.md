@@ -5102,9 +5102,25 @@ per-file baseline and exempts only exact reviewed source contexts. R0 self-test,
 registry tests `6/6`, webapp typecheck, scoped lint and diff checks passed. R3C-11, failed `#981` docs reconciliation
 and R5–R7 owner/runtime gates remain open; no DB/TEST/PROD/deploy/data action ran.
 
-A fresh read-only readiness pass proved that `#982` is the only current `ready_for_worker` leaf. The registry
+A fresh read-only readiness pass initially found `#982` as the only `ready_for_worker` leaf. The registry
 classification was therefore corrected from stale `22 = 3 partial + 4 executable + 15 gated` to
 `22 = 3 partial + 2 repository-open + 17 gated`: failed one-pass contract stages `#808` and `#914` are owner-gated,
-not executable. Of the two `open` plans, only E3 has a complete worker manifest; CRYPTO-01 still requires an exact
-residual/file/test freeze. Stale standalone `#816` was closed as superseded by `#913/N4`; aggregate `#815` was
-disarmed because it points to absorbed work and a missing `#823` task reference. No replacement scope was invented.
+not executable. E3 had a complete worker manifest; CRYPTO-01 still requires an exact residual/file/test freeze.
+Stale standalone `#816` was closed as superseded by `#913/N4`; aggregate `#815` was disarmed because it points to
+absorbed work and a missing `#823` task reference. No replacement scope was invented. The later E3 terminal audit
+below supersedes the readiness snapshot: there is currently no worker-ready leaf.
+
+## 2026-07-22 — E3 terminal audit rejects unstable 4 KiB performance evidence
+
+The full cumulative E3 candidate `08418ecbc..55d1e9359` received a fresh independent high-risk audit:
+`FAIL 0 P0 / 1 P1 / 0 P2`. E3-01…10 passed, including stable own-data snapshots, getter-once/deletion/prototype
+adversarial cases, recursive JSON producer typing, exact producer/receiver order, redaction, outbox/DLQ semantics,
+wire compatibility and retired JSON cleanup. Package `19/19`, full integrator tests, targeted webapp `112/112`,
+typechecks, scoped lint, builds and diff checks passed.
+
+E3-11 did not reproduce the worker-green load result. On an idle host the exact frozen proof produced 4 KiB p95
+ratios `1.077350 / 1.034864 / 1.065186`; runs 1 and 3 exceeded the per-run `≤1.05` gate. All 55 MiB ratios
+`0.822603 / 0.843008 / 0.781823`, RSS, non-monotonic post-GC and zero blocking DB/network I/O passed. Therefore
+E3-11/E3-12 and overall E3 remain open, candidate `55d1e9359` stays isolated and must not be integrated. Two bounded
+safe optimization attempts are exhausted; `#980` now asks the owner only whether a third attempt is allowed while
+keeping the 5% budget unchanged. No DB/TEST/PROD/deploy/network/data action ran.
