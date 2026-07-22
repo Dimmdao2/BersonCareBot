@@ -1,5 +1,4 @@
 import { stampBootstrapPrincipal } from "@/app-layer/principal/bootstrapPrincipal";
-import { NextResponse } from "next/server";
 import { z } from "zod";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import {
@@ -12,6 +11,7 @@ import { getRedirectPathForRole } from "@/modules/auth/redirectPolicy";
 import { setSessionFromUser } from "@/modules/auth/service";
 import { enterStaffSecuritySelfPrincipal } from "@/app-layer/principal/staffSecuritySelfPrincipal";
 import { isPlatformUserUuid } from "@/shared/platform-user/isPlatformUserUuid";
+import { jsonError, jsonOk } from "@/shared/http/apiResponse";
 
 const bodySchema = z.object({
   token: z.string().trim().min(16),
@@ -34,26 +34,23 @@ function acceptErrorStatus(code: string): number {
 export async function POST(request: Request) {
   stampBootstrapPrincipal("api/clinic/invites/accept/confirm:POST", request);
   if (!(await isAuthChannelEnabled("email"))) {
-    return NextResponse.json(
-      { ok: false, error: AUTH_CHANNEL_DISABLED_ERROR },
-      { status: 503 },
-    );
+    return jsonError(AUTH_CHANNEL_DISABLED_ERROR, {}, { status: 503 });
   }
   const raw = (await request.json().catch(() => null)) as unknown;
   const parsed = bodySchema.safeParse(raw);
   if (!parsed.success) {
-    return NextResponse.json({ ok: false, error: "invalid_body" }, { status: 400 });
+    return jsonError("invalid_body", {}, { status: 400 });
   }
 
   const deps = buildAppDeps();
   const lookup = await deps.organizationInvites.lookupPendingByToken(parsed.data.token);
   if (!lookup.ok) {
-    return NextResponse.json({ ok: false, error: lookup.code }, { status: 400 });
+    return jsonError(lookup.code, {}, { status: 400 });
   }
 
   const suppliedEmail = parsed.data.email ? normalizeEmail(parsed.data.email) : null;
   if (suppliedEmail && suppliedEmail !== lookup.invite.invitedEmail) {
-    return NextResponse.json({ ok: false, error: "email_mismatch" }, { status: 400 });
+    return jsonError("email_mismatch", {}, { status: 400 });
   }
 
   const otp = await confirmPublicEmailOtpChallenge(
@@ -62,8 +59,9 @@ export async function POST(request: Request) {
     deps.emailOtpPublicDb,
   );
   if (!otp.ok) {
-    return NextResponse.json(
-      { ok: false, error: otp.code, retryAfterSeconds: otp.retryAfterSeconds },
+    return jsonError(
+      otp.code,
+      { retryAfterSeconds: otp.retryAfterSeconds },
       {
         status: errorStatus(otp.code),
         ...(otp.retryAfterSeconds != null
@@ -79,7 +77,7 @@ export async function POST(request: Request) {
     expectedEmail: lookup.invite.invitedEmail,
   });
   if (!accepted.ok) {
-    return NextResponse.json({ ok: false, error: accepted.code }, { status: acceptErrorStatus(accepted.code) });
+    return jsonError(accepted.code, {}, { status: acceptErrorStatus(accepted.code) });
   }
 
   if (isPlatformUserUuid(accepted.platformUserId)) {
@@ -87,7 +85,7 @@ export async function POST(request: Request) {
   }
   const user = await deps.userByPhone.findByUserId(accepted.platformUserId);
   if (!user) {
-    return NextResponse.json({ ok: false, error: "server_error" }, { status: 500 });
+    return jsonError("server_error", {}, { status: 500 });
   }
 
   // The current platform role model still promotes a staff invitee to `doctor` in
@@ -95,8 +93,7 @@ export async function POST(request: Request) {
   // membership role below, never from this coarse session role.
   await setSessionFromUser(user);
 
-  return NextResponse.json({
-    ok: true,
+  return jsonOk({
     redirectTo: getRedirectPathForRole("doctor"),
     organizationId: accepted.organizationId,
     membershipId: accepted.membershipId,

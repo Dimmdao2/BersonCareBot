@@ -1,6 +1,5 @@
 import { stampBootstrapPrincipal } from "@/app-layer/principal/bootstrapPrincipal";
 import { randomUUID } from "node:crypto";
-import { NextResponse } from "next/server";
 import { z } from "zod";
 import { ensureAuthModulePortsBound } from "@/app-layer/di/bindAuthModulePorts";
 import type { AuthRegistrationAuthMethod } from "@/app-layer/product-analytics/recordAuthRegistration";
@@ -33,6 +32,7 @@ import {
   isOAuthStartRateLimitedByKey,
   resolveOAuthStartRateLimitClientKey,
 } from "@/modules/auth/oauthStartRateLimit";
+import { jsonError, jsonOk } from "@/shared/http/apiResponse";
 
 const OAUTH_STATE_TTL_SECONDS = 600;
 
@@ -94,10 +94,9 @@ export async function POST(request: Request) {
   const identity = resolveOAuthStartRateLimitClientKey(request);
   if (!identity.ok) {
     await logOAuthStartFailure(null, "proxy_configuration");
-    return NextResponse.json(
+    return jsonError(
+      "proxy_configuration",
       {
-        ok: false,
-        error: "proxy_configuration",
         message: "Запрос должен проходить через reverse proxy с заголовком X-Real-IP.",
       },
       { status: 503 },
@@ -105,8 +104,9 @@ export async function POST(request: Request) {
   }
   if (await isOAuthStartRateLimitedByKey(identity.key)) {
     await logOAuthStartFailure(null, "rate_limited");
-    return NextResponse.json(
-      { ok: false, error: "rate_limited", message: "Слишком много попыток. Попробуйте позже." },
+    return jsonError(
+      "rate_limited",
+      { message: "Слишком много попыток. Попробуйте позже." },
       { status: 429 },
     );
   }
@@ -115,8 +115,9 @@ export async function POST(request: Request) {
   const parsed = bodySchema.safeParse(raw);
   if (!parsed.success) {
     await logOAuthStartFailure(null, "invalid_body");
-    return NextResponse.json(
-      { ok: false, error: "invalid_body", message: "Укажите провайдера" },
+    return jsonError(
+      "invalid_body",
+      { message: "Укажите провайдера" },
       { status: 400 },
     );
   }
@@ -130,8 +131,9 @@ export async function POST(request: Request) {
     const secret = (await getYandexOauthClientSecret()).trim();
     if (!clientId || !redirectUri || !secret) {
       await logOAuthStartFailure(provider, "oauth_disabled");
-      return NextResponse.json(
-        { ok: false, error: "oauth_disabled", message: "OAuth не настроен" },
+      return jsonError(
+        "oauth_disabled",
+        { message: "OAuth не настроен" },
         { status: 501 },
       );
     }
@@ -143,7 +145,7 @@ export async function POST(request: Request) {
     authUrl.searchParams.set("redirect_uri", redirectUri);
     authUrl.searchParams.set("scope", "login:info login:email login:default_phone");
     authUrl.searchParams.set("state", state);
-    return NextResponse.json({ ok: true, authUrl: authUrl.toString() });
+    return jsonOk({ authUrl: authUrl.toString() });
   }
 
   if (provider === "google") {
@@ -152,8 +154,9 @@ export async function POST(request: Request) {
     const redirectUri = (await getGoogleOauthLoginRedirectUri()).trim();
     if (!clientId || !clientSecret || !redirectUri) {
       await logOAuthStartFailure(provider, "oauth_disabled");
-      return NextResponse.json(
-        { ok: false, error: "oauth_disabled", message: "Google OAuth для входа не настроен" },
+      return jsonError(
+        "oauth_disabled",
+        { message: "Google OAuth для входа не настроен" },
         { status: 501 },
       );
     }
@@ -167,7 +170,7 @@ export async function POST(request: Request) {
     authUrl.searchParams.set("state", state);
     authUrl.searchParams.set("access_type", "online");
     authUrl.searchParams.set("include_granted_scopes", "true");
-    return NextResponse.json({ ok: true, authUrl: authUrl.toString() });
+    return jsonOk({ authUrl: authUrl.toString() });
   }
 
   const appleClientId = (await getAppleOauthClientId()).trim();
@@ -177,8 +180,9 @@ export async function POST(request: Request) {
   const applePem = (await getAppleOauthPrivateKey()).trim();
   if (!appleClientId || !appleRedirect || !appleTeam || !appleKeyId || !applePem) {
     await logOAuthStartFailure(provider, "oauth_disabled");
-    return NextResponse.json(
-      { ok: false, error: "oauth_disabled", message: "Sign in with Apple не настроен" },
+    return jsonError(
+      "oauth_disabled",
+      { message: "Sign in with Apple не настроен" },
       { status: 501 },
     );
   }
@@ -192,5 +196,5 @@ export async function POST(request: Request) {
   authUrl.searchParams.set("scope", "name email");
   authUrl.searchParams.set("state", state);
   authUrl.searchParams.set("nonce", nonce);
-  return NextResponse.json({ ok: true, authUrl: authUrl.toString() });
+  return jsonOk({ authUrl: authUrl.toString() });
 }

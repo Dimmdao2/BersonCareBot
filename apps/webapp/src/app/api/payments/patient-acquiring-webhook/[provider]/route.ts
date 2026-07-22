@@ -14,14 +14,23 @@
  * FIN-02
  */
 
-import { NextResponse } from "next/server";
 import { runWithDbOrganizationPrincipal } from "@bersoncare/db-principal";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import { stampBootstrapPrincipal } from "@/app-layer/principal/bootstrapPrincipal";
 import { getPaymentProviderAdapter } from "@/infra/payments/paymentProviderRegistry";
 import type { PaymentProviderConfig } from "@/modules/payments/types";
+import {
+  jsonError,
+  jsonOk,
+  mapApiError,
+  type ApiErrorLiteralRules,
+} from "@/shared/http/apiResponse";
 
 type RouteContext = { params: Promise<{ provider: string }> };
+
+const ACQUIRING_WEBHOOK_ERROR_RULES = {
+  invalid_webhook_signature: { status: 401, code: "invalid_webhook_signature" },
+} as const satisfies ApiErrorLiteralRules;
 
 export async function POST(request: Request, context: RouteContext) {
   stampBootstrapPrincipal("api/payments/patient-acquiring-webhook:POST:pre-routing", request);
@@ -30,7 +39,7 @@ export async function POST(request: Request, context: RouteContext) {
 
   // Load payment settings to get the webhook secret for this provider.
   if (!deps.payments) {
-    return NextResponse.json({ ok: false, error: "payments_unavailable" }, { status: 503 });
+    return jsonError("payments_unavailable", {}, { status: 503 });
   }
 
   const bodyText = await request.text();
@@ -39,20 +48,17 @@ export async function POST(request: Request, context: RouteContext) {
   try {
     settings = await deps.payments.getSettings();
   } catch {
-    return NextResponse.json({ ok: false, error: "settings_unavailable" }, { status: 503 });
+    return jsonError("settings_unavailable", {}, { status: 503 });
   }
 
   const providerCfg = settings.providers.find((p: PaymentProviderConfig) => p.id === providerId && p.enabled);
   if (!providerCfg) {
-    return NextResponse.json(
-      { ok: false, error: `payment_provider_unavailable:${providerId}` },
-      { status: 400 },
-    );
+    return jsonError("payment_provider_unavailable", {}, { status: 400 });
   }
 
   const secret = providerCfg.webhookSecret?.trim();
   if (!secret) {
-    return NextResponse.json({ ok: false, error: "webhook_secret_missing" }, { status: 503 });
+    return jsonError("webhook_secret_missing", {}, { status: 503 });
   }
 
   // Verify the webhook signature using the provider adapter.
@@ -66,11 +72,14 @@ export async function POST(request: Request, context: RouteContext) {
       providerConfig: providerCfg,
     });
   } catch (error) {
-    const message = error instanceof Error ? error.message : "webhook_verification_failed";
-    if (message === "invalid_webhook_signature") {
-      return NextResponse.json({ ok: false, error: message }, { status: 401 });
-    }
-    return NextResponse.json({ ok: false, error: message }, { status: 400 });
+    const mapped = mapApiError(error, ACQUIRING_WEBHOOK_ERROR_RULES, {
+      status: 400,
+      code: "webhook_verification_failed",
+    });
+    return jsonError(mapped.code, mapped.publicFields ?? {}, {
+      status: mapped.status,
+      headers: mapped.headers,
+    });
   }
 
   // Extract the provider payment reference from the verified event.
@@ -81,12 +90,12 @@ export async function POST(request: Request, context: RouteContext) {
 
   if (!providerPaymentId) {
     // Webhook does not carry a payment reference we can look up — ack and ignore.
-    return NextResponse.json({ ok: true, ignored: true });
+    return jsonOk({ ignored: true });
   }
 
   const organizationId = await deps.patientPayments.resolveOrganizationIdByProviderPaymentId(providerPaymentId);
   if (!organizationId) {
-    return NextResponse.json({ ok: true, ignored: true });
+    return jsonOk({ ignored: true });
   }
 
   const result = await runWithDbOrganizationPrincipal(organizationId, () =>
@@ -99,10 +108,10 @@ export async function POST(request: Request, context: RouteContext) {
   if (!result.ok) {
     if (result.reason === "payment_not_found") {
       // Payment not found in patient ledger — may be a booking payment; ack to avoid retries.
-      return NextResponse.json({ ok: true, ignored: true });
+      return jsonOk({ ignored: true });
     }
-    return NextResponse.json({ ok: false, error: result.reason }, { status: 400 });
+    return jsonError(result.reason, {}, { status: 400 });
   }
 
-  return NextResponse.json({ ok: true, alreadyProcessed: result.alreadyProcessed ?? false });
+  return jsonOk({ alreadyProcessed: result.alreadyProcessed ?? false });
 }

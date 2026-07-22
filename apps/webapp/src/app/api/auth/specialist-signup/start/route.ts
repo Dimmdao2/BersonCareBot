@@ -1,5 +1,4 @@
 import { stampBootstrapPrincipal } from "@/app-layer/principal/bootstrapPrincipal";
-import { NextResponse } from "next/server";
 import { z } from "zod";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import {
@@ -11,6 +10,7 @@ import { hashPin } from "@/modules/auth/pinHash";
 import { getSpecialistSignupEnabled } from "@/modules/auth/specialistSignupRollout";
 import { enterStaffSecuritySelfPrincipal } from "@/app-layer/principal/staffSecuritySelfPrincipal";
 import { formatDoctorFio, normalizeFioPart } from "@/shared/lib/fio";
+import { jsonError, jsonOk } from "@/shared/http/apiResponse";
 
 const bodySchema = z.object({
   email: z.string().email(),
@@ -24,20 +24,17 @@ const bodySchema = z.object({
 export async function POST(request: Request) {
   stampBootstrapPrincipal("api/auth/specialist-signup/start:POST", request);
   if (!(await isAuthChannelEnabled("email"))) {
-    return NextResponse.json(
-      { ok: false, error: AUTH_CHANNEL_DISABLED_ERROR },
-      { status: 503 },
-    );
+    return jsonError(AUTH_CHANNEL_DISABLED_ERROR, {}, { status: 503 });
   }
   const raw = (await request.json().catch(() => null)) as unknown;
   const parsed = bodySchema.safeParse(raw);
   if (!parsed.success) {
-    return NextResponse.json({ ok: false, error: "invalid_body" }, { status: 400 });
+    return jsonError("invalid_body", {}, { status: 400 });
   }
 
   const specialistSignupEnabled = await getSpecialistSignupEnabled();
   if (!specialistSignupEnabled) {
-    return NextResponse.json({ ok: false, error: "specialist_signup_disabled" }, { status: 423 });
+    return jsonError("specialist_signup_disabled", {}, { status: 423 });
   }
 
   const emailNorm = normalizeEmail(parsed.data.email);
@@ -46,7 +43,7 @@ export async function POST(request: Request) {
   const patronymic = normalizeFioPart(parsed.data.patronymic);
   const organizationTitle = parsed.data.organizationTitle.trim();
   if (!lastName || !firstName) {
-    return NextResponse.json({ ok: false, error: "invalid_body" }, { status: 400 });
+    return jsonError("invalid_body", {}, { status: 400 });
   }
   const specialistFullName = formatDoctorFio({ lastName, firstName, patronymic });
   const deps = buildAppDeps();
@@ -66,12 +63,13 @@ export async function POST(request: Request) {
       plainPassword: parsed.data.password,
     });
     if (!resend.ok) {
-      return NextResponse.json({ ok: false, error: "duplicate_email" }, { status: 409 });
+      return jsonError("duplicate_email", {}, { status: 409 });
     }
     const challenge = await startEmailChallenge(resend.userId, emailNorm);
     if (!challenge.ok) {
-      return NextResponse.json(
-        { ok: false, error: challenge.code, retryAfterSeconds: challenge.retryAfterSeconds },
+      return jsonError(
+        challenge.code,
+        { retryAfterSeconds: challenge.retryAfterSeconds },
         { status: challenge.code === "rate_limited" ? 429 : 400 },
       );
     }
@@ -80,10 +78,9 @@ export async function POST(request: Request) {
       challengeId: challenge.challengeId,
     });
     if (!replaced) {
-      return NextResponse.json({ ok: false, error: "signup_recovery_required" }, { status: 409 });
+      return jsonError("signup_recovery_required", {}, { status: 409 });
     }
-    return NextResponse.json({
-      ok: true,
+    return jsonOk({
       challengeId: challenge.challengeId,
       retryAfterSeconds: challenge.retryAfterSeconds,
     });
@@ -92,8 +89,9 @@ export async function POST(request: Request) {
   const challenge = await startEmailChallenge(reg.userId, emailNorm);
   if (!challenge.ok) {
     await deps.userPasswordCredentials.deleteUnverifiedEmailPasswordRegistration(reg.userId);
-    return NextResponse.json(
-      { ok: false, error: challenge.code, retryAfterSeconds: challenge.retryAfterSeconds },
+    return jsonError(
+      challenge.code,
+      { retryAfterSeconds: challenge.retryAfterSeconds },
       { status: challenge.code === "rate_limited" ? 429 : 400 },
     );
   }
@@ -108,11 +106,10 @@ export async function POST(request: Request) {
     });
   } catch {
     await deps.userPasswordCredentials.deleteUnverifiedEmailPasswordRegistration(reg.userId);
-    return NextResponse.json({ ok: false, error: "server_error" }, { status: 500 });
+    return jsonError("server_error", {}, { status: 500 });
   }
 
-  return NextResponse.json({
-    ok: true,
+  return jsonOk({
     challengeId: challenge.challengeId,
     retryAfterSeconds: challenge.retryAfterSeconds,
   });

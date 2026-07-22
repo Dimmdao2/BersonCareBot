@@ -377,30 +377,30 @@ apply, TEST/PROD or deploy is claimed.
             existing helper/type/callsite families, exact `11`-route adoption wave, current status/body/header
             compatibility matrix, intended redactions и protected sibling-stage scope. `#975` не пишет код;
             implementation получает отдельную карточку только после integration/rebase preflight.
-      - [ ] **E2-02 — pure typed builder.** Один server-only `jsonOk/jsonError` helper принимает
+      - [x] **E2-02 — pure typed builder.** Один server-only `jsonOk/jsonError` helper принимает
             только JSON-serializable payload, типами запрещает caller override `ok`/`error`, сохраняет
             `ResponseInit`/headers/cookies и не импортирует DI, auth, DB, settings, logging или network.
-      - [ ] **E2-03 — safe error mapper.** Mapper различает только typed errors и exact closed
+      - [x] **E2-03 — safe error mapper.** Mapper различает только typed errors и exact closed
             literal rules, возвращает `status + stable error code + allowlisted public fields/headers`, а unknown
             всегда сводит к fixed route fallback. Произвольные `Error.message`, SQL/provider payload,
             request data и PII не попадают в body; общий PG-code/string-sniff registry запрещён.
-      - [ ] **E2-04 — identity/signup wave.** Адаптированы specialist-signup `start`/`confirm`
+      - [x] **E2-04 — identity/signup wave.** Адаптированы specialist-signup `start`/`confirm`
             и OAuth `start`; текущие signup recovery, rollout-lock, proxy, rate-limit и fixed-message contracts
             сохранены без auth/session redesign; OAuth feature-disabled сохраняет точный
             `501 oauth_disabled` contract.
-      - [ ] **E2-05 — invite wave.** Адаптированы clinic invite list/create и accept `start`/`confirm`;
+      - [x] **E2-05 — invite wave.** Адаптированы clinic invite list/create и accept `start`/`confirm`;
             guard/entitlement, email mismatch, seat-limit, delivery failure, retry fields и DEV-only preview не меняются.
-      - [ ] **E2-06 — booking wave.** Адаптированы authenticated/public create routes; все known
+      - [x] **E2-06 — booking wave.** Адаптированы authenticated/public create routes; все known
             literal/domain status mappings сохранены, а unknown fallback больше не возвращает
             `error.message` и даёт fixed `create_failed` с прежним status `503`.
-      - [ ] **E2-07 — payment wave.** Адаптированы оба provider webhook routes; exact-org verification,
+      - [x] **E2-07 — payment wave.** Адаптированы оба provider webhook routes; exact-org verification,
             signature masking, replay/UoW и success acknowledgements не меняются. Unknown catches возвращают
             fixed `webhook_failed` / `webhook_verification_failed` с прежним status `400`; request-derived
             `payment_provider_unavailable:${providerId}` становится fixed `payment_provider_unavailable`.
-      - [ ] **E2-08 — tenant wave.** Адаптирован patient organization-context route; `private, no-store`,
+      - [x] **E2-08 — tenant wave.** Адаптирован patient organization-context route; `private, no-store`,
             cookie/revalidation behavior, activation guard и tenant-existence masking сохранены. Redirecting `/open`
             не входит в JSON-builder wave.
-      - [ ] **E2-09 — static adoption/leak/boundary gate.** Exact `11` routes импортируют helper;
+      - [x] **E2-09 — static adoption/leak/boundary gate.** Exact `11` routes импортируют helper;
             в них нет direct `NextResponse.json` и returned caught/request-derived messages. Helper и route delta не
             добавляют `@/infra/db`, `@/infra/repos`, `drizzle-orm`, DB/network/runtime imports. Static script
             имеет adversarial self-test на missing route/import/raw-message/boundary cases.
@@ -411,6 +411,14 @@ apply, TEST/PROD or deploy is claimed.
             p50/p99/throughput, DB/network invocation count `0`, RSS после error burst не растёт монотонно.
             Focused Vitest, webapp typecheck, scoped ESLint, static script и `git diff --check` проходят;
             full CI остаётся accumulated Phase 2 milestone. Один terminal audit, без serial nit-picking rounds.
+
+      **Worker evidence (`#976`, 2026-07-22).** E2-02…E2-09 реализованы в закрытом manifest. Focused Vitest
+      прошёл: `15` files, `82` passed, `1` штатно skipped до отдельного benchmark opt-in; webapp typecheck,
+      scoped ESLint, static gate, его `5` adversarial self-test mutations и `git diff --check` зелёные. Отдельный
+      warm benchmark выполнил три interleaved run при concurrency `16`: median p95 ratio `0.968399`, DB/network
+      invocation count `0/0`, RSS samples `132804608` bytes остались плоскими и не показали monotonic growth;
+      p50/p95/p99/throughput каждого before/after run записаны в Product UX LOG. E2-10 и общий E2 остаются
+      незакрытыми только до обязательного terminal independent audit; full CI не запускался и остаётся milestone gate.
 
       **Compatibility matrix (внешний HTTP contract):**
 

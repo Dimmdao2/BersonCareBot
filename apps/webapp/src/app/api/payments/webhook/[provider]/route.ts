@@ -1,15 +1,24 @@
-import { NextResponse } from "next/server";
 import { runWithDbOrganizationPrincipal } from "@bersoncare/db-principal";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import { stampBootstrapPrincipal } from "@/app-layer/principal/bootstrapPrincipal";
 import { getPaymentProviderAdapter } from "@/infra/payments/paymentProviderRegistry";
 import type { PaymentsService } from "@/modules/payments/service";
+import {
+  jsonError,
+  jsonOk,
+  mapApiError,
+  type ApiErrorLiteralRules,
+} from "@/shared/http/apiResponse";
 
 type RouteContext = { params: Promise<{ provider: string }> };
 type WebhookPayments = Pick<
   PaymentsService,
   "resolveProviderWebhookOrganizationId" | "processProviderWebhook"
 >;
+
+const PAYMENT_WEBHOOK_ERROR_RULES = {
+  invalid_webhook_signature: { status: 401, code: "invalid_webhook_signature" },
+} as const satisfies ApiErrorLiteralRules;
 
 export function createPaymentsWebhookPost(deps: {
   buildDeps: () => { payments: WebhookPayments | null };
@@ -20,7 +29,7 @@ export function createPaymentsWebhookPost(deps: {
     const { provider } = await context.params;
     const appDeps = deps.buildDeps();
     if (!appDeps.payments) {
-      return NextResponse.json({ ok: false, error: "payments_unavailable" }, { status: 503 });
+      return jsonError("payments_unavailable", {}, { status: 503 });
     }
     const payments = appDeps.payments;
     const bodyText = await request.text();
@@ -35,10 +44,7 @@ export function createPaymentsWebhookPost(deps: {
         eventType: inspected.eventType,
       });
       if (!organizationId) {
-        return NextResponse.json(
-          { ok: false, error: "invalid_webhook_signature" },
-          { status: 401 },
-        );
+        return jsonError("invalid_webhook_signature", {}, { status: 401 });
       }
       const result = await deps.runWithOrganization(organizationId, () =>
         payments.processProviderWebhook({
@@ -48,13 +54,16 @@ export function createPaymentsWebhookPost(deps: {
           bodyText,
         }),
       );
-      return NextResponse.json({ ok: true, duplicate: result.duplicate ?? false });
+      return jsonOk({ duplicate: result.duplicate ?? false });
     } catch (error) {
-      const message = error instanceof Error ? error.message : "webhook_failed";
-      if (message === "invalid_webhook_signature") {
-        return NextResponse.json({ ok: false, error: message }, { status: 401 });
-      }
-      return NextResponse.json({ ok: false, error: message }, { status: 400 });
+      const mapped = mapApiError(error, PAYMENT_WEBHOOK_ERROR_RULES, {
+        status: 400,
+        code: "webhook_failed",
+      });
+      return jsonError(mapped.code, mapped.publicFields ?? {}, {
+        status: mapped.status,
+        headers: mapped.headers,
+      });
     }
   };
 }

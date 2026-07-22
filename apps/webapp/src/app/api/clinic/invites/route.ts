@@ -1,4 +1,3 @@
-import { NextResponse } from "next/server";
 import { z } from "zod";
 import { env } from "@/config/env";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
@@ -6,6 +5,7 @@ import { requireEntitlementForRead, requireEntitlementForMutation } from "@/app-
 import { requireClinicManagementApiContext } from "@/app-layer/guards/requireRole";
 import { sendEmailSetupLinkViaIntegrator } from "@/infra/integrations/email/integratorEmailAdapter";
 import { getAppBaseUrl } from "@/modules/system-settings/integrationRuntime";
+import { jsonError, jsonOk } from "@/shared/http/apiResponse";
 
 const bodySchema = z.object({
   email: z.string().email(),
@@ -29,7 +29,7 @@ export async function GET() {
     deps.organizationInvites.listPending(gate.ctx.organizationId),
     deps.clinicSeats.getSeatStatus(gate.ctx.organizationId),
   ]);
-  return NextResponse.json({ ok: true, invites, seats });
+  return jsonOk({ invites, seats });
 }
 
 export async function POST(request: Request) {
@@ -41,7 +41,7 @@ export async function POST(request: Request) {
   const raw = (await request.json().catch(() => null)) as unknown;
   const parsed = bodySchema.safeParse(raw);
   if (!parsed.success) {
-    return NextResponse.json({ ok: false, error: "invalid_body" }, { status: 400 });
+    return jsonError("invalid_body", {}, { status: 400 });
   }
 
   const deps = buildAppDeps();
@@ -56,12 +56,12 @@ export async function POST(request: Request) {
     createdByPlatformUserId: gate.ctx.session.user.userId,
   });
   if (!result.ok) {
-    return NextResponse.json({ ok: false, error: result.code }, { status: 409 });
+    return jsonError(result.code, {}, { status: 409 });
   }
 
   const token = result.token;
   if (!token) {
-    return NextResponse.json({ ok: false, error: "server_error" }, { status: 500 });
+    return jsonError("server_error", {}, { status: 500 });
   }
 
   // Preview links are a non-production delivery aid. Never let a dev-auth flag reclassify a
@@ -85,11 +85,10 @@ export async function POST(request: Request) {
   // where email is redirected/stubbed) don't hard-fail — return the invite + link so the flow
   // stays usable/verifiable without an inbox.
   if (!emailResult.ok && !mayExposeInviteUrl) {
-    return NextResponse.json({ ok: false, error: "email_send_failed" }, { status: 503 });
+    return jsonError("email_send_failed", {}, { status: 503 });
   }
 
-  return NextResponse.json({
-    ok: true,
+  return jsonOk({
     inviteId: result.invite.id,
     expiresAt: result.invite.expiresAt,
     emailDelivered: emailResult.ok,

@@ -174,4 +174,30 @@ describe("POST /api/booking/public/create", () => {
     expect(resolveUserMock).not.toHaveBeenCalled();
     expect(createBookingMock).not.toHaveBeenCalled();
   });
+
+  it("redacts an unknown public booking exception behind fixed create_failed", async () => {
+    createBookingMock.mockRejectedValueOnce(
+      new Error("patient@example.test SQLSTATE 23505 provider payload"),
+    );
+
+    const response = await POST(
+      new Request("http://localhost/api/booking/public/create", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "X-Real-IP": "1.2.3.4" },
+        body: JSON.stringify({
+          type: "in_person",
+          orgSlug: "clinic-a",
+          branchServiceId: "00000000-0000-4000-8000-000000000001",
+          cityCode: "moscow",
+          slotStart: "2026-06-01T10:00:00.000Z",
+          slotEnd: "2026-06-01T11:00:00.000Z",
+          contactName: "Иван",
+          contactPhone: "+79001234567",
+        }),
+      }),
+    );
+
+    expect(response.status).toBe(503);
+    await expect(response.json()).resolves.toEqual({ ok: false, error: "create_failed" });
+  });
 });

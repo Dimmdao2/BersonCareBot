@@ -175,4 +175,16 @@ describe("public payment webhook replay authority", () => {
       organizationId,
     );
   });
+
+  it("redacts unknown provider and adapter messages behind fixed webhook_failed", async () => {
+    const harness = createRouteHarness();
+    const response = await harness.post(
+      signedRequest(JSON.stringify({ marker: "patient@example.test SQLSTATE 23505" })),
+      { params: Promise.resolve({ provider: "patient@example.test" }) },
+    );
+
+    expect(response.status).toBe(400);
+    await expect(response.json()).resolves.toEqual({ ok: false, error: "webhook_failed" });
+    expect(harness.readSetting).not.toHaveBeenCalled();
+  });
 });

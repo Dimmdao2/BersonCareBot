@@ -1,5 +1,4 @@
 import { stampBootstrapPrincipal } from "@/app-layer/principal/bootstrapPrincipal";
-import { NextResponse } from "next/server";
 import { ensureAuthModulePortsBound } from "@/app-layer/di/bindAuthModulePorts";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import { getPool } from "@/app-layer/db/client";
@@ -18,6 +17,34 @@ import {
   resolveInPersonCityCode,
   resolveSlugBoundPublicInPersonBookingOrganization,
 } from "@/modules/patient-booking/inPersonBookingResolve";
+import {
+  jsonError,
+  jsonOk,
+  mapApiError,
+  type ApiErrorLiteralRules,
+} from "@/shared/http/apiResponse";
+
+const PUBLIC_IN_PERSON_RESOLVE_ERROR_RULES = {
+  ambiguous_booking_tenant: { status: 400, code: "ambiguous_booking_tenant" },
+  booking_scheduling_unavailable: { status: 400, code: "booking_scheduling_unavailable" },
+  branch_not_found: { status: 400, code: "branch_not_found" },
+  branch_service_mapping_missing: { status: 404, code: "branch_service_mapping_missing" },
+  branch_service_not_found: { status: 400, code: "branch_service_not_found" },
+  invalid_in_person_keys: { status: 400, code: "invalid_in_person_keys" },
+} as const satisfies ApiErrorLiteralRules;
+
+const PUBLIC_BOOKING_CREATE_ERROR_RULES = {
+  booking_blocked: { status: 403, code: "booking_blocked" },
+  branch_service_not_found: { status: 404, code: "branch_service_not_found" },
+  canonical_booking_unavailable: { status: 503, code: "canonical_booking_unavailable" },
+  catalog_unavailable: { status: 503, code: "catalog_unavailable" },
+  consecutive_slot_cap_exceeded: { status: 400, code: "consecutive_slot_cap_exceeded" },
+  invalid_email: { status: 400, code: "invalid_email" },
+  invalid_phone: { status: 400, code: "invalid_phone" },
+  invalid_slot_count: { status: 400, code: "invalid_slot_count" },
+  required_field_missing: { status: 400, code: "required_field_missing" },
+  slot_overlap: { status: 409, code: "slot_overlap" },
+} as const satisfies ApiErrorLiteralRules;
 
 export async function POST(request: Request) {
   stampBootstrapPrincipal("api/booking/public/create:POST", request);
@@ -25,14 +52,16 @@ export async function POST(request: Request) {
 
   const rateKey = resolvePublicBookingRateLimitClientKey(request);
   if (!rateKey.ok) {
-    return NextResponse.json(
-      { ok: false, error: "proxy_configuration", message: "Запрос должен проходить через reverse proxy с заголовком X-Real-IP." },
+    return jsonError(
+      "proxy_configuration",
+      { message: "Запрос должен проходить через reverse proxy с заголовком X-Real-IP." },
       { status: 503 },
     );
   }
   if (await isPublicBookingCreateRateLimited(rateKey.key)) {
-    return NextResponse.json(
-      { ok: false, error: "rate_limited", retryAfterSeconds: PUBLIC_BOOKING_RATE_LIMIT_SEC },
+    return jsonError(
+      "rate_limited",
+      { retryAfterSeconds: PUBLIC_BOOKING_RATE_LIMIT_SEC },
       { status: 429 },
     );
   }
@@ -40,7 +69,7 @@ export async function POST(request: Request) {
   const raw = (await request.json().catch(() => null)) as unknown;
   const parsed = publicBookingCreateBodySchema.safeParse(raw);
   if (!parsed.success) {
-    return NextResponse.json({ ok: false, error: "invalid_body" }, { status: 400 });
+    return jsonError("invalid_body", {}, { status: 400 });
   }
 
   const body = parsed.data;
@@ -50,7 +79,7 @@ export async function POST(request: Request) {
 
   try {
     if (body.type === "online") {
-      return NextResponse.json({ ok: false, error: "ambiguous_booking_tenant" }, { status: 400 });
+      return jsonError("ambiguous_booking_tenant", {}, { status: 400 });
     }
 
     const publicContext = await resolveSlugBoundPublicInPersonBookingOrganization(deps, body);
@@ -98,31 +127,21 @@ export async function POST(request: Request) {
       });
     }
 
-    return NextResponse.json({ ok: true, booking: result.booking, userId: result.userId }, { status: 200 });
+    return jsonOk({ booking: result.booking, userId: result.userId }, { status: 200 });
   } catch (error) {
-    const message = error instanceof Error ? error.message : "create_failed";
-    if (error instanceof InPersonBookingResolveError) {
-      const status = message === "branch_service_mapping_missing" ? 404 : 400;
-      return NextResponse.json({ ok: false, error: message }, { status });
-    }
-    if (message === "slot_overlap") {
-      return NextResponse.json({ ok: false, error: "slot_overlap" }, { status: 409 });
-    }
-    if (message === "consecutive_slot_cap_exceeded" || message === "invalid_slot_count") {
-      return NextResponse.json({ ok: false, error: message }, { status: 400 });
-    }
-    if (message === "required_field_missing" || message === "invalid_email" || message === "invalid_phone") {
-      return NextResponse.json({ ok: false, error: message }, { status: 400 });
-    }
-    if (message === "branch_service_not_found") {
-      return NextResponse.json({ ok: false, error: message }, { status: 404 });
-    }
-    if (message === "canonical_booking_unavailable" || message === "catalog_unavailable") {
-      return NextResponse.json({ ok: false, error: message }, { status: 503 });
-    }
-    if (message === "booking_blocked") {
-      return NextResponse.json({ ok: false, error: message }, { status: 403 });
-    }
-    return NextResponse.json({ ok: false, error: message }, { status: 503 });
+    const mapped = mapApiError(
+      error,
+      PUBLIC_BOOKING_CREATE_ERROR_RULES,
+      { status: 503, code: "create_failed" },
+      [{
+        matches: (candidate: unknown): candidate is InPersonBookingResolveError =>
+          candidate instanceof InPersonBookingResolveError,
+        literalRules: PUBLIC_IN_PERSON_RESOLVE_ERROR_RULES,
+      }],
+    );
+    return jsonError(mapped.code, mapped.publicFields ?? {}, {
+      status: mapped.status,
+      headers: mapped.headers,
+    });
   }
 }

@@ -4811,3 +4811,68 @@ presentation rule, no automatic correction/re-audit loop starts; task `#977` ask
 Task `#821` is the owner-only live acceptance gate for this exact TEST SHA and lists the current doctor/clinic URLs
 and schedule-save/booking-create scenarios. Repository-safe execution resumes independently with Stability E2
 implementation `#976`; TEST owner acceptance is not inferred from smoke and `accepted` remains owner-only.
+
+## 2026-07-22 — stability E2 implementation launch manifest (`#976`)
+
+**Base and authority.** The controlled worker runs only in
+`/home/dev/dev-projects/BersonCareBot-wt-e2-api-response` on branch `codex/e2-api-response-976`, exact base
+`5f847f40c7bb2cb3dc5abbc11d51ab4651841c43`. The current code-only TEST acceptance SHA remains
+`ea4b35e5f3727a7b256a1228eef7a27b65e1782c`; E2 neither changes nor deploys it. Task `#975` and E2-01 have frozen
+the source census/contract; implementation card `#976` owns only E2-02…E2-10 from
+`STABILITY_SECURITY_HARDENING_PLAN_2026-07-21.md`. Prerequisites are satisfied by the integrated C1 repository dark
+launch, D2 central CSRF guard and the completed TEST checkpoint above; D1, E1 and later owner acceptance are not
+dependencies and remain protected adjacent scope.
+
+**Synthetic evidence and safety.** Tests use typed synthetic errors, reserved non-PII identifiers and mocked route
+dependencies only. Payment/provider, email/invite, booking/Rubitime and OAuth scenarios are send-safe: no external
+delivery, provider call, network request, working database or runtime setting access is allowed. Adversarial markers
+prove that `Error.message`, provider/request-derived suffixes, SQL-like details and PII-shaped text cannot reach JSON
+bodies. The in-process benchmark uses the pure response helper after warm-up at concurrency `16`, records three runs
+with p50/p95/p99/throughput, asserts zero DB/network invocations and checks that RSS after the error burst does not
+grow monotonically.
+
+**Closed manifest and no overlap.** Writable scope is exactly the new shared helper/test, the new E2 static gate,
+the new patient-acquiring webhook route test, the eleven routes and existing regression tests enumerated in the E2
+plan, `apps/webapp/src/app/api/api.md`, this LOG and the owning Stability plan for factual worker evidence. Package/
+lock files, C1/D1/D2/E1, DB/schema/env/deploy/TEST/PROD/host/data actions and all other routes are forbidden. Existing
+infra imports in invite/public-booking/payment routes are protected E1 debt, not refactor scope. This isolated branch
+does not overlap neighboring workers; lint/typecheck contention and accumulated milestone CI remain orchestrator-
+serialized resources.
+
+**Execution and stop conditions.** One worker implements the complete E2-02…E2-10 matrix, runs focused Vitest,
+webapp typecheck, scoped ESLint, the static gate plus `--self-test`, the three-run benchmark and `git diff --check`,
+then commits without pushing. A separate terminal independent auditor must inspect the same atomic checklist and
+actual diff before deciding whether any missing risk-sized checks are needed; the worker does not claim audit PASS.
+E2 receives one terminal audit and no serial nit-picking loop. Any missing owner requirement, ambiguity, manifest
+expansion, protected-scope dependency, failed safety invariant or need for DB/network/TEST/PROD action stops the
+stage and returns an exact blocker/owner question; full CI is reserved for the accumulated Phase 2 milestone.
+
+## 2026-07-22 — stability E2 worker candidate evidence (`#976`)
+
+The resumed controlled worker completed E2-02…E2-09 inside the launch manifest. The new pure response helper accepts
+JSON-serializable typed payloads, protects the `ok`/`error` discriminators, preserves `ResponseInit`, headers and
+cookie mutation, and has no DI/auth/DB/settings/log/network dependency. The mapper accepts only trusted typed errors
+or exact closed literal rules; all unknown booking/payment errors use fixed route-local fallbacks without reflecting
+provider/request/SQL/PII-shaped strings. The exact eleven routes were migrated without changing identity, invite,
+booking, webhook exact-org/replay/UoW or patient organization-context control flow. The intentionally changed public
+contracts are only the frozen redactions: booking unknown → `503 create_failed`, general payment webhook unknown →
+`400 webhook_failed`, patient acquiring verification unknown → `400 webhook_verification_failed`, and unavailable
+request-derived provider → `400 payment_provider_unavailable`.
+
+Focused regression evidence after building the otherwise absent workspace-package artifacts in the isolated
+worktree: Vitest `15` files / `82` passed / `1` benchmark opt-in skipped; this includes specialist signup start and
+confirm, OAuth start and proxy configuration (`501 oauth_disabled`), invite create/list/entitlement/accept, both
+booking create routes (`503 rubitime_projection_not_ready` and unknown redaction), both payment webhook paths and
+patient organization-context. `pnpm --dir apps/webapp run typecheck` and scoped ESLint over every changed TS/MJS file
+passed. `node apps/webapp/scripts/check-e2-api-response-contract.mjs --self-test` passed the static eleven-route gate
+and all five adversarial mutations (missing route/import, raw message, boundary import, direct response);
+`git diff --check` passed.
+
+The separate opt-in in-process load proof ran after warm-up at concurrency `16`, with `1,280` samples per path and
+zero DB/network invocations. Interleaved baseline → helper results were: run 1 p50 `0.282752→0.282191` ms, p95
+`0.661941→0.658447` ms, p99 `0.913326→0.944924` ms, throughput `15,210.46` responses/s per path; run 2 p50
+`0.115687→0.114996`, p95 `0.322933→0.312728`, p99 `1.133382→1.125449`, throughput `34,755.64`; run 3 p50
+`0.091240→0.090919`, p95 `0.200406→0.194197`, p99 `0.641641→0.648641`, throughput `46,976.53`. Median p95 ratio
+was `0.968399`, within the `1.05` budget. Five post-warm unknown-error burst RSS samples stayed flat at
+`132804608` bytes, so monotonic growth was false. E2-10 and overall E2 intentionally remain unchecked pending the
+one terminal independent audit. No full CI, DB/network/server, deploy, TEST/PROD, external send, push or merge ran.

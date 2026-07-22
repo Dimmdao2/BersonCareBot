@@ -1,4 +1,3 @@
-import { NextResponse } from "next/server";
 import { z } from "zod";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import { requirePatientBookingTrustedPhoneAccess } from "@/app-layer/guards/requireRole";
@@ -10,6 +9,12 @@ import {
   resolveInPersonCityCode,
 } from "@/modules/patient-booking/inPersonBookingResolve";
 import { inPersonCreateBodySchema } from "@/modules/patient-booking/inPersonApiSchemas";
+import {
+  jsonError,
+  jsonOk,
+  mapApiError,
+  type ApiErrorLiteralRules,
+} from "@/shared/http/apiResponse";
 
 const formAnswerSchema = z.object({
   fieldKey: z.string().min(1),
@@ -40,6 +45,53 @@ const inPersonBody = inPersonCreateBodySchema;
 
 const bodySchema = z.discriminatedUnion("type", [onlineBody, inPersonBody]);
 
+const IN_PERSON_RESOLVE_ERROR_RULES = {
+  ambiguous_booking_tenant: { status: 400, code: "ambiguous_booking_tenant" },
+  booking_scheduling_unavailable: { status: 400, code: "booking_scheduling_unavailable" },
+  branch_not_found: { status: 400, code: "branch_not_found" },
+  branch_service_mapping_missing: { status: 404, code: "branch_service_mapping_missing" },
+  branch_service_not_found: { status: 400, code: "branch_service_not_found" },
+  invalid_in_person_keys: { status: 400, code: "invalid_in_person_keys" },
+} as const satisfies ApiErrorLiteralRules;
+
+const BOOKING_CREATE_ERROR_RULES = {
+  booking_blocked: { status: 403, code: "booking_blocked" },
+  booking_confirm_failed: { status: 503, code: "booking_confirm_failed" },
+  branch_service_not_found: { status: 404, code: "branch_service_not_found" },
+  canonical_booking_unavailable: { status: 503, code: "canonical_booking_unavailable" },
+  catalog_unavailable: { status: 503, code: "catalog_unavailable" },
+  city_mismatch: { status: 400, code: "city_mismatch" },
+  consecutive_slot_cap_exceeded: { status: 400, code: "consecutive_slot_cap_exceeded" },
+  duplicate_local_booking_id: { status: 409, code: "duplicate_local_booking_id" },
+  integrator_not_configured: { status: 503, code: "integrator_not_configured" },
+  invalid_branch_service_id: { status: 400, code: "invalid_branch_service_id" },
+  invalid_city_code: { status: 400, code: "invalid_city_code" },
+  invalid_contact_name: { status: 400, code: "invalid_contact_name" },
+  invalid_contact_phone: { status: 400, code: "invalid_contact_phone" },
+  invalid_datetime: { status: 400, code: "invalid_datetime" },
+  invalid_email: { status: 400, code: "invalid_email" },
+  invalid_phone: { status: 400, code: "invalid_phone" },
+  invalid_slot_count: { status: 400, code: "invalid_slot_count" },
+  invalid_slot_range: { status: 400, code: "invalid_slot_range" },
+  package_expired: { status: 409, code: "package_expired" },
+  package_no_balance: { status: 409, code: "package_no_balance" },
+  package_not_active: { status: 409, code: "package_not_active" },
+  package_not_found: { status: 409, code: "package_not_found" },
+  package_reserve_failed: { status: 409, code: "package_reserve_failed" },
+  payment_option_conflict: { status: 400, code: "payment_option_conflict" },
+  product_consume_failed: { status: 409, code: "product_consume_failed" },
+  product_expired: { status: 409, code: "product_expired" },
+  product_no_visits: { status: 409, code: "product_no_visits" },
+  product_not_active: { status: 409, code: "product_not_active" },
+  product_purchase_not_found: { status: 409, code: "product_purchase_not_found" },
+  product_service_mismatch: { status: 409, code: "product_service_mismatch" },
+  required_field_missing: { status: 400, code: "required_field_missing" },
+  rubitime_branch_not_found: { status: 422, code: "rubitime_branch_not_found" },
+  rubitime_projection_not_ready: { status: 503, code: "rubitime_projection_not_ready" },
+  slot_already_taken: { status: 409, code: "slot_already_taken" },
+  slot_overlap: { status: 409, code: "slot_overlap" },
+} as const satisfies ApiErrorLiteralRules;
+
 export async function POST(request: Request) {
   const gate = await requirePatientBookingTrustedPhoneAccess({ returnPath: routePaths.patientBooking });
   if (!gate.ok) return gate.response;
@@ -48,14 +100,14 @@ export async function POST(request: Request) {
   const raw = (await request.json().catch(() => null)) as unknown;
   const parsed = bodySchema.safeParse(raw);
   if (!parsed.success) {
-    return NextResponse.json({ ok: false, error: "invalid_body" }, { status: 400 });
+    return jsonError("invalid_body", {}, { status: 400 });
   }
 
   const deps = buildAppDeps();
   const body = parsed.data;
   try {
     if (body.type === "online") {
-      return NextResponse.json({ ok: false, error: "ambiguous_booking_tenant" }, { status: 400 });
+      return jsonError("ambiguous_booking_tenant", {}, { status: 400 });
     }
     const ctx = await resolveInPersonBookingContext(deps, body);
     const booking = await withExplicitOrganizationPrincipal(
@@ -83,84 +135,21 @@ export async function POST(request: Request) {
         });
       },
     );
-    return NextResponse.json({ ok: true, booking }, { status: 200 });
+    return jsonOk({ booking }, { status: 200 });
   } catch (error) {
-    const message = error instanceof Error ? error.message : "create_failed";
-    if (error instanceof InPersonBookingResolveError) {
-      const status = message === "branch_service_mapping_missing" ? 404 : 400;
-      return NextResponse.json({ ok: false, error: message }, { status });
-    }
-    if (message === "slot_overlap") {
-      return NextResponse.json({ ok: false, error: "slot_overlap" }, { status: 409 });
-    }
-    if (message === "consecutive_slot_cap_exceeded" || message === "invalid_slot_count") {
-      return NextResponse.json({ ok: false, error: message }, { status: 400 });
-    }
-    if (message === "booking_confirm_failed") {
-      return NextResponse.json({ ok: false, error: "booking_confirm_failed" }, { status: 503 });
-    }
-    if (message === "rubitime_projection_not_ready") {
-      return NextResponse.json({ ok: false, error: "rubitime_projection_not_ready" }, { status: 503 });
-    }
-    if (message === "branch_service_not_found") {
-      return NextResponse.json({ ok: false, error: "branch_service_not_found" }, { status: 404 });
-    }
-    if (message === "catalog_unavailable") {
-      return NextResponse.json({ ok: false, error: "catalog_unavailable" }, { status: 503 });
-    }
-    if (message === "slot_already_taken" || message === "duplicate_local_booking_id") {
-      return NextResponse.json({ ok: false, error: message }, { status: 409 });
-    }
-    if (message === "rubitime_branch_not_found") {
-      return NextResponse.json({ ok: false, error: message }, { status: 422 });
-    }
-    if (message === "city_mismatch") {
-      return NextResponse.json({ ok: false, error: "city_mismatch" }, { status: 400 });
-    }
-    if (message === "package_not_found" || message === "package_expired" || message === "package_not_active") {
-      return NextResponse.json({ ok: false, error: message }, { status: 409 });
-    }
-    if (
-      message === "package_reserve_failed" ||
-      message === "package_no_balance"
-    ) {
-      return NextResponse.json({ ok: false, error: message }, { status: 409 });
-    }
-    if (message === "payment_option_conflict") {
-      return NextResponse.json({ ok: false, error: message }, { status: 400 });
-    }
-    if (
-      message === "product_purchase_not_found" ||
-      message === "product_no_visits" ||
-      message === "product_expired" ||
-      message === "product_not_active" ||
-      message === "product_service_mismatch" ||
-      message === "product_consume_failed"
-    ) {
-      return NextResponse.json({ ok: false, error: message }, { status: 409 });
-    }
-    if (message === "required_field_missing" || message === "invalid_email" || message === "invalid_phone") {
-      return NextResponse.json({ ok: false, error: message }, { status: 400 });
-    }
-    if (message === "canonical_booking_unavailable") {
-      return NextResponse.json({ ok: false, error: message }, { status: 503 });
-    }
-    if (message === "booking_blocked") {
-      return NextResponse.json({ ok: false, error: message }, { status: 403 });
-    }
-    if (
-      message === "invalid_branch_service_id" ||
-      message === "invalid_city_code" ||
-      message === "invalid_slot_range" ||
-      message === "invalid_datetime" ||
-      message === "invalid_contact_name" ||
-      message === "invalid_contact_phone"
-    ) {
-      return NextResponse.json({ ok: false, error: message }, { status: 400 });
-    }
-    if (message === "integrator_not_configured" || message.startsWith("rubitime_")) {
-      return NextResponse.json({ ok: false, error: message }, { status: 503 });
-    }
-    return NextResponse.json({ ok: false, error: message }, { status: 503 });
+    const mapped = mapApiError(
+      error,
+      BOOKING_CREATE_ERROR_RULES,
+      { status: 503, code: "create_failed" },
+      [{
+        matches: (candidate: unknown): candidate is InPersonBookingResolveError =>
+          candidate instanceof InPersonBookingResolveError,
+        literalRules: IN_PERSON_RESOLVE_ERROR_RULES,
+      }],
+    );
+    return jsonError(mapped.code, mapped.publicFields ?? {}, {
+      status: mapped.status,
+      headers: mapped.headers,
+    });
   }
 }
