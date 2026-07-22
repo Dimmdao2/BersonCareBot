@@ -4713,3 +4713,15 @@ truthful todo/residual states. `#913` now waits on one notification field matrix
 fault-injection window, and stale owner questions were removed from old TEST SHA `#821` and dependent UI-5b `#971`
 in favor of the single U5A question `#796`. Umbrellas `#898/#935` remain active because their programs/current
 children remain active. The initiative registry and subordinate plan headers were synchronized to the same state.
+
+## 2026-07-22 — stability D2 central CSRF guard integrated as `#974`
+
+The frozen `#973` census now drives one pure proxy-level same-origin guard for all browser mutations and Server
+Actions while preserving only the exact HMAC, internal Bearer, payment-webhook and Apple `form_post` exemptions.
+The route/static matrix freezes `518` API files, the `353/392` unsafe subset, `28` Server Action files and nine
+stateful GETs; reject happens before redirects/cookies/session renewal with stable `403/no-store` semantics. The one
+independent audit passed every D2 item except a concrete combined-Referer ambiguity. A localized fail-closed parser
+and adversarial test closed that exact D2-03/D2-09 finding in `2d3c98acc`; no serial audit round or adjacent endpoint
+retirement scope was opened. Focused integration tests passed `26` with `4` opt-in live checks skipped; worker
+typecheck/lint and a `1.0021x` p95 zero-I/O load proof passed. Full CI remains the accumulated phase milestone; no
+DB, TEST/PROD, deploy, external send or second Next server was used.
