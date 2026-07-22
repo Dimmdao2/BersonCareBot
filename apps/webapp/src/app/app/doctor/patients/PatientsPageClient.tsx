@@ -45,6 +45,7 @@ import { PatientPreviewPane } from "./PatientPreviewPane";
 import {
   buildPatientListWorkspaceHref,
   patientCardHrefWithReturnTo,
+  type PatientListChannel,
   type PatientListSegmentKey,
   type PatientListSort,
   type PatientListSortDirection,
@@ -164,7 +165,7 @@ const SEGMENTS: SegmentDef[] = [
 ];
 
 // ---------------------------------------------------------------------------
-function applyChannelFilter(list: ClientListItem[], activeChannel: string | null): ClientListItem[] {
+function applyChannelFilter(list: ClientListItem[], activeChannel: PatientListChannel | null): ClientListItem[] {
   if (activeChannel === "telegram") {
     return list.filter((c) => Boolean(c.bindings.telegramId?.trim()) && !c.bindings.telegramBotBlocked);
   }
@@ -545,7 +546,7 @@ type PatientsContentProps = {
   metricsPromise: Promise<DoctorDashboardPatientMetrics>;
   patientPluralLabel: string;
   activeSegments: SegmentKey[];
-  activeChannel: string | null;
+  activeChannel: PatientListChannel | null;
   archivedOnly: boolean;
   searchQuery: string;
   searchInput: string;
@@ -561,7 +562,7 @@ type PatientsContentProps = {
   onPatientSelect: (userId: string) => void;
   onListScroll: (scrollTop: number) => void;
   onSegmentToggle: (key: SegmentKey) => void;
-  onChannelChange: (channel: string | null, archived: boolean) => void;
+  onChannelChange: (channel: PatientListChannel | null, archived: boolean) => void;
   onClearSearch: () => void;
   onSearchInput: (value: string) => void;
   onMobileFiltersOpenChange: (open: boolean) => void;
@@ -919,7 +920,7 @@ export function PatientsPageClient({ listPromise: initialListPromise, metricsPro
 
   // Segment / channel / archive state (segment and channel are client-side only)
   const [activeSegments, setActiveSegments] = useState<PatientListSegmentKey[]>(initialFilters.segments);
-  const [activeChannel, setActiveChannel] = useState<string | null>(initialFilters.channel);
+  const [activeChannel, setActiveChannel] = useState<PatientListChannel | null>(initialFilters.channel);
   const [archivedOnly, setArchivedOnly] = useState(initialFilters.archivedOnly);
 
   // Legacy per-button filter state (client-side only)
@@ -964,7 +965,7 @@ export function PatientsPageClient({ listPromise: initialListPromise, metricsPro
     });
   }, []);
 
-  const handleChannelChange = useCallback((channel: string | null, archived: boolean) => {
+  const handleChannelChange = useCallback((channel: PatientListChannel | null, archived: boolean) => {
     setActiveChannel(channel);
     setArchivedOnly(archived);
   }, []);

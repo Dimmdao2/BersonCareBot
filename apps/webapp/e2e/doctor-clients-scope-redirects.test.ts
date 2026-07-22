@@ -82,5 +82,8 @@ describe("doctor clients scope and subscribers redirects", () => {
     expect(cardPageSource).toContain("getClientIdentityForOrganization(");
     expect(cardPageSource).toContain("withDoctorWorkspacePrincipal(workspace");
     expect(cardPageSource).toContain("<PatientCardClient");
+    expect(cardPageSource.match(/await requireDoctorWorkspaceContext\(\)/g)).toHaveLength(1);
+    expect(cardPageSource.match(/getClientIdentityForOrganization\(/g)).toHaveLength(1);
+    expect(cardPageSource.match(/<PatientCardClient\b/g)).toHaveLength(1);
   });
 });

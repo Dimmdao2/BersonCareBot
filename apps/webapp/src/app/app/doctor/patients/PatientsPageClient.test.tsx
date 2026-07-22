@@ -14,6 +14,7 @@ import {
 
 const routerPushMock = vi.hoisted(() => vi.fn());
 const routerRefreshMock = vi.hoisted(() => vi.fn());
+const PATIENT_ID = "550e8400-e29b-41d4-a716-446655440001";
 
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ push: routerPushMock, refresh: routerRefreshMock }),
@@ -432,7 +433,7 @@ describe("PatientsPageClient", () => {
         ok: true,
         header: {
           identity: {
-            userId: "u1",
+            userId: PATIENT_ID,
             displayName: "Петров Иван",
             firstName: "Иван",
             lastName: "Петров",
@@ -460,7 +461,7 @@ describe("PatientsPageClient", () => {
     vi.stubGlobal("fetch", fetchMock);
     await renderPatientsPage([
       client({
-        userId: "u1",
+        userId: PATIENT_ID,
         displayName: "Петров Иван",
         firstName: "Иван",
         lastName: "Петров",
@@ -507,29 +508,31 @@ describe("PatientsPageClient", () => {
     fireEvent.scroll(list);
     await user.click(patientRow);
 
-    await waitFor(() => expect(fetchMock).toHaveBeenCalledWith("/api/doctor/patients/u1", expect.any(Object)));
+    await waitFor(() =>
+      expect(fetchMock).toHaveBeenCalledWith(`/api/doctor/patients/${PATIENT_ID}`, expect.any(Object)),
+    );
     expect(patientRow).toHaveAttribute("aria-pressed", "true");
     const fullCardLink = await screen.findByRole("link", { name: "Открыть карточку" });
     const cardUrl = new URL(fullCardLink.getAttribute("href") ?? "", "https://bersoncare.local");
-    expect(cardUrl.pathname).toBe("/app/doctor/patients/u1");
+    expect(cardUrl.pathname).toBe(`/app/doctor/patients/${PATIENT_ID}`);
     const returnTo = new URL(cardUrl.searchParams.get("returnTo") ?? "", "https://bersoncare.local");
     expect(returnTo.pathname).toBe("/app/doctor/patients");
     expect(returnTo.searchParams.get("q")).toBe("Петров");
     expect(returnTo.searchParams.get("segments")).toBe("appointments");
     expect(returnTo.searchParams.get("sort")).toBe("fio");
-    expect(returnTo.searchParams.get("selected")).toBe("u1");
+    expect(returnTo.searchParams.get("selected")).toBe(PATIENT_ID);
     expect(returnTo.searchParams.get("scroll")).toBe("64");
   });
 
   it("restores search, sort, selected preview, and list scroll from the list URL state", async () => {
     vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: false, json: async () => ({ ok: false }) }));
     await renderPatientsPage(
-      [client({ userId: "u1", displayName: "Петров Иван", firstName: "Иван", lastName: "Петров" })],
+      [client({ userId: PATIENT_ID, displayName: "Петров Иван", firstName: "Иван", lastName: "Петров" })],
       {
         q: "Петров",
         sort: "fio",
         sortDirection: "asc",
-        selectedPatientId: "u1",
+        selectedPatientId: PATIENT_ID,
         scrollTop: 42,
       },
     );
@@ -540,7 +543,7 @@ describe("PatientsPageClient", () => {
     await waitFor(() => expect(document.getElementById("doctor-patients-list")).toHaveProperty("scrollTop", 42));
     const fullCardLink = await screen.findByRole("link", { name: "Открыть карточку" });
     expect(fullCardLink.getAttribute("href")).toContain("returnTo=");
-    expect(window.location.search).toContain("selected=u1");
+    expect(window.location.search).toContain(`selected=${PATIENT_ID}`);
     expect(window.location.search).toContain("scroll=42");
   });
 
@@ -552,17 +555,45 @@ describe("PatientsPageClient", () => {
       archived: "true",
       sort: "fio",
       direction: "asc",
-      selected: "patient-1",
+      selected: PATIENT_ID.toUpperCase(),
       scroll: "75",
     });
     const href = buildPatientListWorkspaceHref(parsed);
 
     expect(href).toBe(
-      "/app/doctor/patients?q=%D0%98%D0%B2%D0%B0%D0%BD&segments=appointments%2Con_support&channel=telegram&archived=true&sort=fio&direction=asc&selected=patient-1&scroll=75",
+      `/app/doctor/patients?q=%D0%98%D0%B2%D0%B0%D0%BD&segments=appointments%2Con_support&channel=telegram&archived=true&sort=fio&direction=asc&selected=${PATIENT_ID}&scroll=75`,
     );
     expect(sanitizePatientListReturnHref(href)).toBe(href);
+    const directUrl = new URL(href, "https://bersoncare.local");
+    expect(parsePatientListWorkspaceState(Object.fromEntries(directUrl.searchParams.entries()))).toEqual(parsed);
     expect(sanitizePatientListReturnHref("/app/doctor/patients/patient-1")).toBe("/app/doctor/patients");
     expect(sanitizePatientListReturnHref("https://example.com/app/doctor/patients")).toBe("/app/doctor/patients");
+  });
+
+  it("drops unknown channels and malformed patient IDs from list URL state", () => {
+    const parsed = parsePatientListWorkspaceState({
+      channel: "signal",
+      selected: "patient-1",
+    });
+
+    expect(parsed.channel).toBeNull();
+    expect(parsed.selectedPatientId).toBeNull();
+    expect(buildPatientListWorkspaceHref(parsed)).toBe("/app/doctor/patients");
+  });
+
+  it.each(["75junk", "-1", "9007199254740992"])("rejects malformed list scroll %s", (scroll) => {
+    const parsed = parsePatientListWorkspaceState({ scroll });
+
+    expect(parsed.scrollTop).toBe(0);
+    expect(buildPatientListWorkspaceHref(parsed)).toBe("/app/doctor/patients");
+  });
+
+  it("sanitizes returnTo into canonical validated list state", () => {
+    expect(
+      sanitizePatientListReturnHref(
+        `/app/doctor/patients?direction=desc&channel=signal&selected=patient-1&scroll=75junk&q=%20%D0%98%D0%B2%D0%B0%D0%BD%20&segment=appointments&extra=drop`,
+      ),
+    ).toBe("/app/doctor/patients?q=%D0%98%D0%B2%D0%B0%D0%BD&segments=appointments");
   });
 
   it("creates a structured walk-in without sending organization or specialist authority", async () => {

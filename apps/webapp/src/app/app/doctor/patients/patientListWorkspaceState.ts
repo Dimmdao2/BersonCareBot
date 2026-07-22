@@ -14,14 +14,17 @@ export const PATIENT_LIST_SEGMENT_KEYS = [
   "visited_month",
 ] as const;
 
+export const PATIENT_LIST_CHANNELS = ["telegram", "max", "email", "phone", "web_push"] as const;
+
 export type PatientListSegmentKey = (typeof PATIENT_LIST_SEGMENT_KEYS)[number];
+export type PatientListChannel = (typeof PATIENT_LIST_CHANNELS)[number];
 export type PatientListSort = "recent_appointments" | "fio";
 export type PatientListSortDirection = "asc" | "desc";
 
 export type PatientListWorkspaceState = {
   q: string;
   segments: PatientListSegmentKey[];
-  channel: string | null;
+  channel: PatientListChannel | null;
   archivedOnly: boolean;
   sort: PatientListSort;
   sortDirection: PatientListSortDirection;
@@ -30,6 +33,8 @@ export type PatientListWorkspaceState = {
 };
 
 type SearchParamValue = string | string[] | undefined;
+
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 function firstParam(value: SearchParamValue): string | undefined {
   return Array.isArray(value) ? value[0] : value;
@@ -41,22 +46,38 @@ function parseSegments(value: string | undefined, legacySegment: string | undefi
   return Array.from(new Set(requested.filter((segment): segment is PatientListSegmentKey => allowed.has(segment))));
 }
 
+function parseChannel(value: string | undefined): PatientListChannel | null {
+  const normalized = value?.trim();
+  return PATIENT_LIST_CHANNELS.find((channel) => channel === normalized) ?? null;
+}
+
+function parsePatientId(value: string | undefined): string | null {
+  const normalized = value?.trim();
+  return normalized && UUID_RE.test(normalized) ? normalized.toLowerCase() : null;
+}
+
+function parseScrollTop(value: string | undefined): number {
+  const normalized = value?.trim();
+  if (!normalized || !/^(0|[1-9]\d*)$/.test(normalized)) return 0;
+  const parsed = Number(normalized);
+  return Number.isSafeInteger(parsed) ? parsed : 0;
+}
+
 export function parsePatientListWorkspaceState(
   searchParams: Record<string, SearchParamValue>,
 ): PatientListWorkspaceState {
   const sortParam = firstParam(searchParams.sort);
   const directionParam = firstParam(searchParams.direction);
-  const scrollParam = Number.parseInt(firstParam(searchParams.scroll) ?? "0", 10);
 
   return {
     q: firstParam(searchParams.q)?.trim() ?? "",
     segments: parseSegments(firstParam(searchParams.segments), firstParam(searchParams.segment)),
-    channel: firstParam(searchParams.channel)?.trim() || null,
+    channel: parseChannel(firstParam(searchParams.channel)),
     archivedOnly: firstParam(searchParams.archived) === "true",
     sort: sortParam === "fio" ? "fio" : "recent_appointments",
     sortDirection: directionParam === "asc" ? "asc" : "desc",
-    selectedPatientId: firstParam(searchParams.selected)?.trim() || null,
-    scrollTop: Number.isFinite(scrollParam) && scrollParam > 0 ? scrollParam : 0,
+    selectedPatientId: parsePatientId(firstParam(searchParams.selected)),
+    scrollTop: parseScrollTop(firstParam(searchParams.scroll)),
   };
 }
 
@@ -68,8 +89,9 @@ export function buildPatientListWorkspaceHref(state: PatientListWorkspaceState):
   if (state.archivedOnly) params.set("archived", "true");
   if (state.sort !== "recent_appointments") params.set("sort", state.sort);
   if (state.sortDirection !== "desc") params.set("direction", state.sortDirection);
-  if (state.selectedPatientId) params.set("selected", state.selectedPatientId);
-  if (state.scrollTop > 0) params.set("scroll", String(Math.round(state.scrollTop)));
+  const selectedPatientId = parsePatientId(state.selectedPatientId ?? undefined);
+  if (selectedPatientId) params.set("selected", selectedPatientId);
+  if (Number.isSafeInteger(state.scrollTop) && state.scrollTop > 0) params.set("scroll", String(state.scrollTop));
   const query = params.toString();
   return query ? `${routePaths.doctorPatients}?${query}` : routePaths.doctorPatients;
 }
@@ -89,7 +111,8 @@ export function sanitizePatientListReturnHref(value: SearchParamValue): string {
     if (resolved.origin !== base.origin || resolved.pathname !== routePaths.doctorPatients) {
       return routePaths.doctorPatients;
     }
-    return `${resolved.pathname}${resolved.search}`;
+    const canonicalState = parsePatientListWorkspaceState(Object.fromEntries(resolved.searchParams.entries()));
+    return buildPatientListWorkspaceHref(canonicalState);
   } catch {
     return routePaths.doctorPatients;
   }
