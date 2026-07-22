@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const { getFreshServerRuntimeTokenListMock, getServerRuntimeTokenListMock } = vi.hoisted(() => ({
   getFreshServerRuntimeTokenListMock: vi.fn(),
@@ -114,6 +114,10 @@ describe("resolveRoleAsync", () => {
 });
 
 describe("isVerifiedEmailGlobalAdminAsync", () => {
+  beforeEach(() => {
+    getFreshServerRuntimeTokenListMock.mockReset();
+  });
+
   it("requires an exact normalized verified email from the DB-only allowlist", async () => {
     getFreshServerRuntimeTokenListMock.mockResolvedValue('["DimmDao@Gmail.com"]');
 

@@ -51,20 +51,26 @@ export function createPgEmailOtpPublicPort(): EmailOtpPublicDbPort {
       );
     },
 
-    async findLatestEmailChallengeByEmail(emailNorm, nowSec) {
-      // email_challenges.email stores the normalized email (startEmailChallenge receives normalizeEmail output).
-      const r = await runWebappPgText<{
-        id: string;
-        user_id: string;
-        code_hash: string;
-        expires_at: string;
-        attempts: string;
+    async consumeLatestEmailChallenge(emailNorm, codeHash) {
+      const result = await runWebappPgText<{
+        ok: boolean;
+        code: "invalid_code" | "expired_code" | "too_many_attempts" | "email_conflict" | null;
+        user_id: string | null;
+        retry_after_seconds: number | null;
       }>(
-        `SELECT id::text, user_id::text AS user_id, code_hash, expires_at::text, attempts::text
-         FROM app.email_otp_public_find_latest_email_challenge_by_email($1, $2::bigint)`,
-        [emailNorm, nowSec],
+        `SELECT ok, code, user_id::text AS user_id, retry_after_seconds
+         FROM app.email_otp_public_consume_latest_challenge($1, $2)`,
+        [emailNorm, codeHash],
       );
-      return r.rows[0] ?? null;
+      const row = result.rows[0];
+      if (!row) throw new Error("email_otp_public_consume_latest_challenge_failed");
+      if (row.ok && row.user_id) return { ok: true as const, userId: row.user_id };
+      if (!row.code) throw new Error("email_otp_public_consume_latest_challenge_invalid_result");
+      return {
+        ok: false as const,
+        code: row.code,
+        ...(row.retry_after_seconds == null ? {} : { retryAfterSeconds: row.retry_after_seconds }),
+      };
     },
 
     async findEmailSendCooldownByEmail(emailNorm) {
@@ -118,9 +124,8 @@ export const inMemoryEmailOtpPublicPort: EmailOtpPublicDbPort = {
     for (const [email, id] of memEmailUserByNorm) if (id === userId) memEmailUserByNorm.delete(email);
   },
 
-  async findLatestEmailChallengeByEmail(_emailNorm, _nowSec) {
-    // In-memory path: not used by route tests (they mock buildAppDeps).
-    return null;
+  async consumeLatestEmailChallenge(_emailNorm, _codeHash) {
+    return { ok: false as const, code: "expired_code" as const };
   },
 
   async findEmailSendCooldownByEmail(emailNorm) {

@@ -217,6 +217,7 @@ REVOKE EXECUTE ON FUNCTION app.email_otp_public_find_or_create_user(text) FROM :
 REVOKE EXECUTE ON FUNCTION app.email_otp_public_register_patient(text, text, text, text) FROM :"d3_4_bootstrap_base_role";
 REVOKE EXECUTE ON FUNCTION app.email_otp_public_delete_unverified_registration(uuid) FROM :"d3_4_bootstrap_base_role";
 REVOKE EXECUTE ON FUNCTION app.email_otp_public_find_latest_email_challenge_by_email(text, bigint) FROM :"d3_4_bootstrap_base_role";
+REVOKE EXECUTE ON FUNCTION app.email_otp_public_consume_latest_challenge(text, text) FROM :"d3_4_bootstrap_base_role";
 REVOKE EXECUTE ON FUNCTION app.email_otp_public_find_email_send_cooldown_by_email(text) FROM :"d3_4_bootstrap_base_role";
 REVOKE EXECUTE ON FUNCTION app.email_auth_find_email_send_cooldown(uuid, text) FROM :"d3_4_bootstrap_base_role";
 REVOKE EXECUTE ON FUNCTION app.email_auth_delete_email_challenges_for_user(uuid) FROM :"d3_4_bootstrap_base_role";
@@ -429,6 +430,7 @@ GRANT EXECUTE ON FUNCTION app.email_otp_public_find_or_create_user(text) TO :"d3
 GRANT EXECUTE ON FUNCTION app.email_otp_public_register_patient(text, text, text, text) TO :"d3_4_bootstrap_base_role";
 GRANT EXECUTE ON FUNCTION app.email_otp_public_delete_unverified_registration(uuid) TO :"d3_4_bootstrap_base_role";
 GRANT EXECUTE ON FUNCTION app.email_otp_public_find_latest_email_challenge_by_email(text, bigint) TO :"d3_4_bootstrap_base_role";
+GRANT EXECUTE ON FUNCTION app.email_otp_public_consume_latest_challenge(text, text) TO :"d3_4_bootstrap_base_role";
 GRANT EXECUTE ON FUNCTION app.email_otp_public_find_email_send_cooldown_by_email(text) TO :"d3_4_bootstrap_base_role";
 GRANT EXECUTE ON FUNCTION app.email_auth_find_email_send_cooldown(uuid, text) TO :"d3_4_bootstrap_base_role";
 GRANT EXECUTE ON FUNCTION app.email_auth_delete_email_challenges_for_user(uuid) TO :"d3_4_bootstrap_base_role";

@@ -4,7 +4,7 @@ const setSessionFromUserMock = vi.fn().mockResolvedValue(undefined);
 const trySetInitialIfEmptyMock = vi.fn().mockResolvedValue(undefined);
 const confirmPublicEmailOtpChallengeMock = vi.fn();
 const findByUserIdMock = vi.fn();
-const resolveRoleAsyncMock = vi.fn();
+const isVerifiedEmailGlobalAdminAsyncMock = vi.fn();
 const isAuthChannelEnabledMock = vi.hoisted(() => vi.fn());
 
 vi.mock("@/modules/auth/authChannelPolicy", () => ({
@@ -41,15 +41,7 @@ vi.mock("@/modules/auth/service", () => ({
 }));
 
 vi.mock("@/modules/auth/envRole", () => ({
-  reconcileDbRoleWithEnvRole: (
-    currentRole: "admin" | "doctor" | "client",
-    policyRole: "admin" | "doctor" | "client",
-  ) => {
-    if (policyRole === "admin" || currentRole === "admin") return "admin";
-    if (policyRole === "doctor" || currentRole === "doctor") return "doctor";
-    return "client";
-  },
-  resolveRoleAsync: (...args: unknown[]) => resolveRoleAsyncMock(...args),
+  isVerifiedEmailGlobalAdminAsync: (...args: unknown[]) => isVerifiedEmailGlobalAdminAsyncMock(...args),
 }));
 
 import { POST } from "./route";
@@ -60,7 +52,7 @@ describe("POST /api/auth/email-otp/confirm", () => {
     confirmPublicEmailOtpChallengeMock.mockReset();
     findByUserIdMock.mockReset();
     setSessionFromUserMock.mockClear();
-    resolveRoleAsyncMock.mockReset().mockResolvedValue("client");
+    isVerifiedEmailGlobalAdminAsyncMock.mockReset().mockResolvedValue(false);
     trySetInitialIfEmptyMock.mockClear();
     isAuthChannelEnabledMock.mockReset();
     isAuthChannelEnabledMock.mockResolvedValue(true);
@@ -123,7 +115,7 @@ describe("POST /api/auth/email-otp/confirm", () => {
   });
 
   it("derives an email-allowlisted admin role only after successful OTP confirmation", async () => {
-    resolveRoleAsyncMock.mockResolvedValueOnce("admin");
+    isVerifiedEmailGlobalAdminAsyncMock.mockResolvedValueOnce(true);
     const res = await POST(
       new Request("http://localhost/api/auth/email-otp/confirm", {
         method: "POST",
@@ -134,12 +126,12 @@ describe("POST /api/auth/email-otp/confirm", () => {
 
     expect(res.status).toBe(200);
     await expect(res.json()).resolves.toMatchObject({ role: "admin", redirectTo: "/app/doctor" });
-    expect(resolveRoleAsyncMock).toHaveBeenCalledWith({ email: "dimmdao@gmail.com" });
+    expect(isVerifiedEmailGlobalAdminAsyncMock).toHaveBeenCalledWith("dimmdao@gmail.com");
     expect(setSessionFromUserMock).toHaveBeenCalledWith({ ...testUser, role: "admin" });
   });
 
   it("does not elevate an email OTP session when policy resolves a non-admin role", async () => {
-    resolveRoleAsyncMock.mockResolvedValueOnce("client");
+    isVerifiedEmailGlobalAdminAsyncMock.mockResolvedValueOnce(false);
     const res = await POST(
       new Request("http://localhost/api/auth/email-otp/confirm", {
         method: "POST",

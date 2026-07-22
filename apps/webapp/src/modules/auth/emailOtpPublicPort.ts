@@ -21,14 +21,18 @@ export type EmailOtpPublicDbPort = {
   /** Roll back only a newly-created unverified registration after delivery failure. */
   deleteUnverifiedPublicEmailRegistration(userId: string): Promise<void>;
 
-  /**
-   * Find most recent unexpired challenge by email (normalized).
-   * Used at confirm step when we only know email+code, not userId.
-   */
-  findLatestEmailChallengeByEmail(
+  /** Atomically consume the latest challenge using only a pre-hashed code. */
+  consumeLatestEmailChallenge(
     emailNorm: string,
-    nowSec: number,
-  ): Promise<{ id: string; user_id: string; code_hash: string; expires_at: string; attempts: string } | null>;
+    codeHash: string,
+  ): Promise<
+    | { ok: true; userId: string }
+    | {
+        ok: false;
+        code: "invalid_code" | "expired_code" | "too_many_attempts" | "email_conflict";
+        retryAfterSeconds?: number;
+      }
+  >;
 
   /**
    * Rate-limit check: most recent cooldown for this email across all users.

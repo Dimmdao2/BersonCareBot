@@ -74,7 +74,7 @@ import {
   getCurrentDbPrincipal,
   runWithDbBootstrapPrincipal,
 } from "@bersoncare/db-principal";
-import type { AppSession, SessionUser } from "@/shared/types/session";
+import type { AppSession, SessionUser, UserRole } from "@/shared/types/session";
 import { getCurrentSession } from "./service";
 
 const USER_ID = "11111111-1111-4111-8111-111111111111";
@@ -164,14 +164,16 @@ describe("getCurrentSession identity-self concurrency", () => {
     expect(mocks.findByUserId).toHaveBeenCalledTimes(2);
   });
 
-  it.each([
+  const IDENTITY_CASES: ReadonlyArray<[string, UserRole, Partial<SessionUser>]> = [
     ["client phone", "client", { phone: "+75550000001", bindings: {} }],
     ["client Telegram", "client", { bindings: { telegramId: "tg-client" } }],
     ["client MAX", "client", { bindings: { maxId: "max-client" } }],
     ["doctor phone", "doctor", { phone: "+75550000002", bindings: {} }],
     ["doctor Telegram", "doctor", { bindings: { telegramId: "tg-doctor" } }],
     ["doctor MAX", "doctor", { bindings: { maxId: "max-doctor" } }],
-  ] as const)("elevates %s through a verified allowlisted email without persisting admin", async (_label, role, identity) => {
+  ];
+
+  it.each(IDENTITY_CASES)("elevates %s through a verified allowlisted email without persisting admin", async (_label, role, identity) => {
     const user = { ...doctorUser(), role, ...identity };
     mocks.decodedSession = {
       user,

@@ -1625,6 +1625,13 @@
       "when": 1793539200027,
       "tag": "0231_admin_email_role_runtime_config",
       "breakpoints": true
+    },
+    {
+      "idx": 232,
+      "version": "7",
+      "when": 1793539200028,
+      "tag": "0232_email_otp_atomic_consume",
+      "breakpoints": true
     }
   ]
 }
