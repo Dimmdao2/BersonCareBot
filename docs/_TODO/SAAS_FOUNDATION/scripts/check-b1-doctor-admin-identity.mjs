@@ -175,6 +175,7 @@ legacy_email_admin AS (
   FROM public.platform_users pu, constants c
   WHERE pu.role = 'admin'
     AND pu.display_name = 'Дмитрий Берсон'
+    AND pu.email = c.admin_email
     AND pu.email_normalized = c.admin_email
     AND pu.phone_normalized IS NULL
     AND pu.integrator_user_id IS NULL
@@ -309,6 +310,26 @@ function validateContract() {
     "adminPhonesGlobalValue",
   ]) {
     assert(sql.includes(needle), `SQL missing ${needle}`);
+  }
+
+  // This must stay as narrow as migration 0233: a matching normalized email alone is
+  // not evidence that a row is the historical credential-less admin artifact.
+  for (const needle of [
+    "pu.role = 'admin'",
+    "pu.display_name = 'Дмитрий Берсон'",
+    "pu.email = c.admin_email",
+    "pu.email_normalized = c.admin_email",
+    "pu.phone_normalized IS NULL",
+    "pu.integrator_user_id IS NULL",
+    "pu.merged_into_id IS NULL",
+    "pu.is_archived IS FALSE",
+    "NOT EXISTS (SELECT 1 FROM public.user_channel_bindings b WHERE b.user_id = pu.id)",
+    "NOT EXISTS (SELECT 1 FROM public.user_oauth_bindings b WHERE b.user_id = pu.id)",
+    "NOT EXISTS (SELECT 1 FROM public.user_password_credentials c WHERE c.user_id = pu.id)",
+    "NOT EXISTS (SELECT 1 FROM public.user_pins p WHERE p.user_id = pu.id)",
+    "NOT EXISTS (SELECT 1 FROM public.login_tokens t WHERE t.user_id = pu.id)",
+  ]) {
+    assert(sql.includes(needle), `legacy artifact predicate missing ${needle}`);
   }
 }
 
