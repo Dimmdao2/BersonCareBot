@@ -16,3 +16,10 @@
 - Action: the 167-row Track A matrix was retained as an evidence-only census; its implementation batch is limited to the Today/Clients/Messages list contract. The broad Track B fix and Track C audit were interrupted before commit and split into bounded sequential substages.
 - Track B split: email-role/fail-closed setting read; atomic OTP consume; U9A mirror whitelist; narrow PWA/push identity guard and owner handoff.
 - Track C split: canonical booking code/caller/test audit; separate R5–R7 provenance/runtime/owner-gate audit.
+
+## 2026-07-22 — owner decision on DEV/TEST cadence
+
+- PROD is a separate server and remains outside this work order.
+- Normal verification uses DEV where fast local feedback is material, then an incremental TEST deployment of a coherent integrated milestone. TEST keeps its current database and receives only required forward migrations.
+- Do not pull a fresh PROD dump or repeat a full SaaS reset, cutover, or backfill for routine verification.
+- Do not deploy every small commit mechanically: use targeted checks per bounded substage, one accumulated full CI gate, then TEST where environment-specific proof is required (DB grants/migrations, OTP, PWA/push, runtime boundaries).
