@@ -101,8 +101,9 @@ RSS) как часть приёмки этапа.
   D2/D3/E2 (string-compare / build-time / init-time), C1 (событие только на ошибке, async, traces sample=0).
 - _Bounded per-event:_ E3 выполняет Zod-валидацию на producer и receiver для каждого M2M event. Это не init-time:
   приёмка требует трёх одинаковых baseline→after прогонов для exact `4 096 B` representative и
-  `57 671 679 B` max-ingress body; p95 after ≤ baseline × `1.05` в каждом fixture/run, bounded RSS без
-  monotonic post-GC growth и доказательство нулевых дополнительных DB/network вызовов.
+  `57 671 679 B` repository-target-max body; p95 after ≤ baseline × `1.05` в каждом fixture/run, bounded RSS без
+  monotonic post-GC growth и доказательство нулевых дополнительных DB/network вызовов. Это покрывает intended
+  `55m` repo config, но не доказывает active PROD nginx value.
 - _Load-чувствительные (делать по cheap-дизайну ниже):_ **D1 сессии**, **C3 метрики**, и присущая цена **RLS (A4)**.
 
 ---
@@ -536,27 +537,68 @@ apply, TEST/PROD or deploy is claimed.
       receiver принимает только результат `JSON.parse`. Event-specific payload guards остаются в
       `apps/webapp/src/modules/integrator/events.ts` и не становятся новым discriminated union в E3.
 
-      **Source-backed request-size boundary и exact load fixtures.** Repo-managed PROD/TEST webapp vhosts задают
-      `client_max_body_size 55m` (`deploy/nginx/bersoncarebot-webapp.vhost.template.conf:21`,
-      `deploy/host/apply-test-nginx-webapp.sh:117`), то есть supported ingress ограничен `55 × 1 024 × 1 024 =
-      57 671 680` raw body bytes и превышение получает nginx `413` до Next.js. M2M production/test домены через
-      `/etc/hosts` резолвятся в loopback nginx (`docs/ARCHITECTURE/SERVER CONVENTIONS.md:84`), а upstream webapp
-      `127.0.0.1:6200/6300` не открыт публично (`deploy/HOST_DEPLOY_README.md:364`). У route нет меньшего
-      application-level limit, а в source/outbox нет доказательства, что новый cap будет backward-compatible.
-      Поэтому E3 **не добавляет** route-specific request-size guard или новый JSON/HTTP error contract: это было бы
-      новым поведением вне frozen manifest. Если implementation не укладывается в load budget на существующем
-      `55m` ingress ceiling, этап останавливается с owner question о новом route cap/status вместо молчаливого
-      ограничения payload.
+      **Source-backed request-size boundary и exact load fixtures.** Repo-managed TEST apply path фиксирует
+      `client_max_body_size 55m` (`deploy/host/apply-test-nginx-webapp.sh:117`). Production repository
+      **target/template/recommendation** также `55m` (`deploy/nginx/bersoncarebot-webapp.vhost.template.conf:21`,
+      `deploy/HOST_DEPLOY_README.md:372-378`), но active PROD value в этом repository-only проходе **не проверялся и
+      остаётся unconfirmed**. M2M production/test домены source-backed проходят через loopback nginx
+      (`docs/ARCHITECTURE/SERVER CONVENTIONS.md:84`), а upstream webapp `127.0.0.1:6200/6300` не открыт публично
+      (`deploy/HOST_DEPLOY_README.md:364`). Поэтому repository load design использует conservative
+      intended-config/TEST worst-case target `55 × 1 024 × 1 024 = 57 671 680` raw body bytes, но это **не runtime
+      evidence active PROD ceiling**.
 
-      Load proof строит оба raw UTF-8 JSON body одной и той же current variant-структурой:
-      `eventType="appointment.record.upserted"`, fixed ASCII `eventId`, `occurredAt`, `idempotencyKey`, payload
-      `{ integratorRecordId:"123456", status:"booked", payloadJson:{ name:"Synthetic Patient",
-      serviceName:"Synthetic Service", note:<ASCII x-padding> } }`. Helper подбирает только `note`, затем обязан
-      assert `Buffer.byteLength(body,"utf8")`: representative ровно `4 096 B`, max-ingress ровно
-      `57 671 679 B` (`55 MiB − 1`). Это synthetic contract/load data без PII; handler/DB не вызываются.
+      E3 не добавляет route-specific request-size guard или новый JSON/HTTP error contract: у route нет меньшего
+      application-level limit, а source/outbox не доказывают backward compatibility нового cap. Load PASS на
+      `55 MiB` покрывает repository target. PROD acceptance всё равно требует отдельного owner-authorized effective
+      config fact через `sudo nginx -T` для vhost `bersoncare.ru`; этот author/worker scope host-команду не запускает.
+      Если effective PROD limit отличается от expected `55m`, равен `0`/unlimited или не может быть подтверждён,
+      это config-drift/owner gate: E3 не заявляет PROD readiness и не выбирает новый cap/status молча.
+
+      Load proof строит оба raw UTF-8 JSON body **реальным**
+      `apps/integrator/src/infra/db/buildAppointmentRecordUpsertedFanout.ts:33-72`, затем current
+      `buildIntegratorEventsHttpBody`; byte-equivalent mirror допустим только если отдельный test сравнивает его exact
+      output с builder. Exact `BookingUpsertFanoutSource` fixture:
+
+      ```ts
+      {
+        externalRecordId: "rec-e3-load",
+        phoneNormalized: "+79990000000",
+        recordAt: "2026-07-22T10:00:00.000Z",
+        status: "updated",
+        payloadJson: {
+          name: "Synthetic Patient",
+          email: "synthetic@example.invalid",
+          link: "https://example.invalid/manage/rec-e3-load",
+          note: "<ASCII x-padding>",
+        },
+        lastEvent: "updated",
+        updatedAt: "2026-07-22T09:00:00.000Z",
+        patientFirstName: "Synthetic",
+        patientLastName: "Patient",
+        patientEmail: "synthetic@example.invalid",
+        integratorBranchId: "branch-e3",
+        branchName: "Synthetic Branch",
+        dateTimeEnd: "2026-07-22T11:00:00.000Z",
+        serviceId: "service-e3",
+        serviceName: "Synthetic Service",
+        rubitimeCooperatorId: "cooperator-e3",
+        integratorUserId: "100",
+      }
+      ```
+
+      `status:"updated"` принадлежит допустимому builder union `created|updated|canceled|deleted`; все current source
+      fields присутствуют. Полученный payload обязан содержать полный current output:
+      `integratorRecordId`, `phoneNormalized`, `recordAt`, `status`, `payloadJson`, `lastEvent`, `updatedAt`,
+      `patientFirstName`, `patientLastName`, `patientEmail`, `integratorBranchId`, `branchName`, `dateTimeEnd`,
+      `serviceId`, top-level `serviceName`, `rubitimeCooperatorId`, `integratorUserId`, `rubitimeManageUrl`;
+      envelope — current `eventType`, derived `idempotencyKey`, `occurredAt`, `payload`, без выдуманного `eventId`.
+      Все значения fixed synthetic ASCII; меняется только `payloadJson.note=<ASCII x-padding>`. После builder + wire
+      serialization обязательны asserts `Buffer.byteLength(body,"utf8")`: representative ровно `4 096 B`,
+      repository-target-max ровно `57 671 679 B` (`55 MiB − 1`). Handler/DB не вызываются.
 
       Каждый из **трёх identical runs** после warm-up измеряет interleaved baseline/current envelope path против
-      after/shared-Zod path для обоих fixtures: representative `1 280` samples/path, max-ingress `16` samples/path,
+      after/shared-Zod path для обоих fixtures: representative `1 280` samples/path,
+      repository-target-max `16` samples/path,
       alternating `AB/BA` order. Baseline фиксирует текущие builder/stable serialization + HMAC/raw JSON parse +
       ручной envelope guard; after выполняет тот же путь и добавляет shared schema на producer и receiver. Для каждого
       из `3 × 2` fixture-runs отдельно: `p95_after ≤ p95_baseline × 1.05`; записываются обе стороны
@@ -579,17 +621,18 @@ apply, TEST/PROD or deploy is claimed.
       | Tenant specialization | `support.delivery.attempt.logged` по-прежнему требует UUID `payload.organizationId` и ставит verified organization principal до idempotency/handler; tenant model остальных событий не меняется | `route.ts:67-81`, route principal tests |
       | Immediate emit failure | Существующий outbox fallback сохраняется для наблюдаемости; E3 не меняет projection payloads/transactions | `projectionFanout.ts:12-44` |
       | Worker retry / DLQ | `status=0`, `5xx`, `408`, `429` retry; permanent `4xx`, включая local schema `422`, уходит в DLQ без retry burn | `projectionEmitFailure.ts:4-15`, `projectionWorker.ts:30-58` |
-      | Request-size boundary | Supported PROD/TEST ingress остаётся repo-managed nginx `55m`; exact max fixture = `57 671 679 B`; меньший route cap/status не добавляется без compatibility evidence | vhost template `:21`, TEST apply `:117`, Server Conventions `:84`, HOST deploy `:364` |
-      | Load | Baseline/current envelope path против after с двумя shared-schema validations; никаких новых DB/network вызовов, scheduler или high-cardinality metrics | Три identical runs × exact `4 096 B`/`57 671 679 B`; каждый p95 ratio ≤ `1.05`; обе стороны p50/p95/p99/throughput; RSS ≤ `max(baseline×1.05, baseline+8 MiB)`, five-sample non-monotonic post-GC, DB/network `0/0` |
+      | Request-size boundary | TEST apply и PROD repository target = `55m`; active PROD value unconfirmed, не runtime evidence. Меньший route cap/status не добавляется без compatibility evidence; PROD acceptance owner/host-gated | TEST apply `:117`, PROD template `:21`, HOST recommendation `:372-378`, Server Conventions `:84` |
+      | Appointment load fixture | Actual `buildAppointmentRecordUpsertedFanout` либо test-proven byte-equivalent mirror; status `updated`, все source/output fields, `serviceName` top-level, padding только `payloadJson.note`, без `eventId` | Builder `:5-23,33-72` + current wire serializer; exact `4 096 B`/`57 671 679 B` asserts |
+      | Load | Baseline/current envelope path против after с двумя shared-schema validations; никаких новых DB/network вызовов, scheduler или high-cardinality metrics | Три identical runs × representative/repository-target-max; каждый p95 ratio ≤ `1.05`; обе стороны p50/p95/p99/throughput; RSS ≤ `max(baseline×1.05, baseline+8 MiB)`, five-sample non-monotonic post-GC, DB/network `0/0`; не active-PROD proof |
 
       **Exact checklist после source-backed discovery:**
 
       - [x] **E3-01 — source correction/freeze.** Исправлена неверная plan-ссылка; `incomingEventSchema` и
             EventGateway объявлены protected; зафиксированы пять реальных дублей, 23 consumer variants,
             21 active + 2 legacy-only, compatibility/error/retry/load matrix, exact writable manifest и protected
-            sibling scope; supported nginx `55m` boundary, exact `4 096 B`/`57 671 679 B` fixtures и числовые
-            latency/RSS/zero-I/O gates заморожены. `#980` пишет только source contract; implementation получает
-            отдельный worker pass.
+            sibling scope; TEST/PROD-repository `55m` target отделён от unconfirmed active PROD; exact builder-backed
+            `4 096 B`/`57 671 679 B` fixtures и числовые latency/RSS/zero-I/O gates заморожены. `#980` пишет только
+            source contract; implementation получает отдельный worker pass.
       - [ ] **E3-02 — dedicated runtime SSOT.** Создать минимальный workspace package
             `@bersoncare/integrator-webapp-event-contract` с одной Zod-схемой и inferred type; JSON-safe recursive
             payload, passthrough top-level, без wire version/enum/domain payload union.
@@ -624,10 +667,11 @@ apply, TEST/PROD or deploy is claimed.
             redaction tests; targeted integrator/webapp tests, package test/typecheck/build, app typecheck/lint/build.
             Unit package suite постоянно включён в root `pnpm test`, а значит и в existing root `pnpm run ci` без
             workflow edit; fresh-clone/frozen-lock/no-dist proof обязателен. Три identical baseline→after runs на
-            exact `4 096 B` representative и `57 671 679 B` max-ingress JSON: в каждом fixture/run
-            `p95_after ≤ p95_baseline × 1.05`, записаны обе стороны p50/p95/p99/throughput, RSS ограничен
+            exact builder-backed `4 096 B` representative и `57 671 679 B` repository-target-max JSON: в каждом
+            fixture/run `p95_after ≤ p95_baseline × 1.05`, записаны обе стороны p50/p95/p99/throughput, RSS ограничен
             `max(baseline×1.05, baseline+8 MiB)` и не растёт монотонно по пяти post-GC samples, blocking DB/network
-            counters = `0/0`.
+            counters = `0/0`. PASS покрывает repository target, но не заменяет owner-authorized effective PROD
+            `nginx -T` fact/check; active PROD limit остаётся отдельным acceptance gate.
       - [ ] **E3-12 — high-risk acceptance.** Worker отдаёт матрицу по `E3-01…E3-11`. Независимый auditor проверяет
             тот же полный набор. При `FAIL` — один integrated correction + fresh re-audit; второй correction только
             после классификации полноценного провала; после двух correction rounds жёсткий stop и owner question.

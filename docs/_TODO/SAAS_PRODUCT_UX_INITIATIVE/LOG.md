@@ -4970,8 +4970,9 @@ source consistency; implementation/PASS из этой записи не след
 но не был постоянно включён в root `pnpm test`, который уже является частью root CI. Это matching gaps owner E3
 contract, не новая implementation или product scope; исправлены одним разрешённым coherent docs-correction.
 
-**Request-size и load freeze.** Source-backed supported ingress однозначен: PROD vhost template и repo-managed TEST
-apply используют `client_max_body_size 55m`; production/test M2M domain через `/etc/hosts` идёт в loopback nginx,
+**Request-size и load freeze — SUPERSEDED следующей E3 correction-round-2 записью.** Source-backed supported ingress
+был описан слишком широко: PROD vhost template и repo-managed TEST apply используют `client_max_body_size 55m`;
+production/test M2M domain через `/etc/hosts` идёт в loopback nginx,
 а webapp upstream не открыт публично. Поэтому exact max-ingress fixture — `57 671 679` raw UTF-8 bytes
 (`55 MiB − 1`), representative — `4 096` bytes. Оба строятся одной fixed
 `appointment.record.upserted` synthetic ASCII structure с padding только в `payloadJson.note`. Меньший application
@@ -4998,3 +4999,38 @@ worktree выполняет `test ! -e packages/integrator-webapp-event-contract
 `E3-02…E3-12` остаются `[ ]`. Изменены снова только owning Stability plan и этот LOG. Код, package manifests/lock,
 taskdb, tests/runtime/load, network/DB, deploy, TEST/PROD, push/merge не затрагивались и никакой implementation PASS
 не заявлен. Требуется fresh independent re-audit exact docs range; это correction round 1.
+
+## 2026-07-22 — stability E3 source-contract correction round 2 (`#980`, terminal allowance)
+
+Fresh re-audit correction round 1 снова вернул `FAIL` с двумя exact contract findings. P1: repository PROD template
+и recommendation были ошибочно названы active/supported PROD `55m`, хотя effective host value не проверялся и host
+check не был разрешён. P2: synthetic appointment fixture не совпадал с current builder — использовал недопустимый
+`status:"booked"`, неполный payload, `serviceName` внутри `payloadJson` вместо top-level и выдуманный `eventId`.
+Это второй и последний разрешённый E3-12 correction round; любой следующий `FAIL` означает hard stop + owner
+question, без correction 3.
+
+**Repository target против runtime fact.** Repo-managed TEST apply source фиксирует `client_max_body_size 55m`.
+Production repository template и HOST recommendation также целятся в `55m`, но active PROD value остаётся
+**unconfirmed**: эта correction не запускала host/nginx command и не выдаёт template за runtime evidence.
+Source-backed M2M traversal через loopback nginx сохраняется. Repository load proof использует intended-config/TEST
+worst-case `55 MiB` target, поэтому PASS на `57 671 679 B` покрывает repository target, но не закрывает PROD
+acceptance. До PROD нужен отдельный owner-authorized `sudo nginx -T` effective-vhost fact. Любое отличие от expected
+`55m`, `0`/unlimited или отсутствие подтверждения — config-drift/owner gate; route cap/status автоматически не
+добавляется.
+
+**Builder-backed appointment fixture.** Оба exact body теперь строятся реальным
+`buildAppointmentRecordUpsertedFanout` и current wire serializer; byte-equivalent mirror разрешён только с exact
+builder-comparison test. Source status fixed `updated` из допустимого union
+`created|updated|canceled|deleted`. Builder получает все current source fields и выдаёт полный projection payload:
+`integratorRecordId`, `phoneNormalized`, `recordAt`, `status`, `payloadJson`, `lastEvent`, `updatedAt`,
+`patientFirstName`, `patientLastName`, `patientEmail`, `integratorBranchId`, `branchName`, `dateTimeEnd`, `serviceId`,
+top-level `serviceName`, `rubitimeCooperatorId`, `integratorUserId`, `rubitimeManageUrl`. Envelope использует current
+`eventType`, derived `idempotencyKey`, `occurredAt`, `payload` и не добавляет `eventId`. Все значения synthetic ASCII;
+только `payloadJson.note` получает padding до exact `4 096 B` и `57 671 679 B` по
+`Buffer.byteLength(body,"utf8")`.
+
+Числовые baseline/after p95/RSS/zero-I/O gates и persistent root package test/fresh-clone CI contract correction
+round 1 остаются без изменений. `E3-01` `[x]` теперь означает только честный repository source freeze с явным
+active-PROD unknown; общий E3 и `E3-02…E3-12` остаются `[ ]`. Изменены только owning Stability plan и этот LOG.
+Code/packages/lock/taskdb/tests/load/runtime/host/nginx/network/DB/deploy/TEST/PROD/push/merge не затрагивались;
+implementation или PROD PASS не заявлены. Следующий шаг — обязательный fresh independent audit exact round-2 diff.
