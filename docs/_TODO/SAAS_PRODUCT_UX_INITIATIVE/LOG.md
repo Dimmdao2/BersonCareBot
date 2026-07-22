@@ -5034,3 +5034,40 @@ round 1 остаются без изменений. `E3-01` `[x]` теперь �
 active-PROD unknown; общий E3 и `E3-02…E3-12` остаются `[ ]`. Изменены только owning Stability plan и этот LOG.
 Code/packages/lock/taskdb/tests/load/runtime/host/nginx/network/DB/deploy/TEST/PROD/push/merge не затрагивались;
 implementation или PROD PASS не заявлены. Следующий шаг — обязательный fresh independent audit exact round-2 diff.
+
+## 2026-07-22 — E2 milestone seal, E3 contract PASS and deep leaf-registry correction
+
+**E2 accumulated gate.** Integrated feature HEAD `63de21030` passed `pnpm run ci` after an offline frozen install
+with zero downloads and unchanged lockfile: lint, typecheck, HLS sync, integrator (`1,352` passed / `2` skipped),
+webapp (`8,938` / `54`), media-worker (`67`), both production builds, SaaS/audit chain and registry audit were
+green; no known dependency advisories at `low+` remained. The built-in webapp test globalSetup attempted migration
+`0229`, received `permission_denied` and explicitly degraded to in-memory, so this is not DB evidence and no
+separate DB command/credential was used. A gitignored `23 MiB` profiler artifact that polluted the first lint attempt
+was moved intact to recoverable quarantine outside the repo rather than deleted. Task `#976` remains repository-done
+with test/audit seals; no TEST/PROD/deploy action ran.
+
+**E3 terminal source gate.** Fresh independent audit of terminal correction round 2 passed `0 P0 / 0 P1 / 0 P2`.
+It verified every E3-01…E3-12 contract row, the `23 = 21 active + 2 legacy-only` producer/consumer census, exact
+builder-backed `4,096 B` / `57,671,679 B` fixtures, numeric load/RSS/zero-I/O budgets, persistent package-test CI
+wiring and the distinction between confirmed repository/TEST `55m` target and unconfirmed active PROD runtime.
+The three docs commits through `08418ecbc` were fast-forward integrated. Only E3-01 is closed; E3-02…E3-12 code is
+running under task `#980` in isolated branch `codex/e3-implementation-980`. Active PROD nginx remains a later
+owner-authorized acceptance fact.
+
+**Deep linked-plan audit.** A read-only recursive census found that the canonical registry omitted two active leaf
+artifacts: `EDITOR_TIPTAP_MIGRATION_PLAN.md` and `ADMIN_BASELINE_AND_SUPPORT_CHAT_DESIGN.md`. The denominator is now
+`22`, not `20`: `3` partial, `4` currently executable and `15` dependency/owner/legal/production-gated. Two false
+task closures were corrected through the taskdb port without erasing their repository evidence: `#931` is blocked
+on mandatory owner live verification of every Tiptap discovery-manifest screen, and `#963` is blocked on an exact
+contract or explicit defer/cancel for «Самые активные»/new counters/hiding semantics. The same audit selected current
+source-contract streams `#808` Phase 1–2 and `#914` LOG-01 L0; neither has implementation authorization before its
+atomic freeze and independent audit. SEC-02 `#900` remains owner-blocked after its single docs audit found incomplete
+owner-row traceability and unsafe raw `systemctl cat`; no R1/host action started.
+
+The single registry audit returned `FAIL 0 P0 / 2 P1 / 0 P2` on two exact traceability defects while confirming the
+`22 = 3 + 4 + 15` denominator, all links, classifications and E2/E3 evidence. Tiptap taskdb referenced a mistyped,
+nonexistent `998f662d3`; it now points to canonical `998f0d67b`. Outbound plan/taskdb still called accumulated CI
+open even though `1fd6bf66e` is an ancestor of green `63de21030`; both now record CI closed while P0/P-guard and the
+owner-authorized TEST fault-injection remain open. Per the one-pass docs policy no immediate serial re-audit was
+started: `#959` stays `doing`, `seal_audit=false` until the next scheduled deep control-plane audit validates the
+corrected state.

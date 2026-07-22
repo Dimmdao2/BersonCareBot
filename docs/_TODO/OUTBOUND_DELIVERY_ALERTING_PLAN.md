@@ -68,4 +68,5 @@ ack/resolved lifecycle и красное представление до resolut
 integrator `27/27`, journal sync и diff-check PASS; worker evidence дополнительно включает оба typecheck/build и
 scoped lint. Попытка Vitest global setup применить `0229` рабочей app-role корректно получила `42501`; это не
 заменяет canonical privileged migration, которая выполняется отдельно через недеструктивный DEV/TEST deploy path.
-P0/P-guard, full CI и owner acceptance остаются открыты, поэтому весь план ещё не `DONE`.
+Accumulated full CI закрыт на descendant HEAD `63de21030` после интеграции `1fd6bf66e`. P0/P-guard и owner
+acceptance остаются открыты, поэтому весь план ещё не `DONE`; CI PASS не подменяет разрешённый TEST fault injection.

@@ -438,8 +438,11 @@ apply, TEST/PROD or deploy is claimed.
       `1` opt-in skip); the opt-in benchmark passed `6/6` with per-run p95 ratios `0.980419`, `0.994567`,
       `1.015103`, instrumented DB/network counts `0/0`, and five flat RSS samples of `137310208` bytes. Both
       booking routes returned exact `503 create_failed` for `toString`, `constructor` and `__proto__`; static gate,
-      adversarial self-test and diff-check passed. E2 is repository-complete; full CI remains the accumulated
-      Phase 2 milestone gate and no DB/server/network/deploy/TEST/PROD action ran.
+      adversarial self-test and diff-check passed. E2 is repository-complete. Accumulated Phase 2 full CI later
+      passed on integrated HEAD `63de21030`: lint/typecheck/HLS, `1,352` integrator, `8,938` webapp and `67`
+      media-worker tests, both production builds and the full audit chain were green. The webapp test globalSetup
+      received `permission_denied` for migration `0229` and degraded to in-memory, so this is not DB evidence;
+      no explicit DB/server/network/deploy/TEST/PROD action ran.
 
       **Compatibility matrix (внешний HTTP contract):**
 
