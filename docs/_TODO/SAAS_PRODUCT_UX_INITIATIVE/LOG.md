@@ -4897,3 +4897,18 @@ Affected Vitest passed (`3` files, `26` passed, `1` benchmark opt-in skip), the 
 and webapp typecheck, scoped ESLint, the eleven-route static gate with five adversarial self-tests, and
 `git diff --check` passed. E2-10, task status `doing` and `seal_audit=false` remain unchanged pending independent
 re-audit. No full CI, DB/server access, external network/send, deploy, TEST/PROD, push or merge ran.
+
+## 2026-07-22 — stability E2 independent re-audit PASS (`#976`)
+
+Fresh independent audit of base `5f847f40c` through HEAD `e3ab36b91` passed with `0 P0 / 0 P1 / 0 P2`. The auditor
+matched every E2-02…E2-10 owner row to code, tests and runtime-safe evidence and confirmed the closed manifest is
+exactly `21` changed files. The own-property lookup is shared by ordinary and typed maps; fresh helper and both
+booking-route regressions prove `toString`, `constructor` and `__proto__` produce exact
+`503 {"ok":false,"error":"create_failed"}` rather than inherited values.
+
+Fresh focused tests passed (`3` files, `26` passed, `1` benchmark opt-in skip). The separate opt-in benchmark passed
+`6/6`: all three p95 ratios (`0.980419`, `0.994567`, `1.015103`) were independently within `1.05`; p50/p95/p99 and
+throughput were recorded for every run; blocking instrumentation measured `pg.Pool.query` / `fetch` at `0/0`; five
+RSS samples stayed flat at `137310208` bytes. The eleven-route static gate, five adversarial mutations and
+`git diff --check` passed. E2-10 and the repository stage are closed; full CI remains the accumulated Phase 2
+milestone gate. No DB/server/network/send/deploy/TEST/PROD action, push or merge ran.

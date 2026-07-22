@@ -404,7 +404,7 @@ apply, TEST/PROD or deploy is claimed.
             в них нет direct `NextResponse.json` и returned caught/request-derived messages. Helper и route delta не
             добавляют `@/infra/db`, `@/infra/repos`, `drizzle-orm`, DB/network/runtime imports. Static script
             имеет adversarial self-test на missing route/import/raw-message/boundary cases.
-      - [ ] **E2-10 — regression/load/validation gate.** Helper tests, существующие exact route tests и новый
+      - [x] **E2-10 — regression/load/validation gate.** Helper tests, существующие exact route tests и новый
             patient-acquiring webhook test доказывают matrix, `501 oauth_disabled`, current
             `503 rubitime_projection_not_ready` и unknown redaction. Три in-process
             benchmark-прогона после warm-up, concurrency `16`: p95 after `<= baseline x 1.05`, записаны
@@ -426,8 +426,15 @@ apply, TEST/PROD or deploy is claimed.
       из трёх run, а DB/network counters измеряются spies на `pg.Pool.query` и `fetch`, блокирующими любое обращение,
       вместо констант. Correction run ratios: `1.001997`, `0.986968`, `0.969491`; instrumented DB/network `0/0`,
       RSS `132149248` bytes flat. Affected Vitest (`3` files, `26` passed, `1` opt-in skip), отдельный benchmark
-      (`6` passed), typecheck, scoped ESLint, static+self-test и diff-check зелёные. E2-10 остаётся открытым до
-      независимого re-audit; `seal_audit=false`, full CI не запускался.
+      (`6` passed), typecheck, scoped ESLint, static+self-test и diff-check зелёные.
+
+      **Independent re-audit PASS (`#976`, 2026-07-22).** Fresh auditor verified every E2-02…E2-10 row and the
+      exact `21`-file manifest with `0 P0 / 0 P1 / 0 P2`. Re-run focused tests passed (`3` files, `26` passed,
+      `1` opt-in skip); the opt-in benchmark passed `6/6` with per-run p95 ratios `0.980419`, `0.994567`,
+      `1.015103`, instrumented DB/network counts `0/0`, and five flat RSS samples of `137310208` bytes. Both
+      booking routes returned exact `503 create_failed` for `toString`, `constructor` and `__proto__`; static gate,
+      adversarial self-test and diff-check passed. E2 is repository-complete; full CI remains the accumulated
+      Phase 2 milestone gate and no DB/server/network/deploy/TEST/PROD action ran.
 
       **Compatibility matrix (внешний HTTP contract):**
 
