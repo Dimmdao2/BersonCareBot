@@ -107,6 +107,11 @@ function runFixtureGateDocChecks(overrides = new Map()) {
     "'public auth profile must not contain auth headers'",
     'profile.adminMode === true',
     'scenario.expectAuthDenial === true && status === expectedStatus',
+    'function browserMutationHeadersForBaseUrl(baseUrl, method)',
+    'return { Origin: parsedBaseUrl.origin };',
+    'Object.assign(headers, browserMutationHeadersForBaseUrl(baseUrl, scenario.method));',
+    'mutation smoke must send only the canonical base URL Origin header',
+    'read-only smoke must not synthesize mutation browser headers',
     "redirect: 'manual'",
     'path: scenario.path',
     "name: 'object expectation rejects object-valued error'",
@@ -327,6 +332,19 @@ function runSelfTest() {
     'global-admin adminMode enforcement mutation',
     files.smokeRunner,
     runnerText.replace('profile.adminMode === true', 'profile.adminMode === false'),
+  );
+  expectDocMutationRejected(
+    'same-origin mutation header removal',
+    files.smokeRunner,
+    runnerText.replace('return { Origin: parsedBaseUrl.origin };', 'return {};'),
+  );
+  expectDocMutationRejected(
+    'same-origin mutation header wiring removal',
+    files.smokeRunner,
+    runnerText.replace(
+      'Object.assign(headers, browserMutationHeadersForBaseUrl(baseUrl, scenario.method));',
+      '',
+    ),
   );
   const specialistAnalyticsAuthorityMutation = JSON.parse(contractText);
   specialistAnalyticsAuthorityMutation.readOnlyScenarios.find(

@@ -13,6 +13,7 @@ const contractPath = resolve(
 
 const modes = new Set(['dormant', 'shadow', 'locked']);
 const allowedAuthHeaderNames = new Set(['authorization', 'cookie', 'x-bersoncare-smoke-auth']);
+const browserMutationMethods = new Set(['POST', 'PUT', 'PATCH', 'DELETE']);
 
 function usage() {
   return [
@@ -464,6 +465,16 @@ function headersForActor(fixture, actor) {
   return { ...(fixture.authProfiles[actor]?.headers ?? {}) };
 }
 
+function browserMutationHeadersForBaseUrl(baseUrl, method) {
+  if (!browserMutationMethods.has(method.toUpperCase())) return {};
+  const parsedBaseUrl = new URL(baseUrl);
+  assert(
+    parsedBaseUrl.protocol === 'http:' || parsedBaseUrl.protocol === 'https:',
+    'mutation smoke base URL must use http or https',
+  );
+  return { Origin: parsedBaseUrl.origin };
+}
+
 function classifyResponse({
   scenario,
   status,
@@ -681,6 +692,7 @@ async function runScenario({ baseUrl, fixture, scenario }) {
   const url = new URL(path, baseUrl).toString();
   const startedAt = Date.now();
   const headers = headersForActor(fixture, scenario.actor);
+  Object.assign(headers, browserMutationHeadersForBaseUrl(baseUrl, scenario.method));
   headers['User-Agent'] = 'bersoncarebot-saas-product-smoke-a1';
   if (scenario.requestJson !== undefined) headers['Content-Type'] = 'application/json';
 
@@ -811,6 +823,19 @@ function runSelfTest(contract) {
     minBodyBytes: 10,
     knownFailureHint: 'G1',
   };
+
+  const mutationHeaders = browserMutationHeadersForBaseUrl(
+    'https://test.bersoncare.ru/smoke-base-path',
+    'POST',
+  );
+  assert(
+    JSON.stringify(mutationHeaders) === '{"Origin":"https://test.bersoncare.ru"}',
+    'mutation smoke must send only the canonical base URL Origin header',
+  );
+  assert(
+    Object.keys(browserMutationHeadersForBaseUrl('https://test.bersoncare.ru', 'GET')).length === 0,
+    'read-only smoke must not synthesize mutation browser headers',
+  );
 
   const cases = [
     {
