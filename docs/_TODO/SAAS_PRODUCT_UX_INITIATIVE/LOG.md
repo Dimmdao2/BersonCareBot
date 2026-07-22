@@ -4581,3 +4581,18 @@ creation guard remains authoritative: any canonical or legacy warmup rule preven
 schedule is rewritten. No migration, bulk update, setting, database operation or UI fork was introduced. Focused
 tests, scoped lint, webapp typecheck and diff-check passed. The single independent mechanical audit checked all
 production callsites and returned PASS with no in-scope finding.
+
+## 2026-07-22 — UI-7 / scheduled communications `#964` execution checkpoint
+
+Base is clean feature commit `956b43d76`. Two independent read-only censuses traced all six existing composer
+adapters into four owner surfaces and the canonical immediate services. The stage will use one new webapp-owned,
+exact-organization scheduling aggregate; it will not place future text into live message rows and will not reuse or
+fork broadcast/integrator delivery storage. The atomic UI-7 checklist now fixes sender-only pending visibility,
+UTC/browser-time handling, text-only scope, cancel semantics, exactly-once materialization, dispatch-time access
+revalidation and the required concurrency/RLS test matrix.
+
+Implementation runs as one high-risk stage in an isolated worktree from this base. Expected scope is migration
+`0229`, Drizzle schema, scheduling module/ports/repository/DI, authenticated internal tick, the canonical immediate
+messaging/comment services and the existing shared composer/adapters. Protected scope: broadcast storage,
+Voice/STT, media scheduling, PROD/TEST/deploy and real external sends. Completion requires targeted tests,
+typecheck/lint/build, live DEV doctor+patient evidence, one independent full-checklist audit and integration cleanup.

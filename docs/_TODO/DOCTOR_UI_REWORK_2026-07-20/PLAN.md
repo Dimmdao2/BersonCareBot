@@ -452,6 +452,60 @@ brief или заменять одним общим пунктом.
 - [ ] Per-message `scheduled_at` и durable status хранятся с exact organization ownership.
 - [ ] Worker dispatch закрывает retry/cancel/idempotency без копирования broadcast storage вслепую.
 
+Exact execution checklist (authority для worker/auditor; каждый пункт требует evidence):
+
+**UI and four-surface parity**
+
+- [ ] Один shared composer contract поддерживает immediate send и schedule mode без локальных fork на шести
+  существующих adapters: doctor chat/modal, patient chat, три doctor-comment adapters и patient comments.
+- [ ] Schedule action расположен рядом с Send; picker использует doctor/patient shared primitives своей UI-zone,
+  не создаёт cross-zone import и после выбора показывает основное действие «Запланировать».
+- [ ] `datetime-local` интерпретируется в timezone браузера отправителя, в API уходит UTC ISO; допустимо только
+  будущее время с minimum lead `60` секунд и maximum horizon `1` год.
+- [ ] Scheduling text-only: существующий media/upload path остаётся immediate и не меняется.
+- [ ] Pending item виден только точному creator, включая существующий скрытый program-detail modal после
+  close/reload; recipient и другой clinic staff не видят будущий текст.
+- [ ] Pending item показывает clock-state и локальное время вместо delivery checks; creator может отменить его.
+  Edit/reschedule не вводятся: изменение времени — cancel + create new.
+
+**Domain/storage contract**
+
+- [ ] Новый scheduling aggregate принадлежит webapp domain и имеет direct `organization_id`, creator,
+  typed target, immutable text payload, UTC `scheduled_at`, attempts/next-attempt/safe-error timestamps,
+  unique idempotency key и resulting canonical message identifiers.
+- [ ] Durable states ограничены `scheduled | processing | sent | failed_retryable | dead | cancelled`; `sent`
+  означает exactly-once materialization canonical BersonCare message/comment. Внешняя доставка остаётся отдельной
+  существующей notification pipeline и не переопределяет этот status.
+- [ ] Pending storage не создаёт live message/discussion row заранее и не влияет на unread/read cursor,
+  conversation ordering/`last_message_at`, patient action log или notification до due dispatch.
+- [ ] Drizzle schema/repository/ports/DI и migration используют existing getDrizzle path; application raw SQL и
+  второй broadcast/outgoing queue запрещены. Due, creator-list, target и idempotency hot indexes создаются в той же
+  migration.
+
+**Dispatch/access/cancel contract**
+
+- [ ] Due worker использует transactional claim/CAS, bounded retry/backoff и stable schedule-derived IDs;
+  concurrent workers и crash after materialization не создают дубль.
+- [ ] Dispatch переиспользует canonical immediate service каждого surface. Doctor comment сохраняет ровно один
+  support message + один linked discussion row; patient comment создаёт action log только в due moment.
+- [ ] Перед dispatch повторно проверяются organization, target ownership и current access. Deleted/archived target,
+  revoked access или mismatch завершаются fail-closed `dead` с PII-free reason.
+- [ ] Cancel разрешён только exact creator для `scheduled`/`failed_retryable`; race с `processing`/`sent` даёт
+  deterministic conflict и cancelled item никогда не dispatch-ится.
+- [ ] Internal tick использует существующий authenticated operational-principal/telemetry pattern и не допускает
+  реальных внешних отправок из DEV.
+
+**Mandatory verification**
+
+- [ ] Focused tests закрывают четыре same-org allow и cross-org/mismatched deny paths, creator-only pending
+  visibility, pre-due invisibility to unread/order/action-log/recipient и invalid/past/horizon boundaries.
+- [ ] Concurrency/crash/retry/idempotency, doctor dual-write, patient due-time action-log, cancel race,
+  access-revoked/dead и external-notification-failure-no-duplicate покрыты deterministic tests.
+- [ ] Locked/RLS matrix, migration/index contract, typecheck, scoped lint and production build relevant package
+  проходят; live DEV doctor+patient checks не отправляют сообщения во внешние каналы.
+- [ ] Один независимый high-risk audit проходит весь этот checklist; находка вне него становится owner question,
+  а не новым scope.
+
 Scope decision, не implementation checkbox: Voice/STT исключён из текущего scope и сохранён post-production в
 `#922`.
 
