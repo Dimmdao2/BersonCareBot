@@ -128,6 +128,7 @@ export const SERVER_RUNTIME_TOKEN_LIST_DEFAULTS = {
   admin_telegram_ids: "",
   admin_max_ids: "",
   admin_phones: "",
+  admin_emails: "",
   doctor_telegram_ids: "",
   doctor_max_ids: "",
   doctor_phones: "",

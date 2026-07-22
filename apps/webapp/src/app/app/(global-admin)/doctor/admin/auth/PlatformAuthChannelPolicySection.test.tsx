@@ -19,6 +19,7 @@ describe("PlatformAuthChannelPolicySection", () => {
           { key: "auth_telegram_enabled", valueJson: { value: true } },
           { key: "auth_max_enabled", valueJson: { value: true } },
           { key: "patient_unsupported_client_fallback_enabled", valueJson: { value: false } },
+          { key: "admin_emails", valueJson: { value: ["dimmdao@gmail.com"] } },
         ],
       }), { status: 200 }))
       .mockResolvedValueOnce(new Response(JSON.stringify({ ok: true }), { status: 200 }));
@@ -36,6 +37,28 @@ describe("PlatformAuthChannelPolicySection", () => {
     expect(JSON.parse(String((fetchMock.mock.calls[1]?.[1] as RequestInit | undefined)?.body))).toEqual({
       key: "auth_sms_enabled",
       value: true,
+    });
+  });
+
+  it("saves the global-admin email through the platform-only route", async () => {
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(new Response(JSON.stringify({
+        ok: true,
+        settings: [{ key: "admin_emails", valueJson: { value: ["old@example.com"] } }],
+      }), { status: 200 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ ok: true }), { status: 200 }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(<PlatformAuthChannelPolicySection />);
+    const email = await screen.findByLabelText("Email для входа по коду");
+    await userEvent.clear(email);
+    await userEvent.type(email, "DimmDao@Gmail.com");
+    await userEvent.click(screen.getByRole("button", { name: "Сохранить" }));
+
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2));
+    expect(JSON.parse(String((fetchMock.mock.calls[1]?.[1] as RequestInit | undefined)?.body))).toEqual({
+      key: "admin_emails",
+      value: ["dimmdao@gmail.com"],
     });
   });
 

@@ -1618,6 +1618,13 @@
       "when": 1793539200026,
       "tag": "0230_error_tracking_runtime",
       "breakpoints": true
+    },
+    {
+      "idx": 231,
+      "version": "7",
+      "when": 1793539200027,
+      "tag": "0231_admin_email_role_runtime_config",
+      "breakpoints": true
     }
   ]
 }

@@ -4,11 +4,15 @@ import { useEffect, useState } from "react";
 import toast from "react-hot-toast";
 import { DoctorSection, DoctorSectionHeader, DoctorSectionTitle } from "@/shared/ui/doctor/DoctorSection";
 import { LabeledSwitch } from "@/shared/ui/doctor/primitives/labeled-switch";
+import { Button } from "@/shared/ui/doctor/primitives/button";
+import { Input } from "@/shared/ui/doctor/primitives/input";
 import type { AuthChannelUiPolicy } from "@/modules/auth/otpChannelUi";
 
 type PolicyKey = keyof AuthChannelUiPolicy;
 type SettingKey = `auth_${PolicyKey}_enabled`;
 const UNSUPPORTED_CLIENT_FALLBACK_KEY = "patient_unsupported_client_fallback_enabled" as const;
+const ADMIN_EMAILS_KEY = "admin_emails" as const;
+type SavingKey = PolicyKey | typeof UNSUPPORTED_CLIENT_FALLBACK_KEY | typeof ADMIN_EMAILS_KEY;
 
 const CHANNELS: ReadonlyArray<{ channel: PolicyKey; label: string; hint: string }> = [
   { channel: "email", label: "Email-коды", hint: "Разрешить вход и регистрацию по одноразовому коду из письма." },
@@ -27,11 +31,19 @@ function readBoolean(valueJson: unknown): boolean {
   return false;
 }
 
+function readFirstEmail(valueJson: unknown): string {
+  if (!valueJson || typeof valueJson !== "object" || !("value" in valueJson)) return "";
+  const value = (valueJson as { value?: unknown }).value;
+  return Array.isArray(value) && typeof value[0] === "string" ? value[0] : "";
+}
+
 export function PlatformAuthChannelPolicySection() {
   const [policy, setPolicy] = useState<AuthChannelUiPolicy>(EMPTY_POLICY);
   const [unsupportedClientFallbackEnabled, setUnsupportedClientFallbackEnabled] = useState(false);
+  const [adminEmail, setAdminEmail] = useState("");
+  const [adminEmailDraft, setAdminEmailDraft] = useState("");
   const [loaded, setLoaded] = useState(false);
-  const [saving, setSaving] = useState<PolicyKey | typeof UNSUPPORTED_CLIENT_FALLBACK_KEY | null>(null);
+  const [saving, setSaving] = useState<SavingKey | null>(null);
 
   useEffect(() => {
     let active = true;
@@ -53,6 +65,11 @@ export function PlatformAuthChannelPolicySection() {
         setUnsupportedClientFallbackEnabled(readBoolean(
           data.settings.find((item) => item.key === UNSUPPORTED_CLIENT_FALLBACK_KEY)?.valueJson,
         ));
+        const savedAdminEmail = readFirstEmail(
+          data.settings.find((item) => item.key === ADMIN_EMAILS_KEY)?.valueJson,
+        );
+        setAdminEmail(savedAdminEmail);
+        setAdminEmailDraft(savedAdminEmail);
         setLoaded(true);
       })
       .catch(() => {
@@ -104,6 +121,31 @@ export function PlatformAuthChannelPolicySection() {
     }
   }
 
+  async function updateAdminEmail(): Promise<void> {
+    const normalized = adminEmailDraft.trim().toLowerCase();
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalized)) {
+      toast.error("Укажите корректный email");
+      return;
+    }
+    const previous = adminEmail;
+    setAdminEmail(normalized);
+    setSaving(ADMIN_EMAILS_KEY);
+    try {
+      const response = await fetch("/api/platform/settings", {
+        method: "PATCH",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ key: ADMIN_EMAILS_KEY, value: [normalized] }),
+      });
+      const data = (await response.json().catch(() => ({}))) as { ok?: boolean };
+      if (!response.ok || !data.ok) throw new Error("save_failed");
+    } catch {
+      setAdminEmail(previous);
+      toast.error("Не удалось сохранить email глобального администратора");
+    } finally {
+      setSaving(null);
+    }
+  }
+
   return (
     <>
       <DoctorSection>
@@ -124,6 +166,30 @@ export function PlatformAuthChannelPolicySection() {
         </div>
         <p className="text-xs text-muted-foreground">
           Парольный вход по email остаётся доступен независимо от переключателя email-кодов.
+        </p>
+      </DoctorSection>
+      <DoctorSection>
+        <DoctorSectionHeader>
+          <DoctorSectionTitle>Глобальный администратор</DoctorSectionTitle>
+        </DoctorSectionHeader>
+        <div className="flex max-w-xl flex-col gap-3 sm:flex-row sm:items-end">
+          <label className="flex flex-1 flex-col gap-1 text-sm font-medium">
+            Email для входа по коду
+            <Input
+              type="email"
+              value={adminEmailDraft}
+              onChange={(event) => setAdminEmailDraft(event.target.value)}
+              disabled={!loaded || saving !== null}
+              autoComplete="email"
+              placeholder="admin@example.com"
+            />
+          </label>
+          <Button type="button" disabled={!loaded || saving !== null} onClick={() => void updateAdminEmail()}>
+            Сохранить
+          </Button>
+        </div>
+        <p className="text-xs text-muted-foreground">
+          После подтверждения кода из письма этот адрес получает глобальный доступ. Текущий адрес: {adminEmail || "не задан"}.
         </p>
       </DoctorSection>
       <DoctorSection>

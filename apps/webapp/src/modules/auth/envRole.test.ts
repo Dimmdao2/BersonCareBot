@@ -84,7 +84,7 @@ describe("reconcileDbRoleWithEnvRole", () => {
 });
 
 describe("resolveRoleAsync", () => {
-  it("loads exactly the six closed server-only role settings", async () => {
+  it("loads exactly the seven closed server-only role settings", async () => {
     getServerRuntimeTokenListMock.mockImplementation(async (key: string) =>
       key === "doctor_phones" ? '["+75550000001"]' : "[]",
     );
@@ -94,10 +94,20 @@ describe("resolveRoleAsync", () => {
       "admin_telegram_ids",
       "admin_max_ids",
       "admin_phones",
+      "admin_emails",
       "doctor_telegram_ids",
       "doctor_max_ids",
       "doctor_phones",
     ]);
+  });
+
+  it("promotes only a normalized email from the DB-backed admin allowlist", async () => {
+    getServerRuntimeTokenListMock.mockImplementation(async (key: string) =>
+      key === "admin_emails" ? '["DimmDao@Gmail.com"]' : "[]",
+    );
+
+    await expect(resolveRoleAsync({ email: " dimmdao@gmail.com " })).resolves.toBe("admin");
+    await expect(resolveRoleAsync({ email: "other@example.com" })).resolves.toBe("client");
   });
 
   it("keeps the legacy env policy when the closed runtime accessor fails", async () => {

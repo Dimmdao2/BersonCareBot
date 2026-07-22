@@ -3,6 +3,8 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const mocks = vi.hoisted(() => ({
   decodedSession: null as unknown,
   findByUserId: vi.fn(),
+  getVerifiedEmailForUser: vi.fn(),
+  resolveRoleAsync: vi.fn(),
   stampDbPrincipalFromSession: vi.fn(),
 }));
 
@@ -24,7 +26,7 @@ vi.mock("@/config/env", () => ({
 }));
 
 vi.mock("./envRole", () => ({
-  resolveRoleAsync: vi.fn(),
+  resolveRoleAsync: (...args: unknown[]) => mocks.resolveRoleAsync(...args),
   isWhitelistedAsync: vi.fn(),
 }));
 
@@ -54,6 +56,7 @@ vi.mock("@/app-layer/principal/sessionPrincipal", () => ({
 vi.mock("@/infra/repos/pgUserByPhone", () => ({
   pgUserByPhonePort: {
     findByUserId: (...args: unknown[]) => mocks.findByUserId(...args),
+    getVerifiedEmailForUser: (...args: unknown[]) => mocks.getVerifiedEmailForUser(...args),
   },
 }));
 
@@ -80,6 +83,8 @@ function doctorUser(): SessionUser {
 describe("getCurrentSession identity-self concurrency", () => {
   beforeEach(() => {
     mocks.findByUserId.mockReset();
+    mocks.getVerifiedEmailForUser.mockReset();
+    mocks.resolveRoleAsync.mockReset();
     mocks.stampDbPrincipalFromSession.mockReset();
     mocks.decodedSession = {
       user: doctorUser(),
@@ -146,5 +151,31 @@ describe("getCurrentSession identity-self concurrency", () => {
     expect(sessions.every((session) => session?.authSource === "dev_bypass")).toBe(true);
     expect(sessions.every((session) => session?.user.role === "doctor")).toBe(true);
     expect(mocks.findByUserId).toHaveBeenCalledTimes(2);
+  });
+
+  it("rechecks an email-derived admin role from the verified DB email without persisting it", async () => {
+    const client = { ...doctorUser(), role: "client" as const, phone: undefined, bindings: {} };
+    mocks.decodedSession = {
+      user: client,
+      issuedAt: 1,
+      expiresAt: 9_999_999_999,
+    } satisfies AppSession;
+    mocks.findByUserId.mockResolvedValue(client);
+    mocks.getVerifiedEmailForUser.mockResolvedValue("dimmdao@gmail.com");
+    mocks.resolveRoleAsync.mockResolvedValue("admin");
+
+    const session = await runWithDbBootstrapPrincipal(
+      { source: "service.sessionConcurrency.email-role" },
+      () => getCurrentSession(),
+    );
+
+    expect(session?.user.role).toBe("admin");
+    expect(mocks.getVerifiedEmailForUser).toHaveBeenCalledWith(USER_ID);
+    expect(mocks.resolveRoleAsync).toHaveBeenCalledWith({
+      phone: undefined,
+      telegramId: undefined,
+      maxId: undefined,
+      email: "dimmdao@gmail.com",
+    });
   });
 });

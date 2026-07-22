@@ -934,11 +934,30 @@ export async function getCurrentSession(): Promise<AppSession | null> {
   const phone = session.user.phone?.trim();
   const telegramId = session.user.bindings?.telegramId?.trim();
   const maxId = session.user.bindings?.maxId?.trim();
-  if (!phone && !telegramId && !maxId) return finalizeCurrentSession(session, patientOrganizationHint);
+  const hasMessengerOrPhoneIdentity = Boolean(phone || telegramId || maxId);
+  let verifiedEmail: string | undefined;
+  // A DB role remains authoritative for existing staff with no allowlist identity. Only a client session
+  // needs the additional verified-email lookup that can derive its global-admin access from `admin_emails`.
+  if (!hasMessengerOrPhoneIdentity && session.user.role === "client" && isPlatformUserUuid(session.user.userId)) {
+    try {
+      verifiedEmail = await runWithStaffSecuritySelfPrincipal(
+        session.user.userId,
+        "getCurrentSession:verified-email-role-resolution",
+        async () => {
+          const { pgUserByPhonePort } = await import("@/infra/repos/pgUserByPhone");
+          return (await pgUserByPhonePort.getVerifiedEmailForUser(session.user.userId)) ?? undefined;
+        },
+      );
+    } catch {
+      // The access elevation is fail-closed; an existing client session remains a client session.
+      verifiedEmail = undefined;
+    }
+  }
+  if (!hasMessengerOrPhoneIdentity && !verifiedEmail) return finalizeCurrentSession(session, patientOrganizationHint);
 
   if (isDevBypassSession) return finalizeCurrentSession(session, patientOrganizationHint);
 
-  const envRole = await resolveRoleAsync({ phone, telegramId, maxId });
+  const envRole = await resolveRoleAsync({ phone, telegramId, maxId, email: verifiedEmail });
   if (session.user.role === envRole) return finalizeCurrentSession(session, patientOrganizationHint);
 
   const nextUser = { ...session.user, role: envRole };
@@ -950,7 +969,7 @@ export async function getCurrentSession(): Promise<AppSession | null> {
     staffSecurity: session.staffSecurity,
   };
 
-  if (env.DATABASE_URL) {
+  if (env.DATABASE_URL && hasMessengerOrPhoneIdentity) {
     try {
       const { pgUserProjectionPort } = await import("@/infra/repos/pgUserProjection");
       await pgUserProjectionPort.updateRole(session.user.userId, envRole);

@@ -79,6 +79,7 @@ describe("AdminSettingsSection", () => {
     const phonesItem = items.find((c) => c.key === "admin_phones");
     expect(phonesItem?.value).toEqual(["+79990000001"]);
 
+
     const testItem = items.find((c) => c.key === "test_account_identifiers");
     expect(testItem?.value).toEqual({
       phones: [],

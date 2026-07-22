@@ -37,6 +37,10 @@ const authRoleRuntime = readFileSync(
   ),
   "utf8",
 );
+const adminEmailRoleRuntime = readFileSync(
+  new URL("../../../db/drizzle-migrations/0231_admin_email_role_runtime_config.sql", import.meta.url),
+  "utf8",
+);
 const patientPlaybackAccessors = readFileSync(
   new URL("../../../../../deploy/postgres/patient-media-playback-telemetry-accessors.sql", import.meta.url),
   "utf8",
@@ -61,16 +65,17 @@ const patientPlaybackScratch = readFileSync(
 );
 
 describe("patient-safe support default runtime migration", () => {
-  it("projects only the six role allowlists through the closed server accessor", () => {
+  it("projects role allowlists through the closed server accessor", () => {
     for (const key of [
       "admin_telegram_ids",
       "admin_max_ids",
       "admin_phones",
+      "admin_emails",
       "doctor_telegram_ids",
       "doctor_max_ids",
       "doctor_phones",
     ]) {
-      expect(authRoleRuntime).toContain(`'${key}'`);
+      expect(`${authRoleRuntime}\n${adminEmailRoleRuntime}`).toContain(`'${key}'`);
     }
     expect(authRoleRuntime).toContain("'server'");
     expect(authRoleRuntime).toContain("('webapp','auth_role_config')");
@@ -81,6 +86,8 @@ describe("patient-safe support default runtime migration", () => {
       "GRANT SELECT ON TABLE public.system_settings TO app_patient",
     );
     expect(authRoleRuntime).not.toContain("GRANT EXECUTE");
+    expect(adminEmailRoleRuntime).toContain("'admin_emails', '{\"value\":\"\"}'::jsonb");
+    expect(adminEmailRoleRuntime).toContain("'admin_emails'");
   });
 
   it("registers global and organization backfill for both doctor defaults", () => {

@@ -3,6 +3,7 @@ import type { UserRole } from "@/shared/types/session";
 import { normalizePhone } from "./phoneNormalize";
 import { getServerRuntimeTokenList } from "@/modules/system-settings/configAdapter";
 import { parseIdTokens } from "@/shared/parsers/parseIdTokens";
+import { normalizeEmail } from "./emailAuth";
 
 /** Нормализованные номера из env (whitelist для входа по телефону в токене). */
 export function getNormalizedWhitelistedPhonesFromEnv(): Set<string> {
@@ -94,21 +95,29 @@ function phoneInList(phone: string | undefined, list: string[]): boolean {
   });
 }
 
+function emailInList(email: string | undefined, list: string[]): boolean {
+  const normalized = normalizeEmail(email ?? "");
+  return Boolean(normalized) && list.some((candidate) => normalizeEmail(candidate) === normalized);
+}
+
 /**
  * Async role resolver: DB (system_settings) → env fallback.
  * Uses configAdapter (60s TTL cache). Falls back to resolveRoleFromEnv on any error.
- * Priority: admin (telegram → max → phone) → doctor (telegram → max → phone) → client.
+ * Priority: admin (telegram → max → phone → verified email) → doctor (telegram → max → phone) → client.
  */
 export async function resolveRoleAsync(ids: {
   phone?: string;
   telegramId?: string;
   maxId?: string;
+  /** Only an already-verified email-OTP flow may provide this identity proof. */
+  email?: string;
 }): Promise<UserRole> {
   try {
     const [
       adminTelegramRaw,
       adminMaxRaw,
       adminPhonesRaw,
+      adminEmailsRaw,
       doctorTelegramRaw,
       doctorMaxRaw,
       doctorPhonesRaw,
@@ -116,6 +125,8 @@ export async function resolveRoleAsync(ids: {
       getServerRuntimeTokenList("admin_telegram_ids", String(env.ADMIN_TELEGRAM_ID ?? "")),
       getServerRuntimeTokenList("admin_max_ids", env.ADMIN_MAX_IDS ?? ""),
       getServerRuntimeTokenList("admin_phones", env.ADMIN_PHONES ?? ""),
+      // No environment fallback: an email must never become a staff credential by deployment config.
+      getServerRuntimeTokenList("admin_emails", ""),
       getServerRuntimeTokenList("doctor_telegram_ids", env.DOCTOR_TELEGRAM_IDS ?? ""),
       getServerRuntimeTokenList("doctor_max_ids", env.DOCTOR_MAX_IDS ?? ""),
       getServerRuntimeTokenList("doctor_phones", env.DOCTOR_PHONES ?? ""),
@@ -124,6 +135,7 @@ export async function resolveRoleAsync(ids: {
     const adminTelegramIds = parseIdTokens(adminTelegramRaw);
     const adminMaxIds = parseIdTokens(adminMaxRaw);
     const adminPhones = parseIdTokens(adminPhonesRaw);
+    const adminEmails = parseIdTokens(adminEmailsRaw);
     const doctorTelegramIds = parseIdTokens(doctorTelegramRaw);
     const doctorMaxIds = parseIdTokens(doctorMaxRaw);
     const doctorPhones = parseIdTokens(doctorPhonesRaw);
@@ -134,6 +146,7 @@ export async function resolveRoleAsync(ids: {
     if (tid && idInList(tid, adminTelegramIds)) return "admin";
     if (mid && idInList(mid, adminMaxIds)) return "admin";
     if (phoneInList(ids.phone, adminPhones)) return "admin";
+    if (emailInList(ids.email, adminEmails)) return "admin";
     if (tid && idInList(tid, doctorTelegramIds)) return "doctor";
     if (mid && idInList(mid, doctorMaxIds)) return "doctor";
     if (phoneInList(ids.phone, doctorPhones)) return "doctor";

@@ -4,6 +4,7 @@ const setSessionFromUserMock = vi.fn().mockResolvedValue(undefined);
 const trySetInitialIfEmptyMock = vi.fn().mockResolvedValue(undefined);
 const confirmPublicEmailOtpChallengeMock = vi.fn();
 const findByUserIdMock = vi.fn();
+const resolveRoleAsyncMock = vi.fn();
 const isAuthChannelEnabledMock = vi.hoisted(() => vi.fn());
 
 vi.mock("@/modules/auth/authChannelPolicy", () => ({
@@ -39,6 +40,18 @@ vi.mock("@/modules/auth/service", () => ({
   setSessionFromUser: (...args: unknown[]) => setSessionFromUserMock(...args),
 }));
 
+vi.mock("@/modules/auth/envRole", () => ({
+  reconcileDbRoleWithEnvRole: (
+    currentRole: "admin" | "doctor" | "client",
+    policyRole: "admin" | "doctor" | "client",
+  ) => {
+    if (policyRole === "admin" || currentRole === "admin") return "admin";
+    if (policyRole === "doctor" || currentRole === "doctor") return "doctor";
+    return "client";
+  },
+  resolveRoleAsync: (...args: unknown[]) => resolveRoleAsyncMock(...args),
+}));
+
 import { POST } from "./route";
 import * as authChannelPolicy from "@/modules/auth/authChannelPolicy";
 
@@ -47,6 +60,7 @@ describe("POST /api/auth/email-otp/confirm", () => {
     confirmPublicEmailOtpChallengeMock.mockReset();
     findByUserIdMock.mockReset();
     setSessionFromUserMock.mockClear();
+    resolveRoleAsyncMock.mockReset().mockResolvedValue("client");
     trySetInitialIfEmptyMock.mockClear();
     isAuthChannelEnabledMock.mockReset();
     isAuthChannelEnabledMock.mockResolvedValue(true);
@@ -105,6 +119,37 @@ describe("POST /api/auth/email-otp/confirm", () => {
     expect(data.ok).toBe(true);
     expect(data.redirectTo).toBe("/app/patient");
     expect(data.role).toBe("client");
+    expect(setSessionFromUserMock).toHaveBeenCalledWith(testUser);
+  });
+
+  it("derives an email-allowlisted admin role only after successful OTP confirmation", async () => {
+    resolveRoleAsyncMock.mockResolvedValueOnce("admin");
+    const res = await POST(
+      new Request("http://localhost/api/auth/email-otp/confirm", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ email: "dimmdao@gmail.com", code: "123456" }),
+      }),
+    );
+
+    expect(res.status).toBe(200);
+    await expect(res.json()).resolves.toMatchObject({ role: "admin", redirectTo: "/app/doctor" });
+    expect(resolveRoleAsyncMock).toHaveBeenCalledWith({ email: "dimmdao@gmail.com" });
+    expect(setSessionFromUserMock).toHaveBeenCalledWith({ ...testUser, role: "admin" });
+  });
+
+  it("does not elevate an email OTP session when policy resolves a non-admin role", async () => {
+    resolveRoleAsyncMock.mockResolvedValueOnce("client");
+    const res = await POST(
+      new Request("http://localhost/api/auth/email-otp/confirm", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ email: "dimmdao@gmail.com", code: "123456" }),
+      }),
+    );
+
+    expect(res.status).toBe(200);
+    await expect(res.json()).resolves.toMatchObject({ ok: true, role: "client", redirectTo: "/app/patient" });
     expect(setSessionFromUserMock).toHaveBeenCalledWith(testUser);
   });
 
