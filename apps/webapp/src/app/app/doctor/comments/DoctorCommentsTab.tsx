@@ -4,6 +4,7 @@ import { useState, useCallback, useEffect, useRef } from "react";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
 import { chatThreadSurfaceClass } from "@/shared/ui/chat/chatThreadSurface";
+import { MessageComposer } from "@/shared/ui/chat/MessageComposer";
 import type { TodayExerciseCommentAttentionItem } from "../loadDoctorExerciseCommentAttention";
 import type { DoctorExerciseCommentCursor } from "@/modules/program-item-discussion/types";
 import type {
@@ -362,26 +363,22 @@ function ThreadMessage({
       {isPatient && !success && (
         <div className="mt-1.5">
           {replyOpen ? (
-            <div className="flex flex-col gap-1.5">
-              <Textarea
-                placeholder="Ответить…"
-                value={replyText}
-                onChange={(e) => setReplyText(e.target.value)}
-                rows={2}
-                disabled={sending}
-                className="text-sm resize-none"
-                aria-label="Текст ответа"
-              />
-              {error && <p className="text-xs text-destructive">{error}</p>}
-              <div className="flex gap-2">
+            <MessageComposer
+              value={replyText}
+              onValueChange={setReplyText}
+              onSubmit={handleSend}
+              submitting={sending}
+              placeholder="Ответить…"
+              ariaLabel="Текст ответа"
+              submitLabel="Ответить"
+              submittingLabel="Отправка…"
+              rows={2}
+              className="flex flex-col gap-1.5"
+              actionsClassName="flex gap-2"
+              status={error ? <p className="text-xs text-destructive">{error}</p> : null}
+              secondaryActions={
                 <Button
-                  size="sm"
-                  disabled={sending || !replyText.trim()}
-                  onClick={() => void handleSend()}
-                >
-                  {sending ? "Отправка…" : "Ответить"}
-                </Button>
-                <Button
+                  type="button"
                   size="sm"
                   variant="ghost"
                   onClick={() => {
@@ -392,8 +389,10 @@ function ThreadMessage({
                 >
                   Отмена
                 </Button>
-              </div>
-            </div>
+              }
+              renderTextarea={(props) => <Textarea {...props} className="text-sm resize-none" />}
+              renderSubmit={(props) => <Button {...props} size="sm" />}
+            />
           ) : (
             <Button
               type="button"

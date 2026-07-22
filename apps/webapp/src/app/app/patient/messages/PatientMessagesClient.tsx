@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { Button } from "@/shared/ui/patient/primitives/button";
 import { Textarea } from "@/shared/ui/patient/primitives/textarea";
+import { MessageComposer } from "@/shared/ui/chat/MessageComposer";
 import { ChatView } from "@/modules/messaging/components/ChatView";
 import { useMessagePolling } from "@/modules/messaging/hooks/useMessagePolling";
 import { notifyPatientSupportUnreadCountChanged } from "@/modules/messaging/hooks/useSupportUnreadPolling";
@@ -145,39 +146,39 @@ export function PatientMessagesClient() {
         emptyText="Напишите сообщение поддержке — ответ появится здесь."
         className="min-h-0 flex-1"
         composer={
-          <div
+          <MessageComposer
+            value={draft}
+            onValueChange={setDraft}
+            onSubmit={send}
+            submitting={sending}
+            placeholder="Ваше сообщение…"
+            ariaLabel="Текст сообщения"
+            submitLabel="Отправить"
+            submittingLabel="Отправка…"
+            maxLength={4000}
             className={cn(
               "shrink-0 border-t border-[var(--patient-border)] bg-[var(--patient-card-bg)] pt-3 md:pt-4",
               patientInnerPageStackClass,
             )}
-          >
-            <Textarea
-              rows={2}
-              className={cn(
-                patientChatComposerTextareaClass,
-                "transition-[min-height] duration-200 ease-out",
-                composerExpanded || draft.trim().length > 0 ? "min-h-[112px]" : "min-h-[56px]",
-              )}
-              placeholder="Ваше сообщение…"
-              value={draft}
-              maxLength={4000}
-              onChange={(e) => setDraft(e.target.value)}
-              onFocus={() => setComposerExpanded(true)}
-              onBlur={() => {
-                if (!draft.trim()) setComposerExpanded(false);
-              }}
-              disabled={sending}
-              aria-label="Текст сообщения"
-            />
-            <Button
-              type="button"
-              className={cn(patientPrimaryActionClass, "disabled:opacity-55")}
-              onClick={() => void send()}
-              disabled={sending || !draft.trim()}
-            >
-              {sending ? "Отправка…" : "Отправить"}
-            </Button>
-          </div>
+            rows={2}
+            onFocus={() => setComposerExpanded(true)}
+            onBlur={() => {
+              if (!draft.trim()) setComposerExpanded(false);
+            }}
+            renderTextarea={(props) => (
+              <Textarea
+                {...props}
+                className={cn(
+                  patientChatComposerTextareaClass,
+                  "transition-[min-height] duration-200 ease-out",
+                  composerExpanded || draft.trim().length > 0 ? "min-h-[112px]" : "min-h-[56px]",
+                )}
+              />
+            )}
+            renderSubmit={(props) => (
+              <Button {...props} className={cn(patientPrimaryActionClass, "disabled:opacity-55")} />
+            )}
+          />
         }
       />
     </section>

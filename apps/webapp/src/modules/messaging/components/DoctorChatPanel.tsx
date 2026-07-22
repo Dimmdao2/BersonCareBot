@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Button } from "@/shared/ui/doctor/primitives/button";
 import { Textarea } from "@/shared/ui/doctor/primitives/textarea";
+import { MessageComposer } from "@/shared/ui/chat/MessageComposer";
 import { cn } from "@/lib/utils";
 import { ChatView } from "@/modules/messaging/components/ChatView";
 import { notifyDoctorSupportUnreadCountChanged } from "@/modules/messaging/hooks/useSupportUnreadPolling";
@@ -137,8 +138,19 @@ export function DoctorChatPanel({
   }, []);
 
   const composer = (
-    <div className="flex shrink-0 flex-col gap-2 border-t border-border pt-3">
-      {replyTarget ? (
+    <MessageComposer
+      value={draft}
+      onValueChange={setDraft}
+      onSubmit={send}
+      submitting={sending}
+      placeholder="Ответ..."
+      ariaLabel="Текст ответа"
+      submitLabel="Отправить"
+      submittingLabel="Отправка..."
+      maxLength={4000}
+      textareaRef={textareaRef}
+      className="flex shrink-0 flex-col gap-2 border-t border-border pt-3"
+      header={replyTarget ? (
         <div className="rounded-md border border-border bg-muted/30 px-2 py-1.5 text-xs text-muted-foreground">
           <div className="flex items-start gap-2">
             <span className="min-w-0 flex-1 truncate">
@@ -155,20 +167,9 @@ export function DoctorChatPanel({
           </div>
         </div>
       ) : null}
-      <Textarea
-        ref={textareaRef}
-        className="min-h-[88px] resize-y"
-        placeholder="Ответ..."
-        value={draft}
-        maxLength={4000}
-        onChange={(e) => setDraft(e.target.value)}
-        disabled={sending}
-        aria-label="Текст ответа"
-      />
-      <Button type="button" onClick={() => void send()} disabled={sending || !draft.trim()}>
-        {sending ? "Отправка..." : "Отправить"}
-      </Button>
-    </div>
+      renderTextarea={(props) => <Textarea {...props} className="min-h-[88px] resize-y" />}
+      renderSubmit={(props) => <Button {...props} />}
+    />
   );
 
   if (loading) {

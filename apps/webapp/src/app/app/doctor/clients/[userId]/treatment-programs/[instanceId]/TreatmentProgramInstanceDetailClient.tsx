@@ -11,6 +11,7 @@ import { Badge } from "@/shared/ui/doctor/primitives/badge";
 import { Input } from "@/shared/ui/doctor/primitives/input";
 import { Label } from "@/shared/ui/doctor/primitives/label";
 import { Textarea } from "@/shared/ui/doctor/primitives/textarea";
+import { MessageComposer } from "@/shared/ui/chat/MessageComposer";
 import { MarkdownEditor } from "@/shared/ui/doctor/markdown/MarkdownEditor";
 import {
   Dialog,
@@ -1363,35 +1364,47 @@ function TreatmentProgramInstanceDetailClientBody(props: {
               {noteReplyTarget?.note?.trim() ? `Заметка: ${noteReplyTarget.note.trim()}` : "Добавьте ответ"}
             </DialogDescription>
           </DialogHeader>
-          <div className="space-y-2">
-            <Label htmlFor="doctor-program-note-reply-text">Ответ</Label>
-            <Textarea
-              id="doctor-program-note-reply-text"
-              value={noteReplyDraft}
-              onChange={(event) => setNoteReplyDraft(event.target.value)}
-              rows={4}
-              maxLength={4000}
-              placeholder="Введите ответ"
-            />
-            {noteReplyError ? (
+          <MessageComposer
+            value={noteReplyDraft}
+            onValueChange={setNoteReplyDraft}
+            onSubmit={sendProgramNoteReply}
+            submitting={noteReplySaving}
+            disableSubmitWhenEmpty={false}
+            placeholder="Введите ответ"
+            ariaLabel="Ответ"
+            submitLabel="Отправить"
+            submittingLabel="Отправка…"
+            maxLength={4000}
+            rows={4}
+            className="contents"
+            inputRowClassName="space-y-2"
+            leadingControl={<Label htmlFor="doctor-program-note-reply-text">Ответ</Label>}
+            trailingControl={noteReplyError ? (
               <p className="text-xs text-destructive" role="alert">
                 {noteReplyError}
               </p>
             ) : null}
-          </div>
-          <DialogFooter>
-            <Button
-              type="button"
-              variant="outline"
-              disabled={noteReplySaving}
-              onClick={() => setNoteReplyOpen(false)}
-            >
-              Отмена
-            </Button>
-            <Button type="button" disabled={noteReplySaving} onClick={() => void sendProgramNoteReply()}>
-              {noteReplySaving ? "Отправка…" : "Отправить"}
-            </Button>
-          </DialogFooter>
+            secondaryActions={
+              <Button
+                type="button"
+                variant="outline"
+                disabled={noteReplySaving}
+                onClick={() => setNoteReplyOpen(false)}
+              >
+                Отмена
+              </Button>
+            }
+            renderTextarea={(props) => (
+              <Textarea {...props} id="doctor-program-note-reply-text" />
+            )}
+            renderSubmit={(props) => <Button {...props} />}
+            renderActions={(submit, secondaryActions) => (
+              <DialogFooter>
+                {secondaryActions}
+                {submit}
+              </DialogFooter>
+            )}
+          />
         </DialogContent>
       </Dialog>
       {discussionTarget ? (

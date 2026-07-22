@@ -18,6 +18,7 @@ import { formatChatMessageTimeRu, formatChatRelativeDateLabelRu } from "@/module
 import { chatMessageDeliveryStatus } from "@/modules/messaging/chatMessageDeliveryStatus";
 import { ChatBubbleOutgoingMeta } from "@/shared/ui/chat/ChatBubbleOutgoingMeta";
 import { chatThreadSurfaceClass } from "@/shared/ui/chat/chatThreadSurface";
+import { MessageComposer } from "@/shared/ui/chat/MessageComposer";
 import { ProgramItemDiscussionMessageBody } from "@/app/app/patient/treatment/ProgramItemDiscussionMessageBody";
 
 function compareMessages(a: ProgramItemDiscussionMessage, b: ProgramItemDiscussionMessage): number {
@@ -346,30 +347,39 @@ export function DoctorProgramDiscussionMessagesPanel(props: {
                 ) : null}
                 {fromPatient && onSendReply && activeReplyMessageId === m.id ? (
                   <div className="w-full max-w-[min(100%,26rem)]">
-                    <div className={`mt-1 rounded-md border border-border bg-background p-2${replySending ? " pointer-events-none opacity-50" : ""}`}>
-                      <Textarea
-                        value={replyDraft}
-                        onChange={(e) => setReplyDraft(e.target.value)}
-                        placeholder="Введите ответ пациенту"
-                        maxLength={4000}
-                        rows={3}
-                        aria-label="Ответ пациенту"
-                        disabled={replySending}
-                      />
-                      <div className="mt-2 flex justify-end">
-                        <Button
-                          type="button"
-                          size="sm"
-                          className="rounded-full"
-                          disabled={replySending || !replyDraft.trim()}
-                          aria-label="Отправить ответ"
-                          onClick={() => void submitReply(m)}
-                        >
+                    <MessageComposer
+                      value={replyDraft}
+                      onValueChange={setReplyDraft}
+                      onSubmit={() => submitReply(m)}
+                      submitting={replySending}
+                      placeholder="Введите ответ пациенту"
+                      ariaLabel="Ответ пациенту"
+                      submitLabel={
+                        <>
                           <SendHorizontal className="size-4 mr-1" />
                           Отправить
-                        </Button>
-                      </div>
-                    </div>
+                        </>
+                      }
+                      submittingLabel={
+                        <>
+                          <SendHorizontal className="size-4 mr-1" />
+                          Отправить
+                        </>
+                      }
+                      submitAriaLabel="Отправить ответ"
+                      maxLength={4000}
+                      rows={3}
+                      className={`mt-1 rounded-md border border-border bg-background p-2${replySending ? " pointer-events-none opacity-50" : ""}`}
+                      actionsClassName="mt-2 flex justify-end"
+                      renderTextarea={(props) => <Textarea {...props} />}
+                      renderSubmit={(props) => (
+                        <Button
+                          {...props}
+                          size="sm"
+                          className="rounded-full"
+                        />
+                      )}
+                    />
                     {replyError ? <p className="mt-1 text-xs text-destructive">{replyError}</p> : null}
                   </div>
                 ) : null}

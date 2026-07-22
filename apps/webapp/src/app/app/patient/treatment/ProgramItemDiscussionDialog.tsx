@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { Button } from "@/shared/ui/patient/primitives/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/shared/ui/patient/primitives/dialog";
 import { Textarea } from "@/shared/ui/patient/primitives/textarea";
+import { MessageComposer } from "@/shared/ui/chat/MessageComposer";
 import type { ProgramItemDiscussionMessage } from "@/modules/program-item-discussion/types";
 import { cn } from "@/lib/utils";
 import {
@@ -248,9 +249,20 @@ export function ProgramItemDiscussionDialog(props: {
             }
           </div>
 
-          <div className="flex shrink-0 flex-col gap-2 border-t border-[var(--patient-border)] pt-3">
-            <div className="flex items-end gap-2">
-              {mediaSubmissionEnabled ?
+          <MessageComposer
+            value={draft}
+            onValueChange={setDraft}
+            onSubmit={sendText}
+            submitting={sending}
+            disabled={loading}
+            placeholder="Ваш комментарий..."
+            ariaLabel="Текст комментария"
+            submitLabel="Отправить"
+            submittingLabel="Отправка..."
+            maxLength={4000}
+            className="flex shrink-0 flex-col gap-2 border-t border-[var(--patient-border)] pt-3"
+            inputRowClassName="flex items-end gap-2"
+            leadingControl={mediaSubmissionEnabled ?
                 <ProgramItemDiscussionMediaPicker
                   instanceId={instanceId}
                   itemId={itemId}
@@ -259,25 +271,13 @@ export function ProgramItemDiscussionDialog(props: {
                   onError={() => setError("Не удалось загрузить файл")}
                 />
               : null}
-              <Textarea
-                className={cn(patientChatComposerTextareaClass, "min-h-0 flex-1")}
-                placeholder="Ваш комментарий..."
-                value={draft}
-                onChange={(e) => setDraft(e.target.value)}
-                maxLength={4000}
-                disabled={sending || loading}
-                aria-label="Текст комментария"
-              />
-            </div>
-            <Button
-              type="button"
-              className={cn(patientPrimaryActionClass, "disabled:opacity-55")}
-              onClick={() => void sendText()}
-              disabled={sending || loading || draft.trim().length === 0}
-            >
-              {sending ? "Отправка..." : "Отправить"}
-            </Button>
-          </div>
+            renderTextarea={(props) => (
+              <Textarea {...props} className={cn(patientChatComposerTextareaClass, "min-h-0 flex-1")} />
+            )}
+            renderSubmit={(props) => (
+              <Button {...props} className={cn(patientPrimaryActionClass, "disabled:opacity-55")} />
+            )}
+          />
         </div>
       </DialogContent>
     </Dialog>
