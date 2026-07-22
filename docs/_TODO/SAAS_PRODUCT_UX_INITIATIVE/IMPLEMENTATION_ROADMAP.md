@@ -484,16 +484,21 @@ card; запрещено строить временный resolver, второ�
   заблокирован двумя U5A live-seal из `#796`; запуск presentation-only composition до этого запрещён.
   UI-4 normal-mode preview и UI-5a full-workspace
   reuse объединены в `#958`, полный composition/visibility — U5B с contract `#928` + implementation `#971`; Patient Today mood residual —
-  `#924`; latest Today/shared presentation deltas — `#966/#967`; bounded built-in Online location переиспользует `#197`, а expanded online
+  `#924`; latest Today/shared presentation deltas — `#966/#967`, а полный latest visual-contract reconciliation
+  отслеживается отдельной картой `#977` и не закрывается прежней blanket-печатью; bounded built-in Online location переиспользует `#197`, а expanded online
   booking остаётся blocked в `#215`; UI-P `#925`; manual patient/walk-in `#801`; mechanics/reminders C4D/C5 +
   `#191`; individual exercises `#564` + design `#565`; voice post-production `#922`; S4 engine `#888`; superseded
   Doctor DNA `#885`. Новые duplicate cards не
   создавать; subscopes фиксировать в note/meta существующей карты при фактическом запуске.
 - **Gate:** TEST deploy не подразумевается и требует отдельного прямого разрешения владельца; при разрешении — только
   code-only. Full CI запускается на milestone, а не повторяется для каждого presentation slice.
-- **Status (2026-07-22):** exact TEST SHA `eb64a495644`, code-only без dump/restore/full reset. Locked product smoke
-  `22/22`, отдельный deny-smoke и первичная desktop/mobile read-only visual проверка прошли. Owner live interaction
-  acceptance записан в `#821` и не блокирует следующий repository-safe этап. UI-2 repository residual `#972`
+- **Status (2026-07-22):** current exact TEST SHA `ea4b35e5f3727a7b256a1228eef7a27b65e1782c`, code-only без
+  dump/restore/full reset. Milestone full CI прошёл на ancestor `49a0d0501`; последующие изменения ограничены
+  focused-green smoke harness, docs-only orchestration canon и shared KPI class/test. Locked product smoke `22/22`
+  и отдельный global-admin clinical deny-smoke `1/1` прошли; все пять TEST units active, public health green.
+  Owner live interaction acceptance записан в `#821` и не блокирует следующий repository-safe этап. UI-P2b `#977`
+  остаётся открытым по `P2B-01/02/09/10/14`: один presentation audit не подтвердил mobile runtime и нашёл старые
+  fallback/radius/padding exceptions; автоматический correction/re-audit не запускается. UI-2 repository residual `#972`
   закрыт; UI-5b `#971` ждёт U5A `#796`, UI-7 `#964` ждёт одного placement ruling, а public Online live proof —
   U6B `#926`. Voice/STT `#922` остаётся post-production.
 

@@ -4788,3 +4788,26 @@ milestone SHA before the already-authorized code-only TEST deploy.
 
 E2 source contract `#975` is separately closed by `b1b1f75ee` + factual correction `c72038c1f`; implementation is
 tracked as `#976` and intentionally waits until after this TEST checkpoint.
+
+## 2026-07-22 — current code-only TEST checkpoint and truthful UI-P2b gate
+
+The accumulated feature branch was deployed by the canonical code-only path to exact TEST SHA
+`ea4b35e5f3727a7b256a1228eef7a27b65e1782c`. No dump, restore, full reset or production action occurred. All five
+TEST units are active, public `/api/health` reports `{"ok":true,"db":"up"}`, the locked product smoke passed
+`22/22`, and the separate global-admin clinical-write denial passed `1/1`. The first attempt had correctly failed
+closed because D2 CSRF rejected the synthetic mutation before it reached the tenant authorization wall. Task `#979`
+fixed the smoke request to send canonical same-origin proof and pinned the exact denial oracle so
+`csrf_origin_forbidden` can never be accepted as equivalent; one correction and bounded re-audit passed. Milestone
+full CI was not repeated: it remains green on ancestor `49a0d0501`, while the later executable delta has focused
+gates and the deploy builds passed.
+
+UI-P2b `#977` did not receive a false completion seal. The shared KPI value size fix is integrated, and the single
+independent presentation audit passed `P2B-03…08` and `P2B-11…13`. It left mobile runtime proof `P2B-01` open and
+found exact old exceptions for `P2B-02/09/10/14`: a `#faf9f4` fallback plus local Clients/Messages page shells with
+legacy radius/padding. The detailed UI plan now keeps those rows unchecked with evidence. Per the one-audit
+presentation rule, no automatic correction/re-audit loop starts; task `#977` asks the owner once whether the exact
+`12px/18px` rule governs every outer/loading/filter pane or only reusable content cards.
+
+Task `#821` is the owner-only live acceptance gate for this exact TEST SHA and lists the current doctor/clinic URLs
+and schedule-save/booking-create scenarios. Repository-safe execution resumes independently with Stability E2
+implementation `#976`; TEST owner acceptance is not inferred from smoke and `accepted` remains owner-only.
