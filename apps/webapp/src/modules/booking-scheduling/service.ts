@@ -129,8 +129,8 @@ export function createBookingSchedulingService(port: BookingSchedulingPort): Boo
       return port.resolvePublicBookingOrganization(input);
     },
 
-    resolveInPersonContext(branchServiceId: string) {
-      return port.resolveCanonicalFromBranchService(branchServiceId);
+    async resolveInPersonContext(_legacyKey: string) {
+      return null;
     },
 
     resolveCanonicalInPersonContext(input) {
@@ -188,22 +188,6 @@ export function createBookingSchedulingService(port: BookingSchedulingPort): Boo
       let durationMinutes = input.durationMinutes;
       const slotCount = input.slotCount ?? 1;
       if (!Number.isInteger(slotCount) || slotCount < 1 || slotCount > 8) throw new Error("invalid_slot_count");
-
-      if (input.branchServiceId) {
-        const ctx = await port.resolveCanonicalFromBranchService(input.branchServiceId);
-        if (!ctx) throw new Error("branch_service_not_found");
-        specialistId = ctx.specialistId;
-        roomId = ctx.roomId;
-        organizationId = ctx.organizationId;
-        durationMinutes = ctx.durationMinutes;
-        const slotEndMs =
-          new Date(input.slotStart).getTime() +
-          durationMinutes * slotCount * 60_000 +
-          ctx.bufferAfterMinutes * 60_000;
-        if (Number.isFinite(slotEndMs)) {
-          input = { ...input, slotEnd: new Date(slotEndMs).toISOString() };
-        }
-      }
 
       const busy = await port.listBusyIntervals({
         organizationId,

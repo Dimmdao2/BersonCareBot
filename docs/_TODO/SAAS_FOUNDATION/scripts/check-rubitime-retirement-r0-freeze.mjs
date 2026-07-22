@@ -20,7 +20,19 @@ const canonicalPatientPublicRoots = [
   'apps/webapp/src/app/app/patient/cabinet/useCreateBooking.ts',
   'apps/webapp/src/app/book',
   'apps/webapp/src/shared/publicBook',
+  'apps/webapp/src/modules/patient-booking',
+  'apps/webapp/src/modules/booking-scheduling',
 ];
+
+// These are deliberately narrow passive compatibility surfaces. They retain
+// the opaque value for historical snapshots/type contracts, but must not be
+// widened to resolver/service/route code. Any new patient/public occurrence
+// remains an offender until it is reviewed here explicitly.
+const allowedPatientPublicBranchServiceIdFiles = new Set([
+  'apps/webapp/src/modules/patient-booking/canonicalCreate.ts',
+  'apps/webapp/src/modules/patient-booking/ports.ts',
+  'apps/webapp/src/modules/patient-booking/types.ts',
+]);
 
 const frozenBaselines = {
   integratorImports: new Map([
@@ -94,7 +106,6 @@ const frozenBaselines = {
   ]),
   webappRoutes: new Map([
     ['apps/webapp/src/app/api/admin/booking-engine/rubitime-mapping/duplicates/route.ts', 1],
-    ['apps/webapp/src/app/api/admin/booking-engine/rubitime-mapping/link/route.ts', 1],
     ['apps/webapp/src/app/api/admin/booking-engine/rubitime-mapping/route.ts', 1],
     ['apps/webapp/src/app/api/admin/rubitime/booking-profiles/[id]/route.ts', 1],
     ['apps/webapp/src/app/api/admin/rubitime/booking-profiles/route.ts', 1],
@@ -248,19 +259,30 @@ function collectOffenders(files) {
   };
 }
 
-function collectLegacyBranchServicePatientPublicOffenders() {
+function collectLegacyBranchServicePatientPublicOffendersFromFiles(files) {
   const offenders = [];
+  for (const { rel, src } of files) {
+    if (!src.includes('branchServiceId')) continue;
+    if (allowedPatientPublicBranchServiceIdFiles.has(rel)) continue;
+    offenders.push(rel);
+  }
+  return offenders;
+}
+
+function collectLegacyBranchServicePatientPublicOffenders() {
+  const files = [];
   for (const rel of canonicalPatientPublicRoots) {
     const abs = join(repoRoot, rel);
     const stat = statSync(abs);
     const paths = stat.isDirectory() ? listSourceFiles(abs) : [abs];
     for (const path of paths) {
-      const src = readFileSync(path, 'utf8');
-      if (!src.includes('branchServiceId')) continue;
-      offenders.push(relative(repoRoot, path).replace(/\\/g, '/'));
+      files.push({
+        rel: relative(repoRoot, path).replace(/\\/g, '/'),
+        src: readFileSync(path, 'utf8'),
+      });
     }
   }
-  return offenders;
+  return collectLegacyBranchServicePatientPublicOffendersFromFiles(files);
 }
 
 function printOffenders(label, offenders) {
@@ -333,6 +355,17 @@ if (process.argv.includes('--self-test')) {
     },
   ]);
 
+  const branchServiceIdOffenders = collectLegacyBranchServicePatientPublicOffendersFromFiles([
+    {
+      rel: 'apps/webapp/src/modules/booking-scheduling/service.ts',
+      src: 'resolveInPersonContext(branchServiceId) { return port.resolveCanonicalFromBranchService(branchServiceId); }',
+    },
+    {
+      rel: 'apps/webapp/src/modules/patient-booking/canonicalCreate.ts',
+      src: 'return { branchServiceId: null };',
+    },
+  ]);
+
   const readSourceOffenderSignature = offenders.readSourceBranches
     .map(({ rel, baseline, count }) => `${rel}:${count}>${baseline}`)
     .sort();
@@ -350,7 +383,9 @@ if (process.argv.includes('--self-test')) {
     JSON.stringify(readSourceOffenderSignature) ===
       JSON.stringify(expectedReadSourceOffenderSignature) &&
     offenders.webappRoutes.length === 1 &&
-    offenders.integratorRoutes.length === 1;
+    offenders.integratorRoutes.length === 1 &&
+    JSON.stringify(branchServiceIdOffenders) ===
+      JSON.stringify(['apps/webapp/src/modules/booking-scheduling/service.ts']);
 
   if (!expected) {
     console.error(

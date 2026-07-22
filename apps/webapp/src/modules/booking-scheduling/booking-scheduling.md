@@ -10,7 +10,7 @@
 
 ## Входные данные
 
-Рабочие часы (`be_working_hours`), буфер (`be_availability_rules`), блокировки и записи (`be_schedule_blocks`, `be_appointments`), контекст услуги через `resolveCanonicalFromBranchService`.
+Рабочие часы (`be_working_hours`), буфер (`be_availability_rules`), блокировки и записи (`be_schedule_blocks`, `be_appointments`), контекст услуги по канонической паре `branchId + serviceId`. Устаревший ключ филиал-услуга не участвует в scheduling runtime и отклоняется fail-closed.
 
 ## Тесты
 

@@ -1,18 +1,9 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState, useTransition } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { apiJson } from "@/app/app/settings/bookingSoloAdminApi";
 import { Badge } from "@/shared/ui/doctor/primitives/badge";
 import { Button } from "@/shared/ui/doctor/primitives/button";
-import {
-  Dialog,
-  DialogContent,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/shared/ui/doctor/primitives/dialog";
-import { Input } from "@/shared/ui/doctor/primitives/input";
-import { Label } from "@/shared/ui/doctor/primitives/label";
 import {
   Select,
   SelectContent,
@@ -39,20 +30,7 @@ import { getDoctorSectionItemClass } from "@/shared/ui/doctor/doctorVisual";
 import { cn } from "@/lib/utils";
 
 const MAPPING_BASE = "/api/admin/booking-engine/rubitime-mapping";
-const CATALOG_BASE = "/api/admin/booking-catalog";
 const DUPLICATES_BASE = "/api/admin/booking-engine/rubitime-mapping/duplicates";
-
-type CatalogBranch = { id: string; title: string; isActive: boolean };
-type CatalogService = { id: string; title: string; durationMinutes: number; isActive: boolean };
-type CatalogSpecialist = { id: string; branchId: string; fullName: string; isActive: boolean };
-type CatalogBranchService = {
-  id: string;
-  branchId: string;
-  serviceId: string;
-  specialistId: string;
-  rubitimeServiceId: string;
-  isActive: boolean;
-};
 
 function duplicateGroupKey(group: Pick<RubitimeSsaDuplicateGroup, "branchId" | "serviceId" | "specialistId">): string {
   return `${group.branchId}:${group.serviceId}:${group.specialistId}`;
@@ -84,22 +62,8 @@ export function BookingRubitimeMappingSection() {
   const [mappedOk, setMappedOk] = useState(0);
   const [problems, setProblems] = useState(0);
   const [problemsOnly, setProblemsOnly] = useState(false);
-  const [legacyCatalogAvailable, setLegacyCatalogAvailable] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
-  const [actionError, setActionError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
-  const [isPending, startTransition] = useTransition();
-
-  const [dialogOpen, setDialogOpen] = useState(false);
-  const [editRow, setEditRow] = useState<RubitimeMappingRow | null>(null);
-  const [legacyBranches, setLegacyBranches] = useState<CatalogBranch[]>([]);
-  const [legacyServices, setLegacyServices] = useState<CatalogService[]>([]);
-  const [legacySpecialists, setLegacySpecialists] = useState<CatalogSpecialist[]>([]);
-  const [legacyBranchServices, setLegacyBranchServices] = useState<CatalogBranchService[]>([]);
-  const [legacyBranchId, setLegacyBranchId] = useState("");
-  const [legacyServiceId, setLegacyServiceId] = useState("");
-  const [legacySpecialistId, setLegacySpecialistId] = useState("");
-  const [rubitimeServiceId, setRubitimeServiceId] = useState("");
   const [duplicateGroups, setDuplicateGroups] = useState<RubitimeSsaDuplicateGroup[]>([]);
   const [duplicateGroupsCount, setDuplicateGroupsCount] = useState(0);
   const [duplicateLoadError, setDuplicateLoadError] = useState<string | null>(null);
@@ -108,19 +72,6 @@ export function BookingRubitimeMappingSection() {
   const [resolvingGroupKey, setResolvingGroupKey] = useState<string | null>(null);
   const [keepByGroupKey, setKeepByGroupKey] = useState<Record<string, string>>({});
 
-  const loadCatalog = useCallback(async () => {
-    const [bRes, sRes, spRes, bsRes] = await Promise.all([
-      apiJson<{ ok: boolean; branches?: CatalogBranch[] }>(`${CATALOG_BASE}/branches`),
-      apiJson<{ ok: boolean; services?: CatalogService[] }>(`${CATALOG_BASE}/services`),
-      apiJson<{ ok: boolean; specialists?: CatalogSpecialist[] }>(`${CATALOG_BASE}/specialists`),
-      apiJson<{ ok: boolean; branchServices?: CatalogBranchService[] }>(`${CATALOG_BASE}/branch-services`),
-    ]);
-    setLegacyBranches((bRes.branches ?? []).filter((b) => b.isActive));
-    setLegacyServices((sRes.services ?? []).filter((s) => s.isActive));
-    setLegacySpecialists((spRes.specialists ?? []).filter((s) => s.isActive));
-    setLegacyBranchServices((bsRes.branchServices ?? []).filter((bs) => bs.isActive));
-  }, []);
-
   const loadMappings = useCallback(async () => {
     setLoading(true);
     setLoadError(null);
@@ -128,13 +79,11 @@ export function BookingRubitimeMappingSection() {
       const qs = problemsOnly ? "?problemsOnly=true" : "";
       const data = await apiJson<{
         ok: boolean;
-        legacyCatalogAvailable: boolean;
         total: number;
         mappedOk: number;
         problems: number;
         rows: RubitimeMappingRow[];
       }>(`${MAPPING_BASE}${qs}`);
-      setLegacyCatalogAvailable(data.legacyCatalogAvailable);
       setRows(data.rows);
       setTotal(data.total);
       setMappedOk(data.mappedOk);
@@ -179,56 +128,8 @@ export function BookingRubitimeMappingSection() {
   }, [loadMappings]);
 
   useEffect(() => {
-    if (legacyCatalogAvailable) void loadCatalog();
-  }, [legacyCatalogAvailable, loadCatalog]);
-
-  useEffect(() => {
     void loadDuplicates();
   }, [loadDuplicates]);
-
-  const specialistsForBranch = useMemo(
-    () => legacySpecialists.filter((s) => s.branchId === legacyBranchId),
-    [legacySpecialists, legacyBranchId],
-  );
-
-  function openEdit(row: RubitimeMappingRow) {
-    setEditRow(row);
-    const existing = row.branchServiceId
-      ? legacyBranchServices.find((bs) => bs.id === row.branchServiceId)
-      : undefined;
-    setLegacyBranchId(existing?.branchId ?? "");
-    setLegacyServiceId(existing?.serviceId ?? "");
-    setLegacySpecialistId(existing?.specialistId ?? "");
-    setRubitimeServiceId(existing?.rubitimeServiceId ?? "");
-    setActionError(null);
-    setDialogOpen(true);
-  }
-
-  function saveLink() {
-    if (!editRow) return;
-    setActionError(null);
-    startTransition(async () => {
-      try {
-        await apiJson(`${MAPPING_BASE}/link`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            branchId: editRow.branchId,
-            serviceId: editRow.serviceId,
-            legacyBranchId,
-            legacyServiceId,
-            legacySpecialistId,
-            rubitimeServiceId: rubitimeServiceId.trim(),
-          }),
-        });
-        setDialogOpen(false);
-        setEditRow(null);
-        await loadMappings();
-      } catch (e) {
-        setActionError(e instanceof Error ? e.message : "link_failed");
-      }
-    });
-  }
 
   async function resolveDuplicateGroup(group: RubitimeSsaDuplicateGroup) {
     const key = duplicateGroupKey(group);
@@ -337,11 +238,6 @@ export function BookingRubitimeMappingSection() {
                   </div>
                   <div className="flex shrink-0 items-center gap-2 sm:pt-0.5">
                     <Badge variant={hasProblems ? "destructive" : "secondary"}>{mappingRowBadgeLabel(row)}</Badge>
-                    {legacyCatalogAvailable ? (
-                      <Button variant="default" size="sm" onClick={() => openEdit(row)}>
-                        Настроить
-                      </Button>
-                    ) : null}
                   </div>
                 </li>
               );
@@ -468,97 +364,6 @@ export function BookingRubitimeMappingSection() {
           </div>
         )}
       </DoctorSection>
-
-      <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent className="max-w-md">
-          <DialogHeader>
-            <DialogTitle>Настроить связь Rubitime</DialogTitle>
-          </DialogHeader>
-          {editRow ? (
-            <p className="text-sm text-muted-foreground">
-              {editRow.branchTitle} · {editRow.serviceTitle}
-            </p>
-          ) : null}
-          <div className="flex flex-col gap-3">
-            <div className="space-y-1">
-              <Label>Rubitime филиал</Label>
-              <Select value={legacyBranchId} onValueChange={(v) => setLegacyBranchId(v ?? "")}>
-                <SelectTrigger
-                  displayLabel={legacyBranches.find((b) => b.id === legacyBranchId)?.title}
-                >
-                  <SelectValue placeholder="Выберите филиал" />
-                </SelectTrigger>
-                <SelectContent>
-                  {legacyBranches.map((b) => (
-                    <SelectItem key={b.id} value={b.id}>
-                      {b.title}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-1">
-              <Label>Rubitime специалист</Label>
-              <Select
-                value={legacySpecialistId}
-                onValueChange={(v) => setLegacySpecialistId(v ?? "")}
-                disabled={!legacyBranchId}
-              >
-                <SelectTrigger
-                  displayLabel={specialistsForBranch.find((s) => s.id === legacySpecialistId)?.fullName}
-                >
-                  <SelectValue placeholder="Выберите специалиста" />
-                </SelectTrigger>
-                <SelectContent>
-                  {specialistsForBranch.map((s) => (
-                    <SelectItem key={s.id} value={s.id}>
-                      {s.fullName}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-1">
-              <Label>Rubitime услуга</Label>
-              <Select value={legacyServiceId} onValueChange={(v) => setLegacyServiceId(v ?? "")}>
-                <SelectTrigger displayLabel={legacyServices.find((s) => s.id === legacyServiceId)?.title}>
-                  <SelectValue placeholder="Выберите услугу" />
-                </SelectTrigger>
-                <SelectContent>
-                  {legacyServices.map((s) => (
-                    <SelectItem key={s.id} value={s.id}>
-                      {s.title} · {s.durationMinutes} мин
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-1">
-              <Label htmlFor="rubitime-service-id">Rubitime service id</Label>
-              <Input
-                id="rubitime-service-id"
-                value={rubitimeServiceId}
-                onChange={(e) => setRubitimeServiceId(e.target.value)}
-                placeholder="ID услуги в Rubitime"
-              />
-            </div>
-            {actionError ? <p className="text-sm text-destructive">{actionError}</p> : null}
-          </div>
-          <DialogFooter>
-            <Button variant="outline" size="sm" onClick={() => setDialogOpen(false)}>
-              Отмена
-            </Button>
-            <Button
-              variant="default"
-              size="sm"
-              disabled={isPending || !legacyBranchId || !legacyServiceId || !legacySpecialistId || !rubitimeServiceId.trim()}
-              onClick={saveLink}
-            >
-              Сохранить
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
     </>
   );
 }

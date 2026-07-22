@@ -63,6 +63,74 @@ export type BookingBusyIntervalsInput = {
   excludeAppointmentId?: string;
 };
 
+async function resolveCanonicalAvailabilityContext(availabilityId: string): Promise<CanonicalBookingContext | null> {
+  const db = getDrizzle();
+  const ssaRows = await db
+    .select()
+    .from(beSpecialistServiceAvailability)
+    .where(
+      and(
+        eq(beSpecialistServiceAvailability.id, availabilityId),
+        eq(beSpecialistServiceAvailability.isActive, true),
+      ),
+    )
+    .limit(1);
+  const ssa = ssaRows[0];
+  if (!ssa?.branchId) return null;
+
+  const specialistRows = await db
+    .select({ id: beSpecialists.id })
+    .from(beSpecialists)
+    .where(
+      and(
+        eq(beSpecialists.id, ssa.specialistId),
+        eq(beSpecialists.organizationId, ssa.organizationId),
+        eq(beSpecialists.isActive, true),
+      ),
+    )
+    .limit(1);
+  if (!specialistRows[0]) return null;
+
+  const branchRows = await db
+    .select()
+    .from(beBranches)
+    .where(
+      and(
+        eq(beBranches.id, ssa.branchId),
+        eq(beBranches.organizationId, ssa.organizationId),
+        eq(beBranches.isActive, true),
+      ),
+    )
+    .limit(1);
+  const branch = branchRows[0];
+  if (!branch) return null;
+
+  const serviceRows = await db
+    .select()
+    .from(beClinicServices)
+    .where(
+      and(
+        eq(beClinicServices.id, ssa.serviceId),
+        eq(beClinicServices.organizationId, ssa.organizationId),
+        eq(beClinicServices.isActive, true),
+      ),
+    )
+    .limit(1);
+  const service = serviceRows[0];
+  if (!service) return null;
+
+  return {
+    organizationId: ssa.organizationId,
+    branchId: ssa.branchId,
+    specialistId: ssa.specialistId,
+    serviceId: ssa.serviceId,
+    roomId: ssa.roomId ?? null,
+    durationMinutes: ssa.durationMinutesOverride ?? service.durationMinutes,
+    bufferAfterMinutes: service.bufferAfterMinutes,
+    branchTimezone: branch.timezone,
+  } satisfies CanonicalBookingContext;
+}
+
 /** Shared by availability reads and the transaction-locked online writer. */
 export async function listBookingBusyIntervals(
   db: DrizzleDb,
@@ -101,129 +169,16 @@ export async function listBookingBusyIntervals(
 
 export function createPgBookingSchedulingPort(_getDefaultOrgId?: () => Promise<string>): BookingSchedulingPort {
   return {
-    async resolvePublicBookingOrganization({ branchId, serviceId, branchServiceId }) {
+    async resolvePublicBookingOrganization({ branchId, serviceId }) {
       const result = await runWebappPgText<{ organization_id: string | null }>(
         `SELECT app.resolve_public_booking_organization(
            $1::uuid,
            $2::uuid,
            $3::uuid
          )::text AS organization_id`,
-        [branchId?.trim() || null, serviceId?.trim() || null, branchServiceId?.trim() || null],
+        [branchId?.trim() || null, serviceId?.trim() || null, null],
       );
       return result.rows[0]?.organization_id ?? null;
-    },
-
-    async resolveCanonicalFromBranchService(branchServiceId) {
-      const db = getDrizzle();
-      const mapRows = await db
-        .select({
-          organizationId: beExternalEntityMappings.organizationId,
-          canonicalId: beExternalEntityMappings.canonicalId,
-        })
-        .from(beExternalEntityMappings)
-        .where(
-          and(
-            eq(beExternalEntityMappings.entityType, "availability"),
-            sql`${beExternalEntityMappings.metadata}->>'legacy_branch_service_id' = ${branchServiceId}`,
-          ),
-        );
-      const uniqueMappings = new Map(mapRows.map((r) => [`${r.organizationId}:${r.canonicalId}`, r]));
-      if (uniqueMappings.size > 1) throw new Error("ambiguous_booking_tenant");
-      const mapping = uniqueMappings.values().next().value as
-        | { organizationId: string; canonicalId: string }
-        | undefined;
-      let orgId = mapping?.organizationId;
-      let ssaId = mapping?.canonicalId;
-      const legacyBranchServiceId = mapping ? branchServiceId : null;
-      if (!orgId || !ssaId) {
-        const directRows = await db
-          .select({
-            organizationId: beSpecialistServiceAvailability.organizationId,
-            id: beSpecialistServiceAvailability.id,
-          })
-          .from(beSpecialistServiceAvailability)
-          .where(
-            and(
-              eq(beSpecialistServiceAvailability.id, branchServiceId),
-              eq(beSpecialistServiceAvailability.isActive, true),
-            ),
-          )
-          .limit(1);
-        orgId = directRows[0]?.organizationId;
-        ssaId = directRows[0]?.id;
-      }
-      if (!orgId || !ssaId) return null;
-
-      const ssaRows = await db
-        .select()
-        .from(beSpecialistServiceAvailability)
-        .where(
-          and(
-            eq(beSpecialistServiceAvailability.id, ssaId),
-            eq(beSpecialistServiceAvailability.organizationId, orgId),
-            eq(beSpecialistServiceAvailability.isActive, true),
-          ),
-        )
-        .limit(1);
-      const ssa = ssaRows[0];
-      if (!ssa?.branchId) return null;
-
-      const specialistRows = await db
-        .select({ id: beSpecialists.id })
-        .from(beSpecialists)
-        .where(
-          and(
-            eq(beSpecialists.id, ssa.specialistId),
-            eq(beSpecialists.organizationId, orgId),
-            eq(beSpecialists.isActive, true),
-          ),
-        )
-        .limit(1);
-      if (!specialistRows[0]) return null;
-
-      const branchRows = await db
-        .select()
-        .from(beBranches)
-        .where(
-          and(
-            eq(beBranches.id, ssa.branchId),
-            eq(beBranches.organizationId, orgId),
-            eq(beBranches.isActive, true),
-          ),
-        )
-        .limit(1);
-      const branch = branchRows[0];
-      if (!branch) return null;
-
-      const serviceRows = await db
-        .select()
-        .from(beClinicServices)
-        .where(
-          and(
-            eq(beClinicServices.id, ssa.serviceId),
-            eq(beClinicServices.organizationId, orgId),
-            eq(beClinicServices.isActive, true),
-          ),
-        )
-        .limit(1);
-      const service = serviceRows[0];
-      if (!service) return null;
-
-      const durationMinutes = ssa.durationMinutesOverride ?? service.durationMinutes;
-      const bufferAfterMinutes = service.bufferAfterMinutes;
-
-      return {
-        organizationId: orgId,
-        branchId: ssa.branchId,
-        specialistId: ssa.specialistId,
-        serviceId: ssa.serviceId,
-        roomId: ssa.roomId ?? null,
-        branchServiceId,
-        legacyBranchServiceId,
-        durationMinutes,
-        bufferAfterMinutes,
-        branchTimezone: branch.timezone,
-      } satisfies CanonicalBookingContext;
     },
 
     async resolveCanonicalInPersonContext({ organizationId, branchId, serviceId }) {
@@ -260,7 +215,7 @@ export function createPgBookingSchedulingPort(_getDefaultOrgId?: () => Promise<s
         new Map(),
       );
       if (!availabilityId) return null;
-      return this.resolveCanonicalFromBranchService(availabilityId);
+      return resolveCanonicalAvailabilityContext(availabilityId);
     },
 
     async resolveLegacyBranchServiceId({ organizationId, branchId, serviceId, specialistId }) {

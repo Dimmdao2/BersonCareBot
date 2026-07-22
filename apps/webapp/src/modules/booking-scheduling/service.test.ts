@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildSlotsForContext } from "./service";
+import { buildSlotsForContext, createBookingSchedulingService } from "./service";
 import type { BookingSchedulingPort, WorkingDayRecord } from "./ports";
 
 /** Дата ~30 дней в будущем (минует min-notice фильтр), YYYY-MM-DD в UTC. */
@@ -67,6 +67,14 @@ describe("buildSlotsForContext per-date branch scoping", () => {
     const slots = await buildSlotsForContext(makePort(null), context("branch-A"));
     const total = slots.reduce((n, d) => n + d.slots.length, 0);
     expect(total).toBeGreaterThan(0);
+  });
+});
+
+describe("legacy scheduling compatibility", () => {
+  it("fails closed instead of resolving a legacy branch-service key", async () => {
+    const service = createBookingSchedulingService({} as BookingSchedulingPort);
+
+    await expect(service.resolveInPersonContext("cccccccc-cccc-4ccc-8ccc-cccccccccccc")).resolves.toBeNull();
   });
 });
 
