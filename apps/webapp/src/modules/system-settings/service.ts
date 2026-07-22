@@ -413,6 +413,34 @@ export function createSystemSettingsService(port: SystemSettingsPort, dependenci
       return saved;
     },
 
+    /** Atomically commits the error-tracking opt-in and DSN projections before mirror sync. */
+    async persistErrorTrackingConfig(
+      input: Readonly<{ enabled: boolean; dsn: string }>,
+      updatedBy: string | null,
+    ): Promise<SystemSetting[]> {
+      const rows = [
+        { key: "error_tracking_enabled" as const, valueJson: { value: input.enabled } },
+        { key: "error_tracking_dsn" as const, valueJson: { value: input.dsn } },
+      ];
+      const saved = await writeRows(rows.map((row) => ({
+        ...row,
+        scope: "admin" as const,
+        organizationId: null,
+        updatedBy,
+      })));
+      for (const setting of saved) {
+        await syncSettingToIntegrator({
+          key: setting.key,
+          scope: setting.scope,
+          organizationId: null,
+          valueJson: normalizeStoredValueJsonForIntegratorSync(setting.valueJson),
+          updatedBy: setting.updatedBy,
+        });
+        invalidateConfigKey(setting.key);
+      }
+      return saved;
+    },
+
     /**
      * Dev-mode guard для relay-outbound: при `dev_mode` сравниваются `channel` и `recipient` с `test_account_identifiers`
      * (`telegramIds` / `maxIds` через `relayRecipientAllowedInDevMode`). Поле `phones` в том же ключе используется для

@@ -6,6 +6,7 @@ packages:
   - packages/booking-rubitime-sync
   - packages/platform-merge
   - packages/operator-db-schema
+  - packages/error-tracking
 
 onlyBuiltDependencies:
   - esbuild

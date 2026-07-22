@@ -8,7 +8,7 @@
     "worker:dev": "bash ../../scripts/ensure-booking-sync-built.sh && tsx watch src/infra/runtime/worker/main.ts",
     "scheduler:dev": "bash ../../scripts/ensure-booking-sync-built.sh && tsx watch src/infra/runtime/scheduler/main.ts",
     "clean": "rm -rf dist",
-    "build": "pnpm --dir ../../packages/operator-db-schema run build && pnpm --dir ../../packages/db-principal run build && pnpm --dir ../../packages/booking-rubitime-sync run build && pnpm --dir ../../packages/platform-merge run build && pnpm run clean && tsc -p tsconfig.build.json",
+    "build": "pnpm --dir ../../packages/operator-db-schema run build && pnpm --dir ../../packages/db-principal run build && pnpm --dir ../../packages/booking-rubitime-sync run build && pnpm --dir ../../packages/platform-merge run build && pnpm --dir ../../packages/error-tracking run build && pnpm run clean && tsc -p tsconfig.build.json",
     "start": "node dist/main.js",
     "worker:start": "node dist/infra/runtime/worker/main.js",
     "scheduler:start": "node dist/infra/runtime/scheduler/main.js",
@@ -39,6 +39,7 @@
   "dependencies": {
     "@bersoncare/booking-rubitime-sync": "workspace:*",
     "@bersoncare/db-principal": "workspace:*",
+    "@bersoncare/error-tracking": "workspace:*",
     "@bersoncare/operator-db-schema": "workspace:*",
     "@bersoncare/platform-merge": "workspace:*",
     "@maxhub/max-bot-api": "^0.2.2",

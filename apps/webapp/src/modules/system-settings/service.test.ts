@@ -122,6 +122,37 @@ describe("SystemSettingsService", () => {
     });
   });
 
+  it("commits error tracking enabled and DSN in one runtime UoW before both mirror syncs", async () => {
+    const events: string[] = [];
+    const writeUnitOfWork: SettingsWriteUnitOfWork = {
+      write: vi.fn(async (input): Promise<SystemSetting[]> => {
+        events.push("commit");
+        expect(input.authoritativeRuntimeRows).toEqual([
+          {
+            key: "error_tracking_enabled", scope: "admin", organizationId: null,
+            audience: "server", valueJson: { value: true }, updatedBy: "platform-user",
+          },
+          {
+            key: "error_tracking_dsn", scope: "admin", organizationId: null,
+            audience: "server", valueJson: { value: "https://public@example.test/1" }, updatedBy: "platform-user",
+          },
+        ]);
+        return input.legacyRows.map((row: SystemSettingsUpsertRow) => ({
+          ...row,
+          organizationId: row.organizationId ?? null,
+          updatedAt: "",
+        }));
+      }),
+    };
+    syncSettingToIntegratorMock.mockImplementation(async () => { events.push("sync"); });
+    const service = createSystemSettingsService(makePort(), { writeUnitOfWork });
+    await service.persistErrorTrackingConfig(
+      { enabled: true, dsn: "https://public@example.test/1" },
+      "platform-user",
+    );
+    expect(events).toEqual(["commit", "sync", "sync"]);
+  });
+
   it("routes a runtime setting through the committed write UoW before compatibility sync", async () => {
     const events: string[] = [];
     const writeUnitOfWork: SettingsWriteUnitOfWork = {

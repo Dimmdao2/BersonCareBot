@@ -14,6 +14,11 @@ import {
 import { assertSchedulerPoolReady } from '../../db/operationalPoolReadiness.js';
 import { listSchedulerReminderOrganizationIds } from '../../db/repos/schedulerReminderOrganizations.js';
 import { runSchedulerOrganizationTicks } from './organizationTicks.js';
+import {
+  captureIntegratorError,
+  closeIntegratorErrorTracking,
+  initIntegratorErrorTracking,
+} from '../../observability/errorTracking.js';
 
 const SCHEDULER_LOCK_KEY = 42001001;
 
@@ -22,6 +27,8 @@ async function sleep(ms: number): Promise<void> {
 }
 
 async function startScheduler(): Promise<void> {
+  const runtimeDb = createDbPort();
+  await initIntegratorErrorTracking(runtimeDb, 'scheduler');
   await assertSchedulerIsolationTelemetryWriterReady();
   await assertSchedulerPoolReady();
   // Advisory lock acquisition happens before any staff/patient/org context exists (pre-buildDeps);
@@ -54,8 +61,12 @@ async function startScheduler(): Promise<void> {
   logger.info('Scheduler lock acquired, starting scheduler loop');
 
   const releaseLock = async (): Promise<void> => {
-    await lockHandle.release();
-    await closeDb();
+    try {
+      await lockHandle.release();
+      await closeDb();
+    } finally {
+      await closeIntegratorErrorTracking();
+    }
   };
 
   process.on('SIGINT', async () => {
@@ -77,6 +88,7 @@ async function startScheduler(): Promise<void> {
         newEventId: randomUUID,
       });
     } catch (err) {
+      captureIntegratorError(err, 'scheduler_loop_error');
       reportSchedulerDispatchIsolationFailure(err);
       logger.error({ err }, 'Runtime scheduler tick failed');
     }
@@ -85,8 +97,10 @@ async function startScheduler(): Promise<void> {
   }
 }
 
-startScheduler().catch((err) => {
+startScheduler().catch(async (err) => {
+  captureIntegratorError(err, 'scheduler_startup_fatal');
   reportSchedulerDispatchIsolationFailure(err);
   logger.error({ err }, 'Runtime scheduler crashed');
-  process.exit(1);
+  await closeIntegratorErrorTracking();
+  process.exitCode = 1;
 });

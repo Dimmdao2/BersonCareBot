@@ -11,7 +11,6 @@ import './config/loadEnv.js';
 async function start() {
   const {
     assertApiIsolationTelemetryWriterReady,
-    reportIntegratorIsolationFailure,
   } = await import('./infra/observability/saasIsolationTelemetry.js');
   const { runStartupMigrationGate } = await import('./infra/db/migrate.js');
   const { assertIntegratorDiagnosticPoolReady } = await import('./infra/db/operationalPoolReadiness.js');
@@ -20,24 +19,41 @@ async function start() {
   const { buildApp } = await import('./app/index.js');
   const { env } = await import('./config/env.js');
   const { logger } = await import('./infra/observability/logger.js');
+  const { initIntegratorErrorTracking, closeIntegratorErrorTracking } = await import('./infra/observability/errorTracking.js');
+  const runtimeDb = createDbPort();
+
+  await initIntegratorErrorTracking(runtimeDb, 'api');
 
   await runStartupMigrationGate();
   await assertApiIsolationTelemetryWriterReady();
   await assertIntegratorDiagnosticPoolReady();
-  await getAppBaseUrl(createDbPort());
+  await getAppBaseUrl(runtimeDb);
 
   const app = await buildApp();
-  try {
-    await app.listen({
-      port: env.PORT,
-      host: env.HOST,
-    });
-    logger.info(`Server listening on http://${env.HOST}:${env.PORT}`);
-  } catch (err) {
-    reportIntegratorIsolationFailure(err);
-    logger.error(err, 'Failed to start server');
-    process.exit(1);
-  }
+  await app.listen({
+    port: env.PORT,
+    host: env.HOST,
+  });
+  logger.info(`Server listening on http://${env.HOST}:${env.PORT}`);
+
+  const stop = async (): Promise<void> => {
+    try {
+      await app.close();
+    } finally {
+      await closeIntegratorErrorTracking();
+    }
+  };
+  process.once('SIGINT', () => void stop());
+  process.once('SIGTERM', () => void stop());
 }
 
-start();
+start().catch(async (error: unknown) => {
+  const { captureIntegratorError, closeIntegratorErrorTracking } = await import('./infra/observability/errorTracking.js');
+  const { reportIntegratorIsolationFailure } = await import('./infra/observability/saasIsolationTelemetry.js');
+  const { logger } = await import('./infra/observability/logger.js');
+  captureIntegratorError(error, 'integrator_startup_fatal');
+  reportIntegratorIsolationFailure(error);
+  logger.error(error, 'Failed to start server');
+  await closeIntegratorErrorTracking();
+  process.exitCode = 1;
+});

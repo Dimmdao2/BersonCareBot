@@ -74,6 +74,12 @@ function redactBookingPaymentProvidersSettingForClient(row: SystemSetting): Syst
 
 export function redactAdminSettingsForClient(settings: SystemSetting[]): SystemSetting[] {
   return settings.map((s) => {
+    if (s.key === "error_tracking_dsn") {
+      const value = s.valueJson !== null && typeof s.valueJson === "object"
+        ? (s.valueJson as Record<string, unknown>).value
+        : null;
+      return { ...s, valueJson: { value: { hasStoredDsn: typeof value === "string" && value.trim().length > 0 } } };
+    }
     if (s.key === "smsc_api_key") {
       return { ...s, valueJson: { value: "[REDACTED]" } };
     }

@@ -736,7 +736,10 @@ SET search_path = pg_catalog
 AS $function$
   SELECT setting.value_json
   FROM public.app_runtime_settings AS setting
-  WHERE p_key IN ('video_hls_pipeline_enabled', 'video_watermark_enabled')
+  WHERE p_key IN (
+      'video_hls_pipeline_enabled', 'video_watermark_enabled',
+      'error_tracking_enabled', 'error_tracking_dsn'
+    )
     AND setting.key = p_key
     AND setting.scope = 'admin'
     AND setting.audience = 'server'

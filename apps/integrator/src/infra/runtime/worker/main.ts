@@ -21,12 +21,19 @@ import {
 } from '../../observability/saasIsolationTelemetry.js';
 import { assertDeliveryWorkerPoolReady } from '../../db/operationalPoolReadiness.js';
 import { createOperatorAwareDeliveryAttemptWritePort } from './operatorDeliveryAttemptWritePort.js';
+import {
+  captureIntegratorError,
+  closeIntegratorErrorTracking,
+  initIntegratorErrorTracking,
+} from '../../observability/errorTracking.js';
 
 async function sleep(ms: number): Promise<void> {
   await new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 async function startWorker(): Promise<void> {
+  const runtimeDb = createDbPort();
+  await initIntegratorErrorTracking(runtimeDb, 'worker');
   await assertWorkerIsolationTelemetryWriterReady();
   await assertDeliveryWorkerPoolReady();
   const projectionDb = createDbPort();
@@ -104,6 +111,7 @@ async function startWorker(): Promise<void> {
             }
           });
         } catch (err) {
+          captureIntegratorError(err, 'worker_loop_error');
           reportWorkerQueueIsolationFailure(err);
           logger.error({ err }, 'Runtime worker tick failed');
         }
@@ -115,6 +123,7 @@ async function startWorker(): Promise<void> {
         try {
           await runProjectionWorkerTick(projectionDb, webappEvents);
         } catch (err) {
+          captureIntegratorError(err, 'worker_loop_error');
           reportWorkerProjectionIsolationFailure(err);
           logger.error({ err }, 'Projection worker tick failed');
         }
@@ -136,6 +145,7 @@ async function startWorker(): Promise<void> {
             },
           });
         } catch (err) {
+          captureIntegratorError(err, 'worker_loop_error');
           reportWorkerOutgoingIsolationFailure(err);
           logger.error({ err }, 'Outgoing delivery worker tick failed');
         }
@@ -145,8 +155,16 @@ async function startWorker(): Promise<void> {
   ]);
 }
 
-startWorker().catch((err) => {
+const closeOnSignal = (): void => {
+  void closeIntegratorErrorTracking().finally(() => process.exit(0));
+};
+process.once('SIGINT', closeOnSignal);
+process.once('SIGTERM', closeOnSignal);
+
+startWorker().catch(async (err) => {
+  captureIntegratorError(err, 'worker_startup_fatal');
   reportWorkerQueueIsolationFailure(err);
   logger.error({ err }, 'Runtime worker crashed');
-  process.exit(1);
+  await closeIntegratorErrorTracking();
+  process.exitCode = 1;
 });

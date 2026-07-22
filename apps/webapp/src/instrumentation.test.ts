@@ -9,27 +9,27 @@ describe('webapp startup auth configuration', () => {
     vi.stubEnv('ALLOW_DEV_AUTH_BYPASS', 'false');
   });
 
-  it('fails startup when production has the dev auth bypass enabled', () => {
+  it('fails startup when production has the dev auth bypass enabled', async () => {
     vi.stubEnv('NODE_ENV', 'production');
     vi.stubEnv('ALLOW_DEV_AUTH_BYPASS', 'true');
     vi.stubEnv('DATABASE_URL', 'postgresql://example.invalid/db');
     vi.stubEnv('npm_lifecycle_event', 'start');
 
-    expect(() => register()).toThrow(/cannot be enabled in production/);
+    await expect(register()).rejects.toThrow(/cannot be enabled in production/);
   });
 
-  it('allows production startup with the bypass disabled', () => {
+  it('allows production startup with the bypass disabled', async () => {
     vi.stubEnv('NODE_ENV', 'production');
     vi.stubEnv('DATABASE_URL', 'postgresql://example.invalid/db');
     vi.stubEnv('npm_lifecycle_event', 'start');
 
-    expect(() => register()).not.toThrow();
+    await expect(register()).resolves.toBeUndefined();
   });
 
-  it('allows the explicitly enabled development configuration', () => {
+  it('allows the explicitly enabled development configuration', async () => {
     vi.stubEnv('NODE_ENV', 'development');
     vi.stubEnv('ALLOW_DEV_AUTH_BYPASS', 'true');
 
-    expect(() => register()).not.toThrow();
+    await expect(register()).resolves.toBeUndefined();
   });
 });

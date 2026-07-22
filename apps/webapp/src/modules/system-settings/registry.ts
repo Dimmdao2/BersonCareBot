@@ -58,6 +58,8 @@ const runtime = (
 
 /** Every legacy SystemSettingKey is classified here; no fallback entry exists. */
 export const SYSTEM_SETTING_REGISTRY = {
+  error_tracking_enabled: runtime("admin", "global", "server", "boolean", "false"),
+  error_tracking_dsn: runtime("admin", "global", "server", "url", ""),
   platform_user_merge_v2_enabled: runtime("admin", "global", "server", "boolean", "false"),
   integrator_linked_phone_source: runtime("admin", "global", "server", "string", "public_then_contacts"),
   patient_label: runtime("doctor", "per_org", "authenticated_client", "string", "Пациенты"),

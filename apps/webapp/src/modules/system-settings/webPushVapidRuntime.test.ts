@@ -86,6 +86,18 @@ describe("redactWebPushVapidSettingForClient", () => {
     expect(JSON.stringify(out)).not.toContain("private-smsc-key");
   });
 
+  it("never returns the error tracking DSN to browser-facing settings", () => {
+    const out = redactAdminSettingsForClient([{
+      key: "error_tracking_dsn",
+      scope: "admin",
+      valueJson: { value: "https://public@example.test/1" },
+      updatedAt: "",
+      updatedBy: null,
+    }]);
+    expect(out[0]?.valueJson).toEqual({ value: { hasStoredDsn: true } });
+    expect(JSON.stringify(out)).not.toContain("example.test");
+  });
+
   it("never serializes VAPID secret fields", () => {
     const out = redactAdminSettingsForClient([
       {

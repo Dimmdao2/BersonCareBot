@@ -1,18 +1,23 @@
-import { requireAdminDoctorPage } from "@/app/app/settings/requireAdminDoctorPage";
+import { requirePlatformOperationsPage } from "@/app-layer/guards/requireRole";
 import { loadAdminSettingsPageData } from "@/app/app/settings/adminSettingsData";
 import { AdminSettingsSection } from "@/app/app/settings/AdminSettingsSection";
 import { OperatorHealthAlertsSection } from "@/app/app/settings/OperatorHealthAlertsSection";
 import { OperatorHealthProjectionThresholdsSection } from "@/app/app/settings/OperatorHealthProjectionThresholdsSection";
+import { ErrorTrackingSettingsSection } from "@/app/app/settings/ErrorTrackingSettingsSection";
 import { DoctorAppShell } from "@/shared/ui/doctor/DoctorAppShell";
 import { DoctorPageHeader } from "@/shared/ui/doctor/shell/DoctorPageHeader";
 
 export default async function DoctorAdminTechnicalPage() {
-  await requireAdminDoctorPage();
-  const { diagnostics } = await loadAdminSettingsPageData();
+  await requirePlatformOperationsPage();
+  const { diagnostics, errorTracking } = await loadAdminSettingsPageData();
 
   return (
     <DoctorAppShell title="Технические режимы">
       <DoctorPageHeader title="Технические режимы" />
+      <ErrorTrackingSettingsSection
+        initialEnabled={errorTracking.enabled}
+        hasStoredDsn={errorTracking.hasStoredDsn}
+      />
       <AdminSettingsSection
         devMode={diagnostics.devMode}
         debugForwardToAdmin={diagnostics.debugForwardToAdmin}

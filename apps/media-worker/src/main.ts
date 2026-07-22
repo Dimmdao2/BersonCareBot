@@ -6,6 +6,12 @@ import { runMediaWorkerTick } from "./workerTick.js";
 import { createMediaWorkerIsolationReporter } from "./saasIsolationTelemetry.js";
 import { runWithMediaWorkerInfraPrincipal } from "./runMediaWorkerSql.js";
 import { startMediaWorkerTransaction } from "./withClient.js";
+import {
+  captureErrorTrackingException,
+  closeErrorTracking,
+  initErrorTracking,
+} from "@bersoncare/error-tracking";
+import { readServerRuntimeString } from "./serverRuntimeConfig.js";
 
 function sleep(ms: number): Promise<void> {
   return new Promise((r) => setTimeout(r, ms));
@@ -33,6 +39,20 @@ async function main() {
       await tx.release();
     }
   });
+  try {
+    const [enabled, dsn] = await Promise.all([
+      readServerRuntimeString(pool, "error_tracking_enabled"),
+      readServerRuntimeString(pool, "error_tracking_dsn"),
+    ]);
+    await initErrorTracking({
+      enabled: enabled === "true",
+      dsn,
+      service: "media-worker",
+      processRole: "media-worker",
+    });
+  } catch {
+    // Optional telemetry must never affect media readiness.
+  }
   const isolationTelemetry = createMediaWorkerIsolationReporter(env.DATABASE_URL);
   const s3Client = createS3Client({
     endpoint: env.S3_ENDPOINT,
@@ -77,6 +97,7 @@ async function main() {
         continue;
       }
     } catch (e) {
+      captureErrorTrackingException(e, "media_worker_loop_error");
       isolationTelemetry.report(e);
       log.error({ err: e }, "main loop error");
       await sleep(env.POLL_MS);
@@ -85,10 +106,14 @@ async function main() {
 
   await pool.end();
   await isolationTelemetry.close();
+  await closeErrorTracking(1_500);
   log.info("media-worker stopped");
 }
 
 main().catch((e) => {
-  console.error(e);
-  process.exitCode = 1;
+  captureErrorTrackingException(e, "media_worker_startup_fatal");
+  console.error("media-worker fatal");
+  void closeErrorTracking(1_500).finally(() => {
+    process.exitCode = 1;
+  });
 });

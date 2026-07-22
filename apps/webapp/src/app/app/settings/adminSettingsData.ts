@@ -199,11 +199,24 @@ export type AdminSettingsPageData = {
   notificationsTopicsRows: NotificationTopicRow[];
   smtpOutboundUi: EmailSmtpSectionProps;
   webPushVapidUi: { publicKey: string; hasStoredPrivateKey: boolean };
+  errorTracking: { enabled: boolean; hasStoredDsn: boolean };
 };
 
 export async function loadAdminSettingsPageData(): Promise<AdminSettingsPageData> {
   const deps = buildAppDeps();
-  const adminSettingsList = redactAdminSettingsForClient(await deps.systemSettings.listSettingsByScope("admin"));
+  const rawAdminSettingsList = await deps.systemSettings.listSettingsByScope("admin");
+  const errorTrackingDsn = getValueJson(
+    rawAdminSettingsList.find((x) => x.key === "error_tracking_dsn")?.valueJson,
+    "",
+  );
+  const errorTracking = {
+    enabled: getValueJson<unknown>(
+      rawAdminSettingsList.find((x) => x.key === "error_tracking_enabled")?.valueJson,
+      false,
+    ) === true,
+    hasStoredDsn: typeof errorTrackingDsn === "string" && errorTrackingDsn.trim().length > 0,
+  };
+  const adminSettingsList = redactAdminSettingsForClient(rawAdminSettingsList);
 
   function adminStr(key: string): string {
     const raw = getValueJson(adminSettingsList.find((x) => x.key === key)?.valueJson, "");
@@ -429,5 +442,6 @@ export async function loadAdminSettingsPageData(): Promise<AdminSettingsPageData
       }
       return { publicKey, hasStoredPrivateKey };
     })(),
+    errorTracking,
   };
 }
