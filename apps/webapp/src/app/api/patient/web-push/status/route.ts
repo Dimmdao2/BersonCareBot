@@ -6,13 +6,13 @@ import { routePaths } from "@/app-layer/routes/paths";
 /**
  * GET /api/patient/web-push/status
  *
- * Reads ONLY the public VAPID key via `systemSettings.getWebPushVapidPublicKeyOnly()` — NOT
- * `getWebPushVapidKeyPair` (which reads the full admin `system_settings` row, private key
- * included). The patient DB role (`app_patient`) has no grant on `system_settings` at all (by
+ * Reads ONLY the public VAPID key via `systemSettings.getWebPushVapidPublicKeyOnly()`, never the
+ * full admin `system_settings` row (which includes the private key). The patient DB role
+ * (`app_patient`) has no grant on `system_settings` at all (by
  * design — that table also holds admin allowlists/secrets); the narrow accessor is a SECURITY
  * DEFINER function scoped to just the public key (deploy/postgres/patient-web-push-vapid-public-
- * key-accessor.sql). Doctor/admin routes keep using `getWebPushVapidKeyPair` under `app_staff`,
- * which retains its full table grant.
+ * key-accessor.sql). Private VAPID-key reads remain limited to server-side delivery paths under
+ * their properly privileged DB principal.
  */
 export async function GET() {
   const gate = await requirePatientApiBusinessAccess({ returnPath: routePaths.patient });

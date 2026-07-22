@@ -1,7 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { getCurrentDbPrincipal } from "@bersoncare/db-principal";
 import type { AppSession } from "@/shared/types/session";
 
 const getCurrentSessionMock = vi.hoisted(() => vi.fn());
+const getCurrentSessionForIdentitySelfMock = vi.hoisted(() => vi.fn());
 const resolveOrganizationForUserMock = vi.hoisted(() => vi.fn());
 const redirectMock = vi.hoisted(() =>
   vi.fn((url: string) => {
@@ -11,6 +13,7 @@ const redirectMock = vi.hoisted(() =>
 
 vi.mock("@/modules/auth/service", () => ({
   getCurrentSession: getCurrentSessionMock,
+  getCurrentSessionForIdentitySelf: getCurrentSessionForIdentitySelfMock,
 }));
 
 vi.mock("@/app-layer/di/buildAppDeps", () => ({
@@ -28,6 +31,8 @@ import {
   requireOrganizationManagementContext,
   requirePatientAccess,
   requireStaffAccountPage,
+  requireStaffPersonalInstallPage,
+  requireStaffWebPushSelfApiSession,
 } from "./requireRole";
 
 function session(role: AppSession["user"]["role"]): AppSession {
@@ -45,6 +50,7 @@ function session(role: AppSession["user"]["role"]): AppSession {
 
 beforeEach(() => {
   getCurrentSessionMock.mockReset();
+  getCurrentSessionForIdentitySelfMock.mockReset();
   resolveOrganizationForUserMock.mockReset();
   resolveOrganizationForUserMock.mockResolvedValue({ ok: false, reason: "no_active_membership" });
   redirectMock.mockReset();
@@ -71,6 +77,41 @@ describe("requireStaffAccountPage", () => {
     getCurrentSessionMock.mockResolvedValueOnce(session("client"));
     const target = buildOwnHubUrlWithAccessDeniedToast("client");
     await expect(requireStaffAccountPage()).rejects.toThrow(`redirect:${target}`);
+  });
+});
+
+describe("global-admin personal PWA exception", () => {
+  it("allows only the install page without resolving organization membership", async () => {
+    const admin = {
+      ...session("admin"),
+      adminMode: true,
+      user: { ...session("admin").user, userId: "aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee" },
+    };
+    getCurrentSessionForIdentitySelfMock.mockResolvedValueOnce(admin);
+
+    await expect(requireStaffPersonalInstallPage()).resolves.toBe(admin);
+    expect(getCurrentSessionForIdentitySelfMock).toHaveBeenCalledTimes(1);
+    expect(getCurrentSessionMock).not.toHaveBeenCalled();
+    expect(resolveOrganizationForUserMock).not.toHaveBeenCalled();
+    expect(getCurrentDbPrincipal()).toMatchObject({ kind: "patient", platformUserId: admin.user.userId });
+  });
+
+  it("allows global admin web-push self-service without membership resolution", async () => {
+    const admin = {
+      ...session("admin"),
+      adminMode: true,
+      user: { ...session("admin").user, userId: "aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee" },
+    };
+    getCurrentSessionForIdentitySelfMock.mockResolvedValueOnce(admin);
+
+    await expect(requireStaffWebPushSelfApiSession()).resolves.toMatchObject({ ok: true, session: admin });
+    expect(getCurrentSessionForIdentitySelfMock).toHaveBeenCalledTimes(1);
+    expect(getCurrentSessionMock).not.toHaveBeenCalled();
+    expect(resolveOrganizationForUserMock).not.toHaveBeenCalled();
+    expect(getCurrentDbPrincipal()).toMatchObject({
+      kind: "patient",
+      platformUserId: admin.user.userId,
+    });
   });
 });
 

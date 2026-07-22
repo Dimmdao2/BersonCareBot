@@ -9,6 +9,7 @@ import {
 import { confirmPublicEmailOtpChallenge } from "@/modules/auth/emailOtpPublic";
 import { setSessionFromUser } from "@/modules/auth/service";
 import { getRedirectPathForRole } from "@/modules/auth/redirectPolicy";
+import { isVerifiedEmailGlobalAdminAsync } from "@/modules/auth/envRole";
 import { formatOtpRetryAfterMessage, OTP_TOO_MANY_ATTEMPTS_MESSAGE } from "@/modules/auth/otpConstants";
 import { enterStaffSecuritySelfPrincipal } from "@/app-layer/principal/staffSecuritySelfPrincipal";
 import { isPlatformUserUuid } from "@/shared/platform-user/isPlatformUserUuid";
@@ -77,17 +78,26 @@ export async function POST(request: Request) {
     );
   }
 
-  await setSessionFromUser(user);
+  // The code proves control of `email`; policy decides whether that verified identity is a global admin.
+  // Email-derived staff access intentionally stays session-derived: every later session refresh rechecks the
+  // DB-backed allowlist, so removing the address revokes access without a stale role row.
+  // On policy removal/outage, use the freshly loaded DB role rather than retaining
+  // an earlier email-derived session role. The B1c migration removes the only
+  // historical persisted owner-email artifact.
+  const role = (await isVerifiedEmailGlobalAdminAsync(email)) ? "admin" : user.role;
+  const sessionUser = role === user.role ? user : { ...user, role };
+
+  await setSessionFromUser(sessionUser);
 
   const tz = parsed.data.browserCalendarIana?.trim();
   if (tz) {
-    await deps.patientCalendarTimezone.trySetInitialIfEmpty(user.userId, tz);
+    await deps.patientCalendarTimezone.trySetInitialIfEmpty(sessionUser.userId, tz);
   }
 
   return NextResponse.json({
     ok: true,
-    redirectTo: getRedirectPathForRole(user.role),
-    role: user.role,
+    redirectTo: getRedirectPathForRole(sessionUser.role),
+    role: sessionUser.role,
   });
 }
 

@@ -7,6 +7,7 @@ import { render, screen } from "@testing-library/react";
 const {
   redirectMock,
   requireWorkspaceMock,
+  requireStaffPersonalInstallPageMock,
   entitlementMock,
   listMembersMock,
   listInvitesMock,
@@ -18,6 +19,7 @@ const {
 } = vi.hoisted(() => ({
   redirectMock: vi.fn((url: string) => { throw new Error(`redirect:${url}`); }),
   requireWorkspaceMock: vi.fn(),
+  requireStaffPersonalInstallPageMock: vi.fn(),
   entitlementMock: vi.fn(),
   listMembersMock: vi.fn(),
   listInvitesMock: vi.fn(),
@@ -34,6 +36,7 @@ vi.mock("@/app-layer/routes/paths", () => ({
 }));
 vi.mock("@/app-layer/guards/requireRole", () => ({
   requireOrganizationWorkspaceContext: requireWorkspaceMock,
+  requireStaffPersonalInstallPage: requireStaffPersonalInstallPageMock,
 }));
 vi.mock("@/app-layer/guards/requireEntitlement", () => ({
   requireEntitlementForReadAction: entitlementMock,
@@ -59,7 +62,7 @@ vi.mock("@/shared/ui/doctor/shell/DoctorPageHeader", () => ({
 }));
 
 import SettingsPage from "./page";
-import DoctorInstallPage from "../doctor/install/page";
+import DoctorInstallPage from "../(staff-personal)/doctor/install/page";
 import DoctorClinicSettingsPage from "../doctor/clinic/settings/page";
 import DoctorClinicMembersPage from "../doctor/clinic/members/page";
 
@@ -78,6 +81,7 @@ describe("legacy settings compatibility", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     requireWorkspaceMock.mockResolvedValue(ownerWorkspace);
+    requireStaffPersonalInstallPageMock.mockResolvedValue(ownerWorkspace.session);
     entitlementMock.mockResolvedValue({ ok: false, mechanic: "clinic_team" });
     listMembersMock.mockResolvedValue([]);
     listInvitesMock.mockResolvedValue([]);

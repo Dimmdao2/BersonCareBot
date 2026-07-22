@@ -362,6 +362,17 @@ describe("requireDoctorApiSession", () => {
     expect(getCurrentDbPrincipal()).toMatchObject({ kind: "bootstrap" });
   });
 
+  it("keeps global admin out of the general doctor API surface", async () => {
+    getCurrentSessionMock.mockResolvedValueOnce({ ...session("admin"), adminMode: true });
+
+    const gate = await requireDoctorApiSession();
+
+    expect(gate.ok).toBe(false);
+    if (gate.ok) return;
+    expect(gate.response.status).toBe(403);
+    expect(resolveOrganizationForUserMock).not.toHaveBeenCalled();
+  });
+
   it.each(["pending_enrollment", "recovery", "recovery_confirmation"] as const)(
     "denies unrelated account and doctor APIs to a %s session",
     async (assurance) => {

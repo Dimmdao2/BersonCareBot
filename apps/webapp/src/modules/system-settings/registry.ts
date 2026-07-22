@@ -174,6 +174,8 @@ export const SYSTEM_SETTING_REGISTRY = {
   admin_max_ids: restricted("admin", "global", "string_list"),
   doctor_max_ids: restricted("admin", "global", "string_list"),
   admin_phones: restricted("admin", "global", "string_list"),
+  /** Verified email OTP may promote only addresses explicitly listed here. */
+  admin_emails: restricted("admin", "global", "string_list"),
   doctor_phones: restricted("admin", "global", "string_list"),
   allowed_phones: restricted("admin", "global", "string_list"),
 } as const satisfies Record<string, SystemSettingDefinition>;

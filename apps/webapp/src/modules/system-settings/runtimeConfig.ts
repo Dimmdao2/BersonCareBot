@@ -128,6 +128,7 @@ export const SERVER_RUNTIME_TOKEN_LIST_DEFAULTS = {
   admin_telegram_ids: "",
   admin_max_ids: "",
   admin_phones: "",
+  admin_emails: "",
   doctor_telegram_ids: "",
   doctor_max_ids: "",
   doctor_phones: "",
@@ -317,6 +318,24 @@ export function createRuntimeConfigProvider(port: RuntimeConfigPort) {
       } catch {
         return fallbackValue;
       }
+    },
+    /**
+     * Security-sensitive authorization reads must not inherit the compatibility
+     * fallback or the caller-side TTL cache. In particular, removing an
+     * allowlisted principal must take effect on the very next session check.
+     */
+    async getServerTokenListStrict(
+      key: ServerRuntimeTokenListKey,
+      operationFamily: RuntimeConfigOperationFamily = "auth_role_config",
+    ): Promise<string> {
+      const row = await port.getEffective({
+        key,
+        scope: "admin",
+        organizationId: null,
+        allowedAudiences: ["server"],
+        operationFamily,
+      });
+      return parseTokenListEnvelope(row?.valueJson ?? null) ?? "";
     },
     async getServerInteger(key: ServerRuntimeIntegerKey): Promise<number> {
       const definition = SERVER_RUNTIME_INTEGER_DEFINITIONS[key];

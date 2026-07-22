@@ -43,7 +43,8 @@ function emailCodePepper(): string {
   return integratorWebhookSecret() || env.SESSION_COOKIE_SECRET || "test-email-pepper";
 }
 
-function hashCode(code: string): string {
+/** Shared hash contract for every email challenge caller; raw OTPs never enter SQL. */
+export function hashEmailChallengeCode(code: string): string {
   return createHash("sha256").update(`${code}:${emailCodePepper()}`).digest("hex");
 }
 
@@ -126,7 +127,7 @@ async function verifyChallengeCodeRow(params: {
     return { ok: false, code: "too_many_attempts", retryAfterSeconds: OTP_LOCK_DURATION_SEC };
   }
 
-  const expectedHash = hashCode(params.code);
+  const expectedHash = hashEmailChallengeCode(params.code);
   if (expectedHash !== params.row.code_hash) {
     const next = attempts + 1;
     await db.updateEmailChallengeAttempts(params.challengeId, next);
@@ -176,7 +177,7 @@ export async function startEmailChallenge(userId: string, emailRaw: string): Pro
   await db.deleteEmailChallengesForUser(userId);
 
   const code = generateEmailCode();
-  const codeHash = hashCode(code);
+  const codeHash = hashEmailChallengeCode(code);
   const expiresAt = Math.floor(Date.now() / 1000) + CHALLENGE_TTL_SEC;
 
   // Opt-in dev aid (DEV_EMAIL_OTP_DEBUG=true AND NODE_ENV=development only):

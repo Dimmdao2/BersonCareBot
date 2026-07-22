@@ -9,7 +9,7 @@ import {
   getCurrentDbPrincipal,
 } from "@bersoncare/db-principal";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
-import { getCurrentSession } from "@/modules/auth/service";
+import { getCurrentSession, getCurrentSessionForIdentitySelf } from "@/modules/auth/service";
 import { patientClientBusinessGate, resolvePlatformAccessContext } from "@/app-layer/platform-access";
 import { canAccessDoctor, canAccessPatient } from "@/modules/roles/service";
 import { routePaths } from "@/app-layer/routes/paths";
@@ -98,6 +98,28 @@ export async function requireStaffAccountPage(): Promise<AppSession> {
     redirect(buildOwnHubUrlWithAccessDeniedToast(session.user.role));
   }
   return session;
+}
+
+/**
+ * The one personal PWA-install surface is available to a platform operator, but
+ * does not turn that operator into a staff account or organization member.
+ */
+export async function requireStaffPersonalInstallPage(): Promise<AppSession> {
+  ensureDbPrincipalContext({ source: "requireStaffPersonalInstallPage:pending" });
+  const session = await getCurrentSessionForIdentitySelf();
+  if (!session) redirect(routePaths.root);
+  const capabilities = resolveLaunchCapabilities({
+    sessionRole: session.user.role,
+    adminMode: session.adminMode,
+  });
+  if (
+    hasLaunchCapability(capabilities, "account.self") ||
+    hasLaunchCapability(capabilities, "platform.operations")
+  ) {
+    enterStaffSecuritySelfPrincipal(session.user.userId, "requireStaffPersonalInstallPage:self");
+    return session;
+  }
+  redirect(buildOwnHubUrlWithAccessDeniedToast(session.user.role));
 }
 
 export function isRestrictedStaffSecuritySession(session: AppSession): boolean {
@@ -361,6 +383,42 @@ export async function requireDoctorApiSession(): Promise<
     };
   }
   await stampBestEffortStaffPrincipal(session, "requireDoctorApiSession");
+  return { ok: true, session };
+}
+
+/**
+ * Exact identity-self boundary for the staff PWA subscription endpoints.
+ *
+ * A platform operator may create, read, or remove a subscription only for the
+ * platform user in its authenticated session. This is deliberately not a
+ * general `/api/doctor` grant and has no organization-membership resolution.
+ */
+export async function requireStaffWebPushSelfApiSession(): Promise<
+  { ok: true; session: AppSession } | { ok: false; response: NextResponse }
+> {
+  ensureDbPrincipalContext({ source: "requireStaffWebPushSelfApiSession:pending" });
+  const session = await getCurrentSessionForIdentitySelf();
+  if (!session) {
+    return { ok: false, response: NextResponse.json({ ok: false, error: "unauthorized" }, { status: 401 }) };
+  }
+
+  const capabilities = resolveLaunchCapabilities({
+    sessionRole: session.user.role,
+    adminMode: session.adminMode,
+  });
+  if (
+    (!hasLaunchCapability(capabilities, "account.self") && !hasLaunchCapability(capabilities, "platform.operations")) ||
+    isRestrictedStaffSecuritySession(session) ||
+    !isPlatformUserUuid(session.user.userId)
+  ) {
+    return { ok: false, response: NextResponse.json({ ok: false, error: "forbidden" }, { status: 403 }) };
+  }
+
+  try {
+    enterStaffSecuritySelfPrincipal(session.user.userId, "requireStaffWebPushSelfApiSession:self");
+  } catch {
+    return { ok: false, response: NextResponse.json({ ok: false, error: "forbidden" }, { status: 403 }) };
+  }
   return { ok: true, session };
 }
 

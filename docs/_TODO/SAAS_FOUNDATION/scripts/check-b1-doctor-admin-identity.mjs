@@ -170,25 +170,27 @@ doctor_live AS (
   FROM public.platform_users pu, constants c
   WHERE pu.phone_normalized = c.doctor_phone AND pu.merged_into_id IS NULL
 ),
-gmail_admin AS (
-  SELECT pu.id, pu.role, pu.email_normalized, pu.is_archived
-  FROM public.platform_users pu, constants c
-  WHERE pu.email_normalized = c.admin_email AND pu.role = 'admin' AND pu.merged_into_id IS NULL
-),
-active_admins AS (
+legacy_email_admin AS (
   SELECT pu.id
-  FROM public.platform_users pu
-  WHERE pu.role = 'admin' AND pu.merged_into_id IS NULL AND pu.is_archived IS FALSE
+  FROM public.platform_users pu, constants c
+  WHERE pu.role = 'admin'
+    AND pu.display_name = 'Дмитрий Берсон'
+    AND pu.email = c.admin_email
+    AND pu.email_normalized = c.admin_email
+    AND pu.phone_normalized IS NULL
+    AND pu.integrator_user_id IS NULL
+    AND pu.merged_into_id IS NULL
+    AND pu.is_archived IS FALSE
+    AND NOT EXISTS (SELECT 1 FROM public.user_channel_bindings b WHERE b.user_id = pu.id)
+    AND NOT EXISTS (SELECT 1 FROM public.user_oauth_bindings b WHERE b.user_id = pu.id)
+    AND NOT EXISTS (SELECT 1 FROM public.user_password_credentials c WHERE c.user_id = pu.id)
+    AND NOT EXISTS (SELECT 1 FROM public.user_pins p WHERE p.user_id = pu.id)
+    AND NOT EXISTS (SELECT 1 FROM public.login_tokens t WHERE t.user_id = pu.id)
 ),
 doctor_memberships AS (
   SELECT m.role, m.status, m.organization_id, m.specialist_id
   FROM public.be_organization_members m
   JOIN doctor_live d ON d.id = m.platform_user_id
-),
-admin_memberships AS (
-  SELECT m.role, m.status, m.organization_id, m.specialist_id
-  FROM public.be_organization_members m
-  JOIN gmail_admin a ON a.id = m.platform_user_id
 ),
 admin_phone_setting AS (
   SELECT value_json
@@ -207,12 +209,7 @@ facts AS (
       SELECT count(*) FROM doctor_memberships m, constants c
       WHERE m.role = 'owner' AND m.status = 'active' AND m.organization_id = c.expected_org_id AND m.specialist_id IS NOT NULL
     ),
-    'activeAdminRows', (SELECT count(*) FROM active_admins),
-    'gmailAdminRows', (SELECT count(*) FROM gmail_admin WHERE is_archived IS FALSE),
-    'adminActiveMemberships', (
-      SELECT count(*) FROM admin_memberships m, constants c
-      WHERE m.role = 'admin' AND m.status = 'active' AND m.organization_id = c.expected_org_id AND m.specialist_id IS NULL
-    ),
+    'legacyEmailDerivedAdminRows', (SELECT count(*) FROM legacy_email_admin),
     'clientHasDoctorEmail', EXISTS (
       SELECT 1 FROM public.platform_users pu, constants c
       WHERE pu.phone_normalized = c.client_phone AND pu.merged_into_id IS NULL AND pu.email_normalized = c.doctor_email
@@ -230,9 +227,8 @@ function classifyFacts(facts) {
   if (facts.doctorLiveRows !== 1) failures.push("doctor_phone_live_row_count");
   if (facts.clientHasDoctorEmail === true) failures.push("client_still_holds_doctor_email");
   if (facts.doctorRoleOk !== true) failures.push("data_fix_not_applied_or_partial");
-  if (facts.activeAdminRows !== 1 || facts.gmailAdminRows !== 1) failures.push("admin_shape_not_normalized");
+  if (facts.legacyEmailDerivedAdminRows !== 0) failures.push("legacy_email_admin_artifact_not_demoted");
   if (facts.doctorOwnerMemberships !== 1) failures.push("doctor_owner_membership_missing_or_wrong");
-  if (facts.adminActiveMemberships !== 1) failures.push("admin_membership_missing_or_wrong");
 
   const ok = failures.length === 0;
   return {
@@ -309,13 +305,31 @@ function validateContract() {
     "doctorLiveRows",
     "doctorRoleOk",
     "doctorOwnerMemberships",
-    "activeAdminRows",
-    "gmailAdminRows",
-    "adminActiveMemberships",
+    "legacyEmailDerivedAdminRows",
     "clientHasDoctorEmail",
     "adminPhonesGlobalValue",
   ]) {
     assert(sql.includes(needle), `SQL missing ${needle}`);
+  }
+
+  // This must stay as narrow as migration 0233: a matching normalized email alone is
+  // not evidence that a row is the historical credential-less admin artifact.
+  for (const needle of [
+    "pu.role = 'admin'",
+    "pu.display_name = 'Дмитрий Берсон'",
+    "pu.email = c.admin_email",
+    "pu.email_normalized = c.admin_email",
+    "pu.phone_normalized IS NULL",
+    "pu.integrator_user_id IS NULL",
+    "pu.merged_into_id IS NULL",
+    "pu.is_archived IS FALSE",
+    "NOT EXISTS (SELECT 1 FROM public.user_channel_bindings b WHERE b.user_id = pu.id)",
+    "NOT EXISTS (SELECT 1 FROM public.user_oauth_bindings b WHERE b.user_id = pu.id)",
+    "NOT EXISTS (SELECT 1 FROM public.user_password_credentials c WHERE c.user_id = pu.id)",
+    "NOT EXISTS (SELECT 1 FROM public.user_pins p WHERE p.user_id = pu.id)",
+    "NOT EXISTS (SELECT 1 FROM public.login_tokens t WHERE t.user_id = pu.id)",
+  ]) {
+    assert(sql.includes(needle), `legacy artifact predicate missing ${needle}`);
   }
 }
 
@@ -373,9 +387,7 @@ function runSelfTest() {
     doctorLiveRows: 1,
     doctorRoleOk: true,
     doctorOwnerMemberships: 1,
-    activeAdminRows: 1,
-    gmailAdminRows: 1,
-    adminActiveMemberships: 1,
+    legacyEmailDerivedAdminRows: 0,
     clientHasDoctorEmail: false,
     adminPhonesGlobalValue: { value: [] },
   };

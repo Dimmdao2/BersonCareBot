@@ -69,6 +69,7 @@ const requiredFunctions = [
   "app.email_otp_public_register_patient(text, text, text, text)",
   "app.email_otp_public_delete_unverified_registration(uuid)",
   "app.email_otp_public_find_latest_email_challenge_by_email(text, bigint)",
+  "app.email_otp_public_consume_latest_challenge(text, text)",
   "app.email_otp_public_find_email_send_cooldown_by_email(text)",
   "app.email_auth_find_email_send_cooldown(uuid, text)",
   "app.email_auth_delete_email_challenges_for_user(uuid)",

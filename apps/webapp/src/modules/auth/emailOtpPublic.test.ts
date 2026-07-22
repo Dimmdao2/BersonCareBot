@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { bindEmailSendPort } from "./emailSendPort";
-import { resetEmailAuthMemStateForTests } from "./emailAuth";
+import { hashEmailChallengeCode, resetEmailAuthMemStateForTests } from "./emailAuth";
 import { startPublicEmailOtpChallenge, startPublicEmailOtpRegistration, confirmPublicEmailOtpChallenge } from "./emailOtpPublic";
 import type { EmailOtpPublicDbPort } from "./emailOtpPublicPort";
 import { OTP_RESEND_COOLDOWN_SEC } from "./otpConstants";
@@ -35,9 +35,8 @@ function makeInMemDb(overrides?: Partial<EmailOtpPublicDbPort>): EmailOtpPublicD
     async deleteUnverifiedPublicEmailRegistration(userId) {
       for (const [email, id] of users) if (id === userId) users.delete(email);
     },
-    async findLatestEmailChallengeByEmail(_emailNorm, _nowSec) {
-      // Not used in start tests; confirm tests handle this via live emailAuth in-memory
-      return null;
+    async consumeLatestEmailChallenge() {
+      return { ok: false as const, code: "expired_code" as const };
     },
     async findEmailSendCooldownByEmail(emailNorm) {
       return cooldowns.get(emailNorm) ?? null;
@@ -113,7 +112,7 @@ describe("startPublicEmailOtpChallenge", () => {
   });
 });
 
-describe("confirmPublicEmailOtpChallenge (in-memory path via emailAuth)", () => {
+describe("confirmPublicEmailOtpChallenge", () => {
   beforeEach(() => {
     sendEmailCodeMock.mockReset();
     sendEmailCodeMock.mockResolvedValue({ ok: true });
@@ -122,11 +121,7 @@ describe("confirmPublicEmailOtpChallenge (in-memory path via emailAuth)", () => 
   });
 
   it("returns expired_code when no challenge exists for email", async () => {
-    const db = makeInMemDb({
-      async findLatestEmailChallengeByEmail() {
-        return null;
-      },
-    });
+    const db = makeInMemDb();
     const r = await confirmPublicEmailOtpChallenge("test@example.com", "123456", db);
     expect(r.ok).toBe(false);
     if (!r.ok) expect(r.code).toBe("expired_code");
@@ -139,48 +134,27 @@ describe("confirmPublicEmailOtpChallenge (in-memory path via emailAuth)", () => 
     if (!r.ok) expect(r.code).toBe("invalid_code");
   });
 
-  it("happy path confirms once, then REJECTS replay of the consumed code (expired_code)", async () => {
-    // Full start → confirm → replay cycle on the in-memory emailAuth challenge store.
-    let sentCode = "";
-    sendEmailCodeMock.mockImplementation(async (_to: string, code: string) => {
-      sentCode = code;
-      return { ok: true };
+  it("passes only the shared code hash to the atomic consume port and preserves one-shot results", async () => {
+    const userId = randomUUID();
+    const consumeLatestEmailChallenge = vi.fn(async (_email: string, codeHash: string) => {
+      if (codeHash !== hashEmailChallengeCode("123456")) {
+        return { ok: false as const, code: "invalid_code" as const };
+      }
+      if (consumeLatestEmailChallenge.mock.calls.length > 1) {
+        return { ok: false as const, code: "expired_code" as const };
+      }
+      return { ok: true as const, userId };
     });
-
-    let userId = "";
-    const challengeRowRef: { id: string } = { id: "" };
     const db = makeInMemDb({
-      async findPublicEmailUser() {
-        userId = userId || randomUUID();
-        return { userId };
-      },
-      async findLatestEmailChallengeByEmail() {
-        // Simulates the DB row still being visible to the lookup; the challenge
-        // store itself (emailAuth in-memory) is the replay gate.
-        if (!challengeRowRef.id) return null;
-        return {
-          id: challengeRowRef.id,
-          user_id: userId,
-          code_hash: "",
-          expires_at: String(Math.floor(Date.now() / 1000) + 600),
-          attempts: "0",
-        };
-      },
+      consumeLatestEmailChallenge,
     });
 
-    const started = await startPublicEmailOtpChallenge("replay@example.com", db);
-    expect(started.ok).toBe(true);
-    if (!started.ok) return;
-    challengeRowRef.id = started.challengeId;
-    expect(sentCode).toMatch(/^\d{6}$/);
-
-    // First confirm: succeeds and consumes the challenge.
-    const first = await confirmPublicEmailOtpChallenge("replay@example.com", sentCode, db);
+    const first = await confirmPublicEmailOtpChallenge(" Replay@Example.com ", " 123456 ", db);
     expect(first.ok).toBe(true);
     if (first.ok) expect(first.userId).toBe(userId);
+    expect(consumeLatestEmailChallenge).toHaveBeenCalledWith("replay@example.com", hashEmailChallengeCode("123456"));
 
-    // Replay with the SAME code: challenge is consumed → expired_code, no second login.
-    const replay = await confirmPublicEmailOtpChallenge("replay@example.com", sentCode, db);
+    const replay = await confirmPublicEmailOtpChallenge("replay@example.com", "123456", db);
     expect(replay.ok).toBe(false);
     if (!replay.ok) expect(replay.code).toBe("expired_code");
   });

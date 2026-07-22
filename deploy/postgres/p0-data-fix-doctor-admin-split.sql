@@ -6,7 +6,8 @@
 -- so ID/email fingerprints drift; the phone is the reliable anchor):
 --   * DOCTOR  = phone +79643805480  → must be role 'doctor' and own email dimmdao@yandex.ru; its dups
 --                consolidated into one canonical (non-merged) row.
---   * ADMIN   = email dimmdao@gmail.com → a separate active admin must exist.
+--   * OWNER EMAIL = dimmdao@gmail.com → may elevate only through the fresh DB-backed
+--                   `admin_emails` policy; it is never persisted as platform_users.role='admin'.
 --   * CLIENT  = phone +79189000782 (a same-name 'Дмитрий Берсон' client) → must NOT hold the yandex email.
 --
 -- Preserves ALL patient rows and appointments — this script NEVER deletes patient/appointment data.
@@ -25,10 +26,8 @@ DECLARE
   c_doctor_phone constant text := '+79643805480';
   c_client_phone constant text := '+79189000782';
   c_doctor_email constant text := 'dimmdao@yandex.ru';
-  c_admin_email  constant text := 'dimmdao@gmail.com';
   v_canonical_doctor uuid;
   v_doctor_live int;
-  v_admins int;
   v_archived_empty_admins int;
 BEGIN
   -- 0. Exactly ONE live (non-merged) row must carry the doctor phone. If prod ever grows un-merged
@@ -69,13 +68,8 @@ BEGIN
   WHERE id = v_canonical_doctor
     AND (role <> 'doctor' OR email_normalized IS DISTINCT FROM c_doctor_email);
 
-  -- 4. Ensure a live admin exists on the gmail email (create only if missing). Idempotent.
-  INSERT INTO platform_users (id, role, display_name, email, email_normalized, phone_normalized, integrator_user_id)
-  SELECT gen_random_uuid(), 'admin', 'Дмитрий Берсон', c_admin_email, c_admin_email, NULL, NULL
-  WHERE NOT EXISTS (
-    SELECT 1 FROM platform_users
-    WHERE role = 'admin' AND email_normalized = c_admin_email AND merged_into_id IS NULL
-  );
+  -- 4. Do NOT create an admin row for the owner email. Its global-admin elevation is
+  -- session-only and re-evaluates the DB-backed `admin_emails` policy on every refresh.
 
   -- 5. Archive identifier-less admin stubs before staff membership seeding. These rows have no login/channel
   --    credential anchors and must not become active organization admins in 0143.
@@ -104,22 +98,8 @@ BEGIN
       v_canonical_doctor, c_doctor_email;
   END IF;
 
-  SELECT count(*) INTO v_admins
-  FROM platform_users
-  WHERE role = 'admin' AND email_normalized = c_admin_email AND merged_into_id IS NULL;
-  IF v_admins < 1 THEN
-    RAISE EXCEPTION 'doctor-admin data-fix: no live gmail admin after fix';
-  END IF;
-
-  SELECT count(*) INTO v_admins
-  FROM platform_users
-  WHERE role = 'admin' AND merged_into_id IS NULL AND is_archived IS FALSE;
-  IF v_admins <> 1 THEN
-    RAISE EXCEPTION 'doctor-admin data-fix: expected exactly 1 active admin after fix, found %', v_admins;
-  END IF;
-
-  RAISE NOTICE 'doctor-admin data-fix OK: canonical doctor % = doctor/% ; active admins = % ; archived empty admin stubs = %',
-    v_canonical_doctor, c_doctor_email, v_admins, v_archived_empty_admins;
+  RAISE NOTICE 'doctor-admin data-fix OK: canonical doctor % = doctor/% ; owner email remains session-only ; archived empty admin stubs = %',
+    v_canonical_doctor, c_doctor_email, v_archived_empty_admins;
 END $$;
 
 COMMIT;

@@ -42,8 +42,8 @@ The public `deploy-test-full-reset.sh` entrypoint runs this B1 assertion through
 - [x] Refuses obvious live-like DB names.
 - [x] Checks owner doctor phone has exactly one live row.
 - [x] Checks canonical doctor has role `doctor` and the expected doctor email.
-- [x] Checks exactly one active admin and the gmail admin row.
-- [x] Checks the solo doctor has an active `owner` membership and the global admin has the expected separate admin membership.
+- [x] Refuses the proven credential-less legacy gmail `platform_users.role='admin'` artifact even after email OTP verification; the owner email is elevated only per fresh session policy.
+- [x] Checks the solo doctor has an active `owner` membership.
 - [x] Checks `admin_phones` TEST override shape when present.
 - [x] Classifies likely failure reasons without guessing a code fix.
 - [x] No patient samples, raw payloads, env reads, SSH, service calls, or DB writes.

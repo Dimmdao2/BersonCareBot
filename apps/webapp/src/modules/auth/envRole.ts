@@ -1,8 +1,12 @@
 import { env } from "@/config/env";
 import type { UserRole } from "@/shared/types/session";
 import { normalizePhone } from "./phoneNormalize";
-import { getServerRuntimeTokenList } from "@/modules/system-settings/configAdapter";
+import {
+  getFreshServerRuntimeTokenList,
+  getServerRuntimeTokenList,
+} from "@/modules/system-settings/configAdapter";
 import { parseIdTokens } from "@/shared/parsers/parseIdTokens";
+import { normalizeEmail } from "./emailAuth";
 
 /** Нормализованные номера из env (whitelist для входа по телефону в токене). */
 export function getNormalizedWhitelistedPhonesFromEnv(): Set<string> {
@@ -94,10 +98,16 @@ function phoneInList(phone: string | undefined, list: string[]): boolean {
   });
 }
 
+function emailInList(email: string | undefined, list: string[]): boolean {
+  const normalized = normalizeEmail(email ?? "");
+  return Boolean(normalized) && list.some((candidate) => normalizeEmail(candidate) === normalized);
+}
+
 /**
  * Async role resolver: DB (system_settings) → env fallback.
  * Uses configAdapter (60s TTL cache). Falls back to resolveRoleFromEnv on any error.
- * Priority: admin (telegram → max → phone) → doctor (telegram → max → phone) → client.
+ * Verified email is intentionally excluded: it is an independent, fresh,
+ * DB-only elevation evaluated by isVerifiedEmailGlobalAdminAsync().
  */
 export async function resolveRoleAsync(ids: {
   phone?: string;
@@ -141,6 +151,22 @@ export async function resolveRoleAsync(ids: {
     return "client";
   } catch {
     return resolveRoleFromEnv(ids);
+  }
+}
+
+/**
+ * DB-only verified-email policy. It is deliberately fresh and fail-closed:
+ * a cache hit, stale positive, config outage, or missing row can never retain
+ * an email-derived administrator session.
+ */
+export async function isVerifiedEmailGlobalAdminAsync(email: string | undefined): Promise<boolean> {
+  const normalized = normalizeEmail(email ?? "");
+  if (!normalized) return false;
+  try {
+    const adminEmails = parseIdTokens(await getFreshServerRuntimeTokenList("admin_emails"));
+    return emailInList(normalized, adminEmails);
+  } catch {
+    return false;
   }
 }
 

@@ -4,7 +4,7 @@ import { decodeBase64Url } from "@/shared/utils/base64url";
 import { env, isProduction } from "@/config/env";
 import type { AppSession, SessionUser, UserRole } from "@/shared/types/session";
 import { isPlatformUserUuid } from "@/shared/platform-user/isPlatformUserUuid";
-import { resolveRoleAsync, isWhitelistedAsync } from "./envRole";
+import { isVerifiedEmailGlobalAdminAsync, resolveRoleAsync, isWhitelistedAsync } from "./envRole";
 import type { IdentityResolutionPort, MessengerIdentityResolutionHints } from "./identityResolutionPort";
 import type { AccountOutcome } from "./oauthYandexResolve";
 import { normalizePhone } from "./phoneNormalize";
@@ -109,8 +109,10 @@ function ensureAdminMode(session: AppSession): AppSession {
 async function finalizeCurrentSession(
   session: AppSession,
   patientOrganizationHint?: string | null,
+  options: { stampDbPrincipal?: boolean } = {},
 ): Promise<AppSession> {
   const normalized = ensureAdminMode(session);
+  if (options.stampDbPrincipal === false) return normalized;
   try {
     // Central chokepoint (see also ensureDbPrincipalContext() at the top of getCurrentSession()
     // above, and its doc comment in packages/db-principal). Uses a static import — a dynamic
@@ -868,7 +870,9 @@ export async function exchangeTelegramLoginWidget(
  * При наличии `DATABASE_URL` и UUID `userId` сессия сверяется с `platform_users`: удалённый пользователь
  * даёт `null` (клиент увидит «не авторизован»), даже если cookie ещё не истёк.
  */
-export async function getCurrentSession(): Promise<AppSession | null> {
+async function getCurrentSessionWithPrincipalMode(
+  options: { stampDbPrincipal?: boolean } = {},
+): Promise<AppSession | null> {
   // MUST run before the first `await cookies()` below — this is the other half of the central
   // DB-principal fix (see the doc comment on ensureDbPrincipalContext() in
   // packages/db-principal/src/index.ts). Diagnostic proof (TEST, live logging of
@@ -934,35 +938,86 @@ export async function getCurrentSession(): Promise<AppSession | null> {
   const phone = session.user.phone?.trim();
   const telegramId = session.user.bindings?.telegramId?.trim();
   const maxId = session.user.bindings?.maxId?.trim();
-  if (!phone && !telegramId && !maxId) return finalizeCurrentSession(session, patientOrganizationHint);
-
-  if (isDevBypassSession) return finalizeCurrentSession(session, patientOrganizationHint);
-
-  const envRole = await resolveRoleAsync({ phone, telegramId, maxId });
-  if (session.user.role === envRole) return finalizeCurrentSession(session, patientOrganizationHint);
-
-  const nextUser = { ...session.user, role: envRole };
-  const nextSession: AppSession = {
-    ...buildSession(nextUser),
-    postLoginHints: session.postLoginHints,
-    adminMode: session.adminMode,
-    reauth: session.reauth,
-    staffSecurity: session.staffSecurity,
-  };
-
-  if (env.DATABASE_URL) {
+  const hasMessengerOrPhoneIdentity = Boolean(phone || telegramId || maxId);
+  let verifiedEmail: string | undefined;
+  // Email elevation is independent from legacy phone/TG/MAX bindings. It is
+  // evaluated fresh on every non-dev session and is never projected into
+  // platform_users.role.
+  if (!isDevBypassSession && isPlatformUserUuid(session.user.userId)) {
     try {
-      const { pgUserProjectionPort } = await import("@/infra/repos/pgUserProjection");
-      await pgUserProjectionPort.updateRole(session.user.userId, envRole);
+      verifiedEmail = await runWithStaffSecuritySelfPrincipal(
+        session.user.userId,
+        "getCurrentSession:verified-email-role-resolution",
+        async () => {
+          const { pgUserByPhonePort } = await import("@/infra/repos/pgUserByPhone");
+          return (await pgUserByPhonePort.getVerifiedEmailForUser(session.user.userId)) ?? undefined;
+        },
+      );
     } catch {
-      /* ignore: in-memory tests or DB unavailable */
+      // The access elevation is fail-closed; an existing client session remains a client session.
+      verifiedEmail = undefined;
+    }
+  }
+  if (isDevBypassSession) return finalizeCurrentSession(session, patientOrganizationHint, options);
+
+  // This is the base role. A false/error result from the email policy must return
+  // to it; `admin_emails` is only a fresh session elevation, never a fallback.
+  let roleFromBindings = session.user.role;
+  if (hasMessengerOrPhoneIdentity) {
+    roleFromBindings = await resolveRoleAsync({ phone, telegramId, maxId });
+  }
+  let nextSession = session;
+  if (session.user.role !== roleFromBindings) {
+    const nextUser = { ...session.user, role: roleFromBindings };
+    nextSession = {
+      ...buildSession(nextUser),
+      postLoginHints: session.postLoginHints,
+      adminMode: session.adminMode,
+      reauth: session.reauth,
+      staffSecurity: session.staffSecurity,
+    };
+
+    if (env.DATABASE_URL && hasMessengerOrPhoneIdentity) {
+      try {
+        const { pgUserProjectionPort } = await import("@/infra/repos/pgUserProjection");
+        await pgUserProjectionPort.updateRole(session.user.userId, roleFromBindings);
+      } catch {
+        /* ignore: in-memory tests or DB unavailable */
+      }
     }
   }
 
-  // Cookie update skipped intentionally: mutating cookies in Server Component render
-  // is forbidden by Next.js. The role is correct in the returned session object;
-  // the cookie will be rewritten on the next Server Action or login.
-  return finalizeCurrentSession(nextSession, patientOrganizationHint);
+  if (await isVerifiedEmailGlobalAdminAsync(verifiedEmail)) {
+    const emailAdminSession: AppSession = {
+      ...buildSession({ ...nextSession.user, role: "admin" }),
+      postLoginHints: nextSession.postLoginHints,
+      adminMode: nextSession.adminMode,
+      reauth: nextSession.reauth,
+      staffSecurity: nextSession.staffSecurity,
+    };
+    return finalizeCurrentSession(emailAdminSession, patientOrganizationHint, options);
+  }
+
+  return finalizeCurrentSession(nextSession, patientOrganizationHint, options);
+}
+
+/**
+ * Normal session resolution plus the standard organization-derived DB principal stamp.
+ * Use {@link getCurrentSessionForIdentitySelf} for the deliberately narrow personal
+ * surfaces that must not resolve or preserve an organization membership.
+ */
+export async function getCurrentSession(): Promise<AppSession | null> {
+  return getCurrentSessionWithPrincipalMode();
+}
+
+/**
+ * Resolves and verifies the signed session (including verified-email global-admin
+ * elevation), but deliberately does not resolve an organization or stamp a staff
+ * principal. The caller must authorize its narrow personal capability and install the
+ * exact identity-self principal before any DB work.
+ */
+export async function getCurrentSessionForIdentitySelf(): Promise<AppSession | null> {
+  return getCurrentSessionWithPrincipalMode({ stampDbPrincipal: false });
 }
 
 export async function clearSession(): Promise<void> {

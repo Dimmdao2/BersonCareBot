@@ -1618,6 +1618,27 @@
       "when": 1793539200026,
       "tag": "0230_error_tracking_runtime",
       "breakpoints": true
+    },
+    {
+      "idx": 231,
+      "version": "7",
+      "when": 1793539200027,
+      "tag": "0231_admin_email_role_runtime_config",
+      "breakpoints": true
+    },
+    {
+      "idx": 232,
+      "version": "7",
+      "when": 1793539200028,
+      "tag": "0232_email_otp_atomic_consume",
+      "breakpoints": true
+    },
+    {
+      "idx": 233,
+      "version": "7",
+      "when": 1793539200029,
+      "tag": "0233_demote_legacy_email_admin_artifact",
+      "breakpoints": true
     }
   ]
 }

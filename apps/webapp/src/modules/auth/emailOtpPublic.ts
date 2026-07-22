@@ -10,7 +10,7 @@
  */
 
 import { randomUUID } from "node:crypto";
-import { startEmailChallenge, normalizeEmail, confirmEmailChallenge } from "./emailAuth";
+import { startEmailChallenge, normalizeEmail, hashEmailChallengeCode } from "./emailAuth";
 import { OTP_RESEND_COOLDOWN_SEC } from "./otpConstants";
 import type { EmailOtpPublicDbPort } from "./emailOtpPublicPort";
 import { normalizeFioPart } from "@/shared/lib/fio";
@@ -28,7 +28,7 @@ export type StartPublicEmailOtpRegistrationResult =
   | { ok: false; code: "duplicate_email" | "invalid_fio" };
 
 export type ConfirmPublicEmailOtpResult =
-  /** No redirectTo here on purpose: the route derives the redirect from the REAL user role after loading the session user. */
+  /** No redirectTo here on purpose: the route loads the DB base role, then may apply the fresh session-only email-admin policy. */
   | { ok: true; userId: string }
   | { ok: false; code: "invalid_code" | "expired_code" | "too_many_attempts" | "email_conflict"; retryAfterSeconds?: number };
 
@@ -107,10 +107,8 @@ export async function startPublicEmailOtpRegistration(
 
 /**
  * Confirm a public email-OTP code.
- * Steps:
- *  1. Find the latest unexpired challenge for this email.
- *  2. Verify via confirmEmailChallenge (handles attempts, expiry, verifies email on success).
- *  3. Return userId for session creation.
+ * The database atomically locks, rechecks, verifies, claims and consumes the latest
+ * challenge. It receives only the shared hash, never the raw OTP.
  */
 export async function confirmPublicEmailOtpChallenge(
   emailRaw: string,
@@ -123,16 +121,5 @@ export async function confirmPublicEmailOtpChallenge(
   const code = codeRaw.trim();
   if (!code) return { ok: false, code: "invalid_code" };
 
-  const nowSec = Math.floor(Date.now() / 1000);
-  const row = await publicDb.findLatestEmailChallengeByEmail(email, nowSec);
-  if (!row) return { ok: false, code: "expired_code" };
-
-  // confirmEmailChallenge verifies attempts, checks expiry, sets email_verified_at on success.
-  const result = await confirmEmailChallenge(row.user_id, row.id, code);
-  if (!result.ok) {
-    // EmailConfirmResult error codes map directly to our public codes.
-    return result;
-  }
-
-  return { ok: true, userId: row.user_id };
+  return publicDb.consumeLatestEmailChallenge(email, hashEmailChallengeCode(code));
 }

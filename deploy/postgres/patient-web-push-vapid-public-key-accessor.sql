@@ -18,8 +18,8 @@
 -- half of the `web_push_vapid` envelope and returns it as a bare text value. The privateKey field is
 -- never referenced anywhere in this function body, so it cannot leak through this path even if the
 -- row shape changes later. EXECUTE is revoked from PUBLIC and granted ONLY to app_patient --
--- app_staff keeps reading the table directly (it already has the whole-table SELECT grant and needs
--- privateKey too, for the doctor/admin web-push status + send paths).
+-- doctor/admin staff-personal status runs identity-self and uses this public-key-only accessor;
+-- privateKey remains available only to server-side delivery paths through app_staff's direct table read.
 --
 -- NOTE (found live while applying this script): BYPASSRLS on app_owner only skips row-security
 -- POLICY checks -- it does NOT imply table-level SELECT privilege, which is a separate grant system.

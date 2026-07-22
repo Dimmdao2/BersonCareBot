@@ -31,6 +31,7 @@ SELECT 1 / 0 AS runtime_overlay_app_owner_handoff_preflight_abort;
 WITH exact_targets(signature) AS (
   VALUES
     ('app.get_web_push_vapid_public_key()'),
+    ('app.email_otp_public_consume_latest_challenge(text,text)'),
     ('app.resolve_public_booking_organization(uuid,uuid,uuid)'),
     ('app.resolve_public_organization_by_slug(text)'),
     ('app.resolve_payment_webhook_organization(text,text,text)')
@@ -60,6 +61,7 @@ SELECT 1 / 0 AS runtime_overlay_app_owner_handoff_source_abort;
 WITH exact_targets(signature) AS (
   VALUES
     ('app.get_web_push_vapid_public_key()'),
+    ('app.email_otp_public_consume_latest_challenge(text,text)'),
     ('app.resolve_public_booking_organization(uuid,uuid,uuid)'),
     ('app.resolve_public_organization_by_slug(text)'),
     ('app.resolve_payment_webhook_organization(text,text,text)')
@@ -73,6 +75,7 @@ ORDER BY target.signature
 WITH exact_targets(signature) AS (
   VALUES
     ('app.get_web_push_vapid_public_key()'),
+    ('app.email_otp_public_consume_latest_challenge(text,text)'),
     ('app.resolve_public_booking_organization(uuid,uuid,uuid)'),
     ('app.resolve_public_organization_by_slug(text)'),
     ('app.resolve_payment_webhook_organization(text,text,text)')
