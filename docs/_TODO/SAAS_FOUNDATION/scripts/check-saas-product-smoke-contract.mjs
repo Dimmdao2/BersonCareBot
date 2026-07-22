@@ -49,6 +49,8 @@ function runFixtureGateDocChecks(overrides = new Map()) {
     'not D3/R1/R2 PASS evidence',
     '## D3.3 Meaningful JSON Evidence',
     'Empty or mismatched fixture facts keep D3/R1/R2 blocked',
+    '"publicBookingBranchId": "opaque-branch-id"',
+    '"publicBookingClinicServiceId": "opaque-clinic-service-id"',
   ]);
 
   requireFragments(files.fixtureOperatorPacket, fixtureOperatorPacket, [
@@ -68,6 +70,8 @@ function runFixtureGateDocChecks(overrides = new Map()) {
     'never the rendered ref values',
     'Successful offline preflight means only',
     'D3/R1/R2 product-smoke PASS requires actual live smoke command output with exit 0.',
+    '"publicBookingBranchId": "REDACTED_OPAQUE_TEST_REF_NON_RUNNABLE"',
+    '"publicBookingClinicServiceId": "REDACTED_OPAQUE_TEST_REF_NON_RUNNABLE"',
   ]);
 
   requireFragments(files.roadmap, roadmap, [
@@ -262,11 +266,20 @@ function runFixtureGateDocChecks(overrides = new Map()) {
   }
   const publicBookingSlots = scenariosById.get('public.booking.slots');
   if (
+    !contract.requiredFixtureRefs?.includes('publicBookingBranchId') ||
+    !contract.requiredFixtureRefs?.includes('publicBookingClinicServiceId') ||
     !contract.requiredFixtureRefs?.includes('publicBookingOrganizationSlug') ||
+    !publicBookingSlots?.path?.includes('branchId={publicBookingBranchId}') ||
+    !publicBookingSlots?.path?.includes('serviceId={publicBookingClinicServiceId}') ||
     !publicBookingSlots?.path?.includes('orgSlug={publicBookingOrganizationSlug}')
   ) {
     throw new Error(
-      `${files.contract} must bind public booking slots to the exact public organization slug`,
+      `${files.contract} must bind public booking slots to canonical branch, clinic service, and organization refs`,
+    );
+  }
+  if (JSON.stringify(contract).includes('branchServiceId')) {
+    throw new Error(
+      `${files.contract} must not retain the retired branchServiceId public booking contract`,
     );
   }
 
@@ -401,6 +414,24 @@ function runSelfTest() {
     'public booking organization binding mutation',
     files.contract,
     contractText.replace('&orgSlug={publicBookingOrganizationSlug}', ''),
+  );
+  expectDocMutationRejected(
+    'public booking branch binding mutation',
+    files.contract,
+    contractText.replace('branchId={publicBookingBranchId}', 'branchId='),
+  );
+  expectDocMutationRejected(
+    'public booking clinic service binding mutation',
+    files.contract,
+    contractText.replace('serviceId={publicBookingClinicServiceId}', 'serviceId='),
+  );
+  expectDocMutationRejected(
+    'retired public booking branchServiceId mutation',
+    files.contract,
+    contractText.replace(
+      'branchId={publicBookingBranchId}',
+      'branchServiceId={publicBookingBranchId}',
+    ),
   );
 
   const { tempDir, fixturePath } = makeSyntheticFixtureFile({ globalAdminMode: false });

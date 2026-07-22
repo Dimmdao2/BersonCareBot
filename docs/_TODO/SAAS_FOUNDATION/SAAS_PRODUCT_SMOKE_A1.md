@@ -90,7 +90,8 @@ Minimal shape:
     "patientProgramInstanceId": "opaque-program-id",
     "patientProgramItemId": "opaque-item-id",
     "mediaFileId": "opaque-media-id",
-    "publicBookingServiceId": "opaque-service-id",
+    "publicBookingBranchId": "opaque-branch-id",
+    "publicBookingClinicServiceId": "opaque-clinic-service-id",
     "publicBookingOrganizationSlug": "opaque-organization-slug",
     "clinicAAppointmentId": "opaque-appointment-id"
   },

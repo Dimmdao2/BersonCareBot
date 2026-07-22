@@ -48,7 +48,8 @@ and is not proof that a fixture exists or works.
     "patientProgramInstanceId": "REDACTED_OPAQUE_TEST_REF_NON_RUNNABLE",
     "patientProgramItemId": "REDACTED_OPAQUE_TEST_REF_NON_RUNNABLE",
     "mediaFileId": "REDACTED_OPAQUE_TEST_REF_NON_RUNNABLE",
-    "publicBookingServiceId": "REDACTED_OPAQUE_TEST_REF_NON_RUNNABLE",
+    "publicBookingBranchId": "REDACTED_OPAQUE_TEST_REF_NON_RUNNABLE",
+    "publicBookingClinicServiceId": "REDACTED_OPAQUE_TEST_REF_NON_RUNNABLE",
     "publicBookingOrganizationSlug": "REDACTED_OPAQUE_TEST_REF_NON_RUNNABLE",
     "clinicAAppointmentId": "REDACTED_OPAQUE_TEST_REF_NON_RUNNABLE"
   },
