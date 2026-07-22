@@ -70,6 +70,9 @@
   verified merged ancestry and clean state, then removed the fixture, owner-email, Rubitime-provenance,
   public-slots-smoke and UI worktrees/local branches. Unrelated worktrees and unverified unmerged Rubitime branches
   were preserved.
+- Follow-up: the two remaining Rubitime task branches were patch-equivalent to commits already integrated on the
+  feature branch (`git cherry` returned `-` for both); after clean-state verification their worktrees/local branches
+  were also removed. Four unrelated worktrees were preserved because their ownership is outside this work order.
 - Evidence correction: the 21/22 incremental TEST smoke and fail-closed stop are now recorded in
   `TEST_DEPLOY_EVIDENCE_2026-07-22.md` instead of remaining only in transient orchestration context.
 - Continuing rule: do not repeat the 167-row census. Advance only bounded residuals and keep owner-closed status at
