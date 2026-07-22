@@ -42,3 +42,20 @@ install a PWA, obtain permission, register a subscription, or receive a notifica
 
 **NOT DONE:** All live TEST, PWA-install, browser-permission, subscription, notification-delivery, and owner-acceptance
 evidence remains intentionally unverified and outside this B4 code slice.
+
+## TEST configuration preflight — 2026-07-23 MSK
+
+- The TEST database is still the existing `bersoncarebot_test`; no reset, restore or PROD read was used.
+- The one active owner principal was found, but it is not email-verified. A TEST-only owner-authorized mirrored
+  transaction set the DB-backed global-admin allowlist to `dimmdao@gmail.com` in `public.system_settings` and
+  `integrator.system_settings`; the server runtime projection resolves the same value.
+- No complete `smtp_outbound` setting exists in TEST or DEV. No OTP was sent and `email_verified_at` was not changed
+  manually. Real email-OTP login is therefore an owner/configuration gate, not a completed acceptance item.
+- TEST already had a complete DB-backed `web_push_vapid` public setting, but its integrator mirror differed. A
+  TEST-only owner-authorized transaction copied the existing public row into the integrator mirror without printing
+  key values; the exact mirror check passed.
+- `manifest-staff.webmanifest` and `sw.js` both return HTTP 200 with the expected content types on TEST.
+- The owner currently has zero push subscriptions. No notification was sent.
+
+The remaining live sequence still requires successful email OTP, an owner browser/PWA install, permission and
+subscribe/unsubscribe proof, one non-clinical test notification, and the negative clinical-access checks above.

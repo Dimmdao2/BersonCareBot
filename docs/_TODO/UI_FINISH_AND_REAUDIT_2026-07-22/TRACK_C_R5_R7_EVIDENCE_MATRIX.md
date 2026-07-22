@@ -101,3 +101,43 @@ Current static inventory at the audited baseline: mounted Rubitime route literal
 7. Record pre-deploy SHA, migration-ledger delta and the safe code rollback boundary. A destructive/schema-incompatible rollback requires the R7 owner gate; the incremental deploy wrapper is not a DB rollback.
 
 No R7 archive/drop/full-reset action is authorized or required by the current routine TEST milestone.
+
+## Read-only TEST runtime pass — 2026-07-23 MSK
+
+Run id: `rubitime_test_runtime_evidence`. Exact deployed SHA:
+`45ffed7318c584cf501d6972e231d197bebce6f6`. Observation window:
+`2026-07-22T22:10:42Z–22:22:14Z`. The pass changed no files, database rows, services or settings.
+
+### Closed by live/runtime evidence
+
+- R5-01, R5-02, R5-04, R5-05, R5-07, R5-08 and R5-09: retired slots/create/update/remove/event/webhook
+  endpoints are unmounted or return 404; the bounded nginx window contained 30 requests and zero requests to the
+  retired paths; the post-R6 static inventory has zero route literals, runtime imports and API-client tokens. The
+  obsolete flag/`legacy_resolve_disabled` acceptance text is superseded by the negative/unmounted contract and must
+  not be restored as rollback.
+- R6-04: `projection_outbox` pending/due/dead aggregates are `0/0/0`.
+- R6-09 through R6-16: exact deployed build/source plus negative TEST probes prove the old doctor proxy, webhook,
+  slots, create, update, remove and legacy-event routes are absent and canonical write code has no active outbound
+  Rubitime branch.
+- R6-19 and R6-20: the post-R6 static guard reports zero connector/api2/throttle and post-create runtime tokens.
+- R6-22 and R6-23: the accumulated exact-SHA CI evidence is green (integrator 1,352 tests, webapp focused booking
+  set, lint, typecheck, builds and audit).
+
+The pass finished with all five TEST services active, API health HTTP 200 and webapp HTTP 200. The first aggregate
+query under the restricted API role was denied as expected; all recorded database aggregates were then read through
+`postgres` inside `BEGIN READ ONLY`. No setting values, request payloads, IP addresses or personal data were printed.
+
+### Still open after this pass
+
+- R5-06 and R6-17: the deployed 22/22 product smoke proves canonical public slots and read surfaces, but is
+  deliberately read-only. No existing canonical TEST script was found for create/reschedule/cancel lifecycle
+  mutations, so an ad hoc mutation runner was not invented.
+- R6-05 and R6-06: `integrator.rubitime_create_retry_jobs` has 22 pending rows, none due, with 20 dead-or-failed.
+  Drain/archive/waiver disposition is an owner gate; this residue is not hidden as PASS.
+- R6-21: key-only TEST inventory still contains the retired Rubitime bridge/API/mapping/webhook setting rows.
+  Their values were not read. Archive/removal and rollback-horizon disposition is an owner gate.
+- R6-01 through R6-03 and R6-07/R6-08: provider cutoff/ingress/outbound confirmation and a fresh post-cutoff CSV
+  reconciliation remain absent.
+- Every R7 archive/drop/reset/restore action remains blocked on the preceding evidence and explicit owner decisions.
+
+No live regression was found, but Track C is not operationally complete.
