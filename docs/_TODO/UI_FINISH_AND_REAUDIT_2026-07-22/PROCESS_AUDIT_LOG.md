@@ -10,3 +10,9 @@
 - Orchestrator action: accepted. Track A round 2 was already commissioned to produce the complete durable denominator/matrix. Track B and C remain gated by independent audits. No TEST reset/drop has run. The four unrelated registered worktrees are not removed because their ownership/activity is outside this work order and was not verifiable by the auditor.
 - Process status after audit: continue; no hard stop.
 
+## 2026-07-22 — owner correction on batch sizing
+
+- Decision: a full plan denominator may be inventoried mechanically, but implementation and substantive audit briefs must be sized to one coherent page/block or one tightly coupled contract boundary.
+- Action: the 167-row Track A matrix was retained as an evidence-only census; its implementation batch is limited to the Today/Clients/Messages list contract. The broad Track B fix and Track C audit were interrupted before commit and split into bounded sequential substages.
+- Track B split: email-role/fail-closed setting read; atomic OTP consume; U9A mirror whitelist; narrow PWA/push identity guard and owner handoff.
+- Track C split: canonical booking code/caller/test audit; separate R5–R7 provenance/runtime/owner-gate audit.
