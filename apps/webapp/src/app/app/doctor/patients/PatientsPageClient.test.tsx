@@ -161,7 +161,9 @@ describe("PatientsPageClient", () => {
     );
     expect(document.getElementById("doctor-patients-card-support-only")).toHaveClass(
       "border-t",
-      "border-[var(--doctor-flat-list-divider,#f0efeb)]",
+      "border-t-[var(--doctor-flat-list-divider,#f0efeb)]",
+      "border-x-0",
+      "border-b-0",
     );
     expect(document.getElementById("doctor-patients-card-support-only")).not.toHaveClass("border-0");
     expect(document.getElementById("doctor-patients-list")).toHaveClass(
@@ -215,6 +217,7 @@ describe("PatientsPageClient", () => {
     const firstRow = screen.getByRole("button", { name: /Первый клиент/i });
     const secondRow = screen.getByRole("button", { name: /Второй клиент/i });
     expect(firstRow).toHaveClass("w-full", "cursor-pointer", "hover:bg-muted");
+    expect(firstRow).toHaveClass("border-x-0", "border-b-0");
     expect(firstRow).not.toHaveAttribute("href");
 
     await user.click(within(firstRow).getByLabelText("Статусы клиента"));

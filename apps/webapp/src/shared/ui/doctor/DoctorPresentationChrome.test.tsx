@@ -74,6 +74,11 @@ describe("doctor presentation chrome", () => {
     );
     expect(doctorDnaFlatListRowClass).toContain("border-t");
     expect(doctorDnaFlatListRowClass).toContain(
+      "border-t-[var(--doctor-flat-list-divider,#f0efeb)]",
+    );
+    expect(doctorDnaFlatListRowClass).toContain("border-x-0");
+    expect(doctorDnaFlatListRowClass).toContain("border-b-0");
+    expect(doctorDnaFlatListRowClass).not.toContain(
       "border-[var(--doctor-flat-list-divider,#f0efeb)]",
     );
     expect(doctorDnaFlatListClickableClass).toContain("hover:bg-muted");

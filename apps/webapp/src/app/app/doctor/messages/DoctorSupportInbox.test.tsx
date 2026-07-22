@@ -103,6 +103,8 @@ describe("DoctorSupportInbox — базовый рендер", () => {
       "text-base",
       "font-normal",
       "rounded-none",
+      "border-x-0",
+      "border-b-0",
     );
     expect(primaryName).toHaveClass("text-base", "font-normal");
     expect(list).toHaveClass("mx-[var(--doctor-block-padding,18px)]");

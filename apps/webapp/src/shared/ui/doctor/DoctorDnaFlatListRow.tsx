@@ -15,7 +15,7 @@ export const doctorDnaFlatListInsetClass =
   "mx-[var(--doctor-block-padding,18px)]";
 
 export const doctorDnaFlatListRowClass =
-  "relative flex items-center gap-3 border-t border-[var(--doctor-flat-list-divider,#f0efeb)] px-[var(--doctor-list-inline-padding,18px)] py-2.5 text-base font-normal first:border-t-0";
+  "relative flex items-center gap-3 border-x-0 border-b-0 border-t border-t-[var(--doctor-flat-list-divider,#f0efeb)] px-[var(--doctor-list-inline-padding,18px)] py-2.5 text-base font-normal first:border-t-0";
 
 export const doctorDnaFlatListClickableClass =
   "cursor-pointer no-underline transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset";
