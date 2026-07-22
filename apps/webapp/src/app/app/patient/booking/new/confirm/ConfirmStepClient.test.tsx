@@ -253,6 +253,28 @@ describe("ConfirmStepClient", () => {
     );
   });
 
+  it("sends the public organization slug with the form-fields request", async () => {
+    render(
+      <ConfirmStepClient
+        type="in_person"
+        cityCode="online"
+        cityTitle="Онлайн"
+        branchId="550e8400-e29b-41d4-a716-446655440001"
+        serviceId="550e8400-e29b-41d4-a716-446655440002"
+        orgSlug="clinic-a"
+        serviceTitle="Консультация"
+        formFieldsApiPath="/api/booking/public/form-fields"
+        {...baseProps}
+      />,
+    );
+
+    await waitFor(() => {
+      expect(fetch).toHaveBeenCalledWith(
+        "/api/booking/public/form-fields?branchId=550e8400-e29b-41d4-a716-446655440001&serviceId=550e8400-e29b-41d4-a716-446655440002&orgSlug=clinic-a",
+      );
+    });
+  });
+
   it("uses custom done redirect path for public create success", async () => {
     const user = userEvent.setup();
     render(

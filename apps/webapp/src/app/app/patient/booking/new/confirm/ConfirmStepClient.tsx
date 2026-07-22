@@ -148,9 +148,12 @@ export function ConfirmStepClient({
       params.set("branchId", branchId);
       params.set("serviceId", serviceId);
     }
+    if (orgSlug) {
+      params.set("orgSlug", orgSlug);
+    }
     const qs = params.toString();
     return qs ? `${formFieldsApiPath}?${qs}` : formFieldsApiPath;
-  }, [type, formFieldsApiPath, branchId, serviceId]);
+  }, [type, formFieldsApiPath, branchId, serviceId, orgSlug]);
 
   useEffect(() => {
     let cancelled = false;
