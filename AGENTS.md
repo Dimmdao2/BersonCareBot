@@ -109,6 +109,10 @@
 - **`accepted` / `accepted_at`** — **только владелец**. Агент НЕ ставит `accepted`. «done» ≠ «accepted».
 
 - Дисциплина статусов: начал → `status doing`; упёрся в решение владельца → `status blocked` + `owner_waiting true` + `question "<вопрос>"`; довёл и проверил → `status done` + `seal_test true` + `commit_ref <hash>`. **Сразу** фиксируй в порт ход работы и ЛЮБЫЕ ответы/решения владельца — база единственный источник правды, не держать в голове.
+- Для stage/plan-задачи `done` означает закрытие **каждого** referenced atomic owner checkbox по матрице
+  code/test/runtime evidence. Aggregate worker `done` или audit `PASS` недостаточны. Пока строка открыта или имеет
+  обычный blocker, taskdb остаётся `doing/blocked`; закрыть строку без реализации можно только по явному owner
+  defer/cancel с трассируемой ссылкой и причиной, синхронизированными с plan/roadmap/LOG.
 
 ---
 
@@ -718,14 +722,18 @@ pnpm run ci
 
 Первый шаг аудита **всегда** строго в таком порядке:
 
-1. Прочитать latest atomic owner checklist, linked detailed plan и supersession map; выписать in-scope IDs.
+1. Прочитать latest atomic owner checklist, linked detailed plan и supersession map; выписать in-scope IDs и полный
+   текст. Audit brief обязан цитировать этот scope; roadmap summary или одна ссылка на plan недостаточны.
 2. Анализ изменённых файлов / диффа и матрица `checkbox → evidence`.
 3. Определение scope и пакета (`local` | `app` | `repo`).
 4. Сверка с тем, что исполнитель уже гонял; менялся ли код после последнего прогона (reuse).
 
 Только **после** пунктов 1–4 допускается запуск **недостающих** проверок по уровням из этого раздела. Финальный
-audit report содержит строку `PASS|FAIL|BLOCKED + evidence` на каждый checkbox; общий PASS при пропуске пункта
-недействителен. Находка вне owner checklist — только regression/repo-rule, owner question или recommendation.
+audit report содержит строку
+`PASS|FAIL|BLOCKED → code evidence → test evidence → runtime evidence → deferred/blocker reason` на каждый
+checkbox; `N/A` требует причины, defer/cancel — явного owner ruling со ссылкой. Общий PASS при пропуске пункта
+недействителен и не разрешает stage/taskdb/LOG status `done`, пока referenced checkbox открыт. Находка вне owner
+checklist — только regression/repo-rule, owner question или recommendation.
 
 #### Уровни и full CI в аудите
 
@@ -741,6 +749,11 @@ audit report содержит строку `PASS|FAIL|BLOCKED + evidence` на �
 #### Cost rule
 
 **Аудит не должен быть дороже выполнения задачи.** Если аудит инициирует **больше** прогонов (или тяжелее уровень), чем было разумно при самой реализации — стратегия **неверна**; нужно остановиться и сузить scope.
+
+Число audit-проходов задаёт risk-sized режим `docs/ORCHESTRATION_BINDINGS.md`: presentation/layout/text/mechanical
+stage получает worker + **один** independent audit без serial nit-picking rounds. Этот раздел не разрешает добавлять
+повторные аудиты ради заполнения evidence; незакрытая строка остаётся `FAIL/BLOCKED` и обрабатывается по stop/scope
+правилам bindings, не превращаясь в новый scope.
 
 ### Dev-DB opt-in smoke-тесты
 
@@ -796,9 +809,13 @@ audit report содержит строку `PASS|FAIL|BLOCKED + evidence` на �
    - **Не требовать** в плане полный корневой `pnpm run ci` после **каждого** шага или после **каждого** небольшого плана — это дорого и снижает готовность планов к исполнению.
    - Не помечать шаг как закрытый без фактической проверки, подходящей по масштабу шага.
    - Roadmap/epic summary не заменяет linked detailed plan. Каждый owner requirement и позднее уточнение — отдельный
-     atomic checkbox; worker и auditor получают exact IDs/текст и возвращают построчную evidence matrix.
+     atomic checkbox; worker и auditor читают весь linked authority, получают exact IDs/полный текст и возвращают
+     матрицу `status → code evidence → test evidence → runtime evidence → deferred/blocker reason`.
    - Новое owner-уточнение сразу заменяет старое; противоречащий текст удалить либо пометить
-     `SUPERSEDED — <date>, replaced by <section/id>`. Missing/unclassified checkbox запрещает `done/PASS`.
+     `SUPERSEDED — <date>, replaced by <section/id>`. `N/A` требует причины, defer/cancel — явного owner ruling со
+     ссылкой. Missing/unclassified checkbox запрещает `done/PASS`.
+   - Audit brief цитирует ID и полный текст linked plan/checklist scope; ссылка на план или roadmap summary не
+     являются достаточным заданием.
 
 3. **Scope boundaries (безопасные рамки)**
    - Явно указывать, какие директории/файлы **разрешено** трогать.
@@ -813,6 +830,8 @@ audit report содержит строку `PASS|FAIL|BLOCKED + evidence` на �
 5. **Execution log обязателен**
    - Для инициативных задач требовать и вести `LOG.md` в профильной папке docs.
    - В логе фиксировать: что сделано, какие проверки выполнены, какие решения приняты, что сознательно не делали.
+   - `LOG.md`, roadmap/stage status и taskdb не помечаются `done/completed/PASS`, пока referenced checkbox открыт.
+     Исключение — только явный owner defer/cancel с трассируемой ссылкой и причиной на соответствующей строке.
 
 6. **Правила перед исполнением**
    - Перед реализацией обязательно прочитать релевантные `.cursor/rules/*.mdc` и следовать им.
@@ -821,6 +840,9 @@ audit report содержит строку `PASS|FAIL|BLOCKED + evidence` на �
 7. **Корректность статусов в файле плана**
    - Проверять консистентность `todos`/`status` в самом plan-файле.
    - После завершения работ обновлять статусы (`pending` -> `in_progress` -> `completed`/`cancelled`) без пропусков.
+   - Aggregate worker `done` или audit `PASS` не меняет checkbox status автоматически: закрывается только строка с
+     достаточным code/test/runtime evidence либо явным owner defer/cancel. Blocker без owner defer оставляет stage
+     незавершённым.
    - **Обязательная процедура при полном закрытии плана** (все пункты выполнены или явно отменены, Definition of Done закрыт): для файлов **`.cursor/plans/*.plan.md`** — **не завершать сессию**, пока не выполнено ниже. Иначе Cursor часто оставляет план «висящим» (активный **Build** / незакрытый run).
      1. В начале файла должен быть валидный блок **`---` YAML frontmatter `---`** (как в `.cursor/plans/archive/hls_private_bucket_proxy.plan.md`): не оставлять план только с markdown без frontmatter.
      2. Поля **`name`** и **`overview`** — осмысленные непустые строки (не `""`).
@@ -1261,7 +1283,9 @@ Patient zone и doctor zone — `no-restricted-imports` в `eslint.config.mjs`:
 ### Бриф агента (self-contained)
 - В брифе: пути, эталон, ограничения, шаги проверки, **exact atomic checkbox IDs/текст + supersession map**,
   **запрет commit в main / push**. Ссылка только на roadmap summary — неполный brief; холодный старт — агент ничего
-  не доводит «по памяти». Worker и auditor получают один checklist и сдают построчную evidence matrix.
+  не доводит «по памяти». Worker и auditor читают весь linked authority, получают один checklist и сдают построчную
+  матрицу `code/test/runtime evidence` либо точную deferred/blocker reason. Audit brief цитирует ID и полный текст
+  linked scope. Aggregate `done/PASS` не закрывает stage/taskdb/LOG при открытой строке без owner defer.
 - **Запрещать бесконечные циклы ожидания** (напр. «жди, пока поднимется порт N») — только с таймаутом/числом попыток. Иначе агент НЕ падает, а ВИСНЕТ навсегда (в панели — «Running» часами).
 - По возможности **не давать агенту поднимать dev-сервер**: реализация = код + typecheck + тесты + commit (в своём worktree, без push). Живую проверку (скриншоты) делать отдельно — оркестратором или коротким verify-агентом. Меньше зависаний.
 

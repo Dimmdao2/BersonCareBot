@@ -22,3 +22,8 @@
 
 Правило: начал задачу — `status doing`; упёрся в решение владельца — `status blocked` + `owner_waiting true` + `question`;
 довёл и проверил — `status done` + `seal_test true` + `commit_ref`. Так владелец видит реальную картину без чтения файлов.
+
+Для stage/plan-задачи перед `status done` обязательна полная матрица каждого referenced atomic owner checkbox:
+code/test/runtime evidence либо явный owner defer/cancel со ссылкой и причиной. Aggregate worker `done`, audit
+`PASS`, обычный blocker или перенос в несогласованный follow-up не закрывают taskdb-карточку; она остаётся
+`doing/blocked`, синхронно с plan/roadmap/LOG.

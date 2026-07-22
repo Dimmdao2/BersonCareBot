@@ -8,16 +8,26 @@ Cadence:
 
 Scope discipline:
 - Keep the objective as the full multitenant flip through completion, not a smaller passing subset.
+- Treat any roadmap/stage summary as a pointer: read every linked detailed authority, quote each in-scope atomic
+  owner checkbox in worker and auditor briefs, and maintain the latest supersession map.
 - Work in bounded slices: brief -> worker/subagent -> lead integration -> validation -> independent audit -> commit.
 - Do not mix unrelated slices in one commit.
 - Do not start broad next-slice implementation while the current slice has dirty uncommitted work, unless the current slice is explicitly parked.
 
 Orchestration:
 - Lead owns scope, branch hygiene, taskdb/docs, validation choice, audit routing, and final verdict.
+- Lead verifies a per-checkbox matrix with code/test/runtime evidence or an exact deferred/blocker reason. Aggregate
+  worker `done` or audit `PASS` cannot close a slice, plan/roadmap/LOG, or taskdb while a referenced checkbox is open;
+  only an explicit owner defer/cancel with link and reason may close that row.
 - Delegate implementation or complex investigation to worker/subagents when the slice is non-trivial.
 - Use Claude Opus for final important audits unless the owner explicitly allows Sol as the final gate.
 - Sol/deep Codex is acceptable for intermediate audit or specialized heavy analysis.
 - Do not silently self-audit important security/database changes.
+- Audit depth is risk-sized: presentation/layout/text/mechanical work gets worker + one independent audit, without
+  serial nit-picking rounds. Multi-round adversarial audit is reserved for high-risk identity/auth/tenant/security/
+  migration/money/data scope and remains capped by `docs/ORCHESTRATION_BINDINGS.md`.
+- Findings outside the owner checklist are regressions/repo-rule issues, owner questions, or recommendations; they
+  do not become new scope automatically.
 
 Database safety:
 - Never validate on prod/test/dev databases.
@@ -46,4 +56,5 @@ Checkpoint Questions:
 - Is every DB validation scratch/disposable-only?
 - Is the worktree clean or intentionally dirty for exactly one active slice?
 - Are docs/taskdb updated with current evidence?
-- Is an independent audit complete before commit?
+- Does the audit brief quote the same full linked checklist scope as the worker brief?
+- Is the risk-sized independent audit complete, with one evidence row per checkbox, before commit?

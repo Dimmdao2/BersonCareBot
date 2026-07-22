@@ -155,17 +155,21 @@ Wrapper/throttling остаётся допустимым по ситуации: 
 
 Первый шаг аудита **всегда** строго в таком порядке:
 
-1. Прочитать latest atomic owner checklist + linked detailed plan и supersession map; выписать все in-scope IDs.
+1. Прочитать latest atomic owner checklist + linked detailed plan и supersession map; выписать все in-scope IDs и
+   полный текст. Audit brief обязан цитировать этот scope; roadmap summary или одна ссылка на plan недостаточны.
 2. Анализ изменённых файлов / диффа и построение матрицы `checkbox → фактическое evidence`.
 3. Определение scope и пакета (`local` | `app` | `repo`).
 4. Сверка с тем, что исполнитель уже гонял; менялся ли код после последнего прогона (reuse).
 
 Только **после** пунктов 1–4 допускается запуск **недостающих** проверок по уровням из этого файла.
 
-Финальный audit report обязан иметь одну строку `PASS|FAIL|BLOCKED + evidence` на каждый in-scope checkbox. Общий
-`PASS`, если хотя бы один пункт missing/unclassified или проверен только по summary/наличию файла, недействителен.
-Находка без строки в owner checklist не превращается в scope: это только regression/repo-rule, owner question либо
-recommendation с явной классификацией.
+Финальный audit report обязан иметь одну строку на каждый in-scope checkbox:
+`PASS|FAIL|BLOCKED → code evidence → test evidence → runtime evidence → deferred/blocker reason`. `N/A` требует
+причины; defer/cancel валиден только по явному owner ruling со ссылкой. Общий `PASS`, если хотя бы один пункт
+missing/unclassified или проверен только по summary/наличию файла, недействителен. Aggregate agent `done`/audit
+`PASS` не разрешает stage/taskdb/LOG status `done`, пока referenced checkbox открыт. Находка без строки в owner
+checklist не превращается в scope: это только regression/repo-rule, owner question либо recommendation с явной
+классификацией.
 
 ### Уровни и full CI в аудите
 
@@ -181,3 +185,8 @@ recommendation с явной классификацией.
 ### Cost rule
 
 **Аудит не должен быть дороже выполнения задачи.** Если аудит инициирует **больше** прогонов (или тяжелее уровень), чем было разумно при самой реализации — стратегия **неверна**; нужно остановиться и сузить scope.
+
+Число audit-проходов задаёт risk-sized режим `docs/ORCHESTRATION_BINDINGS.md`: presentation/layout/text/mechanical
+stage получает worker + **один** independent audit без serial nit-picking rounds. Этот файл не разрешает добавлять
+повторные аудиты ради заполнения evidence; незакрытая строка остаётся `FAIL/BLOCKED` и обрабатывается по stop/scope
+правилам bindings, не превращаясь в новый scope.

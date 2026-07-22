@@ -16,9 +16,11 @@
   исполнения многоэтапного плана»** там обязателен: аудит по риску + потолок кругов, параллель независимых слайсов,
   приёмка владельца в СЕРЕДИНЕ плана («audit PASS» ≠ «готово»), развилки владельца заранее одним листом.
 - Owner lesson 2026-07-22: roadmap summary никогда не заменяет linked detailed checklist. Каждый worker/auditor
-  получает exact atomic checkbox set и возвращает построчную evidence matrix; missing/unclassified пункт запрещает
-  `done/PASS`. Новое owner-уточнение сразу заменяет или явно маркирует старый текст `SUPERSEDED`, без конфликтующих
-  active-инструкций. Полный канон — `docs/ORCHESTRATION_BINDINGS.md` §«Урок 2026-07-22».
+  читает весь linked authority, получает процитированный exact atomic checkbox set и возвращает построчную матрицу
+  code/test/runtime evidence либо точную deferred/blocker reason; missing/unclassified пункт запрещает stage/taskdb/
+  LOG `done/PASS`, кроме явного owner defer/cancel со ссылкой. Новое owner-уточнение сразу заменяет или явно
+  маркирует старый текст `SUPERSEDED`, без конфликтующих active-инструкций. Полный канон —
+  `docs/ORCHESTRATION_BINDINGS.md` §«Урок 2026-07-22».
 
 ## 🤖 Для луп/автономных агентов (этот бокс)
 - **Два слоя правил:** ОБЩЕЕ → AGENTS.md (выше). РОЛЕВОЕ (твоя роль луп-агента, ДОПОЛНЯЕТ, не дублирует) →

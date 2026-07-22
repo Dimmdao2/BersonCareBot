@@ -26,6 +26,20 @@
 Правила репо: `AGENTS.md` + `.cursor/rules/*.mdc`. Оркестрация и привязки: `docs/ORCHESTRATION_BINDINGS.md` —
 там же значения `{SERVER}`, `{SCREENSHOTS}`, `{TASKDB}`, `{CODE_SEARCH}`.
 
+### Requirements lock для каждого stage
+
+- Roadmap stage — только routing-pointer. До worker прочитать все linked detailed plans/checklists и owner addenda;
+  каждый owner requirement/уточнение зафиксировать отдельным checkbox с ID и полным latest-текстом.
+- Worker и auditor brief **цитируют** один и тот же полный checkbox scope и supersession map. Ссылка на plan или
+  пересказ stage outcome без строк checklist — неполный brief.
+- Новое owner-уточнение сразу заменяет конфликтующий текст; старое удалить либо отметить
+  `SUPERSEDED — <date>, replaced by <section/id>`.
+- Worker handoff и audit report содержат строку на каждый ID:
+  `status → code evidence → test evidence → runtime evidence → exact deferred/blocker reason`. `N/A` требует
+  причины, defer/cancel — явного owner ruling со ссылкой.
+- Aggregate agent `done`/audit `PASS` не закрывает stage. Plan/roadmap/LOG/taskdb остаются открыты, пока открыт хотя
+  бы один referenced checkbox; исключение — только явный owner defer/cancel с трассируемой ссылкой и причиной.
+
 Поиск по коду: `node /home/dev/brain/tools/code-search.mjs "<q>" --repo bcb` — не слепой grep.
 Задачи: `node /home/dev/brain/tools/taskdb.mjs` — только через порт, никогда сырым SQL.
 
@@ -63,6 +77,11 @@
 **Аудит — полноценный, не для галочки.** Аудитор трассирует код, проверяет против реальности, а не читает отчёт
 исполнителя. Отчёт исполнителя и зелёные тесты **сами по себе не доказательство**. В этом репозитории воркеры
 трижды подряд заявляли 100% — независимый аудит срезал до 4/9, 2/6 и 1/3. Гейт окупается, не пропускай его.
+
+**Глубина аудита — по риску.** Presentation/layout/text/mechanical stage получает worker + **один** independent
+audit; серийный nit-picking/fix/re-audit там запрещён. Многораундовый adversarial цикл оставлен для
+identity/auth/tenant/security/migration/money/data и ограничен потолком из `ORCHESTRATION_BINDINGS.md`. Audit finding
+без owner-checklist строки не становится задачей: это regression/repo-rule, owner question или recommendation.
 
 **Коммиты осмысленные.** Не десять коммитов на одну правку и не один мега-коммит на всё. Один коммит = одна
 завершённая мысль.
@@ -234,12 +253,13 @@ Postgres, как разделить `system_settings`, кто владеет о�
 
 ## Отчёт
 
-Каждый исполнитель/аудитор/фиксер возвращает: имя прогона, путь к логу, какие пункты чек-листа закрыл с
-доказательством (`file:line`, команда + exit code, хеш коммита), что реально смотрел/менял, какие проверки гонял и
-их точный результат, остаточные риски и блокеры.
+Каждый исполнитель/аудитор/фиксер возвращает: имя прогона, путь к логу и полную построчную матрицу по процитированным
+checkbox IDs (`status`, code evidence `file:line`/commit, test command+result, runtime evidence, точная
+deferred/blocker reason), что реально смотрел/менял, остаточные риски и блокеры.
 
 Ты сверяешь **сам, против реальности** — git, exit-коды, артефакты. Не по словам исполнителя и не по прозе
 `TENANT_HARD_MODE_LOG.md`: там уже были устаревшие PASS.
 
-Отчёт владельцу — «закрыто X/N против <путь к плану>» плюс обязательная секция **«НЕ СДЕЛАНО»**, даже если пустая.
-Слова «готово/завершено» — только после пройденного аудита против реальности.
+Отчёт владельцу — «закрыто X/N против <путь к linked checklist>» плюс обязательная секция **«НЕ СДЕЛАНО»**, даже
+если пустая. Слова «готово/завершено» — только когда X=N либо остаток явно deferred/cancelled владельцем со ссылкой,
+после предписанного risk-sized аудита и достаточного test/runtime gate.

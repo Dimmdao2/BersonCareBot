@@ -12,6 +12,10 @@ todos) per `.cursor/rules/plan-authoring-execution-standard`.
 # Stage F0.x — <title>
 GOAL: <one sentence, the dormant outcome>      NON-GOALS: <out of scope: e.g. no RLS, no env, no UI>
 READ FIRST (cold start): 00_DECISIONS_AND_SCHEMA.md, 01_MASTER_PLAN.md, AGENTS.md §<n> + named .cursor/rules, <module *.md / etalon>
+AUTHORITY ROUTE: <roadmap stage pointer> → <linked detailed plan/checklist path + section>
+ATOMIC OWNER SCOPE (quote verbatim; one row per requirement, no summary):
+- <CHECKBOX-ID> — <full latest checkbox text>
+SUPERSESSION MAP: <old ID/text → SUPERSEDED — date, replaced by section/ID; or "none">
 ALLOWED PATHS (scope boundary — touch nothing else): <dirs/files>     OUT OF SCOPE: <adjacent systems>
 DELIVERABLES (each in DoD, no "optional"): 1. <exact files> …
 CONTRACTS: Drizzle ORM only (db/schema + drizzle-migrations); ports in modules/*/ports.ts, impl infra/repos, service via buildAppDeps; thin routes; match neighbouring style.
@@ -22,7 +26,16 @@ GUARDRAILS:
 - No infinite waits (timeouts/attempt caps). Do NOT start the dev-server.
 - Git: `git -C <main>`, explicit `git add <paths>` (NEVER -A); STEP 0 = merge feat + check freshness marker; commit in own worktree; NO push, NO commit to main.
 VERIFY (step-level, NOT full ci): <targeted Vitest file/pattern>, affected typecheck/lint, rg checks, idempotency re-run.
-DEFINITION OF DONE (3–7 measurable): <…>      REPORT: changed areas, checks+results, deliberately skipped.
+EVIDENCE MATRIX (worker handoff; every quoted ID required):
+| Checkbox | Status | Code evidence | Test evidence | Runtime evidence | Exact deferred/blocker reason |
+|---|---|---|---|---|---|
+| <ID> | PASS/FAIL/BLOCKED | file:line/commit | command + result or N/A reason | URL/screenshot/curl or N/A reason | owner ruling link or blocker |
+AUDIT BRIEF: quote the same full ATOMIC OWNER SCOPE and supersession map; do not audit from roadmap summary alone.
+AUDIT REPORT: one PASS/FAIL/BLOCKED row per ID with independent code/test/runtime evidence or exact deferred/blocker reason.
+DEFINITION OF DONE (3–7 measurable): <…>
+STATUS RULE: aggregate worker done/audit PASS cannot close the stage. Plan/roadmap/LOG/taskdb stay open while any
+referenced checkbox is open; only explicit owner defer/cancel with link+reason can close that row.
+REPORT: changed areas, checks+results, deliberately skipped, closed X/N against <linked checklist>.
 ```
 
 ---

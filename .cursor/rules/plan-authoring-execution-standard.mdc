@@ -17,11 +17,16 @@ alwaysApply: true
    - **Не требовать** в плане полный корневой `pnpm run ci` после **каждого** шага или после **каждого** небольшого плана — это дорого и снижает готовность планов к исполнению.
    - Не помечать шаг как закрытый без фактической проверки, подходящей по масштабу шага.
    - Roadmap/epic summary не заменяет linked detailed plan. Каждый owner requirement и позднее уточнение должны быть
-     отдельным атомарным checkbox; worker и auditor получают exact checkbox IDs/текст, а не только ссылку на план.
+     отдельным атомарным checkbox; worker и auditor читают весь linked authority и получают exact checkbox IDs/полный
+     текст, а не только ссылку на план или stage summary.
    - Новое owner-уточнение сразу обновляет канон; противоречащая формулировка удаляется либо явно маркируется
      `SUPERSEDED — <date>, replaced by <section/id>`. Два несовместимых active-требования запрещены.
-   - Handoff worker и отчёт аудитора содержат полную матрицу по всем in-scope checkboxes. Общий `done`/`PASS` при
-     missing или unclassified checkbox недействителен.
+   - Handoff worker и отчёт аудитора содержат полную матрицу по всем in-scope checkboxes:
+     `status → code evidence → test evidence → runtime evidence → deferred/blocker reason`. `N/A` требует причины;
+     defer/cancel требует явного owner ruling со ссылкой. Общий `done`/`PASS` при missing/unclassified строке
+     недействителен.
+   - Audit brief обязан процитировать ID и полный текст linked plan/checklist scope. Путь к плану и пересказ roadmap
+     stage сами по себе не являются audit scope.
 
 3. **Scope boundaries (безопасные рамки)**
    - Явно указывать, какие директории/файлы **разрешено** трогать.
@@ -36,6 +41,8 @@ alwaysApply: true
 5. **Execution log обязателен**
    - Для инициативных задач требовать и вести `LOG.md` в профильной папке docs.
    - В логе фиксировать: что сделано, какие проверки выполнены, какие решения приняты, что сознательно не делали.
+   - `LOG.md`, roadmap/stage status и taskdb не помечаются `done/completed/PASS`, пока referenced checkbox открыт.
+     Исключение — только явный owner defer/cancel с трассируемой ссылкой и причиной на соответствующей строке.
 
 6. **Правила перед исполнением**
    - Перед реализацией обязательно прочитать релевантные `.cursor/rules/*.mdc` и следовать им.
@@ -44,6 +51,9 @@ alwaysApply: true
 7. **Корректность статусов в файле плана**
    - Проверять консистентность `todos`/`status` в самом plan-файле.
    - После завершения работ обновлять статусы (`pending` -> `in_progress` -> `completed`/`cancelled`) без пропусков.
+   - Aggregate worker `done` или audit `PASS` не меняет checkbox status автоматически: закрывается только строка с
+     достаточным code/test/runtime evidence либо явным owner defer/cancel. Blocker без owner defer оставляет stage
+     незавершённым.
    - **Обязательная процедура при полном закрытии плана** (все пункты выполнены или явно отменены, Definition of Done закрыт): для файлов **`.cursor/plans/*.plan.md`** — **не завершать сессию**, пока не выполнено ниже. Иначе Cursor часто оставляет план «висящим» (активный **Build** / незакрытый run).
      1. В начале файла должен быть валидный блок **`---` YAML frontmatter `---`** (как в `.cursor/plans/archive/hls_private_bucket_proxy.plan.md`): не оставлять план только с markdown без frontmatter.
      2. Поля **`name`** и **`overview`** — осмысленные непустые строки (не `""`).

@@ -22,4 +22,9 @@ alwaysApply: true
 
 Дисциплина: начал → `status doing`; упёрся в решение владельца → `status blocked` + `owner_waiting true` + `question`;
 довёл и проверил тестами → `status done` + `seal_test true` + `commit_ref <hash>`.
+
+Для stage/plan-задачи `done` означает закрытие **каждого** referenced atomic owner checkbox по матрице
+code/test/runtime evidence. Aggregate worker `done` или audit `PASS` недостаточны. Пока строка открыта или имеет
+обычный blocker, taskdb остаётся `doing/blocked`; закрыть строку без реализации можно только по явному owner
+defer/cancel с трассируемой ссылкой и причиной, синхронизированными с plan/roadmap/LOG.
 Полная памятка: `docs/SHARED_TASKDB.md`.
