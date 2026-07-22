@@ -479,7 +479,8 @@ card; запрещено строить временный resolver, второ�
   `#962`, configurable Today `#963`, scheduled messages `#964`. `#958`, `#960`–`#963`, `#966/#967` закрыты и
   находятся на TEST SHA `eb64a495644`; bounded reminder-default `#191` закрыт после milestone. UI-7 `#964`
   остановлен после двух correction-pass на одном owner placement ruling и не интегрирован. Независимые исполнимые
-  UI-residuals: три Online evidence item `#972`. Полный UI-5b `#971` имеет закрытый contract `#928`, но остаётся
+  UI-residuals: три Online repository-evidence item закрыты `#972`; published-slug live proof остаётся U6B `#926`.
+  Полный UI-5b `#971` имеет закрытый contract `#928`, но остаётся
   заблокирован двумя U5A live-seal из `#796`; запуск presentation-only composition до этого запрещён.
   UI-4 normal-mode preview и UI-5a full-workspace
   reuse объединены в `#958`, полный composition/visibility — U5B с contract `#928` + implementation `#971`; Patient Today mood residual —
@@ -492,8 +493,9 @@ card; запрещено строить временный resolver, второ�
   code-only. Full CI запускается на milestone, а не повторяется для каждого presentation slice.
 - **Status (2026-07-22):** exact TEST SHA `eb64a495644`, code-only без dump/restore/full reset. Locked product smoke
   `22/22`, отдельный deny-smoke и первичная desktop/mobile read-only visual проверка прошли. Owner live interaction
-  acceptance записан в `#821` и не блокирует следующий repository-safe этап. Dependency-ready UI scope —
-  UI-2 residual `#972`; UI-5b `#971` ждёт U5A `#796`, UI-7 `#964` ждёт одного placement ruling. Voice/STT `#922` остаётся post-production.
+  acceptance записан в `#821` и не блокирует следующий repository-safe этап. UI-2 repository residual `#972`
+  закрыт; UI-5b `#971` ждёт U5A `#796`, UI-7 `#964` ждёт одного placement ruling, а public Online live proof —
+  U6B `#926`. Voice/STT `#922` остаётся post-production.
 
 #### C2 — identity команды и фактический invite journey
 
@@ -783,7 +785,7 @@ Umbrella/index, Foundation helper-checklists и Rubitime production runbooks н�
 | Leaf plan | Current class | Current truth / task mapping |
 |---|---|---|
 | [`SAAS_FOUNDATION/RUBITIME_RETIREMENT_EXECUTION_PLAN.md`](../SAAS_FOUNDATION/RUBITIME_RETIREMENT_EXECUTION_PLAN.md) | gated | R0–R4 имеют code/proof; R5–R7 требуют operational/owner gates. Полный checklist provenance дополнительно сверяется перед следующим Rubitime action. |
-| [`DOCTOR_UI_REWORK_2026-07-20/PLAN.md`](../DOCTOR_UI_REWORK_2026-07-20/PLAN.md) | open | Atomic tracker является authority; `#958`, `#960`–`#963`, `#966/#967` deployed, `#191` закрыт; `#972` исполняется, `#971→#796`, `#964` и `#848` owner-blocked; Voice `#922` post-production. |
+| [`DOCTOR_UI_REWORK_2026-07-20/PLAN.md`](../DOCTOR_UI_REWORK_2026-07-20/PLAN.md) | open | Atomic tracker является authority; `#958`, `#960`–`#963`, `#966/#967` deployed, `#191/#972` закрыты; `#971→#796`, `#964` и `#848` owner-blocked; public Online live proof — U6B `#926`, Voice `#922` post-production. |
 | [`.cursor/plans/fio_identity_cleanup.plan.md`](../../../.cursor/plans/fio_identity_cleanup.plan.md) | gated | Phases 0–8 закрыты; `#857` production backfill и `#858` parser audit/retirement остаются gated. |
 | [`STABILITY_SECURITY_HARDENING_PLAN_2026-07-21.md`](../STABILITY_SECURITY_HARDENING_PLAN_2026-07-21.md) | open | C1 repository dark-launch зафиксирован atomic checklist и task `#969`; после alerting migration `0229` он использует next free `0230` и больше не зависит от blocked UI-7. D1 `#970` ждёт TTL/admin/SLA ruling; D2/E2/E3 открыты. Host activation и A4/A2/E1/post-launch residual идут только по собственным gates. |
 | [`UNSUPPORTED_CLIENT_FALLBACK_PLAN.md`](../UNSUPPORTED_CLIENT_FALLBACK_PLAN.md) | partial slice | Закрыт только Ф0 repository slice `#936`; Ф1/Ф2/guard не объявляются завершёнными. |

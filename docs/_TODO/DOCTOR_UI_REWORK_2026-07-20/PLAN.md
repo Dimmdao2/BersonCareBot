@@ -283,7 +283,7 @@ SHA `eb64a495644` (code-only deploy 2026-07-22, без dump/restore/full reset).
 |---|---|---|
 | UI-0 | `DONE` | Четыре symptoms закрыты; отдельная owner live recheck не подменяется smoke. |
 | UI-1 | `DONE code / TEST deployed / owner pending` | Canonical picker reuse и UI-1c находятся на TEST; обязательный smoke и первичная read-only visual проверка прошли. Money/provider и SCH-G5 остаются отдельными gates, не UI-1 debt. |
-| UI-2 | `RESIDUAL IN PROGRESS #972` | Built-in Online и gating готовы; schedule-filter, client-booking and public online-block evidence из трёх unchecked atomic items закрываются отдельно, без expanded online chain. |
+| UI-2 | `DONE repository / public live gated` | Built-in Online, schedule filters, client booking and separate public online-block доказаны `#972`; published-slug live proof остаётся U6B `#926`. Expanded online chain не входит. |
 | UI-3 | `DONE code / TEST deployed / owner pending` | 45/55, owner gradient, broadcast detail/error IA и shared composer находятся на TEST; smoke и desktop/mobile read-only visual проверка прошли. |
 | UI-4 | `DONE code / TEST deployed / owner pending` | Presentation, metric semantics и normal-mode functional `PatientPreviewPane` находятся на TEST; smoke и desktop/mobile list check прошли. |
 | UI-5 | `UI-5a TEST deployed / UI-5b BLOCKED #971→#796` | Existing full card replaces the doctor workspace with list-state restoration; mandatory live route smoke прошёл. U5B record-class contract `#928` закрыт, но полный atomic composition/data-policy ждёт два U5A live-seal из `#796`; presentation-only подмена запрещена. |
@@ -346,12 +346,13 @@ brief или заменять одним общим пунктом.
 - [x] «Онлайн» является встроенной включаемой локацией в существующей модели, а не вручную создаваемым workaround.
 - [x] Состояние Online location гейтит существующие online-галочки услуг.
 - [x] Не создана новая schema/delivery-mode/booking engine.
-- [ ] Отдельно доказано, что Online присутствует в существующих schedule location list/filters без второго
+- [x] Отдельно доказано, что Online присутствует в существующих schedule location list/filters без второго
   projection.
-- [ ] Отдельно доказано, что online services видны в существующем client booking wizard при включённой Online
+- [x] Отдельно доказано, что online services видны в существующем client booking wizard при включённой Online
   location.
-- [ ] Online-only services на публичной странице попадают в online-block, а не в physical location; live proof
-  ждёт sanctioned published slug/U6B.
+- [x] Online-only services на публичной странице попадают в online-block, а не в physical location (`#972`).
+- [ ] Live proof этого публичного разделения ждёт sanctioned published slug/U6B `#926`; repository-evidence его
+  не подменяет.
 
 #### UI-3 — Communications (`#852`, residual `#961/#962`)
 

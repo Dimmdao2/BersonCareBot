@@ -4670,3 +4670,13 @@ diff-check; worker gates also passed both typechecks, scoped lint and both produ
 could not apply new DDL through the deliberately unprivileged working app role (`42501`), so no ad hoc grant or DB
 reset was attempted. Canonical migration/application and the authorized broken-provider TEST exercise belong to
 remaining P0/P-guard. No real provider call, TEST deploy or production action occurred.
+
+## 2026-07-22 — built-in Online repository residual `#972` closed
+
+No production code change was required. Five source-backed regression suites now prove that the organization-owned
+built-in Online location flows through the existing work/calendar location projections, that the authenticated
+booking catalog applies exact-organization active-specialist and clinic-wide service rules, and that the public
+catalog excludes online-only services from physical cities while the real format UI renders a separate «Онлайн»
+block. Integration verification passed `138/138`; the single independent audit returned PASS. No new schema,
+delivery mode or expanded online booking chain `#215` was introduced. A live published-slug walkthrough remains the
+separate U6B `#926` gate and is not inferred from repository tests.
