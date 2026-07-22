@@ -5071,3 +5071,24 @@ open even though `1fd6bf66e` is an ancestor of green `63de21030`; both now recor
 owner-authorized TEST fault-injection remain open. Per the one-pass docs policy no immediate serial re-audit was
 started: `#959` stays `doing`, `seal_audit=false` until the next scheduled deep control-plane audit validates the
 corrected state.
+
+## 2026-07-22 — scheduled deep audit finds additional false closures
+
+The two-hour read-only recursive audit checked all `22` leaf plans and returned `FAIL`. It confirmed the corrected
+registry denominator and current three autonomous lanes, then found additional source-backed control-plane debt.
+Task `#839` was reopened from false `done` with both seals cleared: its code/audit evidence at `308cecb3b` remains,
+but the mandatory owner-authorized TEST scenario «new patient + booking without Rubitime» was never executed.
+Task `#914` was retitled to say only the L1 serializer guard is closed; caller `msg`/sibling fields and L0 remain
+open.
+
+Two historical UI-P `[x]` rows were reset to open because their own P2B matrix still proves `#faf9f4` fallback and
+local radius/padding forks (`P2B-02/09/10/14`). Conversely, the completed Stability E2 parent is now `[x]`, and the
+owner-cancelled Unsupported-client Ф3 notification row is `[x]` with explicit cancelled semantics rather than an
+open execution debt.
+
+Rubitime received exact read-only mapping task `#981`: R3-CATALOG's expired compatibility-removal date and the fact
+that R6 route/code rows are closed while cutoff/drain rows remain open must be reconciled against the full owner
+plan and operational entrypoint before any next action. No route restoration/removal, DB/data, cutoff, archive,
+TEST/PROD or deploy action was inferred from the audit. The recurring audit prompt now records start/final snapshots
+and accepts taskdb+task-aligned worktree+manifest as collaboration-lane ownership; a valid concurrent commit is no
+longer mislabeled merely because in-thread subagents do not publish brain agent-port run-state.

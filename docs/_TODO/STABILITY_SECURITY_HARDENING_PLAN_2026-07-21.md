@@ -353,7 +353,7 @@ apply, TEST/PROD or deploy is claimed.
 
 <a id="e2-source-contract-975"></a>
 
-- [ ] **E2. Общий `jsonOk/jsonError` builder + маппер ошибка→HTTP.** Внедрение инкрементальное; новые роуты обязаны,
+- [x] **E2. Общий `jsonOk/jsonError` builder + маппер ошибка→HTTP.** Внедрение инкрементальное; новые роуты обязаны,
       старые мигрируют волной. Размер: **M** (helper) + постепенная адаптация · Аудит: один.
 
       **Source contract (`#975`, census на `252d54636`):** в `apps/webapp/src/app/api/**/route.ts` есть

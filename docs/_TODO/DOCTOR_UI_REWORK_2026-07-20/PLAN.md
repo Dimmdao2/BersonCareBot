@@ -519,9 +519,9 @@ brief или заменять одним общим пунктом.
 
 #### UI-P — shared doctor presentation (`#925`)
 
-- [x] Latest owner correction вернула прежний белый/inherited workspace background; page header остаётся белой,
+- [ ] Latest owner correction вернула прежний белый/inherited workspace background; page header остаётся белой,
   primary `#406ca7` не меняется (`#967`).
-- [x] Радиусы block/KPI/control `12/8/24px`, основной padding `18px` и белый input не размножены локально.
+- [ ] Радиусы block/KPI/control `12/8/24px`, основной padding `18px` и белый input не размножены локально.
 - [x] KPI используют порядок label → value.
 - [x] Основной текст doctor-списков крупнее и легче без изменения meta/badge/calendar typography.
 - [x] Clients/messages используют один shared list-row contract: геометрия как «На сопровождении», full-row hover и
