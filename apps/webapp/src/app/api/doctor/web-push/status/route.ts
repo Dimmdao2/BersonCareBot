@@ -1,11 +1,11 @@
 import { NextResponse } from "next/server";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
-import { requireDoctorApiSession } from "@/app-layer/guards/requireRole";
+import { requireStaffWebPushSelfApiSession } from "@/app-layer/guards/requireRole";
 import { getWebPushVapidKeyPair } from "@/modules/system-settings/webPushVapidRuntime";
 
 /** GET /api/doctor/web-push/status */
 export async function GET() {
-  const gate = await requireDoctorApiSession();
+  const gate = await requireStaffWebPushSelfApiSession();
   if (!gate.ok) return gate.response;
 
   const deps = buildAppDeps();

@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { getCurrentDbPrincipal } from "@bersoncare/db-principal";
 import type { AppSession } from "@/shared/types/session";
 
 const getCurrentSessionMock = vi.hoisted(() => vi.fn());
@@ -28,6 +29,8 @@ import {
   requireOrganizationManagementContext,
   requirePatientAccess,
   requireStaffAccountPage,
+  requireStaffPersonalInstallPage,
+  requireStaffWebPushSelfApiSession,
 } from "./requireRole";
 
 function session(role: AppSession["user"]["role"]): AppSession {
@@ -71,6 +74,32 @@ describe("requireStaffAccountPage", () => {
     getCurrentSessionMock.mockResolvedValueOnce(session("client"));
     const target = buildOwnHubUrlWithAccessDeniedToast("client");
     await expect(requireStaffAccountPage()).rejects.toThrow(`redirect:${target}`);
+  });
+});
+
+describe("global-admin personal PWA exception", () => {
+  it("allows only the install page without resolving organization membership", async () => {
+    const admin = { ...session("admin"), adminMode: true };
+    getCurrentSessionMock.mockResolvedValueOnce(admin);
+
+    await expect(requireStaffPersonalInstallPage()).resolves.toBe(admin);
+    expect(resolveOrganizationForUserMock).not.toHaveBeenCalled();
+  });
+
+  it("allows global admin web-push self-service without membership resolution", async () => {
+    const admin = {
+      ...session("admin"),
+      adminMode: true,
+      user: { ...session("admin").user, userId: "aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee" },
+    };
+    getCurrentSessionMock.mockResolvedValueOnce(admin);
+
+    await expect(requireStaffWebPushSelfApiSession()).resolves.toMatchObject({ ok: true, session: admin });
+    expect(resolveOrganizationForUserMock).not.toHaveBeenCalled();
+    expect(getCurrentDbPrincipal()).toMatchObject({
+      kind: "patient",
+      platformUserId: admin.user.userId,
+    });
   });
 });
 

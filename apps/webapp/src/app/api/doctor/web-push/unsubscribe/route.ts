@@ -2,7 +2,7 @@ import { revalidatePath } from "next/cache";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
-import { requireDoctorApiSession } from "@/app-layer/guards/requireRole";
+import { requireStaffWebPushSelfApiSession } from "@/app-layer/guards/requireRole";
 import { routePaths } from "@/app-layer/routes/paths";
 
 const bodySchema = z.union([
@@ -12,7 +12,7 @@ const bodySchema = z.union([
 
 /** POST /api/doctor/web-push/unsubscribe */
 export async function POST(request: Request) {
-  const gate = await requireDoctorApiSession();
+  const gate = await requireStaffWebPushSelfApiSession();
   if (!gate.ok) return gate.response;
 
   let json: unknown;

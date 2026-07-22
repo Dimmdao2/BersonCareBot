@@ -8,7 +8,7 @@ type PageMod = { default: unknown };
 
 const LOADERS = {
   doctorRoot: () => import("@/app/app/doctor/page") as Promise<PageMod>,
-  doctorInstall: () => import("@/app/app/doctor/install/page") as Promise<PageMod>,
+  doctorInstall: () => import("@/app/app/(staff-personal)/doctor/install/page") as Promise<PageMod>,
   doctorAppointments: () => import("@/app/app/doctor/appointments/page") as Promise<PageMod>,
   doctorMessages: () => import("@/app/app/doctor/messages/page") as Promise<PageMod>,
   doctorBroadcasts: () => import("@/app/app/doctor/broadcasts/page") as Promise<PageMod>,
