@@ -3,10 +3,8 @@
 import { Badge } from "@/shared/ui/patient/primitives/badge";
 import { Button } from "@/shared/ui/patient/primitives/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/shared/ui/patient/primitives/card";
-import { isSafeExternalHref } from "@/lib/url/isSafeExternalHref";
 import type { PatientBookingRecord } from "@/modules/patient-booking/types";
 import { formatBookingDateTimeMediumRu } from "@/shared/lib/formatBusinessDateTime";
-import { openExternalLinkInMessenger } from "@/shared/lib/openExternalLinkInMessenger";
 import { bookingProvenancePrefix, nativeBookingSubtitle } from "./patientBookingLabels";
 import { CabinetBookingActions } from "./CabinetBookingActions";
 import { cn } from "@/lib/utils";
@@ -48,17 +46,17 @@ function fmtCalDate(iso: string): string {
 function googleCalendarUrl(booking: PatientBookingRecord): string {
   const params = new URLSearchParams({
     action: "TEMPLATE",
-    text: booking.serviceTitleSnapshot ?? "Запись",
+    text: booking.canonicalInPersonContext?.serviceTitle ?? "Запись",
     dates: `${fmtCalDate(booking.slotStart)}/${fmtCalDate(booking.slotEnd)}`,
-    ...(booking.branchTitleSnapshot ? { location: booking.branchTitleSnapshot } : {}),
+    ...(booking.canonicalInPersonContext?.branchTitle ? { location: booking.canonicalInPersonContext.branchTitle } : {}),
   });
   return `https://calendar.google.com/calendar/render?${params.toString()}`;
 }
 
 function generateIcs(booking: PatientBookingRecord): string {
   const uid = `bersoncare-booking-${booking.id}@bersoncare`;
-  const title = booking.serviceTitleSnapshot ?? "Запись";
-  const location = booking.branchTitleSnapshot ?? "";
+  const title = booking.canonicalInPersonContext?.serviceTitle ?? "Запись";
+  const location = booking.canonicalInPersonContext?.branchTitle ?? "";
   const dtstart = fmtCalDate(booking.slotStart);
   const dtend = fmtCalDate(booking.slotEnd);
   return [
@@ -112,12 +110,6 @@ export function CabinetActiveBookings({ bookings, appDisplayTimeZone }: Props) {
       </CardHeader>
       <CardContent className="flex flex-col gap-2">
         {bookings.map((row) => {
-          const manageHref = row.rubitimeManageUrl;
-          const canEdit =
-            manageHref !== null &&
-            manageHref !== "" &&
-            showManageLink(row.status) &&
-            isSafeExternalHref(manageHref);
           return (
             <div
               key={row.id}
@@ -138,22 +130,10 @@ export function CabinetActiveBookings({ bookings, appDisplayTimeZone }: Props) {
               <div className="flex shrink-0 flex-wrap items-center justify-end gap-2">
                 <Badge variant={statusToBadgeVariant(row.status)}>{statusLabel(row.status)}</Badge>
                 {row.canonicalAppointmentId ? <CabinetBookingActions row={row} /> : null}
-                {canEdit && manageHref ? (
-                  <Button
-                    type="button"
-                    variant="link"
-                    className={cn(patientInlineLinkClass, "h-auto min-h-0 px-0 py-0 text-sm font-medium")}
-                    onClick={() => {
-                      openExternalLinkInMessenger(manageHref);
-                    }}
-                  >
-                    Изменить
-                  </Button>
-                ) : null}
                 {showManageLink(row.status) ? (
                   <>
                     <a
-                      href={isSafeExternalHref(googleCalendarUrl(row)) ? googleCalendarUrl(row) : "#"}
+                      href={googleCalendarUrl(row)}
                       target="_blank"
                       rel="noopener noreferrer"
                       className={cn(patientInlineLinkClass, "text-xs")}

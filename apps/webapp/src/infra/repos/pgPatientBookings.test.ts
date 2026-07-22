@@ -330,6 +330,51 @@ describe("pgPatientBookingsPort", () => {
     expect(rows[0]!.cityCodeSnapshot).toBe("moscow");
   });
 
+  it("derives canonical in-person navigation and display data without reading legacy catalog ids", async () => {
+    const booking = {
+      ...v2Row("linked-canonical"),
+      canonical_appointment_id: "00000000-0000-4000-8000-0000000000aa",
+      // Deliberately incompatible legacy namespace: it must remain trace-only.
+      branch_id: "00000000-0000-4000-8000-0000000000d1",
+      service_id: "00000000-0000-4000-8000-0000000000e1",
+      branch_service_id: "00000000-0000-4000-8000-0000000000f1",
+      service_title_snapshot: "Старая услуга",
+      canonical_in_person_context: {
+        branchId: "00000000-0000-4000-8000-0000000000b1",
+        serviceId: "00000000-0000-4000-8000-0000000000c1",
+        cityCode: "spb",
+        branchTitle: "Клиника на Невском",
+        serviceTitle: "Каноническая услуга",
+        durationMinutes: 45,
+        priceMinor: 250000,
+      },
+    };
+    runWebappPgTextMock.mockResolvedValueOnce({ rows: [{ booking }] });
+
+    const [row] = await pgPatientBookingsPort.listUpcomingByUser("u1", "2026-01-01T00:00:00.000Z");
+    expect(row?.canonicalInPersonContext).toEqual({
+      branchId: "00000000-0000-4000-8000-0000000000b1",
+      serviceId: "00000000-0000-4000-8000-0000000000c1",
+      cityCode: "spb",
+      branchTitle: "Клиника на Невском",
+      serviceTitle: "Каноническая услуга",
+      durationMinutes: 45,
+      priceMinor: 250000,
+    });
+    expect(row?.branchServiceId).toBe("00000000-0000-4000-8000-0000000000f1");
+
+    const sql = String(runWebappPgTextMock.mock.calls[0]?.[0] ?? "");
+    expect(sql).toContain("FROM be_specialist_service_availability availability");
+    expect(sql).toContain("appointment.branch_id");
+    expect(sql).toContain("appointment.service_id");
+    // Exact specialist binding is what prevents a same-org/branch/service SSA
+    // from exposing another specialist's slots for this appointment.
+    expect(sql.replace(/\s+/g, " ")).toContain("availability.specialist_id = appointment.specialist_id");
+    expect(sql).not.toContain("patient_rows.booking->>'branch_id'");
+    expect(sql).not.toContain("patient_rows.booking->>'service_id'");
+    expect(sql).not.toContain("patient_rows.booking->>'branch_service_id'");
+  });
+
   it("listUpcomingByUser delegates filtering to the bounded signed-patient capability", async () => {
     runWebappPgTextMock.mockResolvedValueOnce({ rows: [] });
     await pgPatientBookingsPort.listUpcomingByUser("u1", "2026-01-01T00:00:00.000Z");

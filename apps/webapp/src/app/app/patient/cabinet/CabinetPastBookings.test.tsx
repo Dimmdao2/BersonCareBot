@@ -74,4 +74,31 @@ describe("CabinetPastBookings", () => {
     await user.click(screen.getByRole("button", { name: /Журнал прошедших приёмов/i }));
     expect(screen.queryByText("Завершена")).not.toBeInTheDocument();
   });
+
+  it("renders a historical canonical label instead of legacy snapshot metadata", () => {
+    render(
+      <CabinetPastBookings
+        items={[
+          makeBooking({
+            id: "00000000-0000-4000-8000-0000000000f3",
+            canonicalAppointmentId: "00000000-0000-4000-8000-0000000000a3",
+            branchServiceId: "00000000-0000-4000-8000-0000000000f4",
+            serviceTitleSnapshot: "Legacy service",
+            canonicalInPersonContext: {
+              branchId: "00000000-0000-4000-8000-0000000000b3",
+              serviceId: "00000000-0000-4000-8000-0000000000c3",
+              cityCode: "spb",
+              branchTitle: "Клиника",
+              serviceTitle: "Канонический исторический приём",
+              durationMinutes: 60,
+              priceMinor: 0,
+            },
+          }),
+        ]}
+        appDisplayTimeZone="Europe/Moscow"
+      />,
+    );
+    expect(screen.getByText("Очный приём — СПб · Канонический исторический приём")).toBeInTheDocument();
+    expect(screen.queryByText("Очный приём — Москва · Legacy service")).not.toBeInTheDocument();
+  });
 });

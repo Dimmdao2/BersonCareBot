@@ -15,7 +15,11 @@ import {
 } from "@bersoncare/booking-rubitime-sync";
 import { normalizeRuPhoneE164 } from "@/shared/phone/normalizeRuPhoneE164";
 import type { PatientBookingsPort, CreatePendingPatientBookingInput } from "@/modules/patient-booking/ports";
-import type { PatientBookingRecord, PatientBookingStatus } from "@/modules/patient-booking/types";
+import type {
+  CanonicalInPersonBookingContext,
+  PatientBookingRecord,
+  PatientBookingStatus,
+} from "@/modules/patient-booking/types";
 
 type Row = {
   id: string;
@@ -54,6 +58,7 @@ type Row = {
   provenance_updated_by?: string | null;
   rubitime_manage_url?: string | null;
   canonical_appointment_id?: string | null;
+  canonical_in_person_context?: CanonicalInPersonBookingContext | null;
 };
 
 function mapRow(row: Row): PatientBookingRecord {
@@ -90,11 +95,82 @@ function mapRow(row: Row): PatientBookingRecord {
     rubitimeServiceIdSnapshot: row.rubitime_service_id_snapshot ?? null,
     rubitimeManageUrl: row.rubitime_manage_url ?? null,
     canonicalAppointmentId: row.canonical_appointment_id ?? null,
+    canonicalInPersonContext: row.canonical_in_person_context ?? null,
     bookingSource: (row.source as PatientBookingRecord["bookingSource"]) ?? "native",
     compatQuality: (row.compat_quality as PatientBookingRecord["compatQuality"]) ?? null,
     provenanceCreatedBy: row.provenance_created_by ?? null,
     provenanceUpdatedBy: row.provenance_updated_by ?? null,
   };
+}
+
+/**
+ * The security-definer capability decides which patient-booking rows belong to
+ * the signed tenant/patient. This outer read only enriches an already-admitted
+ * linked canonical row. In particular, `patient_bookings.branch_id`,
+ * `service_id`, `branch_service_id`, and snapshots are never used as canonical
+ * navigation or display inputs.
+ */
+async function listCurrentPatientBookingRows(
+  kind: "upcoming" | "history",
+  nowIso: string,
+): Promise<PatientBookingRecord[]> {
+  const result = await runWebappPgText<{ booking: Row }>(
+    `WITH patient_rows AS MATERIALIZED (
+       SELECT booking
+       FROM app.read_current_patient_booking_rows('${kind}', $1::timestamptz)
+     ), enriched AS (
+       SELECT
+         patient_rows.booking,
+         CASE
+           WHEN patient_rows.booking->>'booking_type' = 'in_person'
+             AND appointment.id IS NOT NULL
+             AND branch.id IS NOT NULL
+             AND service.id IS NOT NULL
+             AND branch.is_active = TRUE
+             AND service.is_active = TRUE
+             AND service.public_widget_visible = TRUE
+             AND service.admin_manual_only = FALSE
+             AND EXISTS (
+               SELECT 1
+               FROM be_specialist_service_availability availability
+               JOIN be_specialists specialist
+                 ON specialist.id = availability.specialist_id
+                AND specialist.organization_id = availability.organization_id
+                AND specialist.is_active = TRUE
+               WHERE availability.organization_id = appointment.organization_id
+                 AND availability.specialist_id = appointment.specialist_id
+                 AND availability.branch_id = appointment.branch_id
+                 AND availability.service_id = appointment.service_id
+                 AND availability.is_active = TRUE
+             )
+           THEN jsonb_build_object(
+             'branchId', appointment.branch_id,
+             'serviceId', appointment.service_id,
+             'cityCode', branch.city_code,
+             'branchTitle', branch.title,
+             'serviceTitle', service.title,
+             'durationMinutes', appointment.duration_minutes,
+             'priceMinor', service.price_minor
+           )
+           ELSE NULL
+         END AS canonical_in_person_context
+       FROM patient_rows
+       LEFT JOIN be_appointments appointment
+         ON appointment.id = (patient_rows.booking->>'canonical_appointment_id')::uuid
+       LEFT JOIN be_branches branch
+         ON branch.id = appointment.branch_id
+        AND branch.organization_id = appointment.organization_id
+       LEFT JOIN be_clinic_services service
+         ON service.id = appointment.service_id
+        AND service.organization_id = appointment.organization_id
+     )
+     SELECT booking || jsonb_build_object(
+       'canonical_in_person_context', canonical_in_person_context
+     ) AS booking
+     FROM enriched`,
+    [nowIso],
+  );
+  return result.rows.map((row) => mapRow(row.booking));
 }
 
 export const pgPatientBookingsPort: PatientBookingsPort = {
@@ -360,20 +436,12 @@ export const pgPatientBookingsPort: PatientBookingsPort = {
 
   async listUpcomingByUser(userId, nowIso) {
     void userId;
-    const result = await runWebappPgText<{ booking: Row }>(
-      `SELECT booking FROM app.read_current_patient_booking_rows('upcoming', $1::timestamptz)`,
-      [nowIso],
-    );
-    return result.rows.map((row) => mapRow(row.booking));
+    return listCurrentPatientBookingRows("upcoming", nowIso);
   },
 
   async listHistoryByUser(userId, nowIso) {
     void userId;
-    const result = await runWebappPgText<{ booking: Row }>(
-      `SELECT booking FROM app.read_current_patient_booking_rows('history', $1::timestamptz)`,
-      [nowIso],
-    );
-    return result.rows.map((row) => mapRow(row.booking));
+    return listCurrentPatientBookingRows("history", nowIso);
   },
 };
 

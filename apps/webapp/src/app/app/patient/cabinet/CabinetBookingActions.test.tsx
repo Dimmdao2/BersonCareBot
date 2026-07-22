@@ -4,7 +4,11 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import toast from "react-hot-toast";
-import { CabinetBookingActions } from "./CabinetBookingActions";
+import {
+  buildRescheduleHref,
+  CabinetBookingActions,
+  classifyPatientBookingReschedule,
+} from "./CabinetBookingActions";
 import type { PatientBookingRecord } from "@/modules/patient-booking/types";
 
 const refresh = vi.fn();
@@ -57,7 +61,7 @@ function sampleRow(overrides: Partial<PatientBookingRecord> = {}): PatientBookin
     rubitimeCooperatorIdSnapshot: null,
     rubitimeServiceIdSnapshot: null,
     rubitimeManageUrl: null,
-    canonicalAppointmentId: "appt-1",
+    canonicalAppointmentId: "00000000-0000-4000-8000-0000000000a1",
     bookingSource: "native",
     compatQuality: null,
     provenanceCreatedBy: null,
@@ -101,5 +105,94 @@ describe("CabinetBookingActions", () => {
       expect(partialToast).toHaveBeenCalledWith({ rubitimeMirrorFailed: true });
       expect(refresh).toHaveBeenCalled();
     });
+  });
+
+  it("uses the new canonical in-person context for the reschedule navigation", () => {
+    const row = sampleRow({
+      bookingType: "in_person",
+      branchId: "legacy-branch-id",
+      serviceId: "legacy-service-id",
+      branchServiceId: "legacy-branch-service-id",
+      cityCodeSnapshot: "moscow",
+      serviceTitleSnapshot: "Legacy service",
+      canonicalInPersonContext: {
+        branchId: "00000000-0000-4000-8000-0000000000b1",
+        serviceId: "00000000-0000-4000-8000-0000000000c1",
+        cityCode: "spb",
+        branchTitle: "Клиника",
+        serviceTitle: "Каноническая услуга",
+        durationMinutes: 45,
+        priceMinor: 250000,
+      },
+    });
+
+    expect(classifyPatientBookingReschedule(row)).toBe("canonical_in_person");
+    expect(buildRescheduleHref(row)).toBe(
+      "/app/patient/booking/slot?type=in_person&branchId=00000000-0000-4000-8000-0000000000b1&serviceId=00000000-0000-4000-8000-0000000000c1&rescheduleBookingId=550e8400-e29b-41d4-a716-446655440001",
+    );
+    render(<CabinetBookingActions row={row} />);
+    expect(screen.getByRole("link", { name: "Перенести" })).toHaveAttribute(
+      "href",
+      expect.stringContaining("branchId=00000000-0000-4000-8000-0000000000b1"),
+    );
+    expect(screen.getByRole("link", { name: "Перенести" })).not.toHaveAttribute(
+      "href",
+      expect.stringContaining("legacy-branch-id"),
+    );
+  });
+
+  it("allows a linked historical row only through its proven canonical context", () => {
+    const row = sampleRow({
+      bookingType: "in_person",
+      bookingSource: "rubitime_projection",
+      canonicalInPersonContext: {
+        branchId: "00000000-0000-4000-8000-0000000000b2",
+        serviceId: "00000000-0000-4000-8000-0000000000c2",
+        cityCode: "moscow",
+        branchTitle: "Клиника",
+        serviceTitle: "Приём",
+        durationMinutes: 60,
+        priceMinor: 0,
+      },
+    });
+
+    expect(classifyPatientBookingReschedule(row)).toBe("canonical_in_person");
+    render(<CabinetBookingActions row={row} />);
+    expect(screen.getByRole("link", { name: "Перенести" })).toHaveAttribute(
+      "href",
+      expect.stringContaining("branchId=00000000-0000-4000-8000-0000000000b2"),
+    );
+    expect(screen.getByRole("link", { name: "Перенести" })).toHaveAttribute(
+      "href",
+      expect.stringContaining("serviceId=00000000-0000-4000-8000-0000000000c2"),
+    );
+  });
+
+  it("fails closed for incomplete legacy-only rows while retaining canonical online navigation", () => {
+    const legacyOnly = sampleRow({
+      bookingType: "in_person",
+      canonicalAppointmentId: null,
+      branchId: "00000000-0000-4000-8000-0000000000d1",
+      serviceId: "00000000-0000-4000-8000-0000000000e1",
+      branchServiceId: "00000000-0000-4000-8000-0000000000f1",
+    });
+    const incompleteCanonical = sampleRow({ bookingType: "in_person", canonicalInPersonContext: null });
+    const online = sampleRow({ bookingType: "online" });
+
+    expect(classifyPatientBookingReschedule(legacyOnly)).toBe("legacy_only");
+    expect(buildRescheduleHref(legacyOnly)).toBeNull();
+    expect(classifyPatientBookingReschedule(incompleteCanonical)).toBe("canonical_in_person_incomplete");
+    expect(buildRescheduleHref(incompleteCanonical)).toBeNull();
+    expect(classifyPatientBookingReschedule(online)).toBe("canonical_online");
+    expect(buildRescheduleHref(online)).toContain("type=online");
+    const { rerender } = render(<CabinetBookingActions row={legacyOnly} />);
+    expect(screen.queryByRole("link", { name: "Перенести" })).not.toBeInTheDocument();
+    rerender(<CabinetBookingActions row={incompleteCanonical} />);
+    expect(screen.queryByRole("link", { name: "Перенести" })).not.toBeInTheDocument();
+    rerender(<CabinetBookingActions row={online} />);
+    expect(screen.getByRole("link", { name: "Перенести" })).toHaveAttribute(
+      "href",
+      expect.stringContaining("type=online"),
+    );
   });
 });
