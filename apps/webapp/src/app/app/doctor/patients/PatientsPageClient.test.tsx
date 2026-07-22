@@ -94,6 +94,18 @@ async function renderPatientsPage(
   });
 }
 
+function expectFramelessPatientPreview(state: "empty" | "selected"): HTMLElement {
+  const preview = document.querySelector<HTMLElement>(
+    `[data-patient-preview-surface="flat"][data-patient-preview-state="${state}"]`,
+  );
+  expect(preview).toBeInTheDocument();
+  expect(preview?.className).not.toMatch(
+    /(?:^|\s)(?:rounded|border|ring|shadow|bg-(?:card|primary|muted))(?:-|\s|$)/,
+  );
+  expect(preview?.querySelector("article")).toBeNull();
+  return preview as HTMLElement;
+}
+
 afterEach(() => {
   vi.unstubAllGlobals();
   vi.clearAllMocks();
@@ -457,7 +469,7 @@ describe("PatientsPageClient", () => {
 
   it("uses the existing preview before opening the standalone full-workspace patient card", async () => {
     const user = userEvent.setup();
-    const fetchMock = vi.fn().mockResolvedValue({
+    const patientResponse = {
       ok: true,
       json: async () => ({
         ok: true,
@@ -487,7 +499,14 @@ describe("PatientsPageClient", () => {
           firstVisitDate: null,
         },
       }),
-    });
+    };
+    let resolveFetch: ((response: typeof patientResponse) => void) | undefined;
+    const fetchMock = vi.fn().mockImplementation(
+      () =>
+        new Promise<typeof patientResponse>((resolve) => {
+          resolveFetch = resolve;
+        }),
+    );
     vi.stubGlobal("fetch", fetchMock);
     await renderPatientsPage([
       client({
@@ -509,6 +528,7 @@ describe("PatientsPageClient", () => {
     ]);
 
     expect(screen.getByText("Выберите пациента, чтобы открыть превью")).toBeInTheDocument();
+    expectFramelessPatientPreview("empty");
     const patientRow = screen.getByRole("button", { name: /Петров Иван/i });
     expect(patientRow).toHaveAttribute("aria-pressed", "false");
     expect(screen.queryByRole("button", { name: "Закрыть" })).not.toBeInTheDocument();
@@ -542,6 +562,14 @@ describe("PatientsPageClient", () => {
       expect(fetchMock).toHaveBeenCalledWith(`/api/doctor/patients/${PATIENT_ID}`, expect.any(Object)),
     );
     expect(patientRow).toHaveAttribute("aria-pressed", "true");
+    const selectedPreview = expectFramelessPatientPreview("selected");
+    expect(within(selectedPreview).getByText("Загрузка…")).toBeInTheDocument();
+    expect(within(selectedPreview).getByRole("link", { name: "Открыть карточку" })).toBeInTheDocument();
+    await act(async () => {
+      resolveFetch?.(patientResponse);
+    });
+    expect(await within(selectedPreview).findByText("На сопровождении")).toBeInTheDocument();
+    expect(within(selectedPreview).getAllByText("Петров Иван").length).toBeGreaterThan(0);
     const fullCardLink = await screen.findByRole("link", { name: "Открыть карточку" });
     const cardUrl = new URL(fullCardLink.getAttribute("href") ?? "", "https://bersoncare.local");
     expect(cardUrl.pathname).toBe(`/app/doctor/patients/${PATIENT_ID}`);
@@ -571,6 +599,8 @@ describe("PatientsPageClient", () => {
     expect(screen.getByRole("button", { name: "По фамилии: А–Я" })).toHaveAttribute("aria-pressed", "true");
     expect(screen.getByRole("button", { name: /Петров Иван/i })).toHaveAttribute("aria-pressed", "true");
     await waitFor(() => expect(document.getElementById("doctor-patients-list")).toHaveProperty("scrollTop", 42));
+    const selectedPreview = expectFramelessPatientPreview("selected");
+    expect(await within(selectedPreview).findByText("Не удалось загрузить детали пациента.")).toBeInTheDocument();
     const fullCardLink = await screen.findByRole("link", { name: "Открыть карточку" });
     expect(fullCardLink.getAttribute("href")).toContain("returnTo=");
     expect(window.location.search).toContain(`selected=${PATIENT_ID}`);

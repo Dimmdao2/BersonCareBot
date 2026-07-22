@@ -276,9 +276,9 @@ export function PatientPreviewPane({ patient, cardHref }: PatientPreviewPaneProp
   if (!patient) {
     return (
       <div
-        className={cn(
-          "flex min-h-[180px] items-center justify-center rounded-lg border border-primary/20 bg-primary/5 p-4",
-        )}
+        data-patient-preview-surface="flat"
+        data-patient-preview-state="empty"
+        className="flex min-h-[180px] items-center justify-center px-[var(--doctor-block-padding,18px)] py-4"
       >
         <div className="flex flex-col items-center gap-2 text-center">
           <User className="size-8 text-muted-foreground/40" aria-hidden />
@@ -346,10 +346,9 @@ function LoadedPatientPreviewPane({ patient, cardHref }: { patient: ClientListIt
 
   return (
     <div
-      className={cn(
-        "rounded-lg border border-primary/40 bg-primary/5 p-3",
-        "max-h-[calc(100dvh_-_3.5rem_-_env(safe-area-inset-top,0px)_-_26rem)] overflow-y-auto",
-      )}
+      data-patient-preview-surface="flat"
+      data-patient-preview-state="selected"
+      className="max-h-[calc(100dvh_-_3.5rem_-_env(safe-area-inset-top,0px)_-_26rem)] overflow-y-auto px-[var(--doctor-block-padding,18px)] py-3"
     >
       {/* Always show name + quick channel chips instantly from list item */}
       <div className="mb-2 flex min-w-0 items-start justify-between gap-2">
