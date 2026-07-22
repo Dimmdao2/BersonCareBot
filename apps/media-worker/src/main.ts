@@ -4,7 +4,6 @@ import { createMediaWorkerPoolProvider } from "./poolProvider.js";
 import { createS3Client } from "./s3.js";
 import { runMediaWorkerTick } from "./workerTick.js";
 import { createMediaWorkerIsolationReporter } from "./saasIsolationTelemetry.js";
-import { runWithMediaWorkerInfraPrincipal } from "./runMediaWorkerSql.js";
 import { startMediaWorkerTransaction } from "./withClient.js";
 import {
   captureMediaWorkerLoopError,
@@ -21,7 +20,7 @@ async function main() {
   const env = loadMediaWorkerEnv();
   const log = createLogger(env);
   const pool = createMediaWorkerPoolProvider({ connectionString: env.DATABASE_URL });
-  await runMediaWorkerStartupGate(pool, () => runWithMediaWorkerInfraPrincipal("media-worker:tick", async () => {
+  await runMediaWorkerStartupGate(pool, async () => {
     const tx = await startMediaWorkerTransaction(pool);
     try {
       await tx.client.query("SELECT 1 FROM public.media_transcode_jobs WHERE false");
@@ -38,7 +37,7 @@ async function main() {
     } finally {
       await tx.release();
     }
-  }));
+  });
   const isolationTelemetry = createMediaWorkerIsolationReporter(env.DATABASE_URL);
   const s3Client = createS3Client({
     endpoint: env.S3_ENDPOINT,

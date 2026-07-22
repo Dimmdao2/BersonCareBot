@@ -5,6 +5,7 @@ import {
   initErrorTracking,
 } from "@bersoncare/error-tracking";
 
+import { runWithMediaWorkerInfraPrincipal } from "./runMediaWorkerSql.js";
 import { readServerRuntimeString } from "./serverRuntimeConfig.js";
 
 export async function initMediaWorkerErrorTracking(pool: Pool): Promise<void> {
@@ -28,8 +29,10 @@ export async function runMediaWorkerStartupGate(
   pool: Pool,
   assertReady: () => Promise<void>,
 ): Promise<void> {
-  await initMediaWorkerErrorTracking(pool);
-  await assertReady();
+  await runWithMediaWorkerInfraPrincipal("media-worker:tick", async () => {
+    await initMediaWorkerErrorTracking(pool);
+    await assertReady();
+  });
 }
 
 export function captureMediaWorkerLoopError(error: unknown): void {
