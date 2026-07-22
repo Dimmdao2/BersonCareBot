@@ -265,21 +265,42 @@ function runFixtureGateDocChecks(overrides = new Map()) {
     }
   }
   const publicBookingSlots = scenariosById.get('public.booking.slots');
+  const expectedPublicBookingSlotQuery = new Map([
+    ['type', 'in_person'],
+    ['branchId', '{publicBookingBranchId}'],
+    ['serviceId', '{publicBookingClinicServiceId}'],
+    ['orgSlug', '{publicBookingOrganizationSlug}'],
+  ]);
+  let publicBookingSlotsUrl;
+  try {
+    publicBookingSlotsUrl = new URL(publicBookingSlots?.path ?? '', 'https://smoke.invalid');
+  } catch {
+    throw new Error(`${files.contract} public.booking.slots must contain a valid URL path`);
+  }
+  const publicBookingSlotQueryKeys = [...publicBookingSlotsUrl.searchParams.keys()];
   if (
     !contract.requiredFixtureRefs?.includes('publicBookingBranchId') ||
     !contract.requiredFixtureRefs?.includes('publicBookingClinicServiceId') ||
     !contract.requiredFixtureRefs?.includes('publicBookingOrganizationSlug') ||
-    !publicBookingSlots?.path?.includes('branchId={publicBookingBranchId}') ||
-    !publicBookingSlots?.path?.includes('serviceId={publicBookingClinicServiceId}') ||
-    !publicBookingSlots?.path?.includes('orgSlug={publicBookingOrganizationSlug}')
+    publicBookingSlotsUrl.pathname !== '/api/booking/public/slots' ||
+    publicBookingSlotQueryKeys.length !== expectedPublicBookingSlotQuery.size ||
+    [...expectedPublicBookingSlotQuery].some(
+      ([key, value]) =>
+        publicBookingSlotsUrl.searchParams.getAll(key).length !== 1 ||
+        publicBookingSlotsUrl.searchParams.get(key) !== value,
+    )
   ) {
     throw new Error(
       `${files.contract} must bind public booking slots to canonical branch, clinic service, and organization refs`,
     );
   }
-  if (JSON.stringify(contract).includes('branchServiceId')) {
+  const serializedContract = JSON.stringify(contract);
+  if (
+    serializedContract.includes('branchServiceId') ||
+    serializedContract.includes('publicBookingServiceId')
+  ) {
     throw new Error(
-      `${files.contract} must not retain the retired branchServiceId public booking contract`,
+      `${files.contract} must not retain retired branchServiceId/publicBookingServiceId contract names`,
     );
   }
 
@@ -431,6 +452,25 @@ function runSelfTest() {
     contractText.replace(
       'branchId={publicBookingBranchId}',
       'branchServiceId={publicBookingBranchId}',
+    ),
+  );
+  for (const [label, currentKey, prefixedKey] of [
+    ['prefixed public booking branch key', 'branchId', 'xbranchId'],
+    ['prefixed public booking clinic service key', 'serviceId', 'xserviceId'],
+    ['prefixed public booking organization key', 'orgSlug', 'xorgSlug'],
+  ]) {
+    expectDocMutationRejected(
+      label,
+      files.contract,
+      contractText.replace(`${currentKey}=`, `${prefixedKey}=`),
+    );
+  }
+  expectDocMutationRejected(
+    'hidden retired publicBookingServiceId fixture ref',
+    files.contract,
+    contractText.replace(
+      '"publicBookingBranchId",',
+      '"publicBookingBranchId", "publicBookingServiceId",',
     ),
   );
 
