@@ -58,3 +58,19 @@
 - For one-off TEST integration setup, prefer the existing Settings/updateSetting path. The owner permits a bounded
   TEST-only manual DB value when materially simpler, provided mirror/tenant invariants, no-secret output and rollback
   are preserved. PROD and production credentials remain outside this work order.
+
+## 2026-07-22 — `ui-finish-process-audit-2`
+
+- Auditor: external read-only process auditor, Claude Opus 4.8; artifact:
+  `/home/dev/brain/runs/agent-port/ui-finish-process-audit-2.json`.
+- Verdict: `WARN` / conditional PASS; no hard stop, no roadmap-summary execution, no fake-done, no scope drift and no
+  repeated zero-closure loop. Bounded checklist provenance, isolated parallelism, CI cadence and DEV/TEST/PROD
+  boundaries passed.
+- Material finding: merged task worktrees had not been pruned. Orchestrator action completed during the audit:
+  verified merged ancestry and clean state, then removed the fixture, owner-email, Rubitime-provenance,
+  public-slots-smoke and UI worktrees/local branches. Unrelated worktrees and unverified unmerged Rubitime branches
+  were preserved.
+- Evidence correction: the 21/22 incremental TEST smoke and fail-closed stop are now recorded in
+  `TEST_DEPLOY_EVIDENCE_2026-07-22.md` instead of remaining only in transient orchestration context.
+- Continuing rule: do not repeat the 167-row census. Advance only bounded residuals and keep owner-closed status at
+  zero until the owner accepts live evidence.
