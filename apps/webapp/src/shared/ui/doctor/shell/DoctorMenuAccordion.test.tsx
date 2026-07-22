@@ -102,13 +102,15 @@ describe("DoctorMenuAccordion", () => {
     render(<DoctorMenuAccordion variant="sidebar" pathname="/app/doctor" menuAccess={menuAccess} />);
     const todayLink = screen.getByRole("link", { name: /Сегодня/ });
     expect(todayLink).toBeInTheDocument();
-    expect(todayLink).toHaveClass("rounded-md");
+    expect(todayLink).toHaveClass("rounded-sm");
+    expect(todayLink).not.toHaveClass("rounded-md");
     expect(todayLink.className).not.toContain("doctor-control-radius");
     expect(screen.getByRole("link", { name: "Пациенты" })).toBeInTheDocument();
     // Каталог ЛФК is a group trigger button
     const libraryTrigger = screen.getByRole("button", { name: /Каталог ЛФК/ });
     expect(libraryTrigger).toBeInTheDocument();
-    expect(libraryTrigger).toHaveClass("rounded-md");
+    expect(libraryTrigger).toHaveClass("rounded-sm");
+    expect(libraryTrigger).not.toHaveClass("rounded-md");
     expect(libraryTrigger.className).not.toContain("doctor-control-radius");
   });
 
@@ -227,8 +229,8 @@ describe("DoctorMenuAccordion", () => {
 
   it("sheet: renders top-level including Каталог ЛФК group trigger", () => {
     render(<DoctorMenuAccordion variant="sheet" pathname="/app/doctor" menuAccess={menuAccess} />);
-    expect(screen.getByRole("link", { name: /Сегодня/ })).toHaveClass("rounded-md");
-    expect(screen.getByRole("button", { name: /Каталог ЛФК/ })).toHaveClass("rounded-md");
+    expect(screen.getByRole("link", { name: /Сегодня/ })).toHaveClass("rounded-sm");
+    expect(screen.getByRole("button", { name: /Каталог ЛФК/ })).toHaveClass("rounded-sm");
   });
 
   it("sheet: tapping Каталог ЛФК shows sub-items and back button", () => {

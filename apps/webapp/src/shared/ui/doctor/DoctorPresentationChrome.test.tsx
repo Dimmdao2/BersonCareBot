@@ -10,6 +10,7 @@ import {
   doctorDnaFlatListRowClass,
 } from "@/shared/ui/doctor/DoctorDnaFlatListRow";
 import { doctorSectionTabClass } from "@/shared/ui/doctor/DoctorSectionTabs";
+import { DOCTOR_MENU_ITEM_RADIUS_CLASS } from "@/shared/ui/doctor/navChrome";
 import { Button, buttonVariants } from "@/shared/ui/doctor/primitives/button";
 import { Input } from "@/shared/ui/doctor/primitives/input";
 import { Select, SelectTrigger } from "@/shared/ui/doctor/primitives/select";
@@ -80,10 +81,12 @@ describe("doctor presentation chrome", () => {
     expect(doctorDnaFlatListPrimaryClass).toContain("font-normal");
   });
 
-  it("uses the shared rounded section-tab states and darker neutral hover", () => {
+  it("keeps menu rows minimally rounded and section tabs independently pill-shaped", () => {
+    expect(DOCTOR_MENU_ITEM_RADIUS_CLASS).toBe("rounded-sm");
     expect(doctorSectionTabClass(true)).toContain(
       "rounded-[var(--doctor-control-radius,24px)]",
     );
+    expect(doctorSectionTabClass(true)).not.toContain(DOCTOR_MENU_ITEM_RADIUS_CLASS);
     expect(doctorSectionTabClass(true)).toContain("bg-primary");
     expect(doctorSectionTabClass(false)).toContain(
       "hover:bg-[var(--doctor-section-tab-hover)]",
