@@ -1,0 +1,67 @@
+# Track A — UI-4 Clients reality audit
+
+Audit run: `/root/ui4_reality_audit`
+
+Audit commit: `d93430b8e721b282a690d5246157dad68e93bc7f`
+
+Owner-plan denominator: `docs/_TODO/DOCTOR_UI_REWORK_2026-07-20/PLAN.md`, section `UI-4 — Clients list`
+
+Verdict vocabulary: `real-done` / `partial` / `fake-done` / `blocked`.
+
+This is the one allowed independent presentation/mechanical audit pass. No product code, DB, runtime, deploy or taskdb state was changed.
+
+## Authority and evidence boundary
+
+Latest authority is `WORK_ORDER.md` §2 A2 plus the owner's same-day clarification: the right pane must not reintroduce a visually framed client card. The detailed UI-4 requirement for a functional preview still applies. These requirements are compatible: keep a bounded, functional, frameless preview and reserve the full patient card for full-workspace UI-5a mode.
+
+The available live evidence was captured from SHA `0eda771fe2d9152f9252248ebe11f586737b0eed` at:
+
+- desktop doctor: `/home/dev/dev-projects/.lead/runs/ui-finish-984/0eda771fe/live-ui-audit-20260722T205446Z/doctor-desktop/i1_app_doctor_patients_2026-07-22T20-57-25Z.png`;
+- mobile doctor: `/home/dev/dev-projects/.lead/runs/ui-finish-984/0eda771fe/live-ui-audit-20260722T205446Z/doctor-mobile/i1_app_doctor_patients_2026-07-22T20-59-34Z.png`;
+- desktop clinic admin: `/home/dev/dev-projects/.lead/runs/ui-finish-984/0eda771fe/live-ui-audit-20260722T205446Z/clinic-admin-desktop/i1_app_doctor_patients_2026-07-22T20-58-38Z.png`.
+
+All three `last-shot.json` manifests report `/app/doctor/patients` with HTTP 200 and no page error. The relevant UI-4 code is source-bound to those PNGs: `git diff --name-status 0eda771fe2d9152f9252248ebe11f586737b0eed..d93430b8e721b282a690d5246157dad68e93bc7f -- apps/webapp/src/app/app/doctor/patients apps/webapp/src/shared/ui/doctor apps/webapp/src/app/styles apps/webapp/src/infra/repos/pgDoctorClients.ts apps/webapp/src/modules/doctor-clients/ports.ts` produced no output.
+
+## Exact denominator and reality matrix
+
+| # | Exact owner checkbox | Current code evidence | Test evidence | Live PNG evidence | Verdict |
+|---|---|---|---|---|---|
+| 1 | “Обычный desktop mode использует split 50/50.” | `PatientsPageClient.tsx:689-700` sets `lg:grid-cols-2` on the shared split layout. | `PatientsPageClient.test.tsx:104-207` asserts the split and page composition. | Desktop doctor and clinic-admin PNGs show equal left/right columns. | **real-done** |
+| 2 | “Поиск находится в правом слоте page header; count/sort остаются над списком.” | `PatientsPageClient.tsx:657-688` puts search in `DoctorPageHeader.tabs`; `:701-756` keeps count and sort over the left list. | `PatientsPageClient.test.tsx:104-207` locates search inside the page-header tabs slot and count/sort over the list. | Desktop PNGs show search aligned with the right half and count/sort in the left list header. | **real-done** |
+| 3 | “KPI расположены по три в ряд, label сверху и value снизу.” | `PatientsPageClient.tsx:814-839` forces three columns; `DoctorStatCard.tsx:54-58` renders label before value. | `PatientsPageClient.test.tsx:104-207`; `DoctorStatCard.test.tsx:8-31`. | Desktop PNGs show three KPI cards per row with label over value. | **real-done** |
+| 4 | “Filtered KPI value показан отдельной меньшей цифрой без slash и с filter icon.” | `PatientsPageClient.tsx:312-323` renders total plus a separate `text-sm` value and `Filter` icon, with no slash. | `PatientsPageClient.test.tsx:104-207` asserts the filtered value/icon and absence of slash. | Available PNGs show only the unfiltered state, so the required live state is not evidenced. | **partial** — implementation/test evidence exists; live acceptance state is missing. |
+| 5 | “KPI имеют короткие delayed hover/focus tooltips и единый active state.” | `PatientsPageClient.tsx:814-839` uses shared `TooltipProvider delay={450}`; `DoctorStatCard.tsx:46-50,72-97` implements one selected style plus hover/focus tooltip trigger. | `DoctorStatCard.test.tsx` covers label/value, selected state and hover/focus tooltip. | Desktop PNG shows a consistent KPI shell/active state, but no tooltip-open/focus capture. The test emits a React `act(...)` warning around tooltip state. | **partial** — code behavior is present, but delayed one-line live acceptance is not sealed. |
+| 6 | “«Все люди» использует настроенный patient plural label.” | `patients/page.tsx:34-59` resolves organization-scoped patient terms; `PatientsPageClient.tsx:653,659,830-832` uses the resolved plural in title/search/“Все …”. | `PatientsPageClient.test.tsx:104-207` asserts configured “Клиенты” terminology. | Desktop doctor and clinic-admin PNGs show “Клиенты” and “Все клиенты”. | **real-done** |
+| 7 | “Cancellations/reschedules имеют all-time semantics; membership KPI — active-only; expired membership отделён.” | `pgDoctorClients.ts:120-185` counts lifetime cancellation/reschedule events without a date window; `:187-228` separates active, awaiting-payment and expired; `:1099-1137` builds separate active/expired segments. UI predicates are in `PatientsPageClient.tsx:204-228`. | `pgDoctorClients.repo.test.ts:262-312,510-544` verifies lifetime events and active/awaiting/expired separation; `PatientsPageClient.test.tsx:277-321` verifies UI filtering. | PNGs show separate active and expired KPI labels; fixture values are zero. For this backend semantic contract, repository queries and deterministic tests are the authoritative evidence. | **real-done** |
+| 8 | “Информационные иконки имеют стабильные слоты membership → program-or-supervision → appointment без boxes.” | `PatientsPageClient.tsx:343-354,789-799` reserves three stable slots in the required order and adds no slot background/border box. | `PatientsPageClient.test.tsx:395-440` verifies order, empty slot stability and absence of boxes. | Current live fixture rows contain none of the three statuses, so no visible-icon state is captured. | **partial** — implementation/test evidence exists; populated live acceptance is missing. |
+| 9 | “Правая половина содержит functional patient preview, а не только фильтры или пустое место (`#958`).” | Selection and API-backed preview exist: `PatientsPageClient.tsx:808-839`, `PatientPreviewPane.tsx:300-445`. However `PatientPreviewPane.tsx:274-288,347-445` renders both empty and selected states as distinct rounded bordered panels, and selected state is a compact patient-card summary. This violates latest `WORK_ORDER.md` §2 A2 even though it is functional and not the full UI-5 card tree. | `PatientsPageClient.test.tsx:458-555` verifies preview, full-workspace card navigation and list-state restoration, but codifies the existing preview and has no assertion for the latest no-framed-card ruling. | Desktop PNG visibly shows a large bordered rounded preview placeholder above filters, confirming the rejected right-pane card pattern remains. No current selected-preview PNG exists. | **partial** — functional preview is present, but latest owner presentation ruling is not implemented. |
+
+**Closed: 5/9 against `docs/_TODO/DOCTOR_UI_REWORK_2026-07-20/PLAN.md#UI-4`.**
+
+**NOT DONE:** UI-4 cannot remain globally marked done/accepted. Items 4, 5 and 8 lack the required populated live-state seal; item 9 has a real product presentation defect against the latest owner ruling.
+
+No checklist line is `fake-done`: every open line has material implementation, but its full acceptance contract is incomplete. No line is `blocked`.
+
+## Dependency-ready correction batch
+
+One coherent product correction is ready for a worker:
+
+1. Rework only the UI-4 preview surface so list selection still produces a useful, bounded preview and the existing “Открыть карточку” path still enters full-workspace UI-5a mode.
+2. Remove the separate rounded/bordered client-card presentation from both unselected and selected right-pane states. Do not remove the preview, move the full patient card into the right pane, duplicate the standalone patient-card tree, or alter data/access contracts.
+3. Add a focused regression assertion that the right-pane preview has no framed/full-card chrome while preserving selection, API loading/error states, open-card navigation and return-state behavior.
+4. Take one desktop selected-preview PNG and one desktop unselected-preview PNG after the page is complete. In the same batched live run, populate/check a filtered KPI, a tooltip focus/hover state, and representative row status icons to seal items 4, 5 and 8 without creating new product scope.
+
+Allowed likely file scope for the correction: `apps/webapp/src/app/app/doctor/patients/PatientPreviewPane.tsx`, its focused tests, and only a minimal `PatientsPageClient.tsx` adjustment if required by the frameless composition. The current split, KPI semantics, repository/API contracts and full-workspace card flow are protected.
+
+## Owner questions
+
+None. The apparent text conflict is resolvable without inventing scope: “functional preview” describes behavior; A2 forbids the rejected framed client-card presentation, not preview behavior itself.
+
+## Validation
+
+- Isolated-worktree command could not start because the worktree has no dependency links: `pnpm --dir apps/webapp exec vitest ...` → `Command "vitest" not found`.
+- A second source-root override also could not resolve `vitest/config` from the isolated worktree. Zero tests ran in either failed harness attempt.
+- The relevant product/test files are byte-identical between the audit SHA and the integration checkout (`git diff --quiet d93430b8e721b282a690d5246157dad68e93bc7f -- <UI-4 paths>` returned 0). Running the focused suite there succeeded:
+  `pnpm --dir apps/webapp exec vitest run src/app/app/doctor/patients/PatientsPageClient.test.tsx src/app/app/doctor/analytics/clients/DoctorStatCard.test.tsx src/infra/repos/pgDoctorClients.repo.test.ts --reporter=dot`
+  → **3 files passed, 44 tests passed**.
+- Vitest global setup logged migration `0229_operator_incident_alert_claims` permission denial and continued with tests that may use in-memory state. It also logged one React `act(...)` warning in the tooltip test. Neither warning failed the focused suite; both are retained here as evidence limits.
