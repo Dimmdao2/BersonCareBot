@@ -4725,3 +4725,29 @@ and adversarial test closed that exact D2-03/D2-09 finding in `2d3c98acc`; no se
 retirement scope was opened. Focused integration tests passed `26` with `4` opt-in live checks skipped; worker
 typecheck/lint and a `1.0021x` p95 zero-I/O load proof passed. Full CI remains the accumulated phase milestone; no
 DB, TEST/PROD, deploy, external send or second Next server was used.
+
+## 2026-07-22 — stability E2 source contract frozen as `#975`
+
+**НАШЁЛ.** Read-only census на integration base `252d54636` показал `518` API route-файлов,
+`2 750` `NextResponse.json`, `1 993` standard `{ ok: false, error }` literals, `47` bare `{ error }`, `161`
+route-место с `error.message` и `267` literal error codes. Общего server `jsonOk/jsonError` builder и safe
+error-to-HTTP mapper нет: существующие helpers либо client-only, либо локальны для auth,
+catalog, membership, system-settings, integrator и tenant guards. В launch-risk wave booking create и оба
+payment webhook families возвращали arbitrary caught messages; patient-acquiring provider error также
+отражал request-derived provider suffix. Correlation ID уже принадлежит `proxy.ts`, а `Retry-After`
+и `no-store` используются неравномерно, поэтому mass normalization изменила бы внешние
+контракты.
+
+**ИЗМЕНИЛ.** Owning Stability plan получил atomic `E2-01…E2-10`, compatibility matrix,
+exact `11`-route/new-file/test manifest, safe unknown-error redactions, pure zero-I/O/load contract и protected
+C1/D1/D2/E1 boundaries. `#975` закрывает только census/contract; E2 остаётся open и получит
+отдельную implementation-карточку после integration/rebase preflight. Три engineering recommendations
+не стали owner blockers: сохранить status при redaction, не нормализовать missing
+`Retry-After`, не втягивать Phase 3 E1 boundary refactor.
+
+**Provenance.** Discovery шёл из branch `agent/stability975-e2-contract-20260722` на exact base
+`252d546366c7f7dd5949074203269f30f004130c`: снача code-search/codeq по plan/helper/launch-risk concepts,
+затем точечные source/test reads и exact `rg` counts. C1 protected manifest сверен read-only с
+implementation commit `7b680fc23`; current canonical error-tracking doc path заморожен как
+`docs/ARCHITECTURE/ERROR_TRACKING.md`. Код, packages, taskdb, DB, env, processes, tests, deploy, TEST/PROD и push
+не затрагивались.

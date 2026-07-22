@@ -343,8 +343,122 @@ apply, TEST/PROD or deploy is claimed.
       Worker typecheck/scoped lint/diff/node checks прошли; interleaved load proof дал p95 ratio `1.0021`, zero
       transport/status failures, zero DB pool и RSS spread `655360` bytes. Full CI остаётся accumulated phase gate;
       DB, TEST/PROD, deploy и второй server не использовались.
+
+<a id="e2-source-contract-975"></a>
+
 - [ ] **E2. Общий `jsonOk/jsonError` builder + маппер ошибка→HTTP.** Внедрение инкрементальное; новые роуты обязаны,
       старые мигрируют волной. Размер: **M** (helper) + постепенная адаптация · Аудит: один.
+
+      **Source contract (`#975`, census на `252d54636`):** в `apps/webapp/src/app/api/**/route.ts` есть
+      `518` route-файлов, `2 750` вызовов `NextResponse.json`, `1 993` литеральных
+      `{ ok: false, error: ... }`, `47` bare `{ error: ... }` и `161` route-место с чтением
+      `error.message`; найдено `267` литеральных error codes. Текущее распределение
+      status-ответов: `401=74`, `403=107`, `404=366`, `409=89`, `422=13`, `429=16`, `500=68`,
+      `502=20`, `503=207`; `Retry-After` встречается в `22` route-файлах, явный `no-store` — в `7`.
+      Это provenance-цифры, а не вечный total-file gate: implementation-карточка после интеграции
+      предшественников повторно считает aggregate, но не расширяет frozen волну из `11` routes.
+
+      Общего server response builder и safe error mapper сейчас нет. `shared/lib/apiJson.ts`
+      — только client fetch/parser (`51` name-bearing файл, включая tests). Суженные server helpers
+      остаются в своих границах: booking-catalog `_httpErrors` (`7`/для catalog-id `6`
+      name-bearing файлов), booking-engine UUID (`4`), membership mapper (`8`), system-settings org-context
+      response (`4`), integrator request assertion (`36`) и auth/role/entitlement guards. Их PG/domain/auth semantics
+      не сливаются в глобальный string mapper. `proxy.ts` остаётся единственным SSOT
+      для bounded correlation ID; E2 не генерирует и не отражает request identifiers.
+
+      **Exact checklist после source-backed discovery:**
+
+      - [x] **E2-01 — source census и contract freeze.** Зафиксированы aggregate provenance,
+            existing helper/type/callsite families, exact `11`-route adoption wave, current status/body/header
+            compatibility matrix, intended redactions и protected sibling-stage scope. `#975` не пишет код;
+            implementation получает отдельную карточку только после integration/rebase preflight.
+      - [ ] **E2-02 — pure typed builder.** Один server-only `jsonOk/jsonError` helper принимает
+            только JSON-serializable payload, типами запрещает caller override `ok`/`error`, сохраняет
+            `ResponseInit`/headers/cookies и не импортирует DI, auth, DB, settings, logging или network.
+      - [ ] **E2-03 — safe error mapper.** Mapper различает только typed errors и exact closed
+            literal rules, возвращает `status + stable error code + allowlisted public fields/headers`, а unknown
+            всегда сводит к fixed route fallback. Произвольные `Error.message`, SQL/provider payload,
+            request data и PII не попадают в body; общий PG-code/string-sniff registry запрещён.
+      - [ ] **E2-04 — identity/signup wave.** Адаптированы specialist-signup `start`/`confirm`
+            и OAuth `start`; текущие signup recovery, rollout-lock, proxy, rate-limit и fixed-message contracts
+            сохранены без auth/session redesign.
+      - [ ] **E2-05 — invite wave.** Адаптированы clinic invite list/create и accept `start`/`confirm`;
+            guard/entitlement, email mismatch, seat-limit, delivery failure, retry fields и DEV-only preview не меняются.
+      - [ ] **E2-06 — booking wave.** Адаптированы authenticated/public create routes; все known
+            literal/domain status mappings сохранены, а unknown fallback больше не возвращает
+            `error.message` и даёт fixed `create_failed` с прежним status `503`.
+      - [ ] **E2-07 — payment wave.** Адаптированы оба provider webhook routes; exact-org verification,
+            signature masking, replay/UoW и success acknowledgements не меняются. Unknown catches возвращают
+            fixed `webhook_failed` / `webhook_verification_failed` с прежним status `400`; request-derived
+            `payment_provider_unavailable:${providerId}` становится fixed `payment_provider_unavailable`.
+      - [ ] **E2-08 — tenant wave.** Адаптирован patient organization-context route; `private, no-store`,
+            cookie/revalidation behavior, activation guard и tenant-existence masking сохранены. Redirecting `/open`
+            не входит в JSON-builder wave.
+      - [ ] **E2-09 — static adoption/leak/boundary gate.** Exact `11` routes импортируют helper;
+            в них нет direct `NextResponse.json` и returned caught/request-derived messages. Helper и route delta не
+            добавляют `@/infra/db`, `@/infra/repos`, `drizzle-orm`, DB/network/runtime imports. Static script
+            имеет adversarial self-test на missing route/import/raw-message/boundary cases.
+      - [ ] **E2-10 — regression/load/validation gate.** Helper tests, существующие exact route tests и новый
+            patient-acquiring webhook test доказывают matrix и unknown redaction. Три in-process
+            benchmark-прогона после warm-up, concurrency `16`: p95 after `<= baseline x 1.05`, записаны
+            p50/p99/throughput, DB/network invocation count `0`, RSS после error burst не растёт монотонно.
+            Focused Vitest, webapp typecheck, scoped ESLint, static script и `git diff --check` проходят;
+            full CI остаётся accumulated Phase 2 milestone. Один terminal audit, без serial nit-picking rounds.
+
+      **Compatibility matrix (внешний HTTP contract):**
+
+      | Класс | Frozen E2 contract |
+      |---|---|
+      | Success | Точные status, `ok: true` и текущие route-specific fields сохраняются; builder не добавляет implicit payload. |
+      | `400` / `401` / `403` | Validation/proof, unauthenticated/invalid authority, forbidden/tenant masking сохраняют текущие status и stable code; payment signature unknown-authority остаётся неразличимым `401 invalid_webhook_signature`. |
+      | `404` / `409` / `422` / `423` | Same-tenant missing, conflict, существующий domain/payment unprocessable и rollout lock сохраняются route-by-route; новые normalization rules не вводятся. |
+      | `429` | Status, body и `retryAfterSeconds` сохраняются; имеющееся presence/absence `Retry-After` не нормализуется этой волной. |
+      | `500` / `502` / `503` | Internal, malformed-upstream и dependency/timeout/unavailable statuses сохраняются; `504` не вводится. Unknown body получает fixed route code. |
+      | Headers/cookies | Explicit `Cache-Control`, `Retry-After`, redirect/cookie/revalidation и custom headers сохраняются; no-store остаётся explicit, correlation — только `proxy.ts`. |
+
+      **Exact implementation manifest:**
+
+      - new shared/gate files: `apps/webapp/src/shared/http/apiResponse.ts`,
+        `apps/webapp/src/shared/http/apiResponse.test.ts`,
+        `apps/webapp/scripts/check-e2-api-response-contract.mjs` (со встроенным `--self-test`) и
+        `apps/webapp/src/app/api/payments/patient-acquiring-webhook/[provider]/route.test.ts`;
+      - exact routes: `apps/webapp/src/app/api/auth/specialist-signup/start/route.ts`,
+        `apps/webapp/src/app/api/auth/specialist-signup/confirm/route.ts`,
+        `apps/webapp/src/app/api/auth/oauth/start/route.ts`, `apps/webapp/src/app/api/clinic/invites/route.ts`,
+        `apps/webapp/src/app/api/clinic/invites/accept/start/route.ts`,
+        `apps/webapp/src/app/api/clinic/invites/accept/confirm/route.ts`,
+        `apps/webapp/src/app/api/booking/create/route.ts`,
+        `apps/webapp/src/app/api/booking/public/create/route.ts`,
+        `apps/webapp/src/app/api/payments/webhook/[provider]/route.ts`,
+        `apps/webapp/src/app/api/payments/patient-acquiring-webhook/[provider]/route.ts` и
+        `apps/webapp/src/app/api/patient/organization-context/route.ts`;
+      - existing regression files: `apps/webapp/src/app/api/auth/specialist-signup/start/route.test.ts`,
+        `apps/webapp/src/app/api/auth/specialist-signup/confirm/route.test.ts`,
+        `apps/webapp/src/app/api/auth/oauth/start/route.test.ts`,
+        `apps/webapp/src/app/api/auth/oauth/start/route.proxy-configuration.test.ts`,
+        `apps/webapp/src/app/api/clinic/invites/route.test.ts`,
+        `apps/webapp/src/app/api/clinic/invites/route.entitlement.test.ts`,
+        `apps/webapp/src/app/api/clinic/invites/accept/start/route.test.ts`,
+        `apps/webapp/src/app/api/clinic/invites/accept/confirm/route.test.ts`,
+        `apps/webapp/src/app/api/booking/create/route.test.ts`,
+        `apps/webapp/src/app/api/booking/public/create/route.test.ts`,
+        `apps/webapp/src/app/api/payments/webhook/[provider]/route.replay.test.ts`,
+        `apps/webapp/src/app/api/patient/organization-context/route.test.ts`; API contract doc
+        `apps/webapp/src/app/api/api.md`.
+
+      Это закрытый writable manifest: package manifests/lockfile не меняются. Всё прочее защищено,
+      особенно active C1 `packages/error-tracking/**`, webapp instrumentation/observability, platform error-tracking
+      API/UI/system-settings, migration `0230`/journal, integrator/media-worker entrypoints, runtime overlays,
+      package/workspace files, C1 check/load scripts и `docs/ARCHITECTURE/ERROR_TRACKING.md`; D1 session TTL/cookie,
+      staff cache, TOTP/recovery/revoke/password-reset/version-writer scope; D2 `csrfOrigin`, `proxy`, exemption/static/
+      load/e2e files; Phase 3 E1 `eslint.config.mjs` и boundary-refactor payments/webhooks/integrations/infra/drizzle.
+      Существующие `getPool`/infra-registry imports в public booking, invite и payment routes — уже
+      запланированный E1 debt; E2 не ухудшает и не рефакторит эту границу.
+
+      **Три инженерные рекомендации, не owner blockers и не новые stages:** (1) при redaction
+      unknown errors сохранить текущие HTTP statuses; (2) не нормализовать пропущенный
+      `Retry-After` в старых `429` в этой волне; (3) оставить pre-existing boundary debt для Phase 3 E1.
+      Эти safe defaults уже вшиты в checklist/matrix и не блокируют следующую implementation-карточку.
 - [ ] **E3. Единая zod-схема границы integrator↔webapp** — заменить 3 определения (JSON-док + zod интегратора +
       ручные `typeof` в приёмнике) одним SSOT, рантайм-валидировать на обоих концах. Убрать осиротевшие `contracts/*.json`.
       Файлы: `apps/webapp/src/app/api/integrator/events/route.ts:18-31`, `apps/integrator/src/kernel/contracts/schemas.ts:56`.
