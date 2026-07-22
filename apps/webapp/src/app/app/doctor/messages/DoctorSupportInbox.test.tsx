@@ -74,10 +74,20 @@ describe("DoctorSupportInbox — базовый рендер", () => {
     );
   });
 
-  it("открывает DoctorChatPanel при клике на строку", async () => {
-    render(<DoctorSupportInbox />);
-    await userEvent.click(await screen.findByText("Пациент"));
+  it("открывает DoctorChatPanel from the full row by pointer and keyboard", async () => {
+    const onSelectedConversationChange = vi.fn();
+    render(<DoctorSupportInbox onSelectedConversationChange={onSelectedConversationChange} />);
+    const patientName = await screen.findByText("Пациент");
+    const row = patientName.closest("button");
+    expect(row).toHaveClass("w-full", "cursor-pointer", "hover:bg-muted");
+
+    await userEvent.click(screen.getByText("Здравствуйте"));
     expect(screen.getByText(`chat:${BASE_CONV.conversationId}`)).toBeInTheDocument();
+    expect(onSelectedConversationChange).toHaveBeenLastCalledWith(BASE_CONV.conversationId);
+
+    row?.focus();
+    await userEvent.keyboard(" ");
+    expect(onSelectedConversationChange).toHaveBeenCalledTimes(2);
   });
 
   it("uses the shared inset flat-list rhythm and a subtle selection marker", async () => {
@@ -96,6 +106,9 @@ describe("DoctorSupportInbox — базовый рендер", () => {
     );
     expect(primaryName).toHaveClass("text-base", "font-normal");
     expect(list).toHaveClass("mx-[var(--doctor-block-padding,18px)]");
+    const flatListSurface = document.querySelector("[data-doctor-flat-list-surface]");
+    expect(flatListSurface).toBeInTheDocument();
+    expect(flatListSurface?.className).not.toMatch(/\bborder\b|\brounded-/);
 
     await userEvent.click(primaryName);
     expect(row?.querySelector("[aria-hidden]")).toHaveClass(

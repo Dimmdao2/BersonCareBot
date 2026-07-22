@@ -88,11 +88,11 @@
 #app-shell-doctor.theme-bersoncare-doctor-dna,
 #app-shell-doctor[data-theme="bersoncare-doctor-dna"] {
   color-scheme: light;
-  background: var(--doctor-page-gap-background, #faf9f4);
+  background: var(--doctor-page-gap-background, var(--bc-canvas));
   color: var(--bc-ink);
   font-family: var(--bc-font-sans);
 
-  --background: var(--doctor-page-gap-background, #faf9f4);
+  --background: var(--doctor-page-gap-background, var(--bc-canvas));
   --foreground: var(--bc-ink);
   --card: var(--bc-surface);
   --card-foreground: var(--bc-ink);

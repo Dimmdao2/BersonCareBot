@@ -10,6 +10,7 @@ import type { DoctorStatsState } from "@/modules/doctor-stats/service";
 import { DoctorEmptyState } from "@/shared/ui/doctor/DoctorEmptyState";
 import {
   doctorDnaFlatListClass,
+  doctorDnaFlatListClickableClass,
   doctorDnaFlatListMetaClass,
   doctorDnaFlatListPrimaryClass,
   doctorDnaFlatListRowClass,
@@ -176,48 +177,51 @@ export function DoctorTodayDashboard({
               <>
                 <ul className={doctorDnaFlatListClass}>
                   {data.people.map((c, index) => (
-                    <li
-                      key={c.userId}
-                      id={`doctor-today-person-${c.userId}`}
-                      className={`${doctorDnaFlatListRowClass} justify-between gap-2${index === 0 ? " border-t-0" : ""}`}
-                    >
-                      <Link href={c.href} className={`${doctorDnaFlatListPrimaryClass} min-w-0 truncate hover:underline`}>
+                    <li key={c.userId}>
+                      <Link
+                        id={`doctor-today-person-${c.userId}`}
+                        href={c.href}
+                        aria-label={peopleItemName(c)}
+                        className={`${doctorDnaFlatListRowClass} ${doctorDnaFlatListClickableClass} justify-between gap-2${index === 0 ? " border-t-0" : ""}`}
+                      >
+                        <span className={`${doctorDnaFlatListPrimaryClass} min-w-0 truncate`}>
                         <span className="block truncate">{peopleItemName(c)}</span>
-                      </Link>
-                      <div className={`ml-auto flex shrink-0 items-center gap-2 ${doctorDnaFlatListMetaClass}`}>
-                        <span
-                          className="inline-flex items-center gap-1"
-                          title="Новые сообщения"
-                          aria-label={`Новые сообщения: ${c.unreadMessagesCount}`}
-                        >
-                          <MessageSquare className="size-3.5" aria-hidden />
-                          {c.unreadMessagesCount > 0 ? (
-                            <span className="tabular-nums">{c.unreadMessagesCount}</span>
-                          ) : null}
                         </span>
-                        <span
-                          className="inline-flex items-center gap-1"
-                          title="Отметки упражнений за сегодня"
-                          aria-label={`Отметки упражнений за сегодня: ${c.exerciseDoneTodayCount}`}
-                        >
-                          <Dumbbell className="size-3.5" aria-hidden />
-                          {c.exerciseDoneTodayCount > 0 ? (
-                            <span className="tabular-nums">{c.exerciseDoneTodayCount}</span>
-                          ) : null}
-                        </span>
-                        <span
-                          className="inline-flex items-center gap-1"
-                          title="Новые комментарии по упражнениям"
-                          aria-label={`Новые комментарии по упражнениям: ${c.newExerciseCommentsCount}`}
-                        >
-                          <span className="inline-flex size-4 items-center justify-center rounded-full border border-border/70">
-                            <CircleHelp className="size-3" aria-hidden />
+                        <div className={`ml-auto flex shrink-0 items-center gap-2 ${doctorDnaFlatListMetaClass}`}>
+                          <span
+                            className="inline-flex items-center gap-1"
+                            title="Новые сообщения"
+                            aria-label={`Новые сообщения: ${c.unreadMessagesCount}`}
+                          >
+                            <MessageSquare className="size-3.5" aria-hidden />
+                            {c.unreadMessagesCount > 0 ? (
+                              <span className="tabular-nums">{c.unreadMessagesCount}</span>
+                            ) : null}
                           </span>
-                          {c.newExerciseCommentsCount > 0 ? (
-                            <span className="tabular-nums">{c.newExerciseCommentsCount}</span>
-                          ) : null}
-                        </span>
-                      </div>
+                          <span
+                            className="inline-flex items-center gap-1"
+                            title="Отметки упражнений за сегодня"
+                            aria-label={`Отметки упражнений за сегодня: ${c.exerciseDoneTodayCount}`}
+                          >
+                            <Dumbbell className="size-3.5" aria-hidden />
+                            {c.exerciseDoneTodayCount > 0 ? (
+                              <span className="tabular-nums">{c.exerciseDoneTodayCount}</span>
+                            ) : null}
+                          </span>
+                          <span
+                            className="inline-flex items-center gap-1"
+                            title="Новые комментарии по упражнениям"
+                            aria-label={`Новые комментарии по упражнениям: ${c.newExerciseCommentsCount}`}
+                          >
+                            <span className="inline-flex size-4 items-center justify-center rounded-full border border-border/70">
+                              <CircleHelp className="size-3" aria-hidden />
+                            </span>
+                            {c.newExerciseCommentsCount > 0 ? (
+                              <span className="tabular-nums">{c.newExerciseCommentsCount}</span>
+                            ) : null}
+                          </span>
+                        </div>
+                      </Link>
                     </li>
                   ))}
                 </ul>

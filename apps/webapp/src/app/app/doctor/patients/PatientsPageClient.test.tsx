@@ -167,6 +167,9 @@ describe("PatientsPageClient", () => {
     expect(document.getElementById("doctor-patients-list")).toHaveClass(
       "mx-[var(--doctor-block-padding,18px)]",
     );
+    const flatListSurface = document.querySelector("[data-doctor-flat-list-surface]");
+    expect(flatListSurface).toBeInTheDocument();
+    expect(flatListSurface?.className).not.toMatch(/\bborder\b|\brounded-/);
 
     await user.click(screen.getByRole("button", { name: /С записями/i }));
 
@@ -199,6 +202,30 @@ describe("PatientsPageClient", () => {
     expect(membershipsCard).not.toBeNull();
     expect(within(appointmentsCard as HTMLElement).getByText("1")).toBeInTheDocument();
     expect(within(appointmentsCard as HTMLElement).getByText("2")).toBeInTheDocument();
+  });
+
+  it("keeps each client row as a full-width native button action without a list side frame", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: false, json: async () => ({ ok: false }) }));
+    const user = userEvent.setup();
+    await renderPatientsPage([
+      client({ userId: "first", displayName: "Первый клиент" }),
+      client({ userId: "second", displayName: "Второй клиент" }),
+    ]);
+
+    const firstRow = screen.getByRole("button", { name: /Первый клиент/i });
+    const secondRow = screen.getByRole("button", { name: /Второй клиент/i });
+    expect(firstRow).toHaveClass("w-full", "cursor-pointer", "hover:bg-muted");
+    expect(firstRow).not.toHaveAttribute("href");
+
+    await user.click(within(firstRow).getByLabelText("Статусы клиента"));
+    expect(firstRow).toHaveAttribute("aria-pressed", "true");
+
+    secondRow.focus();
+    await user.keyboard("{Enter}");
+    expect(secondRow).toHaveAttribute("aria-pressed", "true");
+
+    const flatListSurface = document.querySelector("[data-doctor-flat-list-surface]");
+    expect(flatListSurface?.className).not.toMatch(/\bborder\b|\brounded-/);
   });
 
   it("separates all-time records, occurred visits, and visit history without future appointments", async () => {

@@ -27,7 +27,7 @@
 | G3 — тумблеры механик | **решено: только organization/clinic**, не специалист | строить на существующем S4 engine `#888`, не форкать |
 | G4 — split коммуникаций | **решено: 45/55** | согласованный fallback: 50/50 |
 | G5 — онлайн-приём | **решено:** online уже существует; нужна только встроенная включаемая локация «Онлайн» | её toggle гейтит существующие online-галочки услуг; новой схемы не вводить |
-| G6 — общий Doctor UI chrome | **SUPERSEDED частично 2026-07-22:** прежний gap background `#faf9f4` заменён белым/inherited workspace background. Сохраняются белая page header, primary `#406ca7`, радиусы blocks/KPI/controls `12/8/24px`, padding `18px`, белый input и KPI label сверху/value снизу. 24px не применяется к sidebar/mobile menu rows: меню почти прямоугольное с минимальным radius; section tabs имеют отдельную округлённую форму. Flat lists используют геометрию «На сопровождении», full-row hover и divider `#f0efeb`. | latest shared-primitives residual `#967`; doctor workspace only, без локального style fork |
+| G6 — общий Doctor UI chrome | **SUPERSEDED частично 2026-07-22:** белый/inherited workspace background из прежней correction. Latest authority `UI_FINISH_AND_REAUDIT_2026-07-22/WORK_ORDER.md` §2 + Design DNA v1.0: doctor canvas = `#F6F4EF`; белая page header, primary `#406ca7`, радиусы blocks/KPI/controls `12/8/24px`, padding `18px`, белый input и KPI label сверху/value снизу сохраняются. 24px не применяется к sidebar/mobile menu rows: меню почти прямоугольное с минимальным radius; section tabs имеют отдельную округлённую форму. Flat lists используют геометрию «На сопровождении», full-row hover и divider `#f0efeb`. | latest shared-primitives residual `#967`; doctor workspace only, без локального style fork |
 | SCH-G5 — fallback слотов | **owner question `#848`** | не менять строгую/резервную семантику без ответа |
 
 Отдельное точное решение по `#191`: разминки по умолчанию в `12:00` и `15:00` в рабочие дни; существующих клиентов
@@ -217,9 +217,9 @@ counts/metadata или потерю standalone deep-link compatibility.
 
 ### UI-P — общий Doctor UI presentation-token pass
 
-- **Последняя owner correction 2026-07-22 (`#967`) заменяет прежний G6 background outcome:** отдельная тёплая
-  заливка `#faf9f4` убирается и возвращается прежний белый/inherited workspace background; sticky page header с
-  названием остаётся белой.
+- **SUPERSEDED — 2026-07-22:** прежний G6 white/inherited background outcome. Latest owner authority
+  `UI_FINISH_AND_REAUDIT_2026-07-22/WORK_ORDER.md` §2 + Design DNA v1.0 sets exact doctor canvas `#F6F4EF`;
+  sticky page header with title remains white.
 - Радиусы задаются общими doctor primitives: page-level block `12px`, KPI `8px`, doctor button/input/select trigger
   `24px`. Основные блоки используют внутренний отступ `18px`; внутренний `input` имеет белый фон. Локальные копии
   этих классов по страницам не создаются.
@@ -311,8 +311,9 @@ metric semantics, patient/public UI, DB/env/deploy и полный CI вне sco
 - **SUPERSEDED — 2026-07-22, replaced by `P2B-01`:** любое распространение communications split `45/55`
   (G4/UI-3) на desktop-полотна «Сегодня». `45/55` остаётся только communications contract; «Сегодня» — точно
   `50/50`.
-- **SUPERSEDED — 2026-07-22, replaced by `P2B-02`:** workspace/gap background `#faf9f4`. Возвращён прежний
-  белый/inherited workspace background; page header и основные поверхности белые.
+- **SUPERSEDED — 2026-07-22:** the previous `P2B-02` white/inherited workspace outcome. Replaced by
+  `docs/_TODO/UI_FINISH_AND_REAUDIT_2026-07-22/WORK_ORDER.md` §2 + Design DNA v1.0: doctor canvas is exactly
+  `#F6F4EF`; page header and primary surfaces remain white.
 - **SUPERSEDED — 2026-07-22, replaced by `P2B-09`:** применение doctor control radius `24px` к sidebar/mobile
   menu rows, включая промежуточный `rounded-md`. Основное меню остаётся почти прямоугольным с минимальным radius;
   более округлённые section tabs — отдельный contract.
@@ -320,11 +321,23 @@ metric semantics, patient/public UI, DB/env/deploy и полный CI вне sco
   внутри каждой list row. `18px` остаётся padding основных page-blocks; Clients/Messages rows переиспользуют
   геометрию списка «На сопровождении» без page-local числовых fork.
 
+#### Owner ruling — P2B-09/P2B-10/P2B-14 list ambiguity (2026-07-22, Track A round 4)
+
+- **Visual canon:** doctor lists follow the Today page. The list itself receives no added side border or enclosing
+  side frame; the Doctor DNA canvas remains `#F6F4EF`, while page headers and primary surfaces remain white.
+- **Interaction canon:** the full visible row is the hit target. Today uses one native row `Link` with its metadata
+  inside it; Clients and Messages keep their existing native full-row button behavior for master/detail selection.
+  No nested interactive element is permitted inside the Today link; any future independent row action must be a
+  correctly separated sibling control.
+- **Reuse boundary:** retain the shared `DoctorDnaFlatListRow` divider/hover/typography contract and doctor-zone
+  primitives. This ruling does not authorize changes to fonts, spacing, other panels, navigation, #848, #963,
+  #964, UI-5b, or U5A.
+
 #### Atomic acceptance — worker/auditor authority
 
 - [ ] **P2B-01** Desktop «Сегодня» использует точное разделение `50/50`; mobile composition не регрессирует.
-- [ ] **P2B-02** Doctor workspace использует прежний белый/inherited background; белые page headers и основные
-  поверхности не перекрашены в `#faf9f4` или другой локальный gap color.
+- [ ] **P2B-02** **SUPERSEDED — 2026-07-22 by `UI_FINISH_AND_REAUDIT_2026-07-22/WORK_ORDER.md` §2:** Doctor
+  workspace canvas uses exact Design DNA `#F6F4EF`; page headers and primary surfaces remain white.
 - [x] **P2B-03** Shared section tabs имеют более тёмный neutral hover и свой округлённый tab contract без
   page-local divergence; это не меняет геометрию sidebar/mobile menu.
 - [x] **P2B-04** Видимая сетка Today calendar начинается ровно за один час до первого приёма, когда именно приём
@@ -339,9 +352,11 @@ metric semantics, patient/public UI, DB/env/deploy и полный CI вне sco
 - [x] **P2B-08** Page headers и фактические input surfaces белые.
 - [ ] **P2B-09** Shared radius scale соблюдена: page-level blocks `12px`, KPI `8px`, doctor buttons/inputs/select
   triggers `24px`; sidebar/mobile menu rows сохраняют прежний почти прямоугольный минимальный radius, tabs живут
-  по отдельному rounded contract.
+  по отдельному rounded contract. **Owner ruling 2026-07-22:** visual canon for Clients/Messages list surfaces is
+  Today; those lists receive no added side border or enclosing side frame.
 - [ ] **P2B-10** Основные page-blocks используют внутренний padding `18px` через shared doctor primitives, без
-  локальных копий в затронутых страницах.
+  локальных копий в затронутых страницах. **Owner ruling 2026-07-22:** Today is one full-row native link; Clients
+  and Messages retain their full-row native button behavior, including keyboard activation.
 - [x] **P2B-11** KPI используют единый порядок label сверху → value снизу и `doctorMetricValueClass` для значения.
 - [x] **P2B-12** Поиск «Клиентов» находится в правом слоте белой page header на уровне title; desktop width
   совпадает с правой половиной `50/50`, mobile вариант остаётся доступным и компактным.
@@ -349,14 +364,16 @@ metric semantics, patient/public UI, DB/env/deploy и полный CI вне sco
   meta/badge/calendar typography не повышена вместе с ним.
 - [ ] **P2B-14** Изменения переиспользуют shared doctor primitives/list-row/tab/calendar contracts и сохраняют
   физическую patient/doctor UI isolation; локальные style forks и imports из patient/components UI не добавлены.
+  **Owner ruling 2026-07-22:** this list correction is limited to the shared flat-list contract and its three
+  consumers; no unrelated UI scope is opened.
 
 #### P2b evidence matrix
 
 - `P2B-01` — code/test prove `DoctorTodayDashboard.tsx` uses `md:grid-cols-2`; mobile runtime evidence remains open
   until the integrated commit is checked live.
-- `P2B-02` — **OPEN after independent audit:** `doctor.css` sets the intended white/inherited value, but
-  `bersoncare-tweakcn-theme.css` still contains the superseded `#faf9f4` fallback. `P2B-07`/`P2B-08` remain proven
-  by the doctor-only `#406ca7` semantic primary and white header/input surfaces.
+- `P2B-02` — **SUPERSEDED then reopened by latest owner authority:** old white/inherited value and `#faf9f4`
+  fallback do not apply. `doctor.css` and `bersoncare-tweakcn-theme.css` must use DNA canvas `#F6F4EF`;
+  `P2B-07`/`P2B-08` remain proven by the doctor-only `#406ca7` semantic primary and white header/input surfaces.
 - `P2B-03` — `DoctorSectionTabs.ts` uses `--doctor-section-tab-hover`; `DoctorPresentationChrome.test.tsx`
   proves that section tabs keep their own pill contract independently of menu rows.
 - `P2B-04`/`P2B-05` — `DoctorTodayMiniCalendar.tsx` delegates the single lead buffer to
@@ -365,16 +382,16 @@ metric semantics, patient/public UI, DB/env/deploy и полный CI вне sco
 - `P2B-06`/`P2B-13` — `DoctorDnaFlatListRow.tsx` is reused by Today support, `PatientsPageClient.tsx` and
   `DoctorSupportInbox.tsx`; it owns the full-row hover, one-pixel `#f0efeb` divider and `text-base font-normal`
   primary role. Focused Clients/Messages/presentation tests cover those consumers.
-- `P2B-09`/`P2B-10` — **OPEN after independent audit:** shared tokens and minimal `rounded-sm` menu contract are
-  correct, but Clients loading/filter shells and the two Messages panes still contain local `rounded-lg` and
-  `px-3`/`px-5`/`p-3` page-shell exceptions. The owner must confirm whether every such shell is a page-level block
-  governed by the exact `12px`/`18px` rule before another presentation pass.
+- `P2B-09`/`P2B-10`/`P2B-14` — **Owner decision recorded 2026-07-22:** Today is the visual reference and receives no
+  added side borders or enclosing side frame; Clients and Messages retain whole-row behavior. The ambiguity is
+  resolved. Live PNG evidence and owner acceptance remain open.
 - `P2B-11` — `DoctorStatCard.tsx` renders label before value and consumes the shared
   `doctorMetricValueClass`; this pass reconciled that class with the canonical Metric role `text-2xl` and added
   an exact regression assertion.
 - `P2B-12` — `PatientsPageClient.tsx` places the full-width search input in the `DoctorPageHeader` right slot;
   `DoctorPageHeader.tsx` gives title/right slots equal desktop flex while preserving full-width mobile wrapping.
-- `P2B-14` — patient/doctor isolation remains proven, but the no-local-forks half stays open with `P2B-09/10`.
+- `P2B-14` — patient/doctor isolation remains proven; the ambiguity is resolved by the 2026-07-22 owner decision.
+  Live PNG evidence and owner acceptance remain open.
 
 Validation from the isolated `#977` worktree: focused Vitest **6 files PASS** (worker reported 97 cases; static audit
 counted 96 generated cases, so the exact count is not used as closure evidence), scoped ESLint **PASS**,
@@ -519,8 +536,8 @@ brief или заменять одним общим пунктом.
 
 #### UI-P — shared doctor presentation (`#925`)
 
-- [ ] Latest owner correction вернула прежний белый/inherited workspace background; page header остаётся белой,
-  primary `#406ca7` не меняется (`#967`).
+- [ ] **SUPERSEDED — 2026-07-22 by `UI_FINISH_AND_REAUDIT_2026-07-22/WORK_ORDER.md` §2:** Doctor canvas uses
+  exact Design DNA `#F6F4EF`; page header remains white, and primary `#406ca7` does not change.
 - [ ] Радиусы block/KPI/control `12/8/24px`, основной padding `18px` и белый input не размножены локально.
 - [x] KPI используют порядок label → value.
 - [x] Основной текст doctor-списков крупнее и легче без изменения meta/badge/calendar typography.

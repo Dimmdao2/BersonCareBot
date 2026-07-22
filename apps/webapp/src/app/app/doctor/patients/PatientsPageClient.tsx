@@ -698,7 +698,7 @@ function PatientsContent({
         }
         className="lg:h-[calc(100dvh_-_var(--doctor-sticky-offset,calc(3.5rem_+_env(safe-area-inset-top,0px)))_-_6rem)]"
         left={
-          <section className="flex h-full min-h-0 flex-col overflow-hidden rounded-[var(--doctor-page-block-radius,12px)] border border-border bg-card">
+          <section data-doctor-flat-list-surface className="flex h-full min-h-0 flex-col overflow-hidden bg-card">
             {/* Sticky header: count + reversible sorting */}
             {/* On mobile the page scrolls naturally; sticky is only needed on lg+ where the section has overflow-hidden and its own scroll context */}
             <div className="lg:sticky lg:top-0 z-10 flex shrink-0 flex-wrap items-center justify-between gap-2 border-b border-border/60 bg-card px-[var(--doctor-block-padding,18px)] py-2">
