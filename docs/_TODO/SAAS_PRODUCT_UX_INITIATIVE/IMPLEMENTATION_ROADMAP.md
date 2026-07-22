@@ -479,7 +479,8 @@ card; запрещено строить временный resolver, второ�
   `#962`, configurable Today `#963`, scheduled messages `#964`. `#958`, `#960`–`#963`, `#966/#967` закрыты и
   находятся на TEST SHA `eb64a495644`; bounded reminder-default `#191` закрыт после milestone. UI-7 `#964`
   остановлен после двух correction-pass на одном owner placement ruling и не интегрирован. Независимые исполнимые
-  UI-residuals: полный UI-5b composition `#971` после закрытого contract `#928` и три Online evidence item `#972`.
+  UI-residuals: три Online evidence item `#972`. Полный UI-5b `#971` имеет закрытый contract `#928`, но остаётся
+  заблокирован двумя U5A live-seal из `#796`; запуск presentation-only composition до этого запрещён.
   UI-4 normal-mode preview и UI-5a full-workspace
   reuse объединены в `#958`, полный composition/visibility — U5B с contract `#928` + implementation `#971`; Patient Today mood residual —
   `#924`; latest Today/shared presentation deltas — `#966/#967`; bounded built-in Online location переиспользует `#197`, а expanded online
@@ -491,8 +492,8 @@ card; запрещено строить временный resolver, второ�
   code-only. Full CI запускается на milestone, а не повторяется для каждого presentation slice.
 - **Status (2026-07-22):** exact TEST SHA `eb64a495644`, code-only без dump/restore/full reset. Locked product smoke
   `22/22`, отдельный deny-smoke и первичная desktop/mobile read-only visual проверка прошли. Owner live interaction
-  acceptance записан в `#821` и не блокирует следующий repository-safe этап. Dependency-ready UI scopes —
-  UI-5b `#971` и UI-2 residual `#972`; UI-7 `#964` ждёт одного placement ruling. Voice/STT `#922` остаётся post-production.
+  acceptance записан в `#821` и не блокирует следующий repository-safe этап. Dependency-ready UI scope —
+  UI-2 residual `#972`; UI-5b `#971` ждёт U5A `#796`, UI-7 `#964` ждёт одного placement ruling. Voice/STT `#922` остаётся post-production.
 
 #### C2 — identity команды и фактический invite journey
 
@@ -782,11 +783,11 @@ Umbrella/index, Foundation helper-checklists и Rubitime production runbooks н�
 | Leaf plan | Current class | Current truth / task mapping |
 |---|---|---|
 | [`SAAS_FOUNDATION/RUBITIME_RETIREMENT_EXECUTION_PLAN.md`](../SAAS_FOUNDATION/RUBITIME_RETIREMENT_EXECUTION_PLAN.md) | gated | R0–R4 имеют code/proof; R5–R7 требуют operational/owner gates. Полный checklist provenance дополнительно сверяется перед следующим Rubitime action. |
-| [`DOCTOR_UI_REWORK_2026-07-20/PLAN.md`](../DOCTOR_UI_REWORK_2026-07-20/PLAN.md) | open | Atomic tracker является authority; `#958`, `#960`–`#963`, `#966/#967` deployed, `#191` закрыт; `#971/#972` исполняются, `#964/#848` owner-blocked; Voice `#922` post-production. |
+| [`DOCTOR_UI_REWORK_2026-07-20/PLAN.md`](../DOCTOR_UI_REWORK_2026-07-20/PLAN.md) | open | Atomic tracker является authority; `#958`, `#960`–`#963`, `#966/#967` deployed, `#191` закрыт; `#972` исполняется, `#971→#796`, `#964` и `#848` owner-blocked; Voice `#922` post-production. |
 | [`.cursor/plans/fio_identity_cleanup.plan.md`](../../../.cursor/plans/fio_identity_cleanup.plan.md) | gated | Phases 0–8 закрыты; `#857` production backfill и `#858` parser audit/retirement остаются gated. |
-| [`STABILITY_SECURITY_HARDENING_PLAN_2026-07-21.md`](../STABILITY_SECURITY_HARDENING_PLAN_2026-07-21.md) | open | C1 repository dark-launch зафиксирован atomic checklist и task `#969`, стартует после интеграции UI-7 migration `0229`; D1 зафиксирован exact checklist в `#970` и ждёт только TTL/admin/SLA ruling; D2/E2/E3 открыты. Host activation и A4/A2/E1/post-launch residual идут только по собственным gates. |
+| [`STABILITY_SECURITY_HARDENING_PLAN_2026-07-21.md`](../STABILITY_SECURITY_HARDENING_PLAN_2026-07-21.md) | open | C1 repository dark-launch зафиксирован atomic checklist и task `#969`; после alerting migration `0229` он использует next free `0230` и больше не зависит от blocked UI-7. D1 `#970` ждёт TTL/admin/SLA ruling; D2/E2/E3 открыты. Host activation и A4/A2/E1/post-launch residual идут только по собственным gates. |
 | [`UNSUPPORTED_CLIENT_FALLBACK_PLAN.md`](../UNSUPPORTED_CLIENT_FALLBACK_PLAN.md) | partial slice | Закрыт только Ф0 repository slice `#936`; Ф1/Ф2/guard не объявляются завершёнными. |
-| [`OUTBOUND_DELIVERY_ALERTING_PLAN.md`](../OUTBOUND_DELIVERY_ALERTING_PLAN.md) | open | P1 закрыт `b64692aeb`; P0/P2/P3/P4/P-guard остаются в `#950`. |
+| [`OUTBOUND_DELIVERY_ALERTING_PLAN.md`](../OUTBOUND_DELIVERY_ALERTING_PLAN.md) | open | P1 и repository P2/P3/P4 закрыты through `1fd6bf66e`; P0/P-guard, full CI и owner TEST acceptance остаются в `#950`. |
 | [`SECURITY_CI_STACK_PLAN.md`](../SECURITY_CI_STACK_PLAN.md) | gated | `#881` owner-waiting; dependency refresh не закрывает Security CI checklist. |
 | [`PR-00_SCOPE_LOCK.md`](../RU_PRIVACY_AND_PRODUCTION_READINESS/stages/PR-00_SCOPE_LOCK.md) | gated | Частичный registry готов; owner/legal inputs остаются в `#899`. |
 | [`PR-01_PROCESSING_REGISTER.md`](../RU_PRIVACY_AND_PRODUCTION_READINESS/stages/PR-01_PROCESSING_REGISTER.md) | gated | Factual register готов; ответственные/юрист/Selectel/РКН остаются owner/legal inputs `#899`. |
@@ -877,7 +878,8 @@ baseline полного parent scope; это исправлено atomic tracker
    **Outbound delivery alerting `#950`:** запускается после A3 и существующей notification foundation отдельным
    observability stage, не смешиваясь с owner TEST-приёмкой или dependency refresh. Сначала repository/DEV-safe
    signal/state/UI и synthetic tests; реальный broken-provider прогон на TEST — отдельный явный gate с разрешёнными
-   TEST-получателями. PROD activation/verification не входит в этот этап.
+   TEST-получателями. Repository P2/P3/P4 integrated through `1fd6bf66e`; P0/P-guard остаются. PROD
+   activation/verification не входит в этот этап.
 6. **Hardening Phase 2 до C7:** launch-relevant session revocation/TTL, CSRF/origin и integrator↔webapp contract
    SSOT. Общий HTTP response builder внедряется инкрементально и не превращается в обязательный mass-refactor перед
    release, если risk-relevant routes уже закрыты.

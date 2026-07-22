@@ -40,12 +40,12 @@ Execution authority/status: subordinate artifact of
       (а) синхронный `send-email`/`send-sms` 5xx/EAUTH за окно (порог N за M мин) → critical;
       (б) убедиться, что relay-outbound помечает dead и это уже поднимает сигнал; свести оба в один топик
       `outbound_delivery_provider`. Класс тяжести = «стоп/красный».
-- [ ] **P2 — SMS-канал в `dispatchOperatorAlert`** (best-effort, skip если провайдер не подключён; ирония:
+- [x] **P2 — SMS-канал в `dispatchOperatorAlert`** (best-effort, skip если провайдер не подключён; ирония:
       если упал сам SMS-провайдер — этот канал молчит, остальные орут).
-- [ ] **P3 — эскалация (каденция владельца).** Заменить плоский 24ч-дедуп на состояние инцидента:
+- [x] **P3 — эскалация (каденция владельца).** Заменить плоский 24ч-дедуп на состояние инцидента:
       T0 сразу → T+1h повтор → затем ежедневный утренний отчёт держит КРАСНЫМ до `resolved`. Ack/resolved
       снимает повтор. Хранить состояние (open/last_alerted/resolved) в operator-incident.
-- [ ] **P4 — тяжесть в UI/пуше.** Красный «!»/«стоп» для delivery-provider в push-заголовке, в баннере
+- [x] **P4 — тяжесть в UI/пуше.** Красный «!»/«стоп» для delivery-provider в push-заголовке, в баннере
       System Health и в утреннем дайджесте; дайджест перестаёт быть ложно-зелёным при открытом инциденте.
 - [ ] **P-guard — приёмочные тесты:** отдельно разрешённый живой прогон на TEST (подсунуть битый SMTP-логин → убедиться, что
       прилетело в web_push+TG+MAX(+SMS), с красным «стоп»; через 1ч — повтор; утром — красный отчёт).
@@ -58,3 +58,14 @@ Execution authority/status: subordinate artifact of
 - «Готово» = зелёный full CI + живой прогон на тесте (битый провайдер → громкий алерт по всем каналам) + приёмка владельца. «audit PASS» сам по себе ≠ готово.
 
 ## Открытых развилок нет — старт с P1 (корень) + P0-проверка параллельно.
+
+## Repository status 2026-07-22
+
+P2–P4 интегрированы в `feat/doctor-ui-rebuild` through `1fd6bf66e`. SMS readiness и фактический SMSC client читают
+одни canonical `public.system_settings` (`smsc_enabled` + restricted/redacted `smsc_api_key`); все четыре канала
+стартуют независимо и relay имеет bounded timeout. Incident phases имеют durable claim/CAS, отдельные stable IDs,
+ack/resolved lifecycle и красное представление до resolution. Focused integration verification: webapp `31/31`,
+integrator `27/27`, journal sync и diff-check PASS; worker evidence дополнительно включает оба typecheck/build и
+scoped lint. Попытка Vitest global setup применить `0229` рабочей app-role корректно получила `42501`; это не
+заменяет canonical privileged migration, которая выполняется отдельно через недеструктивный DEV/TEST deploy path.
+P0/P-guard, full CI и owner acceptance остаются открыты, поэтому весь план ещё не `DONE`.

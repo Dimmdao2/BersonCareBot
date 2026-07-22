@@ -4648,6 +4648,25 @@ program discussion loads its feed only after a reply target is selected. Per the
 correction starts. The exact owner question is whether there must be one pending feed per current discussion,
 visible immediately after open/reload without selecting a message.
 
-This hard-stop does not pause unrelated UI work. U5B record-class contract `#928` is complete, so full patient-card
-composition starts as `#971` against every UI-5b atomic checkbox. The three still-unchecked built-in Online proofs
-start independently as `#972`; expanded online booking task `#215` remains outside that scope.
+This hard-stop does not pause unrelated UI work. The three still-unchecked built-in Online proofs start independently
+as `#972`; expanded online booking task `#215` remains outside that scope. A preflight for full patient-card `#971`
+was stopped before code: `#928` completes only the record-class contract, while the U5B roadmap still depends on the
+two unresolved U5A live seals in `#796`. Source census confirmed that presentation-only composition would leave
+record-class and list/direct/count/search/export/write parity absent, so it would repeat the forbidden simplified
+implementation. `#971` remains blocked on `#796`; only its read-only gap census is retained.
+
+## 2026-07-22 — outbound alerting P2–P4 integrated; live gate remains
+
+Alerting `#950` repository scope is integrated through `1fd6bf66e` with migration `0229`. SMS readiness and the
+actual SMSC adapter now use the same canonical DB-backed enabled/credential values; the credential is a restricted
+setting and is redacted from admin responses. Telegram, MAX, SMS and staff WebPush are launched independently, and
+the signed relay has a bounded timeout, so a hung provider cannot stop the remaining fanout. Durable incident-phase
+claims distinguish initial and one-hour delivery, acknowledge stops repeats without hiding the red unresolved
+incident, resolution stops all further cadence, and the morning digest remains red until then.
+
+The independent audit exposed real readiness/fanout/test-contract defects; the final bounded correction closed only
+those findings. Root integration verification passed webapp `31/31`, integrator `27/27`, migration journal sync and
+diff-check; worker gates also passed both typechecks, scoped lint and both production builds. Vitest global setup
+could not apply new DDL through the deliberately unprivileged working app role (`42501`), so no ad hoc grant or DB
+reset was attempted. Canonical migration/application and the authorized broken-provider TEST exercise belong to
+remaining P0/P-guard. No real provider call, TEST deploy or production action occurred.
