@@ -4596,3 +4596,21 @@ Implementation runs as one high-risk stage in an isolated worktree from this bas
 messaging/comment services and the existing shared composer/adapters. Protected scope: broadcast storage,
 Voice/STT, media scheduling, PROD/TEST/deploy and real external sends. Completion requires targeted tests,
 typecheck/lint/build, live DEV doctor+patient evidence, one independent full-checklist audit and integration cleanup.
+
+## 2026-07-22 — outbound alerting `#950` P2–P4 execution checkpoint
+
+After accepted P1, the remaining repository behavior is running as one coherent isolated stage: best-effort SMS
+fanout when its provider is ready, durable T0/T+1h/open-until-resolved incident cadence, and red stop severity in
+push, System Health and the daily digest. P2/P3/P4 are sequential inside one worker because they share the dispatch
+and incident contract; they are not competing branches. Live TEST fault injection P0/P-guard, recipients, provider
+manipulation, PROD and deploy remain excluded owner gates. No full CI is scheduled for this slice.
+
+## 2026-07-22 — stability C1 exact manifest frozen as `#969`
+
+Read-only discovery proved that repository/DEV error-tracking work can proceed independently of the later host
+choice. C1 now has an atomic checklist for one backend-neutral, Sentry-protocol adapter across webapp, integrator
+API/worker/scheduler and media-worker; DB-backed server-only configuration, release tags, error-only asynchronous
+capture, a closed PII sanitizer and disabled-default/load proofs are mandatory. UI-7 owns migration `0229`, so C1
+starts from the integrated UI-7 base and expects the next free migration (`0230`). Installing or selecting the
+self-hosted backend, its database/nginx/TLS/systemd/retention/backups and any production DSN remain a separate
+`SEC-02/PR-04` owner gate. GlitchTip is recorded only as the current engineering recommendation, not an owner ruling.

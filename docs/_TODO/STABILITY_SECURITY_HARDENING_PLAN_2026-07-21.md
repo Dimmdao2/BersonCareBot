@@ -206,7 +206,43 @@ apply, TEST/PROD or deploy is claimed.
       half-open range; private PostgreSQL proofs закрывают same/distinct-start, chain, adjacent, reverse/deadlock и
       cross-org случаи. Terminal re-audit — PASS `0/0/0`; targeted suite `31/31`, disposable verifier, typecheck и
       scoped lint — PASS. Schedule-block linearization остаётся owner question вне утверждённого B3, не новой задачей.
-- [ ] **C1. Трекинг ошибок** (self-hosted per F-2) в 3 сервиса + release-теги. Размер: **M** (вкл. инфру) · Аудит: один.
+- [ ] **C1. Трекинг ошибок** (self-hosted per F-2) в 3 сервиса + release-теги (`#969`). Размер: **M**
+      (repository dark launch; host-инфра отдельно) · Аудит: один.
+
+  Exact repository/DEV checklist (authority для worker/auditor; host activation в него не входит):
+
+  - [ ] Один backend-neutral shared package инкапсулирует Sentry protocol SDK и экспортирует только typed
+        `init/capture/flush/close/release` contract; SDK динамически загружается только после enabled + valid DSN.
+  - [ ] Конфигурация `error_tracking_enabled` + `error_tracking_dsn` хранится как global/admin/server-only
+        `system_settings`, сохраняется через canonical service/mirror и читается всеми процессами через существующие
+        bounded runtime-setting accessors. Новые integration env vars и односторонняя запись mirror запрещены.
+  - [ ] Disabled/missing/invalid config fail-closed: никакого SDK import, startup failure, network или per-request DB
+        read. Включение в global-admin UI сохраняет DSN + enabled атомарно и требует valid `http(s)` Sentry DSN.
+  - [ ] Error-only config: `tracesSampleRate=0`, logs/profiles/replays/session tracking/breadcrumbs/local variables/
+        source-map upload/browser SDK отключены; `captureException` не await-ится в request/loop path, bounded flush
+        разрешён только на graceful/fatal shutdown.
+  - [ ] Closed PII sanitizer пересобирает event из allowlist: exception type, redacted value, очищенные repo-relative
+        stack frames и фиксированные `service/process_role/capture_point/release` tags. Request URL/path/headers/body,
+        user/org/patient/correlation IDs, payload/provider response, contexts/extra/modules/attachments не уходят.
+  - [ ] Release определяется один раз при startup (`BUILD_ID` → bounded git SHA → dev/unknown) и получает
+        process-specific tag для webapp, integrator API/worker/scheduler и media-worker.
+  - [ ] Webapp Node instrumentation сохраняет startup guards и передаёт в `onRequestError` только exception + fixed
+        capture point; request/context objects, client boundaries и Next config не подключаются.
+  - [ ] Integrator API/worker/scheduler и media-worker инициализируются один раз на процесс; capture покрывает
+        unexpected 5xx/startup/fatal/loop errors, но не ожидаемые 4xx. Existing safe pino/isolation telemetry
+        сохраняются; raw error logging не добавляется.
+  - [ ] Migration/runtime overlays добавляют только disabled/empty defaults и server-reader allowlists, без записи
+        `system_settings`, новых RLS/policies/roles или live DB apply. UI-7 резервирует migration `0229`; C1 должен
+        проверить актуальный journal и использовать следующий свободный номер (ожидается `0230`).
+  - [ ] Tests рекурсивно доказывают отсутствие уникального PII marker во всём serialized envelope, disabled no-import,
+        invalid config, release fallback, success/4xx zero capture, 5xx/fatal one sanitized capture и все пять process
+        hooks. Static audit запрещает `SENTRY_*`, browser SDK, traces/logs/uploads и пропущенные entrypoints.
+  - [ ] Loopback fake receiver принимает 0 envelopes на success и ровно 1 sanitized envelope на synthetic error;
+        успешный `/health` с disabled/enabled остаётся в пределах 5% p95 noise, DB-pool counts не меняются, RSS после
+        error burst не растёт монотонно. Frozen install, 3 typechecks, scoped lint/builds и milestone CI проходят.
+  - [ ] `docs/ARCHITECTURE/ERROR_TRACKING.md` фиксирует privacy/load/runtime contract и явный activation gate.
+        Installation/backend/DB/nginx/TLS/DNS/systemd/retention/backups/PROD DSN запрещены до owner-approved
+        `SEC-02/PR-04`; GlitchTip пока только инженерная рекомендация, не принятое owner решение.
 
 ### Phase 2 — Остаточная безопасность + контракты (параллельно)
 - [ ] **D1. Ревокация сессий** (per F-3): серверная таблица версий/`jti`-денилист → точечный «выйти везде»
