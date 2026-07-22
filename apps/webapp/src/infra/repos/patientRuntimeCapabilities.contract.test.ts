@@ -13,6 +13,8 @@ describe("locked patient runtime capabilities", () => {
     const operationFamilies = text("../db/saasIsolationOperationContext.ts");
 
     expect(bookings).toContain("app.read_current_patient_booking_rows('upcoming'");
+    expect(bookings).toContain("app.read_current_patient_booking_rows('history'");
+    expect(bookings).not.toContain("${kind}");
     expect(programs).toContain("app.touch_current_patient_plan_last_opened");
     expect(analytics).toContain("app.record_current_patient_analytics_event");
     expect(analytics).toContain("app.record_current_patient_push_open");

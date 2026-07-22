@@ -114,10 +114,21 @@ async function listCurrentPatientBookingRows(
   kind: "upcoming" | "history",
   nowIso: string,
 ): Promise<PatientBookingRecord[]> {
+  const patientRowsCapabilitySql = (() => {
+    switch (kind) {
+      case "upcoming":
+        return `SELECT booking
+                FROM app.read_current_patient_booking_rows('upcoming', $1::timestamptz)`;
+      case "history":
+        return `SELECT booking
+                FROM app.read_current_patient_booking_rows('history', $1::timestamptz)`;
+      default:
+        throw new Error("Unsupported patient booking row kind");
+    }
+  })();
   const result = await runWebappPgText<{ booking: Row }>(
     `WITH patient_rows AS MATERIALIZED (
-       SELECT booking
-       FROM app.read_current_patient_booking_rows('${kind}', $1::timestamptz)
+       ${patientRowsCapabilitySql}
      ), enriched AS (
        SELECT
          patient_rows.booking,

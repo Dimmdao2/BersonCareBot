@@ -32,3 +32,18 @@
 - Durable evidence: `TRACK_C_R5_R7_EVIDENCE_MATRIX.md` records every atomic row and the exact remaining gate.
 - Current static proof is deliberately narrow: mounted Rubitime routes, integrator runtime imports and API-client tokens are zero; this does not prove cutoff, queues drained, fresh CSV reconciliation, archive/drop or rollback.
 - Next executable gate remains integrated-SHA checks, one accumulated full CI, incremental TEST deploy and runtime smoke/evidence. R7 destructive work remains owner-gated and is not part of routine TEST verification.
+
+## 2026-07-22 — owner-confirmed execution and parallelism model
+
+- The roadmap is navigation and dependency context, not an executable worker brief. A worker starts only from the
+  current detailed owner checklist after the latest owner rulings, supersession state, taskdb status and current code
+  have been reconciled.
+- One worker receives one bounded semantic block. A broad denominator may be inventoried mechanically, but it is not
+  handed to one implementation or substantive audit worker.
+- Up to three independent product streams may run concurrently in isolated worktrees. UI, commercial work and
+  onboarding/communications may overlap only when their files, domain contracts and prerequisites do not.
+- Shared contracts, the same stage's worker/auditor cycle, heavy CI, the single live DEV/TEST runtime, migrations and
+  deployments remain serialized. An auditor gates the same owner checklist and cannot create adjacent work from an
+  unplanned finding.
+- Completion is reported as a user-visible product result. Code-only, TEST-runtime and owner-live gates remain
+  distinct; `done` is not owner acceptance.

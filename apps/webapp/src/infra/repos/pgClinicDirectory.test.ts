@@ -17,6 +17,7 @@ vi.mock('@bersoncare/db-principal', () => ({
   getCurrentDbPrincipal: currentPrincipalMock,
   getCurrentDbPrincipalOrganizationId: principalOrganizationIdMock,
   getCurrentDbPrincipalPlatformUserId: principalPlatformUserIdMock,
+  getCurrentObservabilityContext: vi.fn(() => ({})),
 }));
 vi.mock('@/infra/db/drizzleMutationTx', () => ({
   runDrizzleMutationTransaction: runMutationMock,

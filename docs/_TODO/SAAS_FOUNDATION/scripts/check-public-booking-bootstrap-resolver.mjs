@@ -66,7 +66,7 @@ function runChecks(overrides = {}) {
   ]);
 
   requireFragments(paths.repo, files.repo, [
-    "async resolvePublicBookingOrganization({ branchId, serviceId, branchServiceId })",
+    "async resolvePublicBookingOrganization({ branchId, serviceId })",
     "SELECT app.resolve_public_booking_organization(",
   ]);
   requireFragments(paths.d34, files.d34, [

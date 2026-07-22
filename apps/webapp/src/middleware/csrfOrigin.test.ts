@@ -224,11 +224,11 @@ describe("frozen webapp mutation census", () => {
   const specialFiles = new Set([...integratorFiles, ...internalFiles, ...paymentFiles, ...appleFiles]);
 
   it("freezes every API route, unsafe route, and unsafe handler", () => {
-    expect(routeFiles).toHaveLength(519);
-    expect(sha256Lines(routeInventory)).toBe("043bfae745fa19422e0642f5276b1c795e6f89227db0350bf42807686cbff334");
-    expect(unsafeInventory).toHaveLength(354);
-    expect(unsafeInventory.reduce((count, entry) => count + entry.methods.length, 0)).toBe(393);
-    expect(sha256Lines(unsafeInventoryLines)).toBe("9ad862e6d29105099f4d35955817e2b14bbba9f37dfade92310ca2316dad648d");
+    expect(routeFiles).toHaveLength(517);
+    expect(sha256Lines(routeInventory)).toBe("1b5302429d574d950365e4a4ab377e17e3f8d7cfc856ba86ad6027cc37802efa");
+    expect(unsafeInventory).toHaveLength(353);
+    expect(unsafeInventory.reduce((count, entry) => count + entry.methods.length, 0)).toBe(392);
+    expect(sha256Lines(unsafeInventoryLines)).toBe("b7149b57c96564d44642018a52d822a9b000034887c2b300c73388ba835f531d");
   });
 
   it("exhaustively classifies unsafe files as browser, integrator, internal, webhook, or Apple", () => {
@@ -236,8 +236,8 @@ describe("frozen webapp mutation census", () => {
     for (const file of specialFiles) expect(actualUnsafeFiles.has(file), file).toBe(true);
     expect(specialFiles.size).toBe(34);
     const browser = unsafeInventory.filter((entry) => !specialFiles.has(entry.file));
-    expect(browser).toHaveLength(320);
-    expect(browser.reduce((count, entry) => count + entry.methods.length, 0)).toBe(359);
+    expect(browser).toHaveLength(319);
+    expect(browser.reduce((count, entry) => count + entry.methods.length, 0)).toBe(358);
     expect([...integratorFiles]).toHaveLength(18);
     expect([...internalFiles]).toHaveLength(13);
     expect([...paymentFiles]).toHaveLength(2);

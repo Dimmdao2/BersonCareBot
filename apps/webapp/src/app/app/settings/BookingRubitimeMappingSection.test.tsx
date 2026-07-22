@@ -2,7 +2,6 @@
 
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, screen } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
 import { BookingRubitimeMappingSection } from "./BookingRubitimeMappingSection";
 
 function jsonFetchResponse(body: unknown, ok = true) {
@@ -122,7 +121,7 @@ describe("BookingRubitimeMappingSection", () => {
     vi.unstubAllGlobals();
   });
 
-  it("renders mapping section with summary and configure action", async () => {
+  it("renders mapping section with summary", async () => {
     render(<BookingRubitimeMappingSection />);
     expect(await screen.findByText("Связи локация × услуга")).toBeInTheDocument();
     expect(await screen.findByText("Повторяющиеся связи локация × услуга")).toBeInTheDocument();
@@ -130,15 +129,6 @@ describe("BookingRubitimeMappingSection", () => {
     expect(await screen.findByText("2 строки для одной пары")).toBeInTheDocument();
     expect(screen.getByText("Всего пар")).toBeInTheDocument();
     expect(screen.getByText("Проблемы")).toBeInTheDocument();
-    expect(screen.getAllByRole("button", { name: "Настроить" }).length).toBeGreaterThanOrEqual(1);
-  });
-
-  it("opens link dialog on configure", async () => {
-    const user = userEvent.setup();
-    render(<BookingRubitimeMappingSection />);
-    const configureButtons = await screen.findAllByRole("button", { name: "Настроить" });
-    await user.click(configureButtons[0]!);
-    expect(await screen.findByText("Настроить связь Rubitime")).toBeInTheDocument();
   });
 
   it("does not request or expose the global legacy catalog for another clinic", async () => {
