@@ -6,6 +6,7 @@ import type { ComponentType } from "react";
 import { DoctorAppShell } from "@/shared/ui/doctor/DoctorAppShell";
 import { DoctorPageHeader } from "@/shared/ui/doctor/shell/DoctorPageHeader";
 import { Button } from "@/shared/ui/doctor/primitives/button";
+import { doctorSectionTabClass } from "@/shared/ui/doctor/DoctorSectionTabs";
 import { cn } from "@/lib/utils";
 import {
   COMMUNICATIONS_BASE,
@@ -41,12 +42,6 @@ function CommunicationsTabsNav({ activeTab, badges, onTabClick }: Communications
       {COMMUNICATIONS_TABS.map((tab) => {
         const active = tab.id === activeTab;
         const badge = badges?.[tab.id];
-        const itemClass = cn(
-          "inline-flex shrink-0 items-center gap-1.5 rounded-md px-2.5 py-1.5 text-sm font-medium whitespace-nowrap transition-colors",
-          active
-            ? "bg-primary text-primary-foreground"
-            : "text-muted-foreground hover:bg-muted hover:text-foreground",
-        );
         const badgeEl =
           badge && badge > 0 ? (
             <span
@@ -68,7 +63,7 @@ function CommunicationsTabsNav({ activeTab, badges, onTabClick }: Communications
             data-testid={`btn-${tab.id}`}
             aria-current={active ? "page" : undefined}
             onClick={() => onTabClick(tab.id)}
-            className={itemClass}
+            className={doctorSectionTabClass(active)}
           >
             {tab.label}
             {badgeEl}

@@ -100,10 +100,16 @@ describe("DoctorMenuAccordion", () => {
 
   it("renders top-level sidebar links including Каталог ЛФК group trigger", () => {
     render(<DoctorMenuAccordion variant="sidebar" pathname="/app/doctor" menuAccess={menuAccess} />);
-    expect(screen.getByRole("link", { name: /Сегодня/ })).toBeInTheDocument();
+    const todayLink = screen.getByRole("link", { name: /Сегодня/ });
+    expect(todayLink).toBeInTheDocument();
+    expect(todayLink).toHaveClass("rounded-md");
+    expect(todayLink.className).not.toContain("doctor-control-radius");
     expect(screen.getByRole("link", { name: "Пациенты" })).toBeInTheDocument();
     // Каталог ЛФК is a group trigger button
-    expect(screen.getByRole("button", { name: /Каталог ЛФК/ })).toBeInTheDocument();
+    const libraryTrigger = screen.getByRole("button", { name: /Каталог ЛФК/ });
+    expect(libraryTrigger).toBeInTheDocument();
+    expect(libraryTrigger).toHaveClass("rounded-md");
+    expect(libraryTrigger.className).not.toContain("doctor-control-radius");
   });
 
   it("sidebar: flyout is closed by default", () => {
@@ -221,8 +227,8 @@ describe("DoctorMenuAccordion", () => {
 
   it("sheet: renders top-level including Каталог ЛФК group trigger", () => {
     render(<DoctorMenuAccordion variant="sheet" pathname="/app/doctor" menuAccess={menuAccess} />);
-    expect(screen.getByRole("link", { name: /Сегодня/ })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /Каталог ЛФК/ })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: /Сегодня/ })).toHaveClass("rounded-md");
+    expect(screen.getByRole("button", { name: /Каталог ЛФК/ })).toHaveClass("rounded-md");
   });
 
   it("sheet: tapping Каталог ЛФК shows sub-items and back button", () => {

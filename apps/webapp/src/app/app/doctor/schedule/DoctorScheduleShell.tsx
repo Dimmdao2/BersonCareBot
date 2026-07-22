@@ -6,7 +6,7 @@ import type { ComponentType } from "react";
 import { DoctorAppShell } from "@/shared/ui/doctor/DoctorAppShell";
 import { DoctorPageHeader } from "@/shared/ui/doctor/shell/DoctorPageHeader";
 import { Button } from "@/shared/ui/doctor/primitives/button";
-import { cn } from "@/lib/utils";
+import { doctorSectionTabClass } from "@/shared/ui/doctor/DoctorSectionTabs";
 import {
   SCHEDULE_BASE,
   SCHEDULE_TABS,
@@ -71,12 +71,6 @@ function ScheduleTabsNav({ activeTab, onTabClick }: ScheduleTabsNavProps) {
     >
       {SCHEDULE_TABS.map((tab) => {
         const active = tab.id === activeTab;
-        const itemClass = cn(
-          "inline-flex shrink-0 items-center gap-1.5 rounded-md px-2.5 py-1.5 text-sm font-medium whitespace-nowrap transition-colors",
-          active
-            ? "bg-primary text-primary-foreground"
-            : "text-muted-foreground hover:bg-muted hover:text-foreground",
-        );
         return (
           <Button
             key={tab.id}
@@ -84,7 +78,7 @@ function ScheduleTabsNav({ activeTab, onTabClick }: ScheduleTabsNavProps) {
             variant="ghost"
             aria-current={active ? "page" : undefined}
             onClick={() => onTabClick(tab.id)}
-            className={itemClass}
+            className={doctorSectionTabClass(active)}
             data-testid={`tab-btn-${tab.id}`}
           >
             {tab.label}

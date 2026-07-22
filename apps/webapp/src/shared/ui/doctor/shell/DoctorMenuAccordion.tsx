@@ -20,7 +20,10 @@ import {
   type DoctorMenuLinkItem,
 } from "@/shared/ui/doctor/doctorNavLinks";
 import { hasLaunchCapability } from "@/app-layer/guards/workspaceCapabilities";
-import { NAV_STRIP_ICON_STROKE } from "@/shared/ui/doctor/navChrome";
+import {
+  DOCTOR_MENU_ITEM_RADIUS_CLASS,
+  NAV_STRIP_ICON_STROKE,
+} from "@/shared/ui/doctor/navChrome";
 
 /** Отображаемый текст бейджа; `null` — не показывать. */
 export function formatNavBadgeCount(n: number): string | null {
@@ -76,16 +79,19 @@ function getIconForMenuId(id: string): ElementType | null {
 
 const SIDEBAR_LINK_CLASS = cn(
   buttonVariants({ variant: "ghost" }),
+  DOCTOR_MENU_ITEM_RADIUS_CLASS,
   "h-auto w-full justify-start px-3 py-2 text-sm font-normal",
 );
 
 const SHEET_LINK_CLASS = cn(
   buttonVariants({ variant: "ghost" }),
+  DOCTOR_MENU_ITEM_RADIUS_CLASS,
   "h-auto w-full justify-start px-3 py-2 font-normal",
 );
 
 const FLYOUT_LINK_CLASS = cn(
   buttonVariants({ variant: "ghost" }),
+  DOCTOR_MENU_ITEM_RADIUS_CLASS,
   "h-auto w-full justify-start px-3 py-2 text-sm font-normal",
 );
 
@@ -199,6 +205,7 @@ function SidebarGroupFlyout({
           }
         }}
         className={cn(
+          DOCTOR_MENU_ITEM_RADIUS_CLASS,
           "flex h-auto w-full items-center justify-start gap-2 px-3 py-2 text-left text-sm font-normal",
           anySubActive && "font-medium text-primary hover:bg-muted focus-visible:bg-muted",
         )}
@@ -350,6 +357,7 @@ function SheetTwoLevelMenu({
           variant="ghost"
           onClick={() => setActiveGroup(null)}
           className={cn(
+            DOCTOR_MENU_ITEM_RADIUS_CLASS,
             "mb-1 h-auto w-full items-center justify-start gap-2 px-3 py-2 font-normal text-muted-foreground",
           )}
         >
@@ -384,6 +392,7 @@ function SheetTwoLevelMenu({
             aria-haspopup="menu"
             onClick={() => setActiveGroup(item)}
             className={cn(
+              DOCTOR_MENU_ITEM_RADIUS_CLASS,
               "flex h-auto w-full items-center justify-start gap-2 px-3 py-2 text-left font-normal",
               anySubActive && "font-medium text-primary hover:bg-muted",
             )}

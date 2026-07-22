@@ -19,7 +19,10 @@ import {
 } from "@/shared/ui/doctor/primitives/sheet";
 import { cn } from "@/lib/utils";
 import { DoctorMenuAccordion } from "@/shared/ui/doctor/shell/DoctorMenuAccordion";
-import { NAV_STRIP_ICON_STROKE } from "@/shared/ui/doctor/navChrome";
+import {
+  DOCTOR_MENU_ITEM_RADIUS_CLASS,
+  NAV_STRIP_ICON_STROKE,
+} from "@/shared/ui/doctor/navChrome";
 import {
   DOCTOR_HEADER_INNER_CLASS,
   DOCTOR_MOBILE_HEADER_HEIGHT_VAR,
@@ -189,7 +192,10 @@ export function DoctorHeader({
                   type="submit"
                   variant="ghost"
                   id="doctor-menu-logout"
-                  className="h-auto w-full justify-start px-3 py-2 font-normal text-destructive hover:bg-destructive/10 hover:text-destructive"
+                  className={cn(
+                    DOCTOR_MENU_ITEM_RADIUS_CLASS,
+                    "h-auto w-full justify-start px-3 py-2 font-normal text-destructive hover:bg-destructive/10 hover:text-destructive",
+                  )}
                   onClick={closeMenu}
                 >
                   Выйти

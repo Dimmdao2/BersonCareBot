@@ -4,9 +4,9 @@ import dynamic from "next/dynamic";
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import type { ClientContactBreakdown } from "@/modules/doctor-clients/clientContactSegments";
-import { cn } from "@/lib/utils";
 import { Button } from "@/shared/ui/doctor/primitives/button";
 import { DoctorAppShell } from "@/shared/ui/doctor/DoctorAppShell";
+import { doctorSectionTabClass } from "@/shared/ui/doctor/DoctorSectionTabs";
 import { DoctorPageHeader } from "@/shared/ui/doctor/shell/DoctorPageHeader";
 
 import {
@@ -112,10 +112,7 @@ function AnalyticsTabsNav({ activeTab, onTabClick, clientsLabel }: AnalyticsTabs
             aria-current={active ? "page" : undefined}
             onClick={() => onTabClick(tab.id)}
             variant={active ? "default" : "ghost"}
-            className={cn(
-              "inline-flex shrink-0 items-center gap-1.5 rounded-md px-2.5 py-1.5 text-sm font-medium whitespace-nowrap",
-              !active && "text-muted-foreground hover:text-foreground",
-            )}
+            className={doctorSectionTabClass(active)}
             data-testid={`tab-btn-${tab.id}`}
           >
             {tab.id === "clients" && clientsLabel ? clientsLabel : tab.label}

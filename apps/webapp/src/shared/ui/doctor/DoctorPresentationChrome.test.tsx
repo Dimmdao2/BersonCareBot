@@ -4,10 +4,12 @@ import { render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 import { DoctorSection } from "@/shared/ui/doctor/DoctorSection";
 import {
+  doctorDnaFlatListClickableClass,
   doctorDnaFlatListInsetClass,
   doctorDnaFlatListPrimaryClass,
   doctorDnaFlatListRowClass,
 } from "@/shared/ui/doctor/DoctorDnaFlatListRow";
+import { doctorSectionTabClass } from "@/shared/ui/doctor/DoctorSectionTabs";
 import { Button, buttonVariants } from "@/shared/ui/doctor/primitives/button";
 import { Input } from "@/shared/ui/doctor/primitives/input";
 import { Select, SelectTrigger } from "@/shared/ui/doctor/primitives/select";
@@ -70,7 +72,22 @@ describe("doctor presentation chrome", () => {
       "px-[var(--doctor-list-inline-padding,18px)]",
     );
     expect(doctorDnaFlatListRowClass).toContain("border-t");
+    expect(doctorDnaFlatListRowClass).toContain(
+      "border-[var(--doctor-flat-list-divider,#f0efeb)]",
+    );
+    expect(doctorDnaFlatListClickableClass).toContain("hover:bg-muted");
     expect(doctorDnaFlatListPrimaryClass).toContain("text-base");
     expect(doctorDnaFlatListPrimaryClass).toContain("font-normal");
+  });
+
+  it("uses the shared rounded section-tab states and darker neutral hover", () => {
+    expect(doctorSectionTabClass(true)).toContain(
+      "rounded-[var(--doctor-control-radius,24px)]",
+    );
+    expect(doctorSectionTabClass(true)).toContain("bg-primary");
+    expect(doctorSectionTabClass(false)).toContain(
+      "hover:bg-[var(--doctor-section-tab-hover)]",
+    );
+    expect(doctorSectionTabClass(false)).not.toContain("bg-primary");
   });
 });

@@ -2,6 +2,7 @@ import Link from "next/link";
 import { cn } from "@/lib/utils";
 import { DOCTOR_STICKY_PAGE_TOOLBAR_TOP_CLASS } from "@/shared/ui/doctor/doctorWorkspaceLayout";
 import { Button } from "@/shared/ui/doctor/primitives/button";
+import { doctorSectionTabClass } from "@/shared/ui/doctor/DoctorSectionTabs";
 import {
   COMMUNICATIONS_TABS,
   type CommunicationsTabId,
@@ -39,12 +40,7 @@ export function DoctorCommunicationsTabsNav({ activeTab, badges, onTabClick }: P
         {COMMUNICATIONS_TABS.map((tab) => {
           const active = tab.id === activeTab;
           const badge = badges?.[tab.id];
-          const itemClass = cn(
-            "inline-flex shrink-0 items-center gap-1.5 rounded-md px-2.5 py-1.5 text-sm font-medium whitespace-nowrap transition-colors",
-            active
-              ? "bg-primary text-primary-foreground"
-              : "text-muted-foreground hover:bg-muted hover:text-foreground",
-          );
+          const itemClass = doctorSectionTabClass(active);
           const badgeEl =
             badge && badge > 0 ? (
               <span

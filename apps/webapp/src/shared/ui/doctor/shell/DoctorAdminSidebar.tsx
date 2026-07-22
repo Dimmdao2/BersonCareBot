@@ -7,7 +7,10 @@ import { Button } from "@/shared/ui/doctor/primitives/button";
 import { routePaths } from "@/app-layer/routes/paths";
 import { cn } from "@/lib/utils";
 import { DoctorMenuAccordion } from "@/shared/ui/doctor/shell/DoctorMenuAccordion";
-import { NAV_STRIP_ICON_STROKE } from "@/shared/ui/doctor/navChrome";
+import {
+  DOCTOR_MENU_ITEM_RADIUS_CLASS,
+  NAV_STRIP_ICON_STROKE,
+} from "@/shared/ui/doctor/navChrome";
 import {
   DOCTOR_ADMIN_SIDEBAR_STICKY_TOP_CLASS,
   DOCTOR_ADMIN_SIDEBAR_WIDTH_CLASS,
@@ -84,7 +87,10 @@ export function DoctorAdminSidebar({
             type="submit"
             variant="ghost"
             id="doctor-sidebar-logout"
-            className="h-auto w-full justify-start px-3 py-2 text-sm font-normal text-destructive hover:bg-destructive/10 hover:text-destructive"
+            className={cn(
+              DOCTOR_MENU_ITEM_RADIUS_CLASS,
+              "h-auto w-full justify-start px-3 py-2 text-sm font-normal text-destructive hover:bg-destructive/10 hover:text-destructive",
+            )}
           >
             Выйти
           </Button>

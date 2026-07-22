@@ -8,6 +8,7 @@ import {
   bookingAdminTabFromPathname,
 } from "@/app/app/doctor/admin/booking/bookingAdminTabs";
 import { DOCTOR_STICKY_PAGE_TOOLBAR_TOP_CLASS } from "@/shared/ui/doctor/doctorWorkspaceLayout";
+import { doctorSectionTabClass } from "@/shared/ui/doctor/DoctorSectionTabs";
 
 export function BookingAdminTabsNav() {
   const pathname = usePathname();
@@ -28,12 +29,7 @@ export function BookingAdminTabsNav() {
             <Link
               key={tab.id}
               href={tab.href}
-              className={cn(
-                "shrink-0 rounded-md px-2.5 py-1.5 text-sm font-medium whitespace-nowrap transition-colors",
-                active
-                  ? "bg-primary text-primary-foreground"
-                  : "text-muted-foreground hover:bg-muted hover:text-foreground",
-              )}
+              className={doctorSectionTabClass(active)}
             >
               {tab.label}
             </Link>
