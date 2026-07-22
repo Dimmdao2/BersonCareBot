@@ -292,7 +292,7 @@ SHA `eb64a495644` (code-only deploy 2026-07-22, без dump/restore/full reset).
 | UI-8 | `DONE current contract` | S4/C5 organization-only commercial contour готов; `#191` задаёт только новым правилам разминок `12:00`/`15:00` в рабочие дни и не изменяет существующие правила. |
 | UI-9 | `DONE` | Personal exercises/media exact-org implementation и high-risk audit закрыты; live owner acceptance отдельно. |
 | Client mood residual | `DONE` | Empty chart скрывается, mood controls остаются. |
-| UI-P | `DONE code / TEST deployed / owner pending` | Shared pass and latest background/tabs/list/menu correction are integrated, audited and visually checked on TEST desktop/mobile. |
+| UI-P | `prior pass TEST deployed / #977 OPEN` | Shared pass is on TEST; the latest background/tabs/list/menu reconciliation has proven rows plus open `P2B-01/02/09/10/14` below and is not complete. |
 
 Эта таблица отменяет прежние blanket-формулировки «baseline проверен» для полного UI-1/UI-3/UI-4/UI-6 scope:
 повторять закрытую часть нельзя, но перечисленный residual обязан получить собственный exact task/acceptance.
@@ -322,8 +322,8 @@ metric semantics, patient/public UI, DB/env/deploy и полный CI вне sco
 
 #### Atomic acceptance — worker/auditor authority
 
-- [x] **P2B-01** Desktop «Сегодня» использует точное разделение `50/50`; mobile composition не регрессирует.
-- [x] **P2B-02** Doctor workspace использует прежний белый/inherited background; белые page headers и основные
+- [ ] **P2B-01** Desktop «Сегодня» использует точное разделение `50/50`; mobile composition не регрессирует.
+- [ ] **P2B-02** Doctor workspace использует прежний белый/inherited background; белые page headers и основные
   поверхности не перекрашены в `#faf9f4` или другой локальный gap color.
 - [x] **P2B-03** Shared section tabs имеют более тёмный neutral hover и свой округлённый tab contract без
   page-local divergence; это не меняет геометрию sidebar/mobile menu.
@@ -337,24 +337,26 @@ metric semantics, patient/public UI, DB/env/deploy и полный CI вне sco
 - [x] **P2B-07** Semantic doctor primary остаётся ровно `#406ca7` через doctor-zone token; local primary hex и
   перекраска patient/public tokens отсутствуют.
 - [x] **P2B-08** Page headers и фактические input surfaces белые.
-- [x] **P2B-09** Shared radius scale соблюдена: page-level blocks `12px`, KPI `8px`, doctor buttons/inputs/select
+- [ ] **P2B-09** Shared radius scale соблюдена: page-level blocks `12px`, KPI `8px`, doctor buttons/inputs/select
   triggers `24px`; sidebar/mobile menu rows сохраняют прежний почти прямоугольный минимальный radius, tabs живут
   по отдельному rounded contract.
-- [x] **P2B-10** Основные page-blocks используют внутренний padding `18px` через shared doctor primitives, без
+- [ ] **P2B-10** Основные page-blocks используют внутренний padding `18px` через shared doctor primitives, без
   локальных копий в затронутых страницах.
 - [x] **P2B-11** KPI используют единый порядок label сверху → value снизу и `doctorMetricValueClass` для значения.
 - [x] **P2B-12** Поиск «Клиентов» находится в правом слоте белой page header на уровне title; desktop width
   совпадает с правой половиной `50/50`, mobile вариант остаётся доступным и компактным.
 - [x] **P2B-13** Primary text строк Clients/Messages/Today support крупнее и легче (`text-base font-normal`), а
   meta/badge/calendar typography не повышена вместе с ним.
-- [x] **P2B-14** Изменения переиспользуют shared doctor primitives/list-row/tab/calendar contracts и сохраняют
+- [ ] **P2B-14** Изменения переиспользуют shared doctor primitives/list-row/tab/calendar contracts и сохраняют
   физическую patient/doctor UI isolation; локальные style forks и imports из patient/components UI не добавлены.
 
 #### P2b evidence matrix
 
-- `P2B-01` — `DoctorTodayDashboard.tsx`: `md:grid-cols-2`; focused dashboard test covers the responsive composition.
-- `P2B-02`/`P2B-07`/`P2B-08` — `doctor.css`, `bersoncare-tweakcn-theme.css`, `DoctorPageHeader.tsx` and doctor
-  `Input`: white/inherited workspace/header/input surfaces and doctor-only `#406ca7` semantic primary.
+- `P2B-01` — code/test prove `DoctorTodayDashboard.tsx` uses `md:grid-cols-2`; mobile runtime evidence remains open
+  until the integrated commit is checked live.
+- `P2B-02` — **OPEN after independent audit:** `doctor.css` sets the intended white/inherited value, but
+  `bersoncare-tweakcn-theme.css` still contains the superseded `#faf9f4` fallback. `P2B-07`/`P2B-08` remain proven
+  by the doctor-only `#406ca7` semantic primary and white header/input surfaces.
 - `P2B-03` — `DoctorSectionTabs.ts` uses `--doctor-section-tab-hover`; `DoctorPresentationChrome.test.tsx`
   proves that section tabs keep their own pill contract independently of menu rows.
 - `P2B-04`/`P2B-05` — `DoctorTodayMiniCalendar.tsx` delegates the single lead buffer to
@@ -363,16 +365,19 @@ metric semantics, patient/public UI, DB/env/deploy и полный CI вне sco
 - `P2B-06`/`P2B-13` — `DoctorDnaFlatListRow.tsx` is reused by Today support, `PatientsPageClient.tsx` and
   `DoctorSupportInbox.tsx`; it owns the full-row hover, one-pixel `#f0efeb` divider and `text-base font-normal`
   primary role. Focused Clients/Messages/presentation tests cover those consumers.
-- `P2B-09`/`P2B-10` — `doctor.css`, `doctorVisual.ts`, doctor primitives and `navChrome.ts` own the
-  `12/8/24px`, `18px` and minimal `rounded-sm` menu contracts; presentation chrome tests prove the split.
+- `P2B-09`/`P2B-10` — **OPEN after independent audit:** shared tokens and minimal `rounded-sm` menu contract are
+  correct, but Clients loading/filter shells and the two Messages panes still contain local `rounded-lg` and
+  `px-3`/`px-5`/`p-3` page-shell exceptions. The owner must confirm whether every such shell is a page-level block
+  governed by the exact `12px`/`18px` rule before another presentation pass.
 - `P2B-11` — `DoctorStatCard.tsx` renders label before value and consumes the shared
   `doctorMetricValueClass`; this pass reconciled that class with the canonical Metric role `text-2xl` and added
   an exact regression assertion.
 - `P2B-12` — `PatientsPageClient.tsx` places the full-width search input in the `DoctorPageHeader` right slot;
   `DoctorPageHeader.tsx` gives title/right slots equal desktop flex while preserving full-width mobile wrapping.
-- `P2B-14` — changed UI code remains under `shared/ui/doctor`; no patient/public component or token was changed.
+- `P2B-14` — patient/doctor isolation remains proven, but the no-local-forks half stays open with `P2B-09/10`.
 
-Validation from the isolated `#977` worktree: focused Vitest **6 files / 97 tests PASS**, scoped ESLint **PASS**,
+Validation from the isolated `#977` worktree: focused Vitest **6 files PASS** (worker reported 97 cases; static audit
+counted 96 generated cases, so the exact count is not used as closure evidence), scoped ESLint **PASS**,
 webapp typecheck **PASS**, `git diff --check` **PASS**. Live DEV screenshots were not repeated in this worker slice:
 the sole existing `:5200` process belongs to the integration checkout, not this isolated worktree; starting a
 second Next server is prohibited. The integrated commit therefore still requires the single planned independent
