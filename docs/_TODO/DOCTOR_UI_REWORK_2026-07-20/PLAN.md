@@ -321,6 +321,18 @@ metric semantics, patient/public UI, DB/env/deploy и полный CI вне sco
   внутри каждой list row. `18px` остаётся padding основных page-blocks; Clients/Messages rows переиспользуют
   геометрию списка «На сопровождении» без page-local числовых fork.
 
+#### Owner ruling — P2B-09/P2B-10/P2B-14 list ambiguity (2026-07-22, Track A round 4)
+
+- **Visual canon:** doctor lists follow the Today page. The list itself receives no added side border or enclosing
+  side frame; the Doctor DNA canvas remains `#F6F4EF`, while page headers and primary surfaces remain white.
+- **Interaction canon:** the full visible row is the hit target. Today uses one native row `Link` with its metadata
+  inside it; Clients and Messages keep their existing native full-row button behavior for master/detail selection.
+  No nested interactive element is permitted inside the Today link; any future independent row action must be a
+  correctly separated sibling control.
+- **Reuse boundary:** retain the shared `DoctorDnaFlatListRow` divider/hover/typography contract and doctor-zone
+  primitives. This ruling does not authorize changes to fonts, spacing, other panels, navigation, #848, #963,
+  #964, UI-5b, or U5A.
+
 #### Atomic acceptance — worker/auditor authority
 
 - [ ] **P2B-01** Desktop «Сегодня» использует точное разделение `50/50`; mobile composition не регрессирует.
@@ -340,9 +352,11 @@ metric semantics, patient/public UI, DB/env/deploy и полный CI вне sco
 - [x] **P2B-08** Page headers и фактические input surfaces белые.
 - [ ] **P2B-09** Shared radius scale соблюдена: page-level blocks `12px`, KPI `8px`, doctor buttons/inputs/select
   triggers `24px`; sidebar/mobile menu rows сохраняют прежний почти прямоугольный минимальный radius, tabs живут
-  по отдельному rounded contract.
+  по отдельному rounded contract. **Owner ruling 2026-07-22:** visual canon for Clients/Messages list surfaces is
+  Today; those lists receive no added side border or enclosing side frame.
 - [ ] **P2B-10** Основные page-blocks используют внутренний padding `18px` через shared doctor primitives, без
-  локальных копий в затронутых страницах.
+  локальных копий в затронутых страницах. **Owner ruling 2026-07-22:** Today is one full-row native link; Clients
+  and Messages retain their full-row native button behavior, including keyboard activation.
 - [x] **P2B-11** KPI используют единый порядок label сверху → value снизу и `doctorMetricValueClass` для значения.
 - [x] **P2B-12** Поиск «Клиентов» находится в правом слоте белой page header на уровне title; desktop width
   совпадает с правой половиной `50/50`, mobile вариант остаётся доступным и компактным.
@@ -350,6 +364,8 @@ metric semantics, patient/public UI, DB/env/deploy и полный CI вне sco
   meta/badge/calendar typography не повышена вместе с ним.
 - [ ] **P2B-14** Изменения переиспользуют shared doctor primitives/list-row/tab/calendar contracts и сохраняют
   физическую patient/doctor UI isolation; локальные style forks и imports из patient/components UI не добавлены.
+  **Owner ruling 2026-07-22:** this list correction is limited to the shared flat-list contract and its three
+  consumers; no unrelated UI scope is opened.
 
 #### P2b evidence matrix
 

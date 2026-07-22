@@ -246,7 +246,7 @@ describe("DoctorTodayDashboard", () => {
     // R19: блок «Следующая запись» убран — его пустого состояния больше нет.
   });
 
-  it("renders on-support clients and truncated footer", () => {
+  it("renders on-support clients as whole-row native links and truncated footer", async () => {
     const data: TodayDashboardData = {
       ...emptyData(),
       peopleCount: 2,
@@ -275,12 +275,28 @@ describe("DoctorTodayDashboard", () => {
       ],
       peopleListTruncated: true,
     };
+    const user = userEvent.setup();
     render(<DoctorTodayDashboard {...defaultProps()} data={data} />);
     expect(screen.getByText(/Клиентов: 2/)).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "Иванова Анна Петровна" })).toHaveAttribute(
+    const firstRowLink = screen.getByRole("link", { name: "Иванова Анна Петровна" });
+    expect(firstRowLink).toHaveAttribute(
       "href",
       "/app/doctor/clients/u-a?scope=appointments#doctor-client-section-treatment-programs",
     );
+    expect(firstRowLink).toHaveClass("flex", "cursor-pointer", "hover:bg-muted");
+    expect(firstRowLink).toContainElement(screen.getByLabelText("Новые сообщения: 2"));
+    expect(firstRowLink).toContainElement(screen.getByLabelText("Отметки упражнений за сегодня: 1"));
+    expect(firstRowLink).toContainElement(screen.getByLabelText("Новые комментарии по упражнениям: 1"));
+    expect(firstRowLink.querySelector("button")).toBeNull();
+    expect(firstRowLink.closest("ul")?.className).not.toMatch(/\bborder\b|\brounded-/);
+
+    const keyboardClick = vi.fn((event: MouseEvent) => event.preventDefault());
+    firstRowLink.addEventListener("click", keyboardClick);
+    firstRowLink.focus();
+    await user.keyboard("{Enter}");
+    expect(keyboardClick).toHaveBeenCalledOnce();
+    expect(firstRowLink).toHaveFocus();
+
     expect(screen.queryByText("Старая строка")).not.toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Борис" })).toHaveAttribute(
       "href",
