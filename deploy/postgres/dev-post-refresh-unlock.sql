@@ -16,7 +16,7 @@ DECLARE
   integrator_guard_oid oid := to_regprocedure('integrator.system_settings_test_lock_guard()');
   expected_public_body constant text := $expected_public_body$
 DECLARE
-  locked_keys TEXT[] := ARRAY['patient_app_maintenance_enabled','dev_mode','test_account_identifiers','smtp_outbound','specialist_signup_enabled','patient_program_discussion_ui_enabled'];
+  locked_keys TEXT[] := ARRAY['patient_app_maintenance_enabled','dev_mode','test_account_identifiers','specialist_signup_enabled','patient_program_discussion_ui_enabled'];
 BEGIN
   IF OLD.key = ANY(locked_keys) THEN
     RAISE EXCEPTION 'TEST ENV LOCK: system_settings key "%" is locked for safety. Remove trigger system_settings_test_lock before changing.', OLD.key
@@ -27,7 +27,7 @@ END;
 $expected_public_body$;
   expected_integrator_body constant text := $expected_integrator_body$
 DECLARE
-  locked_keys TEXT[] := ARRAY['smtp_outbound','app_base_url','test_account_identifiers','specialist_signup_enabled','patient_program_discussion_ui_enabled'];
+  locked_keys TEXT[] := ARRAY['app_base_url','test_account_identifiers','specialist_signup_enabled','patient_program_discussion_ui_enabled'];
 BEGIN
   IF OLD.key = ANY(locked_keys) THEN
     RAISE EXCEPTION 'TEST ENV LOCK (integrator): system_settings key "%" is locked.', OLD.key

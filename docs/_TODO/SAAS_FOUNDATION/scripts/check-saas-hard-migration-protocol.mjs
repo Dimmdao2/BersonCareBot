@@ -7,6 +7,8 @@ const files = {
   protocol: 'docs/_TODO/SAAS_FOUNDATION/HARD_MIGRATION_PROTOCOL.md',
   deployTestFullReset: 'deploy/host/deploy-test-full-reset.sh',
   deployTestSaas: 'deploy/host/deploy-test-saas.sh',
+  testSettingsOverride: 'deploy/postgres/test-settings-override.sql',
+  devPostRefreshUnlock: 'deploy/postgres/dev-post-refresh-unlock.sql',
   runtimeOverlayLib: 'deploy/host/runtime-overlay-rehydrate-lib.sh',
   devRuntimeOverlay: 'deploy/host/dev-runtime-overlay-rehydrate.sh',
   refreshDevFromTest: 'deploy/host/refresh-dev-from-test.sh',
@@ -432,7 +434,7 @@ function runChecks(overrides = {}) {
     'trap cleanup_exit EXIT',
     "SELECT rolbypassrls::text FROM pg_roles WHERE rolname = '$DBROLE';",
     "SELECT pg_has_role('$MIGRATOR_ROLE', '$DBROLE', 'member');",
-    'sudo -u postgres psql -d "$DB" -v ON_ERROR_STOP=1 -f "$DEPLOY_REPO/$OVERRIDE"',
+    'sudo -u postgres psql -d "$DB" -v ON_ERROR_STOP=1 \\\n  -v test_settings_overlay_mode=reset \\\n  -f "$DEPLOY_REPO/$OVERRIDE"',
     'rubitime:db-cleanup:one-pass',
     '--commit-cleanup --allow-test-target',
     'fio:owner-reviewed-test:apply',
@@ -720,7 +722,125 @@ function runChecks(overrides = {}) {
   requireFragments(files.deployTestSaas, loaded.deployTestSaas, [
     'direct destructive invocation is disabled; use deploy/host/deploy-test-full-reset.sh',
     '[ "${BCB_TEST_FULL_RESET_ENTRYPOINT:-}" = "deploy-test-full-reset-v1" ]',
+    '-v test_settings_overlay_mode=code-only',
+    '-v test_settings_overlay_mode=reset',
   ]);
+
+  const overlayModeGuardIndex = loaded.testSettingsOverride.indexOf(
+    "SELECT :'test_settings_overlay_mode' IN ('reset', 'code-only')",
+  );
+  const overlayErrorStopIndex = loaded.testSettingsOverride.indexOf('\\set ON_ERROR_STOP on');
+  const overlayFirstMutationIndex = loaded.testSettingsOverride.indexOf('DROP TRIGGER');
+  if (
+    overlayErrorStopIndex < 0 ||
+    overlayModeGuardIndex < 0 ||
+    overlayFirstMutationIndex < 0 ||
+    overlayErrorStopIndex > overlayModeGuardIndex ||
+    overlayModeGuardIndex > overlayFirstMutationIndex
+  ) {
+    fail(`${files.testSettingsOverride} must validate its explicit mode before any lock mutation`);
+  }
+  requireFragments(files.testSettingsOverride, loaded.testSettingsOverride, [
+    '\\set ON_ERROR_STOP on',
+    '\\if :{?test_settings_overlay_mode}',
+    '\\set test_settings_overlay_mode __missing__',
+    "SELECT :'test_settings_overlay_mode' IN ('reset', 'code-only') AS test_settings_overlay_mode_valid,",
+    "       :'test_settings_overlay_mode' = 'reset' AS test_settings_overlay_reset",
+    '\\if :test_settings_overlay_mode_valid',
+    "\\warn 'FATAL: test_settings_overlay_mode must be exactly reset or code-only'",
+    'SELECT 1 / 0 AS invalid_test_settings_overlay_mode;',
+    '-- A fresh/reset path always scrubs the DB-backed credential.',
+    "VALUES ('smtp_outbound', 'admin', '{\"value\":null}'::jsonb, NOW(), NULL)\nON CONFLICT (key, scope) WHERE organization_id IS NULL DO NOTHING;",
+    "SELECT 'smtp_outbound', 'admin', source.value_json, NOW(), NULL\nFROM public.system_settings AS source",
+    "WHERE source.key = 'smtp_outbound'\n  AND source.scope = 'admin'\n  AND source.organization_id IS NULL\nON CONFLICT (key, scope) WHERE organization_id IS NULL DO UPDATE",
+    "locked_keys TEXT[] := ARRAY['patient_app_maintenance_enabled','dev_mode','test_account_identifiers','specialist_signup_enabled','patient_program_discussion_ui_enabled'];",
+    "locked_keys TEXT[] := ARRAY['app_base_url','test_account_identifiers','specialist_signup_enabled','patient_program_discussion_ui_enabled'];",
+  ]);
+  const transactionBegins = [...loaded.testSettingsOverride.matchAll(/^BEGIN;$/gmu)];
+  const transactionCommits = [...loaded.testSettingsOverride.matchAll(/^COMMIT;$/gmu)];
+  if (transactionBegins.length !== 1 || transactionCommits.length !== 1) {
+    fail(`${files.testSettingsOverride} must have exactly one atomic BEGIN/COMMIT pair`);
+  }
+  requireOrderedFragments(
+    `${files.testSettingsOverride} atomic lock-preserving transaction`,
+    loaded.testSettingsOverride,
+    [
+      'BEGIN;',
+      'DROP TRIGGER IF EXISTS system_settings_test_lock ON public.system_settings;',
+      'DROP TRIGGER IF EXISTS system_settings_test_lock ON integrator.system_settings;',
+      "INSERT INTO public.system_settings (key, scope, value_json, updated_at, updated_by)\nVALUES ('app_base_url'",
+      'CREATE OR REPLACE FUNCTION system_settings_test_lock_guard()',
+      'CREATE TRIGGER system_settings_test_lock BEFORE UPDATE ON public.system_settings',
+      'CREATE OR REPLACE FUNCTION integrator.system_settings_test_lock_guard()',
+      'CREATE TRIGGER system_settings_test_lock BEFORE UPDATE ON integrator.system_settings',
+      'COMMIT;',
+      "SELECT tgname, tgrelid::regclass, tgenabled FROM pg_trigger WHERE tgname = 'system_settings_test_lock';",
+    ],
+  );
+  const postTransactionText = loaded.testSettingsOverride.slice(
+    loaded.testSettingsOverride.indexOf('COMMIT;') + 'COMMIT;'.length,
+  );
+  if (/\b(?:INSERT|UPDATE|DELETE|CREATE|ALTER|DROP|TRUNCATE)\b/iu.test(postTransactionText)) {
+    fail(`${files.testSettingsOverride} must not mutate settings or lock objects after atomic COMMIT`);
+  }
+  const smtpModeBlocks = [
+    ...loaded.testSettingsOverride.matchAll(
+      /\\if :test_settings_overlay_reset\n([\s\S]*?)\\else\n([\s\S]*?)\\endif/gu,
+    ),
+  ];
+  if (smtpModeBlocks.length !== 2) {
+    fail(`${files.testSettingsOverride} must have exactly two SMTP reset/code-only branches`);
+  }
+  for (const [index, block] of smtpModeBlocks.entries()) {
+    requireFragments(`${files.testSettingsOverride} reset SMTP block ${index + 1}`, block[1], [
+      "VALUES ('smtp_outbound', 'admin', '{\"value\":null}'::jsonb, NOW(), NULL)",
+      'ON CONFLICT (key, scope) WHERE organization_id IS NULL DO UPDATE',
+    ]);
+  }
+  requireFragments(`${files.testSettingsOverride} code-only public SMTP block`, smtpModeBlocks[0][2], [
+    "VALUES ('smtp_outbound', 'admin', '{\"value\":null}'::jsonb, NOW(), NULL)",
+    'ON CONFLICT (key, scope) WHERE organization_id IS NULL DO NOTHING;',
+  ]);
+  requireFragments(`${files.testSettingsOverride} code-only mirror SMTP block`, smtpModeBlocks[1][2], [
+    "SELECT 'smtp_outbound', 'admin', source.value_json, NOW(), NULL",
+    'FROM public.system_settings AS source',
+    "WHERE source.key = 'smtp_outbound'\n  AND source.scope = 'admin'\n  AND source.organization_id IS NULL",
+    'ON CONFLICT (key, scope) WHERE organization_id IS NULL DO UPDATE',
+  ]);
+  const publicLockBody = loaded.testSettingsOverride.slice(
+    loaded.testSettingsOverride.indexOf('CREATE OR REPLACE FUNCTION system_settings_test_lock_guard()'),
+    loaded.testSettingsOverride.indexOf(
+      'CREATE OR REPLACE FUNCTION integrator.system_settings_test_lock_guard()',
+    ),
+  );
+  const integratorLockBody = loaded.testSettingsOverride.slice(
+    loaded.testSettingsOverride.indexOf(
+      'CREATE OR REPLACE FUNCTION integrator.system_settings_test_lock_guard()',
+    ),
+  );
+  forbidFragments(`${files.testSettingsOverride} public lock`, publicLockBody, ["'smtp_outbound'"]);
+  forbidFragments(`${files.testSettingsOverride} integrator lock`, integratorLockBody, [
+    "'smtp_outbound'",
+  ]);
+  const deployOverlayModes = [
+    ...loaded.deployTestSaas.matchAll(
+      /^[ \t]*sudo -u postgres psql[^\n]*\\\n[ \t]+-v test_settings_overlay_mode=(code-only|reset) \\\n[ \t]+-f "\$DEPLOY_REPO\/\$OVERRIDE"$/gmu,
+    ),
+  ].map((match) => match[1]);
+  if (
+    deployOverlayModes.length !== 2 ||
+    deployOverlayModes.filter((mode) => mode === 'code-only').length !== 1 ||
+    deployOverlayModes.filter((mode) => mode === 'reset').length !== 1
+  ) {
+    fail(
+      `${files.deployTestSaas} must have exactly one explicit code-only and one explicit reset overlay invocation`,
+    );
+  }
+  requireFragments(files.devPostRefreshUnlock, loaded.devPostRefreshUnlock, [
+    "locked_keys TEXT[] := ARRAY['patient_app_maintenance_enabled','dev_mode','test_account_identifiers','specialist_signup_enabled','patient_program_discussion_ui_enabled'];",
+    "locked_keys TEXT[] := ARRAY['app_base_url','test_account_identifiers','specialist_signup_enabled','patient_program_discussion_ui_enabled'];",
+  ]);
+  forbidFragments(files.devPostRefreshUnlock, loaded.devPostRefreshUnlock, ["'smtp_outbound'"]);
 
   requireFragments(files.deployTestFullReset, loaded.deployTestFullReset, [
     'Explicit owner-gated entrypoint for the destructive TEST migration rehearsal.',
@@ -1030,6 +1150,7 @@ function runChecks(overrides = {}) {
     '--dry-run',
     '--self-test',
     'sanitizedChildEnv',
+    'test_settings_overlay_mode=reset',
   ]);
   forbidFragments(files.disposableWrapper, loaded.disposableWrapper, [
     'tolerateFailure: true',
@@ -1121,6 +1242,72 @@ function runSelfTest() {
       deployTestSaas: read(files.deployTestSaas).replace(
         'trap cleanup_exit EXIT',
         'trap revoke_bypass EXIT',
+      ),
+    },
+    {
+      testSettingsOverride: read(files.testSettingsOverride).replace(
+        "IN ('reset', 'code-only')",
+        "IN ('reset')",
+      ),
+    },
+    {
+      testSettingsOverride: read(files.testSettingsOverride).replace(
+        "ON CONFLICT (key, scope) WHERE organization_id IS NULL DO NOTHING;",
+        "ON CONFLICT (key, scope) WHERE organization_id IS NULL DO UPDATE SET value_json = EXCLUDED.value_json;",
+      ),
+    },
+    {
+      testSettingsOverride: read(files.testSettingsOverride).replace(
+        "SELECT 'smtp_outbound', 'admin', source.value_json, NOW(), NULL",
+        "SELECT 'smtp_outbound', 'admin', '{\"value\":null}'::jsonb, NOW(), NULL",
+      ),
+    },
+    {
+      testSettingsOverride: read(files.testSettingsOverride).replace(
+        "WHERE source.key = 'smtp_outbound'",
+        "WHERE source.key = 'app_base_url'",
+      ),
+    },
+    {
+      testSettingsOverride: read(files.testSettingsOverride).replace(
+        'BEGIN;\n\nDROP TRIGGER IF EXISTS system_settings_test_lock ON public.system_settings;',
+        'DROP TRIGGER IF EXISTS system_settings_test_lock ON public.system_settings;\n\nBEGIN;',
+      ),
+    },
+    {
+      testSettingsOverride: read(files.testSettingsOverride).replace(
+        "ARRAY['patient_app_maintenance_enabled','dev_mode','test_account_identifiers','specialist_signup_enabled','patient_program_discussion_ui_enabled']",
+        "ARRAY['patient_app_maintenance_enabled','dev_mode','test_account_identifiers','smtp_outbound','specialist_signup_enabled','patient_program_discussion_ui_enabled']",
+      ),
+    },
+    {
+      devPostRefreshUnlock: read(files.devPostRefreshUnlock).replace(
+        "ARRAY['app_base_url','test_account_identifiers','specialist_signup_enabled','patient_program_discussion_ui_enabled']",
+        "ARRAY['smtp_outbound','app_base_url','test_account_identifiers','specialist_signup_enabled','patient_program_discussion_ui_enabled']",
+      ),
+    },
+    {
+      deployTestSaas: read(files.deployTestSaas).replace(
+        '-v test_settings_overlay_mode=code-only',
+        '-v test_settings_overlay_mode=reset',
+      ),
+    },
+    {
+      deployTestSaas: read(files.deployTestSaas).replace(
+        '    -v test_settings_overlay_mode=code-only \\',
+        '    # -v test_settings_overlay_mode=code-only \\',
+      ),
+    },
+    {
+      deployTestSaas: read(files.deployTestSaas).replace(
+        '-v test_settings_overlay_mode=reset',
+        '-v test_settings_overlay_mode=code-only',
+      ),
+    },
+    {
+      disposableWrapper: read(files.disposableWrapper).replace(
+        'test_settings_overlay_mode=reset',
+        'test_settings_overlay_mode=code-only',
       ),
     },
     {

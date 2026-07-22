@@ -381,7 +381,14 @@ Leaving BYPASSRLS or owner membership behind is a protocol failure even if migra
 
 After migrations, apply the repo-tracked `deploy/postgres/test-settings-override.sql`. This is the only
 allowed TEST override path for maintenance, dev mode, test account identifiers, OAuth redirects, and
-admin/doctor allowlist normalization. It must stay version-matched to the deploy checkout.
+admin/doctor allowlist normalization. It must stay version-matched to the deploy checkout. Every caller passes an
+explicit validated mode: ordinary code-only closure uses `test_settings_overlay_mode=code-only` and preserves the
+canonical global DB-backed `smtp_outbound` while aligning its integrator mirror; fresh/reset and disposable
+fresh-rehearsal paths use `test_settings_overlay_mode=reset` and scrub that value in both schemas. Missing/invalid
+mode fails before lock mutation. SMTP is intentionally excluded from TEST lock arrays so the existing
+Settings/`updateSetting` path can configure it; the rest of the TEST safety locks remain unchanged.
+Trigger removal, all settings mutations, and trigger recreation are one transaction, so any `ON_ERROR_STOP`
+failure rolls the entire overlay back and preserves the previously installed locks.
 
 ### 9. Canonical identity, Rubitime history, and FIO normalization
 

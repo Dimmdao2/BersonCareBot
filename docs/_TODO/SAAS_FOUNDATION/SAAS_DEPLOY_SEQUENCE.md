@@ -81,6 +81,12 @@ The override inserts GLOBAL rows, so change every `ON CONFLICT (key, scope) DO U
 `ON CONFLICT (key, scope) WHERE organization_id IS NULL DO UPDATE` (matches the global partial index). Applied
 cleanly on test. Fold this into `/tmp/bcb-test-setup/test-settings-override.sql` permanently.
 
+Current mode contract (2026-07-23): callers must pass `test_settings_overlay_mode=code-only` for an ordinary
+existing-DB deploy or `test_settings_overlay_mode=reset` for a fresh/reset rehearsal. Code-only preserves the
+canonical global DB-backed SMTP value and aligns the integrator mirror; reset scrubs both. The SQL refuses a
+missing/unknown mode before dropping locks. `smtp_outbound` is writable through Settings/`updateSetting`; the other
+TEST-only locked keys remain protected.
+
 ## Current status
 
 The single hard TEST wrapper and repo-tracked settings override are implemented. There is no separate supported

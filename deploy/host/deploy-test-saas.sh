@@ -1003,7 +1003,9 @@ run_strict_post_migration_closure(){
   grant_webapp_bootstrap_base_login_d3_4
 
   log "strict closure: TEST settings override"
-  sudo -u postgres psql -d "$DB" -X -v ON_ERROR_STOP=1 -f "$DEPLOY_REPO/$OVERRIDE"
+  sudo -u postgres psql -d "$DB" -X -v ON_ERROR_STOP=1 \
+    -v test_settings_overlay_mode=code-only \
+    -f "$DEPLOY_REPO/$OVERRIDE"
 
   log "strict closure: base policies -> safe specialized overlays -> exact FORCE assertions"
   apply_test_strict_rls_finalizer
@@ -1349,7 +1351,9 @@ sudo -u postgres psql -d "$DB" -X -v ON_ERROR_STOP=1 \
 #    maintenance, allowlist, identity role-allowlist normalization, DB lock). Applied from the deploy
 #    checkout so it is version-matched to the branch.
 log "test settings override"
-sudo -u postgres psql -d "$DB" -v ON_ERROR_STOP=1 -f "$DEPLOY_REPO/$OVERRIDE"
+sudo -u postgres psql -d "$DB" -v ON_ERROR_STOP=1 \
+  -v test_settings_overlay_mode=reset \
+  -f "$DEPLOY_REPO/$OVERRIDE"
 
 # 5. Full canonical Rubitime/history normalization while all writers are still stopped. The one-pass wrapper owns
 #    placeholder cleanup, specialist consolidation, all cleanup/import passes (including the mandatory second

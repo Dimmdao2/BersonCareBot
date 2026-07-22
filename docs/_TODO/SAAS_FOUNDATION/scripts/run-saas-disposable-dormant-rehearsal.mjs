@@ -708,7 +708,17 @@ function runFixtureProof(plan) {
     );
     run(
       "psql",
-      ["-X", "-v", "ON_ERROR_STOP=1", "-d", plan.targetOwnerUrl, "-f", testSettingsOverridePath],
+      [
+        "-X",
+        "-v",
+        "ON_ERROR_STOP=1",
+        "-v",
+        "test_settings_overlay_mode=reset",
+        "-d",
+        plan.targetOwnerUrl,
+        "-f",
+        testSettingsOverridePath,
+      ],
       {
         env: sanitizedChildEnv({ PGOPTIONS: rolePgOptions(plan.ownerRole) }),
         label: "apply canonical TEST settings override to disposable rehearsal",
