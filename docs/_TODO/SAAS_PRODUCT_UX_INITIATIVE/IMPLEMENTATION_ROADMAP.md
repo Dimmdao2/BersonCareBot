@@ -446,8 +446,9 @@ card; запрещено строить временный resolver, второ�
   inset divider, спокойное выравнивание текста/иконок и selected state без отдельной карточки. Поиск «Клиентов»
   переносится в правую половину page header на одну линию с title. Это не patient/public UI и не изменение
   data/metric semantics.
-- **Latest presentation correction (owner 2026-07-22):** historical `#faf9f4` outcome из UI-P заменён возвратом
-  прежнего белого/inherited workspace background (`#967`), белая page header и primary `#406ca7` сохраняются.
+- **SUPERSEDED — 2026-07-22:** the former white/inherited workspace outcome (`#967`) conflicts with the later
+  `UI_FINISH_AND_REAUDIT_2026-07-22/WORK_ORDER.md` §2. The current doctor canvas is exact Design DNA
+  `#F6F4EF`; white page header and primary `#406ca7` remain.
   Общие section tabs получают более округлённую doctor-control форму и более тёмный neutral hover. Clients и
   Messages используют один shared flat-list contract: геометрия/границы как у «На сопровождении», full-row hover и
   divider `#f0efeb`. Отдельный Today residual `#966` возвращает desktop `50/50`, превращает «Открыть расписание» в

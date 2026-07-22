@@ -27,7 +27,7 @@
 | G3 — тумблеры механик | **решено: только organization/clinic**, не специалист | строить на существующем S4 engine `#888`, не форкать |
 | G4 — split коммуникаций | **решено: 45/55** | согласованный fallback: 50/50 |
 | G5 — онлайн-приём | **решено:** online уже существует; нужна только встроенная включаемая локация «Онлайн» | её toggle гейтит существующие online-галочки услуг; новой схемы не вводить |
-| G6 — общий Doctor UI chrome | **SUPERSEDED частично 2026-07-22:** прежний gap background `#faf9f4` заменён белым/inherited workspace background. Сохраняются белая page header, primary `#406ca7`, радиусы blocks/KPI/controls `12/8/24px`, padding `18px`, белый input и KPI label сверху/value снизу. 24px не применяется к sidebar/mobile menu rows: меню почти прямоугольное с минимальным radius; section tabs имеют отдельную округлённую форму. Flat lists используют геометрию «На сопровождении», full-row hover и divider `#f0efeb`. | latest shared-primitives residual `#967`; doctor workspace only, без локального style fork |
+| G6 — общий Doctor UI chrome | **SUPERSEDED частично 2026-07-22:** белый/inherited workspace background из прежней correction. Latest authority `UI_FINISH_AND_REAUDIT_2026-07-22/WORK_ORDER.md` §2 + Design DNA v1.0: doctor canvas = `#F6F4EF`; белая page header, primary `#406ca7`, радиусы blocks/KPI/controls `12/8/24px`, padding `18px`, белый input и KPI label сверху/value снизу сохраняются. 24px не применяется к sidebar/mobile menu rows: меню почти прямоугольное с минимальным radius; section tabs имеют отдельную округлённую форму. Flat lists используют геометрию «На сопровождении», full-row hover и divider `#f0efeb`. | latest shared-primitives residual `#967`; doctor workspace only, без локального style fork |
 | SCH-G5 — fallback слотов | **owner question `#848`** | не менять строгую/резервную семантику без ответа |
 
 Отдельное точное решение по `#191`: разминки по умолчанию в `12:00` и `15:00` в рабочие дни; существующих клиентов
@@ -217,9 +217,9 @@ counts/metadata или потерю standalone deep-link compatibility.
 
 ### UI-P — общий Doctor UI presentation-token pass
 
-- **Последняя owner correction 2026-07-22 (`#967`) заменяет прежний G6 background outcome:** отдельная тёплая
-  заливка `#faf9f4` убирается и возвращается прежний белый/inherited workspace background; sticky page header с
-  названием остаётся белой.
+- **SUPERSEDED — 2026-07-22:** прежний G6 white/inherited background outcome. Latest owner authority
+  `UI_FINISH_AND_REAUDIT_2026-07-22/WORK_ORDER.md` §2 + Design DNA v1.0 sets exact doctor canvas `#F6F4EF`;
+  sticky page header with title remains white.
 - Радиусы задаются общими doctor primitives: page-level block `12px`, KPI `8px`, doctor button/input/select trigger
   `24px`. Основные блоки используют внутренний отступ `18px`; внутренний `input` имеет белый фон. Локальные копии
   этих классов по страницам не создаются.
@@ -311,8 +311,9 @@ metric semantics, patient/public UI, DB/env/deploy и полный CI вне sco
 - **SUPERSEDED — 2026-07-22, replaced by `P2B-01`:** любое распространение communications split `45/55`
   (G4/UI-3) на desktop-полотна «Сегодня». `45/55` остаётся только communications contract; «Сегодня» — точно
   `50/50`.
-- **SUPERSEDED — 2026-07-22, replaced by `P2B-02`:** workspace/gap background `#faf9f4`. Возвращён прежний
-  белый/inherited workspace background; page header и основные поверхности белые.
+- **SUPERSEDED — 2026-07-22:** the previous `P2B-02` white/inherited workspace outcome. Replaced by
+  `docs/_TODO/UI_FINISH_AND_REAUDIT_2026-07-22/WORK_ORDER.md` §2 + Design DNA v1.0: doctor canvas is exactly
+  `#F6F4EF`; page header and primary surfaces remain white.
 - **SUPERSEDED — 2026-07-22, replaced by `P2B-09`:** применение doctor control radius `24px` к sidebar/mobile
   menu rows, включая промежуточный `rounded-md`. Основное меню остаётся почти прямоугольным с минимальным radius;
   более округлённые section tabs — отдельный contract.
@@ -323,8 +324,8 @@ metric semantics, patient/public UI, DB/env/deploy и полный CI вне sco
 #### Atomic acceptance — worker/auditor authority
 
 - [ ] **P2B-01** Desktop «Сегодня» использует точное разделение `50/50`; mobile composition не регрессирует.
-- [ ] **P2B-02** Doctor workspace использует прежний белый/inherited background; белые page headers и основные
-  поверхности не перекрашены в `#faf9f4` или другой локальный gap color.
+- [ ] **P2B-02** **SUPERSEDED — 2026-07-22 by `UI_FINISH_AND_REAUDIT_2026-07-22/WORK_ORDER.md` §2:** Doctor
+  workspace canvas uses exact Design DNA `#F6F4EF`; page headers and primary surfaces remain white.
 - [x] **P2B-03** Shared section tabs имеют более тёмный neutral hover и свой округлённый tab contract без
   page-local divergence; это не меняет геометрию sidebar/mobile menu.
 - [x] **P2B-04** Видимая сетка Today calendar начинается ровно за один час до первого приёма, когда именно приём
@@ -354,9 +355,9 @@ metric semantics, patient/public UI, DB/env/deploy и полный CI вне sco
 
 - `P2B-01` — code/test prove `DoctorTodayDashboard.tsx` uses `md:grid-cols-2`; mobile runtime evidence remains open
   until the integrated commit is checked live.
-- `P2B-02` — **OPEN after independent audit:** `doctor.css` sets the intended white/inherited value, but
-  `bersoncare-tweakcn-theme.css` still contains the superseded `#faf9f4` fallback. `P2B-07`/`P2B-08` remain proven
-  by the doctor-only `#406ca7` semantic primary and white header/input surfaces.
+- `P2B-02` — **SUPERSEDED then reopened by latest owner authority:** old white/inherited value and `#faf9f4`
+  fallback do not apply. `doctor.css` and `bersoncare-tweakcn-theme.css` must use DNA canvas `#F6F4EF`;
+  `P2B-07`/`P2B-08` remain proven by the doctor-only `#406ca7` semantic primary and white header/input surfaces.
 - `P2B-03` — `DoctorSectionTabs.ts` uses `--doctor-section-tab-hover`; `DoctorPresentationChrome.test.tsx`
   proves that section tabs keep their own pill contract independently of menu rows.
 - `P2B-04`/`P2B-05` — `DoctorTodayMiniCalendar.tsx` delegates the single lead buffer to
@@ -519,8 +520,8 @@ brief или заменять одним общим пунктом.
 
 #### UI-P — shared doctor presentation (`#925`)
 
-- [ ] Latest owner correction вернула прежний белый/inherited workspace background; page header остаётся белой,
-  primary `#406ca7` не меняется (`#967`).
+- [ ] **SUPERSEDED — 2026-07-22 by `UI_FINISH_AND_REAUDIT_2026-07-22/WORK_ORDER.md` §2:** Doctor canvas uses
+  exact Design DNA `#F6F4EF`; page header remains white, and primary `#406ca7` does not change.
 - [ ] Радиусы block/KPI/control `12/8/24px`, основной padding `18px` и белый input не размножены локально.
 - [x] KPI используют порядок label → value.
 - [x] Основной текст doctor-списков крупнее и легче без изменения meta/badge/calendar typography.

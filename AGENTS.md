@@ -1008,9 +1008,10 @@ high-risk stage; изменивший код auditor/correction owner не пр�
 
 ### Единый визуальный язык и шкала (гайд §A–§C)
 
-- **SUPERSEDED 2026-07-22:** прежний `#faf9f4` заменён возвратом белого/inherited workspace background; page header
-  и основные поверхности — белые. Глубина — тонкие границы/лёгкие поверхности, не тени (§A). `shadow-*` — только
-  floating, **не** на page-level секциях/KPI.
+- **SUPERSEDED 2026-07-22:** прежнее правило о белом/inherited workspace background. Latest owner authority
+  `docs/_TODO/UI_FINISH_AND_REAUDIT_2026-07-22/WORK_ORDER.md` §2 + Design DNA v1.0 устанавливают exact doctor
+  canvas `#F6F4EF`; page header и основные поверхности остаются белыми. Глубина — тонкие
+  границы/лёгкие поверхности, не тени (§A). `shadow-*` — только floating, **не** на page-level секциях/KPI.
 - Semantic primary кабинета врача — ровно `#406ca7` через зональный `--primary`; кнопки, ссылки, active/focus и другие primary-consumers используют semantic-классы, а не локальный hex. Patient/public tokens и destructive/warning/info роли не перекрашивать.
 - Chrome-типографика — закрытый набор §B.1: page-title `text-base`, section `text-sm`, обычный body `text-sm`, **первичная строка списка** `text-base font-normal`, meta `text-xs`, KPI `doctorMetricValueClass` (`text-2xl`). Micro-роль `text-[10px]`/`text-[11px]` — только бейджи/календарь/оси графиков/mono. Запрещено: `text-[13px]`, `text-lg`, `text-xl`, `text-3xl`.
 - Контролы doctor-zone: input/select-триггер/база кнопки — `h-8`/`h-[32px]` + радиус `24px`; фактическая поверхность input белая; поле и кнопка/select в одной строке совпадают.
