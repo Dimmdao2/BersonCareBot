@@ -4680,3 +4680,25 @@ catalog excludes online-only services from physical cities while the real format
 block. Integration verification passed `138/138`; the single independent audit returned PASS. No new schema,
 delivery mode or expanded online booking chain `#215` was introduced. A live published-slug walkthrough remains the
 separate U6B `#926` gate and is not inferred from repository tests.
+
+## 2026-07-22 — stability D2 CSRF contract frozen as `#973`
+
+Read-only census on the current integration tree found `353` mutating route files / `392` mutating handlers and
+`28` Server Action files. The existing proxy is the single suitable pre-handler chokepoint; there is currently no
+Origin or Fetch Metadata guard. The D2 plan now has ten atomic acceptance items covering an exhaustive route census,
+a pure zero-I/O helper, fail-closed same-origin browser policy, early proxy rejection, exact signed-M2M/internal-job/
+provider-webhook/Apple exemptions with stronger-proof assertions, stateful GET and Server Action handling, proxy and
+localhost compatibility, regression coverage and a bounded load proof. No code, DB, environment, deploy or TEST/
+PROD action occurred. Five `mock-complete` routes without one common dev-only gate remain a separate owner question;
+D2 protects them as normal browser mutations and does not expand into their retirement.
+
+## 2026-07-22 — U6B `#926` readiness stopped before premature implementation
+
+The read-only source/DAG census found that U2 is complete but U4 is not: full U3B still lacks the PIN/SMS/PBK/PWA
+and booking-to-enrollment/signed-continuation seals consumed by U4. Therefore full U6B cannot start yet. Existing
+source already provides migration `0218` slug claims, typed service/repository/DI, secure published-slug resolvers
+and the grant/check/smoke delta previously described by stale task `#817`; it must not be duplicated. Publication
+snapshots/version/readiness, first-setup slug confirmation, public assets/contacts, canonical root/booking/widget
+routes, typed iframe protocol and booking/join continuation remain absent. The future launch manifest must also
+freeze the public-contact allowlist and embed-origin/CSP policy. No code, tests, DB, deploy, TEST or PROD action was
+performed; task `#926` is dependency-blocked on full U3B→U4 rather than marked done from the existing slug foundation.

@@ -61,7 +61,7 @@ taskdb-карта создаётся только для доказанного 
 | B3 | `covered` | `#948`, `fdbea3b0e` + `d640d93b9`: full-range ordered advisory locks and atomic online slot recheck/insert; concurrency proof and audit PASS. |
 | C1 | `residual_gap` | Repository/DEV self-hosted error tracker + release tags остаются не начаты; host/production activation — отдельный `SEC-02/PR-04` owner gate. |
 | D1 | `residual_gap` | `#919`/migration `0215` уже дают staff `session_version`, но doctor TTL остаётся 90 дней. Нужны короткий doctor TTL и revocation без per-request DB round-trip с p95 proof. |
-| D2 | `residual_gap` | Центрального Origin/Sec-Fetch-Site CSRF guard нет; нужны точные M2M/webhook/public-auth exemptions и negatives. |
+| D2 | `residual_gap` | `#973`: source census и atomic checklist зафиксированы; центрального Origin/Sec-Fetch-Site guard пока нет. Реализация обязана сохранить точные signed-M2M/internal-job/provider-webhook/Apple exemptions и закрыть browser/Server Action negatives. |
 | E2 | `residual_gap` | Общего server response/error mapper нет. Внедрять только helper + launch-risk routes, не массовую косметическую миграцию. |
 | E3 | `residual_gap` | Integrator↔webapp event contract продублирован вручную и JSON artifact расходится. Нужен один shared Zod SSOT и runtime validation на обоих концах. |
 | A4 | `dependency_waiting` | Большой chokepoint уже в основном закрыт `#770/#797`; после ранних фаз выводится только exact launch-critical exception/manual-NULL matrix. Старое число файлов не является автоматическим scope. |
@@ -281,6 +281,60 @@ apply, TEST/PROD or deploy is claimed.
             инвалидирует B ≤30с; другой doctor/patient не затронут; Max-Age соответствует ruling.
 - [ ] **D2. CSRF/Origin-проверка** на мутирующих роутах как defense-in-depth поверх `SameSite=lax`.
       Размер: **S-M** · Аудит: один.
+
+      **Source contract (`#973`, census на `3e9d27490`):** всего `518` API route-файлов; unsafe methods имеют
+      `353` mutating route-файла / `392` mutating handlers; отдельно существуют `28` Server Action files. Все
+      mutating route-файлы должны оставаться в исчерпывающей классификации: cookie/public browser, `18` integrator
+      HMAC, `13` internal Bearer jobs, `2` provider webhook patterns и Apple `form_post`. Девять stateful GET
+      являются отдельными proof-bound exceptions и не переводятся молча в unsafe-method policy.
+
+      Exact checklist после source-backed discovery:
+
+      - [ ] **D2-01 — frozen census.** Статическая перепись всех `518` `app/api/**/route.ts` доказывает unsafe
+            subset `353` mutating route files / `392` mutating handlers, исчерпывающе распределяет этот subset по
+            browser/integrator/internal/webhook/Apple классам и отдельно фиксирует девять stateful GET и `28`
+            Server Action files; новая, потерянная или осиротевшая route ломает gate.
+      - [ ] **D2-02 — pure shared helper.** Один синхронный helper в `src/middleware/` возвращает `allow | reject`
+            и proof-class; не импортирует DI, auth, DB, runtime settings, logging или network.
+      - [ ] **D2-03 — fail-closed browser policy.** Для browser `POST/PUT/PATCH/DELETE` под `/api/**` и `/app/**`:
+            present `Sec-Fetch-Site` допускает только `same-origin`; валидный одиночный non-null `Origin` обязан
+            точно совпадать с canonical scheme+host+port; только при отсутствии Origin допустим валидный
+            same-origin Referer. Missing both, malformed/multiple/null Origin, sibling `same-site`, scheme/port и
+            localhost/127.0.0.1 alias mismatch отвергаются.
+      - [ ] **D2-04 — proxy chokepoint.** Guard вызывается в `proxy.ts` сразу после bounded correlation-id и до
+            redirects/platform cookies/session renewal/dispatch. Reject = `403`, `Cache-Control: no-store`,
+            `{ok:false,error:"csrf_origin_forbidden"}` и только bounded correlation response header; observed и
+            expected origins не логируются и не возвращаются.
+      - [ ] **D2-05 — exact runtime exemptions.** Typed exact allowlist/pattern registry содержит только `18`
+            integrator routes, `13` internal jobs, два payment webhook patterns и Apple callback. Prefix-wide,
+            cookie-presence и `NODE_ENV` bypass запрещены; public/auth browser routes не являются exemptions.
+      - [ ] **D2-06 — stronger-proof assertions.** Static tests доказывают вызов `verifyIntegratorSignature` в
+            каждом integrator exemption, constant-time `INTERNAL_JOB_SECRET` во всех internal jobs, provider
+            verification в обоих webhook routes и signed state + ID-token nonce в Apple callback.
+      - [ ] **D2-07 — Server Actions и GET exceptions.** Same-origin Server Action POST проходит, cross-site и
+            missing-Origin/Referer fail до Next handler. Девять stateful GET и их proofs/reasons заморожены;
+            OAuth callbacks, reminder deep-links, dev helpers и logout semantics этим этапом не меняются.
+      - [ ] **D2-08 — proxy/localhost compatibility.** `127.0.0.1` и `localhost` разрешены только при точном Host;
+            `X-Forwarded-Host` игнорируется, first `X-Forwarded-Proto` принимается только как `http|https`.
+            Известные direct Node/browser smoke callers передают точный Origin; WebView DEV smoke включён.
+      - [ ] **D2-09 — regression matrix.** Safe methods не меняются; покрыты authenticated/public booking/browser
+            API, Server Actions, Origin и Referer success, все negative header cases, каждый exemption без browser
+            headers, lookalike paths и отсутствие session-cookie renewal/set на reject.
+      - [ ] **D2-10 — load/validation gate.** Helper делает только sync string/URL comparison, `0` DB/network calls.
+            Три loopback-прогона no-session browser POST, concurrency `16`: стабильный ожидаемый status и `0`
+            неожиданных transport failures, p95 after `<= baseline x 1.05`, stable RSS/DB-pool. Focused Vitest,
+            webapp typecheck, scoped ESLint и
+            `git diff --check` проходят; full CI остаётся phase milestone, не повторяется для D2.
+
+      **Exact implementation manifest:** `apps/webapp/src/middleware/csrfOrigin.ts{,.test.ts}`,
+      `apps/webapp/src/proxy.ts{,.test.ts}`, `apps/webapp/e2e/api-auth-exchange.test.ts`,
+      `deploy/host/test-visual-global-admin-session.mjs`, `apps/webapp/src/app/api/api.md`. Запрещены массовые
+      route rewrites, CORS/schema/migration/config/env/session redesign, webhook rewrite, GET conversion,
+      TEST/PROD/host/deploy и E2 response-builder scope.
+
+      **Отдельный owner question, не D2 scope:** пять `mock-complete` routes фактически не имеют общего dev-only
+      runtime gate. D2 защищает их как обычные browser mutations; решение об их retirement/environment gate не
+      создаётся audit finding-ом внутри D2.
 - [ ] **E2. Общий `jsonOk/jsonError` builder + маппер ошибка→HTTP.** Внедрение инкрементальное; новые роуты обязаны,
       старые мигрируют волной. Размер: **M** (helper) + постепенная адаптация · Аудит: один.
 - [ ] **E3. Единая zod-схема границы integrator↔webapp** — заменить 3 определения (JSON-док + zod интегратора +
