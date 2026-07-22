@@ -19,7 +19,7 @@ import { dirname, join, resolve } from 'node:path';
 import { randomUUID } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 
-const EXACT_TEST_DATABASE = 'bersoncarebot_test';
+export const EXACT_TEST_DATABASE = 'bersoncarebot_test';
 const EXACT_FIXTURE_PATH = '/run/bersoncarebot/saas-smoke.fixture';
 const EXACT_PREVIOUS_PATH = '/run/bersoncarebot/saas-smoke.fixture.previous';
 const EXACT_TEST_ENV_PATH = '/opt/env/bersoncarebot/webapp.test';

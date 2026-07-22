@@ -1,12 +1,16 @@
+import { spawnSync } from 'node:child_process';
 import { chmodSync, lstatSync, readFileSync, symlinkSync, writeFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
 import { mkdtemp, rm } from 'node:fs/promises';
 import { afterEach, describe, expect, it } from 'vitest';
 
 import {
+  EXACT_TEST_DATABASE,
   FixtureUpdateError,
   assertProtectedMetadata,
+  buildReadOnlyProbeSql,
   inspectProtectedMetadata,
   resolveOneCanonicalSlotPair,
   updateCanonicalSlotRefs,
@@ -16,6 +20,9 @@ import {
 const BRANCH_ID = '11111111-1111-4111-8111-111111111111';
 const SERVICE_ID = '22222222-2222-4222-8222-222222222222';
 const LEGACY_ID = '33333333-3333-4333-8333-333333333333';
+const CLI_PATH = fileURLToPath(
+  new URL('./update-saas-product-smoke-fixture-canonical-slots.ts', import.meta.url),
+);
 const tempRoots: string[] = [];
 
 function exactProbe(overrides: Partial<CanonicalSlotProbe> = {}): CanonicalSlotProbe {
@@ -77,6 +84,46 @@ describe('canonical public-booking fixture selection', () => {
     );
   });
 
+  it('requires exactly one organization for the protected public slug', () => {
+    expectCode(
+      () => resolveOneCanonicalSlotPair(exactProbe({ organizationCount: 0 }), true),
+      'organization_not_unique',
+    );
+    expectCode(
+      () => resolveOneCanonicalSlotPair(exactProbe({ organizationCount: 2 }), true),
+      'organization_not_unique',
+    );
+  });
+
+  it('rejects a legacy ref whose canonical pair is outside the slug organization', () => {
+    expectCode(
+      () =>
+        resolveOneCanonicalSlotPair(
+          exactProbe({
+            organizationCount: 1,
+            legacyMatchCount: 1,
+            candidates: [],
+          }),
+          true,
+        ),
+      'canonical_slot_pair_not_found',
+    );
+  });
+
+  it('pins a read-only SQL probe with exact DB evidence and same-org legacy intersection', () => {
+    const sql = buildReadOnlyProbeSql('saas-test-clinic-a', LEGACY_ID);
+
+    expect(EXACT_TEST_DATABASE).toBe('bersoncarebot_test');
+    expect(sql).toContain('BEGIN READ ONLY;');
+    expect(sql).toContain("'databaseName', current_database()");
+    expect(sql).toContain('legacy_pairs.organization_id = slug_org.organization_id');
+    expect(sql).toContain('legacy_pairs.branch_id = branch.id');
+    expect(sql).toContain('legacy_pairs.service_id = service.id');
+    expect(sql).toContain('branch.organization_id = slug_org.organization_id');
+    expect(sql).toContain('service.organization_id = slug_org.organization_id');
+    expect(sql).not.toMatch(/\b(?:INSERT|UPDATE|DELETE|ALTER|DROP|CREATE|TRUNCATE)\b/i);
+  });
+
   it('fails closed for no match and ambiguity', () => {
     expectCode(
       () => resolveOneCanonicalSlotPair(exactProbe({ legacyMatchCount: 0 }), true),
@@ -102,6 +149,40 @@ describe('canonical public-booking fixture selection', () => {
         ),
       'canonical_slot_pair_ambiguous',
     );
+  });
+});
+
+describe('operator CLI disclosure boundary', () => {
+  it('does not echo opaque refs from argv or environment on an actual CLI failure', () => {
+    const result = spawnSync(
+      'pnpm',
+      [
+        'exec',
+        'tsx',
+        CLI_PATH,
+        '--project-root=/not-the-canonical-test-checkout',
+        `--opaque-probe=${BRANCH_ID}:${SERVICE_ID}:${LEGACY_ID}`,
+      ],
+      {
+        cwd: join(dirname(CLI_PATH), '..'),
+        encoding: 'utf8',
+        env: {
+          ...process.env,
+          BCB_OPERATOR_TEST_ENV_FILE: '/not-the-test-env',
+          BCB_OPAQUE_PROBE: `${BRANCH_ID}:${SERVICE_ID}:${LEGACY_ID}`,
+        },
+      },
+    );
+    const output = `${result.stdout}${result.stderr}`;
+
+    expect(result.status).toBe(1);
+    expect(result.stdout).toBe('');
+    expect(result.stderr).toMatch(
+      /^fixture canonical-slot update failed: (root_operator_required|wrong_project_root)\n$/,
+    );
+    expect(output).not.toContain(BRANCH_ID);
+    expect(output).not.toContain(SERVICE_ID);
+    expect(output).not.toContain(LEGACY_ID);
   });
 });
 
