@@ -783,7 +783,9 @@ atomic checkboxes. Audit сравнивает результат с деталь
 Status детального plan, taskdb и этот registry обновляются в одном integration/docs pass.
 
 Текущий denominator: **22 leaf execution plans**. Ни один ещё не закрыт целиком со всеми своими gates: 3 имеют
-только завершённый partial slice, 4 имеют исполнимый сейчас остаток, 15 dependency/owner/legal/production-gated.
+только завершённый partial slice, 2 сохраняют repository-level open scope, 17 dependency/owner/legal/production-gated.
+Из двух `open` leaf только активный E3 child `#982` имеет полный `ready_for_worker` manifest; CRYPTO-01 до worker
+обязан заморозить exact residual/file/test manifest. Краткий class поэтому не является разрешением запуска.
 Umbrella/index, Foundation helper-checklists и Rubitime production runbooks не прибавляются к этому denominator как
 равноправные stages: они проверяются вместе с owning leaf plan и не превращаются в отдельную очередь.
 
@@ -794,7 +796,7 @@ Umbrella/index, Foundation helper-checklists и Rubitime production runbooks н�
 | [`EDITOR_TIPTAP_MIGRATION_PLAN.md`](../EDITOR_TIPTAP_MIGRATION_PLAN.md) | partial slice | Repository migration, compatibility audit и milestone CI закрыты; `#931` исправлен из false `done` в owner-blocked, потому что mandatory live TEST verification каждого discovery-manifest screen остаётся `[ ]`. |
 | [`.cursor/plans/fio_identity_cleanup.plan.md`](../../../.cursor/plans/fio_identity_cleanup.plan.md) | gated | Phases 0–8 закрыты; `#857` production backfill и `#858` parser audit/retirement остаются gated. |
 | [`STABILITY_SECURITY_HARDENING_PLAN_2026-07-21.md`](../STABILITY_SECURITY_HARDENING_PLAN_2026-07-21.md) | open | C1 `#969` repository dark launch закрыт through `ad398fe36`, terminal audit PASS; host activation осталась `SEC-02/PR-04` gate. D1 `#970` ждёт TTL/admin/SLA ruling; D2 `#973/#974` закрыт through `2d3c98acc`. E2 `#975/#976` repository-complete through `63de21030`, independent re-audit `0/0/0` и accumulated full CI зелёные. E3 source contract `#980` terminal-audited `0/0/0` through `08418ecbc`; E3-02…12 implementation идёт в isolated worktree. A4/A2/E1/post-launch residual идут только по собственным gates. |
-| [`SAAS_FOUNDATION/ADMIN_BASELINE_AND_SUPPORT_CHAT_DESIGN.md`](../SAAS_FOUNDATION/ADMIN_BASELINE_AND_SUPPORT_CHAT_DESIGN.md) | open | Leaf plan был потерян из registry. `#808` Phase 1–2 явно не блокируются §7 owner questions; current-source contract refresh идёт перед schema/code. Phase 3–5, TEST и owner wording/notification decisions остаются gated. |
+| [`SAAS_FOUNDATION/ADMIN_BASELINE_AND_SUPPORT_CHAT_DESIGN.md`](../SAAS_FOUNDATION/ADMIN_BASELINE_AND_SUPPORT_CHAT_DESIGN.md) | gated | Leaf plan был потерян из registry. Единственный contract audit остановил `#808` с `0/2/2`: четыре source-contract замечания требуют прямого разрешения владельца на один bounded correction и fresh audit. Schema/code не начинались; Phase 3–5, TEST и owner wording/notification decisions также gated. |
 | [`UNSUPPORTED_CLIENT_FALLBACK_PLAN.md`](../UNSUPPORTED_CLIENT_FALLBACK_PLAN.md) | partial slice | Закрыт только Ф0 repository slice `#936`; Ф1/Ф2/guard не объявляются завершёнными. |
 | [`OUTBOUND_DELIVERY_ALERTING_PLAN.md`](../OUTBOUND_DELIVERY_ALERTING_PLAN.md) | gated | P1 и repository P2/P3/P4 закрыты through `1fd6bf66e`; P0/P-guard и owner TEST fault-injection acceptance остаются в `#950`. |
 | [`SECURITY_CI_STACK_PLAN.md`](../SECURITY_CI_STACK_PLAN.md) | gated | `#881` owner-waiting; dependency refresh не закрывает Security CI checklist. |
@@ -805,7 +807,7 @@ Umbrella/index, Foundation helper-checklists и Rubitime production runbooks н�
 | [`CRYPTO-01_DATA_AND_KEY_ENCRYPTION.md`](../RU_PRIVACY_AND_PRODUCTION_READINESS/stages/CRYPTO-01_DATA_AND_KEY_ENCRYPTION.md) | open | ADR/ports/tests разрешены; application/migration ждут stable dependency/legal/owner gates. |
 | [`INFRA-01_ENCRYPTED_PROD_MIGRATION.md`](../RU_PRIVACY_AND_PRODUCTION_READINESS/stages/INFRA-01_ENCRYPTED_PROD_MIGRATION.md) | gated | Planning/dark-target/cutover под umbrella `#898/#900/#901`; production только owner window. |
 | [`NTF-01_APP_PUSH_AND_MESSENGER_AUTH_ONLY.md`](../RU_PRIVACY_AND_PRODUCTION_READINESS/stages/NTF-01_APP_PUSH_AND_MESSENGER_AUTH_ONLY.md) | gated | N0/N1/N1A/N1B0 закрыты; `#913` owner-blocked на exact field matrix, а native-push ждёт MOB gates. |
-| [`LOG-01_SENSITIVE_PAYLOAD_HYGIENE.md`](../RU_PRIVACY_AND_PRODUCTION_READINESS/stages/LOG-01_SENSITIVE_PAYLOAD_HYGIENE.md) | open | L1 serializer guard закрыт через `1cbac7e16`, но L0 census остаётся открытым и выполняется в `#914`; L2 schema/retention ждёт G-03 + NTF census. |
+| [`LOG-01_SENSITIVE_PAYLOAD_HYGIENE.md`](../RU_PRIVACY_AND_PRODUCTION_READINESS/stages/LOG-01_SENSITIVE_PAYLOAD_HYGIENE.md) | gated | L1 serializer guard закрыт через `1cbac7e16`, но единственный L0 contract audit остановил `#914` с `0/3/1`: пропущенные logging/error paths, persistent families и exact test manifest требуют прямого разрешения владельца на один bounded correction и fresh audit. L2 schema/retention ждёт G-03 + NTF census. |
 | [`PR-02_HEALTH_CONSENT.md`](../RU_PRIVACY_AND_PRODUCTION_READINESS/stages/PR-02_HEALTH_CONSENT.md) | gated | `#907` ждёт D4/S5-7/legal text. |
 | [`PR-03_DATA_RIGHTS_AND_RETENTION.md`](../RU_PRIVACY_AND_PRODUCTION_READINESS/stages/PR-03_DATA_RIGHTS_AND_RETENTION.md) | gated | Закрыт только PR-03A0; broad `#905` ждёт PR-02, payment slice — billing freeze. |
 | [`SEC-03_CLINICAL_ACCESS_AUDIT.md`](../RU_PRIVACY_AND_PRODUCTION_READINESS/stages/SEC-03_CLINICAL_ACCESS_AUDIT.md) | gated | `#908` ждёт D4. |

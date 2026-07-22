@@ -5092,3 +5092,19 @@ plan and operational entrypoint before any next action. No route restoration/rem
 TEST/PROD or deploy action was inferred from the audit. The recurring audit prompt now records start/final snapshots
 and accepts taskdb+task-aligned worktree+manifest as collaboration-lane ownership; a valid concurrent commit is no
 longer mislabeled merely because in-thread subagents do not publish brain agent-port run-state.
+
+## 2026-07-22 — R0 guard repair and executable-leaf denominator correction
+
+Rubitime R0 freeze drift task `#983` was implemented in an isolated worktree, independently audited `PASS 0/0/0`,
+integrated and pushed as `0dc9f985b`. Two stale registry metadata defaults now say `canonical`; the three setting-key
+declarations and the exact-org `branchServiceId` availability compatibility remain. The checker keeps its original
+per-file baseline and exempts only exact reviewed source contexts. R0 self-test, current Rubitime gate `8/8`,
+registry tests `6/6`, webapp typecheck, scoped lint and diff checks passed. R3C-11, failed `#981` docs reconciliation
+and R5–R7 owner/runtime gates remain open; no DB/TEST/PROD/deploy/data action ran.
+
+A fresh read-only readiness pass proved that `#982` is the only current `ready_for_worker` leaf. The registry
+classification was therefore corrected from stale `22 = 3 partial + 4 executable + 15 gated` to
+`22 = 3 partial + 2 repository-open + 17 gated`: failed one-pass contract stages `#808` and `#914` are owner-gated,
+not executable. Of the two `open` plans, only E3 has a complete worker manifest; CRYPTO-01 still requires an exact
+residual/file/test freeze. Stale standalone `#816` was closed as superseded by `#913/N4`; aggregate `#815` was
+disarmed because it points to absorbed work and a missing `#823` task reference. No replacement scope was invented.
