@@ -5106,9 +5106,9 @@ A fresh read-only readiness pass initially found `#982` as the only `ready_for_w
 classification was therefore corrected from stale `22 = 3 partial + 4 executable + 15 gated` to
 `22 = 3 partial + 2 repository-open + 17 gated`: failed one-pass contract stages `#808` and `#914` are owner-gated,
 not executable. E3 had a complete worker manifest; CRYPTO-01 still requires an exact residual/file/test freeze.
-Stale standalone `#816` was closed as superseded by `#913/N4`; aggregate `#815` was disarmed because it points to
-absorbed work and a missing `#823` task reference. No replacement scope was invented. The later E3 terminal audit
-below supersedes the readiness snapshot: there is currently no worker-ready leaf.
+The first normalization treated standalone `#816` as superseded by `#913/N4` and disarmed aggregate `#815`; the
+deeper provenance pass below corrected both conclusions without creating replacement scope. The later E3 terminal
+audit below also supersedes the readiness snapshot: there is currently no worker-ready leaf.
 
 ## 2026-07-22 — E3 terminal audit rejects unstable 4 KiB performance evidence
 
@@ -5124,3 +5124,22 @@ ratios `1.077350 / 1.034864 / 1.065186`; runs 1 and 3 exceeded the per-run `≤1
 E3-11/E3-12 and overall E3 remain open, candidate `55d1e9359` stays isolated and must not be integrated. Two bounded
 safe optimization attempts are exhausted; `#980` now asks the owner only whether a third attempt is allowed while
 keeping the 5% budget unchanged. No DB/TEST/PROD/deploy/network/data action ran.
+
+## 2026-07-22 — deep provenance correction for stale schedule/deep-link tasks
+
+Read-only task/plan/source tracing recovered both ambiguous references. Aggregate `#815` BUG-C pointed to `#823`,
+but global `#823` is an unrelated `brain` task; the canonical BersonCare row is `#829`. BUG-A/B code is already
+owned by `#821` and still waits its TEST/owner acceptance, BUG-C is present through `7d3076e63`/`9f76fc4cb` with two
+focused regressions, and BUG-D is closed by `#801` through `b588262ae`. `#815` is therefore closed only as
+`SUPERSEDED/ABSORBED → #821/#829/#801`, with no implementation seals and no effect on the open `#821` checkpoint.
+
+A separate current-source audit found that `#816` was closed too early. NTF-01/N4 permits supersession only after
+the push-only web-entry replacement exists; today `buildDoctorMessagesOpenPath` still emits
+`integratorConversationId`, while `doctorRouteRedirects` replaces the query and loses the target dialog. `#816` is
+reopened as dependency-blocked under `#913/N3-N4`; a standalone legacy repair remains forbidden. `#822` stays a
+legitimate absorbed duplicate without implementation seals. The same audit confirmed recent bounded repair rows
+`#943/#944/#956/#957` as `PASS 0/0/0`; their missing audit seals were metadata drift, not new implementation work.
+
+Readiness review also disarmed legacy auto-candidates `#803/#819/#820/#832`. Payment bypass row `#818` is now an
+explicit owner gate: five `mock-complete` routes, not one membership route, require one coherent production
+fail-closed repository guard. No PROD recheck is needed and no payment code starts before that approval.
