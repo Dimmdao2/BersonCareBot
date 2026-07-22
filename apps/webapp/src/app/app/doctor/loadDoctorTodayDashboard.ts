@@ -412,7 +412,6 @@ export async function loadDoctorTodayDashboard(
     newIntake,
     unreadConversations,
     unreadTotal,
-    patientMetrics,
     onSupportListRaw,
   ] = await Promise.all([
     // #9: use statsRange so cancelled appointments are included in today/week lists
@@ -429,7 +428,6 @@ export async function loadDoctorTodayDashboard(
       organizationId: deps.organizationId,
     }),
     deps.messaging.doctorSupport.unreadFromUsers({ organizationId: deps.organizationId }),
-    deps.doctorClients.getDashboardPatientMetrics(clientAudience),
     deps.doctorClients.listClients(
       {
         supportStatus: "on",
@@ -461,9 +459,7 @@ export async function loadDoctorTodayDashboard(
     });
   const peoplePreviewRaw = peopleSorted.slice(0, DOCTOR_TODAY_ON_SUPPORT_PREVIEW_LIMIT);
   const people = peoplePreviewRaw.map(mapClientToTodayItem);
-  const peopleCount = preferences.peopleListMode === "recent_visits"
-    ? peopleSorted.length
-    : patientMetrics.onSupportCount;
+  const peopleCount = peopleSorted.length;
   const peopleListTruncated = peopleCount > people.length;
 
   const [

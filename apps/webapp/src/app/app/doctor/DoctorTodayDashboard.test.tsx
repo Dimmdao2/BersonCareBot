@@ -292,6 +292,35 @@ describe("DoctorTodayDashboard", () => {
     );
   });
 
+  it("renders an invited on-support client when the exact fetched count is nonzero", () => {
+    render(
+      <DoctorTodayDashboard
+        {...defaultProps()}
+        data={{
+          ...emptyData(),
+          peopleCount: 1,
+          people: [
+            {
+              userId: "invited-on-support",
+              displayName: "Приглашённый",
+              href: "/app/doctor/patients/invited-on-support",
+              unreadMessagesCount: 0,
+              exerciseDoneTodayCount: 0,
+              newExerciseCommentsCount: 0,
+              lastAppointmentAt: null,
+            },
+          ],
+        }}
+      />,
+    );
+
+    expect(screen.getByText("Клиентов: 1")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Приглашённый" })).toHaveAttribute(
+      "href",
+      "/app/doctor/patients/invited-on-support",
+    );
+  });
+
   it("renders the proven recent-visits people-list mode without on-support-only copy", () => {
     render(
       <DoctorTodayDashboard

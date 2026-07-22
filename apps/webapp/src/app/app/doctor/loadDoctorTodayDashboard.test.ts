@@ -265,8 +265,7 @@ describe("loadDoctorTodayDashboard audience", () => {
         },
       },
       doctorClients: {
-        getDashboardPatientMetrics: async (aud?: { excludedUserIds?: string[] }) => {
-          expect(aud).toEqual({ ...audience, organizationId: deps.organizationId });
+        getDashboardPatientMetrics: async () => {
           return {
             onSupportCount: 0,
             totalClients: 0,
@@ -306,7 +305,6 @@ describe("loadDoctorTodayDashboard audience", () => {
     const organizationId = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
     let capturedFilters: unknown;
     const appointmentAudiences: unknown[] = [];
-    let capturedMetricsAudience: unknown;
     let capturedConversationsParams: unknown;
     let capturedUnreadParams: unknown;
     const pendingTestCountOrganizationIds: string[] = [];
@@ -320,8 +318,7 @@ describe("loadDoctorTodayDashboard audience", () => {
         },
       },
       doctorClients: {
-        getDashboardPatientMetrics: async (audienceArg?: unknown) => {
-          capturedMetricsAudience = audienceArg;
+        getDashboardPatientMetrics: async () => {
           return {
           onSupportCount: 0,
           totalClients: 0,
@@ -375,7 +372,6 @@ describe("loadDoctorTodayDashboard audience", () => {
       expect.objectContaining({ organizationId }),
       expect.objectContaining({ organizationId }),
     ]);
-    expect(capturedMetricsAudience).toEqual(expect.objectContaining({ organizationId }));
     expect(capturedConversationsParams).toEqual(expect.objectContaining({ organizationId }));
     expect(capturedUnreadParams).toEqual({ organizationId });
     expect(pendingTestCountOrganizationIds).toEqual([organizationId]);
@@ -476,6 +472,24 @@ describe("loadDoctorTodayDashboard proactive", () => {
 });
 
 describe("loadDoctorTodayDashboard people-list preference", () => {
+  it("counts and returns an invited on-support client from the same exact fetched result", async () => {
+    const { loadDoctorTodayDashboard } = await import("./loadDoctorTodayDashboard");
+    const invited = client("invited-on-support", "Приглашённый", null);
+    const deps = minimalDashboardDeps(async (filters) =>
+      filters.supportStatus === "on" ? [invited] : [],
+    );
+
+    const data = await loadDoctorTodayDashboard(
+      deps,
+      { listForDoctor: async () => ({ items: [], total: 0 }) } as unknown as import("@/modules/online-intake/ports").OnlineIntakeService,
+    );
+
+    expect(data.peopleListMode).toBe("on_support");
+    expect(data.peopleCount).toBe(1);
+    expect(data.people.map((row) => row.userId)).toEqual(["invited-on-support"]);
+    expect(data.peopleListTruncated).toBe(false);
+  });
+
   it("loads org-scoped clients with visits and orders the preview by latest visit", async () => {
     const { loadDoctorTodayDashboard } = await import("./loadDoctorTodayDashboard");
     const calls: unknown[] = [];

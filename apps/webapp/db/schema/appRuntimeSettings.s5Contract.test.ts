@@ -94,8 +94,19 @@ describe("S5-1 app runtime settings schema/data contract", () => {
     expect(doctorTodayPreferencesMigration).toContain("'doctor_today_preferences'");
     expect(doctorTodayPreferencesMigration).toContain("organization_id IS NOT NULL");
     expect(doctorTodayPreferencesMigration).toContain(
+      "set_config('app.runtime_settings_audit_source', 's5_1_backfill', false)",
+    );
+    expect(doctorTodayPreferencesMigration).toContain(
+      "set_config('app.runtime_settings_audit_source', '', false)",
+    );
+    expect(doctorTodayPreferencesMigration).toContain(
       "public.app_runtime_settings.updated_at <= EXCLUDED.updated_at",
     );
+    for (const column of ["audience", "value_json", "updated_by", "updated_at"]) {
+      expect(doctorTodayPreferencesMigration).toContain(
+        `public.app_runtime_settings.${column} IS DISTINCT FROM EXCLUDED.${column}`,
+      );
+    }
     const migrationKeys = [
       ...normalRuntimeDefinitionKeys(migration),
       ...authChannelKeys,

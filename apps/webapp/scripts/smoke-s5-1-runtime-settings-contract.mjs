@@ -132,6 +132,7 @@ function installMinimalPredecessorAndFixture() {
     VALUES ${normalRows.join(",\n")};
     INSERT INTO public.system_settings (key, scope, organization_id, value_json, updated_at, updated_by) VALUES
       ('patient_program_discussion_ui_enabled', 'admin', '${organization}', '{"value":"fixture-org"}'::jsonb, '2026-01-01T00:00:00Z', '${actor}'),
+      ('doctor_today_preferences', 'doctor', '${organization}', '{"value":{"visibleProactiveInsightKinds":["wellbeing_low_streak"],"peopleListMode":"on_support"}}'::jsonb, '2026-01-01T00:00:00Z', '${actor}'),
       ('web_push_vapid', 'admin', NULL, '{"value":{"publicKey":"fixture-public-key","privateKey":"fixture-private-key"}}'::jsonb, '2026-01-01T00:00:00Z', '${actor}'),
       ('booking_payment_providers', 'admin', NULL, '{"value":{"enabled":true,"defaultProviderId":"fixture-provider","providers":[{"id":"fixture-provider","label":"Fixture provider","enabled":true,"privateKey":"fixture-private-key","password":"fixture-password","apiKey":"fixture-api-key","webhookSecret":"fixture-webhook-secret","refreshToken":"fixture-refresh-token"}]}}'::jsonb, '2026-01-01T00:00:00Z', '${actor}'),
       ('yandex_oauth_client_id', 'admin', NULL, '{"value":"fixture-id"}'::jsonb, '2026-01-01T00:00:00Z', '${actor}'),
@@ -327,6 +328,62 @@ function assertIdempotenceAndAuditTransaction() {
   `, "rollback leaves neither runtime nor audit row");
 }
 
+function assertDoctorTodayPreferencesMigrationContract() {
+  sql("TRUNCATE public.app_runtime_settings_audit;", "clear audit before 0228 proof");
+  apply(
+    "apps/webapp/db/drizzle-migrations/0228_doctor_today_preferences.sql",
+    "0228 initial apply",
+  );
+  assertSqlTrue(`
+    SELECT (SELECT count(*) FROM public.app_runtime_settings
+            WHERE key = 'doctor_today_preferences' AND scope = 'doctor'
+              AND organization_id = '${organization}') = 1
+       AND (SELECT count(*) FROM public.app_runtime_settings_audit
+            WHERE key = 'doctor_today_preferences' AND scope = 'doctor'
+              AND organization_id = '${organization}') = 1
+       AND (SELECT bool_and(source = 's5_1_backfill')
+            FROM public.app_runtime_settings_audit
+            WHERE key = 'doctor_today_preferences' AND scope = 'doctor'
+              AND organization_id = '${organization}')
+  `, "0228 writes one organization-owned runtime row with the backfill audit source");
+
+  apply(
+    "apps/webapp/db/drizzle-migrations/0228_doctor_today_preferences.sql",
+    "0228 identical reapply",
+  );
+  assertSqlTrue(`
+    SELECT count(*) = 1
+    FROM public.app_runtime_settings_audit
+    WHERE key = 'doctor_today_preferences' AND scope = 'doctor'
+      AND organization_id = '${organization}'
+  `, "0228 identical reapply appends no audit history");
+
+  sql(`
+    UPDATE public.app_runtime_settings
+       SET value_json = '{"value":{"visibleProactiveInsightKinds":[],"peopleListMode":"recent_visits"}}'::jsonb,
+           updated_at = '2026-01-02T00:00:00Z'::timestamptz
+     WHERE key = 'doctor_today_preferences' AND scope = 'doctor'
+       AND organization_id = '${organization}';
+    TRUNCATE public.app_runtime_settings_audit;
+  `, "install newer 0228 destination row and clear its direct-write audit");
+  apply(
+    "apps/webapp/db/drizzle-migrations/0228_doctor_today_preferences.sql",
+    "0228 reapply against newer destination",
+  );
+  assertSqlTrue(`
+    SELECT value_json = '{"value":{"visibleProactiveInsightKinds":[],"peopleListMode":"recent_visits"}}'::jsonb
+       AND updated_at = '2026-01-02T00:00:00Z'::timestamptz
+       AND NOT EXISTS (
+         SELECT 1 FROM public.app_runtime_settings_audit
+         WHERE key = 'doctor_today_preferences' AND scope = 'doctor'
+           AND organization_id = '${organization}'
+       )
+    FROM public.app_runtime_settings
+    WHERE key = 'doctor_today_preferences' AND scope = 'doctor'
+      AND organization_id = '${organization}'
+  `, "0228 preserves a newer destination without audit noise");
+}
+
 function assertS53DualWriteTriggerContract() {
   apply(
     "apps/webapp/db/drizzle-migrations/0210_s5_runtime_dual_write_trigger_bypass.sql",
@@ -469,6 +526,7 @@ try {
   apply("apps/webapp/db/drizzle-migrations/0209_s5_runtime_settings_audit_contract.sql", "0209 initial apply");
   assertSchemaContract();
   assertBackfillContract(normalDefinitions);
+  assertDoctorTodayPreferencesMigrationContract();
   assertIdempotenceAndAuditTransaction();
   assertS53DualWriteTriggerContract();
   console.log("S5 runtime settings private PostgreSQL migration proof: OK (aggregate-only)");
