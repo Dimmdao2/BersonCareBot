@@ -361,7 +361,7 @@ brief или заменять одним общим пунктом.
 - [x] «Лог ошибок» открывает detail справа; стандартная верхняя панель имеет одно закрытие; overlap отсутствует во
   всех summary/delivery/error states (`#961`).
 - [x] Intake left list не дублирует ссылку по имени из detail.
-- [ ] Один shared composer покрывает doctor chat/modal, patient chat, doctor comments и patient comments с parity
+- [x] Один shared composer покрывает doctor chat/modal, patient chat, doctor comments и patient comments с parity
   текущего поведения (`#962`).
 
 #### UI-4 — Clients list (`#850`, preview входит в `#958`)

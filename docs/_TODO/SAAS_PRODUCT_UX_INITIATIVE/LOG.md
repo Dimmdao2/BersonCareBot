@@ -4511,3 +4511,12 @@ encoded into a validated return URL; direct route/reload/back-forward preserve m
 guard, loader, APIs and `PatientCardClient` tree remain authoritative. Its single audit found malformed return-state
 normalization; bounded correction `ecaa2f879` added strict channel/UUID/scroll validation and canonical rebuilding.
 Focused `20/20` tests, typecheck and lint passed. Live browser/TEST evidence remains part of the accumulated milestone.
+
+## 2026-07-22 — shared communications composer residual `#962` closed
+
+One typed `MessageComposer` now serves doctor chat/modal, patient chat, doctor comments and patient comments while
+each consumer retains its existing draft, callback, API, error and tenant contract. Attachment UI remains exclusive
+to the existing patient-comment feature-gated surface; scheduling and Voice/STT were not introduced. The single
+presentation audit found one hidden doctor program-detail reply fork. Bounded correction integrated that sixth
+adapter into the same primitive; no second audit round was opened. Final focused validation passed `48/48`, webapp
+typecheck, scoped lint and diff-check. Integrated commit: `386218113`.
