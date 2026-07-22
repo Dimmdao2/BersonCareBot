@@ -752,10 +752,37 @@ function runChecks(overrides = {}) {
     '-- A fresh/reset path always scrubs the DB-backed credential.',
     "VALUES ('smtp_outbound', 'admin', '{\"value\":null}'::jsonb, NOW(), NULL)\nON CONFLICT (key, scope) WHERE organization_id IS NULL DO NOTHING;",
     "SELECT 'smtp_outbound', 'admin', source.value_json, NOW(), NULL\nFROM public.system_settings AS source",
-    "source.organization_id IS NULL\nON CONFLICT (key, scope) WHERE organization_id IS NULL DO UPDATE",
+    "WHERE source.key = 'smtp_outbound'\n  AND source.scope = 'admin'\n  AND source.organization_id IS NULL\nON CONFLICT (key, scope) WHERE organization_id IS NULL DO UPDATE",
     "locked_keys TEXT[] := ARRAY['patient_app_maintenance_enabled','dev_mode','test_account_identifiers','specialist_signup_enabled','patient_program_discussion_ui_enabled'];",
     "locked_keys TEXT[] := ARRAY['app_base_url','test_account_identifiers','specialist_signup_enabled','patient_program_discussion_ui_enabled'];",
   ]);
+  const transactionBegins = [...loaded.testSettingsOverride.matchAll(/^BEGIN;$/gmu)];
+  const transactionCommits = [...loaded.testSettingsOverride.matchAll(/^COMMIT;$/gmu)];
+  if (transactionBegins.length !== 1 || transactionCommits.length !== 1) {
+    fail(`${files.testSettingsOverride} must have exactly one atomic BEGIN/COMMIT pair`);
+  }
+  requireOrderedFragments(
+    `${files.testSettingsOverride} atomic lock-preserving transaction`,
+    loaded.testSettingsOverride,
+    [
+      'BEGIN;',
+      'DROP TRIGGER IF EXISTS system_settings_test_lock ON public.system_settings;',
+      'DROP TRIGGER IF EXISTS system_settings_test_lock ON integrator.system_settings;',
+      "INSERT INTO public.system_settings (key, scope, value_json, updated_at, updated_by)\nVALUES ('app_base_url'",
+      'CREATE OR REPLACE FUNCTION system_settings_test_lock_guard()',
+      'CREATE TRIGGER system_settings_test_lock BEFORE UPDATE ON public.system_settings',
+      'CREATE OR REPLACE FUNCTION integrator.system_settings_test_lock_guard()',
+      'CREATE TRIGGER system_settings_test_lock BEFORE UPDATE ON integrator.system_settings',
+      'COMMIT;',
+      "SELECT tgname, tgrelid::regclass, tgenabled FROM pg_trigger WHERE tgname = 'system_settings_test_lock';",
+    ],
+  );
+  const postTransactionText = loaded.testSettingsOverride.slice(
+    loaded.testSettingsOverride.indexOf('COMMIT;') + 'COMMIT;'.length,
+  );
+  if (/\b(?:INSERT|UPDATE|DELETE|CREATE|ALTER|DROP|TRUNCATE)\b/iu.test(postTransactionText)) {
+    fail(`${files.testSettingsOverride} must not mutate settings or lock objects after atomic COMMIT`);
+  }
   const smtpModeBlocks = [
     ...loaded.testSettingsOverride.matchAll(
       /\\if :test_settings_overlay_reset\n([\s\S]*?)\\else\n([\s\S]*?)\\endif/gu,
@@ -777,7 +804,7 @@ function runChecks(overrides = {}) {
   requireFragments(`${files.testSettingsOverride} code-only mirror SMTP block`, smtpModeBlocks[1][2], [
     "SELECT 'smtp_outbound', 'admin', source.value_json, NOW(), NULL",
     'FROM public.system_settings AS source',
-    'AND source.organization_id IS NULL',
+    "WHERE source.key = 'smtp_outbound'\n  AND source.scope = 'admin'\n  AND source.organization_id IS NULL",
     'ON CONFLICT (key, scope) WHERE organization_id IS NULL DO UPDATE',
   ]);
   const publicLockBody = loaded.testSettingsOverride.slice(
@@ -796,7 +823,9 @@ function runChecks(overrides = {}) {
     "'smtp_outbound'",
   ]);
   const deployOverlayModes = [
-    ...loaded.deployTestSaas.matchAll(/-v test_settings_overlay_mode=(code-only|reset)/gu),
+    ...loaded.deployTestSaas.matchAll(
+      /^[ \t]*sudo -u postgres psql[^\n]*\\\n[ \t]+-v test_settings_overlay_mode=(code-only|reset) \\\n[ \t]+-f "\$DEPLOY_REPO\/\$OVERRIDE"$/gmu,
+    ),
   ].map((match) => match[1]);
   if (
     deployOverlayModes.length !== 2 ||
@@ -1235,6 +1264,18 @@ function runSelfTest() {
     },
     {
       testSettingsOverride: read(files.testSettingsOverride).replace(
+        "WHERE source.key = 'smtp_outbound'",
+        "WHERE source.key = 'app_base_url'",
+      ),
+    },
+    {
+      testSettingsOverride: read(files.testSettingsOverride).replace(
+        'BEGIN;\n\nDROP TRIGGER IF EXISTS system_settings_test_lock ON public.system_settings;',
+        'DROP TRIGGER IF EXISTS system_settings_test_lock ON public.system_settings;\n\nBEGIN;',
+      ),
+    },
+    {
+      testSettingsOverride: read(files.testSettingsOverride).replace(
         "ARRAY['patient_app_maintenance_enabled','dev_mode','test_account_identifiers','specialist_signup_enabled','patient_program_discussion_ui_enabled']",
         "ARRAY['patient_app_maintenance_enabled','dev_mode','test_account_identifiers','smtp_outbound','specialist_signup_enabled','patient_program_discussion_ui_enabled']",
       ),
@@ -1249,6 +1290,12 @@ function runSelfTest() {
       deployTestSaas: read(files.deployTestSaas).replace(
         '-v test_settings_overlay_mode=code-only',
         '-v test_settings_overlay_mode=reset',
+      ),
+    },
+    {
+      deployTestSaas: read(files.deployTestSaas).replace(
+        '    -v test_settings_overlay_mode=code-only \\',
+        '    # -v test_settings_overlay_mode=code-only \\',
       ),
     },
     {

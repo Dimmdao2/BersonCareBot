@@ -387,6 +387,8 @@ canonical global DB-backed `smtp_outbound` while aligning its integrator mirror;
 fresh-rehearsal paths use `test_settings_overlay_mode=reset` and scrub that value in both schemas. Missing/invalid
 mode fails before lock mutation. SMTP is intentionally excluded from TEST lock arrays so the existing
 Settings/`updateSetting` path can configure it; the rest of the TEST safety locks remain unchanged.
+Trigger removal, all settings mutations, and trigger recreation are one transaction, so any `ON_ERROR_STOP`
+failure rolls the entire overlay back and preserves the previously installed locks.
 
 ### 9. Canonical identity, Rubitime history, and FIO normalization
 

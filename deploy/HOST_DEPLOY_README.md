@@ -733,6 +733,8 @@ bash deploy/host/deploy-test.sh <ветка>    # или явная ветка
 явный режим `reset` и всегда обнуляет `smtp_outbound` в обеих схемах. Отсутствующий или неизвестный режим
 останавливает SQL до снятия TEST lock triggers. `smtp_outbound` не входит в TEST lock arrays, поэтому штатная
 Settings-запись через `updateSetting` может менять его; остальные safety-critical ключи остаются залочены.
+Снятие lock triggers, settings overlay и пересоздание locks выполняются одной транзакцией: любая ошибка
+`ON_ERROR_STOP` откатывает весь блок и сохраняет ранее установленные locks.
 
 Разовая настройка SMTP для TEST не является частью deploy-overlay: штатный путь — существующий Settings /
 `updateSetting`, который сохраняет public+integrator mirror. По owner ruling допустимо позднее скопировать уже

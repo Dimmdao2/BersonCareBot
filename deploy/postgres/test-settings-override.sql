@@ -30,11 +30,12 @@ SELECT 1 / 0 AS invalid_test_settings_overlay_mode;
 \endif
 
 -- Drop the safety-lock triggers FIRST so re-runs (and the upserts below) can
--- re-apply settings. Triggers are recreated at the end.
+-- re-apply settings. The drops, every setting mutation, and lock recreation are
+-- one transaction: any ON_ERROR_STOP failure restores the prior lock objects.
+BEGIN;
+
 DROP TRIGGER IF EXISTS system_settings_test_lock ON public.system_settings;
 DROP TRIGGER IF EXISTS system_settings_test_lock ON integrator.system_settings;
-
-BEGIN;
 
 -- ── 1. app_base_url ──────────────────────────────────────────────────────────
 INSERT INTO public.system_settings (key, scope, value_json, updated_at, updated_by)
@@ -188,8 +189,6 @@ INSERT INTO integrator.system_settings (key, scope, value_json, updated_at, upda
 ON CONFLICT (key, scope) WHERE organization_id IS NULL DO UPDATE
   SET value_json = EXCLUDED.value_json, updated_at = EXCLUDED.updated_at, updated_by = EXCLUDED.updated_by;
 
-COMMIT;
-
 -- =============================================================================
 -- DB-LEVEL LOCK: prevent accidental UI flip of safety-critical settings.
 -- Raises on UPDATE of the locked keys until the trigger is removed.
@@ -225,5 +224,7 @@ $$;
 DROP TRIGGER IF EXISTS system_settings_test_lock ON integrator.system_settings;
 CREATE TRIGGER system_settings_test_lock BEFORE UPDATE ON integrator.system_settings
   FOR EACH ROW EXECUTE FUNCTION integrator.system_settings_test_lock_guard();
+
+COMMIT;
 
 SELECT tgname, tgrelid::regclass, tgenabled FROM pg_trigger WHERE tgname = 'system_settings_test_lock';
