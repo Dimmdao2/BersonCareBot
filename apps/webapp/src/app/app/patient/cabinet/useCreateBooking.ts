@@ -46,16 +46,10 @@ export function useCreateBooking() {
               formAnswers: input.formAnswers,
             }
           : (() => {
-              const inPerson =
-                input.selection.branchId && input.selection.serviceId
-                  ? {
-                      branchId: input.selection.branchId,
-                      serviceId: input.selection.serviceId,
-                    }
-                  : { branchServiceId: input.selection.branchServiceId };
               return {
                 type: "in_person" as const,
-                ...inPerson,
+                branchId: input.selection.branchId,
+                serviceId: input.selection.serviceId,
                 cityCode: input.selection.cityCode,
                 slotStart: input.slot.startAt,
                 slotEnd: input.slot.endAt,

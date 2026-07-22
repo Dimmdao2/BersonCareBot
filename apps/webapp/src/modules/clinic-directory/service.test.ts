@@ -5,6 +5,7 @@ import type { ClinicDirectoryPort } from './ports';
 function buildPort(resolved: string | null): ClinicDirectoryPort {
   return {
     resolveOrganizationIdBySlug: vi.fn(async () => resolved),
+    getPublishedSlugForOrganization: vi.fn(async () => null),
     resolveCanonicalSlug: vi.fn(async () => null),
     reserveSlug: vi.fn(async (input) => ({ ok: true as const, slug: input.slug })),
     claimReservedSlug: vi.fn(async (input) => ({ ok: true as const, slug: input.slug })),

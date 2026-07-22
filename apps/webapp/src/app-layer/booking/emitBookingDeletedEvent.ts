@@ -15,7 +15,6 @@ function bookingPayloadFromRow(row: PatientBookingRecord) {
     contactName: row.contactName,
     contactPhone: row.contactPhone,
     contactEmail: row.contactEmail ?? undefined,
-    branchServiceId: row.branchServiceId,
     cityCodeSnapshot: row.cityCodeSnapshot,
     serviceTitleSnapshot: row.serviceTitleSnapshot,
     canonicalAppointmentId: row.canonicalAppointmentId ?? undefined,

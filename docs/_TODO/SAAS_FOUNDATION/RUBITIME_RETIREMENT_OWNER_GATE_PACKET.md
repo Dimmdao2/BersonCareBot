@@ -46,28 +46,46 @@ run live-environment operations for task `#757`; the owner gates below are only 
 
 ## Remaining Owner Gates
 
-### Gate 1 — R5 production disable
+### Gate 0 — R3-CATALOG compatibility deadline
+
+The `2026-07-21` deadline expired while patient/public `branchServiceId` compatibility remains live. The narrower
+`RR-PROOF-05` table-read proof remains valid, but final R3-CATALOG closure is reopened.
+
+Owner decision required:
+
+- either approve a new exact cutoff after evidence that old URLs/rows are drained, followed by a bounded code stage
+  that rejects legacy `branchServiceId` and requires `branchId+serviceId`;
+- or explicitly defer/rebaseline the compatibility adapter with a new date, reason and rollback boundary.
+
+Until this decision and its evidence exist, agents must not remove the adapter by inference and R7 must continue to
+defer public `booking_*` catalog drop planning. See
+`RUBITIME_RETIREMENT_R5_R7_PROVENANCE_RECONCILIATION.md`.
+
+### Gate 1 — R5 TEST retired-route acceptance (PROD untouched)
 
 Required proof:
 
 `docs/_TODO/SAAS_FOUNDATION/RUBITIME_RETIREMENT_R5_PRODUCTION_DISABLE_PROOF.md`
 
-Owner decisions required:
-
-- approve production `RUBITIME_LEGACY_PROFILE_RESOLVE_ENABLED=false` timing;
-- approve monitoring window length;
-- accept rollback boundary from `RUBITIME_RETIREMENT_R5_LEGACY_PROFILE_RESOLVE_PROOF.md`.
+The historical proof filename is retained for final-gate compatibility, but it is not a flag-change authorization.
+The resolver source is removed: `RUBITIME_LEGACY_PROFILE_RESOLVE_ENABLED` must not be set or restored in TEST or
+PROD. For this Track C milestone, owner evidence is only the declared TEST window and, if required, its exact
+timestamp/operator; PROD remains untouched.
 
 Proof must include:
 
-- live flag-change timestamp;
+- TEST integrated SHA and declared monitoring-window start/end;
 - monitoring window start/end;
 - aggregate v1 `/api/bersoncare/rubitime/slots` request count;
 - aggregate v1 `/api/bersoncare/rubitime/create-record` request count;
 - source of aggregate counts without secrets or PII;
-- confirmation that no user-facing booking path required v1 profile resolution;
-- owner approval note;
-- rollback notes if rollback was tested or needed.
+- TEST negative/unmounted result for the retired v1 routes, without assuming `legacy_resolve_disabled`;
+- canonical slots/create/reschedule/cancel and doctor Today/KPI/calendar/list smoke;
+- aggregate-only source of route/error counts without secrets or PII;
+- incremental code rollback boundary, if tested, without re-enabling the removed resolver.
+
+The superseded production-flag contract is not a machine proof contract and cannot close this gate. It remains only
+as a historical manifest row; the current TEST evidence bullets above are the complete R5 contract.
 
 ### Gate 2 — R6 cutoff/drain/runtime removal
 
@@ -82,6 +100,16 @@ Owner decisions required:
 - confirm outbound Rubitime bridge is disabled;
 - approve treatment of any non-zero pending/dead queue rows;
 - approve fresh post-cutoff CSV reconciliation result.
+
+Repository route/code removal artifacts already exist, but they were applied before the mandatory cutoff/drain
+proof. The owner must also decide whether those artifacts remain dormant repository provenance until Gate 2 is
+executed, or whether a separately scoped restoration is required before any deployment. Agents must not infer either
+choice; repository provenance alone does not close R6.
+
+The linked R6 runbook is a production/final reference and is **non-executable for this Track C incremental TEST
+milestone**. Do not substitute TEST env/host paths into it. The next routine milestone is the integrated-SHA gate,
+forward-migration compatibility check, `deploy/host/deploy-test.sh`, and TEST smoke; cutoff/drain begins only after
+a separately recorded TEST cutoff/operator decision and TEST-valid operational runbook.
 
 Proof must include the sections required by `RUBITIME_RETIREMENT_R6_CUTOFF_DRAIN_RUNBOOK.md`:
 
@@ -136,7 +164,7 @@ Proof must include the sections required by `RUBITIME_RETIREMENT_R7_ARCHIVE_DROP
 ## Current Status
 
 - R1-R4 are closed in the working branch.
-- R5 code/non-prod proof is closed; production monitoring/approval is pending.
+- R5 TEST acceptance is open; the declared TEST negative-route window and canonical smoke are still required.
 - R6 is pending owner-approved cutoff/drain and final post-cutoff CSV reconciliation.
 - R7 is pending R6 completion, owner archive/drop decision and restore/migrate proof.
 - Final `--require-complete` gate must remain red until the three required proof files exist with real evidence.

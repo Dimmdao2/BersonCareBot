@@ -1,16 +1,36 @@
 import { describe, expect, it } from "vitest";
 import { validateCreatePatientBookingInput } from "./createInputValidation";
 
+const base = {
+  userId: "u1",
+  type: "in_person" as const,
+  branchId: "550e8400-e29b-41d4-a716-446655440001",
+  serviceId: "550e8400-e29b-41d4-a716-446655440002",
+  cityCode: "Moscow",
+  slotStart: "2026-06-01T10:00:00.000Z",
+  slotEnd: "2026-06-01T11:00:00.000Z",
+  contactName: " Иван ",
+  contactPhone: " +79990001122 ",
+};
+
+const baseOnline = {
+  userId: "u1",
+  type: "online" as const,
+  category: "general" as const,
+  slotStart: "2026-05-01T10:00:00.000Z",
+  slotEnd: "2026-05-01T11:00:00.000Z",
+  contactName: "Ann",
+  contactPhone: "+79990001122",
+};
+
 describe("validateCreatePatientBookingInput", () => {
-  const baseOnline = {
-    userId: "u1",
-    type: "online" as const,
-    category: "general" as const,
-    slotStart: "2026-05-01T10:00:00.000Z",
-    slotEnd: "2026-05-01T11:00:00.000Z",
-    contactName: "Ann",
-    contactPhone: "+79990001122",
-  };
+  it("normalizes canonical in-person keys", () => {
+    expect(validateCreatePatientBookingInput(base)).toMatchObject({ branchId: base.branchId, serviceId: base.serviceId, cityCode: "moscow" });
+  });
+
+  it("rejects malformed canonical keys", () => {
+    expect(() => validateCreatePatientBookingInput({ ...base, branchId: "not-uuid" })).toThrow("invalid_in_person_keys");
+  });
 
   it("accepts valid online payload", () => {
     const v = validateCreatePatientBookingInput(baseOnline);
@@ -37,48 +57,7 @@ describe("validateCreatePatientBookingInput", () => {
     ).toThrow("invalid_contact_name");
   });
 
-  it("rejects in_person without UUID branchServiceId", () => {
-    expect(() =>
-      validateCreatePatientBookingInput({
-        userId: "u1",
-        type: "in_person",
-        branchServiceId: "not-uuid",
-        cityCode: "moscow",
-        slotStart: baseOnline.slotStart,
-        slotEnd: baseOnline.slotEnd,
-        contactName: "Ann",
-        contactPhone: "+79990001122",
-      }),
-    ).toThrow("invalid_branch_service_id");
-  });
-
   it("rejects empty cityCode for in_person", () => {
-    expect(() =>
-      validateCreatePatientBookingInput({
-        userId: "u1",
-        type: "in_person",
-        branchServiceId: "11111111-1111-4111-8111-111111111111",
-        cityCode: "   ",
-        slotStart: baseOnline.slotStart,
-        slotEnd: baseOnline.slotEnd,
-        contactName: "Ann",
-        contactPhone: "+79990001122",
-      }),
-    ).toThrow("invalid_city_code");
-  });
-
-  it("normalizes cityCode to lowercase", () => {
-    const v = validateCreatePatientBookingInput({
-      userId: "u1",
-      type: "in_person",
-      branchServiceId: "11111111-1111-4111-8111-111111111111",
-      cityCode: "Moscow",
-      slotStart: baseOnline.slotStart,
-      slotEnd: baseOnline.slotEnd,
-      contactName: "Ann",
-      contactPhone: "+79990001122",
-    });
-    expect(v.type).toBe("in_person");
-    if (v.type === "in_person") expect(v.cityCode).toBe("moscow");
+    expect(() => validateCreatePatientBookingInput({ ...base, cityCode: "   " })).toThrow("invalid_city_code");
   });
 });

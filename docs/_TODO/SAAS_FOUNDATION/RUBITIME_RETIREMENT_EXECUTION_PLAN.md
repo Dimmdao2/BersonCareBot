@@ -9,6 +9,13 @@ runtime-зависимости и TEST archive/drop proof; destructive cleanup �
 Это план удаления Rubitime как runtime-зависимости. Код, миграции, БД и runtime-настройки меняются только
 отдельными phase-коммитами с proof-документами ниже.
 
+Provenance correction 2026-07-22 (`#981`): `RR-PROOF-05` remains valid for the narrow table-read cutover, but the
+R3-CATALOG `branchServiceId` compatibility deadline `2026-07-21` expired while the input remains live, so final
+R3-CATALOG closure is reopened. R6 route/code removal exists in the repository, but it was applied before the
+mandatory cutoff/drain prerequisites; its rows below are now open with `PROVENANCE-only` evidence until
+`RR-PROOF-09` exists. This correction does not restore routes, authorize deployment/cutoff, or erase implementation
+history. Full row-level mapping: `RUBITIME_RETIREMENT_R5_R7_PROVENANCE_RECONCILIATION.md`.
+
 **Старт для агентов:** сначала читать `docs/OPERATIONS/RUBITIME_R1_FRESH_PROD_DUMP_AGENT_README.md`. Там
 сведены правила старта, server conventions, orchestration, порядок свежего дампа, owner doctor/admin data-fix,
 placeholder bookings Дмитрия Берсона, specialist consolidation, R1 aggregate audits и порядок R2-R7 gates. Этот
@@ -1012,7 +1019,10 @@ and ignores unknown provider events instead of processing them under `booking_de
 - [x] public create uses canonical catalog ids. *(Primary contract is `branchId+serviceId`; legacy `branchServiceId` is compatibility input.)*
 - [x] legacy branch/service ids are removed from primary public API contract. *(Deprecated `branchServiceId` remains only compatibility.)*
 - [x] no patient/public runtime read remains on public `booking_*`. *(Create path now builds snapshots from canonical `resolveInPersonContext` + `be_branches` + `be_clinic_services`; deprecated `branchServiceId` is mapping-only through `be_external_entity_mappings`, not a `booking_*` read.)*
-- [x] compatibility adapters have a bounded removal date. *(Deadline recorded in `RUBITIME_RETIREMENT_R3_CATALOG_PROOF.md`: 2026-07-21 or before R7 archive/drop, whichever comes first.)*
+- [ ] compatibility adapters are removed by the bounded deadline or explicitly rebaselined by owner. *(The
+  `2026-07-21` deadline expired while patient/public `branchServiceId` compatibility remains live. Removing it now
+  requires old-link/row drain evidence plus an exact owner-approved cutoff, or an explicit defer/rebaseline with
+  date, reason and rollback boundary.)*
 
 ### R4 — provider-neutral canonical downstream events
 
@@ -1035,23 +1045,38 @@ and ignores unknown provider events instead of processing them under `booking_de
 
 ### R5 — disable legacy v1 profile resolve
 
-Prepared runbook: `RUBITIME_RETIREMENT_R5_PRODUCTION_DISABLE_RUNBOOK.md`. It defines TEST-only flag and smoke
-evidence required for the R5 proof.
+2026-07-22 Track C supersession: the legacy resolver source was removed; it is not a live TEST switch and must not
+be set, recorded, or restored. The current R5 acceptance is TEST proof that retired v1 routes are negative/unmounted
+while canonical booking paths remain healthy. `RUBITIME_RETIREMENT_R5_PRODUCTION_DISABLE_RUNBOOK.md` is retained as a
+historical/final-reference filename only and is non-executable for this milestone. The nine rows below remain the R5
+denominator; an `[x]` is repository provenance only unless a row explicitly has TEST/owner evidence.
 
 - [x] no webapp path still sends Rubitime v1 slots requests. *(Runtime inventory: patient/public slots use canonical scheduling, not `syncPort.fetchSlots`.)*
 - [x] no webapp path still sends Rubitime v1 create requests. *(Runtime inventory: Rubitime-first/mirror switches are hardcoded false; normal create is canonical.)*
 - [x] online LFK/nutrition legacy path is retired or proven unrelated. *(Categories feed the same canonical online booking path; no separate Rubitime profile path found.)*
-- [x] TEST `RUBITIME_LEGACY_PROFILE_RESOLVE_ENABLED=false` is tested. *(Unit/integrator route proof only; no host env changed. See `RUBITIME_RETIREMENT_R5_LEGACY_PROFILE_RESOLVE_PROOF.md`.)*
-- [x] v1 requests return `legacy_resolve_disabled`. *(Slots and create-record covered.)*
+- [ ] TEST proves retired v1 routes are negative/unmounted. *(SUPERSEDES the removed
+  `RUBITIME_LEGACY_PROFILE_RESOLVE_ENABLED=false` flag contract; no TEST host/env flag exists to test.)*
+- [ ] retired v1 slots/create requests have the declared negative/unmounted result. *(SUPERSEDES the historical
+  `legacy_resolve_disabled` response contract; record the actual TEST result without inferring a response code.)*
 - [x] canonical/current booking paths are unaffected. *(v2 explicit-id slots/create still pass with legacy resolve disabled.)*
 - [ ] TEST evidence window shows no v1 requests.
-- [ ] TEST flag change is recorded.
-- [x] TEST flag restore instruction exists. *(See `RUBITIME_RETIREMENT_R5_LEGACY_PROFILE_RESOLVE_PROOF.md`; no host env was changed.)*
+- [ ] TEST negative/unmounted observation and aggregate route/error counts are recorded. *(SUPERSEDES a TEST flag
+  change record; declare the TEST window and exact integrated SHA.)*
+- [ ] TEST rollback boundary is recorded without re-enabling a removed resolver. *(SUPERSEDES the flag restore
+  instruction; an incremental code rollback keeps external Rubitime ingress/outbound disabled.)*
+
+Next routine TEST evidence, not yet performed: freeze the integrated SHA; run the accumulated repo gate and
+forward-migration compatibility check; deploy only with `deploy/host/deploy-test.sh`; then record a declared TEST
+window, negative/unmounted v1 route evidence, canonical slots/create/reschedule/cancel and doctor
+Today/KPI/calendar/list smoke, plus aggregate-only route/error counts. This routine path never pulls a fresh PROD
+dump, resets TEST, repeats backfill/cutover, or drops R7 tables.
 
 ### R6 — remove Rubitime runtime routes and code
 
 Prepared runbook: `RUBITIME_RETIREMENT_R6_CUTOFF_DRAIN_RUNBOOK.md`. It is not proof of completed cutoff; it defines
 the required read-only drain snapshots, fresh CSV reconciliation and owner-approved disable steps for `RR-PROOF-09`.
+It is a production/final reference and is explicitly non-executable for the current Track C incremental TEST
+milestone; do not substitute TEST paths or execute its commands without a separate owner-approved TEST runbook.
 Prepared static inventory: `RUBITIME_RETIREMENT_R6_R7_STATIC_INVENTORY.md` +
 `docs/_TODO/SAAS_FOUNDATION/scripts/rubitime-r6-r7-static-inventory.mjs`. The inventory is pre-cutoff evidence
 only; post-R6 it must pass with `--expect-post-r6`.
@@ -1064,21 +1089,29 @@ only; post-R6 it must pass with `--expect-post-r6`.
 - [ ] no pending/dead Rubitime projection jobs remain.
 - [ ] final dual-source reconciliation after cutoff is run.
 - [ ] final CSV-present missing delta is zero or owner-waived; integrator-only rows absent from the fresh export are audit-only and must not be imported/resurrected.
-- [x] old webapp doctor Rubitime proxy routes are removed. *(Removed `/api/doctor/appointments/rubitime/update` and `/api/doctor/appointments/rubitime/cancel`; no UI callers found.)*
-- [x] staff/admin manual create skips legacy Rubitime mapping resolution when bridge is disabled.
-- [x] patient/public create has no hard-disabled Rubitime-first/create-mirror branch.
-- [x] patient cancel/reschedule skips outbound Rubitime mirror when bridge is disabled.
-- [x] Rubitime webhook route is unmounted from integrator app wiring. *(Code wiring removed from `buildDeps` /
-  `registerRoutes`; TEST negative route assertions remain required.)*
-- [x] Rubitime `/slots` route is unmounted from integrator app wiring. *(Legacy source file still exists until the
-  source cleanup batch; route is no longer registered by `registerRoutes`.)*
-- [x] Rubitime `/create-record` route is unmounted from integrator app wiring. *(Same wiring batch as `/slots`.)*
-- [x] Rubitime update/cancel/remove routes are unmounted from integrator app wiring. *(Same wiring batch; webapp
-  Rubitime M2M client source remains a post-R6 cleanup blocker.)*
-- [x] provider-neutral booking lifecycle route remains working. *(Registered through `integrations/bersoncare/bookingLifecycleRoute.ts`; see `RUBITIME_RETIREMENT_R6_LIFECYCLE_ROUTE_SPLIT_PROOF.md`.)*
-- [x] provider-neutral booking lifecycle handler/schema live outside Rubitime registrar ownership. *(Rubitime route keeps compatibility alias only until cutoff/drain.)*
-- [x] Rubitime connector/api2/throttle code is removed. *(Runtime route/API/throttle/post-create source files removed; historical migrations/docs remain.)*
-- [x] Rubitime post-create projection code is removed. *(Source/tests removed with the R6 legacy source cleanup batch.)*
+- [ ] old webapp doctor Rubitime proxy routes are removed. *(PROVENANCE-only: source removal exists, but R6 phase
+  acceptance remains open until the preceding cutoff/drain rows and `RR-PROOF-09` pass; do not restore routes by
+  inference.)*
+- [ ] staff/admin manual create skips legacy Rubitime mapping resolution when bridge is disabled. *(PROVENANCE-only;
+  same R6 gate.)*
+- [ ] patient/public create has no hard-disabled Rubitime-first/create-mirror branch. *(PROVENANCE-only; same R6
+  gate.)*
+- [ ] patient cancel/reschedule skips outbound Rubitime mirror when bridge is disabled. *(PROVENANCE-only; same R6
+  gate.)*
+- [ ] Rubitime webhook route is unmounted from integrator app wiring. *(PROVENANCE-only: static route inventory is
+  zero, but external ingress disable and `RR-PROOF-09` are absent.)*
+- [ ] Rubitime `/slots` route is unmounted from integrator app wiring. *(PROVENANCE-only; same R6 gate.)*
+- [ ] Rubitime `/create-record` route is unmounted from integrator app wiring. *(PROVENANCE-only; same R6 gate.)*
+- [ ] Rubitime update/cancel/remove routes are unmounted from integrator app wiring. *(PROVENANCE-only; same R6
+  gate.)*
+- [ ] provider-neutral booking lifecycle route remains working. *(PROVENANCE-only: route-split proof exists, but
+  final lifecycle-only acceptance remains gated by `RR-PROOF-09`.)*
+- [ ] provider-neutral booking lifecycle handler/schema live outside Rubitime registrar ownership.
+  *(PROVENANCE-only; same R6 gate.)*
+- [ ] Rubitime connector/api2/throttle code is removed. *(PROVENANCE-only: static runtime-token category is zero;
+  historical migrations/docs remain and R6 acceptance is still gated.)*
+- [ ] Rubitime post-create projection code is removed. *(PROVENANCE-only: source/tests were removed, but this does
+  not close the phase before cutoff/drain proof.)*
 - [ ] runtime Rubitime env/config keys are removed or archived.
 - [ ] integrator typecheck/lint/tests pass.
 - [ ] webapp booking typecheck/lint/tests pass.
@@ -1165,9 +1198,10 @@ Owner/ops packet for the remaining decisions: `RUBITIME_RETIREMENT_OWNER_GATE_PA
 - [x] R2 doctor canonical read-source complete.
 - [x] R3 patient/public canonical slots/create complete.
 - [x] R3-TENANT exact tenant complete.
-- [x] R3-CATALOG catalog migration complete.
+- [ ] R3-CATALOG catalog migration complete. *(The no-legacy-table-read proof remains valid, but the bounded
+  `branchServiceId` compatibility removal deadline expired; see `RUBITIME_RETIREMENT_R5_R7_PROVENANCE_RECONCILIATION.md`.)*
 - [x] R4 provider-neutral lifecycle complete.
-- [ ] R5 legacy v1 resolve disabled in live environment.
+- [ ] R5 TEST retired v1 routes negative/unmounted; canonical booking healthy.
 - [ ] R6 runtime routes/code removed.
 - [ ] R7 archive/drop complete or explicitly deferred with no runtime references.
 - [ ] No runtime code calls Rubitime API.

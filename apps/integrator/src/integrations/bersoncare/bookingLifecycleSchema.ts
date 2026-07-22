@@ -14,7 +14,6 @@ const BookingLifecyclePayloadSchema = z.object({
   contactPhone: z.string().min(1),
   contactEmail: z.union([z.string().email(), z.null()]).optional(),
   reason: z.string().optional(),
-  branchServiceId: z.string().uuid().nullable().optional(),
   cityCodeSnapshot: z.string().nullable().optional(),
   serviceTitleSnapshot: z.string().nullable().optional(),
   canonicalAppointmentId: z.string().uuid().optional(),

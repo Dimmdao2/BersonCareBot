@@ -43,6 +43,7 @@ import { normalizeRuPhoneE164 } from "@/shared/phone/normalizeRuPhoneE164";
 import type { PatientBookingRecord } from "./types";
 import { prepaymentContextFromBooking } from "@/modules/payments/prepaymentContextFromBooking";
 import type { BookingSlotsReadSource } from "./slotsReadSource";
+import type { BeAppointment } from "@/modules/booking-engine/types";
 
 function isPostgresExclusionViolation(err: unknown): boolean {
   return typeof err === "object" && err !== null && "code" in err && (err as { code: string }).code === "23P01";
@@ -52,10 +53,17 @@ async function resolveCanonicalAppointmentOrganizationId(
   bookingEngine: BookingEngineService | null | undefined,
   appointmentId: string,
 ): Promise<string> {
+  return (await loadCanonicalAppointment(bookingEngine, appointmentId)).organizationId;
+}
+
+async function loadCanonicalAppointment(
+  bookingEngine: BookingEngineService | null | undefined,
+  appointmentId: string,
+): Promise<BeAppointment> {
   if (!bookingEngine) throw new Error("canonical_booking_unavailable");
   const appointment = await bookingEngine.getAppointment(appointmentId);
   if (!appointment) throw new Error("canonical_appointment_not_found");
-  return appointment.organizationId;
+  return appointment;
 }
 
 async function loadBookingPaymentStatus(
@@ -118,7 +126,8 @@ function cacheKey(query: BookingSlotsQuery): string {
   }
   return JSON.stringify({
     type: query.type,
-    branchServiceId: query.branchServiceId,
+    branchId: query.branchId,
+    serviceId: query.serviceId,
     date: query.date ?? "",
     slotCount: query.slotCount ?? 1,
   });
@@ -212,7 +221,9 @@ export function createPatientBookingService(input: {
         });
       } else {
         value = await input.bookingScheduling.getInPersonSlots({
-          branchServiceId: query.branchServiceId,
+          organizationId: query.organizationId,
+          branchId: query.branchId,
+          serviceId: query.serviceId,
           date: query.date,
           slotCount: query.slotCount,
         });
@@ -232,7 +243,7 @@ export function createPatientBookingService(input: {
 
       const slotLockKey =
         createInput.type === "in_person"
-          ? `${createInput.branchServiceId}|${createInput.slotStart}|${createInput.slotEnd}`
+          ? `${createInput.branchId}:${createInput.serviceId}|${createInput.slotStart}|${createInput.slotEnd}`
           : `online:${createInput.category}|${createInput.slotStart}|${createInput.slotEnd}`;
       if (inFlightCreateBySlot.has(slotLockKey)) {
         throw new Error("slot_overlap");
@@ -320,9 +331,16 @@ export function createPatientBookingService(input: {
       if (!row?.canonicalAppointmentId || !input.bookingEngine || !input.appointmentLifecycle) {
         return { ok: false, error: "no_canonical" };
       }
-      const orgId = await resolveCanonicalAppointmentOrganizationId(input.bookingEngine, row.canonicalAppointmentId)
+      const appointment = await loadCanonicalAppointment(input.bookingEngine, row.canonicalAppointmentId)
         .catch(() => null);
-      if (!orgId) return { ok: false, error: "not_found" };
+      if (!appointment) return { ok: false, error: "no_canonical" };
+      const orgId = appointment.organizationId;
+      if (
+        row.bookingType === "in_person" &&
+        (!appointment.branchId || !appointment.serviceId)
+      ) {
+        return { ok: false, error: "canonical_appointment_incomplete" };
+      }
       const preview = await input.appointmentLifecycle.previewPatientReschedule(
         row.canonicalAppointmentId,
         orgId,
@@ -344,9 +362,16 @@ export function createPatientBookingService(input: {
       if (row.status === "cancelled" || row.status === "cancelling") {
         return { ok: false, error: "not_found" };
       }
-      const orgId = await resolveCanonicalAppointmentOrganizationId(input.bookingEngine, row.canonicalAppointmentId)
+      const appointment = await loadCanonicalAppointment(input.bookingEngine, row.canonicalAppointmentId)
         .catch(() => null);
-      if (!orgId) return { ok: false, error: "not_found" };
+      if (!appointment) return { ok: false, error: "no_canonical" };
+      const orgId = appointment.organizationId;
+      if (
+        row.bookingType === "in_person" &&
+        (!appointment.branchId || !appointment.serviceId)
+      ) {
+        return { ok: false, error: "canonical_appointment_incomplete" };
+      }
 
       const durationMinutes = Math.max(
         1,
@@ -357,25 +382,15 @@ export function createPatientBookingService(input: {
 
       void input.resolveSlotsReadSource;
       try {
-        if (row.bookingType === "in_person" && row.branchServiceId) {
-          await input.bookingScheduling.assertSlotAvailable({
-            branchServiceId: row.branchServiceId,
-            slotStart: rescheduleInput.slotStart,
-            slotEnd: rescheduleInput.slotEnd,
-            durationMinutes,
-            excludeAppointmentId: row.canonicalAppointmentId,
-          });
-        } else {
-          await input.bookingScheduling.assertSlotAvailable({
-            organizationId: orgId,
-            specialistId: null,
-            roomId: null,
-            slotStart: rescheduleInput.slotStart,
-            slotEnd: rescheduleInput.slotEnd,
-            durationMinutes,
-            excludeAppointmentId: row.canonicalAppointmentId,
-          });
-        }
+        await input.bookingScheduling.assertSlotAvailable({
+          organizationId: orgId,
+          specialistId: appointment.specialistId,
+          roomId: appointment.roomId,
+          slotStart: rescheduleInput.slotStart,
+          slotEnd: rescheduleInput.slotEnd,
+          durationMinutes,
+          excludeAppointmentId: row.canonicalAppointmentId,
+        });
       } catch (err) {
         if (isPostgresExclusionViolation(err) || (err instanceof Error && err.message === "slot_overlap")) {
           return { ok: false, error: "slot_overlap" };
@@ -412,7 +427,6 @@ export function createPatientBookingService(input: {
                 contactName: row.contactName,
                 contactPhone: row.contactPhone,
                 contactEmail: row.contactEmail ?? undefined,
-                branchServiceId: row.branchServiceId,
                 cityCodeSnapshot: row.cityCodeSnapshot,
                 serviceTitleSnapshot: row.serviceTitleSnapshot,
                 canonicalAppointmentId: row.canonicalAppointmentId ?? undefined,
@@ -522,7 +536,6 @@ export function createPatientBookingService(input: {
             contactName: row.contactName,
             contactPhone: row.contactPhone,
             contactEmail: row.contactEmail ?? undefined,
-            branchServiceId: row.branchServiceId,
             cityCodeSnapshot: row.cityCodeSnapshot,
             serviceTitleSnapshot: row.serviceTitleSnapshot,
             canonicalAppointmentId: row.canonicalAppointmentId ?? undefined,
@@ -737,7 +750,6 @@ export function createPatientBookingService(input: {
               contactPhone: row.contactPhone,
               contactEmail: row.contactEmail ?? undefined,
               reason: cancelInput.reason,
-              branchServiceId: row.branchServiceId,
               cityCodeSnapshot: row.cityCodeSnapshot,
               serviceTitleSnapshot: row.serviceTitleSnapshot,
               canonicalAppointmentId: row.canonicalAppointmentId ?? undefined,
@@ -828,7 +840,6 @@ export function createPatientBookingService(input: {
               contactPhone: row.contactPhone,
               contactEmail: row.contactEmail ?? undefined,
               reason: cancelInput.reason,
-              branchServiceId: row.branchServiceId,
               cityCodeSnapshot: row.cityCodeSnapshot,
               serviceTitleSnapshot: row.serviceTitleSnapshot,
             },

@@ -1,10 +1,8 @@
 import { describe, expect, it, vi, beforeEach } from "vitest";
 
 const requireAdminBookingEngineMock = vi.hoisted(() => vi.fn());
-const resolveLegacyBranchServiceIdMock = vi.hoisted(() => vi.fn());
 const getSlotsMock = vi.hoisted(() => vi.fn());
 const getBranchMock = vi.hoisted(() => vi.fn());
-const listSpecialistsMock = vi.hoisted(() => vi.fn());
 const getSettingMock = vi.hoisted(() => vi.fn());
 
 vi.mock("../_requireAdminBookingEngine", () => ({
@@ -13,9 +11,7 @@ vi.mock("../_requireAdminBookingEngine", () => ({
 
 vi.mock("@/app-layer/di/buildAppDeps", () => ({
   buildAppDeps: () => ({
-    bookingScheduling: {
-      resolveLegacyBranchServiceId: resolveLegacyBranchServiceIdMock,
-    },
+    bookingScheduling: {},
     patientBooking: {
       getSlots: getSlotsMock,
     },
@@ -37,7 +33,6 @@ describe("/api/admin/booking-engine/slots-probe", () => {
         service: {
           catalog: {
             getBranch: getBranchMock,
-            listSpecialists: listSpecialistsMock,
           },
         },
       },
@@ -47,8 +42,6 @@ describe("/api/admin/booking-engine/slots-probe", () => {
       organizationId: "org-1",
       timezone: "Europe/Moscow",
     });
-    listSpecialistsMock.mockResolvedValue([{ id: "spec-1", isActive: true }]);
-    resolveLegacyBranchServiceIdMock.mockResolvedValue("legacy-bs-1");
     getSettingMock.mockResolvedValue({ valueJson: { value: "canonical" } });
     getSlotsMock.mockResolvedValue([
       {
@@ -70,7 +63,13 @@ describe("/api/admin/booking-engine/slots-probe", () => {
     expect(json.bookingSlotsReadSource).toBe("canonical");
     expect(json.slots?.length).toBe(1);
     expect(getSlotsMock).toHaveBeenCalledWith(
-      expect.objectContaining({ type: "in_person", branchServiceId: "legacy-bs-1", date: "2026-06-04" }),
+      expect.objectContaining({
+        type: "in_person",
+        organizationId: "org-1",
+        branchId: "550e8400-e29b-41d4-a716-446655440001",
+        serviceId: "550e8400-e29b-41d4-a716-446655440002",
+        date: "2026-06-04",
+      }),
     );
   });
 });

@@ -1,15 +1,12 @@
 /** @vitest-environment jsdom */
 
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
 import { CabinetActiveBookings } from "./CabinetActiveBookings";
 import type { PatientBookingRecord } from "@/modules/patient-booking/types";
 
-const openExternalLinkInMessenger = vi.hoisted(() => vi.fn());
-
-vi.mock("@/shared/lib/openExternalLinkInMessenger", () => ({
-  openExternalLinkInMessenger,
+vi.mock("next/navigation", () => ({
+  useRouter: () => ({ refresh: vi.fn(), push: vi.fn(), replace: vi.fn(), prefetch: vi.fn() }),
 }));
 
 function makeBooking(over: Partial<PatientBookingRecord> = {}): PatientBookingRecord {
@@ -46,6 +43,7 @@ function makeBooking(over: Partial<PatientBookingRecord> = {}): PatientBookingRe
     rubitimeServiceIdSnapshot: "30",
     rubitimeManageUrl: null,
     canonicalAppointmentId: null,
+    canonicalInPersonContext: null,
     bookingSource: "native",
     compatQuality: null,
     provenanceCreatedBy: null,
@@ -55,56 +53,114 @@ function makeBooking(over: Partial<PatientBookingRecord> = {}): PatientBookingRe
 }
 
 describe("CabinetActiveBookings", () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
-  });
-
-  it("shows and opens manage link only for valid rubitime URL", async () => {
-    const user = userEvent.setup();
-    render(
-      <CabinetActiveBookings
-        bookings={[makeBooking({ rubitimeManageUrl: "https://rubitime.ru/record/123" })]}
-        appDisplayTimeZone="Europe/Moscow"
-      />,
-    );
-    const button = screen.getByRole("button", { name: "Изменить" });
-    await user.click(button);
-    expect(openExternalLinkInMessenger).toHaveBeenCalledWith("https://rubitime.ru/record/123");
-  });
-
-  it("hides manage action for cancel_failed even with rubitime URL", () => {
+  it("renders canonical in-person action, label and calendar data from linked context only", () => {
+    const canonicalBranchId = "00000000-0000-4000-8000-0000000000b1";
+    const canonicalServiceId = "00000000-0000-4000-8000-0000000000c1";
     render(
       <CabinetActiveBookings
         bookings={[
           makeBooking({
-            status: "cancel_failed",
+            canonicalAppointmentId: "00000000-0000-4000-8000-0000000000a1",
+            branchId: "00000000-0000-4000-8000-0000000000d1",
+            serviceId: "00000000-0000-4000-8000-0000000000e1",
             rubitimeManageUrl: "https://rubitime.ru/record/123",
+            canonicalInPersonContext: {
+              branchId: canonicalBranchId,
+              serviceId: canonicalServiceId,
+              cityCode: "spb",
+              branchTitle: "Клиника на Невском",
+              serviceTitle: "Каноническая услуга",
+              durationMinutes: 45,
+              priceMinor: 250000,
+            },
           }),
         ]}
         appDisplayTimeZone="Europe/Moscow"
       />,
     );
-    expect(screen.queryByRole("button", { name: "Изменить" })).not.toBeInTheDocument();
-  });
-
-  it("hides manage action when rubitime URL is absent", () => {
-    render(
-      <CabinetActiveBookings
-        bookings={[makeBooking({ rubitimeManageUrl: null })]}
-        appDisplayTimeZone="Europe/Moscow"
-      />,
+    expect(screen.getByText("Очный приём — СПб · Каноническая услуга")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Перенести" })).toHaveAttribute(
+      "href",
+      expect.stringContaining(`branchId=${canonicalBranchId}`),
+    );
+    expect(screen.getByRole("link", { name: "Перенести" })).toHaveAttribute(
+      "href",
+      expect.stringContaining(`serviceId=${canonicalServiceId}`),
+    );
+    expect(screen.getByRole("link", { name: "Google Календарь" })).toHaveAttribute(
+      "href",
+      expect.stringContaining("text=%D0%9A%D0%B0%D0%BD%D0%BE%D0%BD%D0%B8%D1%87%D0%B5%D1%81%D0%BA%D0%B0%D1%8F+%D1%83%D1%81%D0%BB%D1%83%D0%B3%D0%B0"),
     );
     expect(screen.queryByRole("button", { name: "Изменить" })).not.toBeInTheDocument();
   });
 
-  it("hides manage action for unsafe href and never uses support fallback", () => {
+  it("renders canonical-linked historical rows through canonical navigation, not Rubitime", () => {
     render(
       <CabinetActiveBookings
-        bookings={[makeBooking({ rubitimeManageUrl: "javascript:alert(1)" })]}
+        bookings={[
+          makeBooking({
+            id: "00000000-0000-4000-8000-0000000000f1",
+            canonicalAppointmentId: "00000000-0000-4000-8000-0000000000a2",
+            bookingSource: "rubitime_projection",
+            rubitimeManageUrl: "https://rubitime.ru/record/123",
+            canonicalInPersonContext: {
+              branchId: "00000000-0000-4000-8000-0000000000b2",
+              serviceId: "00000000-0000-4000-8000-0000000000c2",
+              cityCode: "moscow",
+              branchTitle: "Клиника",
+              serviceTitle: "Исторический приём",
+              durationMinutes: 60,
+              priceMinor: 0,
+            },
+          }),
+        ]}
         appDisplayTimeZone="Europe/Moscow"
       />,
     );
+    expect(screen.getByRole("link", { name: "Перенести" })).toHaveAttribute(
+      "href",
+      expect.stringContaining("branchId=00000000-0000-4000-8000-0000000000b2"),
+    );
     expect(screen.queryByRole("button", { name: "Изменить" })).not.toBeInTheDocument();
-    expect(openExternalLinkInMessenger).not.toHaveBeenCalled();
+  });
+
+  it("fails closed for legacy-only and incomplete canonical rows even if Rubitime exposed a manage URL", () => {
+    render(
+      <CabinetActiveBookings
+        bookings={[
+          makeBooking({ rubitimeManageUrl: "https://rubitime.ru/record/legacy" }),
+          makeBooking({
+            id: "00000000-0000-4000-8000-0000000000f2",
+            canonicalAppointmentId: "00000000-0000-4000-8000-0000000000a3",
+            rubitimeManageUrl: "https://rubitime.ru/record/incomplete",
+            canonicalInPersonContext: null,
+          }),
+        ]}
+        appDisplayTimeZone="Europe/Moscow"
+      />,
+    );
+    expect(screen.getAllByText("Очный приём")).toHaveLength(2);
+    expect(screen.queryByRole("link", { name: "Перенести" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Изменить" })).not.toBeInTheDocument();
+  });
+
+  it("keeps canonical online navigation while never exposing Rubitime manage", () => {
+    render(
+      <CabinetActiveBookings
+        bookings={[
+          makeBooking({
+            bookingType: "online",
+            canonicalAppointmentId: "00000000-0000-4000-8000-0000000000a4",
+            rubitimeManageUrl: "https://rubitime.ru/record/online",
+          }),
+        ]}
+        appDisplayTimeZone="Europe/Moscow"
+      />,
+    );
+    expect(screen.getByRole("link", { name: "Перенести" })).toHaveAttribute(
+      "href",
+      expect.stringContaining("type=online"),
+    );
+    expect(screen.queryByRole("button", { name: "Изменить" })).not.toBeInTheDocument();
   });
 });

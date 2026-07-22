@@ -19,7 +19,6 @@ export async function GET(request: Request) {
   const params = new URL(request.url).searchParams;
   try {
     const ctx = await resolveInPersonBookingContext(deps, {
-      branchServiceId: params.get("branchServiceId"),
       branchId: params.get("branchId"),
       serviceId: params.get("serviceId"),
     });

@@ -6,6 +6,7 @@ import {
 } from '@bersoncare/db-principal';
 import type { DrizzleDb } from '@/app-layer/db/drizzle';
 import { runDrizzleMutationTransaction } from '@/infra/db/drizzleMutationTx';
+import { getDrizzle } from '@/app-layer/db/drizzle';
 import { runWebappPgText } from '@/infra/db/runWebappSql';
 import type { ClinicDirectoryPort } from '@/modules/clinic-directory/ports';
 import {
@@ -57,6 +58,20 @@ export function createPgClinicDirectoryPort(): ClinicDirectoryPort {
         [slug],
       );
       return result.rows[0]?.organization_id ?? null;
+    },
+
+    async getPublishedSlugForOrganization(organizationId) {
+      const rows = await getDrizzle()
+        .select({ slug: clinicPublicDirectoryEntries.slug })
+        .from(clinicPublicDirectoryEntries)
+        .where(
+          and(
+            eq(clinicPublicDirectoryEntries.organizationId, organizationId),
+            eq(clinicPublicDirectoryEntries.isPublished, true),
+          ),
+        )
+        .limit(1);
+      return rows[0]?.slug ?? null;
     },
 
     async resolveCanonicalSlug(slug) {

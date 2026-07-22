@@ -21,10 +21,6 @@ export type CanonicalBookingContext = {
   specialistId: string;
   serviceId: string;
   roomId: string | null;
-  /** Opaque scheduling key: legacy branch-service id when mapped, otherwise canonical SSA id. */
-  branchServiceId: string;
-  /** Nullable legacy FK for the compatibility `patient_bookings` projection. */
-  legacyBranchServiceId: string | null;
   durationMinutes: number;
   bufferAfterMinutes: number;
   branchTimezone: string;
@@ -118,10 +114,13 @@ export type BookingSchedulingPort = {
   resolvePublicBookingOrganization(input: {
     branchId?: string | null;
     serviceId?: string | null;
-    branchServiceId?: string | null;
   }): Promise<string | null>;
-  /** Resolves either a mapped legacy branch-service id or a canonical SSA id. */
-  resolveCanonicalFromBranchService(branchServiceId: string): Promise<CanonicalBookingContext | null>;
+  /** Resolves a bookable canonical availability from the public canonical branch/service contract. */
+  resolveCanonicalInPersonContext(input: {
+    organizationId?: string | null;
+    branchId: string;
+    serviceId: string;
+  }): Promise<CanonicalBookingContext | null>;
   /** Returns the mapped legacy id when present; otherwise the preferred canonical SSA id. */
   resolveLegacyBranchServiceId(input: {
     organizationId: string;
@@ -255,10 +254,15 @@ export type BookingSchedulingService = {
   resolvePublicBookingOrganization(input: {
     branchId?: string | null;
     serviceId?: string | null;
-    branchServiceId?: string | null;
   }): Promise<string | null>;
-  /** `branchServiceId` is an opaque compatibility key: legacy id or canonical SSA id. */
-  resolveInPersonContext(branchServiceId: string): Promise<CanonicalBookingContext | null>;
+  /** Retained only for the bounded admin compatibility route; legacy keys fail closed. */
+  resolveInPersonContext(legacyKey: string): Promise<null>;
+  /** Canonical patient/public contract. It never resolves a legacy branch-service id. */
+  resolveCanonicalInPersonContext(input: {
+    organizationId?: string | null;
+    branchId: string;
+    serviceId: string;
+  }): Promise<CanonicalBookingContext | null>;
   /** Returns legacy id when mapped, otherwise canonical SSA id. */
   resolveLegacyBranchServiceId(input: {
     organizationId: string;
@@ -267,7 +271,9 @@ export type BookingSchedulingService = {
     specialistId?: string | null;
   }): Promise<string | null>;
   getInPersonSlots(input: {
-    branchServiceId: string;
+    organizationId?: string | null;
+    branchId: string;
+    serviceId: string;
     date?: string;
     slotCount?: number;
   }): Promise<BookingSlotsByDate[]>;
@@ -279,7 +285,6 @@ export type BookingSchedulingService = {
     slotCount?: number;
   }): Promise<BookingSlotsByDate[]>;
   assertSlotAvailable(input: {
-    branchServiceId?: string;
     organizationId?: string;
     specialistId?: string | null;
     roomId?: string | null;

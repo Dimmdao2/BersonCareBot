@@ -5,9 +5,11 @@
 
 ## Required TEST evidence
 
-- TEST configuration assertion for `RUBITIME_LEGACY_PROFILE_RESOLVE_ENABLED=false` (redacted).
-- Canonical booking smoke result and v1 endpoint negative assertions.
-- Aggregate-only route/error counts for the declared TEST window.
-- Any TEST-only restore and its reason.
+- TEST integrated SHA and declared monitoring-window start/end.
+- aggregate v1 `/api/bersoncare/rubitime/slots` request count and aggregate v1 `/api/bersoncare/rubitime/create-record` request count.
+- TEST negative/unmounted result for the retired v1 routes, without assuming `legacy_resolve_disabled`.
+- canonical slots/create/reschedule/cancel and doctor Today/KPI/calendar/list smoke.
+- aggregate-only source of route/error counts without secrets or PII.
+- incremental code rollback boundary, if tested, without re-enabling the removed resolver.
 
 Do not rename this template into a final proof until all TEST evidence is present.

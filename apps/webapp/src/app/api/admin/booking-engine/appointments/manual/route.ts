@@ -109,7 +109,6 @@ export async function POST(request: Request) {
           contactName: bookingRow?.contactName ?? staffBookingContactNameFromAppointment(appointment),
           contactPhone: bookingRow?.contactPhone ?? appointment.phoneNormalized ?? "+70000000000",
           contactEmail: bookingRow?.contactEmail ?? undefined,
-          branchServiceId: bookingRow?.branchServiceId ?? null,
           cityCodeSnapshot: bookingRow?.cityCodeSnapshot ?? null,
           serviceTitleSnapshot: staffBookingServiceTitleFromAppointment(appointment, bookingRow),
           canonicalAppointmentId: appointment.id,

@@ -22,6 +22,7 @@ export async function GET() {
     locationAvailability,
     specialistRooms,
     mapping,
+    publicSlug,
   ] = await Promise.all([
     service.organization.getOrganization(organizationId),
     service.catalog.listBranches(organizationId),
@@ -32,6 +33,7 @@ export async function GET() {
     service.services.listServiceLocationAvailability(organizationId),
     service.catalog.listSpecialistRooms(organizationId),
     service.bridge.getMappingSummary(organizationId),
+    buildAppDeps().clinicDirectory?.getPublishedSlugForOrganization(organizationId) ?? Promise.resolve(null),
   ]);
   const bridgeEnabled = await service.bridge.isBridgeEnabled();
   const readSourceRow = await buildAppDeps().systemSettings?.getSetting(
@@ -52,6 +54,11 @@ export async function GET() {
     bookingSlotsReadSource,
     calendarReadSource: doctorAppointmentsReadSource,
     organization,
+    publicWidget: {
+      publicSlug,
+      specialists,
+      specialistAvailability,
+    },
     branches,
     rooms,
     specialists,

@@ -19,17 +19,18 @@ export function nativeBookingSubtitle(row: PatientBookingRecord): string {
     if (row.category === "nutrition") return "Онлайн - Нутрициология";
     return "Онлайн консультация";
   }
-  if (row.branchServiceId && row.serviceTitleSnapshot) {
+  const canonical = row.canonicalInPersonContext;
+  if (canonical) {
     const city =
-      row.cityCodeSnapshot === "moscow"
+      canonical.cityCode === "moscow"
         ? "Москва"
-        : row.cityCodeSnapshot === "spb"
+        : canonical.cityCode === "spb"
           ? "СПб"
-          : row.cityCodeSnapshot ?? row.city ?? "";
+          : canonical.cityCode;
     const place = city ? `${city} · ` : "";
-    return `Очный приём — ${place}${row.serviceTitleSnapshot}`;
+    return `Очный приём — ${place}${canonical.serviceTitle}`;
   }
-  const city =
-    row.city === "moscow" ? "Москва" : row.city === "spb" ? "СПб" : row.city ? row.city : "";
-  return city ? `Очный приём — ${city}` : "Очный приём";
+  // A legacy row can remain visible for trace/history, but must not surface a
+  // legacy catalog label as though it were a canonical service.
+  return "Очный приём";
 }

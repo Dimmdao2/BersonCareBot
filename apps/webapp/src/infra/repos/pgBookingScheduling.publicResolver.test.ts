@@ -43,13 +43,18 @@ describe("pgBookingScheduling public tenant resolver", () => {
     );
   });
 
-  it("preserves fail-closed null from the database resolver", async () => {
+  it("rejects a retired legacy-only key without forwarding it to the database resolver", async () => {
     runWebappPgTextMock.mockResolvedValue({ rows: [{ organization_id: null }] });
     const port = createPgBookingSchedulingPort();
     await expect(
       port.resolvePublicBookingOrganization({
         branchServiceId: "dddddddd-dddd-4ddd-8ddd-dddddddddddd",
-      }),
+      } as never),
     ).resolves.toBeNull();
+
+    expect(runWebappPgTextMock).toHaveBeenCalledWith(
+      expect.stringContaining("app.resolve_public_booking_organization"),
+      [null, null, null],
+    );
   });
 });

@@ -1,9 +1,9 @@
-import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
+import { notFound, redirect } from "next/navigation";
 import { parseBookingAttributionFromSearchParams } from "@/modules/booking-attribution/parseBookingAttribution";
-import { titleForBookingCityCode } from "@/modules/patient-booking/inPersonServicesCatalog";
 import { publicBookPaths } from "@/shared/publicBook/paths";
 import { PublicBookingShell } from "../PublicBookingShell";
 import { PublicFormatStepClient } from "./PublicFormatStepClient";
+import { loadPublicInPersonSlotContextForSlugRsc } from "../publicOrganizationBooking";
 import type { BookingCity } from "@/modules/booking-catalog/types";
 
 export const dynamic = "force-dynamic";
@@ -30,11 +30,8 @@ export default async function PublicBookNewPage({ searchParams }: Props) {
   const sp = toSearchParams(raw);
   const attr = parseBookingAttributionFromSearchParams(sp);
 
-  const deps = buildAppDeps();
   const cities: BookingCity[] = [];
   const catalogError: string | null = "Каталог недоступен.";
-
-  const { redirect } = await import("next/navigation");
 
   const onlineCategory = first(raw.category)?.trim();
   if (first(raw.type) === "online" && (onlineCategory === "rehab_lfk" || onlineCategory === "nutrition")) {
@@ -49,31 +46,21 @@ export default async function PublicBookNewPage({ searchParams }: Props) {
     );
   }
 
-  const branchServiceId = attr.branchServiceId;
-  if (branchServiceId && deps.bookingScheduling && deps.bookingEngine) {
-    try {
-      const ctx = await deps.bookingScheduling.resolveInPersonContext(branchServiceId);
-      if (ctx?.branchId && ctx.serviceId) {
-        const [branch, service] = await Promise.all([
-          deps.bookingEngine.catalog.getBranch(ctx.branchId),
-          deps.bookingEngine.services.getService(ctx.serviceId),
-        ]);
-        if (!branch || !service || branch.organizationId !== ctx.organizationId || service.organizationId !== ctx.organizationId) {
-          throw new Error("branch_service_not_found");
-        }
-        redirect(
-          `${publicBookPaths.newSlot}?type=in_person` +
-            `&cityCode=${encodeURIComponent(branch.cityCode)}` +
-            `&cityTitle=${encodeURIComponent(titleForBookingCityCode(branch.cityCode))}` +
-            `&branchId=${encodeURIComponent(ctx.branchId)}` +
-            `&serviceId=${encodeURIComponent(ctx.serviceId)}` +
-            `&serviceTitle=${encodeURIComponent(service.title)}` +
-            `&durationMinutes=${encodeURIComponent(String(service.durationMinutes))}`,
-        );
-      }
-    } catch {
-      // unknown branch service — stay on format step
-    }
+  if (attr.branchId && attr.serviceId) {
+    const orgSlug = first(raw.orgSlug)?.trim();
+    if (!orgSlug) return notFound();
+    const context = await loadPublicInPersonSlotContextForSlugRsc({
+      orgSlug,
+      branchId: attr.branchId,
+      serviceId: attr.serviceId,
+    });
+    if (!context.ok) return notFound();
+    redirect(
+      `${publicBookPaths.newSlot}?type=in_person` +
+        `&orgSlug=${encodeURIComponent(orgSlug)}` +
+        `&branchId=${encodeURIComponent(context.branchId)}` +
+        `&serviceId=${encodeURIComponent(context.serviceId)}`,
+    );
   }
 
   return (

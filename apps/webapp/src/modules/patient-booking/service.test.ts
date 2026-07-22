@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { ResolvedBranchService } from "@/modules/booking-catalog/types";
 import type { BookingCatalogService } from "@/modules/booking-catalog/service";
+import { createBookingSchedulingService } from "@/modules/booking-scheduling/service";
 import type { PatientBookingRecord } from "./types";
 import { createPatientBookingService } from "./service";
 
@@ -457,6 +458,114 @@ describe("createPatientBookingService", () => {
     expect(result).toMatchObject({ ok: true });
     expect(bookingsPort.updateSlotsAfterReschedule).toHaveBeenCalled();
     expect(appointmentProjection.upsertRecordFromProjection).toHaveBeenCalled();
+  });
+
+  it("rescheduleBooking: complete canonical in-person row uses canonical availability without legacy branch-service resolution", async () => {
+    const row = sampleRow({
+      status: "confirmed",
+      bookingType: "in_person",
+      branchServiceId: "bbbbbbbb-bbbb-4bbb-bbbb-bbbbbbbbbbbb",
+      canonicalAppointmentId: "appt-1",
+    });
+    const newStart = "2026-06-10T10:00:00.000Z";
+    const newEnd = "2026-06-10T11:00:00.000Z";
+    bookingsPort.getByIdForUser.mockResolvedValue(row);
+    bookingsPort.updateSlotsAfterReschedule.mockResolvedValue({ ...row, slotStart: newStart, slotEnd: newEnd });
+    syncPort.emitBookingEvent.mockResolvedValue(undefined);
+    const listBusyIntervals = vi.fn().mockResolvedValue([]);
+    const bookingScheduling = createBookingSchedulingService({
+      listBusyIntervals,
+    } as never);
+    const appointmentLifecycle = {
+      patientReschedule: vi.fn().mockResolvedValue({
+        ok: true,
+        appointment: {
+          id: "appt-1",
+          startAt: newStart,
+          endAt: newEnd,
+          branchId: "branch-1",
+          serviceId: "service-1",
+          specialistId: "specialist-1",
+          status: "confirmed",
+        },
+        reschedulePolicy: { notifyPatient: true, notifyStaff: true },
+      }),
+      patchLatestRescheduleNotifications: vi.fn(),
+    };
+    const bookingEngine = {
+      getAppointment: vi.fn().mockResolvedValue({
+        id: "appt-1",
+        organizationId: "org-1",
+        branchId: "branch-1",
+        serviceId: "service-1",
+        specialistId: "specialist-1",
+        roomId: "room-1",
+      }),
+    };
+
+    const svc = createPatientBookingService({
+      bookingsPort: bookingsPort as never,
+      syncPort: syncPort as never,
+      bookingCatalog: null,
+      bookingEngine: bookingEngine as never,
+      appointmentLifecycle: appointmentLifecycle as never,
+      bookingScheduling,
+    });
+
+    await expect(svc.rescheduleBooking({
+      userId: row.userId!, bookingId: row.id, slotStart: newStart, slotEnd: newEnd,
+    })).resolves.toMatchObject({ ok: true });
+
+    expect(listBusyIntervals).toHaveBeenCalledWith({
+      organizationId: "org-1",
+      specialistId: "specialist-1",
+      roomId: "room-1",
+      rangeStart: newStart,
+      rangeEnd: newEnd,
+      excludeAppointmentId: "appt-1",
+    });
+    const event = syncPort.emitBookingEvent.mock.calls[0]?.[0] as { payload: Record<string, unknown> };
+    expect(event.payload).not.toHaveProperty("branchServiceId");
+  });
+
+  it("rescheduleBooking: incomplete legacy-only in-person row fails closed without branch-service fallback", async () => {
+    const row = sampleRow({
+      status: "confirmed",
+      bookingType: "in_person",
+      branchServiceId: "bbbbbbbb-bbbb-4bbb-bbbb-bbbbbbbbbbbb",
+      canonicalAppointmentId: "appt-1",
+    });
+    bookingsPort.getByIdForUser.mockResolvedValue(row);
+    const assertSlotAvailable = vi.fn();
+    const appointmentLifecycle = { patientReschedule: vi.fn() };
+    const bookingEngine = {
+      getAppointment: vi.fn().mockResolvedValue({
+        id: "appt-1",
+        organizationId: "org-1",
+        branchId: null,
+        serviceId: null,
+        specialistId: null,
+        roomId: null,
+      }),
+    };
+    const svc = createPatientBookingService({
+      bookingsPort: bookingsPort as never,
+      syncPort: syncPort as never,
+      bookingCatalog: null,
+      bookingEngine: bookingEngine as never,
+      appointmentLifecycle: appointmentLifecycle as never,
+      bookingScheduling: { assertSlotAvailable } as never,
+    });
+
+    await expect(svc.rescheduleBooking({
+      userId: row.userId!,
+      bookingId: row.id,
+      slotStart: "2026-06-10T10:00:00.000Z",
+      slotEnd: "2026-06-10T11:00:00.000Z",
+    })).resolves.toEqual({ ok: false, error: "canonical_appointment_incomplete" });
+
+    expect(assertSlotAvailable).not.toHaveBeenCalled();
+    expect(appointmentLifecycle.patientReschedule).not.toHaveBeenCalled();
   });
 
   it("rescheduleBooking: still calls assertSlotAvailable when retired slots read source is rubitime", async () => {
@@ -1178,19 +1287,23 @@ describe("createPatientBookingService", () => {
     });
     const slots = await svc.getSlots({
       type: "in_person",
-      branchServiceId: r.branchService.id,
+      branchId: r.branch.id,
+      serviceId: r.service.id,
       date: "2026-05-01",
     });
     expect(slots).toHaveLength(1);
     expect(getInPersonSlots).toHaveBeenCalledWith({
-      branchServiceId: r.branchService.id,
+      organizationId: undefined,
+      branchId: r.branch.id,
+      serviceId: r.service.id,
       date: "2026-05-01",
+      slotCount: undefined,
     });
     expect(resolveBranchServiceMock).not.toHaveBeenCalled();
     expect(syncPort.fetchSlots).not.toHaveBeenCalled();
   });
 
-  it("cancelBooking: emit booking.cancelled includes v2 snapshot fields for in_person", async () => {
+  it("cancelBooking: emit booking.cancelled includes passive v2 snapshot fields but not branchServiceId", async () => {
     const row = sampleRow({
       status: "confirmed",
       rubitimeId: "r1",
@@ -1225,23 +1338,23 @@ describe("createPatientBookingService", () => {
         eventType: "booking.cancelled",
         payload: expect.objectContaining({
           organizationId: "org-1",
-          branchServiceId: "bbbbbbbb-bbbb-4bbb-bbbb-bbbbbbbbbbbb",
           cityCodeSnapshot: "moscow",
           serviceTitleSnapshot: "Сеанс",
         }),
       }),
     );
+    const event = syncPort.emitBookingEvent.mock.calls[0]?.[0] as { payload: Record<string, unknown> };
+    expect(event.payload).not.toHaveProperty("branchServiceId");
   });
 
   it("createBooking: inactive branch service (not found) propagates", async () => {
-    resolveBranchServiceMock.mockRejectedValue(new Error("branch_service_not_found"));
     const bookingEngine = {
       organization: { getDefaultOrganizationId: vi.fn().mockResolvedValue("org-1") },
       getAppointment: vi.fn().mockResolvedValue({ id: "appt-1", organizationId: "org-1" }),
     };
     const bookingScheduling = {
       assertSlotAvailable: vi.fn(),
-      resolveInPersonContext: vi.fn(),
+      resolveCanonicalInPersonContext: vi.fn().mockResolvedValue(null),
     };
     const svc = createPatientBookingService({
       bookingsPort: bookingsPort as never,
@@ -1254,7 +1367,8 @@ describe("createPatientBookingService", () => {
       svc.createBooking({
         userId: "u1111111-1111-4111-8111-111111111111",
         type: "in_person",
-        branchServiceId: "bbbbbbbb-bbbb-4bbb-bbbb-bbbbbbbbbbbb",
+        branchId: "b1000000-0000-4000-8000-000000000001",
+        serviceId: "51000000-0000-4000-8000-000000000002",
         cityCode: "moscow",
         slotStart: "2026-05-01T10:00:00.000Z",
         slotEnd: "2026-05-01T11:00:00.000Z",
@@ -1292,7 +1406,7 @@ describe("createPatientBookingService", () => {
     };
     const bookingScheduling = {
       assertSlotAvailable: vi.fn(),
-      resolveInPersonContext: vi.fn().mockResolvedValue({
+      resolveCanonicalInPersonContext: vi.fn().mockResolvedValue({
         organizationId: "org-1",
         branchId: r.branch.id,
         specialistId: r.specialist.id,
@@ -1311,7 +1425,8 @@ describe("createPatientBookingService", () => {
       svc.createBooking({
         userId: "u1111111-1111-4111-8111-111111111111",
         type: "in_person",
-        branchServiceId: r.branchService.id,
+        branchId: "b1000000-0000-4000-8000-000000000001",
+        serviceId: "51000000-0000-4000-8000-000000000002",
         cityCode: "spb",
         slotStart: "2026-05-01T10:00:00.000Z",
         slotEnd: "2026-05-01T11:00:00.000Z",

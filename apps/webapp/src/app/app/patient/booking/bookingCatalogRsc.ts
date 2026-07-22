@@ -47,7 +47,6 @@ export type LoadInPersonSlotContextResult =
       organizationId: string;
       branchId: string;
       serviceId: string;
-      branchServiceId: string;
       cityCode: string;
       cityTitle: string;
       serviceTitle: string;
@@ -96,7 +95,6 @@ export async function loadInPersonSlotContextForPatientRsc(input: {
   platformUserId: string;
   branchId?: string;
   serviceId?: string;
-  branchServiceId?: string;
 }): Promise<LoadInPersonSlotContextResult> {
   const deps = buildAppDeps();
   const organizationId = await resolvePatientOrganizationId(deps, input.platformUserId);
@@ -111,20 +109,6 @@ export async function loadInPersonSlotContextForPatientRsc(input: {
       async () => {
         let branchId = input.branchId;
         let serviceId = input.serviceId;
-        let branchServiceId = input.branchServiceId;
-
-        if (branchServiceId) {
-          const context = await bookingScheduling.resolveInPersonContext(branchServiceId);
-          if (!context || context.organizationId !== organizationId) {
-            return { ok: false, error: "invalid_selection" } as const;
-          }
-          if ((branchId && branchId !== context.branchId) || (serviceId && serviceId !== context.serviceId)) {
-            return { ok: false, error: "invalid_selection" } as const;
-          }
-          branchId = context.branchId;
-          serviceId = context.serviceId;
-        }
-
         if (!branchId || !serviceId) {
           return { ok: false, error: "invalid_selection" } as const;
         }
@@ -135,19 +119,7 @@ export async function loadInPersonSlotContextForPatientRsc(input: {
           return { ok: false, error: "invalid_selection" } as const;
         }
 
-        if (!branchServiceId) {
-          branchServiceId =
-            (await bookingScheduling.resolveLegacyBranchServiceId({
-              organizationId,
-              branchId,
-              serviceId,
-            })) ?? undefined;
-        }
-        if (!branchServiceId) {
-          return { ok: false, error: "invalid_selection" } as const;
-        }
-
-        const context = await bookingScheduling.resolveInPersonContext(branchServiceId);
+        const context = await bookingScheduling.resolveCanonicalInPersonContext({ organizationId, branchId, serviceId });
         if (
           !context ||
           context.organizationId !== organizationId ||
@@ -167,7 +139,6 @@ export async function loadInPersonSlotContextForPatientRsc(input: {
           organizationId,
           branchId,
           serviceId,
-          branchServiceId,
           cityCode: listed.branch.cityCode,
           cityTitle: titleForBookingCityCode(listed.branch.cityCode),
           serviceTitle: service.title,

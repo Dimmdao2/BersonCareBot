@@ -57,7 +57,6 @@ export function createAppointmentPaymentConfirmedHandler(deps: {
         contactName: row.contactName,
         contactPhone: row.contactPhone,
         contactEmail: row.contactEmail ?? undefined,
-        branchServiceId: row.branchServiceId,
         cityCodeSnapshot: row.cityCodeSnapshot,
         serviceTitleSnapshot: row.serviceTitleSnapshot,
         canonicalAppointmentId: input.appointmentId,

@@ -8,6 +8,22 @@ export type BookingCategory = "rehab_lfk" | "nutrition" | "general";
 
 export type PatientBookingRowSource = "native" | "rubitime_projection";
 
+/**
+ * Canonical in-person context read from the linked `be_appointments` row and
+ * its active canonical catalog availability. It is deliberately separate from
+ * the legacy `patient_bookings` catalog/snapshot fields below: those columns
+ * are retained only for trace/archive compatibility.
+ */
+export type CanonicalInPersonBookingContext = {
+  branchId: string;
+  serviceId: string;
+  cityCode: string;
+  branchTitle: string;
+  serviceTitle: string;
+  durationMinutes: number;
+  priceMinor: number;
+};
+
 export type PatientBookingStatus =
   | "creating"
   | "awaiting_payment"
@@ -70,6 +86,12 @@ export type PatientBookingRecord = {
   rubitimeManageUrl: string | null;
   /** Canonical `be_appointments.id` when write path uses booking engine (stage 2+). */
   canonicalAppointmentId: string | null;
+  /**
+   * Complete canonical view model for an in-person appointment. Null means
+   * that this row must not navigate to canonical slots; legacy columns are not
+   * a substitute for it.
+   */
+  canonicalInPersonContext?: CanonicalInPersonBookingContext | null;
   /** DB `source`: native webapp booking vs Rubitime projection compat row. */
   bookingSource: PatientBookingRowSource;
   /** Set for `rubitime_projection` rows; recomputed on each compat upsert. */
@@ -110,9 +132,9 @@ export type CreatePatientBookingInput =
     })
   | (CreatePatientBookingCommon & {
       type: "in_person";
-      /** Catalog row `booking_branch_services.id` */
-      branchServiceId: string;
-      /** IANA-ish code from `booking_cities.code` (e.g. moscow, spb) */
+      /** Canonical branch and clinic-service ids. */
+      branchId: string;
+      serviceId: string;
       cityCode: string;
       slotStart: string;
       slotEnd: string;

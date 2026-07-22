@@ -13,11 +13,10 @@ import {
   SelectItem,
   SelectTrigger,
 } from "@/shared/ui/doctor/primitives/select";
-import { publicBookPaths } from "@/shared/publicBook/paths";
+import { buildPublicBookingWidgetOutputs } from "@/shared/publicBook/adminWidgetUrls";
 import { BOOKING_FORM_MAX_WIDTH_CLASS } from "@/shared/ui/doctor/doctorWorkspaceLayout";
 
 const OVERVIEW = "/api/admin/booking-engine/overview";
-const RESOLVE = "/api/admin/booking-engine/resolve-branch-service";
 
 function originFromWindow(): string {
   if (typeof window === "undefined") return "";
@@ -26,6 +25,18 @@ function originFromWindow(): string {
 
 type BranchRow = { id: string; title: string; isActive: boolean; cityCode: string };
 type ServiceRow = { id: string; title: string; publicWidgetVisible: boolean; isActive: boolean };
+type SpecialistRow = { id: string; isActive: boolean };
+type SpecialistServiceAvailabilityRow = {
+  specialistId: string;
+  branchId: string | null;
+  serviceId: string;
+  isActive: boolean;
+};
+type PublicWidgetOverview = {
+  publicSlug: string | null;
+  specialists: SpecialistRow[];
+  specialistAvailability: SpecialistServiceAvailabilityRow[];
+};
 
 export function BookingPublicWidgetSection() {
   const origin = originFromWindow();
@@ -34,18 +45,21 @@ export function BookingPublicWidgetSection() {
   const [utmCampaign, setUtmCampaign] = useState("");
   const [branchId, setBranchId] = useState("");
   const [serviceId, setServiceId] = useState("");
-  const [branchServiceId, setBranchServiceId] = useState("");
-  const [cityCode, setCityCode] = useState("");
-  const [resolveError, setResolveError] = useState<string | null>(null);
   const [branches, setBranches] = useState<BranchRow[]>([]);
   const [services, setServices] = useState<ServiceRow[]>([]);
+  const [publicWidget, setPublicWidget] = useState<PublicWidgetOverview | null>(null);
   const [showPreview, setShowPreview] = useState(false);
   const [pending, startTransition] = useTransition();
 
   useEffect(() => {
     startTransition(async () => {
       try {
-        const json = await apiJson<{ ok?: boolean; branches?: BranchRow[]; services?: ServiceRow[] }>(OVERVIEW);
+        const json = await apiJson<{
+          ok?: boolean;
+          branches?: BranchRow[];
+          services?: ServiceRow[];
+          publicWidget?: PublicWidgetOverview;
+        }>(OVERVIEW);
         if (json.branches && json.services) {
           const activeBranches = json.branches.filter((b) => b.isActive);
           const visibleServices = json.services.filter((s) => s.isActive && s.publicWidgetVisible);
@@ -53,6 +67,7 @@ export function BookingPublicWidgetSection() {
           setServices(visibleServices);
           if (activeBranches[0]) setBranchId((prev) => prev || activeBranches[0]!.id);
           if (visibleServices[0]) setServiceId((prev) => prev || visibleServices[0]!.id);
+          setPublicWidget(json.publicWidget ?? null);
         }
       } catch {
         // overview load failure is non-critical; selects stay empty
@@ -60,74 +75,36 @@ export function BookingPublicWidgetSection() {
     });
   }, []);
 
-  useEffect(() => {
-    if (!branchId || !serviceId) {
-      startTransition(() => {
-        setBranchServiceId("");
-        setCityCode("");
-        setResolveError(null);
-      });
-      return;
-    }
-    startTransition(async () => {
-      try {
-        const qs = new URLSearchParams({ branchId, serviceId });
-        const json = await apiJson<{
-          ok?: boolean;
-          error?: string;
-          branchServiceId?: string;
-          cityCode?: string;
-        }>(`${RESOLVE}?${qs.toString()}`);
-        if (!json.branchServiceId) {
-          setBranchServiceId("");
-          setCityCode("");
-          setResolveError("branch_service_mapping_missing");
-          return;
-        }
-        setBranchServiceId(json.branchServiceId);
-        setCityCode(json.cityCode ?? "");
-        setResolveError(null);
-      } catch (e) {
-        setBranchServiceId("");
-        setCityCode("");
-        setResolveError(e instanceof Error ? e.message : "resolve_failed");
-      }
-    });
-  }, [branchId, serviceId]);
-
-  const query = useMemo(() => {
-    const p = new URLSearchParams();
-    if (cityCode.trim()) p.set("city", cityCode.trim());
-    if (utmSource.trim()) p.set("utm_source", utmSource.trim());
-    if (utmMedium.trim()) p.set("utm_medium", utmMedium.trim());
-    if (utmCampaign.trim()) p.set("utm_campaign", utmCampaign.trim());
-    if (branchServiceId.trim()) p.set("branchServiceId", branchServiceId.trim());
-    return p.toString();
-  }, [cityCode, utmSource, utmMedium, utmCampaign, branchServiceId]);
-
-  const pageUrl = `${origin}${publicBookPaths.new}${query ? `?${query}` : ""}`;
-  const previewUrl = `${pageUrl}${pageUrl.includes("?") ? "&" : "?"}embed=iframe`;
-  const scriptSrc = `${origin}${publicBookPaths.embedScript}`;
-
   const branchLabel = branches.find((b) => b.id === branchId)?.title;
   const serviceLabel = services.find((s) => s.id === serviceId)?.title;
-
-  const iframeSnippet = useMemo(
-    () =>
-      `<iframe src="${previewUrl}" title="Запись" style="border:0;width:100%;min-height:720px" loading="lazy"></iframe>`,
-    [previewUrl],
+  const publicSlug = publicWidget?.publicSlug ?? null;
+  const publicSpecialists = publicWidget?.specialists ?? [];
+  const publicAvailability = publicWidget?.specialistAvailability ?? [];
+  const isBookableSelection = Boolean(
+    publicSlug &&
+      publicAvailability.some(
+        (availability) =>
+          availability.isActive &&
+          availability.branchId === branchId &&
+          availability.serviceId === serviceId &&
+          publicSpecialists.some(
+            (specialist) => specialist.isActive && specialist.id === availability.specialistId,
+          ),
+      ),
   );
-
-  const scriptSnippet = useMemo(
+  const outputs = useMemo(
     () =>
-      `<script src="${scriptSrc}" data-base="${origin}" data-mode="iframe"${cityCode.trim() ? ` data-city="${cityCode.trim()}"` : ""}${utmSource.trim() ? ` data-utm-source="${utmSource.trim()}"` : ""} async></script>`,
-    [scriptSrc, origin, cityCode, utmSource],
-  );
-
-  const popupSnippet = useMemo(
-    () =>
-      `<script src="${scriptSrc}" data-base="${origin}" data-mode="popup" async></script>`,
-    [scriptSrc, origin],
+      origin && publicSlug && isBookableSelection
+        ? buildPublicBookingWidgetOutputs(origin, {
+            orgSlug: publicSlug,
+            branchId,
+            serviceId,
+            utmSource,
+            utmMedium,
+            utmCampaign,
+          })
+        : null,
+    [origin, publicSlug, isBookableSelection, branchId, serviceId, utmSource, utmMedium, utmCampaign],
   );
 
   async function copyText(text: string) {
@@ -187,17 +164,10 @@ export function BookingPublicWidgetSection() {
         />
       </div>
 
-      {resolveError ? (
-        <p className="mt-3 text-sm text-destructive">
-          Не удалось подготовить ссылку: настройте доступность и Rubitime-маппинг для выбранной пары локация ×
-          услуга.
-        </p>
-      ) : null}
-
-      {origin && branchServiceId ? (
+      {outputs ? (
         <div className="mt-4 flex flex-wrap gap-2">
           <Link
-            href={pageUrl}
+            href={outputs.pageUrl}
             target="_blank"
             rel="noopener noreferrer"
             className={cn(buttonVariants({ variant: "outline", size: "sm" }))}
@@ -210,22 +180,22 @@ export function BookingPublicWidgetSection() {
         </div>
       ) : null}
 
-      {showPreview && origin && branchServiceId ? (
+      {showPreview && outputs ? (
         <iframe
-          src={previewUrl}
+          src={outputs.previewUrl}
           title="Предпросмотр записи"
           className="mt-4 h-[min(720px,70vh)] w-full rounded-md border bg-background"
           loading="lazy"
         />
       ) : null}
 
-      {branchServiceId ? (
+      {outputs ? (
         <div className="mt-4 space-y-4 text-sm">
           {[
-            { label: "Ссылка", text: pageUrl },
-            { label: "iframe", text: iframeSnippet },
-            { label: "JS (iframe)", text: scriptSnippet },
-            { label: "JS (popup)", text: popupSnippet },
+            { label: "Ссылка", text: outputs.pageUrl },
+            { label: "iframe", text: outputs.iframeSnippet },
+            { label: "JS (iframe)", text: outputs.scriptSnippet },
+            { label: "JS (popup)", text: outputs.popupSnippet },
           ].map((block) => (
             <div key={block.label} className="sm:col-span-2">
               <div className="mb-1 flex items-center justify-between gap-2">

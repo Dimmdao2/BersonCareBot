@@ -1,11 +1,18 @@
 import { stampBootstrapPrincipal } from "@/app-layer/principal/bootstrapPrincipal";
 import { NextResponse } from "next/server";
+import { z } from "zod";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import { withExplicitOrganizationPrincipal } from "@/app-layer/principal/withOrganizationPrincipal";
 import {
   InPersonBookingResolveError,
-  resolveInPersonBookingContext,
+  resolveSlugBoundPublicInPersonBookingOrganization,
 } from "@/modules/patient-booking/inPersonBookingResolve";
+
+const querySchema = z.object({
+  orgSlug: z.string().trim().min(1).max(120),
+  branchId: z.string().uuid(),
+  serviceId: z.string().uuid(),
+});
 
 export async function GET(request: Request) {
   stampBootstrapPrincipal("api/booking/public/form-fields:GET", request);
@@ -14,12 +21,20 @@ export async function GET(request: Request) {
     return NextResponse.json({ ok: false, error: "booking_form_unavailable" }, { status: 503 });
   }
   const params = new URL(request.url).searchParams;
+  const raw = {
+    orgSlug: params.get("orgSlug"),
+    branchId: params.get("branchId"),
+    serviceId: params.get("serviceId"),
+  };
+  if (!raw.orgSlug?.trim() || !raw.branchId?.trim() || !raw.serviceId?.trim()) {
+    return NextResponse.json({ ok: false, error: "ambiguous_booking_tenant" }, { status: 400 });
+  }
+  const parsed = querySchema.safeParse(raw);
+  if (!parsed.success) {
+    return NextResponse.json({ ok: false, error: "invalid_query" }, { status: 400 });
+  }
   try {
-    const ctx = await resolveInPersonBookingContext(deps, {
-      branchServiceId: params.get("branchServiceId"),
-      branchId: params.get("branchId"),
-      serviceId: params.get("serviceId"),
-    });
+    const ctx = await resolveSlugBoundPublicInPersonBookingOrganization(deps, parsed.data);
     const fields = await withExplicitOrganizationPrincipal(
       { organizationId: ctx.organizationId, source: "api/booking/public/form-fields:GET" },
       () => deps.bookingForm!.listPatientFields(ctx.organizationId),

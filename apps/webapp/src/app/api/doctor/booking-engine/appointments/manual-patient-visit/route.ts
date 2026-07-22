@@ -153,7 +153,6 @@ export async function POST(request: Request) {
                   staffBookingContactNameFromAppointment(created.appointment),
                 contactPhone,
                 contactEmail: bookingRow?.contactEmail ?? undefined,
-                branchServiceId: bookingRow?.branchServiceId ?? null,
                 cityCodeSnapshot: bookingRow?.cityCodeSnapshot ?? null,
                 serviceTitleSnapshot: staffBookingServiceTitleFromAppointment(
                   created.appointment,

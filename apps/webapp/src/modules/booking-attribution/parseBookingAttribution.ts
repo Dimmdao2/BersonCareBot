@@ -27,7 +27,6 @@ export function parseBookingAttributionFromSearchParams(params: URLSearchParams)
     branchId: pickUuid(params, "branchId", "branch_id", "branch"),
     specialistId: pickUuid(params, "specialistId", "specialist_id", "specialist"),
     serviceId: pickUuid(params, "serviceId", "service_id", "service"),
-    branchServiceId: pickUuid(params, "branchServiceId", "branch_service_id"),
     promotionId: pickUuid(params, "promotionId", "promotion_id", "promo", "promotion"),
     trafficSource: pickString(params, "source", "traffic_source", "trafficSource"),
     utmSource: pickString(params, "utm_source", "utmSource"),

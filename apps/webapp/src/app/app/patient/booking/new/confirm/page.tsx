@@ -32,13 +32,11 @@ function buildSlotBackQuery(raw: Record<string, string | string[] | undefined>):
     const cityTitle = first(raw.cityTitle);
     const branchId = first(raw.branchId);
     const serviceId = first(raw.serviceId);
-    const branchServiceId = first(raw.branchServiceId);
     const serviceTitle = first(raw.serviceTitle);
     if (cityCode) q.set("cityCode", cityCode);
     if (cityTitle != null) q.set("cityTitle", cityTitle);
     if (branchId) q.set("branchId", branchId);
     if (serviceId) q.set("serviceId", serviceId);
-    if (branchServiceId) q.set("branchServiceId", branchServiceId);
     if (serviceTitle != null) q.set("serviceTitle", serviceTitle);
     const durationMinutes = first(raw.durationMinutes);
     if (durationMinutes) q.set("durationMinutes", durationMinutes);
@@ -121,8 +119,7 @@ export default async function BookingNewConfirmPage({ searchParams }: Props) {
   if (type === "in_person") {
     const branchId = first(raw.branchId)?.trim();
     const serviceId = first(raw.serviceId)?.trim();
-    const branchServiceId = first(raw.branchServiceId)?.trim();
-    if ((!branchId || !serviceId) && !branchServiceId) {
+    if (!branchId || !serviceId) {
       redirect(routePaths.bookingNew);
     }
   } else {
@@ -156,7 +153,6 @@ export default async function BookingNewConfirmPage({ searchParams }: Props) {
         cityTitle={first(raw.cityTitle)}
         branchId={first(raw.branchId)}
         serviceId={first(raw.serviceId)}
-        branchServiceId={first(raw.branchServiceId)}
         serviceTitle={first(raw.serviceTitle)}
         category={first(raw.category)}
         slotStart={slot}

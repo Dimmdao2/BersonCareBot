@@ -1,9 +1,10 @@
-import { redirect } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import { SlotStepClient } from "@/app/app/patient/booking/new/slot/SlotStepClient";
 import { isPublicOnlineBookingCategory } from "@/shared/publicBook/onlineBookingCategories";
 import { getAppDisplayTimeZone } from "@/modules/system-settings/appDisplayTimezone";
 import { publicBookPaths } from "@/shared/publicBook/paths";
 import { PublicBookingShell } from "../../PublicBookingShell";
+import { loadPublicInPersonSlotContextForSlugRsc } from "../../publicOrganizationBooking";
 
 type Props = {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
@@ -43,33 +44,32 @@ export default async function PublicBookSlotPage({ searchParams }: Props) {
 
   const branchId = first(raw.branchId)?.trim();
   const serviceId = first(raw.serviceId)?.trim();
-  const branchServiceId = first(raw.branchServiceId)?.trim();
-  if ((!branchId || !serviceId) && !branchServiceId) {
+  if (!branchId || !serviceId) {
     redirect(publicBookPaths.new);
   }
 
-  const cityCode = first(raw.cityCode) ?? "";
-  const cityTitle = first(raw.cityTitle) ?? "";
-  const serviceTitle = first(raw.serviceTitle) ?? "";
-  const durationMinutes = Number(first(raw.durationMinutes) ?? "60") || 60;
   const orgSlug = first(raw.orgSlug)?.trim();
+  if (!orgSlug) redirect(publicBookPaths.new);
+  const context = await loadPublicInPersonSlotContextForSlugRsc({ orgSlug, branchId, serviceId });
+  if (!context.ok) notFound();
   const backHref =
-    `${publicBookPaths.newService}?cityCode=${encodeURIComponent(cityCode)}&cityTitle=${encodeURIComponent(cityTitle)}` +
-    (orgSlug ? `&orgSlug=${encodeURIComponent(orgSlug)}` : "");
+    `${publicBookPaths.newService}?cityCode=${encodeURIComponent(context.cityCode)}&cityTitle=${encodeURIComponent(context.cityTitle)}` +
+    `&orgSlug=${encodeURIComponent(orgSlug)}`;
 
   return (
     <PublicBookingShell title="Выберите дату и время" step={3} totalSteps={4} backHref={backHref}>
       <SlotStepClient
         type="in_person"
-        branchId={branchId}
-        serviceId={serviceId}
-        branchServiceId={branchServiceId}
+        branchId={context.branchId}
+        serviceId={context.serviceId}
         orgSlug={orgSlug}
-        cityCode={cityCode}
-        cityTitle={cityTitle}
-        serviceTitle={serviceTitle}
-        durationMinutes={durationMinutes}
-        appDisplayTimeZone={appDisplayTimeZone}
+        cityCode={context.cityCode}
+        cityTitle={context.cityTitle}
+        serviceTitle={context.serviceTitle}
+        durationMinutes={context.durationMinutes}
+        priceMinor={context.priceMinor}
+        maxConsecutiveSlotHours={context.maxConsecutiveSlotHours}
+        appDisplayTimeZone={context.appDisplayTimeZone}
         confirmBasePath={publicBookPaths.newConfirm}
         slotsApiPath="/api/booking/public/slots"
       />

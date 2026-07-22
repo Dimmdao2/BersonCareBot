@@ -16,6 +16,7 @@ export type RescheduleBookingResult =
 const ERROR_RU: Record<string, string> = {
   not_found: "Запись не найдена",
   no_canonical: "Перенос недоступен для этой записи",
+  canonical_appointment_incomplete: "Перенос недоступен: запись ожидает переноса в канонический календарь",
   too_late: "Срок самостоятельного переноса истёк",
   limit_exceeded: "Лимит переносов исчерпан",
   change_not_allowed: "Такой перенос не разрешён",

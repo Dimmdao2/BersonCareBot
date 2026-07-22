@@ -14,7 +14,6 @@ import { publicBookingCreateBodySchema } from "../bookingPublicBodySchema";
 import {
   InPersonBookingResolveError,
   resolveInPersonBookingContext,
-  resolveInPersonCityCode,
   resolveSlugBoundPublicInPersonBookingOrganization,
 } from "@/modules/patient-booking/inPersonBookingResolve";
 import {
@@ -94,16 +93,17 @@ export async function POST(request: Request) {
         if (!user.ok) {
           throw new Error(user.error);
         }
-        const cityCode =
-          body.cityCode?.trim().toLowerCase() ??
-          (await resolveInPersonCityCode(deps, ctx.branchServiceId));
+        const branch = await deps.bookingEngine?.catalog.getBranch(ctx.branchId);
+        const cityCode = branch?.cityCode.trim().toLowerCase();
+        if (!cityCode) throw new InPersonBookingResolveError("branch_not_found");
         const booking = await deps.patientBooking.createBooking({
           userId: user.userId,
           organizationId: ctx.organizationId,
           bookingChannel,
           attribution,
           type: "in_person",
-          branchServiceId: ctx.branchServiceId,
+          branchId: ctx.branchId,
+          serviceId: ctx.serviceId,
           cityCode,
           slotStart: body.slotStart,
           slotEnd: body.slotEnd,

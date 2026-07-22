@@ -30,7 +30,6 @@ const routeMutationSpecs = [
 
 const rubitimeMappingRouteFiles = [
   "src/app/api/admin/booking-engine/rubitime-mapping/route.ts",
-  "src/app/api/admin/booking-engine/rubitime-mapping/link/route.ts",
   "src/app/api/admin/booking-engine/rubitime-mapping/duplicates/route.ts",
 ] as const;
 

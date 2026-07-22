@@ -5143,3 +5143,26 @@ legitimate absorbed duplicate without implementation seals. The same audit confi
 Readiness review also disarmed legacy auto-candidates `#803/#819/#820/#832`. Payment bypass row `#818` is now an
 explicit owner gate: five `mock-complete` routes, not one membership route, require one coherent production
 fail-closed repository guard. No PROD recheck is needed and no payment code starts before that approval.
+
+## 2026-07-22 — Rubitime provenance/cutoff integrity reconciliation (`#981`)
+
+The full Rubitime entrypoint, execution plan, DB cleanup sequence, R3/R5/R6/R7 proofs/runbooks, final manifest,
+owner packet and current code inventory were reconciled without code, DB, data, host, TEST, PROD, deploy, cutoff,
+archive or drop actions. The atomic matrix is saved in
+`docs/_TODO/SAAS_FOUNDATION/RUBITIME_RETIREMENT_R5_R7_PROVENANCE_RECONCILIATION.md`.
+
+R3-CATALOG's no-legacy-`booking_*`-read proof remains valid, but its `branchServiceId` compatibility-removal date
+expired on `2026-07-21` while the compatibility input remains live across patient/public schemas, URLs and booking
+paths. Final R3-CATALOG closure is reopened until the owner approves a new exact cutoff after old-link/row drain
+evidence, or explicitly defers/rebaselines it with date, reason and rollback boundary.
+
+R6 route/code removal artifacts remain in the repository and the three hard post-R6 static categories are still
+zero. Because those artifacts were applied before the required cutoff/drain/CSV gate, their atomic rows are now open
+as `PROVENANCE-only`; they do not close R6, authorize deployment or imply route restoration. The owner must decide
+whether they remain dormant repository provenance pending `RR-PROOF-09`, or whether restoration is separately
+required before deployment.
+
+The refreshed static inventory records `21 hits / 6 files` for raw-table references, including
+`operationalPoolReadiness.ts`. The aggregate current Rubitime gate was already red before this docs pass: R0 freeze
+counts grew in `pgBookingEngine.ts` and `system-settings/registry.ts`. That code/baseline drift is reported, not
+waived or fixed in docs-only `#981`.

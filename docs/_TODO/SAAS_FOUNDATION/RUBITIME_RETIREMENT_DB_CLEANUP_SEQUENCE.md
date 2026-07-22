@@ -8,6 +8,12 @@ Task: taskdb `#757`.
 
 This is the repo-first, TEST/disposable-DB cleanup sequence for Rubitime retirement. It prepares the one-pass fresh-copy/TEST cleanup package that SaaS Foundation can use before the next non-Rubitime plan starts.
 
+**2026-07-22 Track C cadence supersession:** this remains a future owner-gated destructive/fresh-copy reference,
+not the routine TEST milestone. Routine verification keeps the existing TEST DB and uses only
+`deploy/host/deploy-test.sh` with required forward migrations. Do not use this sequence to pull a fresh PROD dump,
+reset TEST, repeat cutover/backfill, execute R6 drain, archive, or perform R7 drops without separate runtime and
+owner evidence.
+
 This document does not approve or describe live-environment work, does not create final proof placeholders, and does not generate a destructive migration. R5/R6/R7 final proof files remain future execution artifacts.
 
 Canonical sources for this sequence:

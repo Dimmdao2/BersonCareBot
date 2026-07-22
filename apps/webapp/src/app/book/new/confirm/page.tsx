@@ -21,14 +21,12 @@ function buildInPersonSlotBackQuery(raw: Record<string, string | string[] | unde
   const cityTitle = first(raw.cityTitle);
   const branchId = first(raw.branchId);
   const serviceId = first(raw.serviceId);
-  const branchServiceId = first(raw.branchServiceId);
   const serviceTitle = first(raw.serviceTitle);
   const orgSlug = first(raw.orgSlug);
   if (cityCode) q.set("cityCode", cityCode);
   if (cityTitle != null) q.set("cityTitle", cityTitle);
   if (branchId) q.set("branchId", branchId);
   if (serviceId) q.set("serviceId", serviceId);
-  if (branchServiceId) q.set("branchServiceId", branchServiceId);
   if (serviceTitle != null) q.set("serviceTitle", serviceTitle);
   if (orgSlug) q.set("orgSlug", orgSlug);
   const durationMinutes = first(raw.durationMinutes);
@@ -63,8 +61,7 @@ export default async function PublicBookConfirmPage({ searchParams }: Props) {
   if (type === "in_person") {
     const branchId = first(raw.branchId)?.trim();
     const serviceId = first(raw.serviceId)?.trim();
-    const branchServiceId = first(raw.branchServiceId)?.trim();
-    if ((!branchId || !serviceId) && !branchServiceId) redirect(publicBookPaths.new);
+    if (!branchId || !serviceId) redirect(publicBookPaths.new);
     const backHref = `${publicBookPaths.newSlot}?${buildInPersonSlotBackQuery(raw)}`;
     const appDisplayTimeZone = await getAppDisplayTimeZone();
     return (
@@ -75,7 +72,6 @@ export default async function PublicBookConfirmPage({ searchParams }: Props) {
           cityTitle={first(raw.cityTitle)}
           branchId={branchId}
           serviceId={serviceId}
-          branchServiceId={branchServiceId}
           orgSlug={first(raw.orgSlug)?.trim()}
           serviceTitle={first(raw.serviceTitle)}
           slotStart={slot}

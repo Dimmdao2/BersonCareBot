@@ -38,17 +38,17 @@ blockers unless they are wired into live runtime code.
 
 ## Current pre-cutoff output summary
 
-Latest run time after ops-tooling/runtime classification cleanup: 2026-07-14 12:11 MSK.
+Latest run time against current branch baseline: 2026-07-22 21:25:58 MSK.
 
 | Category | Phase | Current result | Meaning |
 | --- | --- | ---: | --- |
 | `mountedRubitimeRouteLiterals` | R6 | 0 hits / 0 files | No Rubitime-named runtime route surfaces remain in scanned runtime source. |
 | `integratorRubitimeRuntimeImports` | R6 | 0 hits / 0 files | Integrator app wiring no longer imports/mounts Rubitime runtime registrars. |
 | `rubitimeApiClientRuntimeTokens` | R6 | 0 hits / 0 files | No Rubitime API client/throttle/post-create runtime tokens remain. |
-| `legacyAppointmentRecordRuntimeRefs` | R6/R7 | 147 hits / 29 files | Legacy appointment table references remain for archive/backfill/compat paths. |
-| `rubitimeRawTableRuntimeRefs` | R7 | 20 hits / 5 files | Raw Rubitime table/queue references remain in runtime/schema/active purge storage until R7 archive/drop/defer decision. Ops tooling is reported separately. |
-| `providerNeutralKeepTableRefs` | R7 keep-list | 158 hits / 38 files | Explicit keep-list references, not a drop signal. |
-| `rubitimeOpsToolingRefs` | R6/R7 ops | 551 hits / 22 files | Ops/audit/backfill scripts with Rubitime references; reported, not a post-R6 runtime blocker. |
+| `legacyAppointmentRecordRuntimeRefs` | R6/R7 | 150 hits / 28 files | Legacy appointment table references remain for archive/backfill/compat paths. |
+| `rubitimeRawTableRuntimeRefs` | R7 | 21 hits / 6 files | Raw Rubitime table/queue references remain in runtime/schema/readiness/active purge storage until R7 archive/drop/defer decision. Ops tooling is reported separately. |
+| `providerNeutralKeepTableRefs` | R7 keep-list | 159 hits / 42 files | Explicit keep-list references, not a drop signal. |
+| `rubitimeOpsToolingRefs` | R6/R7 ops | 543 hits / 25 files | Ops/audit/backfill scripts with Rubitime references; reported, not a post-R6 runtime blocker. |
 
 The post-R6 static inventory gate now passes for runtime Rubitime route/API blockers:
 
@@ -177,5 +177,24 @@ still passes with the three hard R6 categories at zero and `rubitimeRawTableRunt
 - `apps/integrator/src/infra/db/repos/jobQueue.ts` — active provider-neutral retry queue SQL against that legacy physical storage.
 - `apps/webapp/src/infra/platformUserFullPurge.ts` — active strict-purge cleanup for raw-table remnants keyed by phone.
 
-These five are not safe repo-only deletes before owner R6 cutoff/drain proof, archive/export decision and a
+These references are not safe repo-only deletes before owner R6 cutoff/drain proof, archive/export decision and a
 migration-backed R7 drop/defer.
+
+## 2026-07-22 Current-Branch Refresh
+
+Task `#981` reran the inventory without DB/host access. The three hard post-R6 categories remain zero, but the raw
+table aggregate is now `21 hits / 6 files`. The additional file is
+`apps/integrator/src/infra/db/operationalPoolReadiness.ts`, which checks physical queue-table readiness; it is R7
+schema/defer evidence, not a live Rubitime provider route.
+
+Current six raw-table reference files:
+
+- `apps/integrator/src/infra/db/integratorDrizzleSchema.ts`;
+- `apps/integrator/src/infra/db/operationalPoolReadiness.ts`;
+- `apps/integrator/src/infra/db/repos/jobQueue.ts`;
+- `apps/integrator/src/infra/db/schema/integratorDomainRepos.ts`;
+- `apps/integrator/src/infra/db/schema/integratorQueues.ts`;
+- `apps/webapp/src/infra/platformUserFullPurge.ts`.
+
+This refresh does not close R6/R7. The R6 removal state is repository provenance only until `RR-PROOF-09`, and all
+six references remain R7 migration/defer scope.

@@ -47,13 +47,15 @@ export function validateCreatePatientBookingInput(input: CreatePatientBookingInp
 
   const cityCode = input.cityCode.trim().toLowerCase();
   if (!cityCode) throw new Error("invalid_city_code");
-  const bs = input.branchServiceId.trim();
-  if (!UUID_RE.test(bs)) throw new Error("invalid_branch_service_id");
+  const branchId = input.branchId.trim();
+  const serviceId = input.serviceId.trim();
+  if (!UUID_RE.test(branchId) || !UUID_RE.test(serviceId)) throw new Error("invalid_in_person_keys");
 
   return {
     ...input,
     cityCode,
-    branchServiceId: bs,
+    branchId,
+    serviceId,
     slotStart,
     slotEnd,
     contactName: input.contactName.trim(),

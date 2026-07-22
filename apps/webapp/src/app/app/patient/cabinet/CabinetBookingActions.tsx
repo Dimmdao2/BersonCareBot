@@ -25,21 +25,37 @@ type Props = {
   row: PatientBookingRecord;
 };
 
-function buildRescheduleHref(row: PatientBookingRecord): string | null {
-  if (!row.canonicalAppointmentId) return null;
-  if (row.bookingType === "in_person" && row.branchServiceId && row.cityCodeSnapshot) {
+export type PatientBookingRescheduleClassification =
+  | "legacy_only"
+  | "canonical_online"
+  | "canonical_in_person"
+  | "canonical_in_person_incomplete";
+
+/**
+ * Legacy `patient_bookings` catalog ids are an incompatible namespace. Only a
+ * complete canonical appointment view model may open canonical in-person slots.
+ */
+export function classifyPatientBookingReschedule(
+  row: PatientBookingRecord,
+): PatientBookingRescheduleClassification {
+  if (!row.canonicalAppointmentId) return "legacy_only";
+  if (row.bookingType === "online") return "canonical_online";
+  return row.canonicalInPersonContext ? "canonical_in_person" : "canonical_in_person_incomplete";
+}
+
+export function buildRescheduleHref(row: PatientBookingRecord): string | null {
+  const classification = classifyPatientBookingReschedule(row);
+  if (classification === "canonical_in_person") {
+    const context = row.canonicalInPersonContext!;
     const qs = new URLSearchParams({
       type: "in_person",
-      branchServiceId: row.branchServiceId,
-      cityCode: row.cityCodeSnapshot,
-      cityTitle: row.city ?? row.cityCodeSnapshot,
-      serviceTitle: row.serviceTitleSnapshot ?? "",
-      durationMinutes: String(row.durationMinutesSnapshot ?? 60),
+      branchId: context.branchId,
+      serviceId: context.serviceId,
       rescheduleBookingId: row.id,
     });
     return `${routePaths.bookingNewSlot}?${qs}`;
   }
-  if (row.bookingType === "online") {
+  if (classification === "canonical_online") {
     const qs = new URLSearchParams({
       type: "online",
       category: row.category,

@@ -6,11 +6,12 @@ import { fileURLToPath } from 'node:url';
 const repoRoot = fileURLToPath(new URL('../../../..', import.meta.url));
 
 const HELP = `Usage:
-  node docs/_TODO/SAAS_FOUNDATION/scripts/check-rubitime-final-gate.mjs [--require-complete]
+  node docs/_TODO/SAAS_FOUNDATION/scripts/check-rubitime-final-gate.mjs [--self-test] [--require-complete]
 
 Default mode verifies that every current Rubitime retirement final-gate blocker
 has an explicit expected proof and owner/ops gate. --require-complete fails
-until every blocker has a real proof file and the final checklist is checked.`;
+until every blocker has a real proof file and the final checklist is checked.
+--self-test validates the current R5 TEST-negative-route contract with an in-memory proof fixture.`;
 
 const manifest = 'docs/_TODO/SAAS_FOUNDATION/RUBITIME_RETIREMENT_FINAL_GATE_MANIFEST.md';
 const executionPlan = 'docs/_TODO/SAAS_FOUNDATION/RUBITIME_RETIREMENT_EXECUTION_PLAN.md';
@@ -29,14 +30,13 @@ const proofContracts = [
     proof: expectedProofs[0],
     template: 'docs/_TODO/SAAS_FOUNDATION/RUBITIME_RETIREMENT_R5_PRODUCTION_DISABLE_PROOF.template.md',
     requiredFragments: [
-      'live flag-change timestamp',
-      'monitoring window start/end',
-      'v1 `/api/bersoncare/rubitime/slots` request count',
-      'v1 `/api/bersoncare/rubitime/create-record` request count',
-      'source of aggregate counts without secrets or PII',
-      'confirmation that no user-facing booking path required v1 profile resolution',
-      'owner approval note',
-      'rollback notes',
+      'TEST integrated SHA and declared monitoring-window start/end',
+      'aggregate v1 `/api/bersoncare/rubitime/slots` request count',
+      'aggregate v1 `/api/bersoncare/rubitime/create-record` request count',
+      'TEST negative/unmounted result for the retired v1 routes, without assuming `legacy_resolve_disabled`',
+      'canonical slots/create/reschedule/cancel and doctor Today/KPI/calendar/list smoke',
+      'aggregate-only source of route/error counts without secrets or PII',
+      'incremental code rollback boundary, if tested, without re-enabling the removed resolver',
     ],
   },
   {
@@ -84,11 +84,11 @@ const forbiddenProofFragments = [
 
 const blockingItems = [
   {
-    id: 'R5-LIVE-DISABLE',
+    id: 'R5-TEST-NEGATIVE-ROUTES',
     status: 'gated',
-    checklistText: 'R5 legacy v1 resolve disabled in live environment.',
+    checklistText: 'R5 TEST retired v1 routes negative/unmounted; canonical booking healthy.',
     expectedProof: expectedProofs[0],
-    gate: 'owner-approved live flag change and monitoring window',
+    gate: 'declared TEST window, negative/unmounted route proof, aggregate-only counts and canonical booking smoke',
   },
   {
     id: 'R6-RUNTIME-REMOVAL',
@@ -151,20 +151,20 @@ function readRel(rel) {
   return readFileSync(abs, 'utf8');
 }
 
-function materializeBlockingItems() {
+function materializeBlockingItems(exists = relExists) {
   return blockingItems.map((item) => ({
     ...item,
-    status: relExists(item.expectedProof) ? 'pass' : item.status,
+    status: exists(item.expectedProof) ? 'pass' : item.status,
   }));
 }
 
-function validate({ requireComplete }) {
+function validate({ requireComplete, exists = relExists, read = readRel }) {
   const errors = [];
-  const manifestSrc = readRel(manifest);
-  const executionPlanSrc = readRel(executionPlan);
-  const ownerGatePacketSrc = readRel(ownerGatePacket);
-  const agentReadmeSrc = readRel(agentReadme);
-  const r5RunbookSrc = readRel(r5Runbook);
+  const manifestSrc = read(manifest);
+  const executionPlanSrc = read(executionPlan);
+  const ownerGatePacketSrc = read(ownerGatePacket);
+  const agentReadmeSrc = read(agentReadme);
+  const r5RunbookSrc = read(r5Runbook);
 
   if (!manifestSrc) {
     errors.push(`missing ${manifest}`);
@@ -197,14 +197,10 @@ function validate({ requireComplete }) {
   }
 
   const r5RunbookFragments = [
-    'RUBITIME_LEGACY_PROFILE_RESOLVE_ENABLED=false',
-    '/opt/env/bersoncarebot/api.prod',
-    'bersoncarebot-api-prod.service',
-    'monitoring window start/end',
-    'v1 `/api/bersoncare/rubitime/slots` request count',
-    'v1 `/api/bersoncare/rubitime/create-record` request count',
-    'confirmation that no user-facing booking path required v1 profile resolution',
-    'Do not create placeholder final proof files',
+    'Current Track C status — non-executable historical reference',
+    'no flag is set or restored, no PROD env or service is changed',
+    'Current R5 TEST acceptance is still **open**',
+    'R5 is not complete and is not awaiting PROD monitoring.',
   ];
   for (const fragment of r5RunbookFragments) {
     if (!r5RunbookSrc.includes(fragment)) {
@@ -213,24 +209,9 @@ function validate({ requireComplete }) {
   }
 
   for (const contract of proofContracts) {
-    const templateSrc = readRel(contract.template);
+    const templateSrc = read(contract.template);
     if (!templateSrc) {
       errors.push(`${contract.template}: missing proof template`);
-    } else if (
-      contract.template ===
-        'docs/_TODO/SAAS_FOUNDATION/RUBITIME_RETIREMENT_R5_PRODUCTION_DISABLE_PROOF.template.md' &&
-      templateSrc.includes('SUPERSEDED 2026-07-15')
-    ) {
-      for (const fragment of [
-        'The former template was for an external operation and must not be executed.',
-        '## Required TEST evidence',
-        'Canonical booking smoke result and v1 endpoint negative assertions.',
-        'Aggregate-only route/error counts for the declared TEST window.',
-      ]) {
-        if (!templateSrc.includes(fragment)) {
-          errors.push(`${contract.template}: missing superseded TEST fragment ${fragment}`);
-        }
-      }
     } else {
       for (const fragment of contract.requiredFragments) {
         if (!templateSrc.includes(fragment)) {
@@ -238,7 +219,7 @@ function validate({ requireComplete }) {
         }
       }
     }
-    const proofSrc = readRel(contract.proof);
+    const proofSrc = read(contract.proof);
     if (proofSrc || requireComplete) {
       if (!proofSrc) {
         errors.push(`${contract.proof}: missing proof file`);
@@ -330,7 +311,14 @@ function validate({ requireComplete }) {
     }
   }
 
-  const materializedBlockingItems = materializeBlockingItems();
+  if (!manifestSrc.includes('R5-TEST-NEGATIVE-ROUTES') || !manifestSrc.includes('`gated`')) {
+    errors.push(`${manifest}: missing active R5 TEST-negative-route blocker`);
+  }
+  if (!manifestSrc.includes('R5-LIVE-DISABLE') || !manifestSrc.includes('`superseded`')) {
+    errors.push(`${manifest}: missing superseded R5 live-disable record`);
+  }
+
+  const materializedBlockingItems = materializeBlockingItems(exists);
   for (const item of materializedBlockingItems) {
     if (!item.expectedProof || !item.gate) {
       errors.push(`${item.id}: missing expectedProof or gate`);
@@ -350,7 +338,7 @@ function validate({ requireComplete }) {
       if (item.status !== 'pass') {
         errors.push(`${item.id}: still ${item.status}; gate=${item.gate}`);
       }
-      if (!relExists(item.expectedProof)) {
+      if (!exists(item.expectedProof)) {
         errors.push(`${item.id}: missing final proof ${item.expectedProof}`);
       }
       if (item.status === 'pass' && !executionPlanSrc.includes(checkedLine)) {
@@ -374,8 +362,32 @@ if (process.argv.includes('--help')) {
 }
 
 const requireComplete = process.argv.includes('--require-complete');
+const selfTest = process.argv.includes('--self-test');
 const materializedBlockingItems = materializeBlockingItems();
 const errors = validate({ requireComplete });
+
+if (selfTest) {
+  const r5Proof = expectedProofs[0];
+  const missingR5Errors = validate({ requireComplete: true });
+  const virtualR5Proof = proofContracts[0].requiredFragments.join('\n');
+  const r5FixtureErrors = validate({
+    requireComplete: true,
+    exists: (rel) => rel === r5Proof || relExists(rel),
+    read: (rel) => (rel === r5Proof ? virtualR5Proof : readRel(rel)),
+  });
+  if (!blockingItems.some((item) => item.id === 'R5-TEST-NEGATIVE-ROUTES')) {
+    errors.push('self-test: R5 TEST-negative-route blocker is absent');
+  }
+  if (blockingItems.some((item) => item.id === 'R5-LIVE-DISABLE')) {
+    errors.push('self-test: superseded R5 live-disable contract is still an active blocker');
+  }
+  if (!missingR5Errors.some((error) => error.includes('R5-TEST-NEGATIVE-ROUTES'))) {
+    errors.push('self-test: incomplete gate did not fail for missing R5 TEST proof');
+  }
+  if (r5FixtureErrors.some((error) => error.includes('R5-TEST-NEGATIVE-ROUTES: missing final proof'))) {
+    errors.push('self-test: current R5 virtual TEST proof was not recognized');
+  }
+}
 
 console.log(
   JSON.stringify(
@@ -400,4 +412,5 @@ if (errors.length > 0) {
   process.exit(1);
 }
 
+if (selfTest) console.log('check-rubitime-final-gate: self-test OK');
 console.log('check-rubitime-final-gate: OK');

@@ -63,7 +63,6 @@ export async function emitStaffCanonicalBookingEvent(opts: {
         contactName,
         contactPhone,
         contactEmail: bookingRow?.contactEmail ?? undefined,
-        branchServiceId: bookingRow?.branchServiceId ?? null,
         cityCodeSnapshot: bookingRow?.cityCodeSnapshot ?? null,
         serviceTitleSnapshot: staffBookingServiceTitleFromAppointment(opts.appointment, bookingRow),
         canonicalAppointmentId: opts.appointment.id,

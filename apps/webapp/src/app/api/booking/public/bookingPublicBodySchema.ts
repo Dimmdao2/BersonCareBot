@@ -26,7 +26,6 @@ export const publicBookingCreateBodySchema = z.discriminatedUnion("type", [
   z.object({
     type: z.literal("in_person"),
     orgSlug: z.string().trim().min(1).max(120).optional(),
-    branchServiceId: z.string().uuid().optional(),
     branchId: z.string().uuid().optional(),
     serviceId: z.string().uuid().optional(),
     cityCode: z.string().trim().min(1).optional(),
@@ -35,7 +34,7 @@ export const publicBookingCreateBodySchema = z.discriminatedUnion("type", [
     slotCount: z.coerce.number().int().min(1).max(8).optional(),
     ...contactFields,
   }).refine(
-    (v) => Boolean(v.branchServiceId) || (Boolean(v.branchId) && Boolean(v.serviceId)),
+    (v) => Boolean(v.branchId) && Boolean(v.serviceId),
     { message: "invalid_in_person_keys" },
   ),
 ]);

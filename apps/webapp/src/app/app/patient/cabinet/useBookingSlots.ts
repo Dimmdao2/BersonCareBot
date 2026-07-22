@@ -20,12 +20,8 @@ function buildQuery(selection: BookingSelection, date?: string, slotCount?: numb
     params.set("category", selection.category);
   } else {
     params.set("type", "in_person");
-    if (selection.branchId && selection.serviceId) {
-      params.set("branchId", selection.branchId);
-      params.set("serviceId", selection.serviceId);
-    } else if (selection.branchServiceId) {
-      params.set("branchServiceId", selection.branchServiceId);
-    }
+    params.set("branchId", selection.branchId);
+    params.set("serviceId", selection.serviceId);
     if (selection.orgSlug) params.set("orgSlug", selection.orgSlug);
   }
   if (date) params.set("date", date);

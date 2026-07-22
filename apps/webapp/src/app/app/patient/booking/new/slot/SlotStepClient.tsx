@@ -24,8 +24,6 @@ type InPersonProps = {
   branchId?: string;
   serviceId?: string;
   orgSlug?: string;
-  /** Legacy reschedule from existing booking */
-  branchServiceId?: string;
 };
 
 type OnlineProps = {
@@ -66,12 +64,9 @@ function buildConfirmQuery(
   if (props.type === "in_person") {
     q.set("cityCode", props.cityCode);
     q.set("cityTitle", props.cityTitle);
-    if (props.branchId && props.serviceId) {
-      q.set("branchId", props.branchId);
-      q.set("serviceId", props.serviceId);
-    } else if (props.branchServiceId) {
-      q.set("branchServiceId", props.branchServiceId);
-    }
+    if (!props.branchId || !props.serviceId) return "";
+    q.set("branchId", props.branchId);
+    q.set("serviceId", props.serviceId);
     q.set("serviceTitle", props.serviceTitle);
     q.set("durationMinutes", String(props.durationMinutes));
     q.set("priceMinor", String(props.priceMinor ?? 0));
@@ -95,25 +90,13 @@ export function SlotStepClient(props: Props) {
         category: props.category as BookingCategory,
       };
     }
-    if (props.branchId && props.serviceId) {
-      return {
-        type: "in_person",
-        cityCode: props.cityCode,
-        cityTitle: props.cityTitle,
-        branchId: props.branchId,
-        serviceId: props.serviceId,
-        serviceTitle: props.serviceTitle,
-        ...(props.orgSlug ? { orgSlug: props.orgSlug } : {}),
-      };
-    }
     return {
       type: "in_person",
       cityCode: props.cityCode,
       cityTitle: props.cityTitle,
-      branchId: "",
-      serviceId: "",
+      branchId: props.branchId ?? "",
+      serviceId: props.serviceId ?? "",
       serviceTitle: props.serviceTitle,
-      branchServiceId: props.branchServiceId ?? "",
       ...(props.orgSlug ? { orgSlug: props.orgSlug } : {}),
     };
   }, [props]);

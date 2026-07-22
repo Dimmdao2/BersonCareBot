@@ -12,6 +12,27 @@ const scanRoots = [
   'packages/operator-db-schema/src',
 ];
 
+const canonicalPatientPublicRoots = [
+  'apps/webapp/src/app/api/booking',
+  'apps/webapp/src/app/app/patient',
+  'apps/webapp/src/app/book',
+  'apps/webapp/src/shared/publicBook',
+  'apps/webapp/src/modules/patient-booking',
+  'apps/webapp/src/modules/booking-scheduling',
+  'apps/webapp/src/app-layer/booking',
+];
+
+// These are deliberately narrow passive compatibility surfaces: storage/type
+// contracts, plus canonical creation's explicit null shape. They retain the
+// opaque legacy value for historical rows, but must not be widened into active
+// patient/public behavior or lifecycle producers. Any new occurrence remains
+// an offender until it is reviewed here explicitly.
+const allowedPatientPublicBranchServiceIdFiles = new Set([
+  'apps/webapp/src/modules/patient-booking/canonicalCreate.ts',
+  'apps/webapp/src/modules/patient-booking/ports.ts',
+  'apps/webapp/src/modules/patient-booking/types.ts',
+]);
+
 const frozenBaselines = {
   integratorImports: new Map([
     ['apps/integrator/src/app/di.ts', 1],
@@ -84,7 +105,6 @@ const frozenBaselines = {
   ]),
   webappRoutes: new Map([
     ['apps/webapp/src/app/api/admin/booking-engine/rubitime-mapping/duplicates/route.ts', 1],
-    ['apps/webapp/src/app/api/admin/booking-engine/rubitime-mapping/link/route.ts', 1],
     ['apps/webapp/src/app/api/admin/booking-engine/rubitime-mapping/route.ts', 1],
     ['apps/webapp/src/app/api/admin/rubitime/booking-profiles/[id]/route.ts', 1],
     ['apps/webapp/src/app/api/admin/rubitime/booking-profiles/route.ts', 1],
@@ -238,6 +258,33 @@ function collectOffenders(files) {
   };
 }
 
+function collectLegacyBranchServicePatientPublicOffendersFromFiles(files) {
+  const offenders = [];
+  for (const { rel, src } of files) {
+    if (!canonicalPatientPublicRoots.some((root) => rel === root || rel.startsWith(`${root}/`))) continue;
+    if (!src.includes('branchServiceId')) continue;
+    if (allowedPatientPublicBranchServiceIdFiles.has(rel)) continue;
+    offenders.push(rel);
+  }
+  return offenders;
+}
+
+function collectLegacyBranchServicePatientPublicOffenders() {
+  const files = [];
+  for (const rel of canonicalPatientPublicRoots) {
+    const abs = join(repoRoot, rel);
+    const stat = statSync(abs);
+    const paths = stat.isDirectory() ? listSourceFiles(abs) : [abs];
+    for (const path of paths) {
+      files.push({
+        rel: relative(repoRoot, path).replace(/\\/g, '/'),
+        src: readFileSync(path, 'utf8'),
+      });
+    }
+  }
+  return collectLegacyBranchServicePatientPublicOffendersFromFiles(files);
+}
+
 function printOffenders(label, offenders) {
   if (offenders.length === 0) return;
   console.error(`check-rubitime-retirement-r0-freeze: ${label}`);
@@ -308,6 +355,21 @@ if (process.argv.includes('--self-test')) {
     },
   ]);
 
+  const branchServiceIdOffenders = collectLegacyBranchServicePatientPublicOffendersFromFiles([
+    {
+      rel: 'apps/webapp/src/app/app/patient/cabinet/patientBookingLabels.ts',
+      src: 'return row.branchServiceId ? "legacy label" : null;',
+    },
+    {
+      rel: 'apps/webapp/src/app-layer/booking/emitBookingDeletedEvent.ts',
+      src: 'payload.branchServiceId = row.branchServiceId;',
+    },
+    {
+      rel: 'apps/webapp/src/modules/patient-booking/canonicalCreate.ts',
+      src: 'return { branchServiceId: null };',
+    },
+  ]);
+
   const readSourceOffenderSignature = offenders.readSourceBranches
     .map(({ rel, baseline, count }) => `${rel}:${count}>${baseline}`)
     .sort();
@@ -325,7 +387,12 @@ if (process.argv.includes('--self-test')) {
     JSON.stringify(readSourceOffenderSignature) ===
       JSON.stringify(expectedReadSourceOffenderSignature) &&
     offenders.webappRoutes.length === 1 &&
-    offenders.integratorRoutes.length === 1;
+    offenders.integratorRoutes.length === 1 &&
+    JSON.stringify(branchServiceIdOffenders) ===
+      JSON.stringify([
+        'apps/webapp/src/app/app/patient/cabinet/patientBookingLabels.ts',
+        'apps/webapp/src/app-layer/booking/emitBookingDeletedEvent.ts',
+      ]);
 
   if (!expected) {
     console.error(
@@ -346,6 +413,7 @@ const files = scanRoots.flatMap((root) =>
 );
 
 const offenders = collectOffenders(files);
+const legacyBranchServicePatientPublicOffenders = collectLegacyBranchServicePatientPublicOffenders();
 
 if (hasAnyOffenders(offenders)) {
   printOffenders(
@@ -368,6 +436,12 @@ if (hasAnyOffenders(offenders)) {
     'new integrator Rubitime route literals outside the R0 baseline',
     offenders.integratorRoutes,
   );
+  process.exit(1);
+}
+
+if (legacyBranchServicePatientPublicOffenders.length > 0) {
+  console.error('check-rubitime-retirement-r0-freeze: legacy branchServiceId remains in patient/public runtime');
+  for (const rel of legacyBranchServicePatientPublicOffenders) console.error(`  - ${rel}`);
   process.exit(1);
 }
 

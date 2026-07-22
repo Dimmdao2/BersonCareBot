@@ -13,6 +13,7 @@ const EMBED_SCRIPT = `(function () {
     }
   }
   var mode = (script.getAttribute("data-mode") || "iframe").toLowerCase();
+  var canonicalUrl = script.getAttribute("data-booking-url");
   var params = new URLSearchParams();
   var pass = [
     "city",
@@ -35,7 +36,10 @@ const EMBED_SCRIPT = `(function () {
   });
   if (mode === "iframe") params.set("embed", "iframe");
   if (mode === "popup") params.set("embed", "popup");
-  var url = base + "/book" + (params.toString() ? "?" + params.toString() : "");
+  var url = canonicalUrl || (base + "/book" + (params.toString() ? "?" + params.toString() : ""));
+  if (canonicalUrl && params.toString()) {
+    url += (url.indexOf("?") >= 0 ? "&" : "?") + params.toString();
+  }
 
   if (mode === "popup") {
     window.open(url, "berson_booking", "width=480,height=800,scrollbars=yes");

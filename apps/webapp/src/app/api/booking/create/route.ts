@@ -6,7 +6,6 @@ import { routePaths } from "@/app-layer/routes/paths";
 import {
   InPersonBookingResolveError,
   resolveInPersonBookingContext,
-  resolveInPersonCityCode,
 } from "@/modules/patient-booking/inPersonBookingResolve";
 import { inPersonCreateBodySchema } from "@/modules/patient-booking/inPersonApiSchemas";
 import {
@@ -113,14 +112,15 @@ export async function POST(request: Request) {
     const booking = await withExplicitOrganizationPrincipal(
       { organizationId: ctx.organizationId, source: "api/booking/create:POST" },
       async () => {
-        const cityCode =
-          body.cityCode?.trim().toLowerCase() ??
-          (await resolveInPersonCityCode(deps, ctx.branchServiceId));
+        const branch = await deps.bookingEngine?.catalog.getBranch(ctx.branchId);
+        const cityCode = branch?.cityCode.trim().toLowerCase();
+        if (!cityCode) throw new InPersonBookingResolveError("branch_not_found");
         return deps.patientBooking.createBooking({
           userId: session.user.userId,
           organizationId: ctx.organizationId,
           type: "in_person",
-          branchServiceId: ctx.branchServiceId,
+          branchId: ctx.branchId,
+          serviceId: ctx.serviceId,
           cityCode,
           slotStart: body.slotStart,
           slotEnd: body.slotEnd,

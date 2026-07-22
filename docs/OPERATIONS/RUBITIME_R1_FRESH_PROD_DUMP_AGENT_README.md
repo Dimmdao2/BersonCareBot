@@ -34,8 +34,10 @@ Rubitime/history normalization → reviewed FIO → strict closure → five-unit
    `docs/_TODO/SAAS_FOUNDATION/RUBITIME_RETIREMENT_OWNER_GATE_PACKET.md`.
 9. Перед handoff запускай `pnpm run check:rubitime-retirement-current`; финальный
    `pnpm run check:rubitime-retirement-complete` обязан оставаться красным до R5/R6/R7 proof-файлов.
-10. R6 route/code removal нельзя делать до owner-approved cutoff/drain proof из
-   `docs/_TODO/SAAS_FOUNDATION/RUBITIME_RETIREMENT_R6_CUTOFF_DRAIN_RUNBOOK.md`.
+10. R6 route/code removal нельзя принимать или разворачивать до owner-approved cutoff/drain proof из
+   `docs/_TODO/SAAS_FOUNDATION/RUBITIME_RETIREMENT_R6_CUTOFF_DRAIN_RUNBOOK.md`. В ветке уже есть преждевременно
+   применённые removal-артефакты; они считаются только repository provenance, не закрывают R6 и сами по себе не
+   разрешают ни deploy, ни дальнейшее удаление, ни восстановление маршрутов.
 11. R7 archive/drop нельзя делать до полного R1-R6 proof и отдельного owner archive/drop решения.
 12. После успешного rehearsal TEST-БД считается подготовленной постоянной рабочей базой. Обычный code deploy идёт
     только через `deploy-test.sh`; повторный full reset запрещён без нового явного решения владельца.
@@ -406,6 +408,9 @@ PII в чат и отчеты не печатать.
 | R6 | owner cutoff timestamp, disabled provider ingress/outbound bridge, drained queues, fresh post-cutoff CSV reconciliation | не unmount Rubitime webhook/M2M routes and raw runtime code |
 | R7 | archive/drop decision, export/backup, fresh restore+migrate proof, no runtime refs | не drop/archive tables |
 
-Текущая рабочая позиция по execution plan: R1-R4 закрыты в ветке; R5 закрыт в коде/non-prod proof, но production
-monitoring/approval еще не закрыты; R6/R7 остаются gated операциями. Если пользователь не дал прямую команду на
-production cutoff, агент работает только с repo docs/code/tests и не трогает prod DB/env/services.
+Текущая рабочая позиция по execution plan: R1/R2 и узкие R3/R4 code/proof артефакты сохранены, но incident `#839`
+держит runtime acceptance открытым; кроме того, R3-CATALOG снова открыт из-за истёкшего срока удаления живого
+`branchServiceId` compatibility. R5 закрыт только в коде/non-prod proof, а monitoring/approval не закрыты. R6 имеет
+repository removal provenance, но phase acceptance остаётся gated до `RR-PROOF-09`; R7 также gated. Полная матрица:
+`docs/_TODO/SAAS_FOUNDATION/RUBITIME_RETIREMENT_R5_R7_PROVENANCE_RECONCILIATION.md`. Если пользователь не дал
+прямую команду на production cutoff, агент работает только с repo docs/code/tests и не трогает prod DB/env/services.
