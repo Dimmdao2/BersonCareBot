@@ -4475,3 +4475,18 @@ semantics are in scope.
 The same-day clarification distinguishes navigation from controls: main sidebar/mobile menu rows return to their
 previous near-rectangular minimal radius and must not inherit the 24px doctor button radius. Rounded section tabs
 remain required. This clarification is an additional `#967` checkbox, not a reversal of the tab requirement.
+
+## 2026-07-22 — UI corrections `#960/#966/#967` integrated and independently audited
+
+The accumulated presentation package is integrated as `31b6326bc`, `ea85dbd46` and `60707a346`. `#960` replaces
+the schedule-local time picker at all six callsites with the backward-compatible time mode of the canonical
+`DoctorDateTimePicker`. `#966` restores the exact desktop 50/50 Today split, promotes «Открыть расписание» to the
+standard doctor button and removes the duplicate Today-side time-window padding so the shared helper applies the
+single one-hour event boundary. `#967` restores white doctor workspace/header surfaces while retaining primary
+`#406ca7`, consolidates top-level section tabs, aligns Clients/Messages rows with the Today list geometry and exact
+`#f0efeb` divider, and restores near-rectangular main menu rows without changing header icon controls.
+
+One independent package audit returned PASS for every atomic checkbox. Reused worker gates were green: focused
+tests (`43`, `40`, `49` respectively), webapp typecheck and scoped lint. No DB, environment, deploy or full CI action
+was performed. Browser/TEST evidence remains an explicit accumulated milestone layer and is not inferred from the
+code audit.
