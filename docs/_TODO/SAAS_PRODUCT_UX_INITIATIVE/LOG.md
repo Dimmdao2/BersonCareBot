@@ -4614,3 +4614,13 @@ capture, a closed PII sanitizer and disabled-default/load proofs are mandatory. 
 starts from the integrated UI-7 base and expects the next free migration (`0230`). Installing or selecting the
 self-hosted backend, its database/nginx/TLS/systemd/retention/backups and any production DSN remain a separate
 `SEC-02/PR-04` owner gate. GlitchTip is recorded only as the current engineering recommendation, not an owner ruling.
+
+## 2026-07-22 — stability D1 source contract frozen as `#970`
+
+Read-only trace confirmed that `session_version` and logout-everywhere already work, while doctor and global-admin
+sessions still use 90-day TTL and the renewal marker causes a cookie rewrite on every request after day one. D1 now
+uses a bounded 30-second process-local cache of the resolved staff identity/version, not a jti registry: cache hits
+add zero DB reads, concurrent misses coalesce, version updates are monotonic and other processes reject revoked
+cookies within 30 seconds. Patient auth remains unchanged. The worker is intentionally owner-gated only on the exact
+staff/global-admin inactivity TTL and acceptance of the bounded cross-process SLA; recommended default is seven days
+for both privileged roles and `≤30s` revocation propagation.

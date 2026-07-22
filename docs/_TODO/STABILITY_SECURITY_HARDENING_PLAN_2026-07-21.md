@@ -245,14 +245,39 @@ apply, TEST/PROD or deploy is claimed.
         `SEC-02/PR-04`; GlitchTip пока только инженерная рекомендация, не принятое owner решение.
 
 ### Phase 2 — Остаточная безопасность + контракты (параллельно)
-- [ ] **D1. Ревокация сессий** (per F-3): серверная таблица версий/`jti`-денилист → точечный «выйти везде»
+- [ ] **D1. Ревокация сессий** (per F-3, task `#970`): существующий `session_version` + bounded staff cache → точечный «выйти везде»
       без глобального разлогина; TTL врача заметно ниже 90д. Файлы: `modules/auth/sessionCookie.ts:10-97`.
       Размер: **M** · Аудит: полный (auth).
-      **Load-дизайн (обязателен):** НЕ читать БД на каждом запросе — это убьёт stateless-выигрыш. Держим HMAC-куку
-      как есть; ревокацию проверяем против **in-memory кэша session-version с коротким TTL (30-60с) + инвалидация
-      на revoke**, ИЛИ денилист только *активно отозванных* `jti` (крошечный, set-membership за наносекунды).
-      Ревокация — событие редкое, поэтому steady-state = 0 обращений к БД. Приёмка: доказать, что p95 auth-запроса
-      не вырос.
+      **Load-дизайн (обязателен):** НЕ добавлять DB read на каждый запрос. Текущий auth уже делает identity/bindings
+      reads; D1 заменяет staff resolution bounded process-local cache полного `SessionUser + session_version` с TTL
+      30с, single-flight, cap `2048` и monotonic invalidation. На cache hit = 0 DB; максимум один refresh на активного
+      staff user/process/30с. Локальная revoke немедленна, другие процессы fail closed не позднее 30с. `jti` denylist
+      отклонён: без registry всех выданных jti он не реализует logout-everywhere. Приёмка: p95 auth не вырос.
+
+      **Owner gate до worker:** выбрать sliding inactivity TTL врача и global admin (рекомендация `7` дней обоим)
+      и подтвердить bounded межпроцессный revoke SLA `≤30с`; patient остаётся `90` дней.
+
+      Exact checklist после source-backed discovery:
+
+      - [ ] Patient TTL остаётся 90 дней; doctor/clinic staff и global-admin TTL соответствуют owner ruling;
+            TEST visual global-admin остаётся 5–60 минут без sliding.
+      - [ ] Signed cookie получает backward-compatible `renewedAt` (legacy fallback = `issuedAt`); sliding renewal
+            обновляет marker и больше не переподписывает cookie на каждом запросе после первых суток.
+      - [ ] `getCurrentSession` не создаёт фиктивно новый doctor expiry и возвращает срок подписанной cookie.
+      - [ ] Staff cache хранит resolved canonical `SessionUser + securityVersion`, TTL 30с, cap 2048, single-flight,
+            expired/oldest eviction и monotonic race protection; user/org IDs не попадают в metric labels/logs.
+      - [ ] Cache invalidation знает requested и canonical alias; DB failure/null staff miss fail closed, valid hit
+            живёт только до expiry. Patient path/cache не меняются.
+      - [ ] TOTP enrollment, recovery-code login, logout-everywhere, password reset и `setSessionFromUser` после
+            успешного commit немедленно seed/update cache без понижения уже известной version.
+      - [ ] Logout-everywhere сохраняет текущий браузер, отвергает остальные cookies этого user немедленно локально
+            и не позднее 30с в другом процессе; другой staff user и patient не затронуты.
+      - [ ] Tests: role TTLs, legacy/renewal/operator cookie, cache hit/miss/single-flight/expiry/eviction/race/alias,
+            outage/deletion/demotion, все version writers, current-session survival и patient unchanged.
+      - [ ] Dependency-free benchmark `/api/menu`: три прогона concurrency 16 после warm-up, 0 non-2xx,
+            p95 after ≤ baseline ×1.05; записаны p50/p99/throughput, DB pool waits/connections и RSS без monotonic growth.
+      - [ ] Live TEST использует два production-like doctor browser profiles без dev-bypass: revoke A сохраняет A,
+            инвалидирует B ≤30с; другой doctor/patient не затронут; Max-Age соответствует ruling.
 - [ ] **D2. CSRF/Origin-проверка** на мутирующих роутах как defense-in-depth поверх `SameSite=lax`.
       Размер: **S-M** · Аудит: один.
 - [ ] **E2. Общий `jsonOk/jsonError` builder + маппер ошибка→HTTP.** Внедрение инкрементальное; новые роуты обязаны,
