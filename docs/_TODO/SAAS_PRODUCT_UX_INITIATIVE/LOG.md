@@ -4760,3 +4760,22 @@ tests, deploy, TEST/PROD и push
 `rubitime_projection_not_ready` (`502` против канонического `503`), а C1 provenance смешивал
 initial и correction SHA. Эти факты исправлены одним bounded docs-pass; runtime не менялся,
 повторный аудит механического слайса не открывался.
+
+## 2026-07-22 — stability C1 repository dark launch closed (`#969`)
+
+C1 integrated into `feat/doctor-ui-rebuild` as `a9f936f14` + `02b2e9786` + `ad398fe36`. The first independent
+audit found four P1 contract gaps and one docs mismatch; one coherent correction closed them. Full re-audit then
+found one remaining production-like locked-principal defect in media-worker startup. The final allowed correction
+moved both runtime config reads, SDK init and readiness under the existing `media-worker:tick` infra principal and
+added a real locked pool regression. Terminal full-checklist re-audit passed all `12/12` items with
+`P0=0 / P1=0 / P2=0`.
+
+Targeted evidence is green: shared `9/9`, integrator `15/15`, webapp `45/45`, media-worker `6/6`; four scoped
+typechecks, scoped lint/builds, frozen install, static contract and three-run load proof passed. The load proof kept
+runtime DB reads `4→4`, native pool `0/0/0→0/0/0`, p95 below baseline and RSS below burst peak. No host backend,
+DB apply, TEST/PROD, deploy or external send occurred. Host installation/activation remains explicitly gated by
+`SEC-02/PR-04`; the repository dark launch itself is complete. The accumulated full CI runs once on the exact
+milestone SHA before the already-authorized code-only TEST deploy.
+
+E2 source contract `#975` is separately closed by `b1b1f75ee` + factual correction `c72038c1f`; implementation is
+tracked as `#976` and intentionally waits until after this TEST checkpoint.
