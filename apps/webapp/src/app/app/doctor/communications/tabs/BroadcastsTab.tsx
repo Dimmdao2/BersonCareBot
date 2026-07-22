@@ -125,7 +125,7 @@ function BroadcastsMainView({
                 setMobileView("list");
               }}
               aria-label="Закрыть лог ошибок"
-              className="shrink-0"
+              className="hidden shrink-0 lg:inline-flex"
             >
               <X aria-hidden className="size-4" />
             </Button>
@@ -167,7 +167,10 @@ function BroadcastsMainView({
           <Button
             variant="ghost"
             size="sm"
-            onClick={() => setMobileView("list")}
+            onClick={() => {
+              if (errorLogOpen) onCloseErrorLog();
+              setMobileView("list");
+            }}
             className="mb-2 h-9 px-2"
           >
             {selectedEntry ? "← Рассылка" : "← Форма"}

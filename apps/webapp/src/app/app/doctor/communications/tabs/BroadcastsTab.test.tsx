@@ -78,24 +78,51 @@ describe("BroadcastsTab", () => {
     expect(screen.getByText("BroadcastForm")).toBeInTheDocument();
   });
 
-  it("opens the error log in the right pane and keeps exactly one close control", async () => {
+  it("opens the error log in the right pane and keeps complementary mobile/desktop close controls", async () => {
     const onDeepLinkChange = vi.fn();
-    render(<BroadcastsTab deepLinkParams={{}} onDeepLinkChange={onDeepLinkChange} />);
+    const { rerender } = render(
+      <BroadcastsTab deepLinkParams={{}} onDeepLinkChange={onDeepLinkChange} />,
+    );
 
     await userEvent.click(await screen.findByRole("button", { name: /Напоминание о приёме/ }));
     await userEvent.click(screen.getByRole("button", { name: "Лог ошибок" }));
     expect(onDeepLinkChange).toHaveBeenCalledWith("archive", "1");
 
-    render(
+    rerender(
       <BroadcastsTab deepLinkParams={{ archive: "1" }} onDeepLinkChange={onDeepLinkChange} />,
     );
-    expect(screen.getAllByText("BroadcastForm").at(-1)).toBeInTheDocument();
     expect(screen.getByText("BroadcastDeliveryArchiveClient")).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Лог ошибок" })).toBeInTheDocument();
-    const closeButtons = screen.getAllByRole("button", { name: "Закрыть лог ошибок" });
-    expect(closeButtons).toHaveLength(1);
-    await userEvent.click(closeButtons[0]);
+
+    const desktopClose = screen.getByRole("button", { name: "Закрыть лог ошибок" });
+    expect(desktopClose).toHaveClass("hidden", "lg:inline-flex");
+    const mobileBack = screen.getByRole("button", { name: "← Рассылка" });
+    expect(mobileBack.parentElement).toHaveClass("lg:hidden");
+
+    await userEvent.click(desktopClose);
     expect(onDeepLinkChange).toHaveBeenCalledWith("archive", null);
+  });
+
+  it("mobile archive back clears the deep-link and returns to the selected master pane", async () => {
+    const onDeepLinkChange = vi.fn();
+    const { rerender } = render(
+      <BroadcastsTab deepLinkParams={{}} onDeepLinkChange={onDeepLinkChange} />,
+    );
+
+    await userEvent.click(await screen.findByRole("button", { name: /Напоминание о приёме/ }));
+    await userEvent.click(screen.getByRole("button", { name: "Лог ошибок" }));
+    rerender(
+      <BroadcastsTab deepLinkParams={{ archive: "1" }} onDeepLinkChange={onDeepLinkChange} />,
+    );
+
+    await userEvent.click(screen.getByRole("button", { name: "← Рассылка" }));
+    expect(onDeepLinkChange).toHaveBeenLastCalledWith("archive", null);
+
+    rerender(<BroadcastsTab deepLinkParams={{}} onDeepLinkChange={onDeepLinkChange} />);
+    const splitPanes = document.querySelectorAll("#broadcasts-main-view > div > div");
+    expect(splitPanes[0]).toHaveClass("translate-x-0");
+    expect(splitPanes[1]).toHaveClass("translate-x-full");
+    expect(screen.getByTestId("broadcast-selected-detail")).toBeInTheDocument();
   });
 
   it("creates a form prefill from the selected entry", async () => {
