@@ -1045,23 +1045,38 @@ and ignores unknown provider events instead of processing them under `booking_de
 
 ### R5 — disable legacy v1 profile resolve
 
-Prepared runbook: `RUBITIME_RETIREMENT_R5_PRODUCTION_DISABLE_RUNBOOK.md`. It defines TEST-only flag and smoke
-evidence required for the R5 proof.
+2026-07-22 Track C supersession: the legacy resolver source was removed; it is not a live TEST switch and must not
+be set, recorded, or restored. The current R5 acceptance is TEST proof that retired v1 routes are negative/unmounted
+while canonical booking paths remain healthy. `RUBITIME_RETIREMENT_R5_PRODUCTION_DISABLE_RUNBOOK.md` is retained as a
+historical/final-reference filename only and is non-executable for this milestone. The nine rows below remain the R5
+denominator; an `[x]` is repository provenance only unless a row explicitly has TEST/owner evidence.
 
 - [x] no webapp path still sends Rubitime v1 slots requests. *(Runtime inventory: patient/public slots use canonical scheduling, not `syncPort.fetchSlots`.)*
 - [x] no webapp path still sends Rubitime v1 create requests. *(Runtime inventory: Rubitime-first/mirror switches are hardcoded false; normal create is canonical.)*
 - [x] online LFK/nutrition legacy path is retired or proven unrelated. *(Categories feed the same canonical online booking path; no separate Rubitime profile path found.)*
-- [x] TEST `RUBITIME_LEGACY_PROFILE_RESOLVE_ENABLED=false` is tested. *(Unit/integrator route proof only; no host env changed. See `RUBITIME_RETIREMENT_R5_LEGACY_PROFILE_RESOLVE_PROOF.md`.)*
-- [x] v1 requests return `legacy_resolve_disabled`. *(Slots and create-record covered.)*
+- [ ] TEST proves retired v1 routes are negative/unmounted. *(SUPERSEDES the removed
+  `RUBITIME_LEGACY_PROFILE_RESOLVE_ENABLED=false` flag contract; no TEST host/env flag exists to test.)*
+- [ ] retired v1 slots/create requests have the declared negative/unmounted result. *(SUPERSEDES the historical
+  `legacy_resolve_disabled` response contract; record the actual TEST result without inferring a response code.)*
 - [x] canonical/current booking paths are unaffected. *(v2 explicit-id slots/create still pass with legacy resolve disabled.)*
 - [ ] TEST evidence window shows no v1 requests.
-- [ ] TEST flag change is recorded.
-- [x] TEST flag restore instruction exists. *(See `RUBITIME_RETIREMENT_R5_LEGACY_PROFILE_RESOLVE_PROOF.md`; no host env was changed.)*
+- [ ] TEST negative/unmounted observation and aggregate route/error counts are recorded. *(SUPERSEDES a TEST flag
+  change record; declare the TEST window and exact integrated SHA.)*
+- [ ] TEST rollback boundary is recorded without re-enabling a removed resolver. *(SUPERSEDES the flag restore
+  instruction; an incremental code rollback keeps external Rubitime ingress/outbound disabled.)*
+
+Next routine TEST evidence, not yet performed: freeze the integrated SHA; run the accumulated repo gate and
+forward-migration compatibility check; deploy only with `deploy/host/deploy-test.sh`; then record a declared TEST
+window, negative/unmounted v1 route evidence, canonical slots/create/reschedule/cancel and doctor
+Today/KPI/calendar/list smoke, plus aggregate-only route/error counts. This routine path never pulls a fresh PROD
+dump, resets TEST, repeats backfill/cutover, or drops R7 tables.
 
 ### R6 — remove Rubitime runtime routes and code
 
 Prepared runbook: `RUBITIME_RETIREMENT_R6_CUTOFF_DRAIN_RUNBOOK.md`. It is not proof of completed cutoff; it defines
 the required read-only drain snapshots, fresh CSV reconciliation and owner-approved disable steps for `RR-PROOF-09`.
+It is a production/final reference and is explicitly non-executable for the current Track C incremental TEST
+milestone; do not substitute TEST paths or execute its commands without a separate owner-approved TEST runbook.
 Prepared static inventory: `RUBITIME_RETIREMENT_R6_R7_STATIC_INVENTORY.md` +
 `docs/_TODO/SAAS_FOUNDATION/scripts/rubitime-r6-r7-static-inventory.mjs`. The inventory is pre-cutoff evidence
 only; post-R6 it must pass with `--expect-post-r6`.
@@ -1186,7 +1201,7 @@ Owner/ops packet for the remaining decisions: `RUBITIME_RETIREMENT_OWNER_GATE_PA
 - [ ] R3-CATALOG catalog migration complete. *(The no-legacy-table-read proof remains valid, but the bounded
   `branchServiceId` compatibility removal deadline expired; see `RUBITIME_RETIREMENT_R5_R7_PROVENANCE_RECONCILIATION.md`.)*
 - [x] R4 provider-neutral lifecycle complete.
-- [ ] R5 legacy v1 resolve disabled in live environment.
+- [ ] R5 TEST retired v1 routes negative/unmounted; canonical booking healthy.
 - [ ] R6 runtime routes/code removed.
 - [ ] R7 archive/drop complete or explicitly deferred with no runtime references.
 - [ ] No runtime code calls Rubitime API.

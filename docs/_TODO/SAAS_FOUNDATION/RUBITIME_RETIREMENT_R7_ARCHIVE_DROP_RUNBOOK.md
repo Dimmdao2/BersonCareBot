@@ -14,6 +14,11 @@ validation and rollback contracts without live-environment work, final proof pla
 
 R7 must not start until R1-R6 are complete, including a completed `RUBITIME_RETIREMENT_R6_CUTOFF_DRAIN_PROOF.md`.
 
+> **Track C current-milestone gate — non-executable.** Do not run any archive/export, drop, reset, fresh-restore,
+> schema-audit, migration or rehearsal command in this document until R1-R6 are complete **and** the owner has
+> explicitly authorized the selected TEST/disposable destructive batch. This includes commands that are otherwise
+> read-only prerequisites. Until then, every command below is final-reference material only; R7 remains open.
+
 Table disposition manifest: `RUBITIME_RETIREMENT_R7_TABLE_DISPOSITION.md`.
 Prepared non-final static reference audit: `RUBITIME_RETIREMENT_R7_STATIC_REFERENCE_AUDIT.md`.
 

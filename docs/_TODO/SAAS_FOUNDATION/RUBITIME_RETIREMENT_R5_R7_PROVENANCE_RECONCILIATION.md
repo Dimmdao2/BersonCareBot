@@ -1,7 +1,7 @@
 # Rubitime retirement R3-CATALOG / R5-R7 provenance reconciliation
 
 Date: 2026-07-22.
-Branch baseline: `feat/doctor-ui-rebuild` at `54aa0f54a`.
+Branch baseline: `feat/doctor-ui-rebuild` at `471fac8fd`.
 Task: taskdb `#981`.
 
 ## Scope and verdict
@@ -22,7 +22,8 @@ The reconciliation found:
   `2026-07-21` expired while patient/public runtime still accepts and propagates that input. R3-CATALOG is therefore
   not final even though `RR-PROOF-05` remains valid for the narrower claim "no patient/public read of legacy
   `booking_*` tables".
-- R5 repository/unit proof exists, but the TEST/live evidence window and recorded flag change remain open.
+- R5 repository/unit proof exists, but its removed-flag/`legacy_resolve_disabled` acceptance is superseded. Current
+  acceptance is TEST negative/unmounted route evidence plus healthy canonical smoke; the TEST window remains open.
 - R6 route/code artifacts exist and the post-R6 static categories are zero, but they were applied before the
   mandatory cutoff/drain prerequisites and `RR-PROOF-09`. They are retained as implementation provenance only;
   they do not close R6 and must not be interpreted as permission to deploy, restore routes, or perform cutoff.
@@ -43,12 +44,11 @@ Measured result:
   Rubitime API-client runtime tokens;
 - raw Rubitime table refs: `21 hits / 6 files`, including the newly visible
   `apps/integrator/src/infra/db/operationalPoolReadiness.ts` reference;
-- the aggregate current gate is **red before this docs pass** because R0 freeze counts grew in
-  `apps/webapp/src/infra/repos/pgBookingEngine.ts` (`6 > 5`) and
-  `apps/webapp/src/modules/system-settings/registry.ts` (`5 > 0`);
+- the current static R0 gate is green at this baseline; this static result remains repository provenance, not
+  TEST cutoff/drain/archive/drop evidence;
 - no DB-backed, TEST, live or owner evidence was collected by this pass.
 
-The R0 failure is a separate code/baseline investigation. It is not waived or repaired by this document.
+This document does not turn the green static gate into TEST, owner, cutoff/drain, archive/drop, or rollback proof.
 
 ## Atomic closure matrix
 
@@ -82,12 +82,12 @@ Status vocabulary:
 | `R5-01` | no webapp v1 slots requests | `PASS-repo` | R5 non-prod proof/runtime inventory | live traffic window remains `R5-07` |
 | `R5-02` | no webapp v1 create requests | `PASS-repo` | R5 non-prod proof/runtime inventory | live traffic window remains `R5-07` |
 | `R5-03` | online LFK/nutrition path retired/unrelated | `PASS-repo` | categories use canonical online booking | none for this row |
-| `R5-04` | TEST flag=false tested | `PASS-repo` | unit/integrator route proof only; no host env changed | actual TEST flag record remains `R5-08` |
-| `R5-05` | v1 returns `legacy_resolve_disabled` | `PASS-repo` | slots/create route tests | live acceptance remains open |
+| `R5-04` | TEST retired v1 routes are negative/unmounted | `OPEN-runtime` | supersedes removed-flag unit proof; no TEST window/route observation | integrated-SHA incremental TEST deploy and declared negative-route evidence |
+| `R5-05` | retired v1 slots/create requests have declared negative/unmounted result | `OPEN-runtime` | supersedes historical `legacy_resolve_disabled` route test | record actual TEST result without inferring a response code |
 | `R5-06` | canonical/current paths unaffected | `PASS-repo` | v2 explicit-id route proof | live acceptance remains open |
 | `R5-07` | evidence window has no v1 requests | `OPEN-owner` | no approved TEST/live monitoring window output | approve timing/window, then capture aggregate counts |
-| `R5-08` | flag change recorded | `OPEN-owner` | no approved TEST/live flag mutation performed | approve target/timestamp and operator action |
-| `R5-09` | restore instruction exists | `PASS-repo` | R5 proof/runbook rollback section | owner must accept rollback boundary before live action |
+| `R5-08` | TEST negative/unmounted observation and aggregate counts recorded | `OPEN-runtime` | no declared TEST window/counts | record window, integrated SHA and aggregate-only counts |
+| `R5-09` | TEST rollback boundary avoids re-enabling removed resolver | `OPEN-runtime` | historical flag restore is superseded | record compatible incremental fallback boundary; otherwise stop for owner/R7 rollback decision |
 
 ### R6
 
@@ -115,7 +115,7 @@ Status vocabulary:
 | `R6-20` | post-create projection removed | `PROVENANCE-only` | runtime token category `0` | `RR-PROOF-09` |
 | `R6-21` | runtime env/config retired/archived | `OPEN-owner` | no owner-approved env/archive evidence | R5/R6 operator decision; no env action by agents |
 | `R6-22` | integrator checks pass | `OPEN-runtime` | historical focused checks exist; no milestone check tied to completed `RR-PROOF-09` | run after valid R6 gate/branch state |
-| `R6-23` | webapp booking checks pass | `OPEN-runtime` | historical focused checks exist; current aggregate gate is red at R0 | investigate R0 drift, then run required R6 gate |
+| `R6-23` | webapp booking checks pass | `OPEN-runtime` | historical focused checks exist; the current R0 aggregate gate is green, but no exact integrated-SHA R6 check exists | run the required R6 checks on the exact integrated SHA after the valid R6 gate |
 
 ### R7
 
@@ -157,4 +157,5 @@ Status vocabulary:
 - Do not restore or delete compatibility/routes from this reconciliation alone.
 - Do not create final proof placeholders.
 - Keep `check:rubitime-retirement-complete` red until the required real proof files exist.
-- Investigate the independent R0 freeze drift before claiming the current Rubitime gate green.
+- Historical note: an earlier baseline reported an R0 freeze drift. That statement is superseded by the current
+  green R0 gate recorded above; it does not close the open exact integrated-SHA R6-23 checks.

@@ -5,6 +5,12 @@ Branch: `feat/doctor-ui-rebuild`.
 
 ## Scope
 
+> **PRODUCTION / FINAL REFERENCE ONLY — NON-EXECUTABLE FOR 2026-07-22 TRACK C TEST.** This document retains the
+> final R6 evidence contract and production commands. Current routine verification is an incremental TEST deploy over
+> the existing TEST DB with forward migrations only. Do not run, adapt, or substitute TEST paths for any command
+> below; no fresh PROD dump, TEST reset, cutover, backfill, drain, archive, or R7 drop belongs to that routine path.
+> A TEST cutoff/drain requires separate owner evidence and a TEST-valid runbook.
+
 This is the prepared `RR-PROOF-09-CUTOFF-DRAIN` runbook. It does not record a completed cutoff.
 
 No production DB, env, service, webhook, or Rubitime endpoint was changed while writing this document.

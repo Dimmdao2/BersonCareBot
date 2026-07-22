@@ -8,7 +8,8 @@ Branch: `feat/doctor-ui-rebuild`.
 This manifest is the single machine-readable status packet for the last Rubitime retirement gates.
 
 It does not claim retirement is complete. It records which final checklist items are already proven and which
-items are still blocked by owner-approved live cutoff/drain, live flag acceptance, or archive/drop proof.
+items are still blocked by owner-approved cutoff/drain or archive/drop proof. The former R5 live-flag contract is
+superseded: its current acceptance is TEST negative/unmounted route evidence plus healthy canonical smoke.
 
 Machine checks:
 
@@ -39,7 +40,7 @@ not contain template placeholders such as `TODO:` or template warning text; the 
 
 | Proof | Required before | Gate |
 | --- | --- | --- |
-| `docs/_TODO/SAAS_FOUNDATION/RUBITIME_RETIREMENT_R5_PRODUCTION_DISABLE_PROOF.md` | R5 final checkbox | Owner-approved live flag change plus monitoring window showing no v1 requests and no user-facing need for v1 profile resolution. |
+| `docs/_TODO/SAAS_FOUNDATION/RUBITIME_RETIREMENT_R5_PRODUCTION_DISABLE_PROOF.md` | historical final-gate filename only | Superseded flag contract; Track C instead requires a declared incremental TEST window proving retired v1 routes are negative/unmounted and canonical booking remains healthy. |
 | `docs/_TODO/SAAS_FOUNDATION/RUBITIME_RETIREMENT_R6_CUTOFF_DRAIN_PROOF.md` | R6 route/code removal final acceptance | Owner-approved provider cutoff, disabled webhook/outbound bridge, drained queues, fresh post-cutoff CSV reconciliation with CSV as canon and integrator-only rows audit-only. |
 | `docs/_TODO/SAAS_FOUNDATION/RUBITIME_RETIREMENT_R7_DROP_RESTORE_PROOF.md` | R7 archive/drop final acceptance | R1-R6 complete, owner archive/drop decision, archive-only export, migration-backed drop/defer proof, fresh restore/migrate proof. |
 
@@ -60,7 +61,8 @@ Runbooks:
 | ID | Checklist item | Status | Expected proof |
 | --- | --- | --- | --- |
 | `R3-CATALOG-COMPATIBILITY-DRAIN` | Expired `branchServiceId` compatibility is removed after old-link/row drain, or explicitly rebaselined | `gated` | Owner-approved exact cutoff plus drain evidence, or explicit defer/rebaseline with date, reason and rollback boundary. |
-| `R5-LIVE-DISABLE` | R5 legacy v1 resolve disabled in live environment | `gated` | `RUBITIME_RETIREMENT_R5_PRODUCTION_DISABLE_PROOF.md` |
+| `R5-TEST-NEGATIVE-ROUTES` | retired v1 routes are negative/unmounted on TEST while canonical booking is healthy | `gated` | declared TEST window, aggregate-only counts, route-negative proof and canonical smoke; no resolver flag is set or restored. |
+| `R5-LIVE-DISABLE` | superseded removed-flag contract | `superseded` | Retained only for final-gate checker compatibility; it is not executable and cannot close Track C. |
 | `R6-RUNTIME-REMOVAL` | R6 runtime routes/code removed (phase-order acceptance) | `gated` | Repository removal is provenance-only until `RUBITIME_RETIREMENT_R6_CUTOFF_DRAIN_PROOF.md`; no restoration/deploy is inferred. |
 | `R7-ARCHIVE-DROP` | R7 archive/drop complete or explicitly deferred with no runtime references | `gated` | `RUBITIME_RETIREMENT_R7_DROP_RESTORE_PROOF.md` |
 | `NO-RUNTIME-RUBITIME-API` | No runtime code calls Rubitime API | `gated` | `RUBITIME_RETIREMENT_R6_CUTOFF_DRAIN_PROOF.md` plus post-R6 static inventory |
