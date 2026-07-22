@@ -1,2 +1,3 @@
-/** Shared neutral surface for doctor and patient chat threads. */
-export const chatThreadSurfaceClass = 'bg-muted/20';
+/** Exact owner-approved surface shared by doctor/patient chats and comments. */
+export const chatThreadSurfaceClass =
+  "bg-[url('/images/chat-thread-gradient.png')] bg-cover bg-center bg-no-repeat";

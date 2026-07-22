@@ -1,13 +1,16 @@
 /** @vitest-environment jsdom */
 
-import { describe, expect, it, vi, beforeAll } from "vitest";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { BroadcastAuditEntry } from "@/modules/doctor-broadcasts/ports";
+import { BroadcastsTab } from "./BroadcastsTab";
 
-// Mutable refs so individual tests can inspect passed props
+const { listBroadcastAuditActionMock } = vi.hoisted(() => ({
+  listBroadcastAuditActionMock: vi.fn(),
+}));
+
 let lastBroadcastFormProps: Record<string, unknown> = {};
-let lastBroadcastAuditLogProps: Record<string, unknown> = {};
 
 vi.mock("../../broadcasts/BroadcastForm", () => ({
   BroadcastForm: (props: Record<string, unknown>) => {
@@ -15,145 +18,98 @@ vi.mock("../../broadcasts/BroadcastForm", () => ({
     return <div>BroadcastForm</div>;
   },
 }));
-vi.mock("../../broadcasts/BroadcastAuditLog", () => ({
-  BroadcastAuditLog: (props: Record<string, unknown>) => {
-    lastBroadcastAuditLogProps = props;
-    return <div>BroadcastAuditLog</div>;
-  },
-}));
 vi.mock("../../broadcasts/BroadcastDeliveryArchiveClient", () => ({
   BroadcastDeliveryArchiveClient: () => <div>BroadcastDeliveryArchiveClient</div>,
 }));
 vi.mock("../../broadcasts/actions", () => ({
-  listBroadcastAuditAction: vi.fn(async () => []),
+  listBroadcastAuditAction: listBroadcastAuditActionMock,
 }));
 
-beforeAll(async () => {
-  await import("./BroadcastsTab");
-});
-
-const makeEntry = (overrides: Partial<BroadcastAuditEntry> = {}): BroadcastAuditEntry => ({
+const entry: BroadcastAuditEntry = {
   id: "e1",
   actorId: "doctor-1",
   category: "reminder",
   audienceFilter: "with_telegram",
   messageTitle: "Напоминание о приёме",
   messageBody: "Текст напоминания",
-  deliveryJobsTotal: 0,
+  deliveryJobsTotal: 10,
   channels: ["telegram", "sms"],
   executedAt: "2026-03-31T10:05:00.000Z",
   previewOnly: false,
-  audienceSize: 30,
-  sentCount: 0,
-  errorCount: 0,
-  blockedRecipientCount: 0,
+  audienceSize: 10,
+  sentCount: 7,
+  errorCount: 2,
+  blockedRecipientCount: 1,
   attachMenuAfterSend: false,
-  ...overrides,
+};
+
+beforeEach(() => {
+  lastBroadcastFormProps = {};
+  listBroadcastAuditActionMock.mockReset();
+  listBroadcastAuditActionMock.mockResolvedValue([entry]);
 });
 
 describe("BroadcastsTab", () => {
-  async function setup() {
-    lastBroadcastFormProps = {};
-    lastBroadcastAuditLogProps = {};
-    const { BroadcastsTab } = await import("./BroadcastsTab");
-    return BroadcastsTab;
-  }
-
-  it("renders BroadcastForm by default (no archive param)", async () => {
-    const BroadcastsTab = await setup();
+  it("keeps the 45/55 split with the form and journal", async () => {
     render(<BroadcastsTab deepLinkParams={{}} onDeepLinkChange={() => {}} />);
+
     expect(screen.getByText("BroadcastForm")).toBeInTheDocument();
-    expect(screen.queryByText("BroadcastDeliveryArchiveClient")).not.toBeInTheDocument();
-  });
-
-  it("renders archive view when deepLinkParams.archive is '1'", async () => {
-    const BroadcastsTab = await setup();
-    render(<BroadcastsTab deepLinkParams={{ archive: "1" }} onDeepLinkChange={() => {}} />);
-    expect(screen.getByText("BroadcastDeliveryArchiveClient")).toBeInTheDocument();
-    expect(screen.queryByText("BroadcastForm")).not.toBeInTheDocument();
-  });
-
-  it("calls onDeepLinkChange('archive', null) when back button clicked in archive view", async () => {
-    const BroadcastsTab = await setup();
-    const onDeepLinkChange = vi.fn();
-    render(<BroadcastsTab deepLinkParams={{ archive: "1" }} onDeepLinkChange={onDeepLinkChange} />);
-    await userEvent.click(screen.getByRole("button", { name: /Рассылки/ }));
-    expect(onDeepLinkChange).toHaveBeenCalledWith("archive", null);
-  });
-
-  it("renders split layout with BroadcastForm and BroadcastAuditLog after data loads", async () => {
-    const BroadcastsTab = await setup();
-    render(<BroadcastsTab deepLinkParams={{}} onDeepLinkChange={() => {}} />);
-    expect(screen.getByText("BroadcastForm")).toBeInTheDocument();
-    // BroadcastAuditLog appears after the async listBroadcastAuditAction resolves
-    await waitFor(() => {
-      expect(screen.getByText("BroadcastAuditLog")).toBeInTheDocument();
-    });
+    await screen.findByRole("button", { name: /Напоминание о приёме/ });
     expect(document.querySelector("#broadcasts-main-view")?.firstElementChild).toHaveClass(
       "lg:grid-cols-[minmax(0,9fr)_minmax(0,11fr)]",
     );
+    expect(screen.getByRole("heading", { name: "Журнал рассылок" })).toBeInTheDocument();
+    expect(screen.queryByText("Архив ошибок доставки")).not.toBeInTheDocument();
   });
 
-  it("renders Новая рассылка and Журнал рассылок headings in main view", async () => {
-    const BroadcastsTab = await setup();
+  it("shows the selected broadcast in the left pane and restores the form on close", async () => {
     render(<BroadcastsTab deepLinkParams={{}} onDeepLinkChange={() => {}} />);
-    expect(screen.getByRole("heading", { name: /новая рассылка/i })).toBeInTheDocument();
-    await waitFor(() => {
-      expect(screen.getByRole("heading", { name: /журнал рассылок/i })).toBeInTheDocument();
-    });
-    expect(screen.queryByText(/После отправки сообщения ставятся в очередь/i)).not.toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /Архив ошибок доставки/i })).toBeInTheDocument();
+
+    await userEvent.click(await screen.findByRole("button", { name: /Напоминание о приёме/ }));
+    const detail = screen.getByTestId("broadcast-selected-detail");
+    expect(detail).toHaveTextContent("Напоминание о приёме");
+    expect(detail).toHaveTextContent("Текст напоминания");
+    expect(detail).toHaveTextContent("Telegram-пользователи · 10");
+    expect(detail).toHaveTextContent("Telegram, SMS");
+    expect(detail).toHaveTextContent("Недоставка");
+    expect(screen.queryByText("BroadcastForm")).not.toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole("button", { name: "Закрыть просмотр рассылки" }));
+    expect(screen.getByText("BroadcastForm")).toBeInTheDocument();
   });
 
-  // ----- onCreateFrom / prefill wiring -----
+  it("opens the error log in the right pane and keeps exactly one close control", async () => {
+    const onDeepLinkChange = vi.fn();
+    render(<BroadcastsTab deepLinkParams={{}} onDeepLinkChange={onDeepLinkChange} />);
 
-  it("passes onCreateFrom to BroadcastAuditLog after data loads", async () => {
-    const BroadcastsTab = await setup();
-    render(<BroadcastsTab deepLinkParams={{}} onDeepLinkChange={() => {}} />);
-    await waitFor(() => {
-      expect(screen.getByText("BroadcastAuditLog")).toBeInTheDocument();
-    });
-    expect(typeof lastBroadcastAuditLogProps.onCreateFrom).toBe("function");
+    await userEvent.click(await screen.findByRole("button", { name: /Напоминание о приёме/ }));
+    await userEvent.click(screen.getByRole("button", { name: "Лог ошибок" }));
+    expect(onDeepLinkChange).toHaveBeenCalledWith("archive", "1");
+
+    render(
+      <BroadcastsTab deepLinkParams={{ archive: "1" }} onDeepLinkChange={onDeepLinkChange} />,
+    );
+    expect(screen.getAllByText("BroadcastForm").at(-1)).toBeInTheDocument();
+    expect(screen.getByText("BroadcastDeliveryArchiveClient")).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Лог ошибок" })).toBeInTheDocument();
+    const closeButtons = screen.getAllByRole("button", { name: "Закрыть лог ошибок" });
+    expect(closeButtons).toHaveLength(1);
+    await userEvent.click(closeButtons[0]);
+    expect(onDeepLinkChange).toHaveBeenCalledWith("archive", null);
   });
 
-  it("calling onCreateFrom sets prefill on BroadcastForm with entry and nonce=1", async () => {
-    const BroadcastsTab = await setup();
+  it("creates a form prefill from the selected entry", async () => {
     render(<BroadcastsTab deepLinkParams={{}} onDeepLinkChange={() => {}} />);
-    await waitFor(() => {
-      expect(screen.getByText("BroadcastAuditLog")).toBeInTheDocument();
-    });
 
-    const entry = makeEntry();
-    const onCreateFrom = lastBroadcastAuditLogProps.onCreateFrom as (e: BroadcastAuditEntry) => void;
-    await userEvent.click(screen.getByText("BroadcastForm")); // ensure component exists
-    onCreateFrom(entry);
+    await userEvent.click(await screen.findByRole("button", { name: /Напоминание о приёме/ }));
+    await userEvent.click(screen.getByRole("button", { name: "Создать на основе" }));
 
     await waitFor(() => {
-      const prefill = lastBroadcastFormProps.prefill as { entry: BroadcastAuditEntry; nonce: number } | undefined;
-      expect(prefill).toBeDefined();
+      const prefill = lastBroadcastFormProps.prefill as
+        | { entry: BroadcastAuditEntry; nonce: number }
+        | undefined;
       expect(prefill?.entry).toEqual(entry);
       expect(prefill?.nonce).toBe(1);
-    });
-  });
-
-  it("calling onCreateFrom twice increments nonce (idempotency)", async () => {
-    const BroadcastsTab = await setup();
-    render(<BroadcastsTab deepLinkParams={{}} onDeepLinkChange={() => {}} />);
-    await waitFor(() => {
-      expect(screen.getByText("BroadcastAuditLog")).toBeInTheDocument();
-    });
-
-    const entry = makeEntry();
-    const onCreateFrom = lastBroadcastAuditLogProps.onCreateFrom as (e: BroadcastAuditEntry) => void;
-    onCreateFrom(entry);
-    await waitFor(() => {
-      const prefill = lastBroadcastFormProps.prefill as { nonce: number } | undefined;
-      expect(prefill?.nonce).toBe(1);
-    });
-    onCreateFrom(entry);
-    await waitFor(() => {
-      const prefill = lastBroadcastFormProps.prefill as { nonce: number } | undefined;
-      expect(prefill?.nonce).toBe(2);
     });
   });
 });

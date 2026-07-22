@@ -62,8 +62,6 @@ export function BroadcastDeliveryArchiveClient() {
 
   return (
     <div className="space-y-4">
-      <p className="text-sm text-muted-foreground">Ошибки доставки по вашим рассылкам.</p>
-
       {err ? <p className="text-sm text-destructive">Не удалось загрузить ({err}).</p> : null}
       {loading ? <p className="text-sm text-muted-foreground">Загрузка…</p> : null}
 

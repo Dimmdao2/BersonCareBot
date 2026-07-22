@@ -47,7 +47,12 @@ describe("DoctorProgramDiscussionMessagesPanel", () => {
 
     expect(screen.getByText("Приседания")).toBeInTheDocument();
     expect(screen.getByText("Текст")).toBeInTheDocument();
-    expect(screen.getByTestId("doctor-program-discussion-messages")).toHaveClass("bg-muted/20");
+    expect(screen.getByTestId("doctor-program-discussion-messages")).toHaveClass(
+      "bg-[url('/images/chat-thread-gradient.png')]",
+      "bg-cover",
+      "bg-center",
+      "bg-no-repeat",
+    );
     await user.click(screen.getByRole("button", { name: /показать предыдущие/i }));
     expect(onLoadOlder).toHaveBeenCalledTimes(1);
   });

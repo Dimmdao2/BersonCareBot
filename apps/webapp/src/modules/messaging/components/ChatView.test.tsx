@@ -36,7 +36,12 @@ describe("ChatView delivery ticks", () => {
     );
     expect(screen.getByText("Текст")).toBeInTheDocument();
     expect(document.querySelector('[data-delivery-status="sent"]')).toBeInTheDocument();
-    expect(document.querySelector(".overflow-y-auto")).toHaveClass("bg-muted/20");
+    expect(document.querySelector(".overflow-y-auto")).toHaveClass(
+      "bg-[url('/images/chat-thread-gradient.png')]",
+      "bg-cover",
+      "bg-center",
+      "bg-no-repeat",
+    );
   });
 
   it("shows read tick on outgoing doctor message when patient read it", () => {
@@ -56,7 +61,12 @@ describe("ChatView delivery ticks", () => {
     );
     expect(screen.getByText("Ответ врача")).toBeInTheDocument();
     expect(document.querySelector('[data-delivery-status="read"]')).toBeInTheDocument();
-    expect(document.querySelector(".overflow-y-auto")).toHaveClass("bg-muted/20");
+    expect(document.querySelector(".overflow-y-auto")).toHaveClass(
+      "bg-[url('/images/chat-thread-gradient.png')]",
+      "bg-cover",
+      "bg-center",
+      "bg-no-repeat",
+    );
   });
 });
 
