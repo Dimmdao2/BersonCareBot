@@ -24,10 +24,17 @@ export async function register(): Promise<void> {
       "DATABASE_URL is not set. Production webapp requires a PostgreSQL connection string in the environment.",
     );
   }
-  if (process.env.NEXT_PHASE === "phase-production-build" || process.env.NEXT_RUNTIME !== "nodejs") return;
-  const errorTracking = await import("@/app-layer/observability/errorTracking");
-  await errorTracking.initWebappErrorTracking();
-  captureNodeRequestError = errorTracking.captureWebappRequestError;
+  if (process.env.NEXT_PHASE === "phase-production-build") return;
+  // Next.js compiles this file for both the Node.js and Edge runtimes. This exact
+  // `if (process.env.NEXT_RUNTIME === "nodejs") { await import(...) }` shape is the
+  // documented pattern Next statically recognizes to exclude the branch — and its
+  // Node-only transitive deps (dotenv, pg, Sentry) — from the Edge compilation.
+  // See https://nextjs.org/docs/app/api-reference/file-conventions/instrumentation#specifying-the-runtime
+  if (process.env.NEXT_RUNTIME === "nodejs") {
+    const errorTracking = await import("@/app-layer/observability/errorTracking");
+    await errorTracking.initWebappErrorTracking();
+    captureNodeRequestError = errorTracking.captureWebappRequestError;
+  }
 }
 
 export function onRequestError(error: unknown): void {
