@@ -1,15 +1,33 @@
 -- =============================================================================
 -- test-settings-override.sql  (canonical, repo-tracked — was /tmp/bcb-test-setup)
--- Apply AFTER restore + migrate on the test DB (bersoncarebot_test).
+-- Apply AFTER migrate on the test DB (bersoncarebot_test).
 -- Enforces send-safety, maintenance-on, allowlist, identity-role normalization,
 -- and a DB-level lock. Applied by deploy/host/deploy-test-saas.sh (step 5).
 --
--- Run as: psql -d bersoncarebot_test -f deploy/postgres/test-settings-override.sql
+-- Internal invocation only. Callers MUST pass exactly one explicit mode:
+--   -v test_settings_overlay_mode=reset      (fresh/reset: scrub SMTP)
+--   -v test_settings_overlay_mode=code-only  (ordinary deploy: preserve SMTP)
 --
 -- NOTE: runs POST-migrate, so system_settings has the org-aware PARTIAL unique
 -- indexes: global UNIQUE (key, scope) WHERE organization_id IS NULL. Every upsert
 -- below therefore uses ON CONFLICT (key, scope) WHERE organization_id IS NULL.
 -- =============================================================================
+
+-- Fail closed before dropping either lock trigger. Never infer destructive
+-- reset semantics from ambient state or from the current contents of TEST.
+\set ON_ERROR_STOP on
+\if :{?test_settings_overlay_mode}
+\else
+\set test_settings_overlay_mode __missing__
+\endif
+SELECT :'test_settings_overlay_mode' IN ('reset', 'code-only') AS test_settings_overlay_mode_valid,
+       :'test_settings_overlay_mode' = 'reset' AS test_settings_overlay_reset
+\gset
+\if :test_settings_overlay_mode_valid
+\else
+\warn 'FATAL: test_settings_overlay_mode must be exactly reset or code-only'
+SELECT 1 / 0 AS invalid_test_settings_overlay_mode;
+\endif
 
 -- Drop the safety-lock triggers FIRST so re-runs (and the upserts below) can
 -- re-apply settings. Triggers are recreated at the end.
@@ -61,11 +79,20 @@ VALUES ('test_account_identifiers', 'admin',
 ON CONFLICT (key, scope) WHERE organization_id IS NULL DO UPDATE
   SET value_json = EXCLUDED.value_json, updated_at = EXCLUDED.updated_at, updated_by = EXCLUDED.updated_by;
 
--- ── 5. SMTP disabled (clear smtp_outbound → EMAIL_NOT_CONFIGURED) ─────────────
+-- ── 5. SMTP mode-aware TEST overlay ──────────────────────────────────────────
+-- A fresh/reset path always scrubs the DB-backed credential. An ordinary
+-- code-only closure preserves the canonical public value and inserts null only
+-- when that global logical identity does not exist yet.
+\if :test_settings_overlay_reset
 INSERT INTO public.system_settings (key, scope, value_json, updated_at, updated_by)
 VALUES ('smtp_outbound', 'admin', '{"value":null}'::jsonb, NOW(), NULL)
 ON CONFLICT (key, scope) WHERE organization_id IS NULL DO UPDATE
   SET value_json = EXCLUDED.value_json, updated_at = EXCLUDED.updated_at, updated_by = EXCLUDED.updated_by;
+\else
+INSERT INTO public.system_settings (key, scope, value_json, updated_at, updated_by)
+VALUES ('smtp_outbound', 'admin', '{"value":null}'::jsonb, NOW(), NULL)
+ON CONFLICT (key, scope) WHERE organization_id IS NULL DO NOTHING;
+\endif
 
 -- ── 6. OAuth redirect URIs → point to test domain ────────────────────────────
 -- 6a. Specialist + clinic registration for the owner-ready TEST walkthrough.
@@ -114,10 +141,23 @@ INSERT INTO integrator.system_settings (key, scope, value_json, updated_at, upda
 VALUES ('app_base_url', 'admin', '{"value":"https://test.bersoncare.ru"}'::jsonb, NOW(), NULL)
 ON CONFLICT (key, scope) WHERE organization_id IS NULL DO UPDATE
   SET value_json = EXCLUDED.value_json, updated_at = EXCLUDED.updated_at, updated_by = EXCLUDED.updated_by;
+\if :test_settings_overlay_reset
 INSERT INTO integrator.system_settings (key, scope, value_json, updated_at, updated_by)
 VALUES ('smtp_outbound', 'admin', '{"value":null}'::jsonb, NOW(), NULL)
 ON CONFLICT (key, scope) WHERE organization_id IS NULL DO UPDATE
   SET value_json = EXCLUDED.value_json, updated_at = EXCLUDED.updated_at, updated_by = EXCLUDED.updated_by;
+\else
+-- public.system_settings is the authoring source. Keep the compatibility mirror
+-- on the exact same global (key, scope, organization_id IS NULL) identity.
+INSERT INTO integrator.system_settings (key, scope, value_json, updated_at, updated_by)
+SELECT 'smtp_outbound', 'admin', source.value_json, NOW(), NULL
+FROM public.system_settings AS source
+WHERE source.key = 'smtp_outbound'
+  AND source.scope = 'admin'
+  AND source.organization_id IS NULL
+ON CONFLICT (key, scope) WHERE organization_id IS NULL DO UPDATE
+  SET value_json = EXCLUDED.value_json, updated_at = EXCLUDED.updated_at, updated_by = EXCLUDED.updated_by;
+\endif
 
 -- ── 8. Identity role-allowlist normalization (STOPGAP, owner 2026-07-13) ──────
 -- Until role resolution moves off env/system_settings allowlists onto account+
@@ -157,7 +197,7 @@ COMMIT;
 CREATE OR REPLACE FUNCTION system_settings_test_lock_guard()
 RETURNS TRIGGER LANGUAGE plpgsql AS $$
 DECLARE
-  locked_keys TEXT[] := ARRAY['patient_app_maintenance_enabled','dev_mode','test_account_identifiers','smtp_outbound','specialist_signup_enabled','patient_program_discussion_ui_enabled'];
+  locked_keys TEXT[] := ARRAY['patient_app_maintenance_enabled','dev_mode','test_account_identifiers','specialist_signup_enabled','patient_program_discussion_ui_enabled'];
 BEGIN
   IF OLD.key = ANY(locked_keys) THEN
     RAISE EXCEPTION 'TEST ENV LOCK: system_settings key "%" is locked for safety. Remove trigger system_settings_test_lock before changing.', OLD.key
@@ -173,7 +213,7 @@ CREATE TRIGGER system_settings_test_lock BEFORE UPDATE ON public.system_settings
 CREATE OR REPLACE FUNCTION integrator.system_settings_test_lock_guard()
 RETURNS TRIGGER LANGUAGE plpgsql AS $$
 DECLARE
-  locked_keys TEXT[] := ARRAY['smtp_outbound','app_base_url','test_account_identifiers','specialist_signup_enabled','patient_program_discussion_ui_enabled'];
+  locked_keys TEXT[] := ARRAY['app_base_url','test_account_identifiers','specialist_signup_enabled','patient_program_discussion_ui_enabled'];
 BEGIN
   IF OLD.key = ANY(locked_keys) THEN
     RAISE EXCEPTION 'TEST ENV LOCK (integrator): system_settings key "%" is locked.', OLD.key
