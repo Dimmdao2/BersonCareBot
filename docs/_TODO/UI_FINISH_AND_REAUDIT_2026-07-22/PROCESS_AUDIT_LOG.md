@@ -47,3 +47,14 @@
   unplanned finding.
 - Completion is reported as a user-visible product result. Code-only, TEST-runtime and owner-live gates remain
   distinct; `done` is not owner acceptance.
+
+## 2026-07-22 — owner ruling on overnight blockers
+
+- A local blocker does not stop the orchestration run: record the exact residual and move the available stream to
+  another independent dependency-ready block.
+- Treat a stage as owner-blocked only when it explicitly requires the owner's decision/access, or when the same
+  defect repeats in an audit→fix loop without closing an owner-plan checkbox. Everything else remains an executor
+  problem and must continue without waiting for the owner.
+- For one-off TEST integration setup, prefer the existing Settings/updateSetting path. The owner permits a bounded
+  TEST-only manual DB value when materially simpler, provided mirror/tenant invariants, no-secret output and rollback
+  are preserved. PROD and production credentials remain outside this work order.
