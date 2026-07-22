@@ -47,4 +47,29 @@ describe("GET /api/booking/slots", () => {
     expect(response.status).toBe(400);
     expect(getSlotsMock).not.toHaveBeenCalled();
   });
+
+  it("returns 404 when branch_service_not_found for in_person", async () => {
+    getCurrentSessionMock.mockResolvedValue(session);
+    getBranchMock.mockResolvedValue({ id: BRANCH_ID, organizationId: ORG_ID, cityCode: "moscow" });
+    getServiceMock.mockResolvedValue({ id: SERVICE_ID, organizationId: ORG_ID });
+    resolveCanonicalInPersonContextMock.mockResolvedValue({ organizationId: ORG_ID, branchId: BRANCH_ID, serviceId: SERVICE_ID });
+    getSlotsMock.mockRejectedValue(new Error("branch_service_not_found"));
+
+    const response = await GET(new Request(`http://localhost/api/booking/slots?type=in_person&branchId=${BRANCH_ID}&serviceId=${SERVICE_ID}`));
+    expect(response.status).toBe(404);
+    const body = await response.json();
+    expect(body.error).toBe("branch_service_not_found");
+  });
+
+  it("returns 404 when canonical mapping missing", async () => {
+    getCurrentSessionMock.mockResolvedValue(session);
+    getBranchMock.mockResolvedValue({ id: BRANCH_ID, organizationId: ORG_ID, cityCode: "moscow" });
+    getServiceMock.mockResolvedValue({ id: SERVICE_ID, organizationId: ORG_ID });
+    resolveCanonicalInPersonContextMock.mockResolvedValue(null);
+
+    const response = await GET(new Request(`http://localhost/api/booking/slots?type=in_person&branchId=${BRANCH_ID}&serviceId=${SERVICE_ID}`));
+    expect(response.status).toBe(404);
+    const body = await response.json();
+    expect(body.error).toBe("branch_service_mapping_missing");
+  });
 });

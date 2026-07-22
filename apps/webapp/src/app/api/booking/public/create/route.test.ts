@@ -31,6 +31,9 @@ vi.mock("@/app-layer/di/buildAppDeps", () => ({
 vi.mock("@/app-layer/db/client", () => ({ getPool: () => ({}) }));
 
 import { POST } from "./route";
+import { InPersonBookingResolveError } from "@/modules/patient-booking/inPersonBookingResolve";
+
+const OTHER_ORG_ID = "11111111-1111-4111-8111-111111111112";
 
 function request(body: Record<string, unknown>) {
   return new Request("http://localhost/api/booking/public/create", { method: "POST", headers: { "Content-Type": "application/json", "X-Real-IP": "1.2.3.4" }, body: JSON.stringify(body) });
@@ -61,4 +64,43 @@ describe("POST /api/booking/public/create", () => {
     expect(response.status).toBe(400);
     expect(createBookingMock).not.toHaveBeenCalled();
   });
+
+  it("returns 429 when rate limited", async () => {
+    rateLimitMock.mockResolvedValue(true);
+    const response = await POST(request({ type: "in_person", orgSlug: "clinic-a", branchId: BRANCH_ID, serviceId: SERVICE_ID, slotStart: "2026-06-01T10:00:00.000Z", slotEnd: "2026-06-01T11:00:00.000Z", contactName: "Test", contactPhone: "+79001234567" }));
+    expect(response.status).toBe(429);
+    expect(createBookingMock).not.toHaveBeenCalled();
+  });
+
+  it("denies clinic-A confirmation carrying valid clinic-B booking ids before user creation", async () => {
+    resolveOrganizationIdBySlugMock.mockResolvedValue(ORG_ID);
+    resolvePublicBookingOrganizationMock.mockResolvedValue(OTHER_ORG_ID);
+
+    const response = await POST(request({ type: "in_person", orgSlug: "clinic-a", branchId: BRANCH_ID, serviceId: SERVICE_ID, slotStart: "2026-06-01T10:00:00.000Z", slotEnd: "2026-06-01T11:00:00.000Z", contactName: "Иван", contactPhone: "+79001234567" }));
+
+    expect(response.status).toBe(400);
+    expect(await response.json()).toMatchObject({ ok: false, error: "ambiguous_booking_tenant" });
+    expect(resolveUserMock).not.toHaveBeenCalled();
+    expect(createBookingMock).not.toHaveBeenCalled();
+  });
+
+  it("redacts an unknown public booking exception behind fixed create_failed", async () => {
+    createBookingMock.mockRejectedValueOnce(new Error("patient@example.test SQLSTATE 23505 provider payload"));
+
+    const response = await POST(request({ type: "in_person", orgSlug: "clinic-a", branchId: BRANCH_ID, serviceId: SERVICE_ID, slotStart: "2026-06-01T10:00:00.000Z", slotEnd: "2026-06-01T11:00:00.000Z", contactName: "Иван", contactPhone: "+79001234567" }));
+
+    expect(response.status).toBe(503);
+    await expect(response.json()).resolves.toEqual({ ok: false, error: "create_failed" });
+  });
+
+  it.each(["toString", "constructor", "__proto__"])(
+    "treats inherited typed literal key %s as unknown create_failed",
+    async (inheritedKey) => {
+      resolvePublicBookingOrganizationMock.mockRejectedValueOnce(new InPersonBookingResolveError(inheritedKey));
+      const response = await POST(request({ type: "in_person", orgSlug: "clinic-a", branchId: BRANCH_ID, serviceId: SERVICE_ID, slotStart: "2026-06-01T10:00:00.000Z", slotEnd: "2026-06-01T11:00:00.000Z", contactName: "Иван", contactPhone: "+79001234567" }));
+
+      expect(response.status).toBe(503);
+      await expect(response.json()).resolves.toEqual({ ok: false, error: "create_failed" });
+    },
+  );
 });

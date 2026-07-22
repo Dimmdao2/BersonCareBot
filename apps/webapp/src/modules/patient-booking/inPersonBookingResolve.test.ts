@@ -90,6 +90,15 @@ describe("canonical in-person booking resolution", () => {
     });
   });
 
+  it("rejects a retired branchServiceId-only payload instead of resolving legacy behavior", async () => {
+    await expect(
+      resolveInPersonBookingContext(deps, {
+        branchServiceId: "11111111-1111-4111-8111-111111111111",
+      } as never),
+    ).rejects.toThrow("invalid_in_person_keys");
+    expect(bookingScheduling.resolveCanonicalInPersonContext).not.toHaveBeenCalled();
+  });
+
   it("rejects missing and cross-tenant slugs before canonical booking reads", async () => {
     const clinicDirectory = { resolveOrganizationIdBySlug: vi.fn().mockResolvedValue("org-2") };
     await expect(

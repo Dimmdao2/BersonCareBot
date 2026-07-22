@@ -17,6 +17,7 @@ vi.mock("@/app-layer/di/buildAppDeps", () => ({
 }));
 
 import { POST } from "./route";
+import { InPersonBookingResolveError } from "@/modules/patient-booking/inPersonBookingResolve";
 
 const BRANCH_ID = "550e8400-e29b-41d4-a716-446655440001";
 const SERVICE_ID = "550e8400-e29b-41d4-a716-446655440002";
@@ -55,4 +56,54 @@ describe("POST /api/booking/create", () => {
     requirePatientBookingTrustedPhoneAccessMock.mockResolvedValue({ ok: false, response: NextResponse.json({ ok: false }, { status: 401 }) });
     expect((await POST(request({}))).status).toBe(401);
   });
+
+  it("returns 400 when service reports city_mismatch", async () => {
+    requirePatientBookingTrustedPhoneAccessMock.mockResolvedValue({ ok: true, session });
+    resolveCanonicalInPersonContextMock.mockResolvedValue({ organizationId: ORG_ID, branchId: BRANCH_ID, serviceId: SERVICE_ID });
+    getBranchMock.mockResolvedValue({ id: BRANCH_ID, organizationId: ORG_ID, cityCode: "moscow" });
+    getServiceMock.mockResolvedValue({ id: SERVICE_ID, organizationId: ORG_ID });
+    createBookingMock.mockRejectedValue(new Error("city_mismatch"));
+
+    const response = await POST(request({ type: "in_person", branchId: BRANCH_ID, serviceId: SERVICE_ID, slotStart: "2026-04-01T07:00:00.000Z", slotEnd: "2026-04-01T08:00:00.000Z", contactName: "Ivan", contactPhone: "+79990001122" }));
+    expect(response.status).toBe(400);
+    const body = await response.json();
+    expect(body.error).toBe("city_mismatch");
+  });
+
+  it("returns 409 slot_overlap for in_person when service throws", async () => {
+    requirePatientBookingTrustedPhoneAccessMock.mockResolvedValue({ ok: true, session });
+    resolveCanonicalInPersonContextMock.mockResolvedValue({ organizationId: ORG_ID, branchId: BRANCH_ID, serviceId: SERVICE_ID });
+    getBranchMock.mockResolvedValue({ id: BRANCH_ID, organizationId: ORG_ID, cityCode: "moscow" });
+    getServiceMock.mockResolvedValue({ id: SERVICE_ID, organizationId: ORG_ID });
+    createBookingMock.mockRejectedValue(new Error("slot_overlap"));
+
+    const response = await POST(request({ type: "in_person", branchId: BRANCH_ID, serviceId: SERVICE_ID, slotStart: "2026-04-01T07:00:00.000Z", slotEnd: "2026-04-01T08:00:00.000Z", contactName: "Ivan", contactPhone: "+79990001122" }));
+    expect(response.status).toBe(409);
+    const body = await response.json();
+    expect(body.error).toBe("slot_overlap");
+  });
+
+  it("redacts an unknown booking exception behind fixed create_failed", async () => {
+    requirePatientBookingTrustedPhoneAccessMock.mockResolvedValue({ ok: true, session });
+    resolveCanonicalInPersonContextMock.mockResolvedValue({ organizationId: ORG_ID, branchId: BRANCH_ID, serviceId: SERVICE_ID });
+    getBranchMock.mockResolvedValue({ id: BRANCH_ID, organizationId: ORG_ID, cityCode: "moscow" });
+    getServiceMock.mockResolvedValue({ id: SERVICE_ID, organizationId: ORG_ID });
+    createBookingMock.mockRejectedValue(new Error("patient@example.test SQLSTATE 23505 provider payload"));
+
+    const response = await POST(request({ type: "in_person", branchId: BRANCH_ID, serviceId: SERVICE_ID, slotStart: "2026-04-01T07:00:00.000Z", slotEnd: "2026-04-01T08:00:00.000Z", contactName: "Ivan", contactPhone: "+79990001122" }));
+    expect(response.status).toBe(503);
+    await expect(response.json()).resolves.toEqual({ ok: false, error: "create_failed" });
+  });
+
+  it.each(["toString", "constructor", "__proto__"])(
+    "treats inherited typed literal key %s as unknown create_failed",
+    async (inheritedKey) => {
+      requirePatientBookingTrustedPhoneAccessMock.mockResolvedValue({ ok: true, session });
+      resolveCanonicalInPersonContextMock.mockRejectedValueOnce(new InPersonBookingResolveError(inheritedKey));
+
+      const response = await POST(request({ type: "in_person", branchId: BRANCH_ID, serviceId: SERVICE_ID, slotStart: "2026-04-01T07:00:00.000Z", slotEnd: "2026-04-01T08:00:00.000Z", contactName: "Ivan", contactPhone: "+79990001122" }));
+      expect(response.status).toBe(503);
+      await expect(response.json()).resolves.toEqual({ ok: false, error: "create_failed" });
+    },
+  );
 });

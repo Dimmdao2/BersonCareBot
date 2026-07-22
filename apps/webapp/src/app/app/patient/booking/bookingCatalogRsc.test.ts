@@ -312,4 +312,66 @@ describe("patient booking catalog RSC principal boundary", () => {
     expect(getMaxConsecutiveSlotHoursMock).toHaveBeenCalledWith(ORGANIZATION_ID);
   });
 
+  it("fails closed when the canonical mapping disagrees with the requested branch/service ids", async () => {
+    const branchId = "33333333-3333-4333-8333-333333333333";
+    const serviceId = "44444444-4444-4444-8444-444444444444";
+    const specialistId = "66666666-6666-4666-8666-666666666666";
+    listBranchesMock.mockResolvedValue([]);
+    getBranchMock.mockResolvedValue({
+      id: branchId,
+      organizationId: ORGANIZATION_ID,
+      cityCode: "moscow",
+      title: "Москва, центр",
+      isActive: true,
+    });
+    listServicesMock.mockResolvedValue([
+      {
+        id: serviceId,
+        organizationId: ORGANIZATION_ID,
+        title: "Приём",
+        description: null,
+        durationMinutes: 60,
+        priceMinor: 500000,
+        isActive: true,
+        publicWidgetVisible: true,
+        adminManualOnly: false,
+      },
+    ]);
+    listServiceLocationAvailabilityMock.mockResolvedValue([
+      { id: "l1", organizationId: ORGANIZATION_ID, serviceId, branchId, isActive: true },
+    ]);
+    listSpecialistServiceAvailabilityMock.mockResolvedValue([
+      {
+        id: "55555555-5555-4555-8555-555555555555",
+        organizationId: ORGANIZATION_ID,
+        specialistId,
+        serviceId,
+        branchId,
+        isActive: true,
+      },
+    ]);
+    listSpecialistsMock.mockResolvedValue([
+      { id: specialistId, organizationId: ORGANIZATION_ID, isActive: true },
+    ]);
+    // Canonical mapping resolves a DIFFERENT branch than the one the patient selected —
+    // the RSC must fail closed instead of trusting the query-string branch/service ids.
+    resolveCanonicalInPersonContextMock.mockResolvedValue({
+      organizationId: ORGANIZATION_ID,
+      branchId: "88888888-8888-4888-8888-888888888888",
+      serviceId,
+      specialistId,
+      roomId: null,
+      branchServiceId: "55555555-5555-4555-8555-555555555555",
+      legacyBranchServiceId: null,
+      durationMinutes: 75,
+      bufferAfterMinutes: 0,
+      branchTimezone: "Europe/Moscow",
+    });
+
+    await expect(
+      loadInPersonSlotContextForPatientRsc({ platformUserId: PATIENT_ID, branchId, serviceId }),
+    ).resolves.toEqual({ ok: false, error: "invalid_selection" });
+    expect(getAppDisplayTimeZoneMock).not.toHaveBeenCalled();
+  });
+
 });
