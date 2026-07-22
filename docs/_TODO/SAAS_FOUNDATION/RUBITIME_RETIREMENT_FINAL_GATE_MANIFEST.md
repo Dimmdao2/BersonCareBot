@@ -28,6 +28,8 @@ The default check verifies that every current blocker has an explicit expected p
 exist. It intentionally runs every final sub-gate and reports all blockers, instead of stopping at the first failure.
 The checker also reads `RUBITIME_RETIREMENT_EXECUTION_PLAN.md` section 15: gated items must remain unchecked.
 Owner-facing remaining decisions are consolidated in `RUBITIME_RETIREMENT_OWNER_GATE_PACKET.md`.
+The atomic distinction between repository provenance, runtime evidence and owner acceptance is recorded in
+`RUBITIME_RETIREMENT_R5_R7_PROVENANCE_RECONCILIATION.md`.
 If a final proof file exists, the checker validates its required content fragments against that packet.
 The same fragments are present in `.template.md` files next to each expected final proof; templates are not final
 proofs and must not be renamed until the corresponding owner-approved operation is executed. Real proof files must
@@ -57,8 +59,9 @@ Runbooks:
 
 | ID | Checklist item | Status | Expected proof |
 | --- | --- | --- | --- |
+| `R3-CATALOG-COMPATIBILITY-DRAIN` | Expired `branchServiceId` compatibility is removed after old-link/row drain, or explicitly rebaselined | `gated` | Owner-approved exact cutoff plus drain evidence, or explicit defer/rebaseline with date, reason and rollback boundary. |
 | `R5-LIVE-DISABLE` | R5 legacy v1 resolve disabled in live environment | `gated` | `RUBITIME_RETIREMENT_R5_PRODUCTION_DISABLE_PROOF.md` |
-| `R6-RUNTIME-REMOVAL` | R6 runtime routes/code removed | `gated` | `RUBITIME_RETIREMENT_R6_CUTOFF_DRAIN_PROOF.md` |
+| `R6-RUNTIME-REMOVAL` | R6 runtime routes/code removed (phase-order acceptance) | `gated` | Repository removal is provenance-only until `RUBITIME_RETIREMENT_R6_CUTOFF_DRAIN_PROOF.md`; no restoration/deploy is inferred. |
 | `R7-ARCHIVE-DROP` | R7 archive/drop complete or explicitly deferred with no runtime references | `gated` | `RUBITIME_RETIREMENT_R7_DROP_RESTORE_PROOF.md` |
 | `NO-RUNTIME-RUBITIME-API` | No runtime code calls Rubitime API | `gated` | `RUBITIME_RETIREMENT_R6_CUTOFF_DRAIN_PROOF.md` plus post-R6 static inventory |
 | `NO-RUBITIME-PROVIDER-ROUTE` | No runtime route accepts Rubitime webhook/provider traffic | `gated` | `RUBITIME_RETIREMENT_R6_CUTOFF_DRAIN_PROOF.md` |

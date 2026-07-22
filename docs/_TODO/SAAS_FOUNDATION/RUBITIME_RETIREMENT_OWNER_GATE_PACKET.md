@@ -46,6 +46,21 @@ run live-environment operations for task `#757`; the owner gates below are only 
 
 ## Remaining Owner Gates
 
+### Gate 0 — R3-CATALOG compatibility deadline
+
+The `2026-07-21` deadline expired while patient/public `branchServiceId` compatibility remains live. The narrower
+`RR-PROOF-05` table-read proof remains valid, but final R3-CATALOG closure is reopened.
+
+Owner decision required:
+
+- either approve a new exact cutoff after evidence that old URLs/rows are drained, followed by a bounded code stage
+  that rejects legacy `branchServiceId` and requires `branchId+serviceId`;
+- or explicitly defer/rebaseline the compatibility adapter with a new date, reason and rollback boundary.
+
+Until this decision and its evidence exist, agents must not remove the adapter by inference and R7 must continue to
+defer public `booking_*` catalog drop planning. See
+`RUBITIME_RETIREMENT_R5_R7_PROVENANCE_RECONCILIATION.md`.
+
 ### Gate 1 — R5 production disable
 
 Required proof:
@@ -82,6 +97,11 @@ Owner decisions required:
 - confirm outbound Rubitime bridge is disabled;
 - approve treatment of any non-zero pending/dead queue rows;
 - approve fresh post-cutoff CSV reconciliation result.
+
+Repository route/code removal artifacts already exist, but they were applied before the mandatory cutoff/drain
+proof. The owner must also decide whether those artifacts remain dormant repository provenance until Gate 2 is
+executed, or whether a separately scoped restoration is required before any deployment. Agents must not infer either
+choice; repository provenance alone does not close R6.
 
 Proof must include the sections required by `RUBITIME_RETIREMENT_R6_CUTOFF_DRAIN_RUNBOOK.md`:
 

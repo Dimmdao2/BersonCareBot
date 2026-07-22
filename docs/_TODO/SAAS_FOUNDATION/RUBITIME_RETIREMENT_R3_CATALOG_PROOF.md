@@ -1,6 +1,7 @@
 # Rubitime retirement R3-CATALOG — public booking catalog migration proof
 
-Status: patient/public runtime legacy catalog read proof closed, 2026-07-14.
+Status: patient/public runtime legacy catalog **table-read proof retained**; bounded compatibility-removal gate
+reopened 2026-07-22 because its `2026-07-21` deadline expired while `branchServiceId` remains live.
 
 ## Canon
 
@@ -39,10 +40,16 @@ Status: patient/public runtime legacy catalog read proof closed, 2026-07-14.
 
 - `pgBookingCatalog` remains the admin/legacy CRUD repository for `booking_*` rows.
 - `patient_bookings.branchServiceId` and old URLs can still carry legacy IDs through the bounded release window.
-- Compatibility removal deadline: 2026-07-21 or before R7 archive/drop, whichever comes first. The removal task is to
-  reject public/patient `branchServiceId` input after old URLs are drained and require primary `branchId+serviceId`.
+- The compatibility removal deadline was 2026-07-21 or before R7 archive/drop, whichever came first. It has expired.
+  Current source still accepts and propagates `branchServiceId` in patient/public schemas, URLs, slots/create and RSC
+  paths. This does not invalidate the narrower proof that those paths no longer read public legacy `booking_*`
+  tables, but it reopens final R3-CATALOG closure.
+- Do not reject the input by date alone. Required next evidence is an old-link/row drain census plus an exact
+  owner-approved cutoff, or an explicit owner defer/rebaseline with new date, reason and rollback boundary.
 
-R3-CATALOG is not a table-drop approval. Drop/archive planning remains blocked until legacy `branchServiceId` compatibility is removed or replaced by a canonical compatibility view and old runtime URLs are drained.
+R3-CATALOG is not a table-drop approval. Drop/archive planning remains blocked until legacy `branchServiceId`
+compatibility is removed or replaced by a canonical compatibility view and old runtime URLs are drained. Atomic
+mapping and owner question: `RUBITIME_RETIREMENT_R5_R7_PROVENANCE_RECONCILIATION.md`.
 
 ## Inventory
 
