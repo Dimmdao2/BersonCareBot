@@ -52,6 +52,7 @@ BEGIN
     'auth_sms_enabled',
     'auth_telegram_enabled',
     'auth_max_enabled',
+    'admin_emails',
     'booking_location_default_palette',
     'notif_template:created:patient',
     'notif_template:created:doctor',
