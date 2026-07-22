@@ -283,12 +283,12 @@ SHA `eb64a495644` (code-only deploy 2026-07-22, без dump/restore/full reset).
 |---|---|---|
 | UI-0 | `DONE` | Четыре symptoms закрыты; отдельная owner live recheck не подменяется smoke. |
 | UI-1 | `DONE code / TEST deployed / owner pending` | Canonical picker reuse и UI-1c находятся на TEST; обязательный smoke и первичная read-only visual проверка прошли. Money/provider и SCH-G5 остаются отдельными gates, не UI-1 debt. |
-| UI-2 | `DONE code / live gated` | Built-in Online и gating готовы; public live требует sanctioned published slug/U6B. |
+| UI-2 | `RESIDUAL IN PROGRESS #972` | Built-in Online и gating готовы; schedule-filter, client-booking and public online-block evidence из трёх unchecked atomic items закрываются отдельно, без expanded online chain. |
 | UI-3 | `DONE code / TEST deployed / owner pending` | 45/55, owner gradient, broadcast detail/error IA и shared composer находятся на TEST; smoke и desktop/mobile read-only visual проверка прошли. |
 | UI-4 | `DONE code / TEST deployed / owner pending` | Presentation, metric semantics и normal-mode functional `PatientPreviewPane` находятся на TEST; smoke и desktop/mobile list check прошли. |
-| UI-5 | `UI-5a TEST deployed / UI-5b gated` | Existing full card replaces the doctor workspace with list-state restoration; mandatory live route smoke прошёл. UI-5b composition законно ждёт U5A/record-class gate. |
+| UI-5 | `UI-5a TEST deployed / UI-5b IN PROGRESS #971` | Existing full card replaces the doctor workspace with list-state restoration; mandatory live route smoke прошёл. U5B record-class contract `#928` закрыт, полный atomic composition исполняется без упрощения. |
 | UI-6 | `DONE current contract / TEST deployed / future gated` | 50/50, calendar button/window and existing-signal preferences/list switch находятся на TEST; «Самые активные»/new counters/hiding stay contract-gated. |
-| UI-7 | `NOT DONE` | Scheduled messages и worker contract отсутствуют; Voice/STT корректно post-production. |
+| UI-7 | `BLOCKED after hard-stop #964` | Backend/CAS/access foundation реализован в isolated branch, но два correction-pass не закрыли единый pending-feed placement. Требуется ровно один owner ruling; незапечатанный код не интегрирован. Voice/STT корректно post-production. |
 | UI-8 | `DONE current contract` | S4/C5 organization-only commercial contour готов; `#191` задаёт только новым правилам разминок `12:00`/`15:00` в рабочие дни и не изменяет существующие правила. |
 | UI-9 | `DONE` | Personal exercises/media exact-org implementation и high-risk audit закрыты; live owner acceptance отдельно. |
 | Client mood residual | `DONE` | Empty chart скрывается, mood controls остаются. |

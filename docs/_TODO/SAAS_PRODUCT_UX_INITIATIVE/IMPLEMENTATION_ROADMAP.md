@@ -477,9 +477,11 @@ card; запрещено строить временный resolver, второ�
 - **Task mapping:** C1 `#850/#851/#852`; новый UI-1c detail delta — `#951`; exact residuals после сверки
   полного owner scope: schedule picker `#960`, communications gradient/broadcast IA `#961`, shared composer
   `#962`, configurable Today `#963`, scheduled messages `#964`. `#958`, `#960`–`#963`, `#966/#967` закрыты и
-  находятся на TEST SHA `eb64a495644`; bounded reminder-default `#191` закрыт после milestone. Текущий следующий
-  implementation residual — `#964`. UI-4 normal-mode preview и UI-5a full-workspace
-  reuse объединены в `#958`, полный composition/visibility — U5B с contract `#928`; Patient Today mood residual —
+  находятся на TEST SHA `eb64a495644`; bounded reminder-default `#191` закрыт после milestone. UI-7 `#964`
+  остановлен после двух correction-pass на одном owner placement ruling и не интегрирован. Независимые исполнимые
+  UI-residuals: полный UI-5b composition `#971` после закрытого contract `#928` и три Online evidence item `#972`.
+  UI-4 normal-mode preview и UI-5a full-workspace
+  reuse объединены в `#958`, полный composition/visibility — U5B с contract `#928` + implementation `#971`; Patient Today mood residual —
   `#924`; latest Today/shared presentation deltas — `#966/#967`; bounded built-in Online location переиспользует `#197`, а expanded online
   booking остаётся blocked в `#215`; UI-P `#925`; manual patient/walk-in `#801`; mechanics/reminders C4D/C5 +
   `#191`; individual exercises `#564` + design `#565`; voice post-production `#922`; S4 engine `#888`; superseded
@@ -489,8 +491,8 @@ card; запрещено строить временный resolver, второ�
   code-only. Full CI запускается на milestone, а не повторяется для каждого presentation slice.
 - **Status (2026-07-22):** exact TEST SHA `eb64a495644`, code-only без dump/restore/full reset. Locked product smoke
   `22/22`, отдельный deny-smoke и первичная desktop/mobile read-only visual проверка прошли. Owner live interaction
-  acceptance записан в `#821` и не блокирует следующий repository-safe этап. Следующий dependency-ready UI scope —
-  UI-7 scheduled communications `#964`; Voice/STT `#922` остаётся post-production.
+  acceptance записан в `#821` и не блокирует следующий repository-safe этап. Dependency-ready UI scopes —
+  UI-5b `#971` и UI-2 residual `#972`; UI-7 `#964` ждёт одного placement ruling. Voice/STT `#922` остаётся post-production.
 
 #### C2 — identity команды и фактический invite journey
 
@@ -780,7 +782,7 @@ Umbrella/index, Foundation helper-checklists и Rubitime production runbooks н�
 | Leaf plan | Current class | Current truth / task mapping |
 |---|---|---|
 | [`SAAS_FOUNDATION/RUBITIME_RETIREMENT_EXECUTION_PLAN.md`](../SAAS_FOUNDATION/RUBITIME_RETIREMENT_EXECUTION_PLAN.md) | gated | R0–R4 имеют code/proof; R5–R7 требуют operational/owner gates. Полный checklist provenance дополнительно сверяется перед следующим Rubitime action. |
-| [`DOCTOR_UI_REWORK_2026-07-20/PLAN.md`](../DOCTOR_UI_REWORK_2026-07-20/PLAN.md) | open | Atomic tracker является authority; `#958`, `#960`–`#963`, `#966/#967` deployed, `#191` закрыт после milestone; остатки `#964`, `#848`; Voice `#922` post-production. |
+| [`DOCTOR_UI_REWORK_2026-07-20/PLAN.md`](../DOCTOR_UI_REWORK_2026-07-20/PLAN.md) | open | Atomic tracker является authority; `#958`, `#960`–`#963`, `#966/#967` deployed, `#191` закрыт; `#971/#972` исполняются, `#964/#848` owner-blocked; Voice `#922` post-production. |
 | [`.cursor/plans/fio_identity_cleanup.plan.md`](../../../.cursor/plans/fio_identity_cleanup.plan.md) | gated | Phases 0–8 закрыты; `#857` production backfill и `#858` parser audit/retirement остаются gated. |
 | [`STABILITY_SECURITY_HARDENING_PLAN_2026-07-21.md`](../STABILITY_SECURITY_HARDENING_PLAN_2026-07-21.md) | open | C1 repository dark-launch зафиксирован atomic checklist и task `#969`, стартует после интеграции UI-7 migration `0229`; D1 зафиксирован exact checklist в `#970` и ждёт только TTL/admin/SLA ruling; D2/E2/E3 открыты. Host activation и A4/A2/E1/post-launch residual идут только по собственным gates. |
 | [`UNSUPPORTED_CLIENT_FALLBACK_PLAN.md`](../UNSUPPORTED_CLIENT_FALLBACK_PLAN.md) | partial slice | Закрыт только Ф0 repository slice `#936`; Ф1/Ф2/guard не объявляются завершёнными. |

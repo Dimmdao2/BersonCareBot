@@ -4638,3 +4638,16 @@ sidebar links, group/flyout rows, mobile sheet/back rows and logout inherit it, 
 their separate token. Focused integration tests passed `28/28`, the single independent presentation audit returned
 PASS, and live DEV evidence at `1440×900` plus the opened mobile sheet at `390×844` confirms the near-rectangular
 rows. Runtime screenshots remain uncommitted under `.claude/screenshots/UI967-MENU-20260722/`.
+
+## 2026-07-22 — UI-7 hard-stop and independent UI continuation
+
+UI-7 `#964` is not integrated. Two bounded correction passes closed the durable claim/CAS, access revalidation,
+cancel boundary, cron/RLS and open-feed reconciliation mechanics, but the terminal audit still found the same
+pending-placement contract incomplete: the general doctor comments adapter mounts one feed per message, while a
+program discussion loads its feed only after a reply target is selected. Per the anti-churn rule, no third
+correction starts. The exact owner question is whether there must be one pending feed per current discussion,
+visible immediately after open/reload without selecting a message.
+
+This hard-stop does not pause unrelated UI work. U5B record-class contract `#928` is complete, so full patient-card
+composition starts as `#971` against every UI-5b atomic checkbox. The three still-unchecked built-in Online proofs
+start independently as `#972`; expanded online booking task `#215` remains outside that scope.
