@@ -16,6 +16,12 @@ export const operatorIncidents = pgTable(
     occurrenceCount: integer("occurrence_count").notNull().default(1),
     resolvedAt: timestamp("resolved_at", { withTimezone: true, mode: "string" }),
     alertSentAt: timestamp("alert_sent_at", { withTimezone: true, mode: "string" }),
+    acknowledgedAt: timestamp("acknowledged_at", { withTimezone: true, mode: "string" }),
+    initialAlertSentAt: timestamp("initial_alert_sent_at", { withTimezone: true, mode: "string" }),
+    oneHourAlertSentAt: timestamp("one_hour_alert_sent_at", { withTimezone: true, mode: "string" }),
+    alertClaimPhase: text("alert_claim_phase"),
+    alertClaimToken: uuid("alert_claim_token"),
+    alertClaimedAt: timestamp("alert_claimed_at", { withTimezone: true, mode: "string" }),
   },
   (table) => [
     uniqueIndex("operator_incidents_open_dedup_key_uniq")
@@ -24,6 +30,15 @@ export const operatorIncidents = pgTable(
     index("idx_operator_incidents_open_last_seen")
       .using("btree", table.lastSeenAt.desc().nullsFirst().op("timestamptz_ops"))
       .where(sql`(resolved_at IS NULL)`),
+    index("idx_operator_incidents_provider_alert_due")
+      .using(
+        "btree",
+        table.openedAt.asc().nullsLast().op("timestamptz_ops"),
+        table.initialAlertSentAt.asc().nullsLast().op("timestamptz_ops"),
+        table.oneHourAlertSentAt.asc().nullsLast().op("timestamptz_ops"),
+        table.alertClaimedAt.asc().nullsLast().op("timestamptz_ops"),
+      )
+      .where(sql`resolved_at IS NULL AND acknowledged_at IS NULL AND direction = 'outbound_delivery_provider'`),
   ],
 );
 

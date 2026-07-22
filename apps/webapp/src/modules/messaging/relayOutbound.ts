@@ -9,7 +9,7 @@ import { getCurrentCorrelationIdHeader } from "@bersoncare/db-principal";
 import { getIntegratorApiUrl, getIntegratorWebhookSecret } from "@/modules/system-settings/integrationRuntime";
 
 export type RelayResult =
-  | { ok: true; status: "accepted" | "duplicate" }
+  | { ok: true; status: "accepted" | "duplicate" | "skipped" }
   | { ok: false; reason: string };
 
 export type RelayInlineButton = { text: string; callback_data: string };
@@ -40,8 +40,6 @@ type RelayOutboundBaseParams<C extends string> = {
    * Имя файла .ics вложения (по умолчанию `bersoncare-booking.ics`).
    */
   icsFilename?: string;
-  /** Trusted signed relay purpose. The integrator creates the policy marker; metadata cannot forge it. */
-  purpose?: "operator_alert";
 };
 
 export type RelayOutboundParams<C extends string = string> = RelayOutboundBaseParams<C> &
@@ -159,9 +157,6 @@ export async function relayOutbound<C extends string>(
   if (params.icsFilename) {
     bodyObj.icsFilename = params.icsFilename;
   }
-  if (params.purpose) {
-    bodyObj.purpose = params.purpose;
-  }
   const rawBody = JSON.stringify(bodyObj);
 
   let lastError: string = "unknown";
@@ -175,7 +170,7 @@ export async function relayOutbound<C extends string>(
       if (result.ok) {
         return {
           ok: true,
-          status: result.status === "duplicate" ? "duplicate" : "accepted",
+          status: result.status === "duplicate" || result.status === "skipped" ? result.status : "accepted",
         };
       }
       lastError = result.error;

@@ -252,6 +252,7 @@ SELECT format(
 
 GRANT EXECUTE ON FUNCTION app.read_curated_system_health() TO saas_telemetry_operator;
 GRANT EXECUTE ON FUNCTION app.read_curated_playback_health() TO saas_telemetry_operator;
+GRANT EXECUTE ON FUNCTION app.read_outbound_provider_incident_health() TO saas_telemetry_operator;
 GRANT USAGE ON SCHEMA app TO saas_telemetry_operator;
 
 SELECT 1 / (

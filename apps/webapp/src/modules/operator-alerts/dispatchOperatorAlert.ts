@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 import { logger } from "@/infra/logging/logger";
-import { relayOutbound } from "@/modules/messaging/relayOutbound";
+import { relayOperatorAlert } from "./relayOperatorAlert";
 import { getConfigValue } from "@/modules/system-settings/configAdapter";
 import { parseIdTokens } from "@/shared/parsers/parseIdTokens";
 import { getAdminIncidentStaffPushDeps } from "@/modules/admin-incidents/adminIncidentStaffPushRuntime";
@@ -69,6 +69,8 @@ export type DispatchOperatorAlertInput = {
   block: OperatorAlertBlock;
   topic: string;
   dedupKey: string;
+  /** Stable server-owned identity for an incident phase; survives claim retries/restarts. */
+  deliveryIdentity?: string;
   lines: string[];
   pushTitle?: string;
   pushUrl?: string;
@@ -81,7 +83,7 @@ export type DispatchOperatorAlertResult = {
   reason?: "disabled" | "dedup" | "empty_text" | "no_recipients";
 };
 
-function fireOperatorRelay(input: {
+async function fireOperatorRelay(input: {
   messageId: string;
   channel: "telegram" | "max" | "sms";
   recipient: string;
@@ -89,16 +91,15 @@ function fireOperatorRelay(input: {
   text: string;
   block: OperatorAlertBlock;
   topic: string;
-}): void {
-  void relayOutbound({
+}): Promise<boolean> {
+  try {
+    const result = await relayOperatorAlert({
     messageId: input.messageId,
     channel: input.channel,
     recipient: input.recipient,
     text: input.text,
-    purpose: "operator_alert",
-  })
-    .then((result) => {
-      if (result.ok) return;
+    });
+    if (result.ok) return result.status !== "skipped";
       logger.warn(
         {
           scope: "operator_alert",
@@ -111,15 +112,16 @@ function fireOperatorRelay(input: {
         },
         "relay failed",
       );
-    })
-    .catch((err: unknown) => {
-      logger.warn({ err, block: input.block, topic: input.topic, channel: input.channel }, "relay failed");
-    });
+    return false;
+  } catch (err: unknown) {
+    logger.warn({ err, block: input.block, topic: input.topic, channel: input.channel }, "relay failed");
+    return false;
+  }
 }
 
 /**
  * Единый диспетчер операторских алертов (TG / Max / staff Web Push / SMS).
- * Fire-and-forget для каналов; dedup — 24 ч по `dedup_key`.
+ * Каналы изолированы; успех фиксируется только после accepted/duplicate хотя бы одного канала.
  */
 export async function dispatchOperatorAlert(input: DispatchOperatorAlertInput): Promise<DispatchOperatorAlertResult> {
   const cfg = await loadConfig();
@@ -150,17 +152,16 @@ export async function dispatchOperatorAlert(input: DispatchOperatorAlertInput): 
     if (targets.telegram.length === 0) {
       logger.info({ scope: "operator_alert", event: "operator_alert_skipped_no_recipients", channel: "telegram" });
     } else {
-      anyChannelAttempted = true;
       for (const id of targets.telegram) {
-        const messageId = `operator-alert:${input.block}:${input.topic}:${dk}:telegram:${id}`;
-        fireOperatorRelay({
+        const messageId = `operator-alert:${input.deliveryIdentity ?? dk}:telegram:${id}`;
+        anyChannelAttempted = (await fireOperatorRelay({
           messageId,
           channel: "telegram",
           recipient: id,
           text,
           block: input.block,
           topic: input.topic,
-        });
+        })) || anyChannelAttempted;
       }
     }
   }
@@ -169,17 +170,16 @@ export async function dispatchOperatorAlert(input: DispatchOperatorAlertInput): 
     if (targets.max.length === 0) {
       logger.info({ scope: "operator_alert", event: "operator_alert_skipped_no_recipients", channel: "max" });
     } else {
-      anyChannelAttempted = true;
       for (const id of targets.max) {
-        const messageId = `operator-alert:${input.block}:${input.topic}:${dk}:max:${id}`;
-        fireOperatorRelay({
+        const messageId = `operator-alert:${input.deliveryIdentity ?? dk}:max:${id}`;
+        anyChannelAttempted = (await fireOperatorRelay({
           messageId,
           channel: "max",
           recipient: id,
           text,
           block: input.block,
           topic: input.topic,
-        });
+        })) || anyChannelAttempted;
       }
     }
   }
@@ -188,13 +188,12 @@ export async function dispatchOperatorAlert(input: DispatchOperatorAlertInput): 
     if (targets.sms.length === 0) {
       logger.info({ scope: "operator_alert", event: "operator_alert_skipped_no_recipients", channel: "sms" });
     } else {
-      anyChannelAttempted = true;
       for (const phone of targets.sms) {
         const recipientDigest = createHash("sha256").update(phone).digest("hex").slice(0, 16);
-        const messageId = `operator-alert:${input.block}:${input.topic}:${dk}:sms:${recipientDigest}`;
+        const messageId = `operator-alert:${input.deliveryIdentity ?? dk}:sms:${recipientDigest}`;
         // The signed integrator relay checks SMSC readiness and returns a no-op success
         // before adapter dispatch when the provider is not connected.
-        fireOperatorRelay({
+        anyChannelAttempted = (await fireOperatorRelay({
           messageId,
           channel: "sms",
           recipient: phone,
@@ -202,12 +201,12 @@ export async function dispatchOperatorAlert(input: DispatchOperatorAlertInput): 
           text,
           block: input.block,
           topic: input.topic,
-        });
+        })) || anyChannelAttempted;
       }
     }
   }
 
-  if (channels.web_push && input.organizationId) {
+  if (channels.web_push) {
     const pushDeps = getAdminIncidentStaffPushDeps();
     if (!pushDeps) {
       logger.info({
@@ -216,31 +215,22 @@ export async function dispatchOperatorAlert(input: DispatchOperatorAlertInput): 
         channel: "web_push",
       });
     } else {
-      anyChannelAttempted = true;
-      void sendAdminIncidentStaffWebPush(
+      const delivered = await sendAdminIncidentStaffWebPush(
         {
-          organizationId: input.organizationId,
+          ...(input.organizationId ? { organizationId: input.organizationId } : {}),
           topic: input.topic,
-          dedupKey: dk,
+          dedupKey: input.deliveryIdentity ?? dk,
           pushTitle,
           pushBody,
           pushUrl,
         },
         pushDeps,
-      )
-        .then((delivered) => {
-          if (delivered === 0) {
-            logger.info({
-              scope: "operator_alert",
-              event: "operator_alert_skipped_no_recipients",
-              channel: "web_push",
-              block: input.block,
-            });
-          }
-        })
-        .catch((err: unknown) => {
-          logger.warn({ err, block: input.block, topic: input.topic }, "operator alert web push failed");
-        });
+      ).catch((err: unknown) => {
+        logger.warn({ err, block: input.block, topic: input.topic }, "operator alert web push failed");
+        return 0;
+      });
+      if (delivered > 0) anyChannelAttempted = true;
+      else logger.info({ scope: "operator_alert", event: "operator_alert_skipped_no_recipients", channel: "web_push", block: input.block });
     }
   }
 

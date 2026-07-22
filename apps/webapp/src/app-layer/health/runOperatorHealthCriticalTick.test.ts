@@ -8,7 +8,9 @@ import {
 const collectMock = vi.hoisted(() => vi.fn());
 const getConfigValueMock = vi.hoisted(() => vi.fn());
 const relayOutboundMock = vi.hoisted(() => vi.fn());
-const markOpenIncidentsAlertSentMock = vi.hoisted(() => vi.fn());
+const claimMock = vi.hoisted(() => vi.fn());
+const completeMock = vi.hoisted(() => vi.fn());
+const releaseMock = vi.hoisted(() => vi.fn());
 
 vi.mock("./collectCriticalHealthSignals", () => ({
   collectCriticalHealthSignals: collectMock,
@@ -18,8 +20,8 @@ vi.mock("@/modules/system-settings/configAdapter", () => ({
   getConfigValue: getConfigValueMock,
 }));
 
-vi.mock("@/modules/messaging/relayOutbound", () => ({
-  relayOutbound: relayOutboundMock,
+vi.mock("@/modules/operator-alerts/relayOperatorAlert", () => ({
+  relayOperatorAlert: relayOutboundMock,
 }));
 
 vi.mock("@/modules/admin-incidents/adminIncidentStaffPushRuntime", () => ({
@@ -33,7 +35,9 @@ vi.mock("@/modules/admin-incidents/sendAdminIncidentStaffWebPush", () => ({
 vi.mock("@/app-layer/di/buildAppDeps", () => ({
   buildAppDeps: () => ({
     operatorHealthWrite: {
-      markOpenIncidentsAlertSent: markOpenIncidentsAlertSentMock,
+      claimDueOutboundProviderAlert: claimMock,
+      completeOutboundProviderAlertClaim: completeMock,
+      releaseOutboundProviderAlertClaim: releaseMock,
     },
   }),
 }));
@@ -60,7 +64,9 @@ describe("runOperatorHealthCriticalTick", () => {
     resetInMemoryOperatorHealthAlertSent();
     registerOperatorAlertDedupPort(inMemoryOperatorHealthAlertSentPort);
     relayOutboundMock.mockResolvedValue({ ok: true });
-    markOpenIncidentsAlertSentMock.mockResolvedValue({ updated: 1 });
+    claimMock.mockResolvedValue(null);
+    completeMock.mockResolvedValue(true);
+    releaseMock.mockResolvedValue(true);
     getConfigValueMock.mockImplementation(async (key: string) => {
       if (key === "operator_health_alert_config") return operatorConfigJson();
       if (key === "admin_incident_alert_config") return "";
@@ -105,7 +111,7 @@ describe("runOperatorHealthCriticalTick", () => {
     expect(second.keys).toEqual([]);
   });
 
-  it("uses durable T0/+1h cadence and stops after escalation or resolve", async () => {
+  it("uses distinct stable T0/+1h incident-phase delivery ids", async () => {
     const baseInput = {
       webappDb: "up" as const,
       integratorApi: "ok" as const,
@@ -137,29 +143,25 @@ describe("runOperatorHealthCriticalTick", () => {
       lastSeenAt: "2026-07-22T06:00:00.000Z",
       occurrenceCount: 1,
       alertSentAt: null as string | null,
+      acknowledgedAt: null,
+      initialAlertSentAt: null,
+      oneHourAlertSentAt: null,
     };
 
     collectMock.mockResolvedValue({
       ...baseInput,
       outboundDeliveryProvider: { recentIncidentCount: 1, openIncidentCount: 1, openIncidents: [incident] },
     });
+    claimMock
+      .mockResolvedValueOnce({ ...incident, phase: "initial", claimToken: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa" })
+      .mockResolvedValueOnce({ ...incident, phase: "one_hour_repeat", claimToken: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb" })
+      .mockResolvedValue(null);
     expect(await runOperatorHealthCriticalTick(new Date("2026-07-22T06:00:00.000Z"))).toMatchObject({ alerted: 1 });
-    expect(markOpenIncidentsAlertSentMock).toHaveBeenLastCalledWith({
-      incidentIds: [incident.id],
-      alertSentAtIso: "2026-07-22T06:00:00.000Z",
-    });
-
-    incident.alertSentAt = "2026-07-22T06:00:00.000Z";
-    expect(await runOperatorHealthCriticalTick(new Date("2026-07-22T06:59:59.999Z"))).toMatchObject({ alerted: 0 });
     expect(await runOperatorHealthCriticalTick(new Date("2026-07-22T07:00:00.000Z"))).toMatchObject({ alerted: 1 });
-
-    incident.alertSentAt = "2026-07-22T07:00:00.000Z";
     expect(await runOperatorHealthCriticalTick(new Date("2026-07-23T06:00:00.000Z"))).toMatchObject({ alerted: 0 });
-
-    collectMock.mockResolvedValue({
-      ...baseInput,
-      outboundDeliveryProvider: { recentIncidentCount: 0, openIncidentCount: 0, openIncidents: [] },
-    });
-    expect(await runOperatorHealthCriticalTick(new Date("2026-07-23T07:00:00.000Z"))).toMatchObject({ alerted: 0 });
+    const messageIds = relayOutboundMock.mock.calls.map(([value]) => (value as { messageId: string }).messageId);
+    expect(messageIds).toContain(`operator-alert:incident:${incident.id}:phase:initial:telegram:4242`);
+    expect(messageIds).toContain(`operator-alert:incident:${incident.id}:phase:one_hour_repeat:telegram:4242`);
+    expect(completeMock).toHaveBeenCalledTimes(2);
   });
 });

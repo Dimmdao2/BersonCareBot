@@ -17,6 +17,9 @@ function incident(overrides: Partial<OperatorIncidentOpenRow> = {}): OperatorInc
     lastSeenAt: "2026-07-22T06:00:00.000Z",
     occurrenceCount: 1,
     alertSentAt: null,
+    acknowledgedAt: null,
+    initialAlertSentAt: null,
+    oneHourAlertSentAt: null,
     ...overrides,
   };
 }

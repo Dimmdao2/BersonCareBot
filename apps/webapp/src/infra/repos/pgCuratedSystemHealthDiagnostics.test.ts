@@ -144,7 +144,9 @@ describe("curated System Health diagnostics", () => {
   it("reads only through the protected aggregate function", async () => {
     queryMock.mockResolvedValue({ rows: [{ snapshot: validSnapshot() }] });
     await expect(loadCuratedSystemHealthSnapshot()).resolves.toMatchObject({ schemaVersion: 1 });
-    expect(queryMock).toHaveBeenCalledWith("SELECT app.read_curated_system_health() AS snapshot");
+    expect(queryMock).toHaveBeenCalledWith(
+      "SELECT app.read_curated_system_health() AS snapshot, app.read_outbound_provider_incident_health() AS outbound_provider_incidents",
+    );
   });
 
   it("rejects raw row identifiers, error text and secret-shaped drift", () => {

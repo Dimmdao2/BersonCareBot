@@ -1,7 +1,7 @@
 /** @vitest-environment jsdom */
 
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { SystemHealthSection } from "./SystemHealthSection";
 
@@ -172,6 +172,30 @@ describe("SystemHealthSection operator incidents", () => {
     await user.click(screen.getByRole("button", { name: /Открытые инциденты \(1\)/i }));
 
     expect(await screen.findByRole("button", { name: /Закрыть все открытые/i })).toBeInTheDocument();
+  });
+
+  it("renders an open provider incident as a distinct red stop with acknowledge action", async () => {
+    const user = userEvent.setup();
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({
+      ok: true,
+      text: () => Promise.resolve(JSON.stringify(healthJson({
+        operatorIncidents: {
+          openCount: 1,
+          occurrenceCount: 3,
+          lastSeenAt: "2026-04-16T09:30:00.000Z",
+          outboundProviderOpenCount: 1,
+          outboundProviderAcknowledgedCount: 0,
+        },
+        meta: { probes: { ...probeShell, operatorIncidents: { status: "error", durationMs: 2 } } },
+      }))),
+    }));
+
+    render(<SystemHealthSection />);
+    const stop = await screen.findByRole("button", { name: /Исходящая доставка остановлена \(1\)/i });
+    expect(within(stop).getByText(/ошибка/i)).toBeInTheDocument();
+    await user.click(stop);
+    expect(await screen.findByRole("button", { name: /Подтвердить получение/i })).toBeInTheDocument();
+    expect(screen.getByText(/Прочие открытые инциденты \(0\)/)).toBeInTheDocument();
   });
 
   it("confirm dialog calls resolve-all and reloads system-health", async () => {

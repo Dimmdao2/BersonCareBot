@@ -28,7 +28,7 @@ const relayPayloadSchema = z.object({
   html: z.string().optional(),
   idempotencyKey: z.string().min(1),
   metadata: z.record(z.string(), z.unknown()).optional(),
-  purpose: z.enum(['operator_alert'] as const).optional(),
+  purpose: z.never().optional(),
 }).superRefine((value, ctx) => {
   if (value.channel === 'web_push' && !value.organizationId) {
     ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['organizationId'], message: 'organizationId required' });
@@ -58,12 +58,6 @@ function buildIntent(parsed: RelayPayload): OutgoingIntent | null {
     occurredAt: new Date().toISOString(),
     source: parsed.channel,
     correlationId: parsed.idempotencyKey,
-    ...(parsed.purpose === 'operator_alert'
-      ? {
-          outboundMessageClass: 'operator_security' as const,
-          outboundCapability: 'operator_alert' as const,
-        }
-      : {}),
   };
 
   if (parsed.channel === 'telegram' || parsed.channel === 'max') {
@@ -146,12 +140,8 @@ function buildIntent(parsed: RelayPayload): OutgoingIntent | null {
       meta: {
         ...meta,
         source: 'web_push',
-        ...(parsed.purpose === 'operator_alert'
-          ? {}
-          : {
-              outboundMessageClass: 'routine_product' as const,
-              outboundCapability: 'app_push' as const,
-            }),
+        outboundMessageClass: 'routine_product' as const,
+        outboundCapability: 'app_push' as const,
       },
       payload: {
         recipient: { pushUserId: parsed.recipient },

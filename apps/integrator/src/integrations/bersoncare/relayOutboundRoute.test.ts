@@ -455,14 +455,13 @@ describe('POST /api/bersoncare/relay-outbound', () => {
     );
   });
 
-  it('skips SMS before dispatch when the provider is not connected', async () => {
+  it('rejects generic attempts to request operator-alert privilege', async () => {
     const disconnectedApp = await buildTestApp(dispatchPort, TEST_SECRET, async () => false);
-    const body = makeRelayBody({
+    const body = { ...makeRelayBody({
       channel: 'sms',
       recipient: '+79990001122',
       text: 'operator alert',
-      purpose: 'operator_alert',
-    });
+    }), purpose: 'operator_alert' };
     const rawBody = JSON.stringify(body);
     const response = await disconnectedApp.inject({
       method: 'POST',
@@ -471,35 +470,28 @@ describe('POST /api/bersoncare/relay-outbound', () => {
       body: rawBody,
     });
 
-    expect(response.statusCode).toBe(200);
-    expect(JSON.parse(response.body)).toEqual({ ok: true, status: 'skipped' });
+    expect(response.statusCode).toBe(400);
+    expect(JSON.parse(response.body)).toMatchObject({ ok: false, error: 'invalid_payload' });
     expect(dispatchPort.dispatchOutgoing).not.toHaveBeenCalled();
     await disconnectedApp.close();
   });
 
-  it('creates the trusted operator marker for an operator SMS relay', async () => {
-    const body = makeRelayBody({
+  it('never creates the trusted operator marker from generic relay input', async () => {
+    const body = { ...makeRelayBody({
       channel: 'sms',
       recipient: '+79990001122',
       text: 'operator alert',
-      purpose: 'operator_alert',
-    });
+    }), purpose: 'operator_alert' };
     const rawBody = JSON.stringify(body);
-    await app.inject({
+    const response = await app.inject({
       method: 'POST',
       url: '/api/bersoncare/relay-outbound',
       headers: makeHeaders(rawBody),
       body: rawBody,
     });
 
-    expect(dispatchPort.dispatchOutgoing).toHaveBeenCalledWith(
-      expect.objectContaining({
-        meta: expect.objectContaining({
-          outboundMessageClass: 'operator_security',
-          outboundCapability: 'operator_alert',
-        }),
-      }),
-    );
+    expect(response.statusCode).toBe(400);
+    expect(dispatchPort.dispatchOutgoing).not.toHaveBeenCalled();
   });
 
   // S10 / D-S10: email branch dispatches channel:'email' intent with recipient.email + subject

@@ -14,8 +14,8 @@ vi.mock("@/modules/system-settings/configAdapter", () => ({
   getConfigValue: getConfigValueMock,
 }));
 
-vi.mock("@/modules/messaging/relayOutbound", () => ({
-  relayOutbound: relayOutboundMock,
+vi.mock("./relayOperatorAlert", () => ({
+  relayOperatorAlert: relayOutboundMock,
 }));
 
 vi.mock("@/modules/admin-incidents/adminIncidentStaffPushRuntime", () => ({
@@ -201,9 +201,9 @@ describe("dispatchOperatorAlert", () => {
     });
 
     expect(result.dispatched).toBe(true);
-    expect(relayOutboundMock).toHaveBeenCalledWith(expect.objectContaining({ channel: "telegram", purpose: "operator_alert" }));
-    expect(relayOutboundMock).toHaveBeenCalledWith(expect.objectContaining({ channel: "max", purpose: "operator_alert" }));
-    expect(relayOutboundMock).toHaveBeenCalledWith(expect.objectContaining({ channel: "sms", purpose: "operator_alert" }));
+    expect(relayOutboundMock).toHaveBeenCalledWith(expect.objectContaining({ channel: "telegram" }));
+    expect(relayOutboundMock).toHaveBeenCalledWith(expect.objectContaining({ channel: "max" }));
+    expect(relayOutboundMock).toHaveBeenCalledWith(expect.objectContaining({ channel: "sms" }));
     expect(sendAdminIncidentStaffWebPushMock).toHaveBeenCalledOnce();
   });
 });

@@ -19,7 +19,7 @@ import type { ChannelPreferencesPort } from "@/modules/channel-preferences/ports
 import type { StaffUsersPort } from "@/modules/doctor-notifications/staffUsersPort";
 import type { SystemSettingsService } from "@/modules/system-settings/service";
 import type { WebPushSubscriptionsPort } from "@/modules/web-push/ports";
-import { relayOutbound } from "@/modules/messaging/relayOutbound";
+import { relayOperatorAlert } from "@/modules/operator-alerts/relayOperatorAlert";
 
 export type AdminIncidentStaffPushDeps = {
   staffUsers: StaffUsersPort;
@@ -31,7 +31,7 @@ export type AdminIncidentStaffPushDeps = {
 
 export async function sendAdminIncidentStaffWebPush(
   input: {
-    organizationId: string;
+    organizationId?: string;
     topic: string;
     dedupKey: string;
     pushTitle: string;
@@ -40,12 +40,19 @@ export async function sendAdminIncidentStaffWebPush(
   },
   deps: AdminIncidentStaffPushDeps,
 ): Promise<number> {
-  const staffIds = await deps.staffUsers.listActiveStaffUserIds();
-  if (staffIds.length === 0) return 0;
+  const membershipRecipients = deps.staffUsers.listActiveStaffOrganizationRecipients
+    ? await deps.staffUsers.listActiveStaffOrganizationRecipients()
+    : [];
+  const recipients = membershipRecipients.length > 0
+    ? membershipRecipients.filter((recipient) => !input.organizationId || recipient.organizationId === input.organizationId)
+    : input.organizationId
+      ? (await deps.staffUsers.listActiveStaffUserIds()).map((userId) => ({ userId, organizationId: input.organizationId! }))
+      : [];
+  if (recipients.length === 0) return 0;
 
   let dispatched = 0;
 
-  for (const userId of staffIds) {
+  for (const { userId, organizationId } of recipients) {
     const [prefs, hasSubs] = await Promise.all([
       deps.channelPreferences.getPreferences(userId),
       deps.webPushSubscriptions.hasAnyForUserId(userId),
@@ -61,13 +68,12 @@ export async function sendAdminIncidentStaffWebPush(
     // In dev (DEV_DELIVERY_REDIRECT=1), the pre-fork redirect collapses to the
     // telegram test chat — ZERO real webpush.sendNotification calls.
     const tag = `admin-incident:${input.topic}:${input.dedupKey}`;
-    const result = await relayOutbound({
-      messageId: `admin-incident-push:${userId}:${tag}`,
-      organizationId: input.organizationId,
+    const result = await relayOperatorAlert({
+      messageId: `admin-incident-push:${organizationId}:${userId}:${tag}`,
+      organizationId,
       channel: "web_push",
       recipient: userId,
       text: input.pushBody,
-      purpose: "operator_alert",
       metadata: {
         title: input.pushTitle,
         url: input.pushUrl,
@@ -81,7 +87,7 @@ export async function sendAdminIncidentStaffWebPush(
       return { ok: false as const, reason: "relay_error" };
     });
 
-    if (result.ok) {
+    if (result.ok && result.status !== "skipped") {
       dispatched += 1;
     }
   }

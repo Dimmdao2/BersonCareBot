@@ -255,6 +255,8 @@ export type SystemHealthResponse = {
     openCount: number;
     occurrenceCount: number;
     lastSeenAt: string | null;
+    outboundProviderOpenCount?: number;
+    outboundProviderAcknowledgedCount?: number;
   };
   /** Статусы backup job (`job_family = backup`), ключи `backup.hourly`, `backup.daily`, … */
   backupJobs: Record<string, OperatorBackupJobPayload>;
@@ -1038,6 +1040,16 @@ export async function collectAdminSystemHealthData(): Promise<SystemHealthRespon
     occurrenceCount: 0,
     lastSeenAt: null,
   };
+  const outboundProviderIncidents = curatedSnapshot?.outboundProviderIncidents ?? {
+    openCount: 0,
+    acknowledgedCount: 0,
+    unacknowledgedCount: 0,
+  };
+  const operatorIncidentsPayload = {
+    ...operatorIncidents,
+    outboundProviderOpenCount: outboundProviderIncidents.openCount,
+    outboundProviderAcknowledgedCount: outboundProviderIncidents.acknowledgedCount,
+  };
   const backupJobs: Record<string, OperatorBackupJobPayload> = {};
   for (const job of curatedSnapshot?.operatorJobs ?? []) {
     if (job.jobFamily !== "backup") continue;
@@ -1204,7 +1216,9 @@ export async function collectAdminSystemHealthData(): Promise<SystemHealthRespon
 
   const operatorIncidentsProbeStatus = !curatedResult.ok
     ? curatedResult.status
-    : operatorIncidents.openCount > 0
+    : outboundProviderIncidents.openCount > 0
+      ? "error"
+      : operatorIncidents.openCount > 0
       ? "degraded"
       : "ok";
 
@@ -1256,7 +1270,7 @@ export async function collectAdminSystemHealthData(): Promise<SystemHealthRespon
     videoPlaybackClient: videoPlaybackClientPayload,
     videoHlsProxy: videoHlsProxyPayload,
     videoTranscode: videoTranscodePayload,
-    operatorIncidents,
+    operatorIncidents: operatorIncidentsPayload,
     backupJobs,
     outgoingDelivery: outgoingDeliveryPayload,
     integratorPushOutbox: integratorPushOutboxPayload,

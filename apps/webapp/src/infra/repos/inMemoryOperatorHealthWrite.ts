@@ -112,6 +112,22 @@ export const inMemoryOperatorHealthWritePort: OperatorHealthWritePort = {
     return { resolved: 0 };
   },
 
+  async acknowledgeOpenOutboundProviderIncidents() {
+    return { acknowledged: 0 };
+  },
+
+  async claimDueOutboundProviderAlert() {
+    return null;
+  },
+
+  async completeOutboundProviderAlertClaim() {
+    return false;
+  },
+
+  async releaseOutboundProviderAlertClaim() {
+    return false;
+  },
+
   async markOpenIncidentsAlertSent() {
     return { updated: 0 };
   },

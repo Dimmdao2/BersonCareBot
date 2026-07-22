@@ -2,6 +2,7 @@ import type { FastifyInstance } from 'fastify';
 import { registerBersoncareSendSmsRoute } from '../integrations/bersoncare/sendSmsRoute.js';
 import { registerBersoncareSendEmailRoute } from '../integrations/bersoncare/sendEmailRoute.js';
 import { registerBersoncareRelayOutboundRoute } from '../integrations/bersoncare/relayOutboundRoute.js';
+import { registerOperatorAlertRelayRoute } from '../integrations/bersoncare/operatorAlertRelayRoute.js';
 import { registerBersoncareRequestContactRoute } from '../integrations/bersoncare/requestContactRoute.js';
 import { registerBersoncareSendOtpRoute } from '../integrations/bersoncare/sendOtpRoute.js';
 import { registerBersoncareReminderRulesRoute } from '../integrations/bersoncare/reminderRulesRoute.js';
@@ -26,8 +27,7 @@ import { runWithBootstrapPrincipal } from '../infra/principal/organizationPrinci
 import { reportIntegratorIsolationFailure } from '../infra/observability/saasIsolationTelemetry.js';
 import { isAuthChannelEnabled } from '../infra/db/authChannelPolicy.js';
 import { recordOperatorFailureIncident } from '../infra/operatorIncident/reportOperatorFailure.js';
-import { smscConfig } from '../integrations/smsc/config.js';
-import { getSmscApiKey } from '../integrations/smsc/runtimeConfig.js';
+import { isGlobalOperatorSmsReady } from '../infra/db/integratorSystemSettings.js';
 
 /** Public response shape for the health endpoint. */
 export type HealthResponse = {
@@ -181,7 +181,12 @@ export async function registerRoutes(app: FastifyInstance, deps: AppDeps): Promi
     db: createDbPort(),
     dispatchPort: deps.dispatchPort,
     sharedSecret: integratorWebhookSecret(),
-    isSmsProviderConnected: async () => smscConfig.enabled && (await getSmscApiKey()).trim().length > 0,
+  });
+  const operatorAlertDb = createDbPort();
+  await registerOperatorAlertRelayRoute(app, {
+    dispatchPort: deps.dispatchPort,
+    sharedSecret: integratorWebhookSecret(),
+    isSmsProviderReady: () => isGlobalOperatorSmsReady(operatorAlertDb),
   });
 
   await registerBersoncareRequestContactRoute(app, {

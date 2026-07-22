@@ -39,7 +39,8 @@ import type {
 
 type HealthOperatorAction =
   | { kind: "archive"; probe: HealthFailureArchiveProbe }
-  | { kind: "resolve_incidents" };
+  | { kind: "resolve_incidents" }
+  | { kind: "acknowledge_incidents" };
 
 type DbStatus = "up" | "down";
 type IntegratorApiStatus = "ok" | "unreachable" | "error";
@@ -76,6 +77,8 @@ type SystemHealthPayload = {
     openCount: number;
     occurrenceCount: number;
     lastSeenAt: string | null;
+    outboundProviderOpenCount?: number;
+    outboundProviderAcknowledgedCount?: number;
   };
   backupJobs?: Record<
     string,
@@ -848,6 +851,11 @@ export function SystemHealthSection() {
           method: "POST",
           credentials: "include",
         });
+      } else if (operatorAction.kind === "acknowledge_incidents") {
+        await apiJson<{ ok: boolean }>("/api/admin/operator-incidents/acknowledge-all", {
+          method: "POST",
+          credentials: "include",
+        });
       } else {
         await apiJson<{ ok: boolean }>("/api/admin/health-failure-archive/clear", {
           method: "POST",
@@ -890,6 +898,8 @@ export function SystemHealthSection() {
     openCount: 0,
     occurrenceCount: 0,
     lastSeenAt: null,
+    outboundProviderOpenCount: 0,
+    outboundProviderAcknowledgedCount: 0,
   };
   const backupJobEntries = Object.entries(data?.backupJobs ?? {}).sort(([a], [b]) => a.localeCompare(b));
   const cronJobRows = data?.cronJobs?.jobs ?? [];
@@ -1549,9 +1559,26 @@ export function SystemHealthSection() {
 
           <div className="space-y-2">
             <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Инфраструктурные источники</p>
+            {(openOperatorIncidents.outboundProviderOpenCount ?? 0) > 0 ? (
+              <HealthAccordionItem
+                name={`🛑 Исходящая доставка остановлена (${openOperatorIncidents.outboundProviderOpenCount})`}
+                status="error"
+              >
+                <DetailRow label="Статус" value="Инцидент провайдера открыт; остановка сохраняется до закрытия" />
+                <DetailRow label="Подтверждено" value={String(openOperatorIncidents.outboundProviderAcknowledgedCount ?? 0)} />
+                <div className="flex flex-wrap gap-2 pt-3">
+                  <Button type="button" size="sm" variant="outline" onClick={() => setOperatorAction({ kind: "acknowledge_incidents" })}>
+                    Подтвердить получение
+                  </Button>
+                  <Button type="button" size="sm" variant="destructive" onClick={() => setOperatorAction({ kind: "resolve_incidents" })}>
+                    Закрыть все открытые
+                  </Button>
+                </div>
+              </HealthAccordionItem>
+            ) : null}
             <HealthAccordionItem
-              name={`Открытые инциденты (${openOperatorIncidents.openCount})`}
-              status={data?.meta?.probes?.operatorIncidents?.status ?? "error"}
+              name={`${(openOperatorIncidents.outboundProviderOpenCount ?? 0) > 0 ? "Прочие открытые инциденты" : "Открытые инциденты"} (${Math.max(0, openOperatorIncidents.openCount - (openOperatorIncidents.outboundProviderOpenCount ?? 0))})`}
+              status={openOperatorIncidents.openCount > (openOperatorIncidents.outboundProviderOpenCount ?? 0) ? "degraded" : "ok"}
             >
               {openOperatorIncidents.openCount === 0 ? (
                 <DetailRow label="Итог" value="открытых нет" />
@@ -1562,7 +1589,7 @@ export function SystemHealthSection() {
               <DetailRow label="Срабатываний суммарно" value={String(openOperatorIncidents.occurrenceCount)} />
               <DetailRow label="Последнее срабатывание" value={formatDateTime(openOperatorIncidents.lastSeenAt)} />
               <DetailRow label="Детализация" value="Сырые строки и тексты ошибок не выдаются через System Health" />
-              {openOperatorIncidents.openCount > 0 ? (
+              {openOperatorIncidents.openCount > 0 && !(openOperatorIncidents.outboundProviderOpenCount ?? 0) ? (
                 <div className="pt-3">
                   <Button
                     type="button"
@@ -2001,11 +2028,17 @@ export function SystemHealthSection() {
         <DialogContent className="sm:max-w-md" showCloseButton={!clearBusy}>
           <DialogHeader>
             <DialogTitle>
-              {operatorAction?.kind === "resolve_incidents" ? "Закрыть инциденты" : "Сброс dead в очереди"}
+              {operatorAction?.kind === "resolve_incidents"
+                ? "Закрыть инциденты"
+                : operatorAction?.kind === "acknowledge_incidents"
+                  ? "Подтвердить инциденты"
+                  : "Сброс dead в очереди"}
             </DialogTitle>
             <DialogDescription>
               {operatorAction?.kind === "resolve_incidents"
                 ? "Закроет все открытые инциденты. Повторные алерты не отправляются."
+                : operatorAction?.kind === "acknowledge_incidents"
+                  ? "Остановит критические повторы. Инцидент останется красным и попадёт в ежедневную сводку до закрытия."
                 : operatorAction?.probe === HEALTH_FAILURE_ARCHIVE_PROJECTION_PROBE
                   ? "Удалит dead из очереди синхронизации; копия в архиве. Это не повторная постановка в очередь."
                   : `Необратимо удалит dead-строки из очереди; копия останется в архиве до ${HEALTH_FAILURE_ARCHIVE_RETENTION_DAYS} дней. Задачи due и журнал рассылок не пересчитываются.`}

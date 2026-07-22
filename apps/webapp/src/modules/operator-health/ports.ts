@@ -11,6 +11,15 @@ export type OperatorIncidentOpenRow = {
   lastSeenAt: string;
   occurrenceCount: number;
   alertSentAt: string | null;
+  acknowledgedAt?: string | null;
+  initialAlertSentAt?: string | null;
+  oneHourAlertSentAt?: string | null;
+};
+
+export type OutboundProviderAlertPhase = "initial" | "one_hour_repeat";
+export type OutboundProviderAlertClaim = OperatorIncidentOpenRow & {
+  phase: OutboundProviderAlertPhase;
+  claimToken: string;
 };
 
 export type OperatorBackupJobStatusRow = {
@@ -150,6 +159,20 @@ export type OperatorHealthWritePort = {
   }): Promise<void>;
   /** Закрыть все открытые строки `operator_incidents` (ручной сброс из «Здоровье системы»). */
   resolveAllOpenIncidents(): Promise<{ resolved: number }>;
+  acknowledgeOpenOutboundProviderIncidents(): Promise<{ acknowledged: number }>;
+  claimDueOutboundProviderAlert(input: {
+    nowIso: string;
+    staleBeforeIso: string;
+    claimToken: string;
+    excludeIncidentIds: string[];
+  }): Promise<OutboundProviderAlertClaim | null>;
+  completeOutboundProviderAlertClaim(input: {
+    incidentId: string;
+    phase: OutboundProviderAlertPhase;
+    claimToken: string;
+    sentAtIso: string;
+  }): Promise<boolean>;
+  releaseOutboundProviderAlertClaim(input: { incidentId: string; claimToken: string }): Promise<boolean>;
   /** Durable cadence marker for open incidents; resolved rows are never changed. */
   markOpenIncidentsAlertSent(input: { incidentIds: string[]; alertSentAtIso: string }): Promise<{ updated: number }>;
   /** TTL purge `integration_webhook_error_events` (burst P8). */

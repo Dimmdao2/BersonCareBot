@@ -157,6 +157,14 @@ export const curatedSystemHealthSnapshotSchema = z
         lastSeenAt: nullableIso,
       })
       .strict(),
+    outboundProviderIncidents: z
+      .object({
+        openCount: nonNegativeNumber,
+        acknowledgedCount: nonNegativeNumber,
+        unacknowledgedCount: nonNegativeNumber,
+      })
+      .strict()
+      .default({ openCount: 0, acknowledgedCount: 0, unacknowledgedCount: 0 }),
     outgoingDelivery: queueSchema,
     integratorPushOutbox: queueSchema,
     remindersPipeline: z
@@ -244,12 +252,15 @@ export type CuratedPlaybackHealthSnapshot = z.infer<typeof curatedPlaybackHealth
 
 /** Uses the already-protected diagnostics credential; never the principal-aware app pool. */
 export async function loadCuratedSystemHealthSnapshot(): Promise<CuratedSystemHealthSnapshot> {
-  const result = await getSaasIsolationOperatorPool().query<{ snapshot: unknown }>(
-    "SELECT app.read_curated_system_health() AS snapshot",
+  const result = await getSaasIsolationOperatorPool().query<{ snapshot: unknown; outbound_provider_incidents: unknown }>(
+    "SELECT app.read_curated_system_health() AS snapshot, app.read_outbound_provider_incident_health() AS outbound_provider_incidents",
   );
   const row = result.rows[0];
   if (!row) throw new Error("curated_system_health_snapshot_missing");
-  return curatedSystemHealthSnapshotSchema.parse(row.snapshot);
+  const snapshot = typeof row.snapshot === "object" && row.snapshot !== null
+    ? { ...row.snapshot, outboundProviderIncidents: row.outbound_provider_incidents }
+    : row.snapshot;
+  return curatedSystemHealthSnapshotSchema.parse(snapshot);
 }
 
 /** Uses a redacted SECURITY DEFINER aggregate; the operator role has no source-table access. */

@@ -114,6 +114,7 @@ const ADMIN_SCOPE_KEYS = [
   "notifications_topics",
   "smtp_outbound",
   "web_push_vapid",
+  "smsc_enabled",
   "yandex_oauth_client_id",
   "yandex_oauth_client_secret",
   "yandex_oauth_redirect_uri",

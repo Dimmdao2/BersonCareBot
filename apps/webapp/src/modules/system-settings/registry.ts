@@ -62,6 +62,7 @@ export const SYSTEM_SETTING_REGISTRY = {
   integrator_linked_phone_source: runtime("admin", "global", "server", "string", "public_then_contacts"),
   patient_label: runtime("doctor", "per_org", "authenticated_client", "string", "Пациенты"),
   sms_fallback_enabled: restricted("doctor", "global", "boolean", "false", "derived", "public_sms_fallback_enabled"),
+  smsc_enabled: restricted("admin", "global", "boolean", "false"),
   doctor_patient_support_comments_without_support_default_enabled: runtime("doctor", "per_org", "authenticated_client", "boolean", "false"),
   doctor_patient_support_media_without_support_default_enabled: runtime("doctor", "per_org", "authenticated_client", "boolean", "false"),
   doctor_specialist_task_reminder_channels: runtime("doctor", "per_org", "server", "structured", "{channels:[]}"),

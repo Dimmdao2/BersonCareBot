@@ -10,8 +10,8 @@ import { describe, expect, it, vi, beforeEach } from "vitest";
 // Mock relayOutbound — this is now THE call we want to assert.
 const relayOutboundMock = vi.hoisted(() => vi.fn().mockResolvedValue({ ok: true, status: "accepted" }));
 
-vi.mock("@/modules/messaging/relayOutbound", () => ({
-  relayOutbound: relayOutboundMock,
+vi.mock("@/modules/operator-alerts/relayOperatorAlert", () => ({
+  relayOperatorAlert: relayOutboundMock,
 }));
 
 import { sendAdminIncidentStaffWebPush, type AdminIncidentStaffPushDeps } from "./sendAdminIncidentStaffWebPush";
@@ -65,7 +65,6 @@ describe("sendAdminIncidentStaffWebPush — CANARY MIGRATION (S14a)", () => {
     expect(params.channel).toBe("web_push");
     expect(params.recipient).toBe(STAFF_ID);
     expect(params.text).toBe("binding conflict body");
-    expect(params.purpose).toBe("operator_alert");
     expect(params.metadata?.title).toBe("Конфликт привязки канала");
     expect(params.metadata?.url).toBe("/app/doctor/admin/technical");
     expect((params.metadata?.pushExtras as Record<string, string>)?.tag).toContain("channel_link");
@@ -150,6 +149,24 @@ describe("sendAdminIncidentStaffWebPush — CANARY MIGRATION (S14a)", () => {
     // Two eligible staff → two relay calls
     expect(relayOutboundMock).toHaveBeenCalledTimes(2);
     expect(result).toBe(2);
+  });
+
+  it("fans a global alert through exact active organization memberships", async () => {
+    const result = await sendAdminIncidentStaffWebPush(
+      { topic: "provider", dedupKey: "incident:1:phase:initial", pushTitle: "stop", pushBody: "body", pushUrl: "/health" },
+      makeDeps({
+        staffUsers: {
+          listActiveStaffUserIds: async () => [],
+          listActiveStaffOrganizationRecipients: async () => [
+            { userId: STAFF_ID, organizationId: ORGANIZATION_ID },
+          ],
+        },
+      }),
+    );
+    expect(result).toBe(1);
+    expect(relayOutboundMock).toHaveBeenCalledWith(expect.objectContaining({
+      channel: "web_push", recipient: STAFF_ID, organizationId: ORGANIZATION_ID,
+    }));
   });
 
   // ─── CONFIRM: sendWebPushToSubscriptions is NOT imported/called ──────────────

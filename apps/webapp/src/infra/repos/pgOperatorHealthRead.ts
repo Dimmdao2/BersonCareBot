@@ -41,6 +41,9 @@ export const pgOperatorHealthReadPort: OperatorHealthReadPort = {
         lastSeenAt: operatorIncidents.lastSeenAt,
         occurrenceCount: operatorIncidents.occurrenceCount,
         alertSentAt: operatorIncidents.alertSentAt,
+        acknowledgedAt: operatorIncidents.acknowledgedAt,
+        initialAlertSentAt: operatorIncidents.initialAlertSentAt,
+        oneHourAlertSentAt: operatorIncidents.oneHourAlertSentAt,
       })
       .from(operatorIncidents)
       .where(isNull(operatorIncidents.resolvedAt))
@@ -58,6 +61,9 @@ export const pgOperatorHealthReadPort: OperatorHealthReadPort = {
       lastSeenAt: r.lastSeenAt,
       occurrenceCount: r.occurrenceCount,
       alertSentAt: r.alertSentAt ?? null,
+      acknowledgedAt: r.acknowledgedAt ?? null,
+      initialAlertSentAt: r.initialAlertSentAt ?? null,
+      oneHourAlertSentAt: r.oneHourAlertSentAt ?? null,
     }));
   },
 

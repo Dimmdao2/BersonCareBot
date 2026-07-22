@@ -1,4 +1,5 @@
-import { and, inArray, isNull, lt, sql } from "drizzle-orm";
+import { and, eq, inArray, isNull, lt, sql } from "drizzle-orm";
+import type { OutboundProviderAlertClaim } from "@/modules/operator-health/ports";
 import { getDrizzle } from "@/app-layer/db/drizzle";
 import {
   integrationWebhookErrorEvents,
@@ -162,10 +163,151 @@ export const pgOperatorHealthWritePort: OperatorHealthWritePort = {
     const finishedIso = new Date().toISOString();
     const rows = await db
       .update(operatorIncidents)
-      .set({ resolvedAt: finishedIso })
+      .set({
+        resolvedAt: finishedIso,
+        alertClaimPhase: null,
+        alertClaimToken: null,
+        alertClaimedAt: null,
+      })
       .where(isNull(operatorIncidents.resolvedAt))
       .returning({ id: operatorIncidents.id });
     return { resolved: rows.length };
+  },
+
+  async acknowledgeOpenOutboundProviderIncidents() {
+    const db = getDrizzle();
+    const acknowledgedAt = new Date().toISOString();
+    const rows = await db
+      .update(operatorIncidents)
+      .set({
+        acknowledgedAt,
+        alertClaimPhase: null,
+        alertClaimToken: null,
+        alertClaimedAt: null,
+      })
+      .where(and(
+        isNull(operatorIncidents.resolvedAt),
+        isNull(operatorIncidents.acknowledgedAt),
+        eq(operatorIncidents.direction, "outbound_delivery_provider"),
+      ))
+      .returning({ id: operatorIncidents.id });
+    return { acknowledged: rows.length };
+  },
+
+  async claimDueOutboundProviderAlert(input) {
+    const db = getDrizzle();
+    type ClaimedRow = {
+      id: string;
+      dedup_key: string;
+      direction: string;
+      integration: string;
+      error_class: string;
+      error_detail: string | null;
+      opened_at: string;
+      last_seen_at: string;
+      occurrence_count: number;
+      alert_sent_at: string | null;
+      acknowledged_at: string | null;
+      initial_alert_sent_at: string | null;
+      one_hour_alert_sent_at: string | null;
+      phase: "initial" | "one_hour_repeat";
+    };
+    const result = await db.execute<ClaimedRow>(sql`
+      WITH due AS (
+        SELECT id,
+          CASE
+            WHEN initial_alert_sent_at IS NULL THEN 'initial'
+            ELSE 'one_hour_repeat'
+          END AS phase
+        FROM public.operator_incidents
+        WHERE resolved_at IS NULL
+          AND acknowledged_at IS NULL
+          AND direction = 'outbound_delivery_provider'
+          AND id NOT IN (
+            SELECT value::uuid
+            FROM jsonb_array_elements_text(${JSON.stringify(input.excludeIncidentIds)}::jsonb) AS excluded(value)
+          )
+          AND (
+            initial_alert_sent_at IS NULL
+            OR (
+              one_hour_alert_sent_at IS NULL
+              AND opened_at + interval '1 hour' <= ${input.nowIso}::timestamptz
+            )
+          )
+          AND (alert_claimed_at IS NULL OR alert_claimed_at < ${input.staleBeforeIso}::timestamptz)
+        ORDER BY opened_at, id
+        FOR UPDATE SKIP LOCKED
+        LIMIT 1
+      )
+      UPDATE public.operator_incidents AS incident
+      SET alert_claim_phase = due.phase,
+          alert_claim_token = ${input.claimToken}::uuid,
+          alert_claimed_at = ${input.nowIso}::timestamptz
+      FROM due
+      WHERE incident.id = due.id
+      RETURNING incident.id, incident.dedup_key, incident.direction, incident.integration,
+        incident.error_class, incident.error_detail, incident.opened_at, incident.last_seen_at,
+        incident.occurrence_count, incident.alert_sent_at, incident.acknowledged_at,
+        incident.initial_alert_sent_at, incident.one_hour_alert_sent_at, due.phase
+    `);
+    const row = result.rows[0];
+    if (!row) return null;
+    const claim: OutboundProviderAlertClaim = {
+      id: row.id,
+      dedupKey: row.dedup_key,
+      direction: row.direction,
+      integration: row.integration,
+      errorClass: row.error_class,
+      errorDetail: row.error_detail,
+      openedAt: row.opened_at,
+      lastSeenAt: row.last_seen_at,
+      occurrenceCount: Number(row.occurrence_count),
+      alertSentAt: row.alert_sent_at,
+      acknowledgedAt: row.acknowledged_at,
+      initialAlertSentAt: row.initial_alert_sent_at,
+      oneHourAlertSentAt: row.one_hour_alert_sent_at,
+      phase: row.phase,
+      claimToken: input.claimToken,
+    };
+    return claim;
+  },
+
+  async completeOutboundProviderAlertClaim(input) {
+    const db = getDrizzle();
+    const sentField = input.phase === "initial"
+      ? { initialAlertSentAt: input.sentAtIso }
+      : { oneHourAlertSentAt: input.sentAtIso };
+    const rows = await db
+      .update(operatorIncidents)
+      .set({
+        ...sentField,
+        alertSentAt: input.sentAtIso,
+        alertClaimPhase: null,
+        alertClaimToken: null,
+        alertClaimedAt: null,
+      })
+      .where(and(
+        eq(operatorIncidents.id, input.incidentId),
+        eq(operatorIncidents.alertClaimToken, input.claimToken),
+        eq(operatorIncidents.alertClaimPhase, input.phase),
+        isNull(operatorIncidents.resolvedAt),
+        isNull(operatorIncidents.acknowledgedAt),
+      ))
+      .returning({ id: operatorIncidents.id });
+    return rows.length === 1;
+  },
+
+  async releaseOutboundProviderAlertClaim(input) {
+    const db = getDrizzle();
+    const rows = await db
+      .update(operatorIncidents)
+      .set({ alertClaimPhase: null, alertClaimToken: null, alertClaimedAt: null })
+      .where(and(
+        eq(operatorIncidents.id, input.incidentId),
+        eq(operatorIncidents.alertClaimToken, input.claimToken),
+      ))
+      .returning({ id: operatorIncidents.id });
+    return rows.length === 1;
   },
 
   async markOpenIncidentsAlertSent(input) {
