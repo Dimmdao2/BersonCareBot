@@ -5,6 +5,7 @@ import { staffPwaLayoutMetadata } from "@/shared/lib/pwa/staffPwaLayoutMetadata"
 import { DoctorAppShell } from "@/shared/ui/doctor/DoctorAppShell";
 import { DoctorPageHeader } from "@/shared/ui/doctor/shell/DoctorPageHeader";
 import { DoctorWorkspaceShell } from "@/shared/ui/doctor/shell/DoctorWorkspaceShell";
+import { DoctorSection } from "@/shared/ui/doctor/DoctorSection";
 import { StaffPwaInstallSection } from "@/shared/ui/doctor/pwa/StaffPwaInstallSection";
 
 export const metadata = staffPwaLayoutMetadata;
@@ -26,9 +27,9 @@ export default async function DoctorInstallPage() {
     >
       <DoctorAppShell title="Установить приложение" user={session.user}>
         <DoctorPageHeader title="Установить приложение" />
-        <section className="rounded-lg border border-border p-4">
+        <DoctorSection>
           <StaffPwaInstallSection />
-        </section>
+        </DoctorSection>
       </DoctorAppShell>
     </DoctorWorkspaceShell>
   );

@@ -35,7 +35,12 @@ describe("global-admin personal install page", () => {
 
     expect(guardMock).toHaveBeenCalledTimes(1);
     expect(screen.getByRole("heading", { name: "Установить приложение" })).toBeInTheDocument();
-    expect(screen.getByTestId("staff-pwa-install")).toBeInTheDocument();
+    const installSection = screen.getByTestId("staff-pwa-install");
+    expect(installSection).toBeInTheDocument();
+    expect(installSection.closest("section")).toHaveClass(
+      "rounded-[var(--doctor-page-block-radius,12px)]",
+      "p-[var(--doctor-block-padding,18px)]",
+    );
     expect(shellMock).toHaveBeenCalledWith(
       expect.objectContaining({ adminMode: true, enableTenantRuntime: false }),
       undefined,
