@@ -13,6 +13,10 @@ import {
   pickWorkingHours,
 } from "@/modules/booking-scheduling/computeSlots";
 import { getAppDisplayTimeZone } from "@/modules/system-settings/appDisplayTimezone";
+import {
+  DOCTOR_TODAY_PREFERENCES_KEY,
+  parseDoctorTodayPreferences,
+} from "@/modules/system-settings/doctorTodayPreferences";
 import { DateTime } from "luxon";
 import { DoctorAppShell } from "@/shared/ui/doctor/DoctorAppShell";
 import { DoctorTodayDashboard } from "./DoctorTodayDashboard";
@@ -78,6 +82,12 @@ export default async function DoctorPage() {
   const intakeService = getOnlineIntakeService();
   const displayIana = await getAppDisplayTimeZone();
   const audience = await loadDoctorAnalyticsAudience();
+  const todayPreferencesRow = await deps.systemSettings.getSetting(
+    DOCTOR_TODAY_PREFERENCES_KEY,
+    "doctor",
+    { organizationId: workspace.organizationId },
+  );
+  const todayPreferences = parseDoctorTodayPreferences(todayPreferencesRow?.valueJson);
   const workspaceAudience = {
     includeTestAccounts: audience.includeTestAccounts,
     excludedUserIds: audience.excludedUserIds,
@@ -108,6 +118,7 @@ export default async function DoctorPage() {
         },
         intakeService,
         workspaceAudience,
+        todayPreferences,
       ),
     ),
     deps.doctorStats.getStats(workspaceAudience),

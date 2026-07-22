@@ -43,6 +43,7 @@ import {
   redactWebPushVapidSettingForClient,
 } from "@/modules/system-settings/webPushVapidRuntime";
 import { normalizePatientDefaultPromoTreatmentProgramTemplatePatch } from "@/modules/system-settings/patientDefaultPromoTreatmentProgramTemplate";
+import { normalizeDoctorTodayPreferences } from "@/modules/system-settings/doctorTodayPreferences";
 
 /** Single-key PATCH: boolean keys normalized like `video_watermark_enabled`. */
 const ADMIN_BOOLEAN_SETTING_KEYS = new Set<string>([
@@ -150,6 +151,7 @@ const DOCTOR_SCOPE_KEYS = [
   "doctor_patient_support_comments_without_support_default_enabled",
   "doctor_patient_support_media_without_support_default_enabled",
   "doctor_specialist_task_reminder_channels",
+  "doctor_today_preferences",
   "doctor_appointment_reminder_enabled",
   "doctor_appointment_reminder_offsets_minutes",
   "booking_calendar_default_window",
@@ -475,6 +477,14 @@ export async function PATCH(request: Request) {
       return NextResponse.json({ ok: false, error: "invalid_value" }, { status: 400 });
     }
     normalizedValue = { value: inner };
+  }
+
+  if (parsed.data.key === "doctor_today_preferences") {
+    const checked = normalizeDoctorTodayPreferences(normalizedValue.value);
+    if (!checked) {
+      return NextResponse.json({ ok: false, error: "invalid_value" }, { status: 400 });
+    }
+    normalizedValue = { value: checked };
   }
 
   if (parsed.data.key === "video_presign_ttl_seconds") {

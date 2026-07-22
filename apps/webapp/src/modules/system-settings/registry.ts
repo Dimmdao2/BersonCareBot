@@ -65,6 +65,13 @@ export const SYSTEM_SETTING_REGISTRY = {
   doctor_patient_support_comments_without_support_default_enabled: runtime("doctor", "per_org", "authenticated_client", "boolean", "false"),
   doctor_patient_support_media_without_support_default_enabled: runtime("doctor", "per_org", "authenticated_client", "boolean", "false"),
   doctor_specialist_task_reminder_channels: runtime("doctor", "per_org", "server", "structured", "{channels:[]}"),
+  doctor_today_preferences: runtime(
+    "doctor",
+    "per_org",
+    "server",
+    "structured",
+    '{"visibleProactiveInsightKinds":["wellbeing_low_streak","program_inactivity"],"peopleListMode":"on_support"}',
+  ),
   doctor_appointment_reminder_enabled: runtime("doctor", "per_org", "server", "boolean", "false"),
   doctor_appointment_reminder_offsets_minutes: runtime("doctor", "per_org", "server", "structured", "[]"),
   debug_forward_to_admin: runtime("admin", "global", "server", "boolean", "false"),

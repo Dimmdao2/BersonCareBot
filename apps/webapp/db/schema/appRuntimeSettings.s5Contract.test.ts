@@ -18,6 +18,18 @@ const authChannelPolicyMigration = readFileSync(
   new URL("../drizzle-migrations/0223_n1a_auth_channel_policy.sql", import.meta.url),
   "utf8",
 );
+const unsupportedClientFallbackMigration = readFileSync(
+  new URL("../drizzle-migrations/0224_unsupported_client_fallback_flag.sql", import.meta.url),
+  "utf8",
+);
+const bookingLocationPaletteMigration = readFileSync(
+  new URL("../drizzle-migrations/0227_booking_location_default_palette.sql", import.meta.url),
+  "utf8",
+);
+const doctorTodayPreferencesMigration = readFileSync(
+  new URL("../drizzle-migrations/0228_doctor_today_preferences.sql", import.meta.url),
+  "utf8",
+);
 
 function normalRuntimeDefinitionKeys(sql: string): string[] {
   const definitionBlock = sql.match(
@@ -77,7 +89,20 @@ describe("S5-1 app runtime settings schema/data contract", () => {
       "auth_max_enabled",
     ];
     for (const key of authChannelKeys) expect(authChannelPolicyMigration).toContain(`'${key}'`);
-    const migrationKeys = [...normalRuntimeDefinitionKeys(migration), ...authChannelKeys];
+    expect(unsupportedClientFallbackMigration).toContain("'patient_unsupported_client_fallback_enabled'");
+    expect(bookingLocationPaletteMigration).toContain("'booking_location_default_palette'");
+    expect(doctorTodayPreferencesMigration).toContain("'doctor_today_preferences'");
+    expect(doctorTodayPreferencesMigration).toContain("organization_id IS NOT NULL");
+    expect(doctorTodayPreferencesMigration).toContain(
+      "public.app_runtime_settings.updated_at <= EXCLUDED.updated_at",
+    );
+    const migrationKeys = [
+      ...normalRuntimeDefinitionKeys(migration),
+      ...authChannelKeys,
+      "patient_unsupported_client_fallback_enabled",
+      "booking_location_default_palette",
+      "doctor_today_preferences",
+    ];
     expect(new Set(migrationKeys).size).toBe(migrationKeys.length);
     expect([...migrationKeys].sort()).toEqual([...RUNTIME_SYSTEM_SETTING_KEYS].sort());
   });

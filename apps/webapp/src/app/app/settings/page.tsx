@@ -9,8 +9,10 @@ import { DoctorSection, DoctorSectionHeader, DoctorSectionTitle } from "@/shared
 import { DoctorPageHeader } from "@/shared/ui/doctor/shell/DoctorPageHeader";
 import { ADMIN_TAB_REDIRECTS, parseHealthArchiveProbeParam } from "./adminSettingsData";
 import { AppointmentReminderSettingsSection } from "./AppointmentReminderSettingsSection";
+import { DoctorTodayPreferencesSection } from "./DoctorTodayPreferencesSection";
 import { SettingsForm } from "./SettingsForm";
 import { TeamSection } from "./TeamSection";
+import { parseDoctorTodayPreferences } from "@/modules/system-settings/doctorTodayPreferences";
 
 type LegacySettingsTab = "specialist" | "organization" | "team" | "billing" | "install";
 
@@ -66,6 +68,9 @@ export default async function SettingsPage({
       doctorSettings.find((setting) => setting.key === "doctor_appointment_reminder_offsets_minutes")?.valueJson,
       [],
     );
+    const todayPreferences = parseDoctorTodayPreferences(
+      doctorSettings.find((setting) => setting.key === "doctor_today_preferences")?.valueJson,
+    );
     return (
       <DoctorAppShell title="Настройки" user={workspace.session.user}>
         <DoctorPageHeader title="Настройки" />
@@ -77,6 +82,10 @@ export default async function SettingsPage({
           settingsEndpoint="/api/admin/settings"
           showSmsFallback={false}
           showSupportDefaults={false}
+        />
+        <DoctorTodayPreferencesSection
+          initialPreferences={todayPreferences}
+          settingsEndpoint="/api/admin/settings"
         />
         <AppointmentReminderSettingsSection
           initialEnabled={Boolean(appointmentReminderEnabled)}

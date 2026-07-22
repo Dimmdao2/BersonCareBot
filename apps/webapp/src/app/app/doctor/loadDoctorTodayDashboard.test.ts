@@ -1,15 +1,17 @@
 import { describe, expect, it } from "vitest";
 import type { AppointmentRow } from "@/modules/doctor-appointments/ports";
 import type { IntakeRequestWithPatientIdentity } from "@/modules/online-intake/types";
+import type { ClientListItem } from "@/modules/doctor-clients/ports";
 import {
   formatDateTimeRu,
   getUpcomingAppointments,
   mapAppointmentToTodayItem,
   mapConversationToTodayItem,
   mapIntakeToTodayItem,
-  mapOnSupportClientToTodayItem,
+  mapClientToTodayItem,
   truncateText,
   type TodayConversationSourceRow,
+  type DoctorTodayDashboardDeps,
 } from "./loadDoctorTodayDashboard";
 
 function appt(partial: Partial<AppointmentRow> & Pick<AppointmentRow, "id">): AppointmentRow {
@@ -29,6 +31,54 @@ function appt(partial: Partial<AppointmentRow> & Pick<AppointmentRow, "id">): Ap
     packageTitle: null,
     packageDisplayNumber: null,
     ...partial,
+  };
+}
+
+function client(userId: string, displayName: string, lastAppointmentAt: string | null): ClientListItem {
+  return {
+    userId,
+    displayName,
+    phone: null,
+    bindings: {},
+    nextAppointmentLabel: null,
+    lastAppointmentAt,
+    activeTreatmentProgram: false,
+    activeTreatmentProgramInstanceId: null,
+    cancellationsCount: 0,
+    reschedulesCount: 0,
+  };
+}
+
+function minimalDashboardDeps(
+  listClients: DoctorTodayDashboardDeps["doctorClients"]["listClients"],
+): DoctorTodayDashboardDeps {
+  return {
+    organizationId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+    doctorUserId: "doctor-1",
+    doctorAppointments: { listAppointmentsForSpecialist: async () => [] },
+    doctorClients: {
+      getDashboardPatientMetrics: async () => ({
+        onSupportCount: 0,
+        totalClients: 0,
+        visitedThisCalendarMonthCount: 0,
+        withProgramCount: 0,
+        membershipsCount: 0,
+        expiredMembershipsCount: 0,
+        subscriberCount: 0,
+        newCount: 0,
+        formerCount: 0,
+        cancellationsCount: 0,
+        reschedulesCount: 0,
+      }),
+      listClients,
+    },
+    displayIana: "Europe/Moscow",
+    messaging: {
+      doctorSupport: {
+        listOpenConversations: async () => [],
+        unreadFromUsers: async () => 0,
+      },
+    },
   };
 }
 
@@ -159,8 +209,8 @@ describe("loadDoctorTodayDashboard helpers", () => {
     expect(formatDateTimeRu("not-a-date")).toBe("not-a-date");
   });
 
-  it("mapOnSupportClientToTodayItem links to the new patient card when instance id present", () => {
-    const item = mapOnSupportClientToTodayItem({
+  it("mapClientToTodayItem links to the new patient card when instance id present", () => {
+    const item = mapClientToTodayItem({
       userId: "  uuid-1  ",
       displayName: "  Иван  ",
       firstName: "Иван",
@@ -182,8 +232,8 @@ describe("loadDoctorTodayDashboard helpers", () => {
     expect(item.userId).toBe("uuid-1");
   });
 
-  it("mapOnSupportClientToTodayItem links to the new patient card without instance id", () => {
-    const item = mapOnSupportClientToTodayItem({
+  it("mapClientToTodayItem links to the new patient card without instance id", () => {
+    const item = mapClientToTodayItem({
       userId: "uuid-2",
       displayName: "Пётр",
       phone: null,
@@ -393,10 +443,68 @@ describe("loadDoctorTodayDashboard proactive", () => {
         limit: 10,
         displayIana: "Europe/Moscow",
         organizationId,
+        kinds: ["wellbeing_low_streak", "program_inactivity"],
       },
     ]);
     expect(data.proactiveInsightsTotal).toBe(3);
     expect(data.proactiveInsights).toHaveLength(1);
     expect(data.proactiveInsights[0]?.href).toBe("/app/doctor/patients/p1");
+  });
+
+  it("skips the proactive query when both proven signal kinds are hidden", async () => {
+    const { loadDoctorTodayDashboard } = await import("./loadDoctorTodayDashboard");
+    let queryCount = 0;
+    const deps = minimalDashboardDeps(async () => []);
+    deps.doctorProactiveInsights = {
+      queryInsights: async () => {
+        queryCount += 1;
+        return { items: [], totalCount: 0 };
+      },
+      listForPatient: async () => [],
+    };
+
+    const data = await loadDoctorTodayDashboard(
+      deps,
+      { listForDoctor: async () => ({ items: [], total: 0 }) } as unknown as import("@/modules/online-intake/ports").OnlineIntakeService,
+      undefined,
+      { visibleProactiveInsightKinds: [], peopleListMode: "on_support" },
+    );
+
+    expect(queryCount).toBe(0);
+    expect(data.visibleProactiveInsightKinds).toEqual([]);
+  });
+});
+
+describe("loadDoctorTodayDashboard people-list preference", () => {
+  it("loads org-scoped clients with visits and orders the preview by latest visit", async () => {
+    const { loadDoctorTodayDashboard } = await import("./loadDoctorTodayDashboard");
+    const calls: unknown[] = [];
+    const deps = minimalDashboardDeps(async (filters) => {
+      calls.push(filters);
+      if (filters.supportStatus === "on") return [];
+      return [
+        client("old", "Старый", "2026-01-01T10:00:00.000Z"),
+        client("none", "Без даты", null),
+        client("new", "Новый", "2026-07-20T10:00:00.000Z"),
+      ];
+    });
+
+    const data = await loadDoctorTodayDashboard(
+      deps,
+      { listForDoctor: async () => ({ items: [], total: 0 }) } as unknown as import("@/modules/online-intake/ports").OnlineIntakeService,
+      undefined,
+      {
+        visibleProactiveInsightKinds: ["wellbeing_low_streak"],
+        peopleListMode: "recent_visits",
+      },
+    );
+
+    expect(calls).toEqual([
+      { supportStatus: "on", organizationId: deps.organizationId, viewerUserId: "doctor-1" },
+      { organizationId: deps.organizationId, onlyWithAppointmentRecords: true, viewerUserId: "doctor-1" },
+    ]);
+    expect(data.peopleListMode).toBe("recent_visits");
+    expect(data.peopleCount).toBe(2);
+    expect(data.people.map((row) => row.userId)).toEqual(["new", "old"]);
   });
 });

@@ -171,6 +171,7 @@ describe("system settings registry", () => {
         "booking_payment_enabled",
         "doctor_appointment_reminder_enabled",
         "doctor_appointment_reminder_offsets_minutes",
+        "doctor_today_preferences",
         "patient_home_daily_practice_target",
         "patient_home_mood_icons",
         "patient_label",
@@ -293,6 +294,45 @@ describe("PATCH /api/admin/settings", () => {
       "owner-1",
       { organizationId: ORGANIZATION_ID },
     );
+  });
+
+  it("writes normalized organization-owned Today preferences in doctor scope", async () => {
+    getSessionMock.mockResolvedValue(clinicOwnerSession);
+
+    const response = await PATCH(
+      patchRequest("doctor_today_preferences", {
+        visibleProactiveInsightKinds: ["program_inactivity", "wellbeing_low_streak"],
+        peopleListMode: "recent_visits",
+      }),
+    );
+
+    expect(response.status).toBe(200);
+    expect(updateSettingMock).toHaveBeenCalledWith(
+      "doctor_today_preferences",
+      "doctor",
+      {
+        value: {
+          visibleProactiveInsightKinds: ["wellbeing_low_streak", "program_inactivity"],
+          peopleListMode: "recent_visits",
+        },
+      },
+      "owner-1",
+      { organizationId: ORGANIZATION_ID },
+    );
+  });
+
+  it("rejects undefined Today ranking or hiding semantics", async () => {
+    getSessionMock.mockResolvedValue(clinicOwnerSession);
+
+    const response = await PATCH(
+      patchRequest("doctor_today_preferences", {
+        visibleProactiveInsightKinds: ["most_active"],
+        peopleListMode: "hidden_clients",
+      }),
+    );
+
+    expect(response.status).toBe(400);
+    expect(updateSettingMock).not.toHaveBeenCalled();
   });
 
   it("enforces owner-only patient-home settings for organization admins", async () => {

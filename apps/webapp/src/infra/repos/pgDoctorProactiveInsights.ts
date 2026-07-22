@@ -199,10 +199,11 @@ async function buildInsights(
 
 export function createPgDoctorProactiveInsightsPort(): DoctorProactiveInsightsPort {
   return {
-    async queryInsights({ limit, displayIana, organizationId }) {
+    async queryInsights({ limit, displayIana, organizationId, kinds }) {
       const cap = Math.min(Math.max(limit, 1), DOCTOR_TODAY_PROACTIVE_INSIGHTS_PREVIEW_LIMIT);
       const all = await buildInsights(displayIana, BUILD_INSIGHTS_CAP, organizationId);
-      return { items: all.slice(0, cap), totalCount: all.length };
+      const visible = kinds ? all.filter((insight) => kinds.includes(insight.kind)) : all;
+      return { items: visible.slice(0, cap), totalCount: visible.length };
     },
     async listForPatient({ patientUserId, displayIana, organizationId }) {
       return buildInsights(displayIana, BUILD_INSIGHTS_CAP, organizationId, [patientUserId]);

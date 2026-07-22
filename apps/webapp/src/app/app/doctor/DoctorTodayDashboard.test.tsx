@@ -51,9 +51,10 @@ function emptyData(): TodayDashboardData {
     unreadConversations: [],
     unreadTotal: 0,
     upcomingAppointments: [],
-    onSupportCount: 0,
-    onSupportClients: [],
-    onSupportListTruncated: false,
+    peopleListMode: "on_support",
+    peopleCount: 0,
+    people: [],
+    peopleListTruncated: false,
     globalOpenTasks: [],
     globalOpenTasksTotal: 0,
     pendingProgramTests: [],
@@ -62,6 +63,7 @@ function emptyData(): TodayDashboardData {
     proactiveInsights: [],
     proactiveInsightsTotal: 0,
     proactiveInsightsTruncated: false,
+    visibleProactiveInsightKinds: ["wellbeing_low_streak", "program_inactivity"],
     exerciseCommentAttentionItems: [],
     exerciseCommentAttentionTotal: 0,
     exerciseCommentAttentionTruncated: false,
@@ -247,8 +249,8 @@ describe("DoctorTodayDashboard", () => {
   it("renders on-support clients and truncated footer", () => {
     const data: TodayDashboardData = {
       ...emptyData(),
-      onSupportCount: 2,
-      onSupportClients: [
+      peopleCount: 2,
+      people: [
         {
           userId: "u-a",
           displayName: "Старая строка",
@@ -259,6 +261,7 @@ describe("DoctorTodayDashboard", () => {
           unreadMessagesCount: 2,
           exerciseDoneTodayCount: 1,
           newExerciseCommentsCount: 1,
+          lastAppointmentAt: null,
         },
         {
           userId: "u-b",
@@ -267,9 +270,10 @@ describe("DoctorTodayDashboard", () => {
           unreadMessagesCount: 0,
           exerciseDoneTodayCount: 0,
           newExerciseCommentsCount: 0,
+          lastAppointmentAt: null,
         },
       ],
-      onSupportListTruncated: true,
+      peopleListTruncated: true,
     };
     render(<DoctorTodayDashboard {...defaultProps()} data={data} />);
     expect(screen.getByText(/Клиентов: 2/)).toBeInTheDocument();
@@ -286,6 +290,49 @@ describe("DoctorTodayDashboard", () => {
       "href",
       "/app/doctor/patients?segment=on_support",
     );
+  });
+
+  it("renders the proven recent-visits people-list mode without on-support-only copy", () => {
+    render(
+      <DoctorTodayDashboard
+        {...defaultProps()}
+        data={{
+          ...emptyData(),
+          peopleListMode: "recent_visits",
+          peopleCount: 1,
+          people: [
+            {
+              userId: "recent-1",
+              displayName: "Недавний клиент",
+              href: "/app/doctor/patients/recent-1",
+              unreadMessagesCount: 0,
+              exerciseDoneTodayCount: 0,
+              newExerciseCommentsCount: 0,
+              lastAppointmentAt: "2026-07-20T10:00:00.000Z",
+            },
+          ],
+        }}
+      />,
+    );
+
+    expect(screen.getByRole("heading", { name: "Недавние с визитами" })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Недавний клиент" })).toHaveAttribute(
+      "href",
+      "/app/doctor/patients/recent-1",
+    );
+    expect(screen.queryByText("Программа без сопровождения")).not.toBeInTheDocument();
+  });
+
+  it("hides only the proactive signals section when every proven signal kind is disabled", () => {
+    render(
+      <DoctorTodayDashboard
+        {...defaultProps()}
+        data={{ ...emptyData(), visibleProactiveInsightKinds: [] }}
+      />,
+    );
+
+    expect(screen.queryByRole("heading", { name: "Сигналы пациентов" })).not.toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "На сопровождении" })).toBeInTheDocument();
   });
 
   it("opens intake details in attention dialog via left KPI card", async () => {

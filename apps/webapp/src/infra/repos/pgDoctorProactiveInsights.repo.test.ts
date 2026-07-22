@@ -59,6 +59,23 @@ describe("pgDoctorProactiveInsights repo", () => {
     }
   });
 
+  it("filters configurable kinds before calculating the Today total", async () => {
+    runWebappPgTextMock
+      .mockResolvedValueOnce({ rows: [{ id: "p1", display_name: "One" }] })
+      .mockResolvedValueOnce({ rows: [] })
+      .mockResolvedValueOnce({ rows: [{ patient_user_id: "p1", instance_id: "instance-1" }] })
+      .mockResolvedValueOnce({ rows: [] });
+
+    const result = await createPgDoctorProactiveInsightsPort().queryInsights({
+      limit: 10,
+      displayIana: "Europe/Moscow",
+      organizationId: ORG_A,
+      kinds: ["wellbeing_low_streak"],
+    });
+
+    expect(result).toEqual({ items: [], totalCount: 0 });
+  });
+
   it("listForPatient queries single patient support ref then wellbeing/program SQL", async () => {
     runWebappPgTextMock
       .mockResolvedValueOnce({

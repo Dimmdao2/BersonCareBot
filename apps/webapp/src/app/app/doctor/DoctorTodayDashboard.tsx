@@ -25,6 +25,7 @@ import { TodayMiniCalendarWithModal } from "./TodayMiniCalendarWithModal";
 import {
   ON_SUPPORT_LIST_HREF,
   PROGRAM_WITHOUT_SUPPORT_LIST_HREF,
+  RECENT_VISITS_LIST_HREF,
   type TodayDashboardData,
 } from "./loadDoctorTodayDashboard";
 
@@ -46,7 +47,7 @@ type Props = {
   todayWorkingBounds?: { startMinute: number; endMinute: number } | null;
 };
 
-function onSupportClientName(client: TodayDashboardData["onSupportClients"][number]): string {
+function peopleItemName(client: TodayDashboardData["people"][number]): string {
   return formatDoctorFio(
     { lastName: client.lastName ?? null, firstName: client.firstName ?? null, patronymic: client.patronymic ?? null },
     client.displayName.trim() || "—",
@@ -65,6 +66,8 @@ export function DoctorTodayDashboard({
   const nowMinutes = nowDt.hour * 60 + nowDt.minute;
   const todayIso = nowDt.toISODate() ?? new Date().toISOString().slice(0, 10);
   const todayDateLabel = nowDt.setLocale("ru").toFormat("EEE, d MMMM");
+  const peopleListIsOnSupport = data.peopleListMode === "on_support";
+  const peopleListTitle = peopleListIsOnSupport ? "На сопровождении" : "Недавние с визитами";
 
   // SEG-07: Общий счётчик комментариев к упражнениям — синхронизирует KPI-тайл
   // (DoctorTodayLeftKpiRow) и диалог «Сигналы пациентов» (DoctorTodaySignalsSection).
@@ -138,42 +141,44 @@ export function DoctorTodayDashboard({
             className="flex-1"
           />
 
-          {/* На сопровождении */}
-          <DoctorSection id="doctor-today-section-on-support">
+          {/* Configurable people list: exact on-support or recent-visit semantics. */}
+          <DoctorSection id="doctor-today-section-people">
             <DoctorSectionHeader>
-              <DoctorSectionTitle>На сопровождении</DoctorSectionTitle>
-              {data.onSupportCount > 0 ? (
-                <p className="text-xs text-muted-foreground" id="doctor-today-on-support-count">
-                  Клиентов: {data.onSupportCount}
+              <DoctorSectionTitle>{peopleListTitle}</DoctorSectionTitle>
+              {data.peopleCount > 0 ? (
+                <p className="text-xs text-muted-foreground" id="doctor-today-people-count">
+                  Клиентов: {data.peopleCount}
                 </p>
               ) : null}
             </DoctorSectionHeader>
-            {data.onSupportCount === 0 ? (
+            {data.peopleCount === 0 ? (
               <DoctorEmptyState>
-                <p>Клиентов на сопровождении нет</p>
+                <p>{peopleListIsOnSupport ? "Клиентов на сопровождении нет" : "Клиентов с визитами нет"}</p>
                 <div className="flex flex-col gap-1">
-                  <Link href={ON_SUPPORT_LIST_HREF} className={`${doctorInlineLinkClass} w-fit`}>
+                  <Link
+                    href={peopleListIsOnSupport ? ON_SUPPORT_LIST_HREF : RECENT_VISITS_LIST_HREF}
+                    className={`${doctorInlineLinkClass} w-fit`}
+                  >
                     Список клиентов
                   </Link>
-                  <Link
-                    href={PROGRAM_WITHOUT_SUPPORT_LIST_HREF}
-                    className={`${doctorInlineLinkClass} w-fit text-xs`}
-                  >
-                    Программа без сопровождения
-                  </Link>
+                  {peopleListIsOnSupport ? (
+                    <Link href={PROGRAM_WITHOUT_SUPPORT_LIST_HREF} className={`${doctorInlineLinkClass} w-fit text-xs`}>
+                      Программа без сопровождения
+                    </Link>
+                  ) : null}
                 </div>
               </DoctorEmptyState>
             ) : (
               <>
                 <ul className={doctorDnaFlatListClass}>
-                  {data.onSupportClients.map((c, index) => (
+                  {data.people.map((c, index) => (
                     <li
                       key={c.userId}
-                      id={`doctor-today-on-support-${c.userId}`}
+                      id={`doctor-today-person-${c.userId}`}
                       className={`${doctorDnaFlatListRowClass} justify-between gap-2${index === 0 ? " border-t-0" : ""}`}
                     >
                       <Link href={c.href} className={`${doctorDnaFlatListPrimaryClass} min-w-0 truncate hover:underline`}>
-                        <span className="block truncate">{onSupportClientName(c)}</span>
+                        <span className="block truncate">{peopleItemName(c)}</span>
                       </Link>
                       <div className={`ml-auto flex shrink-0 items-center gap-2 ${doctorDnaFlatListMetaClass}`}>
                         <span
@@ -213,28 +218,27 @@ export function DoctorTodayDashboard({
                   ))}
                 </ul>
                 <p className="flex flex-col gap-1">
-                  {data.onSupportListTruncated ? (
+                  {data.peopleListTruncated ? (
                     <Link
-                      href={ON_SUPPORT_LIST_HREF}
+                      href={peopleListIsOnSupport ? ON_SUPPORT_LIST_HREF : RECENT_VISITS_LIST_HREF}
                       className={`${doctorInlineLinkClass} text-sm`}
-                      id="doctor-today-on-support-all"
+                      id="doctor-today-people-all"
                     >
-                      Все на сопровождении
+                      {peopleListIsOnSupport ? "Все на сопровождении" : "Открыть клиентов"}
                     </Link>
                   ) : null}
-                  <Link
-                    href={PROGRAM_WITHOUT_SUPPORT_LIST_HREF}
-                    className={`${doctorInlineLinkClass} w-fit text-xs`}
-                  >
-                    Программа без сопровождения
-                  </Link>
+                  {peopleListIsOnSupport ? (
+                    <Link href={PROGRAM_WITHOUT_SUPPORT_LIST_HREF} className={`${doctorInlineLinkClass} w-fit text-xs`}>
+                      Программа без сопровождения
+                    </Link>
+                  ) : null}
                 </p>
               </>
             )}
           </DoctorSection>
 
           {/* Сигналы пациентов */}
-          <DoctorTodaySignalsSection
+          {data.visibleProactiveInsightKinds.length > 0 ? <DoctorTodaySignalsSection
             proactiveInsights={data.proactiveInsights}
             proactiveInsightsTotal={data.proactiveInsightsTotal}
             proactiveInsightsTruncated={data.proactiveInsightsTruncated}
@@ -248,7 +252,7 @@ export function DoctorTodayDashboard({
             exerciseCommentAttentionTotal={data.exerciseCommentAttentionTotal}
             exerciseCommentAttentionTruncated={data.exerciseCommentAttentionTruncated}
             onExerciseCommentResolved={handleExerciseCommentResolved}
-          />
+          /> : null}
         </div>
 
         {/* ───── Правое полотно: приём и время ───── */}

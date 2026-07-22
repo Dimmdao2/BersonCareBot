@@ -20,7 +20,13 @@ import type { ProgramItemDiscussionMessage } from "@/modules/program-item-discus
 import type { OnlineIntakeService } from "@/modules/online-intake/ports";
 import type { IntakeRequestWithPatientIdentity, IntakeType } from "@/modules/online-intake/types";
 import type { DoctorProactiveInsightsPort } from "@/modules/doctor-proactive-insights/ports";
+import type { ProactiveInsightKind } from "@/modules/doctor-proactive-insights/types";
 import { DOCTOR_TODAY_PROACTIVE_INSIGHTS_PREVIEW_LIMIT } from "@/modules/doctor-proactive-insights/constants";
+import {
+  DEFAULT_DOCTOR_TODAY_PREFERENCES,
+  type DoctorTodayPeopleListMode,
+  type DoctorTodayPreferences,
+} from "@/modules/system-settings/doctorTodayPreferences";
 import { DateTime } from "luxon";
 import {
   DOCTOR_TODAY_PENDING_TESTS_PREVIEW_LIMIT,
@@ -42,7 +48,7 @@ import {
 export { formatDateTimeRu, truncateText } from "./doctorTodayFormat";
 export type { TodayExerciseCommentAttentionItem } from "./loadDoctorExerciseCommentAttention";
 
-/** Сколько карточек клиентов показывать на «Сегодня»; полный список — `/app/doctor/clients?scope=all&support=on`. */
+/** Preview limit for either proven people-list mode on Today. */
 export const DOCTOR_TODAY_ON_SUPPORT_PREVIEW_LIMIT = 10;
 
 /** Minimal conversation row shape for «Сегодня» (matches doctorSupport.listOpenConversations output). */
@@ -112,7 +118,7 @@ export type DoctorTodayDashboardDeps = {
       organizationId?: string;
     }): Promise<TodayConversationSourceRow[]>;
       unreadFromUsers(params?: { organizationId?: string }): Promise<number>;
-      unreadFromPatient?: (platformUserId: string) => Promise<number>;
+      unreadFromPatient?: (platformUserId: string, organizationId?: string) => Promise<number>;
     };
   };
 };
@@ -157,7 +163,7 @@ export type TodayUnreadConversationItem = {
   href: string;
 };
 
-export type TodayOnSupportClientItem = {
+export type TodayPeopleItem = {
   userId: string;
   displayName: string;
   firstName?: string | null;
@@ -167,6 +173,7 @@ export type TodayOnSupportClientItem = {
   unreadMessagesCount: number;
   exerciseDoneTodayCount: number;
   newExerciseCommentsCount: number;
+  lastAppointmentAt: string | null;
 };
 
 export type TodayDashboardData = {
@@ -179,10 +186,10 @@ export type TodayDashboardData = {
   unreadConversations: TodayUnreadConversationItem[];
   unreadTotal: number;
   upcomingAppointments: TodayAppointmentItem[];
-  /** Семантика: `doctor_patient_support.on_support = true`. */
-  onSupportCount: number;
-  onSupportClients: TodayOnSupportClientItem[];
-  onSupportListTruncated: boolean;
+  peopleListMode: DoctorTodayPeopleListMode;
+  peopleCount: number;
+  people: TodayPeopleItem[];
+  peopleListTruncated: boolean;
   globalOpenTasks: SpecialistTaskRow[];
   /** Общее количество открытых задач (§1.3). */
   globalOpenTasksTotal: number;
@@ -192,6 +199,7 @@ export type TodayDashboardData = {
   proactiveInsights: TodayProactiveInsightItem[];
   proactiveInsightsTotal: number;
   proactiveInsightsTruncated: boolean;
+  visibleProactiveInsightKinds: readonly ProactiveInsightKind[];
   exerciseCommentAttentionItems: TodayExerciseCommentAttentionItem[];
   exerciseCommentAttentionTotal: number;
   exerciseCommentAttentionTruncated: boolean;
@@ -203,6 +211,7 @@ const INTAKE_TYPE_LABELS: Record<IntakeType, string> = {
 };
 
 export const ON_SUPPORT_LIST_HREF = "/app/doctor/patients?segment=on_support";
+export const RECENT_VISITS_LIST_HREF = "/app/doctor/patients";
 
 export const PROGRAM_WITHOUT_SUPPORT_LIST_HREF =
   "/app/doctor/patients?segment=with_program";
@@ -241,7 +250,7 @@ export function mapIntakeToTodayItem(row: IntakeRequestWithPatientIdentity): Tod
   };
 }
 
-export function mapOnSupportClientToTodayItem(row: ClientListItem): TodayOnSupportClientItem {
+export function mapClientToTodayItem(row: ClientListItem): TodayPeopleItem {
   const uid = row.userId.trim();
   return {
     userId: uid,
@@ -250,9 +259,10 @@ export function mapOnSupportClientToTodayItem(row: ClientListItem): TodayOnSuppo
     lastName: row.lastName ?? null,
     patronymic: row.patronymic ?? null,
     href: patientCardHref(uid),
-    unreadMessagesCount: 0,
+    unreadMessagesCount: row.unreadMessagesCount ?? 0,
     exerciseDoneTodayCount: 0,
-    newExerciseCommentsCount: 0,
+    newExerciseCommentsCount: row.unreadExerciseCommentsCount ?? 0,
+    lastAppointmentAt: row.lastAppointmentAt ?? null,
   };
 }
 
@@ -271,9 +281,9 @@ export function mapConversationToTodayItem(row: TodayConversationSourceRow): Tod
   };
 }
 
-async function loadOnSupportRealtimeStats(
+async function loadPeopleRealtimeStats(
   deps: DoctorTodayDashboardDeps,
-  onSupportListRaw: ClientListItem[],
+  peopleRaw: ClientListItem[],
   unreadExerciseCommentsByPatientId: Map<string, number>,
 ): Promise<
   Map<
@@ -294,24 +304,27 @@ async function loadOnSupportRealtimeStats(
     }
   >();
 
-  if (onSupportListRaw.length === 0) return out;
+  if (peopleRaw.length === 0) return out;
 
   const dayStartLocal = DateTime.now().setZone(deps.displayIana).startOf("day");
   const windowStartIso = dayStartLocal.toUTC().toISO()!;
   const windowEndIso = dayStartLocal.plus({ days: 1 }).toUTC().toISO()!;
 
   await Promise.all(
-    onSupportListRaw.map(async (row) => {
+    peopleRaw.map(async (row) => {
       const patientUserId = row.userId.trim();
       if (!patientUserId) return;
 
       let unreadMessagesCount = 0;
       let exerciseDoneTodayCount = 0;
-      const newExerciseCommentsCount = unreadExerciseCommentsByPatientId.get(patientUserId) ?? 0;
+      const newExerciseCommentsCount =
+        unreadExerciseCommentsByPatientId.get(patientUserId) ??
+        row.unreadExerciseCommentsCount ??
+        0;
 
       try {
         unreadMessagesCount = deps.messaging.doctorSupport.unreadFromPatient
-          ? await deps.messaging.doctorSupport.unreadFromPatient(patientUserId)
+          ? await deps.messaging.doctorSupport.unreadFromPatient(patientUserId, deps.organizationId)
           : 0;
       } catch {
         unreadMessagesCount = 0;
@@ -385,6 +398,7 @@ export async function loadDoctorTodayDashboard(
   deps: DoctorTodayDashboardDeps,
   intakeService: OnlineIntakeService,
   audience?: DoctorAppointmentsAudience,
+  preferences: DoctorTodayPreferences = DEFAULT_DOCTOR_TODAY_PREFERENCES,
 ): Promise<TodayDashboardData> {
   const scopedAudience: DoctorAppointmentsAudience = {
     excludedUserIds: audience?.excludedUserIds ?? [],
@@ -417,19 +431,40 @@ export async function loadDoctorTodayDashboard(
     deps.messaging.doctorSupport.unreadFromUsers({ organizationId: deps.organizationId }),
     deps.doctorClients.getDashboardPatientMetrics(clientAudience),
     deps.doctorClients.listClients(
-      { supportStatus: "on", organizationId: deps.organizationId },
+      {
+        supportStatus: "on",
+        organizationId: deps.organizationId,
+        ...(deps.doctorUserId ? { viewerUserId: deps.doctorUserId } : {}),
+      },
       clientAudience,
     ),
   ]);
 
-  const onSupportSorted = [...onSupportListRaw].sort((a, b) =>
-    a.displayName.localeCompare(b.displayName, "ru", { sensitivity: "base" }),
-  );
-  const onSupportClients = onSupportSorted
-    .slice(0, DOCTOR_TODAY_ON_SUPPORT_PREVIEW_LIMIT)
-    .map(mapOnSupportClientToTodayItem);
-  const onSupportCount = patientMetrics.onSupportCount;
-  const onSupportListTruncated = onSupportCount > onSupportClients.length;
+  const peopleListRaw = preferences.peopleListMode === "recent_visits"
+    ? await deps.doctorClients.listClients(
+        {
+          organizationId: deps.organizationId,
+          onlyWithAppointmentRecords: true,
+          ...(deps.doctorUserId ? { viewerUserId: deps.doctorUserId } : {}),
+        },
+        clientAudience,
+      )
+    : onSupportListRaw;
+  const peopleSorted = [...peopleListRaw]
+    .filter((row) => preferences.peopleListMode !== "recent_visits" || row.lastAppointmentAt != null)
+    .sort((a, b) => {
+      if (preferences.peopleListMode === "recent_visits") {
+        const byVisit = Date.parse(b.lastAppointmentAt ?? "") - Date.parse(a.lastAppointmentAt ?? "");
+        if (byVisit !== 0 && !Number.isNaN(byVisit)) return byVisit;
+      }
+      return a.displayName.localeCompare(b.displayName, "ru", { sensitivity: "base" });
+    });
+  const peoplePreviewRaw = peopleSorted.slice(0, DOCTOR_TODAY_ON_SUPPORT_PREVIEW_LIMIT);
+  const people = peoplePreviewRaw.map(mapClientToTodayItem);
+  const peopleCount = preferences.peopleListMode === "recent_visits"
+    ? peopleSorted.length
+    : patientMetrics.onSupportCount;
+  const peopleListTruncated = peopleCount > people.length;
 
   const [
     globalOpenTasks,
@@ -454,11 +489,12 @@ export async function loadDoctorTodayDashboard(
           ),
         ])
       : Promise.resolve([0, []] as const),
-    deps.doctorProactiveInsights
+    deps.doctorProactiveInsights && preferences.visibleProactiveInsightKinds.length > 0
       ? deps.doctorProactiveInsights.queryInsights({
           limit: DOCTOR_TODAY_PROACTIVE_INSIGHTS_PREVIEW_LIMIT,
           displayIana: deps.displayIana,
           organizationId: deps.organizationId,
+          kinds: preferences.visibleProactiveInsightKinds,
         })
       : Promise.resolve({ items: [], totalCount: 0 }),
     loadDoctorExerciseCommentAttention(deps, onSupportListRaw),
@@ -469,13 +505,13 @@ export async function loadDoctorTodayDashboard(
     const prev = unreadExerciseCommentsByPatientId.get(row.patientUserId) ?? 0;
     unreadExerciseCommentsByPatientId.set(row.patientUserId, prev + 1);
   }
-  const onSupportRealtimeStats = await loadOnSupportRealtimeStats(
+  const peopleRealtimeStats = await loadPeopleRealtimeStats(
     deps,
-    onSupportListRaw,
+    peoplePreviewRaw,
     unreadExerciseCommentsByPatientId,
   );
-  const onSupportClientsWithStats = onSupportClients.map((client) => {
-    const stats = onSupportRealtimeStats.get(client.userId);
+  const peopleWithStats = people.map((client) => {
+    const stats = peopleRealtimeStats.get(client.userId);
     if (!stats) return client;
     return {
       ...client,
@@ -501,9 +537,10 @@ export async function loadDoctorTodayDashboard(
     unreadConversations: unreadConversations.map(mapConversationToTodayItem),
     unreadTotal,
     upcomingAppointments: getUpcomingAppointments(todayRaw, weekRaw, 5),
-    onSupportCount,
-    onSupportClients: onSupportClientsWithStats,
-    onSupportListTruncated,
+    peopleListMode: preferences.peopleListMode,
+    peopleCount,
+    people: peopleWithStats,
+    peopleListTruncated,
     globalOpenTasks,
     globalOpenTasksTotal: globalOpenTasks.length,
     pendingProgramTests,
@@ -512,6 +549,7 @@ export async function loadDoctorTodayDashboard(
     proactiveInsights,
     proactiveInsightsTotal,
     proactiveInsightsTruncated,
+    visibleProactiveInsightKinds: preferences.visibleProactiveInsightKinds,
     exerciseCommentAttentionItems: exerciseCommentAttention.items,
     exerciseCommentAttentionTotal: exerciseCommentAttention.total,
     exerciseCommentAttentionTruncated: exerciseCommentAttention.truncated,
