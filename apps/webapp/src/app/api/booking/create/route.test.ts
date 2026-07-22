@@ -41,6 +41,7 @@ vi.mock("@/app-layer/di/buildAppDeps", () => ({
 }));
 
 import { POST } from "./route";
+import { InPersonBookingResolveError } from "@/modules/patient-booking/inPersonBookingResolve";
 
 /** Без `DATABASE_URL` в тестах gate опирается на телефон в сессии (`patientClientBusinessGate`). */
 const patientClientSession = { user: { userId: "u1", role: "client" as const, phone: "+79990001122" } };
@@ -281,4 +282,29 @@ describe("POST /api/booking/create", () => {
     expect(response.status).toBe(503);
     await expect(response.json()).resolves.toEqual({ ok: false, error: "create_failed" });
   });
+
+  it.each(["toString", "constructor", "__proto__"])(
+    "treats inherited typed literal key %s as unknown create_failed",
+    async (inheritedKey) => {
+      getCurrentSessionMock.mockResolvedValue(patientClientSession);
+      resolveInPersonContextMock.mockRejectedValueOnce(
+        new InPersonBookingResolveError(inheritedKey),
+      );
+      const response = await POST(new Request("http://localhost/api/booking/create", {
+        method: "POST",
+        body: JSON.stringify({
+          type: "in_person",
+          branchServiceId: BRANCH_SERVICE_ID,
+          slotStart: "2026-04-01T07:00:00.000Z",
+          slotEnd: "2026-04-01T08:00:00.000Z",
+          contactName: "Ivan",
+          contactPhone: "+79990001122",
+        }),
+        headers: { "content-type": "application/json" },
+      }));
+
+      expect(response.status).toBe(503);
+      await expect(response.json()).resolves.toEqual({ ok: false, error: "create_failed" });
+    },
+  );
 });

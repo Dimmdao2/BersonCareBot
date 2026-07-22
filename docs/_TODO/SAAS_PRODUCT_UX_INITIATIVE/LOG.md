@@ -4876,3 +4876,24 @@ zero DB/network invocations. Interleaved baseline → helper results were: run 1
 was `0.968399`, within the `1.05` budget. Five post-warm unknown-error burst RSS samples stayed flat at
 `132804608` bytes, so monotonic growth was false. E2-10 and overall E2 intentionally remain unchecked pending the
 one terminal independent audit. No full CI, DB/network/server, deploy, TEST/PROD, external send, push or merge ran.
+
+## 2026-07-22 — stability E2 FAIL-audit correction (`#976`)
+
+The independent terminal audit found two exact worker-proof gaps. First, the typed rule branch indexed a normal
+object without requiring an own property, so inherited keys such as `toString`, `constructor` or `__proto__` could
+bypass the fixed fallback. The shared mapper now uses one own-property lookup for both typed and ordinary literal
+maps. Adversarial helper tests and regressions through both authenticated and public booking routes prove all three
+keys return exact `503 {"ok":false,"error":"create_failed"}`.
+
+Second, the initial load proof asserted only the median p95 and hard-coded DB/network counters. The corrected proof
+asserts every one of the three warm concurrency-16 runs independently and instruments `pg.Pool.query` plus `fetch`
+with blocking spies. Correction results: per-run p95 ratios `1.001997`, `0.986968`, `0.969491`; baseline→helper p50
+`0.373620→0.376575`, `0.145993→0.145262`, `0.078851→0.078841` ms; p95 `0.722123→0.723565`,
+`0.274239→0.270665`, `0.139172→0.134926`; p99 `1.158109→1.182577`, `0.388504→0.372259`,
+`0.549590→0.537271`; throughput per path `12,245.10`, `31,940.16`, `57,234.13` responses/s. Instrumented
+DB/network counts were `0/0`; five RSS samples stayed flat at `132149248` bytes.
+
+Affected Vitest passed (`3` files, `26` passed, `1` benchmark opt-in skip), the separate benchmark passed (`6/6`),
+and webapp typecheck, scoped ESLint, the eleven-route static gate with five adversarial self-tests, and
+`git diff --check` passed. E2-10, task status `doing` and `seal_audit=false` remain unchanged pending independent
+re-audit. No full CI, DB/server access, external network/send, deploy, TEST/PROD, push or merge ran.

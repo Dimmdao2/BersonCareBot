@@ -420,6 +420,15 @@ apply, TEST/PROD or deploy is claimed.
       p50/p95/p99/throughput каждого before/after run записаны в Product UX LOG. E2-10 и общий E2 остаются
       незакрытыми только до обязательного terminal independent audit; full CI не запускался и остаётся milestone gate.
 
+      **FAIL-audit correction (`#976`, 2026-07-22).** Literal lookup теперь требует own property одинаково для
+      обычных и typed rule maps; унаследованные `toString`, `constructor` и `__proto__` доказанно дают fixed
+      `503 create_failed` в helper и обоих booking routes. Benchmark теперь проверяет лимит `<=1.05` для каждого
+      из трёх run, а DB/network counters измеряются spies на `pg.Pool.query` и `fetch`, блокирующими любое обращение,
+      вместо констант. Correction run ratios: `1.001997`, `0.986968`, `0.969491`; instrumented DB/network `0/0`,
+      RSS `132149248` bytes flat. Affected Vitest (`3` files, `26` passed, `1` opt-in skip), отдельный benchmark
+      (`6` passed), typecheck, scoped ESLint, static+self-test и diff-check зелёные. E2-10 остаётся открытым до
+      независимого re-audit; `seal_audit=false`, full CI не запускался.
+
       **Compatibility matrix (внешний HTTP contract):**
 
       | Класс | Frozen E2 contract |

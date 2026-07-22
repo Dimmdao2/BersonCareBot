@@ -1,6 +1,7 @@
 import { performance } from "node:perf_hooks";
 import { NextResponse } from "next/server";
-import { describe, expect, it } from "vitest";
+import { Pool } from "pg";
+import { describe, expect, it, vi } from "vitest";
 import {
   TypedApiResponseError,
   jsonError,
@@ -84,6 +85,12 @@ describe("apiResponse", () => {
       code: "domain_conflict",
     });
     expect(mapApiError(new DomainError(PRIVATE_MARKER), rules, fallback, typedRules)).toEqual(fallback);
+    for (const inheritedKey of ["toString", "constructor", "__proto__"]) {
+      expect(mapApiError(new Error(inheritedKey), rules, fallback)).toEqual(fallback);
+      expect(mapApiError(new DomainError(inheritedKey), rules, fallback, typedRules)).toEqual(
+        fallback,
+      );
+    }
   });
 
   it("never places an unknown error value in the serialized response", async () => {
@@ -181,6 +188,17 @@ describe.skipIf(process.env.RUN_E2_API_RESPONSE_LOAD_PROOF !== "1")(
     }
 
     it("keeps three warm concurrency-16 runs within the 5% p95 budget", async () => {
+      const dbQuerySpy = vi
+        .spyOn(
+          Pool.prototype as unknown as { query: (...args: unknown[]) => unknown },
+          "query",
+        )
+        .mockImplementation(() => {
+          throw new Error("e2_benchmark_db_invocation");
+        });
+      const networkSpy = vi.spyOn(globalThis, "fetch").mockImplementation(async () => {
+        throw new Error("e2_benchmark_network_invocation");
+      });
       await runPair(256);
       const baseline: LoadSample[] = [];
       const after: LoadSample[] = [];
@@ -191,6 +209,9 @@ describe.skipIf(process.env.RUN_E2_API_RESPONSE_LOAD_PROOF !== "1")(
       }
       const baselineP95 = baseline.map((sample) => sample.p95Ms).sort((a, b) => a - b)[1] ?? 0;
       const afterP95 = after.map((sample) => sample.p95Ms).sort((a, b) => a - b)[1] ?? 0;
+      const p95Ratios = after.map(
+        (sample, index) => sample.p95Ms / (baseline[index]?.p95Ms ?? 0),
+      );
 
       const collectGarbage = (globalThis as { gc?: () => void }).gc;
       const runErrorBurst = () => {
@@ -212,8 +233,8 @@ describe.skipIf(process.env.RUN_E2_API_RESPONSE_LOAD_PROOF !== "1")(
       const rssMonotonicGrowth = rss
         .slice(1)
         .every((value, index) => value > (rss[index] ?? 0));
-      const dbInvocations = 0;
-      const networkInvocations = 0;
+      const dbInvocations = dbQuerySpy.mock.calls.length;
+      const networkInvocations = networkSpy.mock.calls.length;
 
       process.stdout.write(`${JSON.stringify({
         concurrency,
@@ -221,16 +242,20 @@ describe.skipIf(process.env.RUN_E2_API_RESPONSE_LOAD_PROOF !== "1")(
         baseline,
         after,
         p95Ratio: afterP95 / baselineP95,
+        p95Ratios,
         dbInvocations,
         networkInvocations,
         rss,
         rssMonotonicGrowth,
       })}\n`);
 
-      expect(afterP95).toBeLessThanOrEqual(baselineP95 * 1.05);
+      expect(p95Ratios).toHaveLength(3);
+      for (const p95Ratio of p95Ratios) expect(p95Ratio).toBeLessThanOrEqual(1.05);
       expect(dbInvocations).toBe(0);
       expect(networkInvocations).toBe(0);
       expect(rssMonotonicGrowth).toBe(false);
+      dbQuerySpy.mockRestore();
+      networkSpy.mockRestore();
     }, 30_000);
   },
 );

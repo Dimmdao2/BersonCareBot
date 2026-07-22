@@ -58,6 +58,14 @@ export class TypedApiResponseError extends Error {
   }
 }
 
+function ownLiteralRule(
+  literalRules: ApiErrorLiteralRules,
+  message: string,
+): ApiErrorDescriptor | undefined {
+  if (!Object.prototype.hasOwnProperty.call(literalRules, message)) return undefined;
+  return literalRules[message];
+}
+
 /**
  * Maps only trusted typed errors or exact caller-owned literal rules. Unknown values always use the fixed fallback.
  * This deliberately has no global registry, substring matching, provider/SQL inspection, logging, or side effects.
@@ -71,14 +79,9 @@ export function mapApiError(
   if (error instanceof TypedApiResponseError) return error.descriptor;
   for (const typedRule of typedRules) {
     if (!typedRule.matches(error)) continue;
-    return typedRule.literalRules[error.message] ?? fallback;
+    return ownLiteralRule(typedRule.literalRules, error.message) ?? fallback;
   }
-  if (
-    error instanceof Error &&
-    Object.prototype.hasOwnProperty.call(literalRules, error.message)
-  ) {
-    return literalRules[error.message] ?? fallback;
-  }
+  if (error instanceof Error) return ownLiteralRule(literalRules, error.message) ?? fallback;
   return fallback;
 }
 

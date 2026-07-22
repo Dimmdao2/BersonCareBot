@@ -50,6 +50,7 @@ vi.mock("@/app-layer/db/client", () => ({
 }));
 
 import { POST } from "./route";
+import { InPersonBookingResolveError } from "@/modules/patient-booking/inPersonBookingResolve";
 
 describe("POST /api/booking/public/create", () => {
   beforeEach(() => {
@@ -200,4 +201,32 @@ describe("POST /api/booking/public/create", () => {
     expect(response.status).toBe(503);
     await expect(response.json()).resolves.toEqual({ ok: false, error: "create_failed" });
   });
+
+  it.each(["toString", "constructor", "__proto__"])(
+    "treats inherited typed literal key %s as unknown create_failed",
+    async (inheritedKey) => {
+      resolvePublicBookingOrganizationMock.mockRejectedValueOnce(
+        new InPersonBookingResolveError(inheritedKey),
+      );
+      const response = await POST(
+        new Request("http://localhost/api/booking/public/create", {
+          method: "POST",
+          headers: { "Content-Type": "application/json", "X-Real-IP": "1.2.3.4" },
+          body: JSON.stringify({
+            type: "in_person",
+            orgSlug: "clinic-a",
+            branchServiceId: "00000000-0000-4000-8000-000000000001",
+            cityCode: "moscow",
+            slotStart: "2026-06-01T10:00:00.000Z",
+            slotEnd: "2026-06-01T11:00:00.000Z",
+            contactName: "Иван",
+            contactPhone: "+79001234567",
+          }),
+        }),
+      );
+
+      expect(response.status).toBe(503);
+      await expect(response.json()).resolves.toEqual({ ok: false, error: "create_failed" });
+    },
+  );
 });
