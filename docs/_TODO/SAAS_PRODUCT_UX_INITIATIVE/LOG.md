@@ -4728,9 +4728,10 @@ DB, TEST/PROD, deploy, external send or second Next server was used.
 
 ## 2026-07-22 — stability E2 source contract frozen as `#975`
 
-**НАШЁЛ.** Read-only census на integration base `252d54636` показал `518` API route-файлов,
-`2 750` `NextResponse.json`, `1 993` standard `{ ok: false, error }` literals, `47` bare `{ error }`, `161`
-route-место с `error.message` и `267` literal error codes. Общего server `jsonOk/jsonError` builder и safe
+**НАШЁЛ.** Read-only census на integration base `252d54636` показал `518` API route-файлов;
+`2 751` вызов `NextResponse.json` на `2 750` source-строках; same-line census даёт `1 993`
+standard `{ ok: false, error }` starts и `47` direct bare `{ error }` starts, а structural pass — `2 024`/`51`
+object literals; `161` route-строка читает `error.message`. Общего server `jsonOk/jsonError` builder и safe
 error-to-HTTP mapper нет: существующие helpers либо client-only, либо локальны для auth,
 catalog, membership, system-settings, integrator и tenant guards. В launch-risk wave booking create и оба
 payment webhook families возвращали arbitrary caught messages; patient-acquiring provider error также
@@ -4748,6 +4749,14 @@ C1/D1/D2/E1 boundaries. `#975` закрывает только census/contract; 
 **Provenance.** Discovery шёл из branch `agent/stability975-e2-contract-20260722` на exact base
 `252d546366c7f7dd5949074203269f30f004130c`: снача code-search/codeq по plan/helper/launch-risk concepts,
 затем точечные source/test reads и exact `rg` counts. C1 protected manifest сверен read-only с
-implementation commit `7b680fc23`; current canonical error-tracking doc path заморожен как
-`docs/ARCHITECTURE/ERROR_TRACKING.md`. Код, packages, taskdb, DB, env, processes, tests, deploy, TEST/PROD и push
+initial implementation commit `7b680fc23` (`docs/OPERATIONS/ERROR_TRACKING.md` на том exact SHA); correction
+`2d0e8e423` перенёс канон в current `docs/ARCHITECTURE/ERROR_TRACKING.md`. Код, packages, taskdb, DB, env, processes,
+tests, deploy, TEST/PROD и push
 не затрагивались.
+
+**Один независимый docs-audit.** Source-trace нашёл не новый product scope, а четыре
+неточности contract freeze: line-count был подписан как call/file-count, не был указан
+`501 oauth_disabled`, а старая API-документация противоречила route/test по
+`rubitime_projection_not_ready` (`502` против канонического `503`), а C1 provenance смешивал
+initial и correction SHA. Эти факты исправлены одним bounded docs-pass; runtime не менялся,
+повторный аудит механического слайса не открывался.

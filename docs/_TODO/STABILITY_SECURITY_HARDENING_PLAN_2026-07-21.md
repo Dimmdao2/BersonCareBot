@@ -350,11 +350,14 @@ apply, TEST/PROD or deploy is claimed.
       старые мигрируют волной. Размер: **M** (helper) + постепенная адаптация · Аудит: один.
 
       **Source contract (`#975`, census на `252d54636`):** в `apps/webapp/src/app/api/**/route.ts` есть
-      `518` route-файлов, `2 750` вызовов `NextResponse.json`, `1 993` литеральных
-      `{ ok: false, error: ... }`, `47` bare `{ error: ... }` и `161` route-место с чтением
-      `error.message`; найдено `267` литеральных error codes. Текущее распределение
+      `518` route-файлов и `2 751` вызов `NextResponse.json` на `2 750` source-строках.
+      Same-line census нашёл `1 993` начала `{ ok: false, error: ... }` и `47` direct
+      `NextResponse.json({ error: ... })`; структурный source-pass считает соответственно
+      `2 024` и `51` object literals. Ещё `161` route-строка читает `error.message`. Эти
+      числа разделены по единицам подсчёта и не являются вечным global gate. Текущее распределение
       status-ответов: `401=74`, `403=107`, `404=366`, `409=89`, `422=13`, `429=16`, `500=68`,
-      `502=20`, `503=207`; `Retry-After` встречается в `22` route-файлах, явный `no-store` — в `7`.
+      `502=20`, `503=207`; `Retry-After` встречается `22` раза в `20` route-файлах, явный
+      `no-store` — в `7` route-файлах.
       Это provenance-цифры, а не вечный total-file gate: implementation-карточка после интеграции
       предшественников повторно считает aggregate, но не расширяет frozen волну из `11` routes.
 
@@ -381,7 +384,8 @@ apply, TEST/PROD or deploy is claimed.
             request data и PII не попадают в body; общий PG-code/string-sniff registry запрещён.
       - [ ] **E2-04 — identity/signup wave.** Адаптированы specialist-signup `start`/`confirm`
             и OAuth `start`; текущие signup recovery, rollout-lock, proxy, rate-limit и fixed-message contracts
-            сохранены без auth/session redesign.
+            сохранены без auth/session redesign; OAuth feature-disabled сохраняет точный
+            `501 oauth_disabled` contract.
       - [ ] **E2-05 — invite wave.** Адаптированы clinic invite list/create и accept `start`/`confirm`;
             guard/entitlement, email mismatch, seat-limit, delivery failure, retry fields и DEV-only preview не меняются.
       - [ ] **E2-06 — booking wave.** Адаптированы authenticated/public create routes; все known
@@ -399,7 +403,8 @@ apply, TEST/PROD or deploy is claimed.
             добавляют `@/infra/db`, `@/infra/repos`, `drizzle-orm`, DB/network/runtime imports. Static script
             имеет adversarial self-test на missing route/import/raw-message/boundary cases.
       - [ ] **E2-10 — regression/load/validation gate.** Helper tests, существующие exact route tests и новый
-            patient-acquiring webhook test доказывают matrix и unknown redaction. Три in-process
+            patient-acquiring webhook test доказывают matrix, `501 oauth_disabled`, current
+            `503 rubitime_projection_not_ready` и unknown redaction. Три in-process
             benchmark-прогона после warm-up, concurrency `16`: p95 after `<= baseline x 1.05`, записаны
             p50/p99/throughput, DB/network invocation count `0`, RSS после error burst не растёт монотонно.
             Focused Vitest, webapp typecheck, scoped ESLint, static script и `git diff --check` проходят;
@@ -413,6 +418,7 @@ apply, TEST/PROD or deploy is claimed.
       | `400` / `401` / `403` | Validation/proof, unauthenticated/invalid authority, forbidden/tenant masking сохраняют текущие status и stable code; payment signature unknown-authority остаётся неразличимым `401 invalid_webhook_signature`. |
       | `404` / `409` / `422` / `423` | Same-tenant missing, conflict, существующий domain/payment unprocessable и rollout lock сохраняются route-by-route; новые normalization rules не вводятся. |
       | `429` | Status, body и `retryAfterSeconds` сохраняются; имеющееся presence/absence `Retry-After` не нормализуется этой волной. |
+      | `501` | Текущий OAuth `oauth_disabled` сохраняет status `501` и стабильное body; E2 не меняет feature-disabled semantics. |
       | `500` / `502` / `503` | Internal, malformed-upstream и dependency/timeout/unavailable statuses сохраняются; `504` не вводится. Unknown body получает fixed route code. |
       | Headers/cookies | Explicit `Cache-Control`, `Retry-After`, redirect/cookie/revalidation и custom headers сохраняются; no-store остаётся explicit, correlation — только `proxy.ts`. |
 
