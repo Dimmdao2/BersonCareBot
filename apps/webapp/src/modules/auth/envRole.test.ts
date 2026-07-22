@@ -1,10 +1,12 @@
 import { describe, expect, it, vi } from "vitest";
 
-const { getServerRuntimeTokenListMock } = vi.hoisted(() => ({
+const { getFreshServerRuntimeTokenListMock, getServerRuntimeTokenListMock } = vi.hoisted(() => ({
+  getFreshServerRuntimeTokenListMock: vi.fn(),
   getServerRuntimeTokenListMock: vi.fn(),
 }));
 
 vi.mock("@/modules/system-settings/configAdapter", () => ({
+  getFreshServerRuntimeTokenList: getFreshServerRuntimeTokenListMock,
   getServerRuntimeTokenList: getServerRuntimeTokenListMock,
 }));
 
@@ -20,7 +22,12 @@ vi.mock("@/config/env", () => ({
   },
 }));
 
-import { reconcileDbRoleWithEnvRole, resolveRoleAsync, resolveRoleFromEnv } from "./envRole";
+import {
+  isVerifiedEmailGlobalAdminAsync,
+  reconcileDbRoleWithEnvRole,
+  resolveRoleAsync,
+  resolveRoleFromEnv,
+} from "./envRole";
 
 describe("resolveRoleFromEnv", () => {
   it("returns admin when phone matches ADMIN_PHONES (normalized)", () => {
@@ -84,7 +91,7 @@ describe("reconcileDbRoleWithEnvRole", () => {
 });
 
 describe("resolveRoleAsync", () => {
-  it("loads exactly the seven closed server-only role settings", async () => {
+  it("loads exactly the six cached role settings, excluding independent email elevation", async () => {
     getServerRuntimeTokenListMock.mockImplementation(async (key: string) =>
       key === "doctor_phones" ? '["+75550000001"]' : "[]",
     );
@@ -94,24 +101,36 @@ describe("resolveRoleAsync", () => {
       "admin_telegram_ids",
       "admin_max_ids",
       "admin_phones",
-      "admin_emails",
       "doctor_telegram_ids",
       "doctor_max_ids",
       "doctor_phones",
     ]);
   });
 
-  it("promotes only a normalized email from the DB-backed admin allowlist", async () => {
-    getServerRuntimeTokenListMock.mockImplementation(async (key: string) =>
-      key === "admin_emails" ? '["DimmDao@Gmail.com"]' : "[]",
-    );
-
-    await expect(resolveRoleAsync({ email: " dimmdao@gmail.com " })).resolves.toBe("admin");
-    await expect(resolveRoleAsync({ email: "other@example.com" })).resolves.toBe("client");
-  });
-
   it("keeps the legacy env policy when the closed runtime accessor fails", async () => {
     getServerRuntimeTokenListMock.mockRejectedValueOnce(new Error("permission denied"));
     await expect(resolveRoleAsync({ telegramId: "9001001001" })).resolves.toBe("admin");
+  });
+});
+
+describe("isVerifiedEmailGlobalAdminAsync", () => {
+  it("requires an exact normalized verified email from the DB-only allowlist", async () => {
+    getFreshServerRuntimeTokenListMock.mockResolvedValue('["DimmDao@Gmail.com"]');
+
+    await expect(isVerifiedEmailGlobalAdminAsync(" dimmdao@gmail.com ")).resolves.toBe(true);
+    await expect(isVerifiedEmailGlobalAdminAsync("other@example.com")).resolves.toBe(false);
+    expect(getFreshServerRuntimeTokenListMock).toHaveBeenCalledWith("admin_emails");
+  });
+
+  it("fails closed after a removal or database failure, even after a warm positive read", async () => {
+    getFreshServerRuntimeTokenListMock
+      .mockResolvedValueOnce('["dimmdao@gmail.com"]')
+      .mockResolvedValueOnce("[]")
+      .mockRejectedValueOnce(new Error("permission denied"));
+
+    await expect(isVerifiedEmailGlobalAdminAsync("dimmdao@gmail.com")).resolves.toBe(true);
+    await expect(isVerifiedEmailGlobalAdminAsync("dimmdao@gmail.com")).resolves.toBe(false);
+    await expect(isVerifiedEmailGlobalAdminAsync("dimmdao@gmail.com")).resolves.toBe(false);
+    expect(getFreshServerRuntimeTokenListMock).toHaveBeenCalledTimes(3);
   });
 });

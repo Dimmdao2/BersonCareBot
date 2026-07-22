@@ -8,6 +8,7 @@ import {
   getConfigValue,
   getConfigBool,
   getConfigPositiveInt,
+  getFreshServerRuntimeTokenList,
   getServerRuntimeTokenList,
   invalidateConfigCache,
   invalidateConfigKey,
@@ -123,5 +124,27 @@ describe("configAdapter", () => {
     invalidateConfigKey("doctor_phones");
     await getServerRuntimeTokenList("doctor_phones", "env-doctor");
     expect(runWebappPgText).toHaveBeenCalledTimes(2);
+  });
+
+  it("bypasses the cache and fails closed for email-admin authorization reads", async () => {
+    vi.mocked(runWebappPgText)
+      .mockResolvedValueOnce({
+        rows: [{
+          key: "admin_emails",
+          scope: "admin",
+          organization_id: null,
+          audience: "server",
+          value_json: { value: ["dimmdao@gmail.com"] },
+        }],
+      })
+      .mockResolvedValueOnce({ rows: [] })
+      .mockRejectedValueOnce(new Error("database unavailable"));
+
+    await expect(getFreshServerRuntimeTokenList("admin_emails")).resolves.toBe(
+      '["dimmdao@gmail.com"]',
+    );
+    await expect(getFreshServerRuntimeTokenList("admin_emails")).resolves.toBe("");
+    await expect(getFreshServerRuntimeTokenList("admin_emails")).rejects.toThrow("database unavailable");
+    expect(runWebappPgText).toHaveBeenCalledTimes(3);
   });
 });

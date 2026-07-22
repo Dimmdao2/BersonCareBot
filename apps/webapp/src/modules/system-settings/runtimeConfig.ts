@@ -319,6 +319,24 @@ export function createRuntimeConfigProvider(port: RuntimeConfigPort) {
         return fallbackValue;
       }
     },
+    /**
+     * Security-sensitive authorization reads must not inherit the compatibility
+     * fallback or the caller-side TTL cache. In particular, removing an
+     * allowlisted principal must take effect on the very next session check.
+     */
+    async getServerTokenListStrict(
+      key: ServerRuntimeTokenListKey,
+      operationFamily: RuntimeConfigOperationFamily = "auth_role_config",
+    ): Promise<string> {
+      const row = await port.getEffective({
+        key,
+        scope: "admin",
+        organizationId: null,
+        allowedAudiences: ["server"],
+        operationFamily,
+      });
+      return parseTokenListEnvelope(row?.valueJson ?? null) ?? "";
+    },
     async getServerInteger(key: ServerRuntimeIntegerKey): Promise<number> {
       const definition = SERVER_RUNTIME_INTEGER_DEFINITIONS[key];
       try {

@@ -4,7 +4,7 @@ import { decodeBase64Url } from "@/shared/utils/base64url";
 import { env, isProduction } from "@/config/env";
 import type { AppSession, SessionUser, UserRole } from "@/shared/types/session";
 import { isPlatformUserUuid } from "@/shared/platform-user/isPlatformUserUuid";
-import { resolveRoleAsync, isWhitelistedAsync } from "./envRole";
+import { isVerifiedEmailGlobalAdminAsync, resolveRoleAsync, isWhitelistedAsync } from "./envRole";
 import type { IdentityResolutionPort, MessengerIdentityResolutionHints } from "./identityResolutionPort";
 import type { AccountOutcome } from "./oauthYandexResolve";
 import { normalizePhone } from "./phoneNormalize";
@@ -936,9 +936,10 @@ export async function getCurrentSession(): Promise<AppSession | null> {
   const maxId = session.user.bindings?.maxId?.trim();
   const hasMessengerOrPhoneIdentity = Boolean(phone || telegramId || maxId);
   let verifiedEmail: string | undefined;
-  // A DB role remains authoritative for existing staff with no allowlist identity. Only a client session
-  // needs the additional verified-email lookup that can derive its global-admin access from `admin_emails`.
-  if (!hasMessengerOrPhoneIdentity && session.user.role === "client" && isPlatformUserUuid(session.user.userId)) {
+  // Email elevation is independent from legacy phone/TG/MAX bindings. It is
+  // evaluated fresh on every non-dev session and is never projected into
+  // platform_users.role.
+  if (!isDevBypassSession && isPlatformUserUuid(session.user.userId)) {
     try {
       verifiedEmail = await runWithStaffSecuritySelfPrincipal(
         session.user.userId,
@@ -953,34 +954,44 @@ export async function getCurrentSession(): Promise<AppSession | null> {
       verifiedEmail = undefined;
     }
   }
-  if (!hasMessengerOrPhoneIdentity && !verifiedEmail) return finalizeCurrentSession(session, patientOrganizationHint);
-
   if (isDevBypassSession) return finalizeCurrentSession(session, patientOrganizationHint);
 
-  const envRole = await resolveRoleAsync({ phone, telegramId, maxId, email: verifiedEmail });
-  if (session.user.role === envRole) return finalizeCurrentSession(session, patientOrganizationHint);
+  let roleFromBindings = session.user.role;
+  if (hasMessengerOrPhoneIdentity) {
+    roleFromBindings = await resolveRoleAsync({ phone, telegramId, maxId });
+  }
+  let nextSession = session;
+  if (session.user.role !== roleFromBindings) {
+    const nextUser = { ...session.user, role: roleFromBindings };
+    nextSession = {
+      ...buildSession(nextUser),
+      postLoginHints: session.postLoginHints,
+      adminMode: session.adminMode,
+      reauth: session.reauth,
+      staffSecurity: session.staffSecurity,
+    };
 
-  const nextUser = { ...session.user, role: envRole };
-  const nextSession: AppSession = {
-    ...buildSession(nextUser),
-    postLoginHints: session.postLoginHints,
-    adminMode: session.adminMode,
-    reauth: session.reauth,
-    staffSecurity: session.staffSecurity,
-  };
-
-  if (env.DATABASE_URL && hasMessengerOrPhoneIdentity) {
-    try {
-      const { pgUserProjectionPort } = await import("@/infra/repos/pgUserProjection");
-      await pgUserProjectionPort.updateRole(session.user.userId, envRole);
-    } catch {
-      /* ignore: in-memory tests or DB unavailable */
+    if (env.DATABASE_URL && hasMessengerOrPhoneIdentity) {
+      try {
+        const { pgUserProjectionPort } = await import("@/infra/repos/pgUserProjection");
+        await pgUserProjectionPort.updateRole(session.user.userId, roleFromBindings);
+      } catch {
+        /* ignore: in-memory tests or DB unavailable */
+      }
     }
   }
 
-  // Cookie update skipped intentionally: mutating cookies in Server Component render
-  // is forbidden by Next.js. The role is correct in the returned session object;
-  // the cookie will be rewritten on the next Server Action or login.
+  if (await isVerifiedEmailGlobalAdminAsync(verifiedEmail)) {
+    const emailAdminSession: AppSession = {
+      ...buildSession({ ...nextSession.user, role: "admin" }),
+      postLoginHints: nextSession.postLoginHints,
+      adminMode: nextSession.adminMode,
+      reauth: nextSession.reauth,
+      staffSecurity: nextSession.staffSecurity,
+    };
+    return finalizeCurrentSession(emailAdminSession, patientOrganizationHint);
+  }
+
   return finalizeCurrentSession(nextSession, patientOrganizationHint);
 }
 

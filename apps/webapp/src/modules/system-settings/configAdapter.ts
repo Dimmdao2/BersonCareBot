@@ -81,6 +81,14 @@ export function getServerRuntimeTokenList(
   });
 }
 
+/**
+ * Fresh, fail-closed server authorization read. This deliberately bypasses
+ * the 60-second compatibility cache and has no environment fallback.
+ */
+export function getFreshServerRuntimeTokenList(key: ServerRuntimeTokenListKey): Promise<string> {
+  return safeRuntimeConfig.getServerTokenListStrict(key, "auth_role_config");
+}
+
 /** Invalidate all cached entries (call after PATCH /api/admin/settings). */
 export function invalidateConfigCache(): void {
   cache.clear();

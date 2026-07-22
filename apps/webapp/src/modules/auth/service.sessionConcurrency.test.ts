@@ -4,8 +4,10 @@ const mocks = vi.hoisted(() => ({
   decodedSession: null as unknown,
   findByUserId: vi.fn(),
   getVerifiedEmailForUser: vi.fn(),
+  isVerifiedEmailGlobalAdminAsync: vi.fn(),
   resolveRoleAsync: vi.fn(),
   stampDbPrincipalFromSession: vi.fn(),
+  updateRole: vi.fn(),
 }));
 
 vi.mock("next/headers", () => ({
@@ -26,6 +28,7 @@ vi.mock("@/config/env", () => ({
 }));
 
 vi.mock("./envRole", () => ({
+  isVerifiedEmailGlobalAdminAsync: (...args: unknown[]) => mocks.isVerifiedEmailGlobalAdminAsync(...args),
   resolveRoleAsync: (...args: unknown[]) => mocks.resolveRoleAsync(...args),
   isWhitelistedAsync: vi.fn(),
 }));
@@ -60,6 +63,12 @@ vi.mock("@/infra/repos/pgUserByPhone", () => ({
   },
 }));
 
+vi.mock("@/infra/repos/pgUserProjection", () => ({
+  pgUserProjectionPort: {
+    updateRole: (...args: unknown[]) => mocks.updateRole(...args),
+  },
+}));
+
 import {
   enterWithDbStaffPrincipal,
   getCurrentDbPrincipal,
@@ -84,8 +93,10 @@ describe("getCurrentSession identity-self concurrency", () => {
   beforeEach(() => {
     mocks.findByUserId.mockReset();
     mocks.getVerifiedEmailForUser.mockReset();
+    mocks.isVerifiedEmailGlobalAdminAsync.mockReset();
     mocks.resolveRoleAsync.mockReset();
     mocks.stampDbPrincipalFromSession.mockReset();
+    mocks.updateRole.mockReset();
     mocks.decodedSession = {
       user: doctorUser(),
       issuedAt: 1,
@@ -153,16 +164,24 @@ describe("getCurrentSession identity-self concurrency", () => {
     expect(mocks.findByUserId).toHaveBeenCalledTimes(2);
   });
 
-  it("rechecks an email-derived admin role from the verified DB email without persisting it", async () => {
-    const client = { ...doctorUser(), role: "client" as const, phone: undefined, bindings: {} };
+  it.each([
+    ["client phone", "client", { phone: "+75550000001", bindings: {} }],
+    ["client Telegram", "client", { bindings: { telegramId: "tg-client" } }],
+    ["client MAX", "client", { bindings: { maxId: "max-client" } }],
+    ["doctor phone", "doctor", { phone: "+75550000002", bindings: {} }],
+    ["doctor Telegram", "doctor", { bindings: { telegramId: "tg-doctor" } }],
+    ["doctor MAX", "doctor", { bindings: { maxId: "max-doctor" } }],
+  ] as const)("elevates %s through a verified allowlisted email without persisting admin", async (_label, role, identity) => {
+    const user = { ...doctorUser(), role, ...identity };
     mocks.decodedSession = {
-      user: client,
+      user,
       issuedAt: 1,
       expiresAt: 9_999_999_999,
     } satisfies AppSession;
-    mocks.findByUserId.mockResolvedValue(client);
+    mocks.findByUserId.mockResolvedValue(user);
     mocks.getVerifiedEmailForUser.mockResolvedValue("dimmdao@gmail.com");
-    mocks.resolveRoleAsync.mockResolvedValue("admin");
+    mocks.isVerifiedEmailGlobalAdminAsync.mockResolvedValue(true);
+    mocks.resolveRoleAsync.mockResolvedValue(role);
 
     const session = await runWithDbBootstrapPrincipal(
       { source: "service.sessionConcurrency.email-role" },
@@ -171,11 +190,32 @@ describe("getCurrentSession identity-self concurrency", () => {
 
     expect(session?.user.role).toBe("admin");
     expect(mocks.getVerifiedEmailForUser).toHaveBeenCalledWith(USER_ID);
+    expect(mocks.isVerifiedEmailGlobalAdminAsync).toHaveBeenCalledWith("dimmdao@gmail.com");
     expect(mocks.resolveRoleAsync).toHaveBeenCalledWith({
-      phone: undefined,
-      telegramId: undefined,
-      maxId: undefined,
-      email: "dimmdao@gmail.com",
+      phone: user.phone,
+      telegramId: user.bindings?.telegramId,
+      maxId: user.bindings?.maxId,
     });
+    expect(mocks.updateRole).not.toHaveBeenCalled();
+  });
+
+  it("fails closed when the verified-email lookup fails", async () => {
+    const client = { ...doctorUser(), role: "client" as const, bindings: {} };
+    mocks.decodedSession = {
+      user: client,
+      issuedAt: 1,
+      expiresAt: 9_999_999_999,
+    } satisfies AppSession;
+    mocks.findByUserId.mockResolvedValue(client);
+    mocks.getVerifiedEmailForUser.mockRejectedValue(new Error("permission denied"));
+
+    const session = await runWithDbBootstrapPrincipal(
+      { source: "service.sessionConcurrency.email-role-lookup-failure" },
+      () => getCurrentSession(),
+    );
+
+    expect(session?.user.role).toBe("client");
+    expect(mocks.isVerifiedEmailGlobalAdminAsync).toHaveBeenCalledWith(undefined);
+    expect(mocks.updateRole).not.toHaveBeenCalled();
   });
 });

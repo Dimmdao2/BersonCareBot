@@ -258,6 +258,27 @@ describe("runtime config provider", () => {
     await expect(provider.getServerTokenList("admin_phones", "env-admin")).resolves.toBe("[]");
   });
 
+  it("does not use an authorization fallback for strict server token lists", async () => {
+    const getEffective = vi.fn<RuntimeConfigPort["getEffective"]>()
+      .mockResolvedValueOnce({
+        key: "admin_emails",
+        scope: "admin",
+        organizationId: null,
+        audience: "server",
+        valueJson: { value: ["dimmdao@gmail.com"] },
+      })
+      .mockResolvedValueOnce(null)
+      .mockRejectedValueOnce(new Error("permission denied"));
+    const provider = createRuntimeConfigProvider({ getEffective });
+
+    await expect(provider.getServerTokenListStrict("admin_emails")).resolves.toBe(
+      '["dimmdao@gmail.com"]',
+    );
+    await expect(provider.getServerTokenListStrict("admin_emails")).resolves.toBe("");
+    await expect(provider.getServerTokenListStrict("admin_emails")).rejects.toThrow("permission denied");
+    expect(getEffective).toHaveBeenCalledTimes(3);
+  });
+
   it("bounds server-only presign TTL and defaults on denial", async () => {
     const getEffective = vi.fn<RuntimeConfigPort["getEffective"]>()
       .mockResolvedValueOnce({

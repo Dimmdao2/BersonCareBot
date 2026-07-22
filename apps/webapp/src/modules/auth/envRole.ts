@@ -1,7 +1,10 @@
 import { env } from "@/config/env";
 import type { UserRole } from "@/shared/types/session";
 import { normalizePhone } from "./phoneNormalize";
-import { getServerRuntimeTokenList } from "@/modules/system-settings/configAdapter";
+import {
+  getFreshServerRuntimeTokenList,
+  getServerRuntimeTokenList,
+} from "@/modules/system-settings/configAdapter";
 import { parseIdTokens } from "@/shared/parsers/parseIdTokens";
 import { normalizeEmail } from "./emailAuth";
 
@@ -103,21 +106,19 @@ function emailInList(email: string | undefined, list: string[]): boolean {
 /**
  * Async role resolver: DB (system_settings) → env fallback.
  * Uses configAdapter (60s TTL cache). Falls back to resolveRoleFromEnv on any error.
- * Priority: admin (telegram → max → phone → verified email) → doctor (telegram → max → phone) → client.
+ * Verified email is intentionally excluded: it is an independent, fresh,
+ * DB-only elevation evaluated by isVerifiedEmailGlobalAdminAsync().
  */
 export async function resolveRoleAsync(ids: {
   phone?: string;
   telegramId?: string;
   maxId?: string;
-  /** Only an already-verified email-OTP flow may provide this identity proof. */
-  email?: string;
 }): Promise<UserRole> {
   try {
     const [
       adminTelegramRaw,
       adminMaxRaw,
       adminPhonesRaw,
-      adminEmailsRaw,
       doctorTelegramRaw,
       doctorMaxRaw,
       doctorPhonesRaw,
@@ -125,8 +126,6 @@ export async function resolveRoleAsync(ids: {
       getServerRuntimeTokenList("admin_telegram_ids", String(env.ADMIN_TELEGRAM_ID ?? "")),
       getServerRuntimeTokenList("admin_max_ids", env.ADMIN_MAX_IDS ?? ""),
       getServerRuntimeTokenList("admin_phones", env.ADMIN_PHONES ?? ""),
-      // No environment fallback: an email must never become a staff credential by deployment config.
-      getServerRuntimeTokenList("admin_emails", ""),
       getServerRuntimeTokenList("doctor_telegram_ids", env.DOCTOR_TELEGRAM_IDS ?? ""),
       getServerRuntimeTokenList("doctor_max_ids", env.DOCTOR_MAX_IDS ?? ""),
       getServerRuntimeTokenList("doctor_phones", env.DOCTOR_PHONES ?? ""),
@@ -135,7 +134,6 @@ export async function resolveRoleAsync(ids: {
     const adminTelegramIds = parseIdTokens(adminTelegramRaw);
     const adminMaxIds = parseIdTokens(adminMaxRaw);
     const adminPhones = parseIdTokens(adminPhonesRaw);
-    const adminEmails = parseIdTokens(adminEmailsRaw);
     const doctorTelegramIds = parseIdTokens(doctorTelegramRaw);
     const doctorMaxIds = parseIdTokens(doctorMaxRaw);
     const doctorPhones = parseIdTokens(doctorPhonesRaw);
@@ -146,7 +144,6 @@ export async function resolveRoleAsync(ids: {
     if (tid && idInList(tid, adminTelegramIds)) return "admin";
     if (mid && idInList(mid, adminMaxIds)) return "admin";
     if (phoneInList(ids.phone, adminPhones)) return "admin";
-    if (emailInList(ids.email, adminEmails)) return "admin";
     if (tid && idInList(tid, doctorTelegramIds)) return "doctor";
     if (mid && idInList(mid, doctorMaxIds)) return "doctor";
     if (phoneInList(ids.phone, doctorPhones)) return "doctor";
@@ -154,6 +151,22 @@ export async function resolveRoleAsync(ids: {
     return "client";
   } catch {
     return resolveRoleFromEnv(ids);
+  }
+}
+
+/**
+ * DB-only verified-email policy. It is deliberately fresh and fail-closed:
+ * a cache hit, stale positive, config outage, or missing row can never retain
+ * an email-derived administrator session.
+ */
+export async function isVerifiedEmailGlobalAdminAsync(email: string | undefined): Promise<boolean> {
+  const normalized = normalizeEmail(email ?? "");
+  if (!normalized) return false;
+  try {
+    const adminEmails = parseIdTokens(await getFreshServerRuntimeTokenList("admin_emails"));
+    return emailInList(normalized, adminEmails);
+  } catch {
+    return false;
   }
 }
 
