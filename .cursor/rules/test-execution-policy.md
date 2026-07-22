@@ -188,5 +188,6 @@ checklist не превращается в scope: это только regression
 
 Число audit-проходов задаёт risk-sized режим `docs/ORCHESTRATION_BINDINGS.md`: presentation/layout/text/mechanical
 stage получает worker + **один** independent audit без serial nit-picking rounds. Этот файл не разрешает добавлять
-повторные аудиты ради заполнения evidence; незакрытая строка остаётся `FAIL/BLOCKED` и обрабатывается по stop/scope
-правилам bindings, не превращаясь в новый scope.
+повторные аудиты ради заполнения evidence: `FAIL/BLOCKED` останавливает такой stage без automatic
+fixer/correction/re-audit и обрабатывается по stop/scope правилам bindings. Multi-round correction разрешён только
+high-risk stage; изменивший код auditor/correction owner не принимает собственный fix — нужен независимый re-audit.

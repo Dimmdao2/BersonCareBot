@@ -24,8 +24,10 @@ Orchestration:
 - Sol/deep Codex is acceptable for intermediate audit or specialized heavy analysis.
 - Do not silently self-audit important security/database changes.
 - Audit depth is risk-sized: presentation/layout/text/mechanical work gets worker + one independent audit, without
-  serial nit-picking rounds. Multi-round adversarial audit is reserved for high-risk identity/auth/tenant/security/
-  migration/money/data scope and remains capped by `docs/ORCHESTRATION_BINDINGS.md`.
+  serial nit-picking rounds. Its `FAIL/BLOCKED` stops the slice without automatic correction/re-audit. Multi-round
+  adversarial audit is reserved for high-risk identity/auth/tenant/security/migration/money/data scope and remains
+  capped by `docs/ORCHESTRATION_BINDINGS.md`; anyone who changes code in that correction path needs a different
+  independent auditor to verify the fix.
 - Findings outside the owner checklist are regressions/repo-rule issues, owner questions, or recommendations; they
   do not become new scope automatically.
 

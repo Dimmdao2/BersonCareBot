@@ -752,8 +752,9 @@ checklist — только regression/repo-rule, owner question или recommend
 
 Число audit-проходов задаёт risk-sized режим `docs/ORCHESTRATION_BINDINGS.md`: presentation/layout/text/mechanical
 stage получает worker + **один** independent audit без serial nit-picking rounds. Этот раздел не разрешает добавлять
-повторные аудиты ради заполнения evidence; незакрытая строка остаётся `FAIL/BLOCKED` и обрабатывается по stop/scope
-правилам bindings, не превращаясь в новый scope.
+повторные аудиты ради заполнения evidence: `FAIL/BLOCKED` останавливает такой stage без automatic
+fixer/correction/re-audit и обрабатывается по stop/scope правилам bindings. Multi-round correction разрешён только
+high-risk stage; изменивший код auditor/correction owner не принимает собственный fix — нужен независимый re-audit.
 
 ### Dev-DB opt-in smoke-тесты
 
@@ -824,7 +825,12 @@ stage получает worker + **один** independent audit без serial nit
 
 4. **Запрет размытого «опционально»**
    - В `.cursor/plans/*.plan.md` **не** использовать для шагов внутри scope формулировки вроде «опционально», «optional», «по желанию», «если успеем», «можно позже» — это неисполняемые обязательства и их по умолчанию **никто не делает**.
-   - Каждый пункт либо **входит в Definition of Done** с `todo`, проверками и явным закрытием, либо помечен **`status: cancelled`** с краткой причиной, либо вынесен во **вне scope** / отдельный backlog-док со ссылкой (без полумер в теле плана).
+   - Каждый пункт либо **входит в Definition of Done** с `todo`, проверками и явным закрытием, либо имеет
+     трассируемое основание для `status: cancelled`. Atomic owner requirement агент может отменить/деферить **только**
+     по явному owner ruling (`path/section/date + reason`). Не-owner mechanical plan item агент может пометить
+     `cancelled` только когда governing plan authority явно разрешает такую отмену/условие, со ссылкой; это не закрывает
+     и не скрывает связанный owner checkbox. Иначе пункт остаётся `todo/blocked` либо выносится владельцу вопросом, а
+     не исчезает во «вне scope» / backlog.
    - При исполнении плана агент **не** добавляет «опциональные» хвосты задач без явного запроса пользователя.
 
 5. **Execution log обязателен**
@@ -846,7 +852,11 @@ stage получает worker + **один** independent audit без serial nit
    - **Обязательная процедура при полном закрытии плана** (все пункты выполнены или явно отменены, Definition of Done закрыт): для файлов **`.cursor/plans/*.plan.md`** — **не завершать сессию**, пока не выполнено ниже. Иначе Cursor часто оставляет план «висящим» (активный **Build** / незакрытый run).
      1. В начале файла должен быть валидный блок **`---` YAML frontmatter `---`** (как в `.cursor/plans/archive/hls_private_bucket_proxy.plan.md`): не оставлять план только с markdown без frontmatter.
      2. Поля **`name`** и **`overview`** — осмысленные непустые строки (не `""`).
-     3. Массив **`todos`**: у **каждого** элемента с **`id`** и **`content`** выставить **`status: completed`** для сделанного; отменённые пункты — **`status: cancelled`** (и по возможности уточнить в `content` причину). Не оставлять `todos: []` при непустом теле плана с DoD, если по смыслу были шаги — лучше перечислить те же шаги с `completed`.
+     3. Массив **`todos`**: у **каждого** элемента с **`id`** и **`content`** выставить **`status: completed`** для
+        сделанного. `status: cancelled` требует обязательную ссылку+причину: для owner requirement — явный owner
+        ruling; для non-owner mechanical item — заранее разрешяющее это условие governing plan authority. Agent
+        convenience/short reason недостаточны и не закрывают связанный owner scope. Не оставлять `todos: []` при
+        непустом теле плана с DoD, если по смыслу были шаги — лучше перечислить те же шаги с `completed`.
      4. **`isProject`**: `false` по умолчанию; `true` только если план изначально заведён как долгоживущий project-tracker по согласованию.
      5. В markdown-теле плана выровнять **Definition of Done** / чеклисты (`[x]` / `[ ]`) с фактическими **`todos.status`**.
      6. Если пользователь **запретил** править конкретный plan-файл — один раз явно написать в ответе, что процедуру закрытия frontmatter нужно сделать вручную или снять запрет.
