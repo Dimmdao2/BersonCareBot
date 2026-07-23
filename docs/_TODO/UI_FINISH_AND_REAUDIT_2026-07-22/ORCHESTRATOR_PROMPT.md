@@ -6,7 +6,14 @@ verify — not to do the content work yourself. Follow this exactly.
 
 ## Non-negotiable environment facts
 - This box = DEV + TEST ONLY. Production is a different server (IP 135.x), not present here, OUT OF SCOPE.
-- On TEST you deliberately cut/break/observe/fix. No prod deploy, no prod migration, no push to `main`/`test`.
+- **Work on the TEST SERVER to the max — that is the whole point:** deploy `feat/doctor-ui-rebuild` to TEST via
+  `deploy/host/deploy-test.sh feat/doctor-ui-rebuild`, deliberately cut/break/observe/fix, redeploy, re-verify. The
+  TEST server is deployed FROM the `feat` branch (it force-aligns to it), so preparing everything on TEST needs no
+  special branch.
+- **"No push to `main`/`test`" is about the git BRANCHES named `main` and `test`, NOT the test server.** The test
+  server does not use the `test` git branch at all. Commit and push your work to `feat/doctor-ui-rebuild` only; do not
+  push commits into the `main` or `test` git branches (prod promotion is a separate, later, owner-driven step). No
+  prod deploy, no prod migration.
 - First read: `AGENTS.md`, relevant `.cursor/rules/*.mdc`, `docs/ORCHESTRATION_BINDINGS.md`
   (sections «Универсальный режим исполнения многоэтапного плана» and «Урок 2026-07-22»), and the WORK_ORDER.
 
