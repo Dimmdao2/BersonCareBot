@@ -120,3 +120,28 @@
 - Track B still needs a complete TEST `smtp_outbound` plus owner OTP/PWA browser acceptance (`#985`).
 - Patient Messages needs owner authorization for the bounded current-patient security capability (`#986`) before a
   populated Messages live pass. Rubitime provider/cutoff/archive decisions remain in `#981`.
+
+## U6A public-entry delta deploy — exact SHA `531699942`
+
+- Integrated product delta: calendar `.ics` UID domains now derive from the existing DB-backed `app_base_url`, and
+  an authenticated server-boundary test proves that landing `intent` cannot steer post-auth role routing.
+- Exact integration gate on `531699942148fb458e338ad7d8ab48fee7479f61`: focused Vitest **6 files / 75 passed /
+  1 skipped**, touched-file ESLint PASS, webapp typecheck PASS and clean HEAD/origin/diff checks.
+- Canonical incremental command: `bash deploy/host/deploy-test.sh feat/doctor-ui-rebuild`. The existing
+  `bersoncarebot_test` database was preserved; no fresh dump/reset/PROD action, `main` push or `test` push occurred.
+- `/opt/projects/bersoncarebot-test` resolves exactly to the integrated SHA. Build, migration ledger/strict closure,
+  nginx and health passed; all five TEST units are active.
+- Locked product smoke passed **22/22**. The separate global-admin clinical-write deny smoke passed HTTP 403.
+- TEST `public.system_settings` and `integrator.system_settings` both hold the same global `app_base_url` value,
+  `https://test.bersoncare.ru`; live root HTML renders the same OpenGraph URL, proving the metadata path consumes the
+  deployed DB-backed value.
+- The diagnostic-only E1 post-runtime gate again reported the already-recorded historical active/unexplained groups.
+  FORCE-RLS and product smoke stayed hard-green; no group was auto-resolved or falsely coverage-completed.
+
+## U6A delta NOT DONE
+
+- Manual authenticated non-installed TEST patient browser click remains an owner/live gate.
+- Live `.ics` download plus authorized Settings `app_base_url` change/reload proof remains open; tests and deployed
+  metadata prove the code path but do not substitute for that UI acceptance.
+- U5A dependency, public pricing/acquisition analytics/public status owner contracts, U6B dependency closure, full
+  repo CI and owner acceptance remain open. See `U6A_PUBLIC_ENTRY_RECONCILIATION_2026-07-23.md`.
