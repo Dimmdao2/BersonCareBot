@@ -65,8 +65,32 @@ All binaries remain outside the repository under
 | Full-workspace card | [`desktop-full-workspace-card.png`](/home/dev/dev-projects/.lead/runs/ui4-live-acceptance/7ec8ecedd-20260722T2310Z/desktop-full-workspace-card.png) | `be5f1a38eec17306f038f0fd4c6d9d3b21c8aa2b7555dfeb33524e4c24a857a1` |
 | Mobile list | [`mobile-list.png`](/home/dev/dev-projects/.lead/runs/ui4-live-acceptance/7ec8ecedd-20260722T2310Z/mobile-list.png) | `606067f197630bc8cab5367c7866d3c2577c63433ccdef53b8ebe8c878ca41d6` |
 
+## Populated-row continuation — exact SHA `c431fe7a1`
+
+A bounded continuation ran on canonical DEV at exact source SHA
+`c431fe7a102e4056737e3052e63143ad5046a762`. The UI-4 product paths are byte-identical to the first live pass;
+`git diff --name-status bf49f629b..c431fe7a1 -- <UI-4 product paths>` produced no output. External manifest:
+[`manifest.md`](/home/dev/dev-projects/.lead/runs/ui4-populated-live/c431fe7a1-20260722T235339Z/manifest.md).
+
+The protected SaaS TEST seeder correctly refuses `bcb_webapp_dev`, so it was not bypassed. One existing DEV client
+was populated only through existing product APIs: support/supervision PATCH, free active manual package POST, and
+future manual appointment POST each returned HTTP 200. Aggregate `GET /api/doctor/patients` then returned three
+rows and exactly one row with membership + support/program + future-appointment state together.
+
+The desktop DOM exposed the required labels in order — `Есть абонемент`, `Клиент на сопровождении`,
+`Будущие записи: 1`. A real pointer click at 97.9% of the populated row width set `aria-pressed=true` and rendered
+the functional selected preview. Its computed chrome remained border `0px` on all sides, radius `0px`, transparent
+background and `box-shadow:none`. The bounded verification observed no HTTP `>=400`, console error or page error.
+The mobile viewport also showed the same three populated status slots.
+
+| Evidence | External file | SHA-256 |
+|---|---|---|
+| Desktop populated row + selected frameless preview | [`desktop-populated-selected.png`](/home/dev/dev-projects/.lead/runs/ui4-populated-live/c431fe7a1-20260722T235339Z/desktop-populated-selected.png) | `9f73ae7b9ddf15eb70c80d452cb9a5e5812fe67631ad76f278381e3888f37a2a` |
+| Mobile populated row | [`mobile-populated-row.png`](/home/dev/dev-projects/.lead/runs/ui4-populated-live/c431fe7a1-20260722T235339Z/mobile-populated-row.png) | `1940b7bab01821be433ebce206b804496298ddd737c82205818a1824dfbe6576` |
+
+The missing populated-state LIVE evidence for UI-4 item 8 is now present. No product code was changed and no owner
+acceptance is claimed.
+
 ## NOT DONE
 
-- All three existing DEV fixture rows rendered empty membership / program-or-supervision / future-appointment
-  status slots. Representative populated row icons therefore still lack LIVE evidence; no DB setup was invented.
-- Owner PNG acceptance remains open and is not claimed by this evidence pass.
+- Owner PNG/click acceptance remains open.
