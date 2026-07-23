@@ -1,5 +1,7 @@
 # UX-09 — implementation roadmap
 
+> RE-VERIFIED 2026-07-23 (all [x] audited vs code): see docs/_TODO/UI_FINISH_AND_REAUDIT_2026-07-22/PRODUCTION_READINESS_LEDGER_2026-07-23.md
+
 **Статус:** active execution on `feat/doctor-ui-rebuild`. C0-C3, C2F writer/display scope and the shared S4/S5
 foundation are integrated; C4 is in progress. Exact completion and owner-acceptance remain recorded per stage in
 this document and taskdb, and must be rechecked before launch. [`OWNER_REVIEW_2026-07-18.md`](./OWNER_REVIEW_2026-07-18.md)

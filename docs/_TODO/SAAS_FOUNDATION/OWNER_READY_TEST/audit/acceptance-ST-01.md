@@ -1,5 +1,7 @@
 # Acceptance ST-01 — strict/FORCE TEST finalizer
 
+> RE-VERIFIED 2026-07-23 (all [x] audited vs code): see docs/_TODO/UI_FINISH_AND_REAUDIT_2026-07-22/PRODUCTION_READINESS_LEDGER_2026-07-23.md
+
 Тип: security/migration, code + disposable/scratch + TEST operational proof. Визуальная печать не применяется.
 
 - [x] Code/scratch — fresh wrapper order: stop writers → restore → migrate/cleanup → roles/helpers/overlays → strict+FORCE/assert

@@ -1,5 +1,7 @@
 # Acceptance ST-02 — rich TEST fixture pack
 
+> RE-VERIFIED 2026-07-23 (all [x] audited vs code): see docs/_TODO/UI_FINISH_AND_REAUDIT_2026-07-22/PRODUCTION_READINESS_LEDGER_2026-07-23.md
+
 ## Данные и инварианты
 
 - [x] Code/static — manifest version и reserved IDs детерминированы; double-run contract pins counts/ledger effects.
