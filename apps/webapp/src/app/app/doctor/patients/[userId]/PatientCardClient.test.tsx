@@ -121,7 +121,8 @@ describe("PatientCardClient header", () => {
 
     render(<PatientCardClient cardHeader={makeHeader()} />);
 
-    expect(screen.getByText(/ДР: 07\.07\.1990 · 36 лет/)).toBeInTheDocument();
+    expect(screen.getByText(/Дата рождения: 07\.07\.1990/)).toBeInTheDocument();
+    expect(screen.queryByText(/36 лет/)).not.toBeInTheDocument();
 
     await user.click(screen.getByRole("button", { name: "+7 (999) 000-00-01" }));
     expect(openMock).toHaveBeenCalledWith("tel:+79990000001", "_self");
@@ -140,7 +141,7 @@ describe("PatientCardClient header", () => {
 
     render(<PatientCardClient cardHeader={makeHeader({ birthDate: null, age: null })} />);
 
-    expect(screen.getByText("ДР: —")).toBeInTheDocument();
+    expect(screen.getByText("Дата рождения: —")).toBeInTheDocument();
 
     await user.click(screen.getByTitle("Редактировать ФИО"));
     const picker = screen.getByTestId("birth-date-picker");
@@ -163,7 +164,7 @@ describe("PatientCardClient header", () => {
     expect(screen.queryByText("отобр.: Старое имя")).not.toBeInTheDocument();
   });
 
-  it("updates birth date and age after profile save without reload", async () => {
+  it("updates birth date after profile save without reload", async () => {
     const user = userEvent.setup();
     vi.stubGlobal(
       "fetch",
@@ -177,7 +178,7 @@ describe("PatientCardClient header", () => {
     await user.click(screen.getByRole("button", { name: /Сохранить/ }));
 
     await waitFor(() => {
-      expect(screen.getByText(/ДР: 02\.01\.1990 · 36 лет/)).toBeInTheDocument();
+      expect(screen.getByText(/Дата рождения: 02\.01\.1990/)).toBeInTheDocument();
     });
   });
 });

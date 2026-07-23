@@ -49,7 +49,6 @@ export default async function DoctorPatientCardPage({ params, searchParams }: Pa
 
   const [
     cardHeaderPromise,
-    physical,
     clinicalState,
     visits,
     notes,
@@ -66,7 +65,6 @@ export default async function DoctorPatientCardPage({ params, searchParams }: Pa
     portalState,
   ] = await Promise.all([
     deps.doctorClients.getPatientCardHeader(patientUserId),
-    deps.doctorClients.getPatientPhysical(patientUserId),
     withDoctorWorkspacePrincipal(workspace, () => deps.patientClinical.getClinicalState(patientUserId)),
     withDoctorWorkspacePrincipal(workspace, () => deps.patientClinical.listVisits(patientUserId)),
     deps.doctorNotes.listForUser(patientUserId),
@@ -193,8 +191,6 @@ export default async function DoctorPatientCardPage({ params, searchParams }: Pa
       })
     : rawContactRows.map((r) => ({ id: r.id, contactType: r.contactType, value: r.value, source: r.source }));
 
-  const physicalData = physical ?? { heightCm: null, weightKg: null };
-
   const initialTab = typeof sp.tab === "string" ? sp.tab : undefined;
   const createVisitFrom = typeof sp.createVisitFrom === "string" ? sp.createVisitFrom : undefined;
   const visitDate = typeof sp.visitDate === "string" ? sp.visitDate : undefined;
@@ -223,7 +219,6 @@ export default async function DoctorPatientCardPage({ params, searchParams }: Pa
           initialTab={initialTab}
           createVisitFrom={createVisitFrom}
           visitDate={visitDate}
-          initialPhysicalData={physicalData}
           initialClinicalState={clinicalState}
           initialVisits={visits}
           initialNotes={notes}

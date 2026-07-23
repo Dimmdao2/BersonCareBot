@@ -19,10 +19,9 @@ import {
   doctorSectionCardClass,
   doctorSectionTitleClass,
   doctorSectionSubtitleClass,
-  doctorMetricLabelClass,
 } from "@/shared/ui/doctor/doctorVisual";
 import { cn } from "@/lib/utils";
-import { MessageSquare, Send, Smartphone, Mail, Pencil, X, Check, Scale } from "lucide-react";
+import { MessageSquare, Send, Smartphone, Mail, Pencil, X, Check } from "lucide-react";
 import { Button } from "@/shared/ui/doctor/primitives/button";
 import { Input } from "@/shared/ui/doctor/primitives/input";
 import { DoctorDatePicker } from "@/shared/ui/doctor/DoctorDatePicker";
@@ -47,8 +46,6 @@ type Props = {
   initialTab?: string;
   createVisitFrom?: string;
   visitDate?: string;
-  /** SSR-provided physical data (рост/вес) — skips client fetch when present. */
-  initialPhysicalData?: { heightCm: number | null; weightKg: number | null } | null;
   /** When set, renders this node in place of PatientTabProgram in the Программа tab. */
   embeddedProgramContent?: ReactNode;
   initialClinicalState?: ClinicalState | null;
@@ -97,45 +94,12 @@ const PATIENT_TABS: Array<{ id: TabId; label: string; badge?: number }> = [
   { id: "account", label: "Учётка" },
 ];
 
-/** Format ISO date → DD.MM.YYYY */
-function fmtDate(iso: string | null | undefined): string {
-  if (!iso) return "—";
-  const d = new Date(iso);
-  if (isNaN(d.getTime())) return "—";
-  return d.toLocaleDateString("ru-RU", { timeZone: "Europe/Moscow", day: "2-digit", month: "2-digit", year: "numeric" });
-}
-
-/** Format ISO date → DD.MM (short, for next appointment date column) */
-function fmtDateShort(iso: string | null | undefined): string {
-  if (!iso) return "—";
-  const d = new Date(iso);
-  if (isNaN(d.getTime())) return "—";
-  return d.toLocaleDateString("ru-RU", { timeZone: "Europe/Moscow", day: "2-digit", month: "2-digit" });
-}
-
 /** Format ISO date yyyy-mm-dd → DD.MM.YYYY */
 function fmtBirthDate(iso: string | null | undefined): string {
   if (!iso) return "—";
   const [year, month, day] = iso.split("-");
   if (!year || !month || !day) return "—";
   return `${day}.${month}.${year}`;
-}
-
-function calculateAgeYears(iso: string | null | undefined): number | null {
-  if (!iso) return null;
-  const [yearRaw, monthRaw, dayRaw] = iso.split("-");
-  const year = Number.parseInt(yearRaw ?? "", 10);
-  const month = Number.parseInt(monthRaw ?? "", 10);
-  const day = Number.parseInt(dayRaw ?? "", 10);
-  if (!Number.isFinite(year) || !Number.isFinite(month) || !Number.isFinite(day)) return null;
-  const bd = new Date(year, month - 1, day);
-  if (bd.getFullYear() !== year || bd.getMonth() !== month - 1 || bd.getDate() !== day) return null;
-  const today = new Date();
-  let age = today.getFullYear() - year;
-  if (today.getMonth() < month - 1 || (today.getMonth() === month - 1 && today.getDate() < day)) {
-    age--;
-  }
-  return age >= 0 ? age : null;
 }
 
 function todayInputDate(): string {
@@ -151,7 +115,7 @@ function phoneHref(phone: string): string {
   return `tel:${normalized || phone}`;
 }
 
-export function PatientCardClient({ cardHeader, initialTab, createVisitFrom, visitDate, initialPhysicalData, embeddedProgramContent, initialClinicalState, initialVisits, initialNotes, initialTasks, initialSignals, initialProgramActivity, initialAppointments, initialProgramInstances, initialFiles, initialAnamnesis, initialComorbidities, initialFinancesData, initialSupplementaryContacts, initialPackages, initialPaymentsSummary, initialSupportEffectivePolicy, initialPortalState = { status: "not_activated", inviteId: null, expiresAt: null }, isAdmin = false }: Props) {
+export function PatientCardClient({ cardHeader, initialTab, createVisitFrom, visitDate, embeddedProgramContent, initialClinicalState, initialVisits, initialNotes, initialTasks, initialSignals, initialProgramActivity, initialAppointments, initialProgramInstances, initialFiles, initialAnamnesis, initialComorbidities, initialFinancesData, initialSupplementaryContacts, initialPackages, initialPaymentsSummary, initialSupportEffectivePolicy, initialPortalState = { status: "not_activated", inviteId: null, expiresAt: null }, isAdmin = false }: Props) {
   const header = cardHeader;
   const resolvedInitialTab: TabId =
     initialTab && PATIENT_TABS.some((t) => t.id === initialTab) ? (initialTab as TabId) : "overview";
@@ -183,17 +147,6 @@ export function PatientCardClient({ cardHeader, initialTab, createVisitFrom, vis
   const [fioBirthDate, setFioBirthDate] = useState("");
   const [fioGender, setFioGender] = useState<"male" | "female" | "">("");
 
-  // Physical data (рост / вес) state — initialPhysicalData SSR wins, else client-fetch
-  const [physicalLoaded, setPhysicalLoaded] = useState(initialPhysicalData != null);
-  const [physicalHeightCm, setPhysicalHeightCm] = useState<number | null>(initialPhysicalData?.heightCm ?? null);
-  const [physicalWeightKg, setPhysicalWeightKg] = useState<number | null>(initialPhysicalData?.weightKg ?? null);
-  const [physicalEditing, setPhysicalEditing] = useState(false);
-  const [physicalSaving, setPhysicalSaving] = useState(false);
-  const [physicalError, setPhysicalError] = useState<string | null>(null);
-  // Draft values while editing (string so empty input is allowed)
-  const [draftHeightCm, setDraftHeightCm] = useState("");
-  const [draftWeightKg, setDraftWeightKg] = useState("");
-
   // Auto-switch to karta tab when opening with createVisitFrom URL param
   useEffect(() => {
     if (createVisitFrom) setActiveTab("karta");
@@ -211,24 +164,6 @@ export function PatientCardClient({ cardHeader, initialTab, createVisitFrom, vis
     return () => window.removeEventListener("patient:open-tab", handleOpenTab);
   }, []);
 
-  // Fetch physical data (рост/вес) only when not SSR-provided
-  useEffect(() => {
-    if (initialPhysicalData != null) return; // SSR data already loaded
-    if (!header) return;
-    const userId = header.identity.userId;
-    fetch(`/api/doctor/patients/${userId}/physical`)
-      .then((r) => r.json())
-      .then((data: { ok: boolean; heightCm?: number | null; weightKg?: number | null }) => {
-        if (data.ok) {
-          setPhysicalHeightCm(data.heightCm ?? null);
-          setPhysicalWeightKg(data.weightKg ?? null);
-        }
-        setPhysicalLoaded(true);
-      })
-      .catch(() => setPhysicalLoaded(true));
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [header?.identity.userId]);
-
   if (!header) {
     return (
       <div className={doctorSectionCardClass}>
@@ -237,7 +172,7 @@ export function PatientCardClient({ cardHeader, initialTab, createVisitFrom, vis
     );
   }
 
-  const { identity, support, lastVisit, nextAppointment, totalVisits, cancellationsCount, reschedulesCount, firstVisitDate } = header;
+  const { identity, support } = header;
 
   // Resolved FIO: local override wins over server data
   const resolvedFirstName = fioOverride ? fioOverride.firstName : identity.firstName;
@@ -303,62 +238,6 @@ export function PatientCardClient({ cardHeader, initialTab, createVisitFrom, vis
     }
   }
 
-  /** Open inline physical edit form with current values pre-filled */
-  function openPhysicalEdit() {
-    setDraftHeightCm(physicalHeightCm != null ? String(physicalHeightCm) : "");
-    setDraftWeightKg(physicalWeightKg != null ? String(physicalWeightKg) : "");
-    setPhysicalError(null);
-    setPhysicalEditing(true);
-  }
-
-  function cancelPhysicalEdit() {
-    setPhysicalEditing(false);
-    setPhysicalError(null);
-  }
-
-  async function savePhysical() {
-    setPhysicalSaving(true);
-    setPhysicalError(null);
-
-    const heightVal = draftHeightCm.trim() === "" ? null : parseInt(draftHeightCm.trim(), 10);
-    const weightVal = draftWeightKg.trim() === "" ? null : parseInt(draftWeightKg.trim(), 10);
-
-    if (heightVal !== null && (isNaN(heightVal) || heightVal < 50 || heightVal > 250)) {
-      setPhysicalError("Рост должен быть от 50 до 250 см");
-      setPhysicalSaving(false);
-      return;
-    }
-    if (weightVal !== null && (isNaN(weightVal) || weightVal < 10 || weightVal > 500)) {
-      setPhysicalError("Вес должен быть от 10 до 500 кг");
-      setPhysicalSaving(false);
-      return;
-    }
-
-    try {
-      const res = await fetch(`/api/doctor/patients/${identity.userId}/physical`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ heightCm: heightVal, weightKg: weightVal }),
-      });
-      if (!res.ok) {
-        const json = await res.json().catch(() => null);
-        setPhysicalError((json as { error?: string })?.error ?? "Ошибка сохранения");
-        return;
-      }
-      // Optimistic update
-      setPhysicalHeightCm(heightVal);
-      setPhysicalWeightKg(weightVal);
-      setPhysicalEditing(false);
-    } catch {
-      setPhysicalError("Ошибка сети");
-    } finally {
-      setPhysicalSaving(false);
-    }
-  }
-
-  /** Active age: from resolved birthDate (override wins) */
-  const activeAge = calculateAgeYears(resolvedBirthDate);
-
   const hasTelegram = Boolean(identity.bindings.telegramId);
   const hasMax = Boolean(identity.bindings.maxId);
   const hasEmail = Boolean(identity.email);
@@ -382,7 +261,7 @@ export function PatientCardClient({ cardHeader, initialTab, createVisitFrom, vis
             <div className="flex items-start gap-2 flex-wrap">
               <div className="flex flex-col gap-0.5 flex-1 min-w-0">
                 {/* FIO row */}
-                <div className="flex items-center gap-1.5 flex-wrap">
+                <div className="flex items-center gap-2.5 flex-wrap">
                   <span className="text-base font-bold text-foreground leading-tight">
                     {fioDisplay}
                   </span>
@@ -391,7 +270,7 @@ export function PatientCardClient({ cardHeader, initialTab, createVisitFrom, vis
                     size="icon"
                     title="Редактировать ФИО"
                     onClick={openFioEdit}
-                    className="h-5 w-5 rounded text-muted-foreground hover:text-foreground hover:bg-muted/60 shrink-0"
+                    className="ml-0.5 h-5 w-5 rounded text-muted-foreground hover:text-foreground hover:bg-muted/60 shrink-0"
                   >
                     <Pencil className="h-3 w-3" />
                   </Button>
@@ -406,16 +285,6 @@ export function PatientCardClient({ cardHeader, initialTab, createVisitFrom, vis
                     {support.supportMonthsApprox != null && (
                       <> · {support.supportMonthsApprox} мес</>
                     )}
-                  </span>
-                )}
-                {identity.isArchived && (
-                  <span className="inline-flex items-center rounded-md bg-muted px-2 py-0.5 text-xs font-medium text-muted-foreground">
-                    Архив
-                  </span>
-                )}
-                {identity.isBlocked && (
-                  <span className="inline-flex items-center rounded-md bg-destructive/10 px-2 py-0.5 text-xs font-medium text-destructive">
-                    Заблокирован
                   </span>
                 )}
               </div>
@@ -512,105 +381,12 @@ export function PatientCardClient({ cardHeader, initialTab, createVisitFrom, vis
               </div>
             )}
 
-            {/* ДР · возраст — read-only; edit via pencil */}
+            {/* Дата рождения — read-only; edit via pencil */}
             <div className="mt-1.5 text-xs text-muted-foreground flex items-center gap-1.5 flex-wrap">
               <span>
-                ДР:{" "}
-                {resolvedBirthDate ? (
-                  <>{fmtBirthDate(resolvedBirthDate)}{activeAge != null ? ` · ${activeAge} лет` : ""}</>
-                ) : (
-                  "—"
-                )}
+                Дата рождения: {resolvedBirthDate ? fmtBirthDate(resolvedBirthDate) : "—"}
               </span>
             </div>
-
-            {/* Пол — read-only; edit via pencil */}
-            <div className="mt-1 text-xs text-muted-foreground flex items-center gap-1.5 flex-wrap">
-              <span>
-                Пол: {resolvedGender === "male" ? "М" : resolvedGender === "female" ? "Ж" : "—"}
-              </span>
-            </div>
-
-            {/* Рост / Вес — read-only with inline edit (OBZ-11) */}
-            {physicalLoaded && (
-              <div className="mt-1 flex items-center gap-1.5">
-                <span className="text-xs text-muted-foreground">
-                  {physicalHeightCm != null && physicalWeightKg != null
-                    ? `${physicalHeightCm} см · ${physicalWeightKg} кг`
-                    : physicalHeightCm != null
-                    ? `${physicalHeightCm} см`
-                    : physicalWeightKg != null
-                    ? `${physicalWeightKg} кг`
-                    : "Рост/вес: —"}
-                </span>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  title="Редактировать рост и вес"
-                  onClick={openPhysicalEdit}
-                  className="h-5 w-5 rounded text-muted-foreground hover:text-foreground hover:bg-muted/60 shrink-0"
-                >
-                  <Scale className="h-3 w-3" />
-                </Button>
-              </div>
-            )}
-
-            {/* Inline physical edit form */}
-            {physicalEditing && (
-              <div className="mt-2 flex flex-col gap-1.5 rounded-lg border border-border bg-muted/30 p-3">
-                <div className="grid grid-cols-2 gap-2">
-                  <div className="flex flex-col gap-0.5">
-                    <label className="text-[10px] text-muted-foreground uppercase tracking-wide">Рост (см)</label>
-                    <Input
-                      type="number"
-                      min={50}
-                      max={250}
-                      step={1}
-                      value={draftHeightCm}
-                      onChange={(e) => setDraftHeightCm(e.target.value)}
-                      placeholder="напр. 175"
-                      className="rounded border border-border bg-background px-2 py-1 text-sm text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-1 focus:ring-primary"
-                    />
-                  </div>
-                  <div className="flex flex-col gap-0.5">
-                    <label className="text-[10px] text-muted-foreground uppercase tracking-wide">Вес (кг)</label>
-                    <Input
-                      type="number"
-                      min={10}
-                      max={500}
-                      step={1}
-                      value={draftWeightKg}
-                      onChange={(e) => setDraftWeightKg(e.target.value)}
-                      placeholder="напр. 70"
-                      className="rounded border border-border bg-background px-2 py-1 text-sm text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-1 focus:ring-primary"
-                    />
-                  </div>
-                </div>
-                {physicalError && (
-                  <p className="text-xs text-destructive">{physicalError}</p>
-                )}
-                <div className="flex gap-2 mt-0.5">
-                  <Button
-                    variant="default"
-                    onClick={savePhysical}
-                    disabled={physicalSaving}
-                    className="h-auto gap-1 rounded-md px-3 py-1 text-xs font-medium disabled:opacity-60"
-                  >
-                    <Check className="h-3 w-3" />
-                    {physicalSaving ? "Сохранение…" : "Сохранить"}
-                  </Button>
-                  <Button
-                    variant="outline"
-                    onClick={cancelPhysicalEdit}
-                    disabled={physicalSaving}
-                    className="h-auto gap-1 rounded-md px-3 py-1 text-xs font-medium text-muted-foreground hover:bg-muted/60 disabled:opacity-60"
-                  >
-                    <X className="h-3 w-3" />
-                    Отмена
-                  </Button>
-                </div>
-              </div>
-            )}
 
             {/* Phone + channel icons */}
             <div className="flex items-center gap-2 mt-2 flex-wrap">
@@ -701,48 +477,6 @@ export function PatientCardClient({ cardHeader, initialTab, createVisitFrom, vis
               patientUserId={identity.userId}
               initialState={initialPortalState}
             />
-          </div>
-
-          {/* RIGHT: mini-summary stats */}
-          <div className="flex gap-4 items-start pt-0.5 shrink-0">
-            {/* Прошлый визит */}
-            <div className="flex flex-col gap-0.5">
-              <span className={cn(doctorMetricLabelClass, "text-[10px]")}>Прошлый визит</span>
-              <span className="text-sm font-semibold text-foreground">
-                {lastVisit ? fmtDate(lastVisit.date) : "—"}
-              </span>
-              <span className="text-[11px] text-muted-foreground">
-                {lastVisit
-                  ? [lastVisit.visitType, lastVisit.city].filter(Boolean).join(" · ") || "—"
-                  : "нет данных"}
-              </span>
-            </div>
-
-            {/* Следующая запись */}
-            <div className="flex flex-col gap-0.5">
-              <span className={cn(doctorMetricLabelClass, "text-[10px]")}>Следующая запись</span>
-              <span className="text-sm font-semibold text-foreground">
-                {nextAppointment
-                  ? `${fmtDateShort(nextAppointment.date)} · ${nextAppointment.time}`
-                  : "—"}
-              </span>
-              <span className="text-[11px] text-muted-foreground">
-                {nextAppointment
-                  ? [nextAppointment.appointmentType, nextAppointment.city].filter(Boolean).join(" · ") || "—"
-                  : "нет записи"}
-              </span>
-            </div>
-
-            {/* Визитов */}
-            <div className="flex flex-col gap-0.5 cursor-pointer" title="Детали: отмены, переносы">
-              <span className={cn(doctorMetricLabelClass, "text-[10px]")}>Визитов</span>
-              <span className="text-sm font-semibold text-foreground">{totalVisits}</span>
-              <span className="text-[11px] text-muted-foreground">
-                {firstVisitDate ? `с ${fmtDateShort(firstVisitDate)}` : ""}
-                {" · "}
-                <span className="text-primary">детали ▾</span>
-              </span>
-            </div>
           </div>
         </div>
 

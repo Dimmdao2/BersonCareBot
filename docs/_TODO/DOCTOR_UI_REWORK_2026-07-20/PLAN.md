@@ -529,8 +529,13 @@ brief или заменять одним общим пунктом.
 #### UI-5b — полный patient-card composition после U5A/U5B (`#928`)
 
 - [ ] При активной карточке поиск доступен, результаты показаны dropdown под полем.
-- [ ] Sticky header содержит только ФИО и полную подпись «Дата рождения»; пол/рост/вес/chips/mini-stats убраны.
-- [ ] Edit affordance ФИО имеет увеличенный отступ и не слипается с именем.
+- [x] Sticky header содержит только ФИО и полную подпись «Дата рождения»; пол/рост/вес/chips/mini-stats убраны.
+  (✓ header now ФИО PatientCardClient.tsx:266 + «Дата рождения» :387; удалены Пол-блок, Рост/Вес display+inline
+  форма+state/handlers+physical-data plumbing, chips Архив/Заблокирован, правая mini-stats сводка, приписка возраста.
+  Звезда «★ На сопровождении» :284 и portal-invite :476 ОСТАВЛЕНЫ намеренно по owner 2026-07-23 — это НЕ chips из
+  UI-5b, не спец-нарушение.)
+- [x] Edit affordance ФИО имеет увеличенный отступ и не слипается с именем.
+  (✓ FIO row gap-1.5→gap-2.5 + pencil ml-0.5 PatientCardClient.tsx:273)
 - [ ] Справа находятся phone/email/messenger deep links; chat открывает существующую modal/messaging path.
 - [ ] Tabs находятся под header и sticky; рабочие tabs используют внутренний 50/50, mobile показывает одну часть.
 - [ ] `Overview`, `Communications` и `Visits` не дублируют данные; существующие блоки и messaging path

@@ -49,7 +49,6 @@ export default async function DoctorPatientProgramEmbeddedPage({ params, searchP
 
   const [
     cardHeader,
-    physical,
     testResults,
     attemptAcceptMap,
     programEvents,
@@ -65,7 +64,6 @@ export default async function DoctorPatientProgramEmbeddedPage({ params, searchP
     bodyRegionItems,
   ] = await Promise.all([
     deps.doctorClients.getPatientCardHeader(userId),
-    deps.doctorClients.getPatientPhysical(userId),
     deps.treatmentProgramProgress.listTestResultsForInstance(instanceId),
     deps.treatmentProgramProgress.getDoctorAttemptAcceptMap(instanceId),
     deps.treatmentProgramInstance.listProgramEvents(instanceId),
@@ -108,8 +106,6 @@ export default async function DoctorPatientProgramEmbeddedPage({ params, searchP
   const initialFocusTestResultId =
     focusItemIdRaw && z.string().uuid().safeParse(focusItemIdRaw).success ? focusItemIdRaw : undefined;
 
-  const physicalData = physical ?? { heightCm: null, weightKg: null };
-
   const patientCardTabHref = patientCardHref(userId, { tab: "program" });
 
   const embeddedEditor = (
@@ -137,7 +133,6 @@ export default async function DoctorPatientProgramEmbeddedPage({ params, searchP
         <PatientCardClient
           cardHeader={cardHeader}
           initialTab="program"
-          initialPhysicalData={physicalData}
           embeddedProgramContent={embeddedEditor}
         />
       </section>
