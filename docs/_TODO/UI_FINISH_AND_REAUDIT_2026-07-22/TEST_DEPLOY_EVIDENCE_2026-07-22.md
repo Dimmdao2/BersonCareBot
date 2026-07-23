@@ -145,3 +145,36 @@
   metadata prove the code path but do not substitute for that UI acceptance.
 - U5A dependency, public pricing/acquisition analytics/public status owner contracts, U6B dependency closure, full
   repo CI and owner acceptance remain open. See `U6A_PUBLIC_ENTRY_RECONCILIATION_2026-07-23.md`.
+
+## Populated Messages / Track B live acceptance — exact deployed SHA `5d6e83c56`
+
+- `/opt/projects/bersoncarebot-test` resolved to
+  `5d6e83c569e300744f5840a2687b335db5445c8c`. All five TEST services were active; webapp, integrator and public
+  health returned HTTP 200.
+- Locked product smoke passed **22/22**. The separate global-admin clinical-write denial passed HTTP 403.
+- The canonical patient TEST session sent one synthetic message through the ordinary patient API with HTTP 200 and
+  read it back. A random conversation remained HTTP 404.
+- One presentation audit captured populated Today/Clients/Messages desktop+mobile and the selected Messages thread.
+  Whole-row far-right pointer and keyboard activation passed for Today, Clients and Messages; live style evidence
+  matched exact DNA canvas `#F6F4EF`, no list side borders, `#f0efeb` divider color and `16px/400` primary text.
+  Evidence directory:
+  `/home/dev/dev-projects/.lead/runs/ui-finish-984/5d6e83c56/test-live-20260723T1434Z`.
+- Patient send/display is green, but patient mark-read is not: the UI's
+  `POST /api/patient/messages/read` returned HTTP 500 repeatedly. TEST journal records
+  `permission denied for table support_conversation_messages` on the direct UPDATE (`aclcheck_error`).
+- The authorized owner OTP start at `2026-07-23T14:41:22.978Z` returned HTTP 503 `email_send_failed`. Integrator
+  logged `restricted_setting_read_failed` for `smtp_outbound`; no OTP challenge or code was obtained.
+- Staff PWA manifest, service worker, install page, VAPID public-key status and global Web Push enablement passed.
+  The owner still had no subscription; subscribe/unsubscribe/browser permission/test notification remained blocked
+  by the failed ordinary OTP login and the absent constrained global-admin visual handoff.
+- The canonical isolation diagnostics `read` command was run without mutation. It reported **critical**, three
+  active unexplained groups / 17 occurrences, stale coverage, seven occurrences in the current 24-hour window and
+  latest `role_pool_mismatch` at `2026-07-23T14:36:59.638Z`. The latest signal aligns with the live Messages
+  mark-read failures and must not be reclassified as only historical or coverage-complete.
+
+## Populated Messages / Track B NOT DONE
+
+- Patient mark-read requires its own correction and independent verification.
+- SMTP restricted-accessor runtime execution/read remains broken on TEST; owner OTP login is not accepted.
+- Staff PWA browser subscription, unsubscribe, notification receipt and owner acceptance remain open.
+- Diagnostics were not resolved, cleaned or coverage-completed by this acceptance pass.

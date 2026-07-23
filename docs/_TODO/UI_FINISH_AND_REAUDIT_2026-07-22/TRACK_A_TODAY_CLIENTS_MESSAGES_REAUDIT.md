@@ -62,6 +62,30 @@ This is a recorded evidence-fixture blocker, not implementation evidence. P2B-06
 **partial** with the matrix counts below unchanged. A future worker must not repeat this product-write path until
 the locked-principal failure is fixed or an approved populated DEV fixture path exists.
 
+### Ordinary TEST populated Messages closure — 2026-07-23
+
+The independent one-pass presentation audit ran against deployed TEST SHA
+`5d6e83c569e300744f5840a2687b335db5445c8c`. All five TEST services and both loopback health endpoints were green.
+The canonical protected patient fixture session bootstrapped its own empty conversation, sent one synthetic message
+through the normal `POST /api/patient/messages` path with the exact TEST origin, received HTTP 200, and read the
+persisted message back. A random conversation id remained HTTP 404. The locked product smoke passed 22/22 and the
+separate global-admin clinical-write denial remained HTTP 403.
+
+Presentation evidence is under:
+
+`/home/dev/dev-projects/.lead/runs/ui-finish-984/5d6e83c56/test-live-20260723T1434Z`
+
+The run contains patient Messages, doctor Today/Clients/Messages desktop and mobile PNGs, plus selected-thread PNGs.
+The populated Messages row was activated at its far-right edge and with native-button `Enter` on both desktop and
+mobile. Both paths selected the conversation without console or request errors. Computed live styles confirmed
+`#F6F4EF` canvas, zero left/right row and list borders, `#f0efeb` divider color, and `16px/400` primary typography.
+Today's populated native link and Clients' row buttons also passed far-right pointer and keyboard activation.
+
+This presentation closure does not hide a separate functional defect found in the same run. Patient UI retries
+`POST /api/patient/messages/read`, which returns HTTP 500 because PostgreSQL denies the direct
+`UPDATE support_conversation_messages` (`aclcheck_error`). Sending and displaying the message are green; marking
+incoming messages read is not. That defect is outside P2B-01…P2B-14 presentation scope and remains open separately.
+
 ## Atomic acceptance matrix
 
 ### P2B-01 — real-done
@@ -104,13 +128,14 @@ the locked-principal failure is fixed or an approved populated DEV fixture path 
 - Test: mini-calendar `:127`; dashboard `:190-195`.
 - Live: the button is visible in D0/M0.
 
-### P2B-06 — partial
+### P2B-06 — real-done
 
 > Clients и Messages используют общий flat-list row contract с геометрией списка «На сопровождении», full-row hover для интерактивных строк и divider ровно `1px #f0efeb`; selected dialog не превращается в отдельную карточку.
 
 - Code: shared `DoctorDnaFlatListRow.tsx:17-27`; Clients `PatientsPageClient.tsx:761-800`; Messages `DoctorSupportInbox.tsx:358-422`.
 - Test: Clients `PatientsPageClient.test.tsx:157-174`; Messages `DoctorSupportInbox.test.tsx:93-122`.
-- Live: D1/M1 show Clients rows. The D2/M2 chat list is empty, so its selected state is unavailable.
+- Live: the original D1/M1 show Clients rows. The 2026-07-23 TEST closure shows the populated Messages row and
+  selected state on desktop/mobile; list/row side borders compute to zero and the divider resolves to `#f0efeb`.
 
 ### P2B-07 — real-done
 
@@ -136,15 +161,16 @@ the locked-principal failure is fixed or an approved populated DEV fixture path 
 - Test: chrome `:20-27,39-65,68-100`; Clients `:169-174,230-231`; Messages `:100-121`.
 - Live: D1/M1 and empty D2/M2 have no side frame.
 
-### P2B-10 — partial
+### P2B-10 — real-done
 
 > Основные page-blocks используют внутренний padding `18px` через shared doctor primitives, без локальных копий в затронутых страницах. **Owner ruling 2026-07-22:** Today is one full-row native link; Clients and Messages retain their full-row native button behavior, including keyboard activation.
 
 - Code: Today `DoctorTodayDashboard.tsx:178-224`; Clients `PatientsPageClient.tsx:761-800`; Messages `DoctorSupportInbox.tsx:358-422`.
 - Test: Today `DoctorTodayDashboard.test.tsx:249-297`; Clients `PatientsPageClient.test.tsx:209-232`; Messages `DoctorSupportInbox.test.tsx:77-91`.
 - Live: Clients whole-row left/right hit and keyboard behavior remain proven. The 2026-07-23 Today addendum proves
-  full-row hover, far-right pointer activation and native-link `Enter` on the populated support row. Messages rows
-  remain absent, so the combined atom stays partial.
+  full-row hover, far-right pointer activation and native-link `Enter` on the populated support row. The ordinary
+  TEST closure proves the populated Messages native button at its far-right edge and through `Enter` on both
+  desktop and mobile.
 
 ### P2B-11 — real-done
 
@@ -162,14 +188,14 @@ the locked-principal failure is fixed or an approved populated DEV fixture path 
 - Test: `PatientsPageClient.test.tsx:134-139`.
 - Live: D1 shows the search in the right half of the header; M1 shows the compact variant.
 
-### P2B-13 — partial
+### P2B-13 — real-done
 
 > Primary text строк Clients/Messages/Today support крупнее и легче (`text-base font-normal`), а meta/badge/calendar typography не повышена вместе с ним.
 
 - Code: shared row `DoctorDnaFlatListRow.tsx:17-27` and all consumers.
 - Test: chrome `:68-87`; Clients `:157-171`; Messages `:100-110`.
-- Live: Clients rows and the populated Today support row are visible with the larger/lighter primary line;
-  Messages rows remain absent, so the combined atom stays partial.
+- Live: Clients rows and the populated Today support row are visible with the larger/lighter primary line. The
+  populated TEST Messages row is visible on desktop/mobile and computes to `16px` / `font-weight: 400`.
 
 ### P2B-14 — real-done
 
@@ -181,8 +207,8 @@ the locked-principal failure is fixed or an approved populated DEV fixture path 
 
 ## Aggregate result
 
-- real-done: **11/14**
-- partial: **3/14** — P2B-06, P2B-10, P2B-13
+- real-done: **14/14**
+- partial: **0/14**
 - fake-done: **0/14**
 - owner-deferred: **0/14**
 
@@ -190,21 +216,15 @@ the locked-principal failure is fixed or an approved populated DEV fixture path 
 
 - Today: **11/11 evidence-real**. **NOT DONE:** formal owner acceptance only.
 - Clients: **10/10**. **NOT DONE:** formal owner acceptance only.
-- Messages/Chats: **6/9**. **NOT DONE:** no populated dialog exists. The bounded normal-product fixture attempt is
-  blocked by the locked DEV `POST /api/patient/messages` failure recorded above, so live whole-row activation,
-  divider/primary typography and selected state are still not verified. Follow-up diagnosis found the primary
-  failure: the patient-principal path inserts the message and then attempts to update staff-owned
-  `support_conversations.last_message_at`, which is intentionally absent from the `app_patient` UPDATE grant;
-  PostgreSQL `42501` aborts the transaction and the later `RESET ROLE` surfaces only secondary `25P02`. A narrow
-  current-patient capability is the safe correction shape, but that DB/security migration is outside these
-  presentation rows and waits for owner triage in taskdb `#986`.
+- Messages/Chats: **9/9 presentation evidence-real**. **NOT DONE:** formal owner acceptance and the separate
+  patient mark-read HTTP 500 / denied `UPDATE support_conversation_messages` defect.
 
 ## Mandatory NOT DONE and owner-acceptance boundary
 
 - Owner-closed remains **0/14** until the owner accepts the live PNG/click-through evidence.
 - Audit PASS or evidence-real status is not owner acceptance.
 - Do not mark the plan or taskdb done from this audit record.
-- No new findings are opened by this documentation-only persistence step.
+- The patient mark-read failure is not covered up by this presentation PASS and remains a separate runtime defect.
 
 ## Patient Messages locked-principal correction — independent re-audit 2026-07-23
 
@@ -224,6 +244,5 @@ sync, frozen-migration guard, SaaS DB regression, `git diff --check`, and a disp
 covering own send/activity, foreign patient/org denial, stale/forged-role denial, closed-dialog insert rollback,
 unchanged closed-dialog activity and least-privilege ACL. The auditor made no code changes.
 
-This closes the backend/security prerequisite only. The task and P2B Messages rows remain open until an ordinary
-TEST deploy proves a real patient POST and the single independent populated-dialog presentation audit verifies
-whole-row activation, border/divider/typography and selected state. No owner acceptance is inferred.
+The ordinary TEST run above now closes the patient-send and populated-dialog presentation prerequisites. It does
+not close the independently observed patient mark-read defect, and no owner acceptance is inferred.

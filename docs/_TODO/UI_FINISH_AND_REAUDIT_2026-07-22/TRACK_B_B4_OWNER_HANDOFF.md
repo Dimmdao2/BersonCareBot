@@ -86,3 +86,27 @@ This remains a code-only handoff until the orchestrator deploys the reviewed com
 sequence is: successful email OTP to `dimmdao@gmail.com`, fresh DB-backed global-admin resolution, owner browser/PWA
 install, permission and subscribe/unsubscribe proof, one non-clinical test notification, and the negative
 clinical-access checks above.
+
+## Ordinary TEST live attempt — deployed SHA `5d6e83c56`, 2026-07-23
+
+This attempt used the existing TEST database and ordinary public/product routes. It did not reset or reseed TEST,
+read PROD, print credentials, alter settings, or fabricate a browser subscription.
+
+- At `2026-07-23T14:41:22.978Z`, public email OTP start for the authorized specialist/admin destination
+  `dimmdao@gmail.com` returned HTTP 503 `email_send_failed`; no challenge was created and no code was read.
+- The matching TEST integrator journal records `restricted_setting_read_failed` for the exact `smtp_outbound`
+  restricted accessor. The API base login could not execute/read the intended capability after deployment. Logs
+  contained no credential material.
+- The existing protected global-admin TEST session still passed the locked product smoke, loaded the install page
+  with HTTP 200, and remained denied HTTP 403 on the separate clinical-write probe.
+- Staff PWA static/runtime preflight passed: `manifest-staff.webmanifest` HTTP 200 with
+  `application/manifest+json`, `sw.js` HTTP 200 with JavaScript content type, staff push status HTTP 200,
+  DB-backed VAPID public key present, and global Web Push enabled.
+- The account still has no subscription. Browser permission, physical PWA installation,
+  `subscribe → status → unsubscribe → status`, and a received non-clinical notification could not run because the
+  OTP login failed. The canonical short-lived global-admin visual handoff was absent, and its constrained capture
+  wrapper permits only System Health; direct reuse for arbitrary routes is forbidden.
+
+**Live verdict:** OTP is **FAIL** on a deployed restricted-accessor runtime defect. PWA manifest/service worker and
+status are **PASS**; browser subscription, notification delivery and owner acceptance remain **BLOCKED** behind the
+failed ordinary login. Track B remains open.
