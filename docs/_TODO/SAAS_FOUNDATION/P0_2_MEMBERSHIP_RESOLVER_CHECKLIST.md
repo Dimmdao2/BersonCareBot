@@ -1,3 +1,5 @@
+> STATUS (verified 2026-07-23, code-reconciled): see docs/_TODO/UI_FINISH_AND_REAUDIT_2026-07-22/CHECKPOINT_2026-07-23_STATE_AND_BACKEND_WORK_ORDER.md
+
 # P0.2 Membership Resolver And Doctor Workspace Contract
 
 Purpose: close the smallest useful SaaS/doctor-UI contract so `codex/saas-roadmap-foundation`
@@ -105,16 +107,16 @@ Forbidden:
 
 Implementation checklist:
 
-- [ ] Export resolver input/result types from module-owned files.
-- [ ] Implement `createOrganizationMembershipService({ membershipPort })`.
-- [ ] Implement `resolveOrganizationForUser(input)`.
-- [ ] Keep resolver deterministic and side-effect free.
-- [ ] Preserve strict TypeScript; no `any`.
-- [ ] Unit-test zero memberships.
-- [ ] Unit-test one active membership.
-- [ ] Unit-test that multiple active memberships throw `multiple_active_staff_memberships`.
+- [x] Export resolver input/result types from module-owned files. (✓ modules/organization-membership/service.ts:8-25)
+- [x] Implement `createOrganizationMembershipService({ membershipPort })`. (✓ modules/organization-membership/service.ts:49)
+- [x] Implement `resolveOrganizationForUser(input)`. (✓ modules/organization-membership/service.ts:53-64)
+- [x] Keep resolver deterministic and side-effect free. (✓ service.ts:53-64 — pure read over port, no writes)
+- [x] Preserve strict TypeScript; no `any`. (✓ service.ts fully typed | pnpm typecheck path)
+- [x] Unit-test zero memberships. (✓ service.test.ts:38)
+- [x] Unit-test one active membership. (✓ service.test.ts:47)
+- [x] Unit-test that multiple active memberships throw `multiple_active_staff_memberships`. (✓ service.test.ts:66)
 - [x] **Superseded — do not restore.** “Selected organization success” and “selected organization not found” were part of an invented selector model. Per the owner's one-doctor/one-clinic decision, recorded in `SAAS_R3_CUT_INVENTED_SCOPE.md` §2(3) and `SEQUENCE.md` stage 1.2, a second clinic requires a second login; duplicate active staff memberships are a loud data-integrity error, never a selection UX.
-- [ ] Unit-test permission flags for `owner`, `admin`, `doctor`, `assistant`.
+- [x] Unit-test permission flags for `owner`, `admin`, `doctor`, `assistant`. (✓ service.test.ts:83-101)
 
 Local gate:
 
@@ -160,17 +162,17 @@ Forbidden:
 
 Implementation checklist:
 
-- [ ] Add an in-memory membership port for Vitest/build fallback.
-- [ ] Wire `organizationMembership` service into `buildAppDeps()`.
-- [ ] Add an app-layer helper for RSC/page contexts, for example `requireDoctorWorkspaceContext()`.
-- [ ] Add an app-layer helper for API contexts, for example `requireDoctorWorkspaceApiContext()`.
-- [ ] Keep existing role-only gates backward compatible.
-- [ ] Map resolver outcomes to RSC redirects or API responses:
+- [x] Add an in-memory membership port for Vitest/build fallback. (✓ infra/repos/inMemoryOrganizationMembership.ts:26,30,41)
+- [x] Wire `organizationMembership` service into `buildAppDeps()`. (✓ app-layer/di/buildAppDeps.ts:520-521,1665)
+- [x] Add an app-layer helper for RSC/page contexts, for example `requireDoctorWorkspaceContext()`. (✓ app-layer/guards/requireRole.ts:348)
+- [x] Add an app-layer helper for API contexts, for example `requireDoctorWorkspaceApiContext()`. (✓ requireRole.ts:442)
+- [x] Keep existing role-only gates backward compatible. (✓ requireRole.ts:84 requireDoctorAccess delegates without type change)
+- [x] Map resolver outcomes to RSC redirects or API responses: (✓ requireRole.ts:265-293 — no_active_membership → denied; multiple propagates)
   - `no_active_membership` -> forbidden / access denied.
   - duplicate active staff memberships propagate as `multiple_active_staff_memberships` data-integrity failures.
-- [ ] Replace `bookingEngine.organization.getDefaultOrganizationId()` in doctor/admin booking-engine gates with resolved `organizationId`.
-- [ ] Add `membershipRole`, `membershipId`, `specialistId`, and permission flags to the new gate context.
-- [ ] Preserve current single-clinic behavior in tests.
+- [x] Replace `bookingEngine.organization.getDefaultOrganizationId()` in doctor/admin booking-engine gates with resolved `organizationId`. (✓ _requireDoctorBookingEngine.ts:22,36 | _requireAdminBookingEngine.ts:37,51,79 use gate.ctx.organizationId)
+- [x] Add `membershipRole`, `membershipId`, `specialistId`, and permission flags to the new gate context. (✓ requireRole.ts:181-182,281-293)
+- [x] Preserve current single-clinic behavior in tests. (✓ requireRole.doctorWorkspaceContext.test.ts | requireRole.doctorStaffAccess.test.ts)
 
 Local gate:
 
@@ -229,12 +231,12 @@ Rules:
 
 Implementation checklist:
 
-- [ ] Define and export `DoctorWorkspaceContext`.
-- [ ] Build context from the P0.2.3 gate context in `app/app/doctor/layout.tsx`.
-- [ ] Pass only stable display-safe fields to `DoctorWorkspaceShell`.
-- [ ] Keep existing shell rendering unchanged unless a prop is needed.
-- [ ] Document which fields UI may rely on for multi-specialist work.
-- [ ] Keep tests focused on changed behavior; do not add broad page snapshots.
+- [x] Define and export `DoctorWorkspaceContext`. (✓ modules/doctor-workspace/types.ts:6)
+- [x] Build context from the P0.2.3 gate context in `app/app/doctor/layout.tsx`. (✓ app/app/doctor/layout.tsx:60)
+- [x] Pass only stable display-safe fields to `DoctorWorkspaceShell`. (✓ layout.tsx:74)
+- [x] Keep existing shell rendering unchanged unless a prop is needed. (✓ layout.tsx:74 shared/ui/doctor/shell/DoctorWorkspaceShell.tsx)
+- [x] Document which fields UI may rely on for multi-specialist work. (✓ modules/doctor-workspace/types.ts)
+- [x] Keep tests focused on changed behavior; do not add broad page snapshots. (✓ modules/doctor-workspace/service.test.ts)
 
 Local gate:
 

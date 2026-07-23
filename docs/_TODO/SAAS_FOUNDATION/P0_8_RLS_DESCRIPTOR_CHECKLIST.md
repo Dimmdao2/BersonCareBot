@@ -1,3 +1,5 @@
+> STATUS (verified 2026-07-23, code-reconciled): see docs/_TODO/UI_FINISH_AND_REAUDIT_2026-07-22/CHECKPOINT_2026-07-23_STATE_AND_BACKEND_WORK_ORDER.md
+
 # P0.8 RLS Descriptor And Policy Checklist
 
 Status: executable checklist for P0.8.1-P0.8.7.
@@ -29,23 +31,23 @@ Forbidden:
 
 Checklist:
 
-- [ ] Descriptor represents exactly one tier for every artifact in `tiers-218.tsv`.
-- [ ] SCOPED descriptors declare direct org, FK path, or denorm path.
-- [ ] BOOTSTRAP descriptors declare global/tenant hybrid semantics where applicable.
-- [ ] INFRA/LEGACY/TELEMETRY descriptors include explicit exemptions.
-- [ ] P0.4.BE FK-path tables are represented as path-scoped, not direct-org.
+- [x] Descriptor represents exactly one tier for every artifact in `tiers-218.tsv`. (✓ node scripts/check-p0-8-rls-descriptors.mjs — 239 descriptors cover tiers-218.tsv exactly once, 2026-07-23)
+- [x] SCOPED descriptors declare direct org, FK path, or denorm path. (✓ check-p0-8-rls-descriptors PASS: SCOPED sources batch=115, be_fk_path=2, be_direct_or_self=45)
+- [x] BOOTSTRAP descriptors declare global/tenant hybrid semantics where applicable. (✓ node check-p0-8-6-policy-generator.mjs — 3 global + 2 PII org-gated bootstrap hybrids)
+- [x] INFRA/LEGACY/TELEMETRY descriptors include explicit exemptions. (✓ node check-p0-8-7-explicit-exemptions.mjs — INFRA=26 LEGACY=16 TELEMETRY=5)
+- [x] P0.4.BE FK-path tables are represented as path-scoped, not direct-org. (✓ node check-p0-4-be-fk-paths.mjs — 2 scoped be_* item tables declared FK-path)
 
 ## P0.8.2 SQL Renderer Tests
 
 Pure unit-test cases:
 
-- [ ] Direct `organization_id = app.org` predicate.
-- [ ] Patient ownership predicate where applicable.
-- [ ] Bootstrap hybrid predicate: global NULL row or matching `app.org`.
-- [ ] Unset-GUC dormant permit where the phase requires permissive mode.
-- [ ] Wrong-org deny in enforce-mode tests.
-- [ ] Empty-GUC deny in enforce-mode tests.
-- [ ] SQL identifier quoting for schemas/tables/columns.
+- [x] Direct `organization_id = app.org` predicate. (✓ node scripts/check-p0-8-sql-renderer.mjs — predicate tests OK, 2026-07-23)
+- [x] Patient ownership predicate where applicable. (✓ check-p0-8-sql-renderer PASS | rls-sql-renderer.mjs patient/chain/conditional/polymorphic shapes)
+- [x] Bootstrap hybrid predicate: global NULL row or matching `app.org`. (✓ check-p0-8-sql-renderer PASS; predicate in migration 0163_p0_8_6_bootstrap_hybrid_rls.sql)
+- [x] Unset-GUC dormant permit where the phase requires permissive mode. (✓ check-p0-8-sql-renderer PASS)
+- [x] Wrong-org deny in enforce-mode tests. (✓ check-p0-8-sql-renderer PASS | check-p0-9-enforce-descriptors.mjs)
+- [x] Empty-GUC deny in enforce-mode tests. (✓ check-p0-9-enforce-descriptors PASS — empty app.org denies SCOPED)
+- [x] SQL identifier quoting for schemas/tables/columns. (✓ check-p0-8-sql-renderer PASS — identifier quoting case)
 
 ## P0.8.3-P0.8.7 Policy Application
 

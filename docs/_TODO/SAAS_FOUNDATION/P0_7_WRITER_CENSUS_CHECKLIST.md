@@ -1,3 +1,5 @@
+> STATUS (verified 2026-07-23, code-reconciled): see docs/_TODO/UI_FINISH_AND_REAUDIT_2026-07-22/CHECKPOINT_2026-07-23_STATE_AND_BACKEND_WORK_ORDER.md
+
 # P0.7 Writer Census Checklist
 
 Status: executable checklist for P0.7.1-P0.7.6.
@@ -30,15 +32,15 @@ Forbidden:
 
 Checklist:
 
-- [ ] Run `pnpm run check:saas-db-regression`.
-- [ ] Enumerate webapp route/action/page/app-layer writers touching SCOPED tables.
-- [ ] Enumerate integrator API/bot writers touching SCOPED tables.
-- [ ] Enumerate integrator worker/scheduler writers touching SCOPED tables.
-- [ ] Enumerate media-worker writers touching SCOPED tables.
-- [ ] Enumerate payment/webhook writers and boot/migration writers.
-- [ ] Mark each writer as direct-org, FK-path, denorm-path, bootstrap, infra, legacy, or unknown.
-- [ ] Any unknown writer becomes a blocker before P0.7.2+.
-- [ ] Update `LOG.md`.
+- [x] Run `pnpm run check:saas-db-regression`. (✓ scripts/check-saas-db-regression.mjs | sub-checks green 2026-07-23)
+- [x] Enumerate webapp route/action/page/app-layer writers touching SCOPED tables. (✓ P0_7_WRITER_CENSUS.md — 163 webapp write-signal files classified)
+- [x] Enumerate integrator API/bot writers touching SCOPED tables. (✓ P0_7_WRITER_CENSUS.md — 46 integrator files)
+- [x] Enumerate integrator worker/scheduler writers touching SCOPED tables. (✓ P0_7_WRITER_CENSUS.md integrator worker/scheduler family)
+- [x] Enumerate media-worker writers touching SCOPED tables. (✓ P0_7_WRITER_CENSUS.md — 2 media-worker files)
+- [x] Enumerate payment/webhook writers and boot/migration writers. (✓ P0_7_WRITER_CENSUS.md payment/webhook + boot/migration families)
+- [x] Mark each writer as direct-org, FK-path, denorm-path, bootstrap, infra, legacy, or unknown. (✓ P0_7_WRITER_CENSUS.md classification columns)
+- [x] Any unknown writer becomes a blocker before P0.7.2+. (✓ P0_7_WRITER_CENSUS.md — no unknown SCOPED writer left unclassified)
+- [x] Update `LOG.md`. (✓ LOG.md P0.7.1 entry)
 
 Local gate:
 
@@ -63,11 +65,11 @@ Forbidden:
 
 Family checkpoints:
 
-- [ ] P0.7.2 webapp route/action writers.
-- [ ] P0.7.3 integrator API/bot writers.
-- [ ] P0.7.4 integrator worker/scheduler writers.
-- [ ] P0.7.5 media-worker writers.
-- [ ] P0.7.6 payment/webhook writers; boot migrations remain migrator-only.
+- [ ] P0.7.2 webapp route/action writers. (REMAINING: complete the broad webapp route/action writer sweep — central chokepoint applies principal via withClient prepare hook + stampStaffPrincipal (requireRole.ts:197), but exhaustive per-route coverage only partly proven; residual route audit tracked taskdb #725, C1 caveat lines 107,140 — target apps/webapp/src/app/**/route.ts + actions)
+- [x] P0.7.3 integrator API/bot writers. (✓ apps/integrator/src/infra/principal/organizationPrincipal.ts | T0_TENANT_CONTEXT_CUTOVER_CHECKLIST support/reminder/contacts/mailing slices)
+- [x] P0.7.4 integrator worker/scheduler writers. (✓ apps/integrator/src/infra/runtime/worker/projectionWorker.ts | .../scheduler/organizationTicks.ts | T0 entrypoint-to-org map)
+- [x] P0.7.5 media-worker writers. (✓ apps/media-worker/src/jobs/claim.ts:52-53,67,113 org-equality + quarantine | processTranscodeJob.principal.test.ts)
+- [ ] P0.7.6 payment/webhook writers; boot migrations remain migrator-only. (REMAINING: apply/prove dormant context on payment/webhook runtime writers — T0.4 covered mailing/reminder/contacts/rubitime, but the payment/webhook writer family mapping + per-path org-source + tests are not independently code-verified in this pass — target apps/webapp payment routes + integrator webhook writers)
 
 ### P0.7.5 Media-Worker Execution Checklist
 
@@ -87,14 +89,14 @@ Forbidden:
 
 Checklist:
 
-- [ ] Re-read `P0_7_WRITER_CENSUS.md` Media Worker section.
-- [ ] Inspect `apps/media-worker/src/jobs/claim.ts`, `processTranscodeJob.ts`, `processProgramSubmissionTranscode.ts`, `persistVideoDurationSeconds.ts`, `withClient.ts`, and `runMediaWorkerSql.ts`.
-- [ ] Confirm the current schema/source of `organization_id` for `media_transcode_jobs` and `media_files`.
-- [ ] Decide and document whether `claimNextJob` returns `organizationId` directly or the processor loads it before SCOPED writes.
-- [ ] Ensure successful transcode updates, retry/permanent failure updates, program submission updates, and duration persistence run under the resolved org context.
-- [ ] Ensure missing org leaves current dormant behavior unchanged and is logged/handled without a fallback.
-- [ ] Add focused tests for org-applied writer path, missing-org dormant path, and claim/reclaim behavior.
-- [ ] Update `LOG.md`.
+- [x] Re-read `P0_7_WRITER_CENSUS.md` Media Worker section. (✓ P0_7_WRITER_CENSUS.md Media Worker family)
+- [x] Inspect `apps/media-worker/src/jobs/claim.ts`, `processTranscodeJob.ts`, `processProgramSubmissionTranscode.ts`, `persistVideoDurationSeconds.ts`, `withClient.ts`, and `runMediaWorkerSql.ts`. (✓ files present; tests processTranscodeJob.principal.test.ts | processProgramSubmissionTranscode.test.ts | runMediaWorkerSql.test.ts)
+- [x] Confirm the current schema/source of `organization_id` for `media_transcode_jobs` and `media_files`. (✓ jobs/claim.ts:52-53 joins j.organization_id / mf.organization_id)
+- [x] Decide and document whether `claimNextJob` returns `organizationId` directly or the processor loads it before SCOPED writes. (✓ jobs/claim.ts:101,113 RETURNING organization_id, returned on claimed job)
+- [x] Ensure successful transcode updates, retry/permanent failure updates, program submission updates, and duration persistence run under the resolved org context. (✓ processTranscodeJob.principal.test.ts proves principal-applied writer path)
+- [x] Ensure missing org leaves current dormant behavior unchanged and is logged/handled without a fallback. (✓ jobs/claim.ts:67 quarantines null/mismatched org, no synthetic fallback)
+- [x] Add focused tests for org-applied writer path, missing-org dormant path, and claim/reclaim behavior. (✓ jobs/claim.test.ts | processTranscodeJob.principal.test.ts)
+- [x] Update `LOG.md`. (✓ LOG.md media-worker context slice entry | T0 checklist media-worker context slice)
 
 Suggested local gate:
 

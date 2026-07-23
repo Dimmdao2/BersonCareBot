@@ -1,3 +1,5 @@
+> STATUS (verified 2026-07-23, code-reconciled): see docs/_TODO/UI_FINISH_AND_REAUDIT_2026-07-22/CHECKPOINT_2026-07-23_STATE_AND_BACKEND_WORK_ORDER.md
+
 # P0.6 Dormant Context Checklist
 
 Status: executable checklist for P0.6.1. Code implementation should happen in a separate branch/worktree.
@@ -36,18 +38,18 @@ Forbidden:
 
 ## Implementation Checklist
 
-- [ ] Run the pre-P0.6 guard: `pnpm run check:saas-db-regression`.
-- [ ] Identify the existing dormant hook names for webapp, integrator, and media-worker.
-- [ ] Define one module/API for current DB principal state, preferably AsyncLocalStorage-backed if the chokepoint already expects request-local state.
-- [ ] Ensure unset context is the default and performs no tenant SQL.
-- [ ] Ensure set context validates UUID shape before it reaches SQL.
-- [ ] Ensure principal application is centralized in the client prepare hook, not in routes/services.
-- [ ] Use transaction/pinned-client semantics for any `SET LOCAL app.org` path; do not rely on a pooled session retaining a request principal.
-- [ ] Add tests proving unset context keeps current behavior.
-- [ ] Add tests proving set context applies `app.org` once through the central hook.
-- [ ] Add tests proving nested or concurrent contexts do not leak organization IDs.
-- [ ] Confirm `buildAppDeps()` caching does not capture a stale organization ID.
-- [ ] Update `LOG.md`.
+- [x] Run the pre-P0.6 guard: `pnpm run check:saas-db-regression`. (✓ scripts/check-saas-db-regression.mjs | sub-checks green 2026-07-23)
+- [x] Identify the existing dormant hook names for webapp, integrator, and media-worker. (✓ webapp infra/db/withClient.ts:32,79 | apps/integrator/src/infra/db/withClient.ts | apps/media-worker/src/withClient.ts)
+- [x] Define one module/API for current DB principal state, preferably AsyncLocalStorage-backed if the chokepoint already expects request-local state. (✓ packages/db-principal/src/index.ts:253 AsyncLocalStorage)
+- [x] Ensure unset context is the default and performs no tenant SQL. (✓ db-principal/index.ts:29 DEFAULT_DB_PRINCIPAL_CONTEXT_MODE="legacy-guc"; :611 legacy-guc no set_config)
+- [x] Ensure set context validates UUID shape before it reaches SQL. (✓ db-principal/index.ts:4 UUID_RE; :763 UUID_RE.test guard)
+- [x] Ensure principal application is centralized in the client prepare hook, not in routes/services. (✓ withClient.ts:32,79 prepareClientForRequest/prepareTransactionClientForRequest → applyDbPrincipalToConnection/Transaction)
+- [x] Use transaction/pinned-client semantics for any `SET LOCAL app.org` path; do not rely on a pooled session retaining a request principal. (✓ db-principal/index.ts:685 set_config('app.org',$1,true) local=true inside transaction path)
+- [x] Add tests proving unset context keeps current behavior. (✓ apps/webapp/src/infra/db/dbPrincipalContext.test.ts | withClient.test.ts)
+- [x] Add tests proving set context applies `app.org` once through the central hook. (✓ withClient.test.ts)
+- [x] Add tests proving nested or concurrent contexts do not leak organization IDs. (✓ dbPrincipalContext.test.ts:29,57,77 nested/concurrent/interleaved isolation)
+- [x] Confirm `buildAppDeps()` caching does not capture a stale organization ID. (✓ AsyncLocalStorage request-local carrier — org never captured in DI singleton; dbPrincipalContext.test.ts:57)
+- [x] Update `LOG.md`. (✓ LOG.md P0.6.1 entry)
 
 ## Local Gate
 

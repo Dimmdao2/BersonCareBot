@@ -1,3 +1,5 @@
+> STATUS (verified 2026-07-23, code-reconciled): see docs/_TODO/UI_FINISH_AND_REAUDIT_2026-07-22/CHECKPOINT_2026-07-23_STATE_AND_BACKEND_WORK_ORDER.md
+
 # SaaS master checklist — from isolation to the first paying-ready MVP
 
 **Single source of "done" for the whole push.** Outcomes, not vague phases. Each item closes only
@@ -147,17 +149,34 @@ green. Everything merged to `feat` and pushed. **No flip** (that's M2, owner-gat
       APPLICATION-layer wiring (webapp readers, integrator DbPort/pool, scheduler, media) that
       actually connects/switches to the right role per session — mechanical sweep = **Codex**.
       DoD: every SCOPED read runs under the right role + GUCs; unset → dormant; staff never gets 0 rows.
+      (REMAINING: full role-switch sweep completeness + live wiring not proven this pass. BUILT so far —
+      webapp two-pool provider apps/webapp/src/infra/db/webappPoolProvider.ts (staff/nonstaff/bootstrap
+      by principal kind, falls back to single DATABASE_URL when unset), sessionPrincipal.ts stamping,
+      integrator apps/integrator/src/infra/principal/organizationPrincipal.ts, media-worker app_worker.
+      Still open — exhaustive per-reader coverage across ALL units + "staff never 0 rows" proof + live
+      DATABASE_URL_STAFF/NONSTAFF activation; residual route audit taskdb #725)
 - [ ] **B7** — shadow-mode toggle (log RLS violations, don't deny) for the staging shadow-run.
+      (REMAINING: "shadow" mode enum exists in packages/db-principal/src/index.ts:243 and stamps GUCs like
+      locked, but the log-violations-without-deny staging shadow-run behavior + toggle wiring is not
+      code-verified complete — target db-principal shadow path + staging shadow harness)
 - [ ] **B8** — flip plan + rollback drafted (permissive→FORCE + role switch, behind flag/GUC). Owner approves.
+      (owner-gated — PHASE4_ROLLOUT_RUNBOOK.md + deploy/postgres/phase4-force-rls-cutover.sql; plan+rollback
+      drafted, owner approval pending)
 - [ ] **be_organization_members** tier review (BOOTSTRAP-global → hybrid?) decided.
+      (REMAINING: record the explicit BOOTSTRAP-global vs hybrid tier decision for be_organization_members —
+      table is now tiered/green in check-p0-10-tier-completeness but the hybrid-vs-global ruling is not
+      documented — target tiers-218.tsv + a decision note)
 - [ ] **M1 exit proof:** `smoke-r2-real-policy-isolation.mjs` green covering org+patient+chain+fail-closed;
       `check:saas-db-regression` green; full `pnpm run ci` green; `feat` pushed.
+      (REMAINING: DB-backed smoke-r2-real-policy-isolation.mjs + full `pnpm run ci` + `feat` push not
+      runnable/verifiable in this DB-free reconciliation pass; check:saas-db-regression sub-checks confirmed
+      green 2026-07-23 — target: run DB-backed suite under owner-run scratch)
 
 ## M2 — R2 enforcement flip — ⛔ OWNER-GATED (I prep, owner executes)
-- [ ] Deploy dormant foundation to **test** → run migrations → single-clinic behavior unchanged.
-- [ ] Deploy to **prod** (DB backup first) → migrations incl C1 → schema guardrail.
-- [ ] Non-bypass role + `FORCE` flip on **test/staging** → app works, cross-tenant denied, rollback ready.
-- [ ] Flip on **prod** after staging proof.
+- [~] Deploy dormant foundation to **test** → run migrations → single-clinic behavior unchanged. (awaiting live cutover — SAAS_DEPLOY_SEQUENCE.md; owner-executed)
+- [~] Deploy to **prod** (DB backup first) → migrations incl C1 → schema guardrail. (awaiting live cutover — SAAS_DEPLOY_SEQUENCE.md; owner-executed)
+- [~] Non-bypass role + `FORCE` flip on **test/staging** → app works, cross-tenant denied, rollback ready. (awaiting live cutover — PHASE4_ROLLOUT_RUNBOOK.md; owner-executed; proven once on TEST 2026-07-13 then reverted)
+- [~] Flip on **prod** after staging proof. (awaiting live cutover — PHASE4_ROLLOUT_RUNBOOK.md; owner-executed)
 > I produce: the exact runbook + rollback + shadow-run results. Owner pushes the buttons.
 
 ## M3 — R3 tenant self-service (MVP-critical) — ⏳ NEXT after M1

@@ -1,3 +1,5 @@
+> STATUS (verified 2026-07-23, code-reconciled): see docs/_TODO/UI_FINISH_AND_REAUDIT_2026-07-22/CHECKPOINT_2026-07-23_STATE_AND_BACKEND_WORK_ORDER.md
+
 # C1 — walls live on TEST: build checklist + owner morning-acceptance checklist
 
 Goal: by morning, the owner opens test.bersoncare.ru, logs in as the Клиника 2 doctor, and sees that
@@ -13,49 +15,49 @@ Anchors: Точка Здоровья = org `a0000000-0000-4000-8000-000000000001
 ## A. BUILD CHECKLIST — what I must do (source of truth for "done")
 
 ### Foundation
-- [x] Wall roles `app_staff` / `app_patient` created on the TEST DB (LOGIN, NOBYPASSRLS, no cross-membership)
-- [ ] Apply `p0-5b-grants.sql` — table grants to `app_staff` / `app_patient` on the TEST DB
-- [ ] Create the two runtime LOGIN credentials + point `webapp.test` DATABASE at a NON-owner login (staff pool)
+- [x] Wall roles `app_staff` / `app_patient` created on the TEST DB (LOGIN, NOBYPASSRLS, no cross-membership) (✓ deploy/postgres/p0-5b-role-split-staff-patient.sql | live-applied 2026-07-13 per OVERNIGHT STATUS/RESULT)
+- [~] Apply `p0-5b-grants.sql` — table grants to `app_staff` / `app_patient` on the TEST DB (awaiting live cutover — DORMANT_DEPLOY_TEST_RUNBOOK.md; artifact deploy/postgres/p0-5b-grants.sql ready, applied 2026-07-13 then env reverted to dormant)
+- [~] Create the two runtime LOGIN credentials + point `webapp.test` DATABASE at a NON-owner login (staff pool) (awaiting live cutover — DORMANT_DEPLOY_TEST_RUNBOOK.md; rollback re-pointed DATABASE_URL to owner login, current state dormant)
 
 ### Core (the one chokepoint)
-- [ ] Single DB layer derives the **organization from the session** (resolve membership) and stamps the
-      signed principal context — in ONE place, on every query (no per-route work)
-- [ ] **Bootstrap/login path works under enforce**: pre-session queries (password login, OTP) run under the
-      bootstrap principal so the owner can actually LOG IN with walls on (critical — else nobody gets in)
-- [ ] Audit: no query reaches the DB bypassing the common layer (find any stray `pg.connect`/pool → close it)
+- [x] Single DB layer derives the **organization from the session** (resolve membership) and stamps the
+      signed principal context — in ONE place, on every query (no per-route work) (✓ app-layer/principal/sessionPrincipal.ts:41 resolveOrganizationForUser | requireRole.ts:197,215 stampStaffPrincipal centralised)
+- [x] **Bootstrap/login path works under enforce**: pre-session queries (password login, OTP) run under the
+      bootstrap principal so the owner can actually LOG IN with walls on (critical — else nobody gets in) (✓ infra/db/webappPoolProvider.ts:226 bootstrap pool + createDbBootstrapPrincipal | live-proven login 200 both doctors, RESULT 2026-07-13)
+- [x] Audit: no query reaches the DB bypassing the common layer (find any stray `pg.connect`/pool → close it) (✓ node scripts/check-db-chokepoint.mjs — OK, 2026-07-23)
 
 ### Enforce (flip on TEST)
-- [ ] Apply helper policies + `phase4-force-rls-cutover.sql` (FORCE RLS) on the TEST DB
-- [ ] `DB_PRINCIPAL_CONTEXT_MODE=locked` + signing secret in `webapp.test`
-- [ ] Flip inside a maintenance window (tech mode) → restart units → lift maintenance
-- [ ] health green, all test units active, WireGuard prod relay untouched
+- [~] Apply helper policies + `phase4-force-rls-cutover.sql` (FORCE RLS) on the TEST DB (awaiting live cutover — PHASE4_ROLLOUT_RUNBOOK.md; deploy/postgres/phase4-force-rls-cutover.sql ready, flipped+reverted 2026-07-13)
+- [~] `DB_PRINCIPAL_CONTEXT_MODE=locked` + signing secret in `webapp.test` (awaiting live cutover — PHASE4_ROLLOUT_RUNBOOK.md; current runtime default legacy-guc, reverted from locked)
+- [~] Flip inside a maintenance window (tech mode) → restart units → lift maintenance (awaiting live cutover — PHASE4_ROLLOUT_RUNBOOK.md; performed 2026-07-13 then reverted to dormant)
+- [~] health green, all test units active, WireGuard prod relay untouched (awaiting live cutover — PHASE4_ROLLOUT_RUNBOOK.md; verified once 2026-07-13 under enforce, now dormant)
 
 ### Safety
-- [ ] One-command ROLLBACK ready (FORCE off + back to owner/legacy-guc) in case something is wrong in the morning
+- [x] One-command ROLLBACK ready (FORCE off + back to owner/legacy-guc) in case something is wrong in the morning (✓ deploy/postgres/phase4-force-rls-cutover.sql -v phase4_force_rls_down=1 + env DATABASE_URL→owner + mode=legacy-guc, RESULT line 102)
 
 ---
 
 ## B. RESULT CHECKLIST — what YOU verify in the morning (owner acceptance)
 
 ### Login works under the walls
-- [ ] Log in as Клиника 2 doctor (`demo2clinic@example.com` / `demo1234`) — login succeeds with walls ON
+- [~] Log in as Клиника 2 doctor (`demo2clinic@example.com` / `demo1234`) — login succeeds with walls ON (awaiting live cutover — PHASE4_ROLLOUT_RUNBOOK.md; proven once live 2026-07-13 login 200, system now dormant — owner re-acceptance needed)
 
 ### Isolation — Клиника 2 does NOT see Точка Здоровья (re-check each surface that leaked)
-- [ ] «Сегодня» — no Точка Здоровья patient signals
-- [ ] KPI numbers — mine (0), not Точка Здоровья's
-- [ ] Calendar — empty (my 0 appts), not Точка Здоровья's records
-- [ ] Chats — client list empty, NOT Точка Здоровья's clients / last messages
-- [ ] Broadcasts — audience counts are my clinic's (0)
-- [ ] CMS / content — mine
-- [ ] Library — I do NOT see Точка Здоровья's patient files
+- [~] «Сегодня» — no Точка Здоровья patient signals (awaiting live cutover — proven 2026-07-13: clinic-2 patients {"clients":[]}, now dormant)
+- [~] KPI numbers — mine (0), not Точка Здоровья's (awaiting live cutover — proven 2026-07-13: recordsInPeriod=0, now dormant)
+- [~] Calendar — empty (my 0 appts), not Точка Здоровья's records (awaiting live cutover — proven 2026-07-13, now dormant)
+- [~] Chats — client list empty, NOT Точка Здоровья's clients / last messages (awaiting live cutover — proven 2026-07-13: conversations [], now dormant)
+- [~] Broadcasts — audience counts are my clinic's (0) (awaiting live cutover — PHASE4_ROLLOUT_RUNBOOK.md; not exhaustively driven 2026-07-13, now dormant)
+- [~] CMS / content — mine (awaiting live cutover — PHASE4_ROLLOUT_RUNBOOK.md; now dormant)
+- [~] Library — I do NOT see Точка Здоровья's patient files (awaiting live cutover — PHASE4_ROLLOUT_RUNBOOK.md; now dormant)
 
 ### Main clinic still works (walls didn't break it)
-- [ ] Log in as the main doctor (Точка Здоровья, +79643805480) → I see MY 298 appointments, my library,
-      my chats — exactly as before
-- [ ] No Forbidden / empty screens on MY OWN pages
+- [~] Log in as the main doctor (Точка Здоровья, +79643805480) → I see MY 298 appointments, my library,
+      my chats — exactly as before (awaiting live cutover — proven 2026-07-13: main doctor recordsInPeriod=224 own data, now dormant)
+- [~] No Forbidden / empty screens on MY OWN pages (awaiting live cutover — proven 2026-07-13: 17 routes 0×HTTP 500, now dormant)
 
 ### Kill switch
-- [ ] Walls can be turned OFF with one command (back to dormant) if anything is wrong
+- [x] Walls can be turned OFF with one command (back to dormant) if anything is wrong (✓ deploy/postgres/phase4-force-rls-cutover.sql -v phase4_force_rls_down=1 + env→owner + mode=legacy-guc, RESULT line 102)
 
 ---
 
