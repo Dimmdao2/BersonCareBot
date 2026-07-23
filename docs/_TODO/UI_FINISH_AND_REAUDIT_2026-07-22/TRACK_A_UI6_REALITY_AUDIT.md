@@ -82,6 +82,29 @@ The initial desktop/mobile captures record HTTP 200 and zero console/page errors
 did not persist its final diagnostic JSON, so the addendum does not overstate a complete no-error ledger for the
 interaction substeps.
 
+### Settings residual attempt — BLOCKED 2026-07-23
+
+A bounded DEV attempt on source SHA `e35c331693938989bbdcbb40519573b7036df159` did not produce the required
+changed Settings/Today evidence. External manifest with hashed artifacts:
+
+`/home/dev/dev-projects/.lead/runs/ui6-settings-live/e35c33169-20260723T012740Z/manifest.md`
+
+- The initial organization row was absent, so Today used the exact code default: both signal kinds visible and
+  `peopleListMode=on_support`. Initial Settings desktop and Today desktop/mobile captures confirm that baseline.
+- The first preflight failed before mutation because its label-parent locator did not reach the sibling switch.
+- In the corrected attempt, a tool-cell reported completion while its browser PID was still alive; a diagnostic
+  command unintentionally started a duplicate PID. That duplicate performed one canonical Settings UI PATCH
+  (`wellbeing_low_streak` off). The original attempt detected the changed `updatedAt` before its next mutation and
+  stopped at the concurrency guard. No target-state PNG was captured.
+- Cleanup used only the Settings UI and restored the exact logical defaults. PATCH and final GET tokens represent
+  the same instant despite ISO/DB formatting and precision differences; final GET returns both signal kinds and
+  `on_support`. The initially absent row is now a materialized default row, an explicitly allowed DEV-only residue.
+  No direct SQL, delete, new API, TEST or PROD action occurred.
+- Canonical DEV stop left ports `5200` and `4200` free. After the second mechanical failure no third evidence
+  attempt was run.
+
+This blocked run changes no row verdict: rows 7 and 8 remain `partial`, and owner acceptance remains separate.
+
 ## Nine-row evidence matrix
 
 | # | Checkbox (quoted verbatim) | Code evidence | Test evidence | Source-bound live PNG | Verdict |
@@ -112,6 +135,9 @@ No dependency-ready product-code defect was found in the nine-row scope, so this
 implementation worker. The 2026-07-23 pass closed the early-appointment boundary and populated on-support state.
 The remaining ready evidence work is one Settings-save → changed-Today capture for signal visibility and the
 populated «Недавние с визитами» ordering, followed by owner click-through.
+
+The later bounded Settings attempt above stopped after two mechanical failures without target-state evidence.
+Under the orchestration stop rule it must not be auto-retried in this run.
 
 If that single live pass exposes a real defect, all UI-6 findings should form one coherent worker stage. It must not
 start serial audit/fix micro-rounds.
