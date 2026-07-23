@@ -1,19 +1,9 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { DbPort } from '../kernel/contracts/index.js';
 
-/** Mutable stand-in for `emailConfig` — read on each `fromEnvFallback()`. */
-const mockEmailEnv = vi.hoisted(() => ({
-  configured: false,
-  smtpHost: '',
-  smtpPort: 587,
-  smtpSecure: false,
-  smtpUser: '',
-  smtpPass: '',
-  fromAddress: '',
-}));
-
-vi.mock('../integrations/email/config.js', () => ({
-  emailConfig: mockEmailEnv,
+const loggerWarn = vi.hoisted(() => vi.fn());
+vi.mock('../infra/observability/logger.js', () => ({
+  logger: { warn: loggerWarn },
 }));
 
 import { invalidateSmtpOutboundCache, resolveSmtpOutboundConfig } from './smtpOutbound.js';
@@ -28,16 +18,10 @@ function mockDb(query: DbPort['query']): DbPort {
   return db;
 }
 
-describe('smtp outbound config (DB + env)', () => {
+describe('smtp outbound restricted DB config', () => {
   beforeEach(() => {
     invalidateSmtpOutboundCache();
-    mockEmailEnv.configured = true;
-    mockEmailEnv.smtpHost = 'env-host.example.com';
-    mockEmailEnv.smtpPort = 2525;
-    mockEmailEnv.smtpSecure = true;
-    mockEmailEnv.smtpUser = 'env-user';
-    mockEmailEnv.smtpPass = 'env-secret';
-    mockEmailEnv.fromAddress = 'env-from@example.com';
+    loggerWarn.mockReset();
   });
 
   afterEach(() => {
@@ -45,7 +29,7 @@ describe('smtp outbound config (DB + env)', () => {
     vi.useRealTimers();
   });
 
-  it('prefers complete smtp_outbound from DB over env values', async () => {
+  it('resolves complete smtp_outbound only through the restricted DB capability', async () => {
     const inner = {
       host: 'db-host.example.com',
       port: 587,
@@ -68,10 +52,12 @@ describe('smtp outbound config (DB + env)', () => {
     expect(r.smtpPass).toBe('db-pass');
     expect(r.fromAddress).toBe('db-from@example.com');
     expect(query).toHaveBeenCalledTimes(1);
-    expect(query.mock.calls[0]![1]).toEqual(['smtp_outbound', 'admin']);
+    expect(query).toHaveBeenCalledWith(
+      'SELECT app.read_integrator_smtp_outbound_setting() AS value_json',
+    );
   });
 
-  it('falls back to env when DB row is incomplete (empty password)', async () => {
+  it('returns unconfigured when the DB row is incomplete', async () => {
     const query = vi.fn().mockResolvedValue({
       rows: [
         {
@@ -91,31 +77,31 @@ describe('smtp outbound config (DB + env)', () => {
 
     const r = await resolveSmtpOutboundConfig(mockDb(query));
 
-    expect(r.configured).toBe(true);
-    expect(r.smtpHost).toBe('env-host.example.com');
-    expect(r.smtpPort).toBe(2525);
-    expect(r.smtpPass).toBe('env-secret');
-    expect(r.fromAddress).toBe('env-from@example.com');
+    expect(r.configured).toBe(false);
+    expect(r.smtpHost).toBe('');
   });
 
-  it('falls back to env when there is no row', async () => {
+  it('returns unconfigured when there is no DB row', async () => {
     const query = vi.fn().mockResolvedValue({ rows: [] });
     const r = await resolveSmtpOutboundConfig(mockDb(query));
 
-    expect(r.configured).toBe(true);
-    expect(r.smtpHost).toBe('env-host.example.com');
+    expect(r.configured).toBe(false);
   });
 
-  it('returns empty when DB incomplete and env not configured', async () => {
-    mockEmailEnv.configured = false;
-    const query = vi.fn().mockResolvedValue({
-      rows: [{ value_json: { value: { host: 'x', password: '', user: 'u', from: 'f@example.com', port: 587 } } }],
-    });
+  it('fails closed without logging database error details or credential material', async () => {
+    const query = vi.fn().mockRejectedValue(
+      new Error('permission denied while reading password=do-not-log'),
+    );
 
     const r = await resolveSmtpOutboundConfig(mockDb(query));
 
     expect(r.configured).toBe(false);
     expect(r.smtpHost).toBe('');
+    expect(loggerWarn).toHaveBeenCalledWith(
+      { key: 'smtp_outbound', reason: 'restricted_setting_read_failed' },
+      '[smtpOutbound] restricted DB setting unavailable',
+    );
+    expect(JSON.stringify(loggerWarn.mock.calls)).not.toContain('do-not-log');
   });
 
   it('forces secure when port is 465 in DB payload', async () => {

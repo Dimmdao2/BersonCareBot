@@ -1,16 +1,13 @@
 /**
  * Resolved outbound SMTP used by `/api/bersoncare/send-email`.
- * Priority: DB `public.system_settings.smtp_outbound` (admin) when «complete»,
- * else legacy env via `integrations/email/config.js`.
+ * Source of truth: restricted DB-backed `public.system_settings.smtp_outbound` (admin).
+ * The delivery process receives only an argumentless database capability for this credential.
  */
 import { z } from 'zod';
 import type { DbPort } from '../kernel/contracts/index.js';
 import { logger } from '../infra/observability/logger.js';
-import { emailConfig } from '../integrations/email/config.js';
-import {
-  fetchPublicSystemSettingValueJson,
-  parseSystemSettingInnerWithSchema,
-} from '../infra/db/publicSystemSettings.js';
+import { parseSystemSettingInnerWithSchema } from '../infra/db/publicSystemSettings.js';
+import { readSmtpOutboundSettingValueJson } from '../infra/db/publicRestrictedSettings.js';
 
 const KEY = 'smtp_outbound';
 const TTL_MS = 60_000;
@@ -79,19 +76,6 @@ function emptyResolved(): ResolvedSmtpOutboundConfig {
   };
 }
 
-function fromEnvFallback(): ResolvedSmtpOutboundConfig {
-  if (!emailConfig.configured) return emptyResolved();
-  return {
-    configured: true,
-    smtpHost: emailConfig.smtpHost,
-    smtpPort: emailConfig.smtpPort,
-    smtpSecure: emailConfig.smtpSecure,
-    smtpUser: emailConfig.smtpUser,
-    smtpPass: emailConfig.smtpPass,
-    fromAddress: emailConfig.fromAddress,
-  };
-}
-
 function parseSmtpOutboundValueJson(valueJson: unknown): ResolvedSmtpOutboundConfig | null {
   return parseSystemSettingInnerWithSchema(valueJson, smtpOutboundInnerReadSchema);
 }
@@ -103,12 +87,15 @@ export async function resolveSmtpOutboundConfig(db: DbPort): Promise<ResolvedSmt
 
   let resolved: ResolvedSmtpOutboundConfig;
   try {
-    const valueJson = await fetchPublicSystemSettingValueJson(db, KEY);
+    const valueJson = await readSmtpOutboundSettingValueJson(db);
     const fromDb = valueJson !== null ? parseSmtpOutboundValueJson(valueJson) : null;
-    resolved = fromDb ?? fromEnvFallback();
-  } catch (err) {
-    logger.warn({ err, key: KEY }, '[smtpOutbound] query failed, env fallback');
-    resolved = fromEnvFallback();
+    resolved = fromDb ?? emptyResolved();
+  } catch {
+    logger.warn(
+      { key: KEY, reason: 'restricted_setting_read_failed' },
+      '[smtpOutbound] restricted DB setting unavailable',
+    );
+    resolved = emptyResolved();
   }
 
   cache = { cfg: resolved, expiresAt: now + TTL_MS };

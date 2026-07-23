@@ -1,17 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-vi.mock('./config.js', () => ({
-  emailConfig: {
-    configured: true,
-    fromAddress: 'noreply@test.example',
-    smtpHost: 'smtp.test.example',
-    smtpPort: 587,
-    smtpSecure: false,
-    smtpUser: 'user',
-    smtpPass: 'pass',
-  },
-}));
-
 const mockSendMail = vi.fn().mockResolvedValue({
   accepted: ['recipient@example.com'],
   rejected: [] as string[],

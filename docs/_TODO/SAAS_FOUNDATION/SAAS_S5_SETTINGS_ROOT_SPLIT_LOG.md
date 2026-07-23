@@ -1,5 +1,24 @@
 # S5 Settings Root Split — execution log
 
+## 2026-07-23 — Track B restricted SMTP accessor code handoff
+
+The email-OTP failure on locked TEST was traced to an obsolete direct `public.system_settings` read by the
+integrator SMTP resolver. The API base-login intentionally has neither ambient settings-table `SELECT` nor tenant
+context, so widening that login was rejected.
+
+- Migration `0235_integrator_smtp_restricted_accessor` adds one argumentless SECURITY DEFINER capability for the
+  global `smtp_outbound` admin row.
+- The existing integrator server-runtime overlay owns the function as `app_owner`, revokes PUBLIC and classified
+  role access, grants exact API base-login EXECUTE, and preserves all direct-table/current-context denials.
+- SMTP resolution is DB-only and fail-closed. The legacy SMTP env reader/export/example was removed; DB error
+  details and credential material are not logged.
+- TEST deploy readiness and the static checker now require the capability and its least-privilege ACL. No TEST,
+  DEV or PROD database/service was changed in this code pass.
+
+Verification: focused integrator SMTP/delivery/send-email tests 33/33; verified-email/global-admin and Staff PWA
+boundary tests 44/44; integrator typecheck; scoped ESLint; deploy shell syntax; runtime-config checker plus self-test;
+Drizzle journal sync; `git diff --check`. Live TEST OTP remains an orchestrator deployment/acceptance gate.
+
 ## 2026-07-19 — S5-0 reality lock
 
 Only the allowed registry/types/checker/projector-test/docs scope changed. No DDL, migration, DB, grant/RLS,

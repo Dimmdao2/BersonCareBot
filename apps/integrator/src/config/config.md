@@ -1,3 +1,3 @@
 # config
 
-Переменные окружения (env.ts) и настройки приложения (appSettings): DATABASE_URL, BOOKING_URL, ключи каналов, URL вебаппа, флаги отладки. Используются в app/di и интеграциях.
+Процессные bootstrap-переменные окружения (`DATABASE_URL`, `NODE_ENV`, host/port/logging) и DB-backed настройки приложения. Интеграционные ключи и credentials не читаются из env. Restricted SMTP доступен только через закрытую DB capability в email delivery path.

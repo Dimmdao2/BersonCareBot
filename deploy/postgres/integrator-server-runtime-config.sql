@@ -14,6 +14,8 @@ SELECT 1 / 0 AS integrator_runtime_config_role_missing;
 \if :{?integrator_runtime_config_grants_down}
 REVOKE EXECUTE ON FUNCTION app.read_global_server_runtime_setting(text)
   FROM :"integrator_runtime_config_role";
+REVOKE EXECUTE ON FUNCTION app.read_integrator_smtp_outbound_setting()
+  FROM :"integrator_runtime_config_role";
 REVOKE EXECUTE ON FUNCTION app.release_principal_context()
   FROM :"integrator_runtime_config_role";
 \echo 'Integrator server-runtime config grants DOWN complete.'
@@ -65,6 +67,7 @@ SELECT 1 / (
       AND pg_has_role(:'integrator_runtime_config_role', relation.relowner, 'MEMBER')
   )
   AND to_regprocedure('app.read_global_server_runtime_setting(text)') IS NOT NULL
+  AND to_regprocedure('app.read_integrator_smtp_outbound_setting()') IS NOT NULL
   AND to_regprocedure('app.install_signed_context(text,integer,bigint,uuid,uuid,bigint,text)') IS NOT NULL
   AND to_regprocedure('app.release_principal_context()') IS NOT NULL
 )::int AS integrator_server_runtime_config_preflight;
@@ -86,9 +89,13 @@ REVOKE SELECT ON TABLE public.app_runtime_settings, public.system_settings
   FROM :"integrator_runtime_config_role";
 GRANT SELECT ON TABLE public.app_runtime_settings TO app_owner;
 ALTER FUNCTION app.read_global_server_runtime_setting(text) OWNER TO app_owner;
+ALTER FUNCTION app.read_integrator_smtp_outbound_setting() OWNER TO app_owner;
 
 REVOKE ALL ON FUNCTION app.read_global_server_runtime_setting(text) FROM PUBLIC;
 REVOKE ALL ON FUNCTION app.read_global_server_runtime_setting(text)
+  FROM app_staff, app_patient, app_worker;
+REVOKE ALL ON FUNCTION app.read_integrator_smtp_outbound_setting() FROM PUBLIC;
+REVOKE ALL ON FUNCTION app.read_integrator_smtp_outbound_setting()
   FROM app_staff, app_patient, app_worker;
 REVOKE EXECUTE ON FUNCTION
   app.install_signed_context(text, integer, bigint, uuid, uuid, bigint, text),
@@ -101,6 +108,8 @@ REVOKE EXECUTE ON FUNCTION
   FROM :"integrator_runtime_config_role";
 GRANT USAGE ON SCHEMA app TO :"integrator_runtime_config_role";
 GRANT EXECUTE ON FUNCTION app.read_global_server_runtime_setting(text)
+  TO :"integrator_runtime_config_role";
+GRANT EXECUTE ON FUNCTION app.read_integrator_smtp_outbound_setting()
   TO :"integrator_runtime_config_role";
 -- Bootstrap/infra cleanup runs before any SET ROLE. Scoped install/release runs after the
 -- classified app_staff/app_patient switch and remains granted through those roles by P2-B.
@@ -124,6 +133,26 @@ SELECT 1 / (
   AND has_function_privilege(
     :'integrator_runtime_config_role',
     'app.read_global_server_runtime_setting(text)',
+    'EXECUTE'
+  )
+  AND has_function_privilege(
+    :'integrator_runtime_config_role',
+    'app.read_integrator_smtp_outbound_setting()',
+    'EXECUTE'
+  )
+  AND NOT has_function_privilege(
+    'app_staff',
+    'app.read_integrator_smtp_outbound_setting()',
+    'EXECUTE'
+  )
+  AND NOT has_function_privilege(
+    'app_patient',
+    'app.read_integrator_smtp_outbound_setting()',
+    'EXECUTE'
+  )
+  AND NOT has_function_privilege(
+    'app_worker',
+    'app.read_integrator_smtp_outbound_setting()',
     'EXECUTE'
   )
   AND has_function_privilege(

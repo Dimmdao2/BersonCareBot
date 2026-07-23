@@ -1,5 +1,5 @@
 /**
- * Проверка настройки исходящей почты: `smtp_outbound` в БД или legacy SMTP_* в env.
+ * Проверка DB-backed настройки исходящей почты `smtp_outbound`.
  * Запуск: `pnpm run mail:check` из `apps/integrator`.
  */
 import { config } from 'dotenv';
@@ -16,14 +16,12 @@ async function main(): Promise<void> {
     const resolved = await resolveSmtpOutboundConfig(db);
 
     if (isResolvedMailerConfigured(resolved)) {
-      console.log('Mailer configured (system_settings smtp_outbound or SMTP_* env fallback).');
+      console.log('Mailer configured (restricted DB-backed system_settings.smtp_outbound).');
       console.log(`  SMTP: ${resolved.smtpHost}:${resolved.smtpPort} (secure: ${resolved.smtpSecure})`);
       console.log(`  From: ${resolved.fromAddress}`);
     } else {
       console.log('Mailer not configured (emails will not be sent).');
-      console.log(
-        'Set SMTP in Admin Settings (smtp_outbound) or MAIL_FROM / SMTP_HOST / SMTP_USER / SMTP_PASS in env.',
-      );
+      console.log('Set SMTP in Admin Settings (smtp_outbound).');
     }
   } catch (err) {
     console.error('mail:check failed', err instanceof Error ? err.message : String(err));

@@ -3,9 +3,14 @@ import { readFileSync } from 'node:fs';
 
 const paths = {
   migration: 'apps/webapp/db/drizzle-migrations/0191_integrator_server_runtime_config.sql',
+  restrictedMigration:
+    'apps/webapp/db/drizzle-migrations/0235_integrator_smtp_restricted_accessor.sql',
   overlay: 'deploy/postgres/integrator-server-runtime-config.sql',
   reader: 'apps/integrator/src/infra/db/publicRuntimeSettings.ts',
+  restrictedReader: 'apps/integrator/src/infra/db/publicRestrictedSettings.ts',
   resolver: 'apps/integrator/src/config/appBaseUrl.ts',
+  smtpResolver: 'apps/integrator/src/config/smtpOutbound.ts',
+  emailIndex: 'apps/integrator/src/integrations/email/index.ts',
   principal: 'apps/integrator/src/infra/db/withClient.ts',
   api: 'apps/integrator/src/main.ts',
   worker: 'apps/integrator/src/infra/runtime/worker/main.ts',
@@ -52,6 +57,22 @@ function run(overrides = {}) {
     'GRANT SELECT ON TABLE public.system_settings',
     'GRANT SELECT ON TABLE public.app_runtime_settings TO app_patient',
   ]);
+  requireFragments('restricted SMTP migration', files.restrictedMigration, [
+    'CREATE OR REPLACE FUNCTION app.read_integrator_smtp_outbound_setting()',
+    'SECURITY DEFINER',
+    'SET search_path = pg_catalog',
+    "setting.key = 'smtp_outbound'",
+    "setting.scope = 'admin'",
+    'setting.organization_id IS NULL',
+    'ALTER FUNCTION app.read_integrator_smtp_outbound_setting() OWNER TO app_owner;',
+    'REVOKE ALL ON FUNCTION app.read_integrator_smtp_outbound_setting() FROM PUBLIC;',
+    'FROM app_staff, app_patient, app_worker;',
+  ]);
+  forbidFragments('restricted SMTP migration', files.restrictedMigration, [
+    'GRANT SELECT ON TABLE public.system_settings',
+    'p_key',
+    'process.env',
+  ]);
 
   requireFragments('overlay', files.overlay, [
     'integrator_runtime_config_role',
@@ -70,6 +91,10 @@ function run(overrides = {}) {
     'REVOKE ALL ON FUNCTION app.read_global_server_runtime_setting(text) FROM PUBLIC;',
     'FROM app_staff, app_patient, app_worker;',
     'GRANT EXECUTE ON FUNCTION app.read_global_server_runtime_setting(text)',
+    'GRANT EXECUTE ON FUNCTION app.read_integrator_smtp_outbound_setting()',
+    'ALTER FUNCTION app.read_integrator_smtp_outbound_setting() OWNER TO app_owner;',
+    'REVOKE ALL ON FUNCTION app.read_integrator_smtp_outbound_setting() FROM PUBLIC;',
+    "'app.read_integrator_smtp_outbound_setting()',",
     'TO :"integrator_runtime_config_role";',
     'integrator_server_runtime_config_least_privilege_verified',
     'GRANT EXECUTE ON FUNCTION app.release_principal_context()',
@@ -97,6 +122,31 @@ function run(overrides = {}) {
     'public.system_settings',
     'public.app_runtime_settings',
     'process.env',
+  ]);
+  requireFragments('restricted SMTP reader', files.restrictedReader, [
+    'readSmtpOutboundSettingValueJson',
+    'SELECT app.read_integrator_smtp_outbound_setting() AS value_json',
+  ]);
+  forbidFragments('restricted SMTP reader', files.restrictedReader, [
+    'public.system_settings',
+    'public.app_runtime_settings',
+    'process.env',
+    'p_key',
+  ]);
+  requireFragments('SMTP resolver', files.smtpResolver, [
+    'readSmtpOutboundSettingValueJson(db)',
+    "reason: 'restricted_setting_read_failed'",
+    '[smtpOutbound] restricted DB setting unavailable',
+  ]);
+  forbidFragments('SMTP resolver', files.smtpResolver, [
+    'fetchPublicSystemSettingValueJson',
+    'fromEnvFallback',
+    'emailConfig',
+    '{ err',
+  ]);
+  forbidFragments('email integration exports', files.emailIndex, [
+    'emailConfig',
+    './config.js',
   ]);
 
   requireFragments('resolver', files.resolver, [
@@ -127,6 +177,12 @@ function run(overrides = {}) {
   requireFragments('scheduler startup', files.scheduler, ['await getAppBaseUrl(createDbPort())']);
   forbidFragments('integrator env schema', files.envSchema, ['APP_BASE_URL']);
   forbidFragments('integrator env example', files.envExample, ['APP_BASE_URL=']);
+  forbidFragments('integrator env example', files.envExample, [
+    'SMTP_HOST=',
+    'SMTP_USER=',
+    'SMTP_PASS=',
+    'MAIL_FROM=',
+  ]);
   requireFragments('configuration docs', files.configDocs, [
     'Integrator не имеет ambient SELECT на обе таблицы для этого чтения',
     'не использует `APP_BASE_URL` env fallback',
@@ -136,6 +192,8 @@ function run(overrides = {}) {
     '"tag": "0190_curated_system_health_diagnostics"',
     '"idx": 191',
     '"tag": "0191_integrator_server_runtime_config"',
+    '"idx": 235',
+    '"tag": "0235_integrator_smtp_restricted_accessor"',
   ]);
   requireFragments('TEST deploy wiring', files.deploy, [
     'INTEGRATOR_SERVER_RUNTIME_CONFIG=deploy/postgres/integrator-server-runtime-config.sql',
@@ -146,6 +204,7 @@ function run(overrides = {}) {
     'NOT (SELECT rolinherit FROM pg_roles WHERE rolname = current_user)',
     'NOT membership.inherit_option AND membership.set_option',
     "has_function_privilege(current_user, 'app.read_global_server_runtime_setting(text)', 'EXECUTE')",
+    "has_function_privilege(current_user, 'app.read_integrator_smtp_outbound_setting()', 'EXECUTE')",
     'aclexplode(COALESCE(relation.relacl, acldefault',
     "privilege.grantee IN (0, (SELECT oid FROM pg_roles WHERE rolname = current_user))",
     "pg_has_role(current_user, pg_get_userbyid(relation.relowner), 'MEMBER')",
@@ -166,6 +225,15 @@ if (process.argv.includes('--self-test')) {
     rejected = true;
   }
   if (!rejected) fail('self-test did not reject a restricted-store reader');
+  rejected = false;
+  try {
+    run({
+      restrictedReader: `${readFileSync(paths.restrictedReader, 'utf8')}\n// public.system_settings`,
+    });
+  } catch {
+    rejected = true;
+  }
+  if (!rejected) fail('self-test did not reject direct restricted SMTP table access');
   rejected = false;
   try {
     run({

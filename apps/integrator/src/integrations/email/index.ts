@@ -25,5 +25,4 @@ export const emailInboundAdapter = createInboundPlaceholder(emailIntegration);
 export { sendMail, isResolvedMailerConfigured } from './mailer.js';
 export type { SendMailParams, SendMailResult, MailAttachment } from './mailer.js';
 export type { ResolvedSmtpOutboundConfig } from '../../config/smtpOutbound.js';
-export { emailConfig } from './config.js';
 export { createEmailDeliveryAdapter } from './deliveryAdapter.js';
