@@ -12,6 +12,7 @@
 
 | Область | Актуальный источник | Ещё-валидная деталь в старом (back-link) |
 |---|---|---|
+| **Ночной прогон 2026-07-23 (что сделано / с чего начать)** | `docs/_TODO/UI_FINISH_AND_REAUDIT_2026-07-22/NIGHT_2026-07-23_AUTONOMOUS_WORK_REPORT.md` | — |
 | **Перезапуск оркестратора** | `docs/_TODO/UI_FINISH_AND_REAUDIT_2026-07-22/START_HERE_ORCHESTRATOR_KICKOFF.md` | — |
 | **Состояние продукта (verified 2026-07-23)** | `docs/_TODO/UI_FINISH_AND_REAUDIT_2026-07-22/PRODUCTION_READINESS_LEDGER_2026-07-23.md` + `CHECKPOINT_2026-07-23_STATE_AND_BACKEND_WORK_ORDER.md` | — |
 | **Правила агентов (канон)** | `AGENTS.md` + `.cursor/rules/*.mdc` + `docs/ORCHESTRATION_BINDINGS.md` | — |
