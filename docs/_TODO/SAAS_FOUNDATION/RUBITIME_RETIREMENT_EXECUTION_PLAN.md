@@ -1,3 +1,5 @@
+> RE-VERIFIED 2026-07-23 (all [x] audited vs code): see docs/_TODO/UI_FINISH_AND_REAUDIT_2026-07-22/PRODUCTION_READINESS_LEDGER_2026-07-23.md
+
 # Rubitime retirement — execution plan
 
 Статус: R1-R4 имели code/proof status `closed` в working branch 2026-07-14, но live owner reproduction на TEST
@@ -976,18 +978,18 @@ mappings and the owner-approved single-specialist export context.
 ### R3 — patient/public slots and create canonical-only
 
 - [x] `booking_slots_read_source` is set to canonical behavior through the app layer. *(The old row may remain for audit, but UI/API/runtime no longer allow it to switch patient/public slots/create back to Rubitime.)*
-- [x] patient slots work from canonical scheduling.
-- [x] public slots work from canonical scheduling.
-- [x] patient create works without Rubitime.
-- [x] public create works without Rubitime.
-- [x] reschedule/cancel work without Rubitime. *(Create/slots/reschedule overlap checks are canonical-only; cancel/reschedule Rubitime mirror remains best-effort downstream scope for R4/R6.)*
-- [x] occupied canonical slot is rejected.
-- [x] Rubitime-first create path is removed or frozen behind rollback horizon.
-- [x] Rubitime rollback path is removed from normal create.
-- [x] webapp no longer calls integrator Rubitime `/slots` in normal runtime.
-- [x] webapp no longer calls integrator Rubitime `/create-record` in normal runtime.
-- [x] canonical DI missing fails as config error, not Rubitime fallback.
-- [x] test with integrator/Rubitime unavailable passes slots/create.
+- [x] patient slots work from canonical scheduling. (✓ evidence: `slotsReadSource` canonical; no patient/public runtime read of public `booking_*` tables)
+- [x] public slots work from canonical scheduling. (✓ evidence: same; incident #839 concerns create, not slot reads)
+- [ ] patient create works without Rubitime. *(REOPENED 2026-07-23: falsified by live incident #839 — appointment create fails 'Rubitime sync failed'. `canonicalCreate.ts`/`patient-booking/service.ts` still carry live Rubitime coupling (`isRubitimeBridgeEnabled`, post-create projection, `markConfirmed(..., rubitimeId)`); D0 census `rubitime-r6-r7-static-inventory.mjs --expect-post-r6` = ready:false, `rubitimeBookingUpsertRuntime=35`, `projectionOutboxRuntime=52`.)*
+- [ ] public create works without Rubitime. *(REOPENED 2026-07-23: same as above — incident #839 + D0 census show live Rubitime create-path coupling still present.)*
+- [~] reschedule/cancel work without Rubitime. *(code-done, awaiting live cutover — canonical overlap checks exist, but `mirrorPatientCancelToRubitime`/`mirrorPatientRescheduleToRubitime` outbound mirror is still wired in `patient-booking/service.ts`; live acceptance blocked by incident #839.)*
+- [x] occupied canonical slot is rejected. (✓ evidence: canonical overlap check in create/reschedule path)
+- [x] Rubitime-first create path is removed or frozen behind rollback horizon. (✓ evidence: bridge/mirror gated by `isRubitimeBridgeEnabled` default-false)
+- [x] Rubitime rollback path is removed from normal create. (✓ evidence)
+- [x] webapp no longer calls integrator Rubitime `/slots` in normal runtime. (✓ evidence: D0 census `mountedRubitimeRouteLiterals=0`, webapp M2M client retired)
+- [x] webapp no longer calls integrator Rubitime `/create-record` in normal runtime. (✓ evidence: D0 census `mountedRubitimeRouteLiterals=0`, `bookingM2mApi` legacy methods fail closed)
+- [x] canonical DI missing fails as config error, not Rubitime fallback. (✓ evidence)
+- [~] test with integrator/Rubitime unavailable passes slots/create. *(code-done, awaiting live cutover — isolated test only; live path contradicted by incident #839 and D0 census showing 35 live `rubitimeBookingUpsertRuntime` hits.)*
 
 ### R3-TENANT — exact tenant for public/patient booking
 
@@ -1196,7 +1198,7 @@ Owner/ops packet for the remaining decisions: `RUBITIME_RETIREMENT_OWNER_GATE_PA
 - [x] R1 dual-source history complete.
 - [x] R1-HISTORY-CONTRACT complete.
 - [x] R2 doctor canonical read-source complete.
-- [x] R3 patient/public canonical slots/create complete.
+- [~] R3 patient/public canonical slots/create complete. *(code-done, awaiting live cutover — code milestone landed, but runtime create acceptance is reopened by incident #839 'Rubitime sync failed'; D0 census `--expect-post-r6` = ready:false.)*
 - [x] R3-TENANT exact tenant complete.
 - [ ] R3-CATALOG catalog migration complete. *(The no-legacy-table-read proof remains valid, but the bounded
   `branchServiceId` compatibility removal deadline expired; see `RUBITIME_RETIREMENT_R5_R7_PROVENANCE_RECONCILIATION.md`.)*

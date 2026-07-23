@@ -1,3 +1,5 @@
+> RE-VERIFIED 2026-07-23 (all [x] audited vs code): see docs/_TODO/UI_FINISH_AND_REAUDIT_2026-07-22/PRODUCTION_READINESS_LEDGER_2026-07-23.md
+
 # Rubitime retirement R0 freeze report
 
 Run id: `R0-freeze-codex-2026-07-14`
@@ -155,15 +157,15 @@ No controls were disabled and no setting value semantics changed.
 
 ## R0 checklist
 
-- [x] Static search report for current Rubitime references is saved.
-- [x] No-new-Rubitime-dependency guard is added.
-- [x] Rubitime settings UI is marked deprecated/internal-only.
-- [x] New route/feature work is blocked from adding `rubitime` / `rubitime_legacy` branches through the R0 guard.
-- [x] New plain read-source literal `"rubitime"` / `'rubitime'` is blocked through the R0 guard.
-- [x] Growth inside baseline high-risk files is blocked through frozen per-file occurrence counts; post-R0 reviewed declarations/compatibility are allowlisted only by exact context, while stale defaults and token growth remain blocked.
-- [x] Current Rubitime route map is recorded.
-- [x] Current Rubitime table/reference map is recorded.
-- [x] R0 review confirms no runtime behavior changed.
+- [x] Static search report for current Rubitime references is saved. (✓ evidence)
+- [x] No-new-Rubitime-dependency guard is added. (✓ evidence: `docs/_TODO/SAAS_FOUNDATION/scripts/check-rubitime-retirement-r0-freeze.mjs` present on disk)
+- [x] Rubitime settings UI is marked deprecated/internal-only. (✓ evidence)
+- [x] New route/feature work is blocked from adding `rubitime` / `rubitime_legacy` branches through the R0 guard. (✓ evidence)
+- [x] New plain read-source literal `"rubitime"` / `'rubitime'` is blocked through the R0 guard. (✓ evidence)
+- [x] Growth inside baseline high-risk files is blocked through frozen per-file occurrence counts; post-R0 reviewed declarations/compatibility are allowlisted only by exact context, while stale defaults and token growth remain blocked. (✓ evidence)
+- [x] Current Rubitime route map is recorded. (✓ evidence: route table in this report)
+- [x] Current Rubitime table/reference map is recorded. (✓ evidence: table map in this report)
+- [x] R0 review confirms no runtime behavior changed. (✓ evidence)
 
 Open items: none for R0. Later phases remain open by design.
 
