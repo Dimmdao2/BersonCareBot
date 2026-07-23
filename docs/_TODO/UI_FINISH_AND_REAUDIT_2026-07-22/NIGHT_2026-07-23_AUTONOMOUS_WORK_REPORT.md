@@ -68,5 +68,10 @@ threat-review. Находки — триаж владельцу, не авто-�
 Отдельно: security-аудит `LOW_LEVEL_ARCHITECTURE_AUDIT_AND_REORG.md` §1 (phone-auth доверял channel из body) — **уже
 закрыт** в коде (`confirm/route.ts` берёт channel только из challenge); аудит-док на этот пункт устарел.
 
+**Security-review проведён** (`SECURITY_REVIEW_2026-07-23.md`, `83275e01`): **0 эксплуатируемых Critical/High**, 9
+пунктов verified-OK, 3 в триаж. По твоей просьбе добит безопасный фикс — **глобальные security-заголовки** (nosniff,
+Referrer-Policy, HSTS, `frame-ancestors 'self'` на `/app/*`; `/book` оставлен встраиваемым), build ok (`0dc8951d`).
+**Осталось владельцу:** полный CSP (`default-src`), SVG-upload allowlist, CSRF-matcher scope — см. отчёт.
+
 ---
 _Отчёт durable; линк из `docs/CURRENT_AUTHORITY_MAP.md`. Оперативная очередь — taskdb `project=bcb`._
