@@ -7,6 +7,11 @@
 Signed M2M `admin-reply` пока не устанавливает доверенный organization principal, поэтому принимает только legacy
 `webapp:platform:*` и отклоняет org-scoped ключ с `organization_context_required`, не определяя tenant по пациенту.
 
+Patient POST записывает сообщение и обновляет `last_message_at` в одной транзакции. Под locked `app_patient`
+обновление выполняет только `app.touch_current_patient_support_conversation_activity(messageId)`: capability
+берёт организацию, пациента и время из защищённого DB-контекста, принимает лишь собственное `user/webapp`
+сообщение, созданное в текущей транзакции, и не выдаёт пациенту прямой `UPDATE(last_message_at)`.
+
 ## Inbox (рассылки, запись)
 
 Входящие от клиники без дублирования в `notifyPatientDoctorReply`:

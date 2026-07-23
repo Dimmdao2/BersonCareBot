@@ -1639,6 +1639,13 @@
       "when": 1793539200029,
       "tag": "0233_demote_legacy_email_admin_artifact",
       "breakpoints": true
+    },
+    {
+      "idx": 234,
+      "version": "7",
+      "when": 1793539200030,
+      "tag": "0234_current_patient_support_activity",
+      "breakpoints": true
     }
   ]
 }

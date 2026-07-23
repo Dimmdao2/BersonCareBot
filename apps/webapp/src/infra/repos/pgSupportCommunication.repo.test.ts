@@ -1,5 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { runWithDbOrganizationPrincipal } from "@bersoncare/db-principal";
+import {
+  runWithDbOrganizationPrincipal,
+  runWithDbPatientPrincipal,
+} from "@bersoncare/db-principal";
 
 const runWebappPgTextMock = vi.hoisted(() => vi.fn());
 const runDrizzleMutationTransactionMock = vi.hoisted(() =>
@@ -400,6 +403,62 @@ describe("createPgSupportCommunicationPort", () => {
       expect(insertSql).toContain("organization_id");
       expect(runWebappPgTextMock.mock.calls[1]?.[1]?.[0]).toBe(orgId);
       expect(runWebappPgTextMock.mock.calls[2]?.[1]?.[2]).toBe(orgId);
+    });
+
+    it("uses the bounded current-patient capability after inserting an own message", async () => {
+      const orgId = "10000000-0000-4000-8000-000000000001";
+      const patientUserId = "00000000-0000-4000-8000-000000000111";
+      runWebappPgTextMock
+        .mockResolvedValueOnce({ rows: [{ organization_id: orgId }] })
+        .mockResolvedValueOnce({ rows: [{ id: "00000000-0000-4000-8000-000000000333" }] })
+        .mockResolvedValueOnce({ rows: [{ touched: true }] });
+
+      const port = createPgSupportCommunicationPort();
+      await expect(
+        runWithDbPatientPrincipal({ organizationId: orgId, platformUserId: patientUserId }, () =>
+          port.appendWebappMessage({
+            conversationId: "00000000-0000-4000-8000-000000000222",
+            integratorMessageId: "webapp-msg:patient-1",
+            senderRole: "user",
+            text: "hello",
+            source: "webapp",
+            createdAt: TS,
+          }),
+        ),
+      ).resolves.toEqual({
+        id: "00000000-0000-4000-8000-000000000333",
+        created: true,
+      });
+
+      const activitySql = String(runWebappPgTextMock.mock.calls[2]?.[0] ?? "");
+      expect(activitySql).toContain("app.touch_current_patient_support_conversation_activity");
+      expect(activitySql).not.toContain("UPDATE support_conversations");
+      expect(runWebappPgTextMock.mock.calls[2]?.[1]).toEqual([
+        "00000000-0000-4000-8000-000000000333",
+      ]);
+    });
+
+    it("rejects the patient message transaction when the bounded activity capability refuses it", async () => {
+      const orgId = "10000000-0000-4000-8000-000000000001";
+      const patientUserId = "00000000-0000-4000-8000-000000000111";
+      runWebappPgTextMock
+        .mockResolvedValueOnce({ rows: [{ organization_id: orgId }] })
+        .mockResolvedValueOnce({ rows: [{ id: "00000000-0000-4000-8000-000000000333" }] })
+        .mockResolvedValueOnce({ rows: [{ touched: false }] });
+
+      const port = createPgSupportCommunicationPort();
+      await expect(
+        runWithDbPatientPrincipal({ organizationId: orgId, platformUserId: patientUserId }, () =>
+          port.appendWebappMessage({
+            conversationId: "00000000-0000-4000-8000-000000000222",
+            integratorMessageId: "webapp-msg:patient-2",
+            senderRole: "user",
+            text: "hello",
+            source: "webapp",
+            createdAt: TS,
+          }),
+        ),
+      ).rejects.toThrow("patient_support_conversation_activity_rejected");
     });
 
     it("marks only messages already stamped with the trusted conversation organization", async () => {

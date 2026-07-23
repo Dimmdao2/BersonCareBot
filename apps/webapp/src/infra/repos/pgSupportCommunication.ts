@@ -10,7 +10,10 @@ import { runDrizzleMutationTransaction } from "@/infra/db/drizzleMutationTx";
 import { runWebappPgText } from "@/infra/db/runWebappSql";
 import { formatDoctorFio } from "@/shared/lib/fio";
 import { withPoolTransaction } from "@/infra/db/withClient";
-import { getCurrentDbPrincipalOrganizationId } from "@bersoncare/db-principal";
+import {
+  getCurrentDbPrincipal,
+  getCurrentDbPrincipalOrganizationId,
+} from "@bersoncare/db-principal";
 import { mergeLegacySupportConversationsForPlatformUser as runMergeLegacySupportConversations } from "@/infra/repos/mergeLegacySupportConversations";
 import {
   webappOrganizationConversationId,
@@ -1094,14 +1097,25 @@ export function createPgSupportCommunicationPort(): SupportCommunicationPort {
           tx,
         );
         if (r.rows[0]?.id) {
-          await runWebappPgText(
-            `UPDATE support_conversations
-             SET last_message_at = GREATEST(last_message_at, $2::timestamptz),
-                 updated_at = now()
-             WHERE id = $1::uuid AND organization_id = $3::uuid`,
-            [params.conversationId, params.createdAt, organizationId],
-            tx,
-          );
+          if (getCurrentDbPrincipal()?.kind === "patient") {
+            const touched = await runWebappPgText<{ touched: boolean }>(
+              `SELECT app.touch_current_patient_support_conversation_activity($1::uuid) AS touched`,
+              [r.rows[0].id],
+              tx,
+            );
+            if (touched.rows[0]?.touched !== true) {
+              throw new Error("patient_support_conversation_activity_rejected");
+            }
+          } else {
+            await runWebappPgText(
+              `UPDATE support_conversations
+               SET last_message_at = GREATEST(last_message_at, $2::timestamptz),
+                   updated_at = now()
+               WHERE id = $1::uuid AND organization_id = $3::uuid`,
+              [params.conversationId, params.createdAt, organizationId],
+              tx,
+            );
+          }
           return { id: r.rows[0]!.id, created: true };
         }
         const ex = await runWebappPgText<{ id: string; organization_id: string | null }>(

@@ -10,6 +10,7 @@ describe("locked patient runtime capabilities", () => {
     const bookings = text("./pgPatientBookings.ts");
     const programs = text("./pgTreatmentProgramInstance.ts");
     const analytics = text("./pgProductAnalytics.ts");
+    const messaging = text("./pgSupportCommunication.ts");
     const operationFamilies = text("../db/saasIsolationOperationContext.ts");
 
     expect(bookings).toContain("app.read_current_patient_booking_rows('upcoming'");
@@ -18,8 +19,32 @@ describe("locked patient runtime capabilities", () => {
     expect(programs).toContain("app.touch_current_patient_plan_last_opened");
     expect(analytics).toContain("app.record_current_patient_analytics_event");
     expect(analytics).toContain("app.record_current_patient_push_open");
+    expect(messaging).toContain("app.touch_current_patient_support_conversation_activity");
+    expect(messaging).toContain('getCurrentDbPrincipal()?.kind === "patient"');
     expect(analytics).toContain('runWithWebappDbOperationFamily("patient_product_analytics"');
     expect(operationFamilies).toContain('"patient_product_analytics"');
+  });
+
+  it("keeps patient support activity server-owned, same-transaction and capability-only", () => {
+    const migration = text("../../../db/drizzle-migrations/0234_current_patient_support_activity.sql");
+    const overlay = text("../../../../../deploy/postgres/e1-webapp-runtime-config.sql");
+
+    expect(migration).toContain("SECURITY DEFINER");
+    expect(migration).toContain("app.current_patient_user_id()");
+    expect(migration).toContain("app.current_org_id()");
+    expect(migration).toContain("message.xmin = pg_current_xact_id()::text::xid");
+    expect(migration).toContain("message.sender_role = 'user'");
+    expect(migration).toContain("message.source = 'webapp'");
+    expect(migration).toContain("transaction_timestamp()");
+    expect(migration).not.toContain("p_activity_at");
+    expect(migration).not.toContain("p_organization_id");
+    expect(migration).not.toContain("p_patient_user_id");
+    expect(overlay).toContain(
+      "GRANT EXECUTE ON FUNCTION app.touch_current_patient_support_conversation_activity(uuid)",
+    );
+    expect(overlay).toContain(
+      "NOT has_column_privilege('app_patient','public.support_conversations','last_message_at','UPDATE')",
+    );
   });
 
   it("keeps the E1 ACLs capability-only and does not grant patient aggregate-table updates", () => {

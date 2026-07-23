@@ -63,6 +63,37 @@ function createPort(overrides: Partial<SupportCommunicationPort> = {}): SupportC
 }
 
 describe("patientMessagingService", () => {
+  it("sends the patient text through the canonical organization-scoped conversation", async () => {
+    const appendWebappMessage = vi.fn(async () => ({ id: "msg-webapp-1", created: true }));
+    const ensureWebappConversationForUser = vi.fn(async () => ({
+      id: "conv-canonical",
+      organizationId: "10000000-0000-4000-8000-000000000001",
+    }));
+    const service = createPatientMessagingService(createPort({
+      appendWebappMessage,
+      ensureWebappConversationForUser,
+      getConversationIfOwnedByUser: async () => makeConversationRow({
+        organizationId: "10000000-0000-4000-8000-000000000001",
+      }),
+    }));
+
+    await expect(service.sendText("user-1", "conv-requested", "  hello  ")).resolves.toMatchObject({
+      ok: true,
+      message: {
+        id: "msg-webapp-1",
+        conversationId: "conv-canonical",
+        senderRole: "user",
+        text: "hello",
+      },
+    });
+    expect(appendWebappMessage).toHaveBeenCalledWith(expect.objectContaining({
+      conversationId: "conv-canonical",
+      senderRole: "user",
+      source: "webapp",
+      text: "hello",
+    }));
+  });
+
   it("filters broadcast and lifecycle notifications from patient chat bootstrap and polling", async () => {
     const messages = [
       {
