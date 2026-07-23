@@ -37,7 +37,7 @@ Result: **9 files / 105 tests PASS** in 8.38 seconds. Vitest global setup report
 focused test result itself was green. An earlier invocation placed `--` before the file list, began a broader suite,
 and was stopped when unrelated tests appeared; no evidence from that interrupted run is used here.
 
-## Existing live evidence boundary
+## Historical live evidence boundary
 
 The only source-bound Communications live batch is:
 
@@ -53,6 +53,37 @@ The only source-bound Communications live batch is:
 - There is no source-bound current live PNG for Comments, Intake, Broadcasts, patient chat/comments, or doctor chat
   modal. Historical `UI-MILESTONE-DEV-2026-07-20` PNGs have no recorded source SHA and predate `#961/#962`; they are
   deliberately not used as closure evidence.
+
+## Empty-state/route live addendum — 2026-07-23
+
+External source-bound manifest for SHA `77843fa2bda4da7a88e4b079b072310c69a2956d`:
+
+`/home/dev/dev-projects/.lead/runs/ui3-communications-live/77843fa2b-20260723T003825Z/manifest.md`
+
+The one bounded presentation pass captured eight hashed PNGs: Chats, Comments, Intake and Broadcasts at
+`1480x1024` and `390x844`. All eight document requests returned HTTP 200; document responses `>=400`, console
+errors and page errors were all zero. Read-only fixture APIs returned zero chats, zero comment patients and zero
+intake requests; the broadcast journal rendered `Рассылок ещё не было`. No fixture, DB row or outbound action was
+created. Chat/comment selection was deliberately skipped because those components automatically issue a read-mark
+POST.
+
+This batch supersedes only the historical live-evidence cells below; it does not replace their current code/test
+evidence:
+
+| UI-3 row | New source-bound live evidence | Updated evidence status |
+|---|---|---|
+| 1 — desktop `45/55`, mobile master/detail | All four desktop tabs now show the requested two-pane proportion; all four mobile list/form states render cleanly. A populated mobile detail/back transition is unavailable. | **partial** |
+| 2 — shared exact gradient | No selected chat or comment thread exists. | **partial** |
+| 3 — header name is the only card navigation | No chat/comment/intake row or selected detail header exists. | **partial** |
+| 4 — removed extra broadcast top phrase | Desktop/mobile Broadcasts start directly with `Новая рассылка` and `Журнал рассылок`; the removed phrase is absent. | **evidence-real, owner-pending** |
+| 5 — selected broadcast summary metrics | The journal contains no broadcast entry to select. | **partial** |
+| 6 — error-log detail/close/no-overlap states | No broadcast entry or delivery/error state exists. | **partial** |
+| 7 — Intake list name is not a duplicate link | No Intake row exists. | **partial** |
+| 8 — shared composer parity | No selected doctor chat/comment thread exists; patient consumers were outside this doctor-only pass. | **partial** |
+
+The Chats empty list also gives fresh supporting evidence for the warm canvas and frameless full-width message-list
+surface on desktop/mobile. It does not prove full-row activation, divider/primary typography or selected state
+because the list has no row; the combined P2B atoms therefore remain unchanged.
 
 ## Eight-row evidence matrix
 
@@ -84,13 +115,17 @@ tree. The dependency-ready remaining batch is only live evidence and owner accep
 
 `closed 0/8 against docs/_TODO/DOCTOR_UI_REWORK_2026-07-20/PLAN.md:460-471`
 
-The full CI gate is satisfied. The result remains `0/8` because populated live proof and owner acceptance are still
-missing; green CI does not substitute for either UI gate.
+The full CI gate cited by the original audit is satisfied for its product tree. The new batch makes row 4
+source-bound and evidence-real, but owner-closed remains `0/8`: owner acceptance is still open, and populated live
+proof remains unavailable for the seven interaction-dependent rows. Green CI and empty-state PNGs do not substitute
+for either missing gate.
 
 ## NOT DONE:
 
-- Eight rows have current code evidence, green focused tests and green accumulated full CI, but none has the complete
-  required populated-live/owner-acceptance chain.
-- Populated source-bound live evidence is absent for every UI-3 interaction state; the only valid batch is an empty
-  Chats fixture and cannot be promoted into proof of selection or behavior.
+- Seven interaction-dependent rows have current code evidence and green focused tests, but still lack their required
+  populated live states and owner acceptance.
+- Row 4 now has source-bound desktop/mobile live evidence for the removed phrase, but still awaits owner acceptance.
+- Chats, Comments, Intake and Broadcasts all have source-bound empty-state PNGs. These cannot be promoted into proof
+  of selection, full-row activation, mobile detail/back, gradient, header navigation, composer or error-detail
+  behavior.
 - No explicit owner defer applies to any of the eight rows.
