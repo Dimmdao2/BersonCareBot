@@ -1,5 +1,7 @@
 # Doctor UI Rework — детальный execution artifact (2026-07-20)
 
+> RE-VERIFIED 2026-07-23 (all [x] audited vs code; visual-acceptance items -> [~] pending owner): see docs/_TODO/UI_FINISH_AND_REAUDIT_2026-07-22/PRODUCTION_READINESS_LEDGER_2026-07-23.md
+
 > **Статус:** docs-only детализация существующего
 > [`IMPLEMENTATION_ROADMAP.md`](../SAAS_PRODUCT_UX_INITIATIVE/IMPLEMENTATION_ROADMAP.md), не второй roadmap и не
 > источник статусов. Продуктовая authority — датированное дополнение в
@@ -338,18 +340,19 @@ metric semantics, patient/public UI, DB/env/deploy и полный CI вне sco
 - [ ] **P2B-01** Desktop «Сегодня» использует точное разделение `50/50`; mobile composition не регрессирует.
 - [ ] **P2B-02** **SUPERSEDED — 2026-07-22 by `UI_FINISH_AND_REAUDIT_2026-07-22/WORK_ORDER.md` §2:** Doctor
   workspace canvas uses exact Design DNA `#F6F4EF`; page headers and primary surfaces remain white.
-- [x] **P2B-03** Shared section tabs имеют более тёмный neutral hover и свой округлённый tab contract без
-  page-local divergence; это не меняет геометрию sidebar/mobile menu.
+- [~] **P2B-03** Shared section tabs имеют более тёмный neutral hover и свой округлённый tab contract без
+  page-local divergence; это не меняет геометрию sidebar/mobile menu. (code may be in place; awaiting owner live visual acceptance)
 - [x] **P2B-04** Видимая сетка Today calendar начинается ровно за один час до первого приёма, когда именно приём
   расширяет нижнюю границу; общий calendar-window contract не получает локальный fork или двойной lead padding.
+  (✓ apps/webapp/src/modules/booking-calendar/visibleTimeWindow.ts:28-69; DoctorTodayMiniCalendar.test.tsx:383-410)
 - [x] **P2B-05** В Today calendar header используется standard doctor button **«Открыть расписание»**, а не
-  текстовая/ghost-ссылка «Открыть календарь».
-- [x] **P2B-06** Clients и Messages используют общий flat-list row contract с геометрией списка «На
+  текстовая/ghost-ссылка «Открыть календарь». (✓ apps/webapp/src/app/app/doctor/DoctorTodayMiniCalendar.tsx:227-236)
+- [~] **P2B-06** Clients и Messages используют общий flat-list row contract с геометрией списка «На
   сопровождении», full-row hover для интерактивных строк и divider ровно `1px #f0efeb`; selected dialog не
-  превращается в отдельную карточку.
+  превращается в отдельную карточку. (code may be in place; awaiting owner live visual acceptance)
 - [x] **P2B-07** Semantic doctor primary остаётся ровно `#406ca7` через doctor-zone token; local primary hex и
-  перекраска patient/public tokens отсутствуют.
-- [x] **P2B-08** Page headers и фактические input surfaces белые.
+  перекраска patient/public tokens отсутствуют. (✓ apps/webapp/src/app/styles/bersoncare-tweakcn-theme.css:101; scoped census finds no local hex fork)
+- [~] **P2B-08** Page headers и фактические input surfaces белые. (code may be in place; awaiting owner live visual acceptance)
 - [ ] **P2B-09** Shared radius scale соблюдена: page-level blocks `12px`, KPI `8px`, doctor buttons/inputs/select
   triggers `24px`; sidebar/mobile menu rows сохраняют прежний почти прямоугольный минимальный radius, tabs живут
   по отдельному rounded contract. **Owner ruling 2026-07-22:** visual canon for Clients/Messages list surfaces is
@@ -358,10 +361,12 @@ metric semantics, patient/public UI, DB/env/deploy и полный CI вне sco
   локальных копий в затронутых страницах. **Owner ruling 2026-07-22:** Today is one full-row native link; Clients
   and Messages retain their full-row native button behavior, including keyboard activation.
 - [x] **P2B-11** KPI используют единый порядок label сверху → value снизу и `doctorMetricValueClass` для значения.
+  (✓ apps/webapp/src/app/app/doctor/analytics/clients/DoctorStatCard.tsx:54-58; shared/ui/doctor/doctorVisual.ts:63)
 - [x] **P2B-12** Поиск «Клиентов» находится в правом слоте белой page header на уровне title; desktop width
   совпадает с правой половиной `50/50`, mobile вариант остаётся доступным и компактным.
+  (✓ apps/webapp/src/app/app/doctor/patients/PatientsPageClient.tsx:657-688)
 - [x] **P2B-13** Primary text строк Clients/Messages/Today support крупнее и легче (`text-base font-normal`), а
-  meta/badge/calendar typography не повышена вместе с ним.
+  meta/badge/calendar typography не повышена вместе с ним. (✓ apps/webapp/src/shared/ui/doctor/DoctorDnaFlatListRow.tsx:17-27, reused by Today/Clients/Messages)
 - [ ] **P2B-14** Изменения переиспользуют shared doctor primitives/list-row/tab/calendar contracts и сохраняют
   физическую patient/doctor UI isolation; локальные style forks и imports из patient/components UI не добавлены.
   **Owner ruling 2026-07-22:** this list correction is limited to the shared flat-list contract and its three
@@ -411,85 +416,113 @@ brief или заменять одним общим пунктом.
 #### UI-0 — booking funnel (`#923`)
 
 - [x] Устранён SSR/render failure после выбора услуги.
+  (✓ apps/webapp/src/app/app/patient/booking/bookingCatalogRsc.ts:94-154; slot/page.tsx:28-79 fail-closed validate+redirect)
 - [x] Видимость услуг соблюдает выбранного специалиста, clinic-wide и solo правила владельца; одной location
-  assignment недостаточно.
+  assignment недостаточно. (✓ apps/webapp/src/modules/patient-booking/inPersonServicesCatalog.ts:101-159; DoctorCalendarEventPanel.tsx:166-177)
 - [x] Запись из календаря создаёт видимого organization-owned клиента по действующему contract.
+  (✓ DoctorCalendarEventPanel.tsx:418-471; api/doctor/booking-engine/appointments/manual-patient-visit/route.ts:50-120; infra/repos/pgBookingEngine.ts:1301-1428; infra/repos/pgDoctorClients.ts:270-295)
 - [x] ФИО в детали записи ведёт в существующую карточку пациента.
+  (✓ apps/webapp/src/app/app/doctor/calendar/DoctorCalendarEventPanel.tsx:518-540; patients/patientCardHref.ts:1-18)
 - [ ] Owner live recheck остаётся отдельным acceptance-layer и не выводится из smoke.
 
 #### UI-1 — Schedule (`#851`, residual `#960`) и appointment detail (`#951`)
 
-- [x] Template-days используют существующие цвета локаций.
-- [x] Время и город выводятся один раз в weekday header, а не в каждой date-cell.
-- [x] Действие настройки времени называется «Установить».
+- [x] Template-days используют существующие цвета локаций. (✓ ScheduleWorkTab.tsx:322-347,398-424)
+- [x] Время и город выводятся один раз в weekday header, а не в каждой date-cell. (✓ ScheduleWorkTab.tsx:354-367,440-489)
+- [x] Действие настройки времени называется «Установить». (✓ ScheduleWorkTab.tsx:1378-1387)
 - [x] Недельный график переиспользует canonical `DoctorDateTimePicker`, без локального picker fork (`#960`).
-- [x] Grid lines имеют согласованную спокойную presentation-плотность.
-- [x] Location filters независимы; «Все» включает все локации.
+  (✓ ScheduleWorkTab.tsx:25,515-533,1310-1330,1506-1526; shared/ui/doctor/DoctorDateTimePicker.tsx)
+- [~] Grid lines имеют согласованную спокойную presentation-плотность. (code may be in place; awaiting owner live visual acceptance)
+- [x] Location filters независимы; «Все» включает все локации. (✓ ScheduleWorkTab.tsx:565-566,609-635,1138-1179 — `selectedBranchIds`/`toggleGridBranch`/`selectAllGridBranches`)
 - [x] В appointment detail остаётся ровно один доступный close-control в каждом host-context.
+  (✓ ScheduleCalendarTab.tsx:2052-2076; TodayAppointmentFullModal.tsx:89-104 `showCloseControl={false}`; TodayMiniCalendarWithModal.tsx:127-140)
 - [x] ФИО крупнее, остаётся единственной card navigation и имеет existing chat/phone actions с mobile/desktop
-  поведением и отсутствующими-data states.
+  поведением и отсутствующими-data states. (✓ DoctorCalendarEventPanel.tsx:527-584)
 - [x] Актуальные дата/время выделены; semantic status badge находится в той же строке; дублирующая подпись статуса
-  отсутствует.
+  отсутствует. (✓ DoctorCalendarEventPanel.tsx:601-614; no `Статус записи:` string in file)
 - [x] `Rubitime ID`, Rubitime manage-link и отдельная ссылка «Карточка пациента» не рендерятся.
+  (✓ DoctorCalendarEventPanel.tsx:505-704 has no rubitimeId/rubitimeManageUrl render use)
 - [x] «Филиал / Услуга / Специалист» подписаны; specialist row скрывается только при server-proven solo-mode.
-- [x] Исходное время показывается только после фактического переноса.
-- [x] «Создать визит из записи» оформлено отдельным центрированным действием.
-- [x] Пустой/whitespace комментарий нельзя отправить.
+  (✓ DoctorCalendarEventPanel.tsx:507,621-636 — `isSoloMode` from server filter metadata)
+- [x] Исходное время показывается только после фактического переноса. (✓ DoctorCalendarEventPanel.tsx:508-515,615-619 `hasRealOriginalStart`)
+- [x] «Создать визит из записи» оформлено отдельным центрированным действием. (✓ DoctorCalendarEventPanel.tsx:645-661)
+- [x] Пустой/whitespace комментарий нельзя отправить. (✓ AppointmentStaffCommentsSection.tsx:51,97-104 `disabled={saving || !draft.trim()}`)
 - [x] Диагностическая payment panel скрыта до доказанных provider/cash/invoice/pay-link/QR contracts; домен не удалён.
+  (✓ DoctorCalendarEventPanel.tsx has no `BookingStaffPaymentPanel` import; component still exists at app/app/settings/BookingStaffPaymentPanel.tsx)
 - [ ] После отдельного money/provider gate карточка различает частичную предоплату с суммой.
 - [ ] После отдельного money/provider gate карточка различает полную оплату с суммой.
 - [ ] После отдельного money/provider gate состояние «Не оплачено» даёт server-authorized действия «Оплачено
   наличными» и «Выставить счёт»; UI-1c не изобретает эти contracts.
-- [x] UI-1c присутствует на exact TEST SHA `eb64a495644`; mandatory patient-card/schedule smoke и первичная
+- [ ] UI-1c присутствует на exact TEST SHA `eb64a495644`; mandatory patient-card/schedule smoke и первичная
   read-only visual проверка прошли. Owner interaction acceptance остаётся отдельным gate.
+  (REOPENED 2026-07-23: literal SHA `eb64a495644` is stale — current TEST checkout resolved to successor SHA
+  `2c3b40e7738a1fe45a713f7f9f6d0a39db707f7e` / `45ffed731` lineage per docs/_TODO/UI_FINISH_AND_REAUDIT_2026-07-22/TEST_DEPLOY_EVIDENCE_2026-07-22.md;
+  underlying UI-1c code is an ancestor and still present, so this is evidence drift, not a regression, but the
+  literal checkpoint claim needs updating before it can be re-ticked.)
 - [ ] SCH-G5 остаётся отдельным owner gate `#848`, не скрывается внутри UI-1 completion.
 
 #### UI-2 — built-in Online location
 
 - [x] «Онлайн» является встроенной включаемой локацией в существующей модели, а не вручную создаваемым workaround.
+  (✓ apps/webapp/src/modules/booking-engine/onlineLocation.ts:4-35,45-117)
 - [x] Состояние Online location гейтит существующие online-галочки услуг.
-- [x] Не создана новая schema/delivery-mode/booking engine.
+  (✓ apps/webapp/src/modules/patient-booking/inPersonServicesCatalog.ts:69-84; BookingSoloAvailabilitySection.tsx)
+- [x] Не создана новая schema/delivery-mode/booking engine. (✓ onlineLocation.ts reuses existing `be_branches`/catalog port; no new migration/table)
 - [x] Отдельно доказано, что Online присутствует в существующих schedule location list/filters без второго
-  projection.
+  projection. (✓ ScheduleWorkTab.tsx:564-566,700-710,1138-1179 maps the same active-branches list)
 - [x] Отдельно доказано, что online services видны в существующем client booking wizard при включённой Online
-  location.
+  location. (✓ inPersonServicesCatalog.ts:69-84,101-159; bookingCatalogRsc.ts:157-214)
 - [x] Online-only services на публичной странице попадают в online-block, а не в physical location (`#972`).
+  (✓ inPersonServicesCatalog.ts:40-67 excludes built-in Online from physical cities; shared/publicBook/onlineBookingCategories.ts)
 - [ ] Live proof этого публичного разделения ждёт sanctioned published slug/U6B `#926`; repository-evidence его
   не подменяет.
 
 #### UI-3 — Communications (`#852`, residual `#961/#962`)
 
 - [x] Desktop split во всех применимых вкладках — 45/55 с fallback 50/50; mobile master/detail сохранён.
+  (✓ `lg:grid-cols-[minmax(0,9fr)_minmax(0,11fr)]` in BroadcastsTab.tsx:165, DoctorSupportInbox.tsx:510, DoctorCommentsTab.tsx:1125)
 - [x] Exact owner gradient применён одинаково к doctor/patient chat, modal и comments (`#961`).
+  (✓ single asset shared/ui/chat/chatThreadSurface.ts:1-3, reused by ChatView.tsx:108-112, DoctorCommentsTab.tsx:1055-1086, ProgramItemDiscussionDialog.tsx:203-250)
 - [x] Имя в шапке является единственной card navigation с сохранённым route contract.
+  (✓ DoctorSupportInbox.tsx:365-418,447-455; DoctorCommentsTab.tsx header link via patientCardHref)
 - [x] Убрана лишняя верхняя broadcast-фраза с отдельным current-code evidence (`#961`).
+  (✓ BroadcastsTab.tsx:111-151 starts directly with the standard heading; no removed phrase found in current tree)
 - [x] Выбор рассылки показывает слева title/text/audience/channel/error/non-delivery metrics (`#961`).
+  (✓ BroadcastsTab.tsx:74-109; BroadcastAuditLog.tsx:107-162)
 - [x] «Лог ошибок» открывает detail справа; стандартная верхняя панель имеет одно закрытие; overlap отсутствует во
-  всех summary/delivery/error states (`#961`).
-- [x] Intake left list не дублирует ссылку по имени из detail.
+  всех summary/delivery/error states (`#961`). (✓ BroadcastAuditLog.tsx:115-193; BroadcastsTab.tsx:99-109,111-153)
+- [x] Intake left list не дублирует ссылку по имени из detail. (✓ DoctorOnlineIntakeClient.tsx:565-616,653-665)
 - [x] Один shared composer покрывает doctor chat/modal, patient chat, doctor comments и patient comments с parity
-  текущего поведения (`#962`).
+  текущего поведения (`#962`). (✓ shared/ui/chat/MessageComposer.tsx reused by DoctorChatPanel.tsx, PatientMessagesClient.tsx, DoctorCommentsTab.tsx, ProgramItemDiscussionDialog.tsx)
 
 #### UI-4 — Clients list (`#850`, preview входит в `#958`)
 
-- [x] Обычный desktop mode использует split 50/50.
+- [x] Обычный desktop mode использует split 50/50. (✓ PatientsPageClient.tsx:689-700 `lg:grid-cols-2`)
 - [x] Поиск находится в правом слоте page header; count/sort остаются над списком.
-- [x] KPI расположены по три в ряд, label сверху и value снизу.
-- [x] Filtered KPI value показан отдельной меньшей цифрой без slash и с filter icon.
-- [x] KPI имеют короткие delayed hover/focus tooltips и единый active state.
-- [x] «Все люди» использует настроенный patient plural label.
+  (✓ PatientsPageClient.tsx:657-688 (DoctorPageHeader tabs slot), 701-756 (count/sort))
+- [x] KPI расположены по три в ряд, label сверху и value снизу. (✓ PatientsPageClient.tsx:815 `grid-cols-3`; DoctorStatCard.tsx:54-58)
+- [x] Filtered KPI value показан отдельной меньшей цифрой без slash и с filter icon. (✓ PatientsPageClient.tsx:312-323)
+- [x] KPI имеют короткие delayed hover/focus tooltips и единый active state. (✓ PatientsPageClient.tsx:814 `TooltipProvider delay={450}`)
+- [x] «Все люди» использует настроенный patient plural label. (✓ PatientsPageClient.tsx:653,830-832 `patientPluralLabel`)
 - [x] Cancellations/reschedules имеют all-time semantics; membership KPI — active-only; expired membership отделён.
+  (✓ PatientsPageClient.tsx:143-158 tooltip keys "за всё время"/active/expired; infra/repos/pgDoctorClients.ts:120-228)
 - [x] Информационные иконки имеют стабильные слоты membership → program-or-supervision → appointment без boxes.
+  (✓ PatientsPageClient.tsx:790-798 IconSlot order; no bg/border classes on the slot)
 - [x] Правая половина содержит functional patient preview, а не только фильтры или пустое место (`#958`).
+  (✓ PatientsPageClient.tsx:810 `<PatientPreviewPane>`)
 
 #### UI-5a — full-workspace existing card reuse (`#958`)
 
 - [x] Открытие полной карточки заменяет весь doctor content workspace; sidebar остаётся.
+  (✓ patients/[userId]/page.tsx renders inside DoctorAppShell; DoctorWorkspaceShell.tsx:92-103 keeps sidebar as sibling)
 - [x] Карточка не втискивается в right pane и не создаёт второй component tree/iframe.
+  (✓ PatientsPageClient.tsx:621-626,808-810 only render `PatientPreviewPane`, not `PatientCardClient`, in the list right pane)
 - [x] «К клиентам» восстанавливает search/sort/filters/selected preview/scroll.
+  (✓ patients/patientListWorkspaceState.ts:66-101; PatientsPageClient.tsx:628-632,937-954)
 - [x] Direct URL, reload и browser back/forward сохраняют card/list mode.
+  (✓ separate Next.js routes `patients/page.tsx` and `patients/[userId]/page.tsx`; patientListWorkspaceState.ts deep-link/returnTo)
 - [x] Переиспользованы exact standalone loader/guards/data/API; доказана guard-equivalence без visibility/schema
-  изменений.
+  изменений. (✓ both routes use `requireDoctorWorkspaceContext` — patients/page.tsx:24-50; patients/[userId]/page.tsx:28-46)
 
 #### UI-5b — полный patient-card composition после U5A/U5B (`#928`)
 
@@ -523,15 +556,19 @@ brief или заменять одним общим пунктом.
 
 #### UI-6 — Today (`#850`, residual `#963`)
 
-- [x] KPI на «Сегодня» имеют compact presentation без искусственной пустой высоты.
+- [~] KPI на «Сегодня» имеют compact presentation без искусственной пустой высоты. (code may be in place; awaiting owner live visual acceptance)
 - [x] Дата и «Открыть календарь» находятся в compact calendar header, ссылка расположена справа.
-- [x] Дублирующая фраза/строка с количеством записей удалена.
-- [x] Desktop-разделение страницы «Сегодня» возвращено к точному 50/50 (`#966`).
-- [x] «Открыть расписание» оформлено стандартной doctor-кнопкой (`#966`).
+  (✓ DoctorTodayMiniCalendar.tsx:226-236 single `justify-between` row)
+- [x] Дублирующая фраза/строка с количеством записей удалена. (✓ no duplicate appointment-count line in DoctorTodayDashboard.tsx)
+- [x] Desktop-разделение страницы «Сегодня» возвращено к точному 50/50 (`#966`). (✓ DoctorTodayDashboard.tsx:118-122 `md:grid-cols-2`)
+- [x] «Открыть расписание» оформлено стандартной doctor-кнопкой (`#966`). (✓ DoctorTodayMiniCalendar.tsx:231-236 `buttonVariants({ size: "sm" })`)
 - [x] Календарная сетка начинается ровно за один час до первого приёма, если именно приём расширяет нижнюю границу;
   default window и рабочие границы не получают второй запас (`#966`).
+  (✓ modules/booking-calendar/visibleTimeWindow.ts:28-69; DoctorTodayMiniCalendar.tsx:151-172)
 - [x] Состав видимых сигналов настраивается через существующий settings path после exact data contract (`#963`).
+  (✓ modules/reminders или doctorTodayPreferences.ts; DoctorTodayDashboard.tsx:70-71 `data.peopleListMode`)
 - [x] Переключатель «на сопровождении» / «недавние с визитами» имеет доказанную семантику (`#963`).
+  (✓ DoctorTodayDashboard.tsx:70-71,161-238 `peopleListIsOnSupport`)
 - [ ] «Самые активные», новые counters и hiding semantics реализуются только после exact contract (`#963`).
 
 #### UI-P — shared doctor presentation (`#925`)
@@ -539,15 +576,17 @@ brief или заменять одним общим пунктом.
 - [ ] **SUPERSEDED — 2026-07-22 by `UI_FINISH_AND_REAUDIT_2026-07-22/WORK_ORDER.md` §2:** Doctor canvas uses
   exact Design DNA `#F6F4EF`; page header remains white, and primary `#406ca7` does not change.
 - [ ] Радиусы block/KPI/control `12/8/24px`, основной padding `18px` и белый input не размножены локально.
-- [x] KPI используют порядок label → value.
+- [x] KPI используют порядок label → value. (✓ DoctorStatCard.tsx:54-58)
 - [x] Основной текст doctor-списков крупнее и легче без изменения meta/badge/calendar typography.
-- [x] Clients/messages используют один shared list-row contract: геометрия как «На сопровождении», full-row hover и
-  divider `#f0efeb` (`#967`).
-- [x] Общие tabs имеют более округлые края и более тёмный нейтральный hover без page-local divergence (`#967`).
-- [x] Пункты основного sidebar/mobile menu возвращены к прежней почти прямоугольной форме с действительно
+  (✓ DoctorDnaFlatListRow.tsx:17-27 `text-base font-normal` primary vs `text-xs` meta)
+- [~] Clients/messages используют один shared list-row contract: геометрия как «На сопровождении», full-row hover и
+  divider `#f0efeb` (`#967`). (code may be in place; awaiting owner live visual acceptance)
+- [~] Общие tabs имеют более округлые края и более тёмный нейтральный hover без page-local divergence (`#967`). (code may be in place; awaiting owner live visual acceptance)
+- [~] Пункты основного sidebar/mobile menu возвращены к прежней почти прямоугольной форме с действительно
   минимальным скруглением и не наследуют 24px doctor button radius (`#967`). Owner live recheck 2026-07-22
   отклонил промежуточный `rounded-md` как всё ещё слишком округлый; rounded section tabs этим пунктом не меняются.
-- [x] Clients search находится в page-header slot.
+  (code may be in place; awaiting owner live visual acceptance)
+- [x] Clients search находится в page-header slot. (✓ PatientsPageClient.tsx:657-688 via `DoctorPageHeader` tabs slot)
 
 #### UI-7 — scheduled communications (`#964`)
 
@@ -617,22 +656,33 @@ Scope decision, не implementation checkbox: Voice/STT исключён из т
 #### UI-8 / UI-9 / Client residual
 
 - [x] UI-8 использует единый S4/C5 organization-only entitlement/commercial contour без второго registry.
+  (✓ modules/org-entitlements/types.ts:7-32 single `MECHANIC_REGISTRY`; service.ts:100-115,145-188)
 - [x] Для новых назначений разминок default = `12:00` и `15:00` в рабочие дни; существующие назначения не
-  изменяются (`#191`).
+  изменяются (`#191`). (✓ modules/reminders/scheduleSlots.ts:22-25; ensureWarmupsReminderOnFirstPwaPush.ts only fills default when no existing rule)
 - [x] UI-9 создаёт personal-scoped exercise из program editor; org-catalog save только явный.
+  (✓ modules/lfk-exercises/types.ts:11 `ExerciseCatalogScope = "catalog" | "personal"`; InstanceAddLibraryItemDialog.tsx defaults `saveToCatalog=false`)
 - [x] UI-9 media использует exact-org ownership/presign path, назначенное видео immutable.
+  (✓ media-presign/route.ts authorized-folder guard; pgTreatmentProgramInstance.ts freezes media in snapshot)
 - [x] Пустой patient mood chart скрыт до первой отметки, controls не удалены.
+  (✓ PatientHomeMoodCheckin.tsx:178 renders week chart only when `hasWellbeingWeekMarks`; controls stay outside the condition)
 
 #### Milestone completion gates
 
 - [ ] Все открытые in-scope owner checkboxes текущего пакета закрыты отдельным evidence, без parent-stage shortcut.
 - [ ] Targeted tests/typecheck/lint закрыты для каждого изменённого scope; presentation audits выполнены ровно один
   раз, high-risk stages — по их risk tier.
-- [x] Один accumulated full CI начат на `2a2cbda61`, продолжен canonical resume после единственного stale-test
+- [ ] Один accumulated full CI начат на `2a2cbda61`, продолжен canonical resume после единственного stale-test
   failure и дополнен точечными delta-gates до deployed `eb64a495644`; полный прогон не повторялся после малых
   correction slices.
-- [x] Разрешённый code-only TEST deploy указывает на exact SHA `eb64a495644`; dump/restore/full reset не запускались,
+  (REOPENED 2026-07-23: literal SHA chain is stale current-state wording — current accumulated full CI runs on the
+  successor product tree through `2c3b40e77` per docs/_TODO/UI_FINISH_AND_REAUDIT_2026-07-22/TEST_DEPLOY_EVIDENCE_2026-07-22.md;
+  the underlying achievement (lint/typecheck/full test suites/builds green, no repeat after small correction slices)
+  is still true on that successor tree, but the literal SHA pointer needs updating before re-ticking.)
+- [ ] Разрешённый code-only TEST deploy указывает на exact SHA `eb64a495644`; dump/restore/full reset не запускались,
   locked product smoke `22/22` и отдельный deny-smoke прошли.
+  (REOPENED 2026-07-23: literal SHA `eb64a495644` is stale — current canonical TEST checkout resolves to successor
+  SHA `2c3b40e7738a1fe45a713f7f9f6d0a39db707f7e` per the same TEST_DEPLOY_EVIDENCE_2026-07-22.md; smoke `22/22` and
+  deny-smoke are confirmed green on that successor checkout, but the literal SHA claim in this checkbox is outdated.)
 - [ ] Owner прошёл live click-through по точным URL/ролям/viewports; `accepted` остаётся только owner action.
 
 ### Обязательный порядок исполнения — current selector 2026-07-22
