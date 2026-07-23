@@ -1,21 +1,28 @@
 # Log — SaaS Product UX Initiative
 
-## 2026-07-23 — U5A TEST lifecycle harness candidate (`#796`)
+## 2026-07-23 — U5A TEST lifecycle harness audit correction (`#796`)
 
-The old fixture blocker was rechecked against current canon before implementation. Manifest v2 already provides one
-reserved synthetic patient with active relationships and ordinary-login credentials in Clinic A and Clinic B, so no
-second seeder, DEV enrollment writer or product endpoint was added. The remaining fixture gap is now covered by one
-operator-only transactional CLI: it can move only the reserved Clinic B relationship between `active` and
-`discharged`, refuses every database except exact `bersoncarebot_test`, requires explicit mutation execution, keeps
-Clinic A active, validates the two-relationship fixture shape and rolls back on any failed postcondition. Restore is
-idempotent and documented as mandatory cleanup.
+The first candidate was rejected by independent audit because its CLI used the seeder-style database authority
+directly and its private proof did not reproduce the locked TEST principal/ACL wall. The corrected harness now uses
+the protected `SAAS_ISOLATION_OPERATOR_DATABASE_URL` login only. Before product access the CLI verifies exact
+`bersoncarebot_test`, LOGIN/INHERIT, all dangerous role attributes off, no application-role membership, no direct
+`org_enrollments` privilege and exact EXECUTE on one ephemeral capability.
 
-Focused fixture/lifecycle tests passed (`2` files / `31` tests), a private disposable PostgreSQL proved the real
-`status → discharge → restore → status` SQL cycle and final two-active cleanup, webapp typecheck passed, and scoped
-lint, owner-ready integration checker and diff-check passed. No persistent TEST/DEV/PROD database was opened or
-mutated, no deploy or external call occurred, and the two U5A live checkboxes remain open until the integration owner
-deploys the candidate and records the authorized A↔B, deep-link/refresh and revoked-preference browser evidence
-followed by successful restore.
+The root-only exact-TEST wrapper installs a closed `SECURITY DEFINER` function owned by the existing canonical
+NOLOGIN `app_owner`, invokes the ordinary operator login, and removes the function on success or failure. The
+function uses the canonical patient-invites strict-overlay `app_owner` `SELECT, UPDATE` ACL; it creates no role,
+table grant or seeder BYPASS window. A short table lock protects the exact two-row A+B relationship set against
+concurrent writers, Clinic A must remain active, and only the exact Clinic B row can move
+`active ↔ discharged`. Arbitrary `PGOPTIONS` pass-through was removed.
+
+The repository proof starts a private disposable PostgreSQL, applies the exact generated strict
+`org_enrollments` policy with ENABLE+FORCE and canonical ACL shape, then runs the actual operator CLI through
+`status → discharge → repeated discharge → restore → repeated restore → status`. It also proves a concurrent third
+relationship insert is blocked, ends with exactly two active rows, and leaves neither the capability nor an operator
+table grant. Focused tests, typecheck/lint, shell/static gates and diff-check are recorded with the correction commit.
+No persistent TEST/DEV/PROD database, deploy, service, environment secret or external channel was touched. The U5A
+live checkboxes remain open until an authorized TEST browser pass records A↔B/deep-link/refresh/revoked-preference
+evidence and restores the fixture.
 
 ## 2026-07-22 — owner roadmap reconciled against full Doctor UI brief (`#959`)
 

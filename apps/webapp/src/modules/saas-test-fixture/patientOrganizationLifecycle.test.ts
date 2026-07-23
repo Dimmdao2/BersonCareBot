@@ -3,68 +3,50 @@ import {
   PatientOrganizationLifecycleError,
   parsePatientOrganizationLifecycleArgs,
   runPatientOrganizationLifecycle,
-  type PatientOrganizationLifecycleStatus,
-  type PatientOrganizationLifecycleStore,
+  type PatientOrganizationLifecyclePort,
+  type PatientOrganizationOperatorProbe,
 } from '../../../scripts/patient-organization-test-lifecycle';
 
-type MutableProbe = {
-  databaseName: string;
-  targetRows: number;
-  targetStatus: string | null;
-  retainedActiveRows: number;
-  sharedPatientRelationshipRows: number;
-  sharedPatientActiveRows: number;
-};
-
-function storeFor(
-  overrides: Partial<MutableProbe> = {},
-): Readonly<{
-  store: PatientOrganizationLifecycleStore;
-  probe: MutableProbe;
-  calls: string[];
-}> {
-  const probe: MutableProbe = {
+function safeProbe(
+  overrides: Partial<PatientOrganizationOperatorProbe> = {},
+): PatientOrganizationOperatorProbe {
+  return {
     databaseName: 'bersoncarebot_test',
-    targetRows: 1,
-    targetStatus: 'active',
-    retainedActiveRows: 1,
-    sharedPatientRelationshipRows: 2,
-    sharedPatientActiveRows: 2,
+    loginRole: 'saas_fixture_operator_login',
+    canLogin: true,
+    inherit: true,
+    superuser: false,
+    createDb: false,
+    createRole: false,
+    replication: false,
+    bypassRls: false,
+    appRoleMember: false,
+    directProductTableAccess: false,
+    capabilityExecute: true,
     ...overrides,
   };
-  const calls: string[] = [];
-  const store: PatientOrganizationLifecycleStore = {
-    async begin(readOnly) {
-      calls.push(`begin:${readOnly ? 'read-only' : 'write'}`);
-    },
-    async readProbe(lockTarget) {
-      calls.push(`probe:${lockTarget ? 'locked' : 'plain'}`);
-      return { ...probe };
-    },
-    async setTargetStatus(status: PatientOrganizationLifecycleStatus) {
-      calls.push(`set:${status}`);
-      probe.targetStatus = status;
-      probe.sharedPatientActiveRows = status === 'active' ? 2 : 1;
-      return 1;
-    },
-    async commit() {
-      calls.push('commit');
-    },
-    async rollback() {
-      calls.push('rollback');
-    },
-  };
-  return { store, probe, calls };
 }
 
-function errorCode(error: unknown): string {
-  expect(error).toBeInstanceOf(PatientOrganizationLifecycleError);
-  return (error as PatientOrganizationLifecycleError).code;
+function portFor(
+  probe: PatientOrganizationOperatorProbe = safeProbe(),
+): Readonly<{ port: PatientOrganizationLifecyclePort; invoke: ReturnType<typeof vi.fn> }> {
+  const invoke = vi.fn(async () => ({ status: 'active' as const, activeRelationships: 2 }));
+  return {
+    invoke,
+    port: {
+      readOperatorProbe: vi.fn(async () => probe),
+      invoke,
+    },
+  };
 }
 
 describe('patient organization TEST lifecycle arguments', () => {
-  it('requires an explicit execute flag for mutations and forbids it for status', () => {
+  it('requires an explicit execute flag for mutations and accepts the pnpm separator', () => {
     expect(parsePatientOrganizationLifecycleArgs(['status'])).toEqual({
+      command: 'status',
+      execute: false,
+    });
+    expect(parsePatientOrganizationLifecycleArgs(['--', 'status'])).toEqual({
       command: 'status',
       execute: false,
     });
@@ -76,10 +58,6 @@ describe('patient organization TEST lifecycle arguments', () => {
       command: 'restore',
       execute: true,
     });
-    expect(parsePatientOrganizationLifecycleArgs(['--', 'status'])).toEqual({
-      command: 'status',
-      execute: false,
-    });
     for (const argv of [
       [],
       ['unknown'],
@@ -89,98 +67,92 @@ describe('patient organization TEST lifecycle arguments', () => {
       ['discharge', '--force'],
       ['restore', '--execute', '--execute'],
     ]) {
-      try {
-        parsePatientOrganizationLifecycleArgs(argv);
-        throw new Error('expected argument parsing to fail');
-      } catch (error) {
-        expect(errorCode(error)).toMatch(/usage|explicit_execute_required|status_execute_forbidden/);
-      }
+      expect(() => parsePatientOrganizationLifecycleArgs(argv)).toThrow(
+        PatientOrganizationLifecycleError,
+      );
     }
   });
 });
 
-describe('patient organization TEST lifecycle transaction', () => {
-  it('reports status read-only without mutation', async () => {
-    const fixture = storeFor();
-    await expect(runPatientOrganizationLifecycle(fixture.store, 'status')).resolves.toEqual({
-      status: 'active',
-      activeRelationships: 2,
-    });
-    expect(fixture.calls).toEqual(['begin:read-only', 'probe:plain', 'commit']);
-  });
-
-  it('discharges and restores only the reserved second relationship', async () => {
-    const fixture = storeFor();
-    await expect(runPatientOrganizationLifecycle(fixture.store, 'discharge')).resolves.toEqual({
+describe('patient organization TEST operator boundary', () => {
+  it('preflights the sanctioned operator before invoking the closed capability', async () => {
+    const events: string[] = [];
+    const port: PatientOrganizationLifecyclePort = {
+      async readOperatorProbe() {
+        events.push('preflight');
+        return safeProbe();
+      },
+      async invoke() {
+        events.push('invoke');
+        return { status: 'discharged', activeRelationships: 1 };
+      },
+    };
+    await expect(runPatientOrganizationLifecycle(port, 'discharge')).resolves.toEqual({
       status: 'discharged',
       activeRelationships: 1,
     });
-    expect(fixture.calls).toEqual([
-      'begin:write',
-      'probe:locked',
-      'set:discharged',
-      'probe:plain',
-      'commit',
-    ]);
-
-    fixture.calls.splice(0);
-    await expect(runPatientOrganizationLifecycle(fixture.store, 'restore')).resolves.toEqual({
-      status: 'active',
-      activeRelationships: 2,
-    });
-    expect(fixture.calls).toEqual([
-      'begin:write',
-      'probe:locked',
-      'set:active',
-      'probe:plain',
-      'commit',
-    ]);
+    expect(events).toEqual(['preflight', 'invoke']);
   });
 
-  it('is idempotent in either terminal fixture state', async () => {
-    const discharged = storeFor({
-      targetStatus: 'discharged',
-      sharedPatientActiveRows: 1,
-    });
-    await runPatientOrganizationLifecycle(discharged.store, 'discharge');
-    expect(discharged.calls).not.toContain('set:discharged');
-
-    const active = storeFor();
-    await runPatientOrganizationLifecycle(active.store, 'restore');
-    expect(active.calls).not.toContain('set:active');
-  });
-
-  it('fails closed outside exact TEST and for a non-canonical fixture shape', async () => {
-    for (const overrides of [
-      { databaseName: 'bcb_webapp_dev' },
-      { databaseName: 'bcb_webapp_prod' },
-      { targetRows: 0 },
-      { targetRows: 2 },
-      { targetStatus: 'archived' },
-      { targetStatus: 'invited' },
-      { retainedActiveRows: 0 },
-      { sharedPatientRelationshipRows: 3 },
-      { sharedPatientActiveRows: 1 },
-    ]) {
-      const fixture = storeFor(overrides);
-      await expect(runPatientOrganizationLifecycle(fixture.store, 'status')).rejects.toBeInstanceOf(
-        PatientOrganizationLifecycleError,
-      );
-      expect(fixture.calls).toContain('rollback');
-      expect(fixture.calls).not.toContain('commit');
+  it('rejects unsafe identity, privileges and wrong database before capability invocation', async () => {
+    const unsafeProbes: PatientOrganizationOperatorProbe[] = [
+      safeProbe({ databaseName: 'bcb_webapp_dev' }),
+      safeProbe({ databaseName: 'bcb_webapp_prod' }),
+      safeProbe({ canLogin: false }),
+      safeProbe({ inherit: false }),
+      safeProbe({ superuser: true }),
+      safeProbe({ createDb: true }),
+      safeProbe({ createRole: true }),
+      safeProbe({ replication: true }),
+      safeProbe({ bypassRls: true }),
+      safeProbe({ appRoleMember: true }),
+      safeProbe({ directProductTableAccess: true }),
+      safeProbe({ capabilityExecute: false }),
+    ];
+    for (const probe of unsafeProbes) {
+      const candidate = portFor(probe);
+      await expect(runPatientOrganizationLifecycle(candidate.port, 'status')).rejects.toMatchObject({
+        code: probe.databaseName === 'bersoncarebot_test' ? 'operator_preflight_failed' : 'wrong_database',
+      });
+      expect(candidate.invoke).not.toHaveBeenCalled();
     }
   });
 
-  it('rolls back when the exact-row update does not converge', async () => {
-    const fixture = storeFor();
-    const brokenStore: PatientOrganizationLifecycleStore = {
-      ...fixture.store,
-      setTargetStatus: vi.fn(async () => 0),
-    };
-    await expect(runPatientOrganizationLifecycle(brokenStore, 'discharge')).rejects.toMatchObject({
-      code: 'reserved_target_update_mismatch',
-    });
-    expect(fixture.calls).toContain('rollback');
-    expect(fixture.calls).not.toContain('commit');
+  it('validates exact aggregate postconditions from the capability', async () => {
+    for (const result of [
+      { status: 'active' as const, activeRelationships: 1 },
+      { status: 'discharged' as const, activeRelationships: 2 },
+      { status: 'active' as const, activeRelationships: 2 },
+    ]) {
+      const port: PatientOrganizationLifecyclePort = {
+        readOperatorProbe: vi.fn(async () => safeProbe()),
+        invoke: vi.fn(async () => result),
+      };
+      const command = result.status === 'active' ? 'discharge' : 'restore';
+      await expect(runPatientOrganizationLifecycle(port, command)).rejects.toMatchObject({
+        code: 'lifecycle_postcondition_failed',
+      });
+    }
+  });
+
+  it('accepts idempotent restore and discharge terminal states', async () => {
+    await expect(
+      runPatientOrganizationLifecycle(
+        {
+          readOperatorProbe: vi.fn(async () => safeProbe()),
+          invoke: vi.fn(async () => ({ status: 'active' as const, activeRelationships: 2 })),
+        },
+        'restore',
+      ),
+    ).resolves.toEqual({ status: 'active', activeRelationships: 2 });
+    await expect(
+      runPatientOrganizationLifecycle(
+        {
+          readOperatorProbe: vi.fn(async () => safeProbe()),
+          invoke: vi.fn(async () => ({ status: 'discharged' as const, activeRelationships: 1 })),
+        },
+        'discharge',
+      ),
+    ).resolves.toEqual({ status: 'discharged', activeRelationships: 1 });
   });
 });

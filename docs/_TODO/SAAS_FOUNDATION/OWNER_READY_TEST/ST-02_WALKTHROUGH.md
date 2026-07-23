@@ -58,24 +58,37 @@ read/write matrix. This document does not claim that downstream gate.
 ### Reversible U5A relationship-recovery fixture
 
 The canonical shared-patient fixture is also the only allowed target for the U5A revoked-remembered-organization
-walkthrough. The operator-only command
-`pnpm --dir apps/webapp run test-fixture:patient-organization-lifecycle -- status` is read-only. In an authorized
-TEST window, `discharge --execute` changes only the reserved Clinic B shared-patient enrollment from `active` to
-`discharged`; `restore --execute` restores the canonical two-active-relationship state. Both mutations refuse every
-database except exact `bersoncarebot_test`, lock and verify the exact reserved enrollment, retain Clinic A active,
-require exactly two reserved shared-patient relationships and commit only after aggregate postconditions pass.
+walkthrough. Run only the root/operator wrapper from exact `/opt/projects/bersoncarebot-test`:
+`bash deploy/host/run-u5a-patient-organization-test-lifecycle.sh status`. In an authorized TEST window,
+`discharge --execute` changes only the reserved Clinic B shared-patient enrollment from `active` to `discharged`;
+`restore --execute` restores the canonical two-active-relationship state.
+
+The wrapper validates the exact non-symlink TEST checkout, env and SQL artifact, then verifies
+`SAAS_ISOLATION_OPERATOR_DATABASE_URL` against `pg_catalog` before any product-table access: exact
+`bersoncarebot_test`, LOGIN/INHERIT, NOSUPERUSER/NOCREATEDB/NOCREATEROLE/NOREPLICATION/NOBYPASSRLS and no app-role
+membership. It installs one closed SECURITY DEFINER function owned by the existing canonical NOLOGIN `app_owner`,
+grants no direct table access to the operator, invokes the CLI without `PGOPTIONS`, and always removes the function
+through EXIT cleanup. The function uses the existing `app_owner` `SELECT, UPDATE` ACL installed by the canonical
+patient-invites strict overlay; this harness adds no table ACL. It takes a short `SHARE` table lock, verifies the
+exact A+B set, retains Clinic A active and accepts only `active↔discharged` for Clinic B. No seeder reconciliation
+BYPASS window is reused and no new BYPASS role is created.
 
 The operator sequence is:
 
-1. verify `status` reports two active relationships;
+1. verify wrapper `status` reports two active relationships and says the capability was removed;
 2. complete A↔B switch, refresh/back-forward and trusted deep-link checks while both are active;
-3. leave Clinic B remembered, run `discharge --execute`, then verify neutral chooser/recovery and absence of stale
-   Clinic B data;
-4. always run `restore --execute` in cleanup, including after any failed browser step, and verify `status` again.
+3. leave Clinic B remembered, run wrapper `discharge --execute`, then verify neutral chooser/recovery and absence of
+   stale Clinic B data;
+4. always run wrapper `restore --execute` in data cleanup, including after any failed browser step, and verify
+   wrapper `status` again. If an interrupted operator run reports capability cleanup failure, run wrapper
+   `cleanup --execute` before any retry and treat remaining privilege as an incident.
 
-The command reads only `DATABASE_URL`/optional `PGOPTIONS`, performs no HTTP, delivery, S3 or external integration
-call, and prints only the target state plus aggregate active-relationship count. It is not available through a
-product route and must not be copied to DEV or PROD.
+The command performs no HTTP, delivery, S3 or external integration call and prints only the target state plus
+aggregate active-relationship count. It is not available through a product route and must not be copied to DEV or
+PROD. The repo gate `pnpm run prove:u5a-patient-organization-test-lifecycle` runs the actual operator CLI against a
+private disposable PostgreSQL with the exact canonical strict `org_enrollments` policy plus FORCE RLS, proves a
+concurrent third relationship write is blocked, restores two active rows, removes the temporary function, and
+asserts that the operator retains no product-table grant.
 
 ## Global-admin visual handoff
 

@@ -41,8 +41,13 @@ Shared patient также имеет свой reserved `.test` email/password cr
 Для U5A live recovery отдельный
 [`patient-organization-test-lifecycle.ts`](patient-organization-test-lifecycle.ts) может обратимо перевести только
 reserved shared-patient enrollment клиники B между `active` и `discharged`. Он требует exact
-`bersoncarebot_test`, явный `--execute`, проверяет обе reserved связи и работает транзакционно; `restore --execute`
-является обязательным cleanup после проверки. Это TEST fixture control, не продуктовый enrollment writer.
+`bersoncarebot_test`, sanctioned `SAAS_ISOLATION_OPERATOR_DATABASE_URL`, явный `--execute` и закрытую ephemeral
+capability от root-only wrapper `deploy/host/run-u5a-patient-organization-test-lifecycle.sh`. Operator login
+проверяется до product access, не имеет прямых table grants и вызывает только SECURITY DEFINER function; wrapper
+снимает function в EXIT cleanup. Function использует существующий узкий `app_owner` ACL из canonical
+patient-invites strict overlay; новых table grants, BYPASS-ролей и seeder elevation не создаёт.
+`restore --execute` является обязательным data cleanup после проверки. Это TEST fixture control, не продуктовый
+enrollment writer.
 Store/payment использует только `fixture_noop`, уведомления выключены. Media rows имеют `s3_key IS NULL`
 и ссылаются на коммиченный `public/test-fixtures/saas-exercise.svg`: `/api/media/[id]` отдаёт его
 только для exact DB `bersoncarebot_test`, а playback descriptor возвращает same-origin URL. Внешние S3

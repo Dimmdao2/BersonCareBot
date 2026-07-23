@@ -1,43 +1,44 @@
 #!/usr/bin/env tsx
 /**
- * Reversible lifecycle control for the canonical shared-patient TEST fixture.
+ * Operator client for the ephemeral U5A shared-patient TEST capability.
  *
- * This is an operator-only fixture tool, not a product enrollment writer. It can touch only the
- * reserved Clinic B relationship of the reserved shared patient in exact `bersoncarebot_test`.
+ * The root-only host wrapper installs and removes the closed SECURITY DEFINER function. This client
+ * first verifies the exact database and the sanctioned operator login using pg_catalog only, then
+ * invokes that function. It never reads or writes a product table directly.
  */
 import { pathToFileURL } from 'node:url';
 import { Pool, type PoolClient } from 'pg';
-import { SAAS_TEST_FIXTURE_OPERATOR_REFS } from './seed-saas-test-walkthrough-fixtures';
 
 const REQUIRED_DATABASE = 'bersoncarebot_test';
-const TARGET = Object.freeze({
-  enrollmentId:
-    SAAS_TEST_FIXTURE_OPERATOR_REFS.contexts.clinicB.sharedPatientEnrollmentId,
-  organizationId: SAAS_TEST_FIXTURE_OPERATOR_REFS.contexts.clinicB.organizationId,
-  platformUserId: SAAS_TEST_FIXTURE_OPERATOR_REFS.contexts.sharedPatient.platformUserId,
-  retainedEnrollmentId:
-    SAAS_TEST_FIXTURE_OPERATOR_REFS.contexts.clinicA.sharedPatientEnrollmentId,
-  retainedOrganizationId: SAAS_TEST_FIXTURE_OPERATOR_REFS.contexts.clinicA.organizationId,
-});
+const OPERATOR_DATABASE_URL_ENV = 'SAAS_ISOLATION_OPERATOR_DATABASE_URL';
+const CAPABILITY = 'app.control_u5a_patient_organization_fixture(text)';
 
 export type PatientOrganizationLifecycleStatus = 'active' | 'discharged';
 export type PatientOrganizationLifecycleCommand = 'status' | 'discharge' | 'restore';
 
-type LifecycleProbe = Readonly<{
+export type PatientOrganizationOperatorProbe = Readonly<{
   databaseName: string;
-  targetRows: number;
-  targetStatus: string | null;
-  retainedActiveRows: number;
-  sharedPatientRelationshipRows: number;
-  sharedPatientActiveRows: number;
+  loginRole: string;
+  canLogin: boolean;
+  inherit: boolean;
+  superuser: boolean;
+  createDb: boolean;
+  createRole: boolean;
+  replication: boolean;
+  bypassRls: boolean;
+  appRoleMember: boolean;
+  directProductTableAccess: boolean;
+  capabilityExecute: boolean;
 }>;
 
-export type PatientOrganizationLifecycleStore = Readonly<{
-  begin(readOnly: boolean): Promise<void>;
-  readProbe(lockTarget: boolean): Promise<LifecycleProbe>;
-  setTargetStatus(status: PatientOrganizationLifecycleStatus): Promise<number>;
-  commit(): Promise<void>;
-  rollback(): Promise<void>;
+export type PatientOrganizationLifecycleResult = Readonly<{
+  status: PatientOrganizationLifecycleStatus;
+  activeRelationships: number;
+}>;
+
+export type PatientOrganizationLifecyclePort = Readonly<{
+  readOperatorProbe(): Promise<PatientOrganizationOperatorProbe>;
+  invoke(command: PatientOrganizationLifecycleCommand): Promise<PatientOrganizationLifecycleResult>;
 }>;
 
 export class PatientOrganizationLifecycleError extends Error {
@@ -60,9 +61,7 @@ export function parsePatientOrganizationLifecycleArgs(
   const normalizedArgv = argv[0] === '--' ? argv.slice(1) : argv;
   const command = normalizedArgv[0];
   const trailing = normalizedArgv.slice(1);
-  if (command !== 'status' && command !== 'discharge' && command !== 'restore') {
-    fail('usage');
-  }
+  if (command !== 'status' && command !== 'discharge' && command !== 'restore') fail('usage');
   if (trailing.some((arg) => arg !== '--execute') || trailing.length > 1) fail('usage');
   const execute = trailing[0] === '--execute';
   if (command === 'status' && execute) fail('status_execute_forbidden');
@@ -70,161 +69,131 @@ export function parsePatientOrganizationLifecycleArgs(
   return { command, execute };
 }
 
-function assertCanonicalProbe(probe: LifecycleProbe): void {
+function assertOperatorProbe(probe: PatientOrganizationOperatorProbe): void {
   if (probe.databaseName !== REQUIRED_DATABASE) fail('wrong_database');
-  if (probe.targetRows !== 1) fail('reserved_target_missing_or_ambiguous');
-  if (probe.sharedPatientRelationshipRows !== 2) fail('shared_patient_fixture_shape_mismatch');
-  if (probe.retainedActiveRows !== 1) fail('retained_relationship_not_active');
-  if (probe.targetStatus !== 'active' && probe.targetStatus !== 'discharged') {
-    fail('reserved_target_unexpected_status');
-  }
-}
-
-function desiredStatus(
-  command: PatientOrganizationLifecycleCommand,
-  current: PatientOrganizationLifecycleStatus,
-): PatientOrganizationLifecycleStatus {
-  if (command === 'status') return current;
-  return command === 'discharge' ? 'discharged' : 'active';
-}
-
-function assertPostcondition(
-  command: PatientOrganizationLifecycleCommand,
-  probe: LifecycleProbe,
-): void {
-  assertCanonicalProbe(probe);
-  const expectedStatus = command === 'discharge' ? 'discharged' : 'active';
-  if (command !== 'status' && probe.targetStatus !== expectedStatus) {
-    fail('lifecycle_postcondition_failed');
-  }
-  const expectedActiveRelationships = probe.targetStatus === 'active' ? 2 : 1;
-  if (probe.sharedPatientActiveRows !== expectedActiveRelationships) {
-    fail('active_relationship_count_mismatch');
+  if (
+    !probe.loginRole ||
+    !probe.canLogin ||
+    !probe.inherit ||
+    probe.superuser ||
+    probe.createDb ||
+    probe.createRole ||
+    probe.replication ||
+    probe.bypassRls ||
+    probe.appRoleMember ||
+    probe.directProductTableAccess ||
+    !probe.capabilityExecute
+  ) {
+    fail('operator_preflight_failed');
   }
 }
 
 export async function runPatientOrganizationLifecycle(
-  store: PatientOrganizationLifecycleStore,
+  port: PatientOrganizationLifecyclePort,
   command: PatientOrganizationLifecycleCommand,
-): Promise<Readonly<{ status: PatientOrganizationLifecycleStatus; activeRelationships: number }>> {
-  try {
-    await store.begin(command === 'status');
-    const before = await store.readProbe(command !== 'status');
-    assertCanonicalProbe(before);
-    const current = before.targetStatus as PatientOrganizationLifecycleStatus;
-    const targetStatus = desiredStatus(command, current);
-    if (command !== 'status' && current !== targetStatus) {
-      const changedRows = await store.setTargetStatus(targetStatus);
-      if (changedRows !== 1) fail('reserved_target_update_mismatch');
-    }
-    const after = command === 'status' ? before : await store.readProbe(false);
-    assertPostcondition(command, after);
-    await store.commit();
-    return {
-      status: after.targetStatus as PatientOrganizationLifecycleStatus,
-      activeRelationships: after.sharedPatientActiveRows,
-    };
-  } catch (error) {
-    await store.rollback().catch(() => undefined);
-    throw error;
+): Promise<PatientOrganizationLifecycleResult> {
+  assertOperatorProbe(await port.readOperatorProbe());
+  const result = await port.invoke(command);
+  if (
+    (result.status !== 'active' && result.status !== 'discharged') ||
+    result.activeRelationships !== (result.status === 'active' ? 2 : 1)
+  ) {
+    fail('lifecycle_postcondition_failed');
   }
+  if (command === 'discharge' && result.status !== 'discharged') fail('lifecycle_postcondition_failed');
+  if (command === 'restore' && result.status !== 'active') fail('lifecycle_postcondition_failed');
+  return result;
+}
+
+function booleanValue(value: unknown): boolean {
+  if (value === true || value === false) return value;
+  fail('invalid_operator_probe');
+}
+
+function stringValue(value: unknown): string {
+  if (typeof value === 'string' && value.length > 0) return value;
+  fail('invalid_operator_probe');
 }
 
 function numberValue(value: unknown): number {
   const parsed = Number(value);
-  if (!Number.isInteger(parsed) || parsed < 0) fail('invalid_probe_result');
+  if (!Number.isInteger(parsed) || parsed < 0) fail('invalid_capability_result');
   return parsed;
 }
 
-function stringOrNull(value: unknown): string | null {
-  return typeof value === 'string' ? value : null;
-}
-
-function createPgStore(client: PoolClient): PatientOrganizationLifecycleStore {
+function createPgPort(client: PoolClient): PatientOrganizationLifecyclePort {
   return {
-    async begin(readOnly) {
-      await client.query(readOnly ? 'BEGIN READ ONLY' : 'BEGIN');
-      await client.query("SET LOCAL statement_timeout = '10s'");
-      await client.query("SET LOCAL lock_timeout = '5s'");
-    },
-    async readProbe(lockTarget) {
-      const target = await client.query<{ status: unknown }>(
-        `
-          SELECT status
-          FROM public.org_enrollments
-          WHERE id = $1::uuid
-            AND organization_id = $2::uuid
-            AND platform_user_id = $3::uuid
-          ${lockTarget ? 'FOR UPDATE' : ''}
-        `,
-        [TARGET.enrollmentId, TARGET.organizationId, TARGET.platformUserId],
-      );
-      const aggregate = await client.query<{
+    async readOperatorProbe() {
+      const result = await client.query<{
         database_name: unknown;
-        target_rows: unknown;
-        retained_active_rows: unknown;
-        shared_relationship_rows: unknown;
-        shared_active_rows: unknown;
-      }>(
-        `
-          SELECT
-            current_database()::text AS database_name,
-            count(*) FILTER (
-              WHERE id = $1::uuid
-                AND organization_id = $2::uuid
-                AND platform_user_id = $3::uuid
-            )::int AS target_rows,
-            count(*) FILTER (
-              WHERE id = $4::uuid
-                AND organization_id = $5::uuid
-                AND platform_user_id = $3::uuid
-                AND status = 'active'
-            )::int AS retained_active_rows,
-            count(*) FILTER (WHERE platform_user_id = $3::uuid)::int AS shared_relationship_rows,
-            count(*) FILTER (
-              WHERE platform_user_id = $3::uuid AND status = 'active'
-            )::int AS shared_active_rows
-          FROM public.org_enrollments
-          WHERE platform_user_id = $3::uuid
-        `,
-        [
-          TARGET.enrollmentId,
-          TARGET.organizationId,
-          TARGET.platformUserId,
-          TARGET.retainedEnrollmentId,
-          TARGET.retainedOrganizationId,
-        ],
-      );
-      const row = aggregate.rows[0];
-      if (!row) fail('probe_result_missing');
+        login_role: unknown;
+        rolcanlogin: unknown;
+        rolinherit: unknown;
+        rolsuper: unknown;
+        rolcreatedb: unknown;
+        rolcreaterole: unknown;
+        rolreplication: unknown;
+        rolbypassrls: unknown;
+        app_role_member: unknown;
+        direct_product_table_access: unknown;
+        capability_execute: unknown;
+      }>(`
+        SELECT
+          current_database()::text AS database_name,
+          current_user::text AS login_role,
+          role.rolcanlogin,
+          role.rolinherit,
+          role.rolsuper,
+          role.rolcreatedb,
+          role.rolcreaterole,
+          role.rolreplication,
+          role.rolbypassrls,
+          (
+            pg_has_role(current_user, 'app_owner', 'MEMBER')
+            OR pg_has_role(current_user, 'app_staff', 'MEMBER')
+            OR pg_has_role(current_user, 'app_patient', 'MEMBER')
+            OR pg_has_role(current_user, 'app_worker', 'MEMBER')
+          ) AS app_role_member,
+          (
+            has_table_privilege(current_user, 'public.org_enrollments', 'SELECT')
+            OR has_table_privilege(current_user, 'public.org_enrollments', 'INSERT')
+            OR has_table_privilege(current_user, 'public.org_enrollments', 'UPDATE')
+            OR has_table_privilege(current_user, 'public.org_enrollments', 'DELETE')
+          ) AS direct_product_table_access,
+          has_function_privilege(current_user, '${CAPABILITY}', 'EXECUTE') AS capability_execute
+        FROM pg_catalog.pg_roles AS role
+        WHERE role.rolname = current_user
+      `);
+      const row = result.rows[0];
+      if (!row) fail('operator_probe_missing');
       return {
-        databaseName: stringOrNull(row.database_name) ?? '',
-        targetRows: numberValue(row.target_rows),
-        targetStatus: stringOrNull(target.rows[0]?.status),
-        retainedActiveRows: numberValue(row.retained_active_rows),
-        sharedPatientRelationshipRows: numberValue(row.shared_relationship_rows),
-        sharedPatientActiveRows: numberValue(row.shared_active_rows),
+        databaseName: stringValue(row.database_name),
+        loginRole: stringValue(row.login_role),
+        canLogin: booleanValue(row.rolcanlogin),
+        inherit: booleanValue(row.rolinherit),
+        superuser: booleanValue(row.rolsuper),
+        createDb: booleanValue(row.rolcreatedb),
+        createRole: booleanValue(row.rolcreaterole),
+        replication: booleanValue(row.rolreplication),
+        bypassRls: booleanValue(row.rolbypassrls),
+        appRoleMember: booleanValue(row.app_role_member),
+        directProductTableAccess: booleanValue(row.direct_product_table_access),
+        capabilityExecute: booleanValue(row.capability_execute),
       };
     },
-    async setTargetStatus(status) {
-      const result = await client.query(
-        `
-          UPDATE public.org_enrollments
-          SET status = $1
-          WHERE id = $2::uuid
-            AND organization_id = $3::uuid
-            AND platform_user_id = $4::uuid
-            AND status IN ('active', 'discharged')
-        `,
-        [status, TARGET.enrollmentId, TARGET.organizationId, TARGET.platformUserId],
-      );
-      return result.rowCount ?? 0;
-    },
-    async commit() {
-      await client.query('COMMIT');
-    },
-    async rollback() {
-      await client.query('ROLLBACK');
+    async invoke(command) {
+      const result = await client.query<{
+        target_status: unknown;
+        active_relationships: unknown;
+      }>('SELECT * FROM app.control_u5a_patient_organization_fixture($1)', [command]);
+      const row = result.rows[0];
+      if (!row || (row.target_status !== 'active' && row.target_status !== 'discharged')) {
+        fail('invalid_capability_result');
+      }
+      return {
+        status: row.target_status,
+        activeRelationships: numberValue(row.active_relationships),
+      };
     },
   };
 }
@@ -235,17 +204,19 @@ export async function runPatientOrganizationLifecycleCli(input: {
   log?: (message: string) => void;
 }): Promise<void> {
   const { command } = parsePatientOrganizationLifecycleArgs(input.argv);
-  const databaseUrl = input.env.DATABASE_URL?.trim() ?? '';
-  if (!databaseUrl) fail('database_url_required');
+  const operatorDatabaseUrl = input.env[OPERATOR_DATABASE_URL_ENV]?.trim() ?? '';
+  if (!operatorDatabaseUrl) fail('operator_database_url_required');
   const pool = new Pool({
-    connectionString: databaseUrl,
-    ...(input.env.PGOPTIONS?.trim() ? { options: input.env.PGOPTIONS.trim() } : {}),
+    connectionString: operatorDatabaseUrl,
+    application_name: 'bcb_u5a_patient_organization_fixture_operator',
     max: 1,
+    statement_timeout: 10_000,
+    query_timeout: 12_000,
   });
   try {
     const client = await pool.connect();
     try {
-      const result = await runPatientOrganizationLifecycle(createPgStore(client), command);
+      const result = await runPatientOrganizationLifecycle(createPgPort(client), command);
       (input.log ?? console.log)(
         `patient_organization_test_lifecycle:${result.status};active_relationships=${result.activeRelationships}`,
       );
@@ -263,10 +234,15 @@ if (isMain) {
     argv: process.argv.slice(2),
     env: process.env,
   }).catch((error: unknown) => {
-    const code =
-      error instanceof PatientOrganizationLifecycleError
-        ? error.code
+    const postgresCode =
+      typeof error === 'object' &&
+      error !== null &&
+      'code' in error &&
+      typeof error.code === 'string' &&
+      /^[0-9A-Z]{5}$/.test(error.code)
+        ? `postgres_${error.code}`
         : 'patient_organization_test_lifecycle_failed';
+    const code = error instanceof PatientOrganizationLifecycleError ? error.code : postgresCode;
     process.stderr.write(`patient_organization_test_lifecycle_failed:${code}\n`);
     process.exitCode = 1;
   });

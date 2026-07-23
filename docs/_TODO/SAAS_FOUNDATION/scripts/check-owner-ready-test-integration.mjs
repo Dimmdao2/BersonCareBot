@@ -137,6 +137,51 @@ requireText('apps/webapp/scripts/seed-saas-test-walkthrough-fixtures.ts', [
   'proveDoubleSeedConvergence',
   'double_seed_unrelated_sentinel',
 ]);
+requireText('apps/webapp/scripts/patient-organization-test-lifecycle.ts', [
+  "const OPERATOR_DATABASE_URL_ENV = 'SAAS_ISOLATION_OPERATOR_DATABASE_URL'",
+  'readOperatorProbe',
+  'directProductTableAccess',
+  '!probe.capabilityExecute',
+  'await port.invoke(command)',
+  'application_name',
+]);
+requireText('deploy/postgres/u5a-patient-organization-test-lifecycle.sql', [
+  "current_database() = 'bersoncarebot_test'",
+  "p_action NOT IN ('status', 'discharge', 'restore')",
+  "has_table_privilege('app_owner', 'public.org_enrollments', 'SELECT')",
+  "has_table_privilege('app_owner', 'public.org_enrollments', 'UPDATE')",
+  'LOCK TABLE public.org_enrollments IN SHARE MODE',
+  'v_total <> 2',
+  "v_clinic_a_status <> 'active'",
+  "v_clinic_b_status NOT IN ('active', 'discharged')",
+  'SECURITY DEFINER',
+  'SET search_path = pg_catalog',
+  'ALTER FUNCTION app.control_u5a_patient_organization_fixture(text) OWNER TO app_owner',
+  'u5a_lifecycle_cleanup_no_capability_residue',
+]);
+requireText('deploy/host/run-u5a-patient-organization-test-lifecycle.sh', [
+  'readonly REQUIRED_PROJECT_ROOT="/opt/projects/bersoncarebot-test"',
+  'assert_regular_nonsymlink_path',
+  'flock -n 9',
+  'unset PGOPTIONS',
+  'operator role attributes or memberships are unsafe',
+  'trap cleanup_on_exit EXIT',
+  'apply_capability cleanup',
+  'capability removed',
+]);
+requireText(
+  'docs/_TODO/SAAS_FOUNDATION/scripts/prove-u5a-patient-organization-test-lifecycle.mjs',
+  [
+    'phase4-locked-helper-rls-policies.sql',
+    'exactStrictPolicyStatement',
+    'FORCE ROW LEVEL SECURITY',
+    "cli('discharge', true)",
+    "cli('restore', true)",
+    'proveConcurrentSetProtection',
+    'assertNoResidue',
+    'capability_residue=0',
+  ],
+);
 requireText('docs/_TODO/SAAS_FOUNDATION/OWNER_READY_TEST/audit/acceptance-ST-04.md', [
   '`global_admin` auth profile',
   'post-matrix exact strict+FORCE',
