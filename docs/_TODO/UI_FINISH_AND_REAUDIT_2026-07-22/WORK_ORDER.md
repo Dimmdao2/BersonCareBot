@@ -55,6 +55,60 @@ their own UI instead of following detailed plans.
   `branchServiceId` legacy links, archive, drop rubitime tables on TEST, observe breakage, fix it.
 - Note: this changes booking-related screens — coordinate with Track A.
 
+### Track D — direct integrator → `public` writes and legacy projection retirement
+
+**Owner ruling 2026-07-23:** the unified PostgreSQL target must not keep HTTP as an internal projection transport.
+Integrator writes canonical business data directly to qualified `public` tables through bounded transactional
+repositories. The `/api/integrator/events` fanout/outbox/worker path and duplicate projection tables are removed only
+after domain parity and data reconciliation are proven. Provider-neutral canonical booking/support/reminder/business
+data remains. Historical migrations are immutable; PROD is out of scope.
+
+The HTTP-envelope/performance part of Stability E3 (`#980`) is **SUPERSEDED — 2026-07-23 by Track D / taskdb
+`#987`**. Reusable domain schemas may be retained, but no worker may optimize or expand the transport scheduled for
+deletion.
+
+Execute these packages in order; each package is one worker stage with the same exact rows supplied to its independent
+auditor:
+
+- [ ] **D0 — truthful retirement gate, no deletion.** `--expect-post-r6` must detect the Rubitime
+  `booking.upsert` branch/package, `buildAppointmentRecordUpsertedFanout`, the producer and handler for
+  `appointment.record.upserted`, `/api/integrator/events`, `tryEmitWebappProjectionThenEnqueue`,
+  `projection_outbox`, and the projection worker. A fixture/self-test must prove each category changes the verdict.
+- [ ] **D1 — identity and notification preferences.** One integrator transaction writes channel anchors plus
+  canonical `public.platform_users` / `user_channel_bindings` / `user_notification_topics`; retain integrator-only
+  channel identity and messenger state that are not duplicate business projections.
+- [ ] **D2 — diary and LFK.** Resolve canonical platform user and exact organization/enrollment, validate ownership,
+  write symptom tracking/entries and LFK complexes/sessions directly, and retire the four corresponding HTTP event
+  types without a default-org fallback.
+- [ ] **D3 — support conversations and messages.** Direct transactional open/message/status writes and qualified
+  public reads; reconcile the two current organization-null conversation rows before tightening/removing legacy
+  storage.
+- [ ] **D4 — support questions and delivery audit.** Direct question create/message/answered and delivery-attempt
+  writes with tenant mismatch denied; keep `message_drafts` integrator-local as ephemeral state.
+- [ ] **D5 — reminder rules.** `public.reminder_rules` becomes the only business source for CRUD and scheduler reads;
+  retire `reminder.rule.upserted`, then classify the integrator rule table for migration-backed removal.
+- [ ] **D6 — reminder lifecycle, delivery and content grants.** Reconcile/backfill the currently missing failed
+  occurrence history before retiring duplicate delivery/content projections; keep only proven technical scheduler
+  state.
+- [ ] **D7 — remaining reminder writes.** Replace snooze/skip/done/mute/messenger-topic/notification-settings signed
+  POST adapters with the same validated direct-DB service contract.
+- [ ] **D8 — mailing/subscriptions.** Run an exact producer/consumer callgraph first. If the currently empty source
+  and projection tables have no live producer, remove the dead event types/adapters/tables; do not build a new writer
+  for a dead domain.
+- [ ] **D9 — Rubitime/appointment retirement, coordinated with Track C.** Remove Rubitime booking branches,
+  appointment projection events/handlers, bridge paths, provider tables/settings and `appointment_records` only
+  after canonical preservation proof. First migrate the still-active retry storage and calendar mapping to
+  provider-neutral structures.
+- [ ] **D10 — projection transport teardown, last.** Only after an exact zero-producer census, remove fanout/outbox,
+  worker/wiring, generic emit client surface, `/api/integrator/events`, event contract/CSRF exception, projection
+  health/proxy/digest tooling and the outbox table through a migration. Do not delete generic idempotency, delivery
+  queues or unrelated service HTTP calls.
+
+Execution order: D0 first. After D0, D1, D2 and the code-only portion of D9 may run in parallel where their file scopes
+do not intersect. D3 precedes D4. D5 precedes D6, which precedes D7. D8 may run alongside reminder packages. D10 is
+always last. Each package runs focused tests plus affected integrator/webapp typecheck and lint; accumulated full CI,
+disposable restore+migrate proof and live TEST verification are milestone gates, not repeated per micro-package.
+
 ## 3. Required output of the re-audit (per stage)
 
 A row-by-row matrix, one row per atomic checkbox of the **linked detailed plan** (quoted verbatim):
