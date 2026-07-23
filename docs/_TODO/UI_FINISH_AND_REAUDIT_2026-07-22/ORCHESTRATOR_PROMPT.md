@@ -48,6 +48,32 @@ For every stage you touch:
   owner's detailed plan is a QUESTION to the owner, never a new task. If two passes in a row add code but close zero
   owner checkboxes, STOP and escalate — that is scope-drift, not progress.
 
+## Documentation & token discipline — CODE-FIRST (enforce this hard)
+The previous run spent ~60% of tokens on prose (reality-audit essays, 167-row evidence matrices, reconciliation
+narratives, provenance notes) instead of code. Verification is mandatory; its ARTIFACT must be cheap and, where the
+check is mechanical, executable — never an essay. Canon: `docs/ORCHESTRATION_BINDINGS.md` §«Документация и
+токен-дисциплина».
+- **Verification ≠ documentation.** Prefer an executable gate over prose: a contract test or a census script (the D0
+  gate `docs/_TODO/SAAS_FOUNDATION/scripts/rubitime-r6-r7-static-inventory.mjs` is the model). The script + its green
+  run IS the evidence; do not also write an essay about it. A green targeted test closes its matrix row by test name.
+- **Evidence = one line per checkbox**, not narrative: `id → PASS/FAIL/BLOCKED → path:line | test | SHA`. No intro
+  paragraphs, no re-stating requirements, no history retelling. If it fits in a commit message / PR body, do not
+  create a file for it.
+- **Do not spawn new docs.** Separate reality-audit / reconciliation / evidence-matrix files are allowed ONLY as a
+  pre-planned plan output or a mandatory audit record. Default: write status IN PLACE — checkbox in the plan + one
+  evidence line + SHA. Debt-first reconciliation runs once, read-only, and never becomes a series of narrative files.
+- **The orchestrator does not write prose with its own (expensive) context.** Delegate any needed write-up to a cheap
+  model with a minimal task, or let the worker keep it in its own short log. Agent logs are terse, not essays.
+- **Provenance without theater.** Do not re-transcribe into markdown what already lives in git (diff, commit message)
+  and taskdb (status / commit_ref / note). An owner ruling is one line + link, not a retelling.
+- **Stage-boundary smell test:** if a stage produced more lines of documentation than of code/tests, that is a red
+  flag of prose-drift. Ask whether the doc is truly needed to start the next stage or is just self-documentation;
+  default is do not write it.
+- Process-audit verdicts are a few lines (verdict + concrete corrections) appended to ONE log file, not a new file per
+  run.
+Goal: the dominant share of tokens and commits is in code and tests. Documentation serves the work, it does not
+replace it.
+
 ## Parallelism, branch & commit hygiene, CI cadence
 - **Parallelize.** Run independent, non-conflicting file-scope stages concurrently in **3–4 streams**, each in its
   OWN git worktree + OWN feature branch. Do not serialize work that does not share a resource. Serialize ONLY
