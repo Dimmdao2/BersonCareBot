@@ -1,0 +1,14 @@
+# Trivy ignore file for BersonCareBot (SEC-01 / task #881).
+#
+# Scope: accepted / not-yet-fixable findings from the `trivy-fs` job (scanners: vuln,misconfig,secret;
+# severity HIGH,CRITICAL). Every entry MUST have: the id, a one-line reason, and a review date.
+# Do NOT mass-silence to make the build green — findings are triaged to the owner, not auto-accepted.
+#
+# Format (one per line):
+#   CVE-YYYY-NNNNN   # reason — reviewed YYYY-MM-DD, owner: <who>
+#   AVD-XXX-NNNN     # misconfig id — reason — reviewed YYYY-MM-DD
+#
+# No findings have been accepted yet. Entries are added only after the first live-CI triage.
+# (Placeholder examples below are commented out and intentionally inert.)
+#
+# CVE-0000-00000   # example only — remove; replace with a real triaged, dated entry

@@ -90,6 +90,7 @@
     "ci:resume:after-build-webapp": "pnpm run audit",
     "check": "pnpm ci",
     "audit": "node scripts/check-saas-db-regression.mjs && pnpm run check:saas-hard-migration-protocol && pnpm run check:saas-isolation-diagnostics && pnpm run check:saas-product-smoke-contract && node scripts/registry-prod-audit.mjs",
+    "audit:cve": "pnpm audit --audit-level=high",
     "format": "prettier -w .",
     "migrate": "bash scripts/migrate-all.sh",
     "migrate:prod:host": "bash scripts/migrate-all.sh",

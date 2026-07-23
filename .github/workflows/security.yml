@@ -1,0 +1,115 @@
+name: Security
+
+# Dedicated security-scanning stack (SEC-01 / task #881). Kept separate from ci.yml so the
+# core build/test pipeline stays stable. Jobs: Gitleaks (secrets), Semgrep (SAST),
+# Trivy (fs vuln/misconfig/secret), and a real pnpm CVE audit.
+#
+# All action versions are pinned (no floating @main). External tool versions are pinned via the
+# *_VERSION env vars below and may need a live-CI bump on first run.
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+
+permissions:
+  contents: read
+
+env:
+  GITLEAKS_VERSION: "8.18.4"
+  SEMGREP_IMAGE: "semgrep/semgrep:1.85.0"
+  TRIVY_ACTION_REF: "0.28.0"
+
+jobs:
+  # --- Secret scanning ----------------------------------------------------------------------
+  gitleaks:
+    name: Gitleaks (secret scan)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout (full history)
+        uses: actions/checkout@v5
+        with:
+          # Full history so the scan covers past commits, not just the PR diff — the prior
+          # incident was `.env` content committed in history (allowlisted in .gitleaks.toml).
+          fetch-depth: 0
+      - name: Install gitleaks (pinned)
+        run: |
+          set -euo pipefail
+          curl -sSfL \
+            "https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz" \
+            -o gitleaks.tar.gz
+          tar -xzf gitleaks.tar.gz gitleaks
+          sudo install -m 0755 gitleaks /usr/local/bin/gitleaks
+          gitleaks version
+      - name: Scan git history for secrets
+        # Exit non-zero on any new (non-allowlisted) finding => red build. --redact hides values
+        # from logs. Uses ./.gitleaks.toml (default-detected in the working dir).
+        run: gitleaks git . --no-banner --redact --config .gitleaks.toml --report-format sarif --report-path gitleaks.sarif
+      - name: Upload gitleaks report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: gitleaks-report
+          path: gitleaks.sarif
+          if-no-files-found: ignore
+
+  # --- SAST ---------------------------------------------------------------------------------
+  semgrep:
+    name: Semgrep (SAST)
+    runs-on: ubuntu-latest
+    container:
+      image: semgrep/semgrep:1.85.0
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+      - name: Semgrep scan (fail on ERROR)
+        # Committed .semgrep.yml (offline core) + managed registry packs. --error makes any
+        # ERROR-severity finding fail the build; WARNING findings are reported, not blocking.
+        run: |
+          semgrep scan \
+            --config .semgrep.yml \
+            --config p/default \
+            --config p/typescript \
+            --config p/react \
+            --config p/nodejs \
+            --config p/secrets \
+            --severity ERROR \
+            --error \
+            --sarif --output semgrep.sarif \
+            --metrics off
+      - name: Upload semgrep report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: semgrep-report
+          path: semgrep.sarif
+          if-no-files-found: ignore
+
+  # --- Filesystem vuln / misconfig / secret scan --------------------------------------------
+  trivy-fs:
+    name: Trivy (fs scan)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+      - name: Trivy filesystem scan
+        uses: aquasecurity/trivy-action@0.28.0
+        with:
+          scan-type: fs
+          scan-ref: .
+          scanners: vuln,misconfig,secret
+          severity: HIGH,CRITICAL
+          ignore-unfixed: true
+          exit-code: "1"
+          trivyignores: .trivyignore
+          format: table
+
+  # --- Real dependency CVE audit ------------------------------------------------------------
+  # Closes the gap where ci.yml's `audit` job runs saas-regression checks, NOT a CVE audit.
+  dependency-audit:
+    name: Dependency CVE audit (pnpm)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: ./.github/actions/setup-pnpm
+      - run: pnpm run audit:cve

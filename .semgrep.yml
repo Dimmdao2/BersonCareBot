@@ -1,0 +1,66 @@
+# Semgrep custom ruleset for BersonCareBot (SEC-01 / task #881).
+#
+# This committed, pinned rule file is the deterministic, network-free core of the SAST job.
+# The workflow ALSO layers the managed registry packs (p/default, p/typescript, p/react,
+# p/nodejs, p/secrets) on top. Gating policy: findings at ERROR severity fail the build;
+# WARNING findings are reported but do not block (kept low to avoid startup noise).
+#
+# Reasons are inline; do not silence rules by deletion — narrow the pattern or lower severity.
+
+rules:
+  - id: bcb-hardcoded-secret-assignment
+    languages: [javascript, typescript]
+    severity: ERROR
+    message: >
+      Possible hardcoded secret. Load credentials from env/secret store, never inline them.
+      (SEC-01: real prod creds previously leaked via committed config.)
+    metadata:
+      category: security
+      cwe: "CWE-798: Use of Hard-coded Credentials"
+    patterns:
+      - pattern-regex: (?i)(api[_-]?key|secret|passw(or)?d|token|private[_-]?key)\s*[:=]\s*['"][A-Za-z0-9/_+\-]{16,}['"]
+      - pattern-not-regex: (?i)(changeme|example|placeholder|dummy|your[-_]?(token|key|secret)|process\.env|<[^>]+>|x{6,})
+
+  - id: bcb-child-process-concat
+    languages: [javascript, typescript]
+    severity: ERROR
+    message: >
+      Command built from concatenation passed to child_process — command-injection risk.
+      Use an argv array and avoid shell:true with untrusted input.
+    metadata:
+      category: security
+      cwe: "CWE-78: OS Command Injection"
+    patterns:
+      - pattern-either:
+          - pattern: child_process.exec($CMD + ...)
+          - pattern: child_process.exec(`...${$X}...`)
+          - pattern: exec($CMD + ...)
+
+  - id: bcb-no-eval
+    languages: [javascript, typescript]
+    severity: ERROR
+    message: "Avoid eval() / Function(string) — code-injection risk."
+    metadata:
+      category: security
+      cwe: "CWE-95: Eval Injection"
+    patterns:
+      - pattern-either:
+          - pattern: eval(...)
+          - pattern: new Function(...)
+
+  - id: bcb-tls-reject-unauthorized-disabled
+    languages: [javascript, typescript]
+    severity: ERROR
+    message: "TLS certificate verification disabled (rejectUnauthorized:false) — MITM risk."
+    metadata:
+      category: security
+      cwe: "CWE-295: Improper Certificate Validation"
+    pattern: "rejectUnauthorized: false"
+
+  - id: bcb-node-tls-env-bypass
+    languages: [javascript, typescript]
+    severity: ERROR
+    message: "NODE_TLS_REJECT_UNAUTHORIZED disabled at runtime — disables all TLS verification."
+    metadata:
+      category: security
+    pattern-regex: NODE_TLS_REJECT_UNAUTHORIZED['"]?\]?\s*=\s*['"]0['"]
