@@ -1,5 +1,11 @@
 # DOCTOR_CLIENT_PROFILE_REPACK_PLAN — карточка пациента и список клиентов: пересборка из имеющихся блоков
 
+> ⚠️ **НЕ АКТУАЛЬНО (2026-05-02).** Выполненная здесь пересборка была на `ClientProfileCard.tsx` /
+> `/app/doctor/clients/[userId]`; карточка пациента с тех пор пересобрана заново на другом роуте/компоненте
+> (`/app/doctor/patients/[userId]` · `PatientCardClient.tsx`) с другой шапкой и вкладками. Актуально:
+> [`../../design/bersoncare-карточка-пациента-CURRENT-SPEC.md`](../../design/bersoncare-карточка-пациента-CURRENT-SPEC.md).
+> Этот файл остаётся историческим ТЗ уже неактуального прохода.
+
 **Дата:** 2026-05-02.
 **Статус:** выполнено.
 **Навигация (2026-06-03):** master-detail `?selected` на `/app/doctor/clients` снят; карточка только на `/app/doctor/clients/[userId]` — см. [`.cursor/plans/archive/unify_doctor_patient_card_37615243.plan.md`](../../../.cursor/plans/archive/unify_doctor_patient_card_37615243.plan.md).

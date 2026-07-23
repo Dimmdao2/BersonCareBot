@@ -1,5 +1,9 @@
 # DOCTOR_CLIENT_PROFILE_REPACK — аудит выполнения и закрытие хвостов
 
+> ⚠️ **НЕ АКТУАЛЬНО (2026-05-02).** Аудит подтверждает состояние `ClientProfileCard.tsx`, которая с тех пор
+> заменена новой картой на другом роуте/компоненте (`/app/doctor/patients/[userId]` · `PatientCardClient.tsx`).
+> Актуально: [`../../design/bersoncare-карточка-пациента-CURRENT-SPEC.md`](../../design/bersoncare-карточка-пациента-CURRENT-SPEC.md).
+
 **Дата аудита:** 2026-05-02.  
 **ТЗ:** [`DOCTOR_CLIENT_PROFILE_REPACK_PLAN.md`](DOCTOR_CLIENT_PROFILE_REPACK_PLAN.md) (статус: выполнено).  
 **Журнал:** [LOG.md](../LOG.md) — запись «doctor clients: карточка и список (DOCTOR_CLIENT_PROFILE_REPACK)».
