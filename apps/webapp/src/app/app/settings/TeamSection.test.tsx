@@ -1,8 +1,14 @@
 /** @vitest-environment jsdom */
 
 import { describe, expect, it, vi, beforeEach } from "vitest";
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import {
+  doctorDnaFlatListClass,
+  doctorDnaFlatListMetaClass,
+  doctorDnaFlatListPrimaryClass,
+  doctorDnaFlatListRowClass,
+} from "@/shared/ui/doctor/DoctorDnaFlatListRow";
 import { TeamSection } from "./TeamSection";
 
 const refreshMock = vi.hoisted(() => vi.fn());
@@ -13,13 +19,17 @@ vi.mock("@/shared/lib/apiJson", () => ({ apiJson: (...args: unknown[]) => apiJso
 
 const baseSeats = { limit: 3, used: 1, available: 2 };
 
+function expectClassContract(element: HTMLElement, contract: string) {
+  expect(element).toHaveClass(...contract.split(" "));
+}
+
 describe("TeamSection", () => {
   beforeEach(() => {
     refreshMock.mockClear();
     apiJsonMock.mockReset();
   });
 
-  it("shows current members and pending invites", () => {
+  it("renders both existing Settings lists with the shared non-clickable DNA row contract", () => {
     render(
       <TeamSection
         members={[
@@ -33,6 +43,25 @@ describe("TeamSection", () => {
     expect(screen.getByText("Иван Иванов")).toBeInTheDocument();
     expect(screen.getByText("new@example.com")).toBeInTheDocument();
     expect(screen.getByText("Занято мест: 1 из 3")).toBeInTheDocument();
+
+    const memberList = screen.getByRole("list", { name: "Участники команды" });
+    const inviteList = screen.getByRole("list", { name: "Приглашения в ожидании" });
+    expectClassContract(memberList, doctorDnaFlatListClass);
+    expectClassContract(inviteList, doctorDnaFlatListClass);
+
+    for (const row of [...memberList.children, ...inviteList.children]) {
+      expectClassContract(row as HTMLElement, doctorDnaFlatListRowClass);
+      expect(row).not.toHaveAttribute("aria-pressed");
+      expect(row).not.toHaveClass(
+        "cursor-pointer",
+        "bg-card",
+        "bg-primary/15",
+        "rounded-[var(--doctor-control-radius,24px)]",
+      );
+    }
+    expectClassContract(screen.getByText("Иван Иванов"), doctorDnaFlatListPrimaryClass);
+    expectClassContract(screen.getByText("new@example.com"), doctorDnaFlatListPrimaryClass);
+    expectClassContract(within(inviteList).getByText("Врач"), doctorDnaFlatListMetaClass);
   });
 
   it("submits an invite for the default doctor role and refreshes on success", async () => {

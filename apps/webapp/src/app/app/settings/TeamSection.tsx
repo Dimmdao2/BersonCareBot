@@ -9,6 +9,12 @@ import { Badge } from "@/shared/ui/doctor/primitives/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/shared/ui/doctor/primitives/select";
 import { DoctorSection, DoctorSectionHeader, DoctorSectionTitle } from "@/shared/ui/doctor/DoctorSection";
 import { DoctorEmptyState } from "@/shared/ui/doctor/DoctorEmptyState";
+import {
+  doctorDnaFlatListClass,
+  doctorDnaFlatListMetaClass,
+  doctorDnaFlatListPrimaryClass,
+  doctorDnaFlatListRowClass,
+} from "@/shared/ui/doctor/DoctorDnaFlatListRow";
 import type { OrganizationInviteRole } from "@/modules/organization-invites/ports";
 
 const ROLE_LABELS: Record<string, string> = {
@@ -109,11 +115,13 @@ export function TeamSection({ members, invites, seats }: Props) {
         {members.length === 0 ? (
           <DoctorEmptyState>В организации пока нет участников.</DoctorEmptyState>
         ) : (
-          <ul className="flex flex-col gap-2">
+          <ul aria-label="Участники команды" className={doctorDnaFlatListClass}>
             {members.map((member) => (
-              <li key={member.id} className="flex flex-wrap items-center justify-between gap-2 text-sm">
-                <span>{member.displayName ?? "Без имени"}</span>
-                <span className="flex flex-wrap items-center gap-1.5">
+              <li key={member.id} className={`${doctorDnaFlatListRowClass} flex-wrap justify-between gap-2`}>
+                <span className={`${doctorDnaFlatListPrimaryClass} min-w-0 flex-1 truncate`}>
+                  {member.displayName ?? "Без имени"}
+                </span>
+                <span className={`${doctorDnaFlatListMetaClass} flex flex-wrap items-center gap-1.5`}>
                   <Badge variant="outline">{ROLE_LABELS[member.role] ?? member.role}</Badge>
                   {member.seatConsuming ? <Badge variant="secondary">Место</Badge> : null}
                 </span>
@@ -164,12 +172,14 @@ export function TeamSection({ members, invites, seats }: Props) {
         {invites.length === 0 ? (
           <DoctorEmptyState>Нет приглашений в ожидании подтверждения.</DoctorEmptyState>
         ) : (
-          <ul className="flex flex-col gap-2">
+          <ul aria-label="Приглашения в ожидании" className={doctorDnaFlatListClass}>
             {invites.map((invite) => (
-              <li key={invite.id} className="flex flex-wrap items-center justify-between gap-2 text-sm">
+              <li key={invite.id} className={`${doctorDnaFlatListRowClass} flex-wrap justify-between gap-2`}>
                 <span className="min-w-0 flex-1">
-                  {invite.invitedEmail}
-                  <span className="text-muted-foreground ml-2 text-xs">
+                  <span className={`${doctorDnaFlatListPrimaryClass} block truncate`}>
+                    {invite.invitedEmail}
+                  </span>
+                  <span className={`${doctorDnaFlatListMetaClass} block`}>
                     {ROLE_LABELS[invite.invitedRole] ?? invite.invitedRole}
                   </span>
                 </span>
