@@ -31,6 +31,18 @@ Base directory:
 
 The corresponding last-shot JSON records show HTTP 200 and no console errors.
 
+### Today populated/action addendum — 2026-07-23
+
+External source-bound manifest for SHA `e669e2c123c41ddb1167af8e31e4f2f9f472c98b`:
+
+`/home/dev/dev-projects/.lead/runs/ui6-today-live/e669e2c12-20260723T001405Z/manifest.md`
+
+The hashed desktop/mobile PNGs show the warm DNA canvas, a populated Today support row without an enclosing side
+frame, full-width hover through the far-right icons, and a 07:30 appointment with a 06:30 first grid boundary.
+The interaction harness clicked the native row at `right edge - 4px` and focused it + pressed `Enter`; both waits
+reached the patient workspace before the run continued. The reversible appointment was cancelled through the
+canonical API with `notifyPatient=false` after capture.
+
 ## Atomic acceptance matrix
 
 ### P2B-01 — real-done
@@ -57,13 +69,13 @@ The corresponding last-shot JSON records show HTTP 200 and no console errors.
 - Test: `DoctorPresentationChrome.test.tsx:89-100`.
 - Live: D2/M2 show the tabs; D0/D2 show the menu with minimal radius.
 
-### P2B-04 — partial
+### P2B-04 — real-done
 
 > Видимая сетка Today calendar начинается ровно за один час до первого приёма, когда именно приём расширяет нижнюю границу; общий calendar-window contract не получает локальный fork или двойной lead padding.
 
 - Code: `DoctorTodayMiniCalendar.tsx:151-165`.
 - Test: exact boundary in `DoctorTodayMiniCalendar.test.tsx:383-396`.
-- Live: D0/M0 use an empty fixture, so the first-appointment boundary is not shown.
+- Live: the 2026-07-23 addendum desktop/mobile PNGs show a 07:30 appointment and the first grid boundary at 06:30.
 
 ### P2B-05 — real-done
 
@@ -111,7 +123,9 @@ The corresponding last-shot JSON records show HTTP 200 and no console errors.
 
 - Code: Today `DoctorTodayDashboard.tsx:178-224`; Clients `PatientsPageClient.tsx:761-800`; Messages `DoctorSupportInbox.tsx:358-422`.
 - Test: Today `DoctorTodayDashboard.test.tsx:249-297`; Clients `PatientsPageClient.test.tsx:209-232`; Messages `DoctorSupportInbox.test.tsx:77-91`.
-- Live: Clients whole-row left/right hit and keyboard behavior are proven; populated Today and Messages rows are absent.
+- Live: Clients whole-row left/right hit and keyboard behavior remain proven. The 2026-07-23 Today addendum proves
+  full-row hover, far-right pointer activation and native-link `Enter` on the populated support row. Messages rows
+  remain absent, so the combined atom stays partial.
 
 ### P2B-11 — real-done
 
@@ -135,7 +149,8 @@ The corresponding last-shot JSON records show HTTP 200 and no console errors.
 
 - Code: shared row `DoctorDnaFlatListRow.tsx:17-27` and all consumers.
 - Test: chrome `:68-87`; Clients `:157-171`; Messages `:100-110`.
-- Live: Clients rows are visible; Today support and Messages rows are absent.
+- Live: Clients rows and the populated Today support row are visible with the larger/lighter primary line;
+  Messages rows remain absent, so the combined atom stays partial.
 
 ### P2B-14 — real-done
 
@@ -147,14 +162,14 @@ The corresponding last-shot JSON records show HTTP 200 and no console errors.
 
 ## Aggregate result
 
-- real-done: **10/14**
-- partial: **4/14** — P2B-04, P2B-06, P2B-10, P2B-13
+- real-done: **11/14**
+- partial: **3/14** — P2B-06, P2B-10, P2B-13
 - fake-done: **0/14**
 - owner-deferred: **0/14**
 
 ## Per-page evidence-real status
 
-- Today: **8/11**. **NOT DONE:** live evidence with a first appointment for the one-hour calendar window; a populated support row for whole-row activation and primary typography.
+- Today: **11/11 evidence-real**. **NOT DONE:** formal owner acceptance only.
 - Clients: **10/10**. **NOT DONE:** formal owner acceptance only.
 - Messages/Chats: **6/9**. **NOT DONE:** the fixture has no dialog, so live whole-row activation, divider/primary typography, and selected state are not verified.
 
