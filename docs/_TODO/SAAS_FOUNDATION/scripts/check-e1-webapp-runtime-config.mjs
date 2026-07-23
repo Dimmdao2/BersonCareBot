@@ -11,6 +11,8 @@ const files = {
   bookingRowsMigration: "apps/webapp/db/drizzle-migrations/0199_current_patient_booking_rows.sql",
   productAnalyticsMigration: "apps/webapp/db/drizzle-migrations/0200_current_patient_product_analytics.sql",
   authRoleMigration: "apps/webapp/db/drizzle-migrations/0201_e1_webapp_auth_role_runtime_config.sql",
+  adminEmailRoleMigration:
+    "apps/webapp/db/drizzle-migrations/0231_admin_email_role_runtime_config.sql",
   patientUiMigration: "apps/webapp/db/drizzle-migrations/0202_current_patient_ui_capabilities.sql",
   patientEntitlementsMigration: "apps/webapp/db/drizzle-migrations/0219_current_patient_organization_entitlements.sql",
   currentPatientEntitlementsMigration: "apps/webapp/db/drizzle-migrations/0225_saas_tariff_quotas_trial.sql",
@@ -257,6 +259,20 @@ function runChecks(overrides = {}) {
     "TO app_patient",
     "GRANT EXECUTE",
   ]);
+  requireText(files.adminEmailRoleMigration, loaded.adminEmailRoleMigration, [
+    "0231_admin_email_role_runtime_config",
+    "('admin_emails', '{\"value\":\"\"}'::jsonb)",
+    "CREATE OR REPLACE FUNCTION app.read_webapp_server_runtime_setting",
+    "'admin_telegram_ids', 'admin_max_ids', 'admin_phones', 'admin_emails'",
+    "setting.organization_id IS NULL",
+    "setting.audience = 'server'",
+    "REVOKE ALL ON FUNCTION app.read_webapp_server_runtime_setting(text, text) FROM PUBLIC",
+  ]);
+  forbidText(files.adminEmailRoleMigration, loaded.adminEmailRoleMigration, [
+    "GRANT SELECT ON TABLE public.system_settings",
+    "TO app_patient",
+    "GRANT EXECUTE",
+  ]);
   requireText(files.patientUiMigration, loaded.patientUiMigration, [
     "0202_current_patient_ui_capabilities",
     "app.read_current_patient_ui_setting", "app.set_current_patient_calendar_timezone",
@@ -452,6 +468,12 @@ function runChecks(overrides = {}) {
     "GRANT SELECT ON TABLE public.saas_tariffs TO app_patient",
     "GRANT SELECT ON TABLE public.saas_org_entitlement_overrides TO app_patient",
   ]);
+  requireOrderedText(`${files.overlay} auth-role projection freshness`, loaded.overlay, [
+    "0201_e1_webapp_auth_role_runtime_config.sql",
+    "0230_error_tracking_runtime.sql",
+    "0231_admin_email_role_runtime_config.sql",
+    "e1-current-patient-organization-entitlements.sql",
+  ]);
   requireText(files.telemetryOverlay, loaded.telemetryOverlay, [
     "saas_isolation_events_source_operation_check",
     "('webapp','auth_role_config')",
@@ -480,11 +502,13 @@ function runChecks(overrides = {}) {
     "60000000-0000-4000-8000-000000000002",
     "appointment_id IN (",
     "0201_e1_webapp_auth_role_runtime_config.sql",
+    "0231_admin_email_role_runtime_config.sql",
     "0219_current_patient_organization_entitlements.sql",
     "app.read_current_patient_organization_entitlements()",
     "saas_org_entitlement_overrides",
     "saas_tariffs",
     "app.read_webapp_server_runtime_setting('admin_phones','admin')",
+    "app.read_webapp_server_runtime_setting('admin_emails','admin')",
     "app.read_webapp_server_runtime_setting('doctor_phones','admin')",
     "app.read_webapp_server_runtime_setting('test_account_identifiers','admin')",
     "v2:role_pool_mismatch:webapp:auth_role_config",
@@ -503,12 +527,15 @@ function runChecks(overrides = {}) {
   forbidText(files.adapter, loaded.adapter, ["return getConfigBool(key, envFallback);"]);
   requireText(files.envRole, loaded.envRole, [
     "getServerRuntimeTokenList",
+    "getFreshServerRuntimeTokenList",
     'getServerRuntimeTokenList("admin_telegram_ids"',
     'getServerRuntimeTokenList("admin_max_ids"',
     'getServerRuntimeTokenList("admin_phones"',
     'getServerRuntimeTokenList("doctor_telegram_ids"',
     'getServerRuntimeTokenList("doctor_max_ids"',
     'getServerRuntimeTokenList("doctor_phones"',
+    'getFreshServerRuntimeTokenList("admin_emails")',
+    "isVerifiedEmailGlobalAdminAsync",
   ]);
   forbidText(files.envRole, loaded.envRole, ["getConfigValue(", "readAdminSystemSettingString"]);
   for (const text of [loaded.publicSnapshot, loaded.oauthProviders]) {
@@ -672,6 +699,7 @@ function runChecks(overrides = {}) {
     '"idx": 201', '"tag": "0201_e1_webapp_auth_role_runtime_config"',
     '"idx": 202', '"tag": "0202_current_patient_ui_capabilities"',
     '"idx": 219', '"tag": "0219_current_patient_organization_entitlements"',
+    '"idx": 231', '"tag": "0231_admin_email_role_runtime_config"',
   ]);
   requireText(files.visibleCatalogMigration, loaded.visibleCatalogMigration, [
     "to_regprocedure('app.current_org_id()') IS NULL",
@@ -765,6 +793,7 @@ if (process.argv.includes("--self-test")) {
     ["analytics monotonic last seen", { productAnalyticsMigration: read(files.productAnalyticsMigration).replaceAll("GREATEST(public.product_analytics_user_hourly.last_seen_at, EXCLUDED.last_seen_at)", "EXCLUDED.last_seen_at") }],
     ["push open org proof", { productAnalyticsMigration: read(files.productAnalyticsMigration).replace("push.organization_id = v_org", "true") }],
     ["push open patient proof", { productAnalyticsMigration: read(files.productAnalyticsMigration).replace("push.user_id = v_patient", "true") }],
+    ["admin email current migration allowlist", { adminEmailRoleMigration: read(files.adminEmailRoleMigration).replace("'admin_emails'", "'removed_admin_emails'") }],
     ["p0 raw analytics grant", { p05bOverlay: `${read(files.p05bOverlay)}\n('public', 'product_analytics_events_recent', 'SELECT, INSERT')\n` }],
     ["capability rehearsal raw denial", { capabilityRehearsal: read(files.capabilityRehearsal).replace("NOT has_table_privilege('app_patient','public.product_analytics_events_recent','SELECT,INSERT')", "true") }],
     ["C5A old signature convergence proof", { c5aEntitlementRehearsal: read(files.c5aEntitlementRehearsal).replaceAll("oldSignature", "removedOldSignature") }],
@@ -786,6 +815,8 @@ if (process.argv.includes("--self-test")) {
     ["legacy SMS direct policy read", { authChannelPolicy: `${read(files.authChannelPolicy)}\nvoid getPublicRuntimeBool("public_sms_fallback_enabled");\n` }],
     ["legacy server read", { presignTtl: `${read(files.presignTtl)}\nvoid getConfigPositiveInt();\n` }],
     ["deploy overlay", { deploy: read(files.deploy).replace("E1_WEBAPP_RUNTIME_CONFIG=deploy/postgres/e1-webapp-runtime-config.sql", "E1_WEBAPP_RUNTIME_CONFIG=") }],
+    ["E1 overlay current admin email projection", { overlay: read(files.overlay).replace("\\ir ../../apps/webapp/db/drizzle-migrations/0231_admin_email_role_runtime_config.sql", "-- removed current admin-email projection") }],
+    ["E1 smoke admin email projection", { smoke: read(files.smoke).replace("app.read_webapp_server_runtime_setting('admin_emails','admin')", "app.read_webapp_server_runtime_setting('admin_phones','admin')") }],
     ["telemetry auth role operation", { telemetryOverlay: read(files.telemetryOverlay).replaceAll("auth_role_config", "removed_auth_role_config") }],
     ["visible catalog fresh guard", { visibleCatalogMigration: read(files.visibleCatalogMigration).replace("to_regprocedure('app.current_patient_user_id()') IS NULL", "false") }],
     ["visible catalog post-P2-B overlay", { visibleCatalogOverlay: read(files.visibleCatalogOverlay).replace("patient_visible_catalog_principal_helpers_missing", "removed") }],

@@ -94,6 +94,37 @@ ALTER FUNCTION app.read_integrator_smtp_outbound_setting() OWNER TO app_owner;
 REVOKE ALL ON FUNCTION app.read_global_server_runtime_setting(text) FROM PUBLIC;
 REVOKE ALL ON FUNCTION app.read_global_server_runtime_setting(text)
   FROM app_staff, app_patient, app_worker;
+-- CREATE OR REPLACE preserves an existing function ACL. Reset the restricted SMTP capability
+-- exactly so stale/unknown explicit grantees and grants delegated by the runtime login cannot survive.
+REVOKE ALL PRIVILEGES ON FUNCTION app.read_integrator_smtp_outbound_setting()
+  FROM :"integrator_runtime_config_role" CASCADE;
+DO $smtp_acl_scrub$
+DECLARE
+  v_grantee_oid oid;
+  v_grantee_name text;
+BEGIN
+  FOR v_grantee_oid, v_grantee_name IN
+    SELECT DISTINCT privilege.grantee, role.rolname
+    FROM pg_proc AS procedure
+    CROSS JOIN LATERAL aclexplode(
+      COALESCE(procedure.proacl, acldefault('f', procedure.proowner))
+    ) AS privilege
+    LEFT JOIN pg_roles AS role ON role.oid = privilege.grantee
+    WHERE procedure.oid = 'app.read_integrator_smtp_outbound_setting()'::regprocedure
+      AND privilege.grantee <> procedure.proowner
+  LOOP
+    IF v_grantee_oid = 0 THEN
+      EXECUTE
+        'REVOKE ALL PRIVILEGES ON FUNCTION app.read_integrator_smtp_outbound_setting() FROM PUBLIC CASCADE';
+    ELSE
+      EXECUTE format(
+        'REVOKE ALL PRIVILEGES ON FUNCTION app.read_integrator_smtp_outbound_setting() FROM %I CASCADE',
+        v_grantee_name
+      );
+    END IF;
+  END LOOP;
+END
+$smtp_acl_scrub$;
 REVOKE ALL ON FUNCTION app.read_integrator_smtp_outbound_setting() FROM PUBLIC;
 REVOKE ALL ON FUNCTION app.read_integrator_smtp_outbound_setting()
   FROM app_staff, app_patient, app_worker;
@@ -139,6 +170,35 @@ SELECT 1 / (
     :'integrator_runtime_config_role',
     'app.read_integrator_smtp_outbound_setting()',
     'EXECUTE'
+  )
+  AND (
+    SELECT count(*)
+    FROM pg_proc AS procedure
+    CROSS JOIN runtime_role
+    CROSS JOIN LATERAL aclexplode(
+      COALESCE(procedure.proacl, acldefault('f', procedure.proowner))
+    ) AS privilege
+    WHERE procedure.oid = 'app.read_integrator_smtp_outbound_setting()'::regprocedure
+      AND privilege.grantee = runtime_role.oid
+      AND privilege.privilege_type = 'EXECUTE'
+      AND NOT privilege.is_grantable
+  ) = 1
+  AND NOT EXISTS (
+    SELECT 1
+    FROM pg_proc AS procedure
+    CROSS JOIN runtime_role
+    JOIN pg_roles AS owner ON owner.oid = procedure.proowner
+    CROSS JOIN LATERAL aclexplode(
+      COALESCE(procedure.proacl, acldefault('f', procedure.proowner))
+    ) AS privilege
+    WHERE procedure.oid = 'app.read_integrator_smtp_outbound_setting()'::regprocedure
+      AND (
+        NOT procedure.prosecdef
+        OR owner.rolname <> 'app_owner'
+        OR privilege.grantee NOT IN (procedure.proowner, runtime_role.oid)
+        OR privilege.privilege_type <> 'EXECUTE'
+        OR privilege.is_grantable
+      )
   )
   AND NOT has_function_privilege(
     'app_staff',

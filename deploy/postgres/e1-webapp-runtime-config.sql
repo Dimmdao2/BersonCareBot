@@ -17,6 +17,7 @@ SELECT 1 / 0 AS e1_webapp_runtime_role_missing;
 \ir ../../apps/webapp/db/drizzle-migrations/0202_current_patient_ui_capabilities.sql
 \ir ../../apps/webapp/db/drizzle-migrations/0216_current_patient_organization_context.sql
 \ir ../../apps/webapp/db/drizzle-migrations/0230_error_tracking_runtime.sql
+\ir ../../apps/webapp/db/drizzle-migrations/0231_admin_email_role_runtime_config.sql
 \ir ../../apps/webapp/db/drizzle-migrations/0234_current_patient_support_activity.sql
 \ir e1-current-patient-organization-entitlements.sql
 

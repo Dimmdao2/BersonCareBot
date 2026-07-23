@@ -20,6 +20,12 @@ const paths = {
   configDocs: 'docs/ARCHITECTURE/CONFIGURATION_ENV_VS_DATABASE.md',
   journal: 'apps/webapp/db/drizzle-migrations/meta/_journal.json',
   deploy: 'deploy/host/deploy-test-saas.sh',
+  smtpSmoke:
+    'docs/_TODO/SAAS_FOUNDATION/scripts/smoke-integrator-smtp-restricted-access.mjs',
+  e1Overlay: 'deploy/postgres/e1-webapp-runtime-config.sql',
+  adminEmailMigration:
+    'apps/webapp/db/drizzle-migrations/0231_admin_email_role_runtime_config.sql',
+  envRole: 'apps/webapp/src/modules/auth/envRole.ts',
 };
 
 function fail(message) {
@@ -94,6 +100,12 @@ function run(overrides = {}) {
     'GRANT EXECUTE ON FUNCTION app.read_integrator_smtp_outbound_setting()',
     'ALTER FUNCTION app.read_integrator_smtp_outbound_setting() OWNER TO app_owner;',
     'REVOKE ALL ON FUNCTION app.read_integrator_smtp_outbound_setting() FROM PUBLIC;',
+    'REVOKE ALL PRIVILEGES ON FUNCTION app.read_integrator_smtp_outbound_setting()\n  FROM :"integrator_runtime_config_role" CASCADE;',
+    'DO $smtp_acl_scrub$',
+    'SELECT DISTINCT privilege.grantee, role.rolname',
+    'privilege.grantee <> procedure.proowner',
+    'FROM PUBLIC CASCADE',
+    'FROM %I CASCADE',
     "'app.read_integrator_smtp_outbound_setting()',",
     'TO :"integrator_runtime_config_role";',
     'integrator_server_runtime_config_least_privilege_verified',
@@ -107,6 +119,10 @@ function run(overrides = {}) {
     'SELECT oid, NOT rolinherit AS noinherit',
     'aclexplode(',
     "privilege.grantee IN (0, runtime_role.oid)",
+    'privilege.grantee NOT IN (procedure.proowner, runtime_role.oid)',
+    "owner.rolname <> 'app_owner'",
+    "privilege.privilege_type <> 'EXECUTE'",
+    'OR privilege.is_grantable',
   ]);
   forbidFragments('overlay', files.overlay, [
     'GRANT SELECT ON TABLE public.app_runtime_settings TO :"integrator_runtime_config_role"',
@@ -205,6 +221,12 @@ function run(overrides = {}) {
     'NOT membership.inherit_option AND membership.set_option',
     "has_function_privilege(current_user, 'app.read_global_server_runtime_setting(text)', 'EXECUTE')",
     "has_function_privilege(current_user, 'app.read_integrator_smtp_outbound_setting()', 'EXECUTE')",
+    "privilege.grantee = (SELECT oid FROM pg_roles WHERE rolname = current_user)",
+    "privilege.grantee NOT IN (procedure.proowner, (SELECT oid FROM pg_roles WHERE rolname = current_user))",
+    "owner.rolname <> 'app_owner'",
+    "privilege.privilege_type <> 'EXECUTE'",
+    'integrator DB-backed runtime/SMTP accessors are not ready',
+    'integrator DB-backed runtime/SMTP accessors: OK (exact ACL, no table SELECT)',
     'aclexplode(COALESCE(relation.relacl, acldefault',
     "privilege.grantee IN (0, (SELECT oid FROM pg_roles WHERE rolname = current_user))",
     "pg_has_role(current_user, pg_get_userbyid(relation.relowner), 'MEMBER')",
@@ -214,6 +236,48 @@ function run(overrides = {}) {
     'SELECT app.release_principal_context();',
     "NOT has_function_privilege(current_user, 'app.install_signed_context(text,integer,bigint,uuid,uuid,bigint,text)', 'EXECUTE')",
     "NOT has_function_privilege(current_user, 'app.reset_principal_context()', 'EXECUTE')",
+  ]);
+  requireFragments('disposable SMTP ACL smoke', files.smtpSmoke, [
+    'bcb-integrator-smtp-acl-',
+    'initdb',
+    'pg_ctl',
+    '0235_integrator_smtp_restricted_accessor.sql',
+    'integrator-server-runtime-config.sql',
+    'TO smtp_stale WITH GRANT OPTION',
+    'SET ROLE smtp_stale',
+    'TO smtp_delegated',
+    'for (let pass = 0; pass < 2; pass += 1)',
+    'privilege.grantee NOT IN (',
+    "NOT has_table_privilege('smtp_runtime', 'public.system_settings', 'SELECT')",
+    "NOT has_function_privilege('smtp_runtime', 'app.current_org_id()', 'EXECUTE')",
+    "SET SESSION AUTHORIZATION smtp_runtime",
+    'smtp_runtime_table_read_unexpectedly_succeeded',
+    'smtp_runtime_current_org_unexpectedly_succeeded',
+    'exact ACL, role denials, idempotent reapply',
+  ]);
+  requireFragments('current admin-email runtime projection', files.adminEmailMigration, [
+    "('admin_emails', '{\"value\":\"\"}'::jsonb)",
+    "'admin_telegram_ids', 'admin_max_ids', 'admin_phones', 'admin_emails'",
+    'REVOKE ALL ON FUNCTION app.read_webapp_server_runtime_setting(text, text) FROM PUBLIC;',
+  ]);
+  requireFragments('ordinary deploy E1 overlay', files.e1Overlay, [
+    '0201_e1_webapp_auth_role_runtime_config.sql',
+    '0230_error_tracking_runtime.sql',
+    '0231_admin_email_role_runtime_config.sql',
+  ]);
+  const legacyRoleProjection = files.e1Overlay.indexOf(
+    '0201_e1_webapp_auth_role_runtime_config.sql',
+  );
+  const currentEmailProjection = files.e1Overlay.indexOf(
+    '0231_admin_email_role_runtime_config.sql',
+  );
+  if (legacyRoleProjection < 0 || currentEmailProjection <= legacyRoleProjection) {
+    fail('ordinary deploy E1 overlay does not restore admin_emails after legacy 0201');
+  }
+  requireFragments('fresh verified-email policy', files.envRole, [
+    'isVerifiedEmailGlobalAdminAsync',
+    'getFreshServerRuntimeTokenList("admin_emails")',
+    'return false;',
   ]);
 }
 
@@ -279,6 +343,54 @@ if (process.argv.includes('--self-test')) {
     rejected = true;
   }
   if (!rejected) fail('self-test did not reject ambient base-login install capability');
+  rejected = false;
+  try {
+    run({
+      overlay: readFileSync(paths.overlay, 'utf8').replace(
+        'DO $smtp_acl_scrub$',
+        'DO $removed_smtp_acl_scrub$',
+      ),
+    });
+  } catch {
+    rejected = true;
+  }
+  if (!rejected) fail('self-test did not reject a missing exact SMTP ACL scrub');
+  rejected = false;
+  try {
+    run({
+      deploy: readFileSync(paths.deploy, 'utf8').replace(
+        "privilege.grantee NOT IN (procedure.proowner, (SELECT oid FROM pg_roles WHERE rolname = current_user))",
+        'false',
+      ),
+    });
+  } catch {
+    rejected = true;
+  }
+  if (!rejected) fail('self-test did not reject a stale TEST readiness ACL predicate');
+  rejected = false;
+  try {
+    run({
+      smtpSmoke: readFileSync(paths.smtpSmoke, 'utf8').replace(
+        'for (let pass = 0; pass < 2; pass += 1)',
+        'for (let pass = 0; pass < 1; pass += 1)',
+      ),
+    });
+  } catch {
+    rejected = true;
+  }
+  if (!rejected) fail('self-test did not reject a non-idempotent SMTP ACL smoke');
+  rejected = false;
+  try {
+    run({
+      e1Overlay: readFileSync(paths.e1Overlay, 'utf8').replace(
+        '\\ir ../../apps/webapp/db/drizzle-migrations/0231_admin_email_role_runtime_config.sql',
+        '-- removed current admin-email projection',
+      ),
+    });
+  } catch {
+    rejected = true;
+  }
+  if (!rejected) fail('self-test did not reject ordinary-deploy admin_emails drift');
   console.log('check-integrator-server-runtime-config: self-test OK');
 } else {
   run();

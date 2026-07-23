@@ -1,6 +1,7 @@
 /**
  * Mailer: отправка email через SMTP (nodemailer).
- * Конфиг передаётся вызывающим кодом после загрузки исходящего SMTP из БД или env (см. config/smtpOutbound).
+ * Конфиг передаётся вызывающим кодом после restricted DB-only загрузки `smtp_outbound`
+ * (см. config/smtpOutbound).
  *
  * Dev safety: email delivery is protected solely by the pre-fork redirect in dispatchPort
  * (applyPreForkDevRedirect). All email paths now route through dispatchPort → EmailDeliveryAdapter →

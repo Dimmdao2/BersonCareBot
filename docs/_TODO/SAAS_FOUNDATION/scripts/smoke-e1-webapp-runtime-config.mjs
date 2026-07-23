@@ -20,7 +20,9 @@ function run(args, input) {
     throw new Error(`postgres command failed: ${result.status}`);
   }
 }
-function psql(sql) { run(["psql", "-X", "-v", "ON_ERROR_STOP=1", "-d", db], sql); }
+function psql(sql) {
+  run(["psql", "-X", "--echo-errors", "-v", "ON_ERROR_STOP=1", "-d", db], sql);
+}
 
 const setup = `
 CREATE SCHEMA app;
@@ -163,6 +165,7 @@ INSERT INTO public.system_settings(key,scope,organization_id,value_json) VALUES
 ('admin_telegram_ids','admin',NULL,'{"value":[]}'),
 ('admin_max_ids','admin',NULL,'{"value":[]}'),
 ('admin_phones','admin',NULL,'{"value":[]}'),
+('admin_emails','admin',NULL,'{"value":["owner@example.test"]}'),
 ('doctor_telegram_ids','admin',NULL,'{"value":["doctor-tg"]}'),
 ('doctor_max_ids','admin',NULL,'{"value":["doctor-max"]}'),
 ('doctor_phones','admin',NULL,'{"value":["+79990000009"]}');
@@ -212,6 +215,7 @@ SELECT 1 / ((SELECT count(*) FROM app.read_public_runtime_setting('debug_forward
 SELECT 1 / ((SELECT value_json FROM app.read_webapp_server_runtime_setting('debug_forward_to_admin','admin'))='{"value":true}'::jsonb)::int;
 SELECT 1 / ((SELECT value_json FROM app.read_webapp_server_runtime_setting('video_presign_ttl_seconds','admin'))='{"value":7200}'::jsonb)::int;
 SELECT 1 / ((SELECT value_json FROM app.read_webapp_server_runtime_setting('admin_phones','admin'))='{"value":[]}'::jsonb)::int;
+SELECT 1 / ((SELECT value_json FROM app.read_webapp_server_runtime_setting('admin_emails','admin'))='{"value":["owner@example.test"]}'::jsonb)::int;
 SELECT 1 / ((SELECT value_json FROM app.read_webapp_server_runtime_setting('doctor_phones','admin'))='{"value":["+79990000009"]}'::jsonb)::int;
 SELECT 1 / ((SELECT count(*) FROM app.read_webapp_server_runtime_setting('test_account_identifiers','admin'))=0)::int;
 RESET SESSION AUTHORIZATION;
@@ -305,7 +309,8 @@ UPDATE app.principal_context SET
   patient_user_id = '10000000-0000-4000-8000-000000000002';
 SET SESSION AUTHORIZATION app_patient;
 SELECT 1 / (NOT app.is_current_patient_test_account())::int;
-SELECT 1 / ((SELECT count(*) FROM app.read_current_patient_organization_entitlements()) = 0)::int;
+-- A different active patient is not a TEST account, but still receives their organization's entitlement.
+SELECT 1 / ((SELECT count(*) FROM app.read_current_patient_organization_entitlements()) > 0)::int;
 RESET SESSION AUTHORIZATION;
 DELETE FROM app.principal_context WHERE backend_pid = pg_backend_pid();
 INSERT INTO app.principal_context VALUES (
@@ -475,6 +480,7 @@ try {
   psql(asMigrationOwner(readFileSync("apps/webapp/db/drizzle-migrations/0216_current_patient_organization_context.sql", "utf8")));
   psql(asMigrationOwner(readFileSync("apps/webapp/db/drizzle-migrations/0219_current_patient_organization_entitlements.sql", "utf8")));
   psql(asMigrationOwner(readFileSync("apps/webapp/db/drizzle-migrations/0201_e1_webapp_auth_role_runtime_config.sql", "utf8")));
+  psql(asMigrationOwner(readFileSync("apps/webapp/db/drizzle-migrations/0231_admin_email_role_runtime_config.sql", "utf8")));
   psql(`ALTER ROLE ${migrationOwner} NOBYPASSRLS;`);
   psql(runtimeAcl);
   psql(`
