@@ -1,3 +1,5 @@
+> STATUS (verified 2026-07-23, code-reconciled): see docs/_TODO/UI_FINISH_AND_REAUDIT_2026-07-22/CHECKPOINT_2026-07-23_STATE_AND_BACKEND_WORK_ORDER.md
+
 # План: замена markdown-редакторов на Tiptap WYSIWYG (вариант 1)
 
 > Заведён 2026-07-21. Решение владельца: «поменять редактор ВЕЗДЕ, где стоит markdown».
@@ -114,7 +116,7 @@ markdown-семантики и N1B-шаблоны уведомлений не в
       roundtrip, сохранность media-ссылок, соблюдение правил репо (client-only, no server import, изоляция), отсутствие
       скрытой смены формата хранения. Находки, которых нет в этом плане, → ВОПРОС владельцу, не новый скоуп.
 - [ ] **Живая проверка каждого экрана из discovery-manifest** (`port.sh shot` / dev `:5200`) владельцу — приёмка.
-      До неё статус = «этапы закрыты, ждёт приёмки».
+      До неё статус = «этапы закрыты, ждёт приёмки». (owner-gated: live owner acceptance per discovery-screen); all engineering done.
 
 Текущее evidence: исходный golden roundtrip/контракт — `5/5`, затронутые формы, media dialog и doctor/patient
 render — `66/66`. Один независимый audit pass нашёл две plan-mapped compatibility-дельты: legacy `body_html` мог

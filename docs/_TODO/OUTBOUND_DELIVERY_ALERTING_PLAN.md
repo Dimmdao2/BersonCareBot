@@ -1,3 +1,5 @@
+> STATUS (verified 2026-07-23, code-reconciled): see docs/_TODO/UI_FINISH_AND_REAUDIT_2026-07-22/CHECKPOINT_2026-07-23_STATE_AND_BACKEND_WORK_ORDER.md
+
 # План: громкий алертинг на отказ доставки (email/SMS/любой провайдер)
 
 Статус: APPROVED-DIRECTION владельцем 2026-07-21 · автор: оркестратор (Opus)
@@ -34,7 +36,7 @@ Execution authority/status: subordinate artifact of
 - [ ] **P0 — доказать на TEST, что критический тик реально бежит** и доходит по всем разрешённым TEST-каналам.
       (В логах webapp/scheduler за 24ч тик не виден; дайджест идёт — значит расписание есть, но критический
       путь надо подтвердить живым прогоном на тесте: сигнал→рассыл во все каналы.) Проверка/активация на PROD —
-      отдельный будущий owner gate, не часть repository/TEST-этапа.
+      отдельный будущий owner gate, не часть repository/TEST-этапа. (owner-gated: needs live-TEST authorization)
 - [x] **P1 — сигнал «отказ исходящей доставки» (корень).** Интегрирован `b64692aeb`, independent audit
       `0/0/0`: считать провал отправки как critical:
       (а) синхронный `send-email`/`send-sms` 5xx/EAUTH за окно (порог N за M мин) → critical;
@@ -49,7 +51,7 @@ Execution authority/status: subordinate artifact of
       System Health и в утреннем дайджесте; дайджест перестаёт быть ложно-зелёным при открытом инциденте.
 - [ ] **P-guard — приёмочные тесты:** отдельно разрешённый живой прогон на TEST (подсунуть битый SMTP-логин → убедиться, что
       прилетело в web_push+TG+MAX(+SMS), с красным «стоп»; через 1ч — повтор; утром — красный отчёт).
-      Только заранее разрешённые TEST-получатели; DEV реальные отправки запрещены.
+      Только заранее разрешённые TEST-получатели; DEV реальные отправки запрещены. (owner-gated: needs live-TEST authorization)
 
 ## Риски / принципы
 - Канал алерта не должен зависеть от сломанного: веер по всем, каждый независим (telegram/max/web_push уже так; SMS добавить так же).

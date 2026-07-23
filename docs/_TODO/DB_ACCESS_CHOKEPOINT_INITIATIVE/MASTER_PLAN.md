@@ -1,3 +1,5 @@
+> STATUS (verified 2026-07-23, code-reconciled): see docs/_TODO/UI_FINISH_AND_REAUDIT_2026-07-22/CHECKPOINT_2026-07-23_STATE_AND_BACKEND_WORK_ORDER.md
+
 # MASTER PLAN — DB access chokepoint (pre-SAAS)
 
 > Канонический метод исполнения — `docs/AGENT_AUTORUN_SCHEME.md` (читать ПЕРЕД работой).
@@ -73,14 +75,14 @@
 - **DoD:** CI зелёный; отчёт покрытия без неучтённых путей; ствол «в одной строке» от установки принципала.
 
 ## ФИНАЛЬНЫЙ ЧЕК-ЛИСТ (Definition of Done всей инициативы)
-- [ ] `rg` сырого SQL вне `infra/repos`/санкц.хелперов = **0** (modules/app-layer/routes/pages чисты).
-- [ ] Все ~30 выделенных клиентов идут через единый `withClient()`/`withTransaction()`.
-- [ ] Все `new Pool` — в именованных провайдерах на процесс; dormant identity-hook на каждом.
-- [ ] `system_settings` читается ровно через один аксессор на приложение; CI-grep активен.
-- [ ] CI-guard'ы (сырой SQL / `.connect()` / `new Pool` / system_settings) в `pnpm ci`; нарушение роняет билд.
-- [ ] Отчёт «funnel coverage»: 100% БД-доступа перечислимо проходит через ствол; беглецов нет.
-- [ ] Полный CI зелёный; ключевые страницы рендерятся идентично (поведение НЕ изменилось).
-- [ ] `log.md` + синхронизация доков; границы соблюдены (НЕТ org_id / RLS / tenancy-семантики).
+- [x] `rg` сырого SQL вне `infra/repos`/санкц.хелперов = **0** (modules/app-layer/routes/pages чисты). (✓ `node scripts/check-db-chokepoint.mjs` → `check-db-chokepoint: OK` (live run 2026-07-23, raw-SQL guard class) | log.md 2026-07-07 post-merge R0 audit PASS | commit 2027f969-era chokepoint script)
+- [x] Все ~30 выделенных клиентов идут через единый `withClient()`/`withTransaction()`. (✓ log.md 2026-07-04 S6 final acceptance + 2026-07-07 re-audit: `.connect()` only in checkout helpers + documented stage6 KEEP path, confirmed via `rg -n "\.connect\("` PASS)
+- [x] Все `new Pool` — в именованных провайдерах на процесс; dormant identity-hook на каждом. (✓ log.md 2026-07-04 S4H closeout + 2026-07-07 re-audit: `new Pool`/`new PgPool` only in named providers, dormant `pool.on('connect')` hook present in each, confirmed via `rg -n "new Pool\b|new PgPool\b|new pg\.Pool\b"` PASS)
+- [x] `system_settings` читается ровно через один аксессор на приложение; CI-grep активен. (✓ FUNNEL_COVERAGE_REPORT.md + log.md 2026-07-04 S5C closeout: `apps/webapp/scripts/check-system-settings-accessors.mjs` wired into webapp lint, live-run PASS in log.md)
+- [x] CI-guard'ы (сырой SQL / `.connect()` / `new Pool` / system_settings) в `pnpm ci`; нарушение роняет билд. (✓ `package.json:29` root `lint` script chains `eslint . && node scripts/check-db-chokepoint.mjs && ... && pnpm --dir apps/webapp run lint`; self-test proving intentional violations fail — log.md 2026-07-04 S5A/S5B `--self-test` PASS entries)
+- [x] Отчёт «funnel coverage»: 100% БД-доступа перечислимо проходит через ствол; беглецов нет. (✓ `docs/_TODO/DB_ACCESS_CHOKEPOINT_INITIATIVE/FUNNEL_COVERAGE_REPORT.md` dated 2026-07-04, "R0 DB access chokepoint passed S6 validation" summary at line 117)
+- [x] Полный CI зелёный; ключевые страницы рендерятся идентично (поведение НЕ изменилось). (✓ FUNNEL_COVERAGE_REPORT.md line 104: "Result on 2026-07-04: PASS, wrapper runtime 805s" (full `pnpm run ci`) + render smoke PASS on `/app/doctor/analytics`, `/app/settings`, `/app/doctor/system-health`, `/app/patient`; log.md 2026-07-07 re-audit reconfirms after branch merge)
+- [x] `log.md` + синхронизация доков; границы соблюдены (НЕТ org_id / RLS / tenancy-семантики). (✓ `docs/_TODO/DB_ACCESS_CHOKEPOINT_INITIATIVE/log.md` populated through 2026-07-07 re-audit entry; every entry notes "No prod/dev DB access, no schema/org/RLS/tenancy changes")
 
 ## Результат (одной строкой)
 Готовый, единый, защищённый, перехватываемый ствол доступа к БД во всех процессах — так что

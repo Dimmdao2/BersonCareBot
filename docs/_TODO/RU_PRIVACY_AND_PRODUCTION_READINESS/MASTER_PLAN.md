@@ -1,3 +1,6 @@
+> STATUS (verified 2026-07-23, code-reconciled): see docs/_TODO/UI_FINISH_AND_REAUDIT_2026-07-22/CHECKPOINT_2026-07-23_STATE_AND_BACKEND_WORK_ORDER.md
+> verified 2026-07-23: ~277 open across stages; ~112 agent-doable backend (DR-01/02 restore drill, LOG-01 L0/L2, CRYPTO-01 C0 draft, NTF-01 census, SEC-02/03 repo slices), rest (~165) owner/legal-gated incl. all of FINAL_ACCEPTANCE.
+
 # Master plan
 
 Статус: `owner_activated_dev_execution` с 2026-07-19. План не меняет порядок текущих SaaS/Product UX работ.
