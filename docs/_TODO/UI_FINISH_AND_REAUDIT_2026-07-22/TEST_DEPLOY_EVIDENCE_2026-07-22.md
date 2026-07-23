@@ -64,3 +64,31 @@
   until a real OTP succeeds.
 - Rubitime R5/R6 runtime/cutoff evidence and every R7 archive/drop owner gate remain separate.
 - Deployment/smoke PASS is not counted as owner acceptance or whole-plan closure.
+
+## Overnight UI correction deploy — exact SHA `2c3b40e77`
+
+- The UI-4 client-list correction was accumulated and validated before deployment: flat borderless selected/empty
+  preview, whole-row pointer activation at 97.9% row width, keyboard activation and full-card navigation all passed
+  on DEV. A populated fixture also proved the three visible states together: active package, supervision and one
+  future appointment. Desktop/mobile PNGs and their hashes are recorded in `TRACK_A_UI4_LIVE_EVIDENCE.md`.
+- The identical product tree at `bf49f629b` / docs-only descendants through `2c3b40e77` passed lint, typecheck,
+  HLS helper sync, 1,352 integrator tests (2 skipped), 8,985 webapp tests (55 skipped), 67 media-worker tests,
+  integrator build and webapp production build. The audit suite passed; its final B4 env-example check, unavailable
+  inside the Sonnet sandbox because `.env.example` was projected as a device node, passed separately on the normal
+  host checkout.
+- Canonical command: `bash deploy/host/deploy-test.sh feat/doctor-ui-rebuild`.
+- `/opt/projects/bersoncarebot-test` resolves exactly to
+  `2c3b40e7738a1fe45a713f7f9f6d0a39db707f7e`. The existing `bersoncarebot_test` database was preserved; no dump,
+  reset, historical backfill, PROD access, PROD service action, `main` push or `test` push was performed.
+- All five canonical TEST units are active. Health and nginx gates passed.
+- Locked product smoke: **22/22 PASS**. The separate global-admin clinical-write deny smoke passed HTTP 403.
+- The diagnostic-only E1 isolation post-runtime gate again reported
+  `saas_isolation_post_runtime_gate_active_unexplained_before_coverage`; the canonical deploy contract kept TEST
+  active. This remains an operational diagnostic residual, not a failed product smoke and not a hidden PASS.
+
+## Overnight NOT DONE
+
+- Owner visual/click acceptance remains open even though UI-4 source-bound DEV evidence is complete.
+- UI-1 Schedule remains partial: the single permitted live pass had an empty work-grid fixture, only one location,
+  no mobile populated state and no appointment-detail state. No audit/fix retry loop was started.
+- Email OTP/PWA and Rubitime owner gates remain recorded in taskdb tasks `#985` and `#981` respectively.

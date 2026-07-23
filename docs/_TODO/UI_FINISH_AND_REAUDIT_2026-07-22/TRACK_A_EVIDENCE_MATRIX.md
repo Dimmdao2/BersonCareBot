@@ -88,7 +88,7 @@ A row is retained for every authority occurrence. DNA S0 and UI-P/P2B overlap on
 | A-UI-059 — docs/_TODO/DOCTOR_UI_REWORK_2026-07-20/PLAN.md:463 · UI-4 — Clients list ('#850', preview входит в '#958'): “KPI имеют короткие delayed hover/focus tooltips и единый active state.” | `PatientsPageClient.tsx:814-839` uses shared `TooltipProvider delay={450}`; `DoctorStatCard.tsx:46-50,72-97` implements one selected style plus hover/focus tooltip trigger. | `DoctorStatCard.test.tsx` covers label/value, selected state and hover/focus tooltip. | TRACK_A_UI4_LIVE_EVIDENCE.md: delayed one-line tooltip «Все клиенты этой организации.» is visible in both pointer-hover and keyboard-focus PNGs; focus remained on the KPI segment. | Fresh evidence authority: docs/_TODO/UI_FINISH_AND_REAUDIT_2026-07-22/TRACK_A_UI4_LIVE_EVIDENCE.md, desktop-tooltip-hover.png + desktop-tooltip-focus.png. Owner PNG acceptance remains open. | real-done |
 | A-UI-060 — docs/_TODO/DOCTOR_UI_REWORK_2026-07-20/PLAN.md:464 · UI-4 — Clients list ('#850', preview входит в '#958'): “«Все люди» использует настроенный patient plural label.” | `patients/page.tsx:34-59` resolves organization-scoped patient terms; `PatientsPageClient.tsx:653,659,830-832` uses the resolved plural in title/search/“Все …”. | `PatientsPageClient.test.tsx:104-207` asserts configured “Клиенты” terminology. | Desktop doctor and clinic-admin PNGs show “Клиенты” and “Все клиенты”. | Fresh evidence authority: docs/_TODO/UI_FINISH_AND_REAUDIT_2026-07-22/TRACK_A_UI4_REALITY_AUDIT.md, row 6. Owner acceptance remains a separate owner-only layer. | real-done |
 | A-UI-061 — docs/_TODO/DOCTOR_UI_REWORK_2026-07-20/PLAN.md:465 · UI-4 — Clients list ('#850', preview входит в '#958'): “Cancellations/reschedules имеют all-time semantics; membership KPI — active-only; expired membership отделён.” | `pgDoctorClients.ts:120-185` counts lifetime cancellation/reschedule events without a date window; `:187-228` separates active, awaiting-payment and expired; `:1099-1137` builds separate active/expired segments. UI predicates are in `PatientsPageClient.tsx:204-228`. | `pgDoctorClients.repo.test.ts:262-312,510-544` verifies lifetime events and active/awaiting/expired separation; `PatientsPageClient.test.tsx:277-321` verifies UI filtering. | PNGs show separate active and expired KPI labels; fixture values are zero. For this backend semantic contract, repository queries and deterministic tests are the authoritative evidence. | Fresh evidence authority: docs/_TODO/UI_FINISH_AND_REAUDIT_2026-07-22/TRACK_A_UI4_REALITY_AUDIT.md, row 7. Owner acceptance remains a separate owner-only layer. | real-done |
-| A-UI-062 — docs/_TODO/DOCTOR_UI_REWORK_2026-07-20/PLAN.md:466 · UI-4 — Clients list ('#850', preview входит в '#958'): “Информационные иконки имеют стабильные слоты membership → program-or-supervision → appointment без boxes.” | `PatientsPageClient.tsx:343-354,789-799` reserves three stable slots in the required order and adds no slot background/border box. | `PatientsPageClient.test.tsx:395-440` verifies order, empty slot stability and absence of boxes. | Current live fixture rows contain none of the three statuses, so no visible-icon state is captured. | Fresh evidence authority: docs/_TODO/UI_FINISH_AND_REAUDIT_2026-07-22/TRACK_A_UI4_REALITY_AUDIT.md, row 8. Owner acceptance remains a separate owner-only layer. | partial |
+| A-UI-062 — docs/_TODO/DOCTOR_UI_REWORK_2026-07-20/PLAN.md:466 · UI-4 — Clients list ('#850', preview входит в '#958'): “Информационные иконки имеют стабильные слоты membership → program-or-supervision → appointment без boxes.” | `PatientsPageClient.tsx:343-354,789-799` reserves three stable slots in the required order and adds no slot background/border box. | `PatientsPageClient.test.tsx:395-440` verifies order, empty slot stability and absence of boxes. | `TRACK_A_UI4_LIVE_EVIDENCE.md` records a source-bound populated DEV row with the visible labels in exact order: `Есть абонемент` → `Клиент на сопровождении` → `Будущие записи: 1`; desktop/mobile PNGs and their SHA-256 hashes are in the external manifest. | Fresh evidence authority: docs/_TODO/UI_FINISH_AND_REAUDIT_2026-07-22/TRACK_A_UI4_LIVE_EVIDENCE.md, populated-state run. Owner PNG acceptance remains a separate owner-only layer. | real-done |
 | A-UI-063 — docs/_TODO/DOCTOR_UI_REWORK_2026-07-20/PLAN.md:467 · UI-4 — Clients list ('#850', preview входит в '#958'): “Правая половина содержит functional patient preview, а не только фильтры или пустое место ('#958').” | apps/webapp/src/app/app/doctor/patients/PatientPreviewPane.tsx is source-bound by the hash in TRACK_A_UI4_LIVE_EVIDENCE.md; both unselected and selected preview surfaces compute to zero border, 0px radius, transparent background and no shadow, while the API-backed bounded preview and full-card route remain functional. | TRACK_A_UI4_REALITY_AUDIT.md records the focused Clients behavior suite; TRACK_A_UI4_LIVE_EVIDENCE.md adds pointer and keyboard selection, details API 200, the full-workspace transition and list-removal runtime proof after the frameless correction. | TRACK_A_UI4_LIVE_EVIDENCE.md: desktop-unselected.png, desktop-selected-pointer.png and desktop-selected-keyboard.png prove the frameless preview; desktop-full-workspace-card.png proves «Открыть карточку» enters the standalone workspace card with sidebar/header and without the list. | Fresh evidence authority: docs/_TODO/UI_FINISH_AND_REAUDIT_2026-07-22/TRACK_A_UI4_LIVE_EVIDENCE.md. Owner PNG acceptance remains open; it is not inferred from this evidence-real verdict. | real-done |
 | A-UI-064 — docs/_TODO/DOCTOR_UI_REWORK_2026-07-20/PLAN.md:471 · UI-5a — full-workspace existing card reuse ('#958'): “Открытие полной карточки заменяет весь doctor content workspace; sidebar остаётся.” | `patients/[userId]/page.tsx` рендерит standalone `PatientCardClient` внутри `DoctorAppShell`; `DoctorWorkspaceShell.tsx` держит sidebar стабильным sibling маршрутизируемого `{children}`. TEST smoke подтверждает HTTP 200 списка и карточки. | Fresh targeted verification recorded in the audit: 3 files / 22 tests PASS; row-specific assertions are cited in the combined code/test evidence. | Нет source-bound PNG полной карточки, одновременно показывающего full doctor workspace и сохранённый sidebar. | Fresh evidence authority: docs/_TODO/UI_FINISH_AND_REAUDIT_2026-07-22/TRACK_A_UI5A_REALITY_AUDIT.md, row 1. Owner acceptance remains a separate owner-only layer. | partial |
 | A-UI-065 — docs/_TODO/DOCTOR_UI_REWORK_2026-07-20/PLAN.md:472 · UI-5a — full-workspace existing card reuse ('#958'): “Карточка не втискивается в right pane и не создаёт второй component tree/iframe.” | `PatientsPageClient.tsx` рендерит в right pane только `PatientPreviewPane`; static contract test доказывает отсутствие `PatientCardClient`/iframe в списке и ровно один `PatientCardClient` на standalone route. | Fresh targeted verification recorded in the audit: 3 files / 22 tests PASS; row-specific assertions are cited in the combined code/test evidence. | Нет живого перехода из selected bounded preview в full-workspace card; существующий UI-4 PNG показывает только list/preview mode. | Fresh evidence authority: docs/_TODO/UI_FINISH_AND_REAUDIT_2026-07-22/TRACK_A_UI5A_REALITY_AUDIT.md, row 2. Owner acceptance remains a separate owner-only layer. | partial |
@@ -204,7 +204,7 @@ corresponding live package.
 | Schedule and appointment details | 0 | 16 | 4 | 0 | 20 |
 | Built-in Online location across Settings, schedule and booking | 0 | 6 | 1 | 0 | 7 |
 | Communications: chats, comments, intake and broadcasts | 0 | 8 | 0 | 0 | 8 |
-| Clients list, KPI and functional frameless preview | 8 | 1 | 0 | 0 | 9 |
+| Clients list, KPI and functional frameless preview | 9 | 0 | 0 | 0 | 9 |
 | Transition from Clients list to the full-workspace patient card | 0 | 5 | 0 | 0 | 5 |
 | Full patient-card composition after U5A/U5B | 0 | 0 | 0 | 24 | 24 |
 | Today dashboard behavior and presentation | 5 | 3 | 1 | 0 | 9 |
@@ -212,7 +212,7 @@ corresponding live package.
 | Scheduled doctor/patient communications | 0 | 0 | 0 | 24 | 24 |
 | Commercial contour, warmups, personal exercise/media and patient mood | 2 | 3 | 0 | 0 | 5 |
 | Accumulated milestone gates | 0 | 2 | 1 | 2 | 5 |
-| **Product/live total** | **32** | **57** | **9** | **50** | **148** |
+| **Product/live total** | **33** | **56** | **9** | **50** | **148** |
 
 The separate SaaS roadmap registry is closed **19/19 as dependency contracts**: 6 contract-real,
 7 blocked-by-upstream-dependency and 6 owner-deferred optional nodes. That contract closure does not claim the
@@ -222,8 +222,8 @@ corresponding product stages are complete.
 
 | Verdict | Exact count |
 |---|---:|
-| product/live evidence-real (DNA/UI) | 32 |
-| product/live partial (DNA/UI) | 57 |
+| product/live evidence-real (DNA/UI) | 33 |
+| product/live partial (DNA/UI) | 56 |
 | product/live fake-done (DNA/UI) | 0 |
 | product/live deferred (DNA/UI) | 9 |
 | product/live blocked (DNA/UI) | 50 |
@@ -239,9 +239,9 @@ dependency/inclusion contracts. Evidence-real is not owner acceptance: owner-acc
 
 - The fresh audits found no dependency-ready product-code correction batch in UI-0, UI-1, UI-2, UI-3, UI-5a,
   UI-6, UI-P or the UI-8/UI-9/client residual packet.
-- UI-4's one real presentation defect was corrected and source-bound live evidence now closes rows 1–7 and 9 as
-  evidence-real. Row 8 remains partial because the current fixture has no populated membership,
-  program/supervision or future-appointment icons.
+- UI-4's one real presentation defect was corrected. Source-bound desktop/mobile live evidence now closes all nine
+  rows, including the populated membership → program/supervision → future-appointment slot order. Owner PNG/click
+  acceptance remains separate and open.
 - UI-5b (24 rows) and UI-7 (24 rows) remain dependency-blocked; the reconciliation does not start them.
 - The remaining partial rows require the exact populated/live scenarios named by their fresh audit documents.
   Deferred rows retain their explicit owner/dependency gates.
@@ -278,13 +278,13 @@ Command executed after writing this matrix:
     console.log(actual);
     const expected = {
       matrixRows: 167, uniqueRows: 167, dna: 5, doctorUi: 143, dag: 19,
-      productReal: 32, productPartial: 57, productDeferred: 9, productBlocked: 50,
+      productReal: 33, productPartial: 56, productDeferred: 9, productBlocked: 50,
       dagReal: 6, dagBlocked: 7, dagDeferred: 6,
     };
     if (JSON.stringify(actual) !== JSON.stringify(expected)) process.exit(1);
     NODE
 
-Result: `{ matrixRows: 167, uniqueRows: 167, dna: 5, doctorUi: 143, dag: 19, productReal: 32, productPartial: 57, productDeferred: 9, productBlocked: 50, dagReal: 6, dagBlocked: 7, dagDeferred: 6 }`.
+Result: `{ matrixRows: 167, uniqueRows: 167, dna: 5, doctorUi: 143, dag: 19, productReal: 33, productPartial: 56, productDeferred: 9, productBlocked: 50, dagReal: 6, dagBlocked: 7, dagDeferred: 6 }`.
 
 ## Stage reports
 
@@ -292,8 +292,9 @@ evidence-closed 0/5 against `docs/_TODO/DOCTOR_DNA_MIGRATION/PLAN.md`
 **NOT DONE:** four DNA rows remain partial; the three-screen desktop/mobile owner decision row remains deferred.
 Owner-closed is 0/5.
 
-evidence-closed 32/143 against `docs/_TODO/DOCTOR_UI_REWORK_2026-07-20/PLAN.md`
-**NOT DONE:** 53 rows remain partial, 8 deferred and 50 blocked. UI-4 still lacks populated status-icon evidence.
+evidence-closed 33/143 against `docs/_TODO/DOCTOR_UI_REWORK_2026-07-20/PLAN.md`
+**NOT DONE:** 52 rows remain partial, 8 deferred and 50 blocked. UI-4 is evidence-closed 9/9, while owner
+PNG/click acceptance remains open.
 All other partial/deferred/blocked reasons are preserved per row from the fresh audit documents. Owner-closed is
 0/143.
 
