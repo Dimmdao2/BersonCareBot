@@ -118,7 +118,7 @@
     "libphonenumber-js": "^1.13.1",
     "lucide-react": "^1.0.1",
     "luxon": "^3.7.2",
-    "next": "^16.2.6",
+    "next": "^16.2.11",
     "nodemailer": "^8.0.7",
     "pg": "^8.20.0",
     "pino": "^10.3.1",
