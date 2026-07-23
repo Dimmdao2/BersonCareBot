@@ -1,8 +1,9 @@
 #!/usr/bin/env node
 import { spawnSync } from "node:child_process";
-import { mkdtempSync, mkdirSync, readFileSync, rmSync } from "node:fs";
+import { mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
+import { pathToFileURL } from "node:url";
 
 const repoRoot = resolve(process.cwd());
 const pgBin = process.env.PG_BINDIR?.trim() || "/usr/lib/postgresql/16/bin";
@@ -17,6 +18,7 @@ const migrationPath = resolve(
   "apps/webapp/db/drizzle-migrations/0235_integrator_smtp_restricted_accessor.sql",
 );
 const overlayPath = resolve(repoRoot, "deploy/postgres/integrator-server-runtime-config.sql");
+const runtimeProbePath = join(scratchRoot, "smtp-runtime-path.probe.mts");
 readFileSync(migrationPath, "utf8");
 readFileSync(overlayPath, "utf8");
 
@@ -59,6 +61,54 @@ function file(path, variables = []) {
     ["-X", "-v", "ON_ERROR_STOP=1", "-qAt", ...variables, "-f", path],
     { env: psqlEnv() },
   );
+}
+
+function runtimeDatabaseUrl() {
+  const url = new URL("postgresql://smtp_runtime@localhost/postgres");
+  url.searchParams.set("host", socketDir);
+  url.searchParams.set("port", port);
+  return url.toString();
+}
+
+function runRuntimePathProbe() {
+  const dbClientUrl = pathToFileURL(
+    resolve(repoRoot, "apps/integrator/src/infra/db/client.ts"),
+  ).href;
+  const smtpResolverUrl = pathToFileURL(
+    resolve(repoRoot, "apps/integrator/src/config/smtpOutbound.ts"),
+  ).href;
+  writeFileSync(
+    runtimeProbePath,
+    `
+const { createDbPort, closeDb } = await import(${JSON.stringify(dbClientUrl)});
+const { invalidateSmtpOutboundCache, resolveSmtpOutboundConfig } =
+  await import(${JSON.stringify(smtpResolverUrl)});
+try {
+  invalidateSmtpOutboundCache();
+  const resolved = await resolveSmtpOutboundConfig(createDbPort());
+  if (!resolved.configured) {
+    throw new Error("deployed_locked_smtp_runtime_path_not_configured");
+  }
+} finally {
+  await closeDb();
+}
+`,
+    { mode: 0o600 },
+  );
+  command("pnpm", ["--dir", "apps/integrator", "exec", "tsx", runtimeProbePath], {
+    env: {
+      ...process.env,
+      NODE_ENV: "test",
+      DATABASE_URL: runtimeDatabaseUrl(),
+      DATABASE_URL_DIAGNOSTIC: "",
+      DATABASE_URL_DELIVERY_WORKER: "",
+      DATABASE_URL_SCHEDULER: "",
+      DB_PRINCIPAL_CONTEXT_MODE: "locked",
+      DB_PRINCIPAL_SIGNING_SECRET: "smtp-runtime-disposable-signing-secret",
+      BOOKING_URL: "http://127.0.0.1:4200",
+      LOG_LEVEL: "silent",
+    },
+  });
 }
 
 const setup = `
@@ -232,10 +282,11 @@ try {
     sql(injectStaleAcl);
     file(overlayPath, ["-v", "integrator_runtime_config_role=smtp_runtime"]);
     sql(proof);
+    runRuntimePathProbe();
   }
 
   console.log(
-    "smoke-integrator-smtp-restricted-access: OK (exact ACL, role denials, idempotent reapply)",
+    "smoke-integrator-smtp-restricted-access: OK (locked runtime path, exact ACL, role denials, idempotent reapply)",
   );
 } finally {
   if (started) {

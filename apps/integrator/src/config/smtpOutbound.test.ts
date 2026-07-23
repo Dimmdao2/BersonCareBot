@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { getCurrentDbPrincipal } from '@bersoncare/db-principal';
 import type { DbPort } from '../kernel/contracts/index.js';
 
 const loggerWarn = vi.hoisted(() => vi.fn());
@@ -7,6 +8,15 @@ vi.mock('../infra/observability/logger.js', () => ({
 }));
 
 import { invalidateSmtpOutboundCache, resolveSmtpOutboundConfig } from './smtpOutbound.js';
+import { createDbPort } from '../infra/db/client.js';
+
+function restoreEnvValue(name: string, value: string | undefined): void {
+  if (value === undefined) {
+    delete process.env[name];
+    return;
+  }
+  process.env[name] = value;
+}
 
 function mockDb(query: DbPort['query']): DbPort {
   const db: DbPort = {
@@ -19,14 +29,21 @@ function mockDb(query: DbPort['query']): DbPort {
 }
 
 describe('smtp outbound restricted DB config', () => {
+  const originalDbPrincipalContextMode = process.env.DB_PRINCIPAL_CONTEXT_MODE;
+  const originalDbPrincipalSigningSecret = process.env.DB_PRINCIPAL_SIGNING_SECRET;
+
   beforeEach(() => {
     invalidateSmtpOutboundCache();
     loggerWarn.mockReset();
+    restoreEnvValue('DB_PRINCIPAL_CONTEXT_MODE', originalDbPrincipalContextMode);
+    restoreEnvValue('DB_PRINCIPAL_SIGNING_SECRET', originalDbPrincipalSigningSecret);
   });
 
   afterEach(() => {
     invalidateSmtpOutboundCache();
     vi.useRealTimers();
+    restoreEnvValue('DB_PRINCIPAL_CONTEXT_MODE', originalDbPrincipalContextMode);
+    restoreEnvValue('DB_PRINCIPAL_SIGNING_SECRET', originalDbPrincipalSigningSecret);
   });
 
   it('resolves complete smtp_outbound only through the restricted DB capability', async () => {
@@ -38,8 +55,14 @@ describe('smtp outbound restricted DB config', () => {
       password: ' db-pass ',
       from: 'db-from@example.com',
     };
-    const query = vi.fn().mockResolvedValue({
-      rows: [{ value_json: { value: inner } }],
+    const query = vi.fn().mockImplementation(async () => {
+      expect(getCurrentDbPrincipal()).toEqual({
+        kind: 'bootstrap',
+        source: 'integrator-server-runtime-config',
+      });
+      return {
+        rows: [{ value_json: { value: inner } }],
+      };
     });
 
     const r = await resolveSmtpOutboundConfig(mockDb(query));
@@ -55,6 +78,48 @@ describe('smtp outbound restricted DB config', () => {
     expect(query).toHaveBeenCalledWith(
       'SELECT app.read_integrator_smtp_outbound_setting() AS value_json',
     );
+  });
+
+  it('uses the deployed locked createDbPort request-pool path with the allowed bootstrap principal', async () => {
+    process.env.DB_PRINCIPAL_CONTEXT_MODE = 'locked';
+    process.env.DB_PRINCIPAL_SIGNING_SECRET = 'test-db-principal-signing-secret';
+
+    const inner = {
+      host: 'locked-db.example.com',
+      port: 587,
+      secure: false,
+      user: 'locked-user',
+      password: 'locked-pass',
+      from: 'locked@example.com',
+    };
+    const release = vi.fn();
+    const query = vi.fn(async (sql: string) => {
+      if (sql === 'SELECT app.read_integrator_smtp_outbound_setting() AS value_json') {
+        expect(getCurrentDbPrincipal()).toEqual({
+          kind: 'bootstrap',
+          source: 'integrator-server-runtime-config',
+        });
+        return { rows: [{ value_json: { value: inner } }], rowCount: 1 };
+      }
+      return { rows: [], rowCount: 0 };
+    });
+    const client = { query, release };
+    const pool = {
+      connect: vi.fn(async () => client),
+      on: vi.fn(),
+      end: vi.fn(),
+    };
+
+    const resolved = await resolveSmtpOutboundConfig(createDbPort(pool as never));
+
+    expect(resolved.configured).toBe(true);
+    expect(resolved.smtpHost).toBe('locked-db.example.com');
+    expect(pool.connect).toHaveBeenCalledTimes(1);
+    expect(query).toHaveBeenCalledWith(
+      'SELECT app.read_integrator_smtp_outbound_setting() AS value_json',
+      undefined,
+    );
+    expect(release).toHaveBeenCalledTimes(1);
   });
 
   it('returns unconfigured when the DB row is incomplete', async () => {

@@ -150,6 +150,9 @@ function run(overrides = {}) {
     'p_key',
   ]);
   requireFragments('SMTP resolver', files.smtpResolver, [
+    'runWithBootstrapPrincipal',
+    "{ source: 'integrator-server-runtime-config' }",
+    '() => readSmtpOutboundSettingValueJson(db)',
     'readSmtpOutboundSettingValueJson(db)',
     "reason: 'restricted_setting_read_failed'",
     '[smtpOutbound] restricted DB setting unavailable',
@@ -253,7 +256,12 @@ function run(overrides = {}) {
     "SET SESSION AUTHORIZATION smtp_runtime",
     'smtp_runtime_table_read_unexpectedly_succeeded',
     'smtp_runtime_current_org_unexpectedly_succeeded',
-    'exact ACL, role denials, idempotent reapply',
+    'runRuntimePathProbe',
+    'smtp-runtime-path.probe.mts',
+    'resolveSmtpOutboundConfig(createDbPort())',
+    'DB_PRINCIPAL_CONTEXT_MODE: "locked"',
+    'deployed_locked_smtp_runtime_path_not_configured',
+    'locked runtime path, exact ACL, role denials, idempotent reapply',
   ]);
   requireFragments('current admin-email runtime projection', files.adminEmailMigration, [
     "('admin_emails', '{\"value\":\"\"}'::jsonb)",
@@ -298,6 +306,18 @@ if (process.argv.includes('--self-test')) {
     rejected = true;
   }
   if (!rejected) fail('self-test did not reject direct restricted SMTP table access');
+  rejected = false;
+  try {
+    run({
+      smtpResolver: readFileSync(paths.smtpResolver, 'utf8').replace(
+        "{ source: 'integrator-server-runtime-config' }",
+        "{ source: 'removed-smtp-runtime-principal' }",
+      ),
+    });
+  } catch {
+    rejected = true;
+  }
+  if (!rejected) fail('self-test did not reject a missing SMTP runtime bootstrap principal');
   rejected = false;
   try {
     run({

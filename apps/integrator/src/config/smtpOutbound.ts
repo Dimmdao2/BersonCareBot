@@ -8,6 +8,7 @@ import type { DbPort } from '../kernel/contracts/index.js';
 import { logger } from '../infra/observability/logger.js';
 import { parseSystemSettingInnerWithSchema } from '../infra/db/publicSystemSettings.js';
 import { readSmtpOutboundSettingValueJson } from '../infra/db/publicRestrictedSettings.js';
+import { runWithBootstrapPrincipal } from '../infra/principal/organizationPrincipal.js';
 
 const KEY = 'smtp_outbound';
 const TTL_MS = 60_000;
@@ -87,7 +88,10 @@ export async function resolveSmtpOutboundConfig(db: DbPort): Promise<ResolvedSmt
 
   let resolved: ResolvedSmtpOutboundConfig;
   try {
-    const valueJson = await readSmtpOutboundSettingValueJson(db);
+    const valueJson = await runWithBootstrapPrincipal(
+      { source: 'integrator-server-runtime-config' },
+      () => readSmtpOutboundSettingValueJson(db),
+    );
     const fromDb = valueJson !== null ? parseSmtpOutboundValueJson(valueJson) : null;
     resolved = fromDb ?? emptyResolved();
   } catch {
