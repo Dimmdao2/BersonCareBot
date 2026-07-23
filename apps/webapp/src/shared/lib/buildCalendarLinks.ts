@@ -46,12 +46,13 @@ export function escapeIcsText(s: string): string {
  * Генерирует текст ICS-файла (VCALENDAR + VEVENT).
  * Возвращает строку, которую можно скачать как `.ics`.
  */
-export function buildIcsContent(params: CalendarEventParams): string {
+export function buildIcsContent(params: CalendarEventParams, appBaseUrl: string): string {
   const start = toIcsDateTime(new Date(params.startAt));
   const end = toIcsDateTime(new Date(params.endAt));
+  const uidDomain = new URL(appBaseUrl).hostname;
   const uid = params.bookingId
-    ? `booking-${params.bookingId}@bersoncare.ru`
-    : `booking-${start}-${Math.random().toString(36).slice(2)}@bersoncare.ru`;
+    ? `booking-${params.bookingId}@${uidDomain}`
+    : `booking-${start}-${Math.random().toString(36).slice(2)}@${uidDomain}`;
   const now = toIcsDateTime(new Date());
 
   const lines: string[] = [

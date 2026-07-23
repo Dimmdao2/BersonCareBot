@@ -15,6 +15,7 @@ const baseParams = {
   description: "Запись через приложение BersonCare",
   bookingId: "abc-123",
 } as const;
+const appBaseUrl = "https://test.bersoncare.example";
 
 describe("toIcsDateTime", () => {
   it("formats UTC date correctly", () => {
@@ -42,7 +43,7 @@ describe("escapeIcsText", () => {
 
 describe("buildIcsContent", () => {
   it("contains required VCALENDAR/VEVENT structure", () => {
-    const ics = buildIcsContent(baseParams);
+    const ics = buildIcsContent(baseParams, appBaseUrl);
     expect(ics).toContain("BEGIN:VCALENDAR");
     expect(ics).toContain("BEGIN:VEVENT");
     expect(ics).toContain("END:VEVENT");
@@ -50,34 +51,34 @@ describe("buildIcsContent", () => {
   });
 
   it("uses stable UID from bookingId", () => {
-    const ics = buildIcsContent(baseParams);
-    expect(ics).toContain("UID:booking-abc-123@bersoncare.ru");
+    const ics = buildIcsContent(baseParams, appBaseUrl);
+    expect(ics).toContain("UID:booking-abc-123@test.bersoncare.example");
   });
 
   it("produces correct DTSTART/DTEND", () => {
-    const ics = buildIcsContent(baseParams);
+    const ics = buildIcsContent(baseParams, appBaseUrl);
     expect(ics).toContain("DTSTART:20260915T100000Z");
     expect(ics).toContain("DTEND:20260915T110000Z");
   });
 
   it("includes SUMMARY and LOCATION", () => {
-    const ics = buildIcsContent(baseParams);
+    const ics = buildIcsContent(baseParams, appBaseUrl);
     expect(ics).toContain("SUMMARY:Сеанс реабилитации · Иванов И.И.");
     expect(ics).toContain("LOCATION:Москва\\, ул. Тверская\\, 1");
   });
 
   it("includes DESCRIPTION", () => {
-    const ics = buildIcsContent(baseParams);
+    const ics = buildIcsContent(baseParams, appBaseUrl);
     expect(ics).toContain("DESCRIPTION:Запись через приложение BersonCare");
   });
 
   it("omits LOCATION when not provided", () => {
-    const ics = buildIcsContent({ ...baseParams, location: "" });
+    const ics = buildIcsContent({ ...baseParams, location: "" }, appBaseUrl);
     expect(ics).not.toContain("LOCATION:");
   });
 
   it("uses CRLF line endings (RFC 5545)", () => {
-    const ics = buildIcsContent(baseParams);
+    const ics = buildIcsContent(baseParams, appBaseUrl);
     expect(ics).toContain("\r\n");
     // All lines must end with CRLF
     const lines = ics.split("\r\n");
@@ -85,8 +86,8 @@ describe("buildIcsContent", () => {
   });
 
   it("generates random UID when bookingId is absent", () => {
-    const ics = buildIcsContent({ ...baseParams, bookingId: undefined });
-    expect(ics).toMatch(/UID:booking-[^@]+@bersoncare\.ru/);
+    const ics = buildIcsContent({ ...baseParams, bookingId: undefined }, appBaseUrl);
+    expect(ics).toMatch(/UID:booking-[^@]+@test\.bersoncare\.example/);
   });
 });
 

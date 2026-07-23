@@ -4,6 +4,18 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/react";
 import { BookingDoneClient } from "./BookingDoneClient";
 
+const buildIcsContentSpy = vi.hoisted(() => vi.fn());
+vi.mock("@/shared/lib/buildCalendarLinks", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/shared/lib/buildCalendarLinks")>();
+  return {
+    ...actual,
+    buildIcsContent: (...args: Parameters<typeof actual.buildIcsContent>) => {
+      buildIcsContentSpy(...args);
+      return actual.buildIcsContent(...args);
+    },
+  };
+});
+
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ push: vi.fn() }),
 }));
@@ -25,9 +37,14 @@ const baseProps = {
   bookingId: "abc-123",
   backToHubHref: "/app/patient/booking",
   appDisplayTimeZone: "Europe/Moscow",
+  appBaseUrl: "https://test.bersoncare.example",
 } as const;
 
 describe("BookingDoneClient", () => {
+  beforeEach(() => {
+    buildIcsContentSpy.mockClear();
+  });
+
   it("renders confirmation heading", () => {
     render(<BookingDoneClient {...baseProps} />);
     expect(screen.getByText(/Запись подтверждена/i)).toBeInTheDocument();
@@ -86,6 +103,10 @@ describe("BookingDoneClient", () => {
 
     expect(URL.createObjectURL).toHaveBeenCalledTimes(1);
     expect(clickSpy).toHaveBeenCalledTimes(1);
+    expect(buildIcsContentSpy).toHaveBeenCalledWith(
+      expect.objectContaining({ bookingId: baseProps.bookingId }),
+      baseProps.appBaseUrl,
+    );
 
     URL.createObjectURL = origCreate;
     URL.revokeObjectURL = origRevoke;

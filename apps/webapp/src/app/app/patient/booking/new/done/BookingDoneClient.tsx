@@ -33,6 +33,8 @@ export type BookingDoneParams = {
   backToHubHref: string;
   /** IANA-таймзона для отображения. */
   appDisplayTimeZone: string;
+  /** Server-resolved public origin from admin `app_base_url`. */
+  appBaseUrl: string;
 };
 
 /** Формирует summary для Google/Яндекс и ICS. */
@@ -49,6 +51,7 @@ export function BookingDoneClient({
   bookingId,
   backToHubHref,
   appDisplayTimeZone,
+  appBaseUrl,
 }: BookingDoneParams) {
   const summary = buildSummary(serviceTitle, locationLabel);
   const location = locationLabel || undefined;
@@ -63,7 +66,7 @@ export function BookingDoneClient({
   const yandexUrl = buildYandexCalendarUrl(calendarParams);
 
   const handleDownloadIcs = useCallback(() => {
-    const ics = buildIcsContent(calendarParams);
+    const ics = buildIcsContent(calendarParams, appBaseUrl);
     const blob = new Blob([ics], { type: "text/calendar;charset=utf-8" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
@@ -73,7 +76,7 @@ export function BookingDoneClient({
     a.click();
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
-  }, [calendarParams, bookingId]);
+  }, [calendarParams, appBaseUrl, bookingId]);
 
   const dateLabel = formatBookingDateLongRu(slotStart, appDisplayTimeZone);
   const timeStart = formatBookingTimeShortRu(slotStart, appDisplayTimeZone);

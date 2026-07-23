@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { getOptionalPatientSession } from "@/app-layer/guards/requireRole";
 import { routePaths } from "@/app-layer/routes/paths";
 import { getAppDisplayTimeZone } from "@/modules/system-settings/appDisplayTimezone";
+import { getAppBaseUrl } from "@/modules/system-settings/integrationRuntime";
 import { BookingWizardShell } from "../BookingWizardShell";
 import { BookingDoneClient } from "./BookingDoneClient";
 import { bookingNewHref } from "../../bookingNewHref";
@@ -36,7 +37,7 @@ export default async function BookingNewDonePage({ searchParams }: Props) {
   const locationLabel = first(raw.locationLabel)?.trim() ?? "";
   const cityCode = first(raw.cityCode)?.trim();
   const backToHubHref = bookingNewHref(cityCode);
-  const appDisplayTimeZone = await getAppDisplayTimeZone();
+  const [appDisplayTimeZone, appBaseUrl] = await Promise.all([getAppDisplayTimeZone(), getAppBaseUrl()]);
 
   return (
     <BookingWizardShell
@@ -54,6 +55,7 @@ export default async function BookingNewDonePage({ searchParams }: Props) {
         bookingId={bookingId}
         backToHubHref={backToHubHref}
         appDisplayTimeZone={appDisplayTimeZone}
+        appBaseUrl={appBaseUrl}
       />
     </BookingWizardShell>
   );

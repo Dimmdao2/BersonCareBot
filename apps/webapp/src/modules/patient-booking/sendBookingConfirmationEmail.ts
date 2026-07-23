@@ -12,6 +12,7 @@
 
 import { relayOutbound } from "@/modules/messaging/relayOutbound";
 import type { RelayOutboundDeps } from "@/modules/messaging/relayOutbound";
+import { getAppBaseUrl } from "@/modules/system-settings/integrationRuntime";
 import { buildIcsContent } from "@/shared/lib/buildCalendarLinks";
 import { logger } from "@/infra/logging/logger";
 
@@ -50,13 +51,17 @@ export async function sendBookingConfirmationEmail(
   }
 
   try {
-    const icsText = buildIcsContent({
-      startAt: input.slotStart,
-      endAt: input.slotEnd,
-      summary: input.serviceTitle,
-      location: input.locationLabel?.trim() || undefined,
-      bookingId: input.bookingId,
-    });
+    const appBaseUrl = await getAppBaseUrl();
+    const icsText = buildIcsContent(
+      {
+        startAt: input.slotStart,
+        endAt: input.slotEnd,
+        summary: input.serviceTitle,
+        location: input.locationLabel?.trim() || undefined,
+        bookingId: input.bookingId,
+      },
+      appBaseUrl,
+    );
 
     // Base64 для передачи через relay-outbound JSON body.
     const icsBase64 = Buffer.from(icsText, "utf-8").toString("base64");

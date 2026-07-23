@@ -14,6 +14,10 @@ vi.mock("@/modules/messaging/relayOutbound", () => ({
   relayOutbound: relayOutboundMock,
 }));
 
+vi.mock("@/modules/system-settings/integrationRuntime", () => ({
+  getAppBaseUrl: vi.fn().mockResolvedValue("https://test.bersoncare.example"),
+}));
+
 // Logger не должен мешать тестам
 vi.mock("@/infra/logging/logger", () => ({
   logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn() },
@@ -53,7 +57,7 @@ describe("sendBookingConfirmationEmail", () => {
     expect(icsDecoded).toContain("BEGIN:VCALENDAR");
     expect(icsDecoded).toContain("DTSTART:20260815T100000Z");
     expect(icsDecoded).toContain("SUMMARY:Консультация врача");
-    expect(icsDecoded).toContain(`UID:booking-${baseInput.bookingId}@bersoncare.ru`);
+    expect(icsDecoded).toContain(`UID:booking-${baseInput.bookingId}@test.bersoncare.example`);
     // Subject в metadata
     expect(params.metadata).toMatchObject({
       subject: expect.stringContaining("Консультация врача"),
