@@ -32,9 +32,11 @@ Post-R6 gate command:
 node docs/_TODO/SAAS_FOUNDATION/scripts/rubitime-r6-r7-static-inventory.mjs --expect-post-r6
 ```
 
-The script emits paths/counts, not row data. It excludes tests/spec files and does not scan docs/archive as runtime
-evidence. Ops/audit scripts are reported separately as `rubitimeOpsToolingRefs`; they are not post-R6 runtime
-blockers unless they are wired into live runtime code.
+The script emits paths/counts, not row data. Post-R6 blocker categories use a JavaScript/TypeScript lexical comment
+mask, so line/block comments cannot count as executable evidence while strings, regex literals and template literals
+remain intact. It excludes tests/spec files, named test-only helper contracts and historical migration paths, and
+does not scan docs/archive as runtime evidence. Ops/audit scripts are always excluded from post-R6 runtime categories
+before category-specific filters run and are reported separately as `rubitimeOpsToolingRefs`.
 
 ## Current pre-cutoff output summary
 
@@ -45,14 +47,14 @@ Latest run time against current branch baseline: 2026-07-23 (D0 truthful-retirem
 | `mountedRubitimeRouteLiterals` | R6 | 0 hits / 0 files | No Rubitime-named runtime route surfaces remain in scanned runtime source. |
 | `integratorRubitimeRuntimeImports` | R6 | 0 hits / 0 files | Integrator app wiring no longer imports/mounts Rubitime runtime registrars. |
 | `rubitimeApiClientRuntimeTokens` | R6 | 0 hits / 0 files | No Rubitime API client/throttle/post-create runtime tokens remain. |
-| `rubitimeBookingUpsertRuntime` | R6/D9 | 22 hits / 11 files | The Rubitime-specific `booking.upsert` branch and `booking-rubitime-sync` package remain active. |
+| `rubitimeBookingUpsertRuntime` | R6/D9 | 35 hits / 10 files | The Rubitime-specific `booking.upsert` branch and executable `booking-rubitime-sync` package modules remain active. |
 | `appointmentRecordUpsertedFanoutBuilder` | R6/D9 | 5 hits / 2 files | `buildAppointmentRecordUpsertedFanout` remains in the integrator write path. |
 | `appointmentRecordUpsertedProducer` | R6/D9 | 2 hits / 2 files | Integrator still produces `appointment.record.upserted`. |
 | `appointmentRecordUpsertedHandler` | R6/D9 | 2 hits / 1 file | Webapp still handles `appointment.record.upserted`. |
 | `integratorEventsRoute` | D10 | 1 hit / 1 file | The filesystem-mounted `/api/integrator/events` receiver remains. |
 | `projectionEmitOrEnqueueRuntime` | D10 | 3 hits / 2 files | `tryEmitWebappProjectionThenEnqueue` remains in runtime. |
-| `projectionOutboxRuntime` | D10 | 64 hits / 14 files | Projection transport storage, repositories and health/runtime references remain. |
-| `projectionWorkerRuntime` | D10 | 7 hits / 2 files | The projection worker implementation and runtime loop remain. |
+| `projectionOutboxRuntime` | D10 | 52 hits / 10 files | Projection transport storage, repositories and health/runtime references remain; comments, migrations, ops scripts and test-only stubs do not inflate the count. |
+| `projectionWorkerRuntime` | D10 | 6 hits / 2 files | The executable projection worker implementation and runtime loop remain. |
 | `legacyAppointmentRecordRuntimeRefs` | R6/R7 | 150 hits / 28 files | Legacy appointment table references remain for archive/backfill/compat paths. |
 | `rubitimeRawTableRuntimeRefs` | R7 | 21 hits / 6 files | Raw Rubitime table/queue references remain in runtime/schema/readiness/active purge storage until R7 archive/drop/defer decision. Ops tooling is reported separately. |
 | `providerNeutralKeepTableRefs` | R7 keep-list | 160 hits / 43 files | Explicit keep-list references, not a drop signal. |
@@ -62,14 +64,14 @@ The three narrow legacy route/API categories remain zero, but they were an incom
 and direct-public retirement verdict is **FAIL** while the eight D0 categories below remain:
 
 ```text
-rubitimeBookingUpsertRuntime=22
+rubitimeBookingUpsertRuntime=35
 appointmentRecordUpsertedFanoutBuilder=5
 appointmentRecordUpsertedProducer=2
 appointmentRecordUpsertedHandler=2
 integratorEventsRoute=1
 projectionEmitOrEnqueueRuntime=3
-projectionOutboxRuntime=64
-projectionWorkerRuntime=7
+projectionOutboxRuntime=52
+projectionWorkerRuntime=6
 ```
 
 Default inventory mode remains non-destructive and exits zero while reporting these categories. The final
@@ -241,9 +243,19 @@ Deterministic self-test:
 node docs/_TODO/SAAS_FOUNDATION/scripts/rubitime-r6-r7-static-inventory.mjs --self-test
 ```
 
-The self-test starts from a clean temporary source tree and injects one runtime fixture for each of the eight D0
-categories. Every case proves `cleanVerdict=pass` and `fixtureVerdict=fail`. It reads no env/DB/runtime data and
-removes its temporary fixture tree after every case.
+The self-test starts from a clean temporary source tree and injects one executable runtime fixture for each of the
+eight D0 categories. Every positive case proves `cleanVerdict=pass` and `fixtureVerdict=fail`.
+
+Its negative/adversarial matrix also proves:
+
+- line-comment-only and block-comment-only source stays zero for every one of the eight D0 categories;
+- source-looking snippets under `docs/`, historical TypeScript migrations and test-only helpers imported by tests do
+  not become runtime blockers;
+- `apps/integrator/src/infra/scripts/resync-rubitime-records.ts`-style ops tooling remains non-blocking but is still
+  visible in `rubitimeOpsToolingRefs`;
+- comment markers inside strings, regex literals and template literals do not hide a following executable blocker.
+
+The self-test reads no env/DB/runtime data and removes its temporary fixture tree after every case.
 
 Current/final behavior:
 

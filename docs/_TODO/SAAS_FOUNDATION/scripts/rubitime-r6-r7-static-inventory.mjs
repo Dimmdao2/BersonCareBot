@@ -82,15 +82,27 @@ const categories = [
     fileFilter: (rel) =>
       rel === 'apps/integrator/src/infra/db/writePort.ts'
       || rel.startsWith('packages/booking-rubitime-sync/src/'),
-    pathPatterns: [
-      /^packages\/booking-rubitime-sync\/src\/.+\.(?:ts|tsx|js|mjs)$/,
+    fileContracts: [
+      {
+        path: /^apps\/integrator\/src\/infra\/db\/writePort\.ts$/,
+        patterns: [
+          /case\s+["']booking\.upsert["']\s*:/g,
+          /@bersoncare\/booking-rubitime-sync/g,
+          /upsertPatientBookingFromRubitime/g,
+          /resolveRubitimeStatusFromBookingUpsert/g,
+        ],
+      },
+      {
+        path: /^packages\/booking-rubitime-sync\/src\/.+\.(?:ts|tsx|js|mjs)$/,
+        patterns: [
+          /\bexport\s+(?:async\s+)?function\s+[A-Za-z_$][\w$]*/g,
+          /\bexport\s+(?:const|let|var|class)\s+[A-Za-z_$][\w$]*/g,
+          /\bexport\s*\{[^}]+\}\s*from\s*["'][^"']+["']/g,
+          /\bimport\s+(?!type\b)[^;]+from\s*["'][^"']+["']/g,
+        ],
+      },
     ],
-    patterns: [
-      /case\s+["']booking\.upsert["']\s*:/g,
-      /@bersoncare\/booking-rubitime-sync/g,
-      /upsertPatientBookingFromRubitime/g,
-      /resolveRubitimeStatusFromBookingUpsert/g,
-    ],
+    patterns: [],
   },
   {
     key: 'appointmentRecordUpsertedFanoutBuilder',
@@ -132,10 +144,10 @@ const categories = [
     phase: 'D10',
     postR6MustBeZero: true,
     fileFilter: (rel) => rel === 'apps/webapp/src/app/api/integrator/events/route.ts',
-    pathPatterns: [
-      /^apps\/webapp\/src\/app\/api\/integrator\/events\/route\.(?:ts|tsx|js|mjs)$/,
+    patterns: [
+      /export\s+(?:async\s+)?function\s+POST\s*\(/g,
+      /export\s+const\s+POST\s*=/g,
     ],
-    patterns: [],
   },
   {
     key: 'projectionEmitOrEnqueueRuntime',
@@ -166,9 +178,6 @@ const categories = [
     phase: 'D10',
     postR6MustBeZero: true,
     fileFilter: (rel) => rel.startsWith('apps/integrator/src/infra/runtime/worker/'),
-    pathPatterns: [
-      /^apps\/integrator\/src\/infra\/runtime\/worker\/projectionWorker\.(?:ts|tsx|js|mjs)$/,
-    ],
     patterns: [
       /runProjectionWorkerTick/g,
       /projectionOutboxLoop/g,
@@ -276,6 +285,226 @@ function isOpsToolingFile(rel) {
   return rel.startsWith('apps/webapp/scripts/') || rel.includes('/infra/scripts/');
 }
 
+function isHistoricalMigrationFile(rel) {
+  return rel.includes('/migrations/');
+}
+
+function isTestOnlyHelperFile(rel) {
+  const basename = rel.slice(rel.lastIndexOf('/') + 1);
+  return (
+    rel.includes('/test-helpers/')
+    || rel.includes('/test-utils/')
+    || rel.includes('/testing/')
+    || rel.includes('/fixtures/')
+    || rel.includes('/mocks/')
+    || /(?:ForTests?|TestHelper|TestUtils|TestingHelper)\.(?:ts|tsx|js|mjs)$/.test(basename)
+  );
+}
+
+function isExecutableRuntimeFile(rel) {
+  return (
+    !isOpsToolingFile(rel)
+    && !isHistoricalMigrationFile(rel)
+    && !isTestOnlyHelperFile(rel)
+  );
+}
+
+const regexPrefixKeywords = new Set([
+  'await',
+  'case',
+  'delete',
+  'do',
+  'else',
+  'in',
+  'instanceof',
+  'new',
+  'of',
+  'return',
+  'throw',
+  'typeof',
+  'void',
+  'yield',
+]);
+
+/**
+ * Replaces JavaScript/TypeScript line and block comments with spaces while preserving
+ * source length, newlines, strings, regex literals and template raw text. Template
+ * expressions return to normal code scanning so comments inside `${...}` are masked.
+ */
+function maskJsComments(source) {
+  let output = '';
+  let state = 'code';
+  let quote = null;
+  let regexInClass = false;
+  let canStartRegex = true;
+  const templateReturnStates = [];
+  const templateExpressionDepths = [];
+
+  function masked(char) {
+    return char === '\n' || char === '\r' ? char : ' ';
+  }
+
+  for (let index = 0; index < source.length;) {
+    const char = source[index];
+    const next = source[index + 1];
+
+    if (state === 'line-comment') {
+      output += masked(char);
+      index += 1;
+      if (char === '\n' || char === '\r') state = 'code';
+      continue;
+    }
+
+    if (state === 'block-comment') {
+      if (char === '*' && next === '/') {
+        output += '  ';
+        index += 2;
+        state = 'code';
+      } else {
+        output += masked(char);
+        index += 1;
+      }
+      continue;
+    }
+
+    if (state === 'string') {
+      output += char;
+      index += 1;
+      if (char === '\\' && index < source.length) {
+        output += source[index];
+        index += 1;
+      } else if (char === quote) {
+        state = 'code';
+        quote = null;
+        canStartRegex = false;
+      }
+      continue;
+    }
+
+    if (state === 'regex') {
+      output += char;
+      index += 1;
+      if (char === '\\' && index < source.length) {
+        output += source[index];
+        index += 1;
+      } else if (char === '[') {
+        regexInClass = true;
+      } else if (char === ']') {
+        regexInClass = false;
+      } else if (char === '/' && !regexInClass) {
+        while (index < source.length && /[A-Za-z]/.test(source[index])) {
+          output += source[index];
+          index += 1;
+        }
+        state = 'code';
+        canStartRegex = false;
+      } else if (char === '\n' || char === '\r') {
+        state = 'code';
+        canStartRegex = true;
+      }
+      continue;
+    }
+
+    if (state === 'template') {
+      output += char;
+      index += 1;
+      if (char === '\\' && index < source.length) {
+        output += source[index];
+        index += 1;
+      } else if (char === '`') {
+        state = templateReturnStates.pop() ?? 'code';
+        canStartRegex = false;
+      } else if (char === '$' && source[index] === '{') {
+        output += '{';
+        index += 1;
+        templateExpressionDepths.push(1);
+        state = 'code';
+        canStartRegex = true;
+      }
+      continue;
+    }
+
+    if (char === '/' && next === '/') {
+      output += '  ';
+      index += 2;
+      state = 'line-comment';
+      continue;
+    }
+    if (char === '/' && next === '*') {
+      output += '  ';
+      index += 2;
+      state = 'block-comment';
+      continue;
+    }
+    if (char === "'" || char === '"') {
+      output += char;
+      index += 1;
+      quote = char;
+      state = 'string';
+      continue;
+    }
+    if (char === '`') {
+      output += char;
+      index += 1;
+      templateReturnStates.push('code');
+      state = 'template';
+      continue;
+    }
+    if (char === '/' && canStartRegex) {
+      output += char;
+      index += 1;
+      regexInClass = false;
+      state = 'regex';
+      continue;
+    }
+    if (/\s/.test(char)) {
+      output += char;
+      index += 1;
+      continue;
+    }
+    if (/[A-Za-z_$]/.test(char)) {
+      let end = index + 1;
+      while (end < source.length && /[\w$]/.test(source[end])) end += 1;
+      const word = source.slice(index, end);
+      output += word;
+      index = end;
+      canStartRegex = regexPrefixKeywords.has(word);
+      continue;
+    }
+    if (/[0-9]/.test(char)) {
+      let end = index + 1;
+      while (end < source.length && /[\w.]/.test(source[end])) end += 1;
+      output += source.slice(index, end);
+      index = end;
+      canStartRegex = false;
+      continue;
+    }
+
+    output += char;
+    index += 1;
+    if (char === '{' && templateExpressionDepths.length > 0) {
+      templateExpressionDepths[templateExpressionDepths.length - 1] += 1;
+      canStartRegex = true;
+    } else if (char === '}' && templateExpressionDepths.length > 0) {
+      const last = templateExpressionDepths.length - 1;
+      templateExpressionDepths[last] -= 1;
+      if (templateExpressionDepths[last] === 0) {
+        templateExpressionDepths.pop();
+        state = 'template';
+      }
+      canStartRegex = false;
+    } else if (char === ')' || char === ']' || char === '}') {
+      canStartRegex = false;
+    } else if (char === '.') {
+      canStartRegex = false;
+    } else {
+      canStartRegex = true;
+    }
+  }
+
+  return output;
+}
+
 function countMatches(src, patterns) {
   let count = 0;
   for (const pattern of patterns) {
@@ -285,11 +514,12 @@ function countMatches(src, patterns) {
   return count;
 }
 
-function countPathMatches(rel, patterns = []) {
+function countFileContractMatches(file, contracts = []) {
   let count = 0;
-  for (const pattern of patterns) {
-    pattern.lastIndex = 0;
-    if (pattern.test(rel)) count += 1;
+  for (const contract of contracts) {
+    contract.path.lastIndex = 0;
+    if (!contract.path.test(file.rel)) continue;
+    count += countMatches(file.executableSrc, contract.patterns);
   }
   return count;
 }
@@ -306,20 +536,24 @@ function collect(root = repoRoot) {
   const sourceFiles = files.map((file) => ({
     ...file,
     src: readFileSync(file.abs, 'utf8'),
+  })).map((file) => ({
+    ...file,
+    executableSrc: maskJsComments(file.src),
   }));
 
   const categoryResults = categories.map((category) => {
     const filesWithHits = [];
     let totalHits = 0;
     const filesForCategory = sourceFiles.filter((file) => {
-      if (category.fileFilter) return category.fileFilter(file.rel);
-      if (category.postR6MustBeZero && isOpsToolingFile(file.rel)) return false;
+      if (category.postR6MustBeZero && !isExecutableRuntimeFile(file.rel)) return false;
+      if (category.fileFilter && !category.fileFilter(file.rel)) return false;
       return true;
     });
     for (const file of filesForCategory) {
+      const source = category.postR6MustBeZero ? file.executableSrc : file.src;
       const hits =
-        countMatches(file.src, category.patterns)
-        + countPathMatches(file.rel, category.pathPatterns);
+        countMatches(source, category.patterns)
+        + countFileContractMatches(file, category.fileContracts);
       if (hits === 0) continue;
       totalHits += hits;
       filesWithHits.push({ path: file.rel, hits });
@@ -363,6 +597,15 @@ function writeSelfTestFixture(root, rel, source) {
   const absolutePath = join(root, rel);
   mkdirSync(dirname(absolutePath), { recursive: true });
   writeFileSync(absolutePath, source, 'utf8');
+}
+
+function assertNoPostR6Blockers(root, label) {
+  const blockers = postR6Blockers(collect(root));
+  if (blockers.length > 0) {
+    throw new Error(
+      `${label} unexpectedly failed: ${blockers.map((item) => item.key).join(', ')}`,
+    );
+  }
 }
 
 function runSelfTest() {
@@ -413,7 +656,7 @@ function runSelfTest() {
     },
   ];
 
-  const resultRows = [];
+  const positiveRows = [];
   for (const fixture of fixtures) {
     const root = mkdtempSync(join(tmpdir(), 'bcb-rubitime-d0-inventory-'));
     try {
@@ -441,7 +684,7 @@ function runSelfTest() {
           `${fixture.key} fixture also triggered: ${unexpected.map((item) => item.key).join(', ')}`,
         );
       }
-      resultRows.push({
+      positiveRows.push({
         category: fixture.key,
         fixture: fixture.path,
         cleanVerdict: 'pass',
@@ -453,12 +696,191 @@ function runSelfTest() {
     }
   }
 
+  const negativeRows = [];
+  for (const fixture of fixtures) {
+    const commentCases = [
+      {
+        kind: 'line-comment-only',
+        source: fixture.source
+          .split('\n')
+          .map((line) => `// ${line}`)
+          .join('\n'),
+      },
+      {
+        kind: 'block-comment-only',
+        source: `/*\n${fixture.source}\n*/\n`,
+      },
+    ];
+
+    for (const commentCase of commentCases) {
+      const root = mkdtempSync(join(tmpdir(), 'bcb-rubitime-d0-negative-'));
+      try {
+        writeSelfTestFixture(root, fixture.path, commentCase.source);
+        assertNoPostR6Blockers(root, `${fixture.key} ${commentCase.kind}`);
+        negativeRows.push({
+          category: fixture.key,
+          fixture: fixture.path,
+          case: commentCase.kind,
+          verdict: 'pass',
+        });
+      } finally {
+        rmSync(root, { recursive: true, force: true });
+      }
+    }
+  }
+
+  const exclusionCases = [
+    {
+      name: 'documentation-source-snippet',
+      path: 'docs/retirement-example.ts',
+      source: fixtures.map((fixture) => fixture.source).join('\n'),
+    },
+    {
+      name: 'historical-typescript-migration',
+      path: 'apps/integrator/src/infra/db/migrations/20260101000000_projection_history.ts',
+      source: [
+        'export function buildAppointmentRecordUpsertedFanout() { return {}; }',
+        'export async function tryEmitWebappProjectionThenEnqueue() {}',
+        "export const projectionTable = 'projection_outbox';",
+        '',
+      ].join('\n'),
+    },
+    {
+      name: 'test-only-helper-imported-by-test',
+      path: 'apps/integrator/src/infra/db/stubProjectionForTests.ts',
+      source: [
+        'export function buildAppointmentRecordUpsertedFanout() { return {}; }',
+        'export async function tryEmitWebappProjectionThenEnqueue() {}',
+        "export const projectionTable = 'projection_outbox';",
+        '',
+      ].join('\n'),
+      relatedFiles: [
+        {
+          path: 'apps/integrator/src/infra/db/stubProjection.test.ts',
+          source: "import './stubProjectionForTests.js';\n",
+        },
+      ],
+    },
+  ];
+
+  for (const exclusionCase of exclusionCases) {
+    const root = mkdtempSync(join(tmpdir(), 'bcb-rubitime-d0-exclusion-'));
+    try {
+      writeSelfTestFixture(root, exclusionCase.path, exclusionCase.source);
+      for (const relatedFile of exclusionCase.relatedFiles ?? []) {
+        writeSelfTestFixture(root, relatedFile.path, relatedFile.source);
+      }
+      assertNoPostR6Blockers(root, exclusionCase.name);
+      negativeRows.push({
+        category: 'global-exclusion',
+        fixture: exclusionCase.path,
+        case: exclusionCase.name,
+        verdict: 'pass',
+      });
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  }
+
+  {
+    const root = mkdtempSync(join(tmpdir(), 'bcb-rubitime-d0-ops-'));
+    try {
+      const opsPath = 'apps/integrator/src/infra/scripts/resync-rubitime-records.ts';
+      writeSelfTestFixture(
+        root,
+        opsPath,
+        [
+          'export function buildAppointmentRecordUpsertedFanout() { return {}; }',
+          'export async function tryEmitWebappProjectionThenEnqueue() {}',
+          "export const projectionTable = 'projection_outbox';",
+          "export const source = 'rubitime_records';",
+          '',
+        ].join('\n'),
+      );
+      const result = collect(root);
+      const blockers = postR6Blockers(result);
+      if (blockers.length > 0) {
+        throw new Error(
+          `ops tooling unexpectedly failed: ${blockers.map((item) => item.key).join(', ')}`,
+        );
+      }
+      const opsCategory = result.categories.find(
+        (category) => category.key === 'rubitimeOpsToolingRefs',
+      );
+      if (!opsCategory || opsCategory.totalHits < 1) {
+        throw new Error('ops tooling was not preserved in its separate inventory category');
+      }
+      negativeRows.push({
+        category: 'global-exclusion',
+        fixture: opsPath,
+        case: 'ops-tooling-is-separate-inventory',
+        verdict: 'pass',
+      });
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  }
+
+  const lexicalCases = [
+    {
+      name: 'string-comment-markers',
+      prefix: "const text = 'https://example.test/* literal */';",
+    },
+    {
+      name: 'regex-comment-markers',
+      prefix: 'const matcher = /https?:\\/\\/example\\.test\\/path/;',
+    },
+    {
+      name: 'template-comment-markers',
+      prefix: 'const text = `raw // and /* markers */ ${1 + 2}`;',
+    },
+  ];
+
+  for (const lexicalCase of lexicalCases) {
+    const root = mkdtempSync(join(tmpdir(), 'bcb-rubitime-d0-lexical-'));
+    try {
+      const fixturePath =
+        'apps/integrator/src/infra/db/buildAppointmentRecordUpsertedFanout.ts';
+      writeSelfTestFixture(
+        root,
+        fixturePath,
+        `${lexicalCase.prefix}\nexport function buildAppointmentRecordUpsertedFanout() { return {}; }\n`,
+      );
+      const blockers = postR6Blockers(collect(root));
+      const target = blockers.find(
+        (category) => category.key === 'appointmentRecordUpsertedFanoutBuilder',
+      );
+      if (!target || target.totalHits !== 1) {
+        throw new Error(`${lexicalCase.name} corrupted executable source detection`);
+      }
+      const unexpected = blockers.filter(
+        (category) => category.key !== 'appointmentRecordUpsertedFanoutBuilder',
+      );
+      if (unexpected.length > 0) {
+        throw new Error(
+          `${lexicalCase.name} also triggered: ${unexpected
+            .map((category) => category.key)
+            .join(', ')}`,
+        );
+      }
+      negativeRows.push({
+        category: 'lexical-mask',
+        fixture: fixturePath,
+        case: lexicalCase.name,
+        verdict: 'pass',
+      });
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  }
+
   console.log(
     JSON.stringify(
       {
         selfTest: 'rubitime-r6-r7-static-inventory-d0',
         ok: true,
-        cases: resultRows,
+        positiveCases: positiveRows,
+        negativeCases: negativeRows,
       },
       null,
       2,
