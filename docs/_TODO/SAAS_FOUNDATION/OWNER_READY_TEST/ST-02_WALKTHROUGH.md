@@ -55,6 +55,28 @@ The shared patient is enrolled in both organizations and has its own login. The 
 organization refs; the live integration owner must prove the actual A/B context-selection behavior and locked
 read/write matrix. This document does not claim that downstream gate.
 
+### Reversible U5A relationship-recovery fixture
+
+The canonical shared-patient fixture is also the only allowed target for the U5A revoked-remembered-organization
+walkthrough. The operator-only command
+`pnpm --dir apps/webapp run test-fixture:patient-organization-lifecycle -- status` is read-only. In an authorized
+TEST window, `discharge --execute` changes only the reserved Clinic B shared-patient enrollment from `active` to
+`discharged`; `restore --execute` restores the canonical two-active-relationship state. Both mutations refuse every
+database except exact `bersoncarebot_test`, lock and verify the exact reserved enrollment, retain Clinic A active,
+require exactly two reserved shared-patient relationships and commit only after aggregate postconditions pass.
+
+The operator sequence is:
+
+1. verify `status` reports two active relationships;
+2. complete A↔B switch, refresh/back-forward and trusted deep-link checks while both are active;
+3. leave Clinic B remembered, run `discharge --execute`, then verify neutral chooser/recovery and absence of stale
+   Clinic B data;
+4. always run `restore --execute` in cleanup, including after any failed browser step, and verify `status` again.
+
+The command reads only `DATABASE_URL`/optional `PGOPTIONS`, performs no HTTP, delivery, S3 or external integration
+call, and prints only the target state plus aggregate active-relationship count. It is not available through a
+product route and must not be copied to DEV or PROD.
+
 ## Global-admin visual handoff
 
 For a bounded System Health visual-review window, use the owner-only ordinary-login handoff in

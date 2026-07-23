@@ -38,6 +38,11 @@ Shared patient также имеет свой reserved `.test` email/password cr
 защищённый Clinic A packet key, поэтому нового секрета нет. Детерминированные login/context/route/viewport
 ссылки лежат в `SAAS_TEST_FIXTURE_MANIFEST.operatorRefs`; operator walkthrough описан в
 [`ST-02_WALKTHROUGH.md`](../../../docs/_TODO/SAAS_FOUNDATION/OWNER_READY_TEST/ST-02_WALKTHROUGH.md).
+Для U5A live recovery отдельный
+[`patient-organization-test-lifecycle.ts`](patient-organization-test-lifecycle.ts) может обратимо перевести только
+reserved shared-patient enrollment клиники B между `active` и `discharged`. Он требует exact
+`bersoncarebot_test`, явный `--execute`, проверяет обе reserved связи и работает транзакционно; `restore --execute`
+является обязательным cleanup после проверки. Это TEST fixture control, не продуктовый enrollment writer.
 Store/payment использует только `fixture_noop`, уведомления выключены. Media rows имеют `s3_key IS NULL`
 и ссылаются на коммиченный `public/test-fixtures/saas-exercise.svg`: `/api/media/[id]` отдаёт его
 только для exact DB `bersoncarebot_test`, а playback descriptor возвращает same-origin URL. Внешние S3

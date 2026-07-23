@@ -1,5 +1,22 @@
 # Log — SaaS Product UX Initiative
 
+## 2026-07-23 — U5A TEST lifecycle harness candidate (`#796`)
+
+The old fixture blocker was rechecked against current canon before implementation. Manifest v2 already provides one
+reserved synthetic patient with active relationships and ordinary-login credentials in Clinic A and Clinic B, so no
+second seeder, DEV enrollment writer or product endpoint was added. The remaining fixture gap is now covered by one
+operator-only transactional CLI: it can move only the reserved Clinic B relationship between `active` and
+`discharged`, refuses every database except exact `bersoncarebot_test`, requires explicit mutation execution, keeps
+Clinic A active, validates the two-relationship fixture shape and rolls back on any failed postcondition. Restore is
+idempotent and documented as mandatory cleanup.
+
+Focused fixture/lifecycle tests passed (`2` files / `31` tests), a private disposable PostgreSQL proved the real
+`status → discharge → restore → status` SQL cycle and final two-active cleanup, webapp typecheck passed, and scoped
+lint, owner-ready integration checker and diff-check passed. No persistent TEST/DEV/PROD database was opened or
+mutated, no deploy or external call occurred, and the two U5A live checkboxes remain open until the integration owner
+deploys the candidate and records the authorized A↔B, deep-link/refresh and revoked-preference browser evidence
+followed by successful restore.
+
 ## 2026-07-22 — owner roadmap reconciled against full Doctor UI brief (`#959`)
 
 Owner stopped further implementation after the active plan had compressed part of the detailed Doctor UI brief.
