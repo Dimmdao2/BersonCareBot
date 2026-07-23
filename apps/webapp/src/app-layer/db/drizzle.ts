@@ -119,10 +119,12 @@ function withPrincipalAwareTransactions(rawDb: DrizzleDb): DrizzleDb {
         }
         throw error;
       }
+      let callbackError: unknown;
       try {
         try {
           return await callback(tx);
         } catch (error) {
+          callbackError = error;
           await reportDbQueryFailure(error);
           throw error;
         }
@@ -132,7 +134,13 @@ function withPrincipalAwareTransactions(rawDb: DrizzleDb): DrizzleDb {
             await clearCurrentDbPrincipalFromDrizzleTransaction(queryable, principalApplyOptions, principalSnapshot);
           } catch (error) {
             await reportDbCleanupFailure();
-            throw error;
+            // A PostgreSQL statement error aborts the transaction, so cleanup inside this callback
+            // can itself fail with 25P02. Preserve the original query error and let Drizzle's outer
+            // transaction handler ROLLBACK before releasing the checked-out connection. Transaction-
+            // scoped role/config/context changes are reverted by that rollback.
+            if (callbackError === undefined) {
+              throw error;
+            }
           }
         }
       }

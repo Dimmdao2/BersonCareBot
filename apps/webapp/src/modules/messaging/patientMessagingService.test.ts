@@ -94,6 +94,26 @@ describe("patientMessagingService", () => {
     }));
   });
 
+  it("does not send through a closed own conversation", async () => {
+    const appendWebappMessage = vi.fn(async () => ({ id: "msg-webapp-1", created: true }));
+    const ensureWebappConversationForUser = vi.fn(async () => ({ id: "conv-canonical" }));
+    const service = createPatientMessagingService(createPort({
+      appendWebappMessage,
+      ensureWebappConversationForUser,
+      getConversationIfOwnedByUser: async () => makeConversationRow({
+        status: "closed",
+        closedAt: "2026-01-02T00:00:00.000Z",
+      }),
+    }));
+
+    await expect(service.sendText("user-1", "conv-1", "hello")).resolves.toEqual({
+      ok: false,
+      error: "not_found",
+    });
+    expect(ensureWebappConversationForUser).not.toHaveBeenCalled();
+    expect(appendWebappMessage).not.toHaveBeenCalled();
+  });
+
   it("filters broadcast and lifecycle notifications from patient chat bootstrap and polling", async () => {
     const messages = [
       {

@@ -4,7 +4,9 @@
  *
  * Creates a scratch database and unique runtime roles, installs the real protected principal
  * context plus migration 0234, and proves own/current-message success with cross-patient,
- * cross-organization, stale-message and forged-message rejection. Never opens dev/test/prod.
+ * cross-organization, stale-message, forged-message and closed-conversation rejection. The closed
+ * case also proves application-shaped rollback of the inserted message with no activity change.
+ * Never opens dev/test/prod.
  */
 import { spawnSync } from "node:child_process";
 import { randomBytes } from "node:crypto";
@@ -98,11 +100,13 @@ const patientB = "81410000-0000-4000-8000-000000000002";
 const conversationOwn = "81410000-0000-4000-8000-00000000001a";
 const conversationOtherPatient = "81410000-0000-4000-8000-00000000001b";
 const conversationOtherOrg = "81410000-0000-4000-8000-00000000001c";
+const conversationClosed = "81410000-0000-4000-8000-00000000001d";
 const messageOwn = "81410000-0000-4000-8000-00000000002a";
 const messageOtherPatient = "81410000-0000-4000-8000-00000000002b";
 const messageOtherOrg = "81410000-0000-4000-8000-00000000002c";
 const messageForgedRole = "81410000-0000-4000-8000-00000000002d";
 const messageStale = "81410000-0000-4000-8000-00000000002e";
+const messageClosed = "81410000-0000-4000-8000-00000000002f";
 const nonce = `support_activity_${stamp}`;
 
 const schemaSql = String.raw`
@@ -119,6 +123,7 @@ CREATE TABLE public.support_conversations (
   source text NOT NULL,
   admin_scope text NOT NULL,
   status text NOT NULL,
+  closed_at timestamptz,
   last_message_at timestamptz NOT NULL,
   updated_at timestamptz NOT NULL
 );
@@ -183,14 +188,17 @@ INSERT INTO public.org_enrollments (organization_id, platform_user_id, status) V
   (${quoteLiteral(orgA)}, ${quoteLiteral(patientB)}, 'active'),
   (${quoteLiteral(orgB)}, ${quoteLiteral(patientA)}, 'active');
 INSERT INTO public.support_conversations (
-  id, organization_id, platform_user_id, source, admin_scope, status, last_message_at, updated_at
+  id, organization_id, platform_user_id, source, admin_scope, status, closed_at,
+  last_message_at, updated_at
 ) VALUES
   (${quoteLiteral(conversationOwn)}, ${quoteLiteral(orgA)}, ${quoteLiteral(patientA)},
-    'webapp', 'support', 'open', '2026-01-01', '2026-01-01'),
+    'webapp', 'support', 'open', NULL, '2026-01-01', '2026-01-01'),
   (${quoteLiteral(conversationOtherPatient)}, ${quoteLiteral(orgA)}, ${quoteLiteral(patientB)},
-    'webapp', 'support', 'open', '2026-01-01', '2026-01-01'),
+    'webapp', 'support', 'open', NULL, '2026-01-01', '2026-01-01'),
   (${quoteLiteral(conversationOtherOrg)}, ${quoteLiteral(orgB)}, ${quoteLiteral(patientA)},
-    'webapp', 'support', 'open', '2026-01-01', '2026-01-01');
+    'webapp', 'support', 'open', NULL, '2026-01-01', '2026-01-01'),
+  (${quoteLiteral(conversationClosed)}, ${quoteLiteral(orgA)}, ${quoteLiteral(patientA)},
+    'webapp', 'support', 'closed', '2026-01-02', '2026-01-01', '2026-01-02');
 INSERT INTO public.support_conversation_messages (
   id, organization_id, conversation_id, sender_role, source, created_at
 ) VALUES (
@@ -296,6 +304,59 @@ SELECT 1 / (
       AND message.id = ${quoteLiteral(messageOwn)}::uuid
   )
 )::int;
+
+DO $closed_send_proof$
+DECLARE
+  v_before_last_message_at timestamptz;
+  v_before_updated_at timestamptz;
+BEGIN
+  SELECT last_message_at, updated_at
+  INTO v_before_last_message_at, v_before_updated_at
+  FROM public.support_conversations
+  WHERE id = ${quoteLiteral(conversationClosed)}::uuid;
+
+  BEGIN
+    INSERT INTO public.support_conversation_messages (
+      id, organization_id, conversation_id, sender_role, source, created_at
+    ) VALUES (
+      ${quoteLiteral(messageClosed)}, ${quoteLiteral(orgA)}, ${quoteLiteral(conversationClosed)},
+      'user', 'webapp', transaction_timestamp()
+    );
+
+    IF app.touch_current_patient_support_conversation_activity(
+      ${quoteLiteral(messageClosed)}::uuid
+    ) THEN
+      RAISE EXCEPTION 'closed_patient_support_activity_was_updated';
+    END IF;
+    RAISE EXCEPTION 'patient_support_conversation_activity_rejected';
+  EXCEPTION
+    WHEN OTHERS THEN
+      IF SQLERRM <> 'patient_support_conversation_activity_rejected' THEN
+        RAISE;
+      END IF;
+  END;
+
+  IF EXISTS (
+    SELECT 1
+    FROM public.support_conversation_messages
+    WHERE id = ${quoteLiteral(messageClosed)}::uuid
+  ) THEN
+    RAISE EXCEPTION 'closed_patient_support_message_was_not_rolled_back';
+  END IF;
+
+  IF EXISTS (
+    SELECT 1
+    FROM public.support_conversations
+    WHERE id = ${quoteLiteral(conversationClosed)}::uuid
+      AND (
+        last_message_at IS DISTINCT FROM v_before_last_message_at
+        OR updated_at IS DISTINCT FROM v_before_updated_at
+      )
+  ) THEN
+    RAISE EXCEPTION 'closed_patient_support_activity_changed';
+  END IF;
+END
+$closed_send_proof$;
 
 SELECT app.release_principal_context();
 RESET SESSION AUTHORIZATION;

@@ -11,6 +11,8 @@ Patient POST записывает сообщение и обновляет `last
 обновление выполняет только `app.touch_current_patient_support_conversation_activity(messageId)`: capability
 берёт организацию, пациента и время из защищённого DB-контекста, принимает лишь собственное `user/webapp`
 сообщение, созданное в текущей транзакции, и не выдаёт пациенту прямой `UPDATE(last_message_at)`.
+Закрытый/неактивный диалог (`status != open` или `closed_at IS NOT NULL`) отклоняется в service/repository
+до вставки и повторно внутри capability, поэтому сообщение и activity update не могут разойтись.
 
 ## Inbox (рассылки, запись)
 

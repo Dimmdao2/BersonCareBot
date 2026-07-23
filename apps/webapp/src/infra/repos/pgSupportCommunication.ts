@@ -1066,15 +1066,24 @@ export function createPgSupportCommunicationPort(): SupportCommunicationPort {
 
     async appendWebappMessage(params) {
       return runDrizzleMutationTransaction(async (tx) => {
-        const conversation = await runWebappPgText<{ organization_id: string | null }>(
-          `SELECT organization_id
+        const patientWrite = getCurrentDbPrincipal()?.kind === "patient";
+        const conversation = await runWebappPgText<{
+          organization_id: string | null;
+          status: string;
+          closed_at: string | null;
+        }>(
+          `SELECT organization_id, status, closed_at::text
            FROM support_conversations
            WHERE id = $1::uuid AND ($2::uuid IS NULL OR organization_id = $2::uuid)
            LIMIT 1`,
           [params.conversationId, params.organizationId ?? null],
           tx,
         );
-        const organizationId = currentWriteOrganizationId(params.organizationId ?? conversation.rows[0]?.organization_id);
+        const conversationRow = conversation.rows[0];
+        const organizationId = currentWriteOrganizationId(params.organizationId ?? conversationRow?.organization_id);
+        if (patientWrite && (conversationRow?.status !== "open" || conversationRow.closed_at !== null)) {
+          throw new Error("patient_support_conversation_inactive");
+        }
         const r = await runWebappPgText<{ id: string }>(
           `INSERT INTO support_conversation_messages (
             organization_id, integrator_message_id, conversation_id, sender_role, message_type, text, source,
@@ -1097,7 +1106,7 @@ export function createPgSupportCommunicationPort(): SupportCommunicationPort {
           tx,
         );
         if (r.rows[0]?.id) {
-          if (getCurrentDbPrincipal()?.kind === "patient") {
+          if (patientWrite) {
             const touched = await runWebappPgText<{ touched: boolean }>(
               `SELECT app.touch_current_patient_support_conversation_activity($1::uuid) AS touched`,
               [r.rows[0].id],

@@ -409,7 +409,7 @@ describe("createPgSupportCommunicationPort", () => {
       const orgId = "10000000-0000-4000-8000-000000000001";
       const patientUserId = "00000000-0000-4000-8000-000000000111";
       runWebappPgTextMock
-        .mockResolvedValueOnce({ rows: [{ organization_id: orgId }] })
+        .mockResolvedValueOnce({ rows: [{ organization_id: orgId, status: "open", closed_at: null }] })
         .mockResolvedValueOnce({ rows: [{ id: "00000000-0000-4000-8000-000000000333" }] })
         .mockResolvedValueOnce({ rows: [{ touched: true }] });
 
@@ -442,7 +442,7 @@ describe("createPgSupportCommunicationPort", () => {
       const orgId = "10000000-0000-4000-8000-000000000001";
       const patientUserId = "00000000-0000-4000-8000-000000000111";
       runWebappPgTextMock
-        .mockResolvedValueOnce({ rows: [{ organization_id: orgId }] })
+        .mockResolvedValueOnce({ rows: [{ organization_id: orgId, status: "open", closed_at: null }] })
         .mockResolvedValueOnce({ rows: [{ id: "00000000-0000-4000-8000-000000000333" }] })
         .mockResolvedValueOnce({ rows: [{ touched: false }] });
 
@@ -459,6 +459,33 @@ describe("createPgSupportCommunicationPort", () => {
           }),
         ),
       ).rejects.toThrow("patient_support_conversation_activity_rejected");
+    });
+
+    it("rejects a patient send to an inactive conversation before message insertion", async () => {
+      const orgId = "10000000-0000-4000-8000-000000000001";
+      const patientUserId = "00000000-0000-4000-8000-000000000111";
+      runWebappPgTextMock.mockResolvedValueOnce({
+        rows: [{ organization_id: orgId, status: "closed", closed_at: TS }],
+      });
+
+      const port = createPgSupportCommunicationPort();
+      await expect(
+        runWithDbPatientPrincipal({ organizationId: orgId, platformUserId: patientUserId }, () =>
+          port.appendWebappMessage({
+            conversationId: "00000000-0000-4000-8000-000000000222",
+            integratorMessageId: "webapp-msg:patient-closed",
+            senderRole: "user",
+            text: "hello",
+            source: "webapp",
+            createdAt: TS,
+          }),
+        ),
+      ).rejects.toThrow("patient_support_conversation_inactive");
+
+      expect(runWebappPgTextMock).toHaveBeenCalledTimes(1);
+      expect(String(runWebappPgTextMock.mock.calls[0]?.[0] ?? "")).toContain(
+        "SELECT organization_id, status, closed_at::text",
+      );
     });
 
     it("marks only messages already stamped with the trusted conversation organization", async () => {

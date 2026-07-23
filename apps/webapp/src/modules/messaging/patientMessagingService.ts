@@ -60,6 +60,9 @@ export function createPatientMessagingService(
     > {
       const conv = await port.getConversationIfOwnedByUser(conversationId, platformUserId);
       if (!conv) return { ok: false, error: "not_found" };
+      if (conv.status !== "open" || conv.closedAt !== null) {
+        return { ok: false, error: "not_found" };
+      }
       if (options?.isUserMessagingBlocked) {
         const blocked = await options.isUserMessagingBlocked(platformUserId);
         if (blocked) return { ok: false, error: "blocked" };

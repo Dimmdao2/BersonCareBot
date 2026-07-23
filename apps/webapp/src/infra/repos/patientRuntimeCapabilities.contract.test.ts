@@ -35,6 +35,8 @@ describe("locked patient runtime capabilities", () => {
     expect(migration).toContain("message.xmin = pg_current_xact_id()::text::xid");
     expect(migration).toContain("message.sender_role = 'user'");
     expect(migration).toContain("message.source = 'webapp'");
+    expect(migration).toContain("conversation.status = 'open'");
+    expect(migration).toContain("conversation.closed_at IS NULL");
     expect(migration).toContain("transaction_timestamp()");
     expect(migration).not.toContain("p_activity_at");
     expect(migration).not.toContain("p_organization_id");

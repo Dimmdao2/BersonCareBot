@@ -13,11 +13,14 @@ import { createWebappPoolProvider } from "@/infra/db/webappPoolProvider";
 const transactionMock = vi.hoisted(() => vi.fn());
 const executeMock = vi.hoisted(() => vi.fn());
 const drizzleHarness = vi.hoisted(() => ({ pool: undefined as unknown }));
+const reportDbCleanupFailureMock = vi.hoisted(() => vi.fn(async () => undefined));
+const reportDbQueryFailureMock = vi.hoisted(() => vi.fn(async () => undefined));
+const reportPrincipalSetupFailureMock = vi.hoisted(() => vi.fn(async () => undefined));
 
 vi.mock("@/infra/db/saasIsolationDbFailureReporting", () => ({
-  reportDbCleanupFailure: vi.fn(async () => undefined),
-  reportDbQueryFailure: vi.fn(async () => undefined),
-  reportPrincipalSetupFailure: vi.fn(async () => undefined),
+  reportDbCleanupFailure: reportDbCleanupFailureMock,
+  reportDbQueryFailure: reportDbQueryFailureMock,
+  reportPrincipalSetupFailure: reportPrincipalSetupFailureMock,
 }));
 
 vi.mock("./client", () => ({
@@ -98,6 +101,9 @@ describe("getDrizzle transaction principal", () => {
   beforeEach(() => {
     transactionMock.mockReset();
     executeMock.mockReset();
+    reportDbCleanupFailureMock.mockClear();
+    reportDbQueryFailureMock.mockClear();
+    reportPrincipalSetupFailureMock.mockClear();
     drizzleHarness.pool = { query: vi.fn() };
     transactionMock.mockImplementation(
       async (_pool: Pool, callback: (tx: { execute: typeof executeMock }) => Promise<unknown>) =>
@@ -213,6 +219,68 @@ describe("getDrizzle transaction principal", () => {
     const statements = executeMock.mock.calls.map(([statement]) => dialect.sqlToQuery(statement as SQL).sql);
     expect(statements.at(-1)).toBe("RESET ROLE");
     expect(statements).toContain("UPDATE public.system_settings SET updated_at = now() WHERE key = $1");
+  });
+
+  it("preserves a 42501 query error when aborted-transaction cleanup returns 25P02", async () => {
+    process.env.DB_PRINCIPAL_CONTEXT_MODE = "locked";
+    process.env.DB_PRINCIPAL_SIGNING_SECRET = "test-db-principal-signing-secret";
+    const queryError = Object.assign(new Error("permission denied for table support_conversations"), {
+      code: "42501",
+    });
+    const cleanupError = Object.assign(new Error("current transaction is aborted"), {
+      code: "25P02",
+    });
+    const lifecycle: string[] = [];
+    let transactionAborted = false;
+
+    transactionMock.mockImplementation(
+      async (_pool: Pool, callback: (tx: { execute: typeof executeMock }) => Promise<unknown>) => {
+        lifecycle.push("BEGIN");
+        try {
+          const result = await callback({ execute: executeMock });
+          lifecycle.push("COMMIT");
+          return result;
+        } catch (error) {
+          lifecycle.push("ROLLBACK");
+          transactionAborted = false;
+          throw error;
+        } finally {
+          lifecycle.push("RELEASE");
+        }
+      },
+    );
+    executeMock.mockImplementation(async (statement: SQL) => {
+      const compiled = dialect.sqlToQuery(statement);
+      if (transactionAborted) {
+        throw cleanupError;
+      }
+      if (compiled.sql.includes("UPDATE public.support_conversations")) {
+        transactionAborted = true;
+        throw queryError;
+      }
+      if (compiled.sql === "SELECT pg_backend_pid() AS backend_pid") {
+        return { rows: [{ backend_pid: 9191 }], rowCount: 1 };
+      }
+      return { rows: [], rowCount: 0 };
+    });
+
+    await expect(
+      runWithDbPatientPrincipal(
+        {
+          organizationId: "33333333-3333-4333-8333-333333333333",
+          platformUserId: "44444444-4444-4444-8444-444444444444",
+        },
+        () =>
+          runWebappTransaction(async (tx) => {
+            await tx.execute(sql`UPDATE public.support_conversations SET updated_at = now()`);
+          }),
+      ),
+    ).rejects.toBe(queryError);
+
+    expect(lifecycle).toEqual(["BEGIN", "ROLLBACK", "RELEASE"]);
+    expect(reportDbQueryFailureMock).toHaveBeenCalledWith(queryError);
+    expect(reportDbCleanupFailureMock).toHaveBeenCalledOnce();
+    expect(transactionAborted).toBe(false);
   });
 
   it("keeps routed Drizzle checkout and signed transaction context on the captured patient contour", async () => {

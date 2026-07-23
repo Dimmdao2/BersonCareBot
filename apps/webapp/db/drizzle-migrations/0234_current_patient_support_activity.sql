@@ -47,7 +47,9 @@ BEGIN
     AND conversation.organization_id = v_organization_id
     AND conversation.platform_user_id = v_patient_user_id
     AND conversation.source = 'webapp'
-    AND conversation.admin_scope = 'support';
+    AND conversation.admin_scope = 'support'
+    AND conversation.status = 'open'
+    AND conversation.closed_at IS NULL;
 
   GET DIAGNOSTICS v_updated_count = ROW_COUNT;
   RETURN v_updated_count > 0;
