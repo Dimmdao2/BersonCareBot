@@ -1,5 +1,7 @@
 # SaaS enforce roadmap — TEST-first enforced walls and fresh-product launch (v0.4)
 
+> RE-VERIFIED 2026-07-23 (all [x] audited vs code): see docs/_TODO/UI_FINISH_AND_REAUDIT_2026-07-22/PRODUCTION_READINESS_LEDGER_2026-07-23.md
+
 > **Canonical owner path (2026-07-15).** This document is the canonical plan for product parity and enforced tenant
 > isolation on TEST. This roadmap ends with an accepted fully working TEST system; it does not prescribe any
 > subsequent launch, rename, domain, or external-environment action. The archived
@@ -293,6 +295,12 @@ org, cross-org/blank-context fixtures are denied, and no outbound delivery occur
   context using fake/local object storage; verify cross-org object keys cannot be presigned.
 - [x] Give any unavoidable infra pool its own NOLOGIN/login contract, narrow grants, call-site allowlist, and audit
   record; never silently reuse owner/BYPASSRLS.
+  (✓ deploy/postgres/c4-operational-runtime.sql — 4 NOLOGIN capability roles + login-role binding/revoke/audit;
+  docs/_TODO/SAAS_FOUNDATION/scripts/check-c4-scheduler-media-cron-fanout.mjs; call sites:
+  apps/media-worker/src/{withClient.ts,poolProvider.ts}, apps/integrator/src/infra/db/withClient.ts,
+  apps/webapp/src/infra/db/{webappPoolProvider.ts,configReaderPoolProvider.ts} `setDbOperationalRuntimeRole`.
+  NOTE: this item's own role/grant artifact is real and distinct from the R0.6-documented checker bypass, which
+  concerns the two still-open items above it (job→org mapping, media claim/transcode proof), not this one.)
 
 Exit: scheduler tick, media claim/complete, internal cron fixtures, and presign allow/deny matrix exit 0 under FORCE;
 missing-org jobs fail closed and are visible in metrics.

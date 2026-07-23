@@ -1,5 +1,7 @@
 # TASK A — Tighten PII bootstrap-hybrid tables (plan + checklist)
 
+> RE-VERIFIED 2026-07-23 (all [x] audited vs code): see docs/_TODO/UI_FINISH_AND_REAUDIT_2026-07-22/PRODUCTION_READINESS_LEDGER_2026-07-23.md
+
 > Single source of "done" for this task (owner rule #2). Every item `- [ ]/[x]` with an evidence link.
 > Canon model: `TENANT_WALLS_AND_ACCESS_MODEL.md`. Spec: `HANDOFF_2026-07-12.md` §"TASK A". Task: taskdb #708.
 > Branch `auto/code-pg-delta`. NOT pushed to main/test. Validation ONLY on disposable `bcb_saas_*_rehearsal_*`.
@@ -131,9 +133,19 @@ Implemented + rehearsal-verified in layers (each caught by the LIVE prod-copy re
   early-returns for bootstrap). If that role ∈ app_staff → `NOT app.is_staff()` false → bootstrap NULL reads/writes
   fail closed; if BYPASSRLS → bootstrap sees every clinic. R2 smoke proves the DESIRED role shape works; add a
   flip-gate assertion on the real locked base role.
-- [x] Full prod-copy rehearsal DONE (dump 20260712_201501, 251 users): deploy-667 GREEN, migration applied,
+- [ ] Full prod-copy rehearsal DONE (dump 20260712_201501, 251 users): deploy-667 GREEN, migration applied,
   contacts_null_org=0 on real data, dormant clinic#1 not blocked, strict+FORCE who-sees-what matrix ALL CONFIRMED,
   disposable copy dropped, prod untouched. → landed change PROVEN end-to-end on real data.
+  (REOPENED 2026-07-23: migration 0178 + schema/repo org-stamping code do exist and match this description, but the
+  "ALL CONFIRMED" rehearsal claim itself has no corroborating artifact — no LOG.md row, no taskdb ref, no evidence
+  file anywhere in the repo references this dump/run, unlike every other prod-copy rehearsal in this initiative
+  (e.g. DEPLOY_667_SEQUENCE.md, LOG.md #708). It also directly conflicts with this same file's own next section:
+  "FB#1 BOOTSTRAP-session enforce path — NOT YET PROVEN... fails at the bootstrap session's own INSERT" — the
+  bootstrap write path this line claims was "ALL CONFIRMED" is documented two paragraphs later as unproven and
+  failing. Steps 1-3 of the numbered checklist above remain correctly `[ ]` (RLS-policy split /
+  bootstrap_hybrid_org_gated scopingKind was never added to rls-descriptor-model.mjs/rls-sql-renderer.mjs), so the
+  enforcement side of Task A is genuinely not done; this self-reported rehearsal line overstates verification and
+  is downgraded pending an actual reproducible artifact.)
 - [ ] Owner live acceptance folds into TASK B TEST-dormant deploy walkthrough (register new specialist → empty
   patient base; existing clinic keeps working).
 
