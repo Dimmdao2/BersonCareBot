@@ -73,6 +73,20 @@ boundary; the safe shape is a narrow current-patient `SECURITY DEFINER` capabili
 signed principal, conversation and inserted message. These UI presentation rows do not authorize that migration,
 so it is an owner question tracked as taskdb `#986`, not an implicit correction batch.
 
+### Mobile menu live continuation — 2026-07-23
+
+External source-bound evidence for SHA `55a3120b6fc8c826866e737089c0517cd467ff50`:
+
+`/home/dev/dev-projects/.lead/runs/uip-mobile-menu-live/55a3120b6f-20260723T020042Z/manifest.md`
+
+At `390x844`, a real pointer click opened the `dev:doctor` mobile menu. The PNG shows the complete visible first
+level. Persisted computed evidence records nine real menu links/group/logout rows at one exact `4.8px` radius; the
+Sheet portal resolves shared `rounded-sm` from the root `8px * 0.6` token. The mobile header control and all four
+visible Communications section tabs each remain `24px`, proving the menu rows do not inherit either pill contract.
+HTTP responses `>=400`, console errors and page errors were all zero. The focused presentation contract remains
+green at 1 file / 5 tests. No DB mutation or external action occurred, and DEV was canonically stopped after the
+single pass.
+
 ## Exact reality matrix
 
 | # | Checkbox quoted verbatim | Code evidence | Test evidence | Source-bound D/M PNG | Verdict |
@@ -83,7 +97,7 @@ so it is an owner question tracked as taskdb `#986`, not an implicit correction 
 | 4 | “Основной текст doctor-списков крупнее и легче без изменения meta/badge/calendar typography.” | `DoctorDnaFlatListRow.tsx:17-27` owns `text-base font-normal` primary and `text-xs` meta; all three consumers reuse it: `DoctorTodayDashboard.tsx:185-190`, `PatientsPageClient.tsx:779-787`, `DoctorSupportInbox.tsx:374-407`. Calendar/meta markup remains outside the primary role. | `DoctorPresentationChrome.test.tsx:68-87`; `PatientsPageClient.test.tsx:157-174`; `DoctorSupportInbox.test.tsx:93-121`; `DoctorTodayDashboard.test.tsx:249-309`. | D1/M1 and the later Clients continuation show the larger/lighter Clients rows; the later Today continuation shows the same primary role on a populated support row while calendar labels remain compact. The source-bound Messages list is still empty, so its primary row typography is not visible live. | **partial** |
 | 5 | “Clients/messages используют один shared list-row contract: геометрия как «На сопровождении», full-row hover и divider `#f0efeb` (`#967`).” | The only shared contract is `DoctorDnaFlatListRow.tsx:8-27`: top-only `#f0efeb` divider, no side/bottom border and whole-row hover. Today, Clients and Messages consume it at `DoctorTodayDashboard.tsx:185-210`, `PatientsPageClient.tsx:761-800`, `DoctorSupportInbox.tsx:358-422`; their list surfaces add no side frame. | `DoctorPresentationChrome.test.tsx:68-87`; Today whole native link `DoctorTodayDashboard.test.tsx:249-309`; Clients pointer/keyboard button `PatientsPageClient.test.tsx:209-232`; Messages pointer/keyboard/selected marker `DoctorSupportInbox.test.tsx:77-121`. | The later Today continuation proves frameless divider rhythm, full-row hover, far-right pointer activation and native-link `Enter`; the Clients live batches prove the frameless row plus far-right pointer and keyboard activation. The source-bound Messages list is still empty, so its row/divider/hover/selected state remains unavailable. | **partial** |
 | 6 | “Общие tabs имеют более округлые края и более тёмный нейтральный hover без page-local divergence (`#967`).” | `DoctorSectionTabs.ts:3-16` is the shared tab vocabulary and uses its own 24px pill plus `--doctor-section-tab-hover`; schedule, communications, analytics and booking tabs consume the same helper. It does not import menu radius. | `DoctorPresentationChrome.test.tsx:89-100` proves active, inactive hover and independence from menu radius. | D2/M2 show the common rounded Communications tabs; D0/D2 simultaneously show that sidebar menu rows retain a different geometry. | **real-done** |
-| 7 | “Пункты основного sidebar/mobile menu возвращены к прежней почти прямоугольной форме с действительно минимальным скруглением и не наследуют 24px doctor button radius (`#967`). Owner live recheck 2026-07-22 отклонил промежуточный `rounded-md` как всё ещё слишком округлый; rounded section tabs этим пунктом не меняются.” | `navChrome.ts:6-7` fixes the shared menu radius at `rounded-sm`; `shell/DoctorMenuAccordion.tsx:80-95,207-210,359-396`, `DoctorAdminSidebar.tsx:85-93` and `DoctorHeader.tsx:190-198` apply it after the doctor button class, so it overrides the 24px default. Tabs remain independently pill-shaped in `DoctorSectionTabs.ts`. | `DoctorPresentationChrome.test.tsx:89-100` asserts `rounded-sm`, rejects radius sharing and preserves tab pills. | D0–D2 show minimally rounded desktop sidebar rows next to pill section tabs. M0–M2 show the mobile header but do not open the mobile menu drawer, so the mobile menu row geometry lacks live evidence. | **partial** |
+| 7 | “Пункты основного sidebar/mobile menu возвращены к прежней почти прямоугольной форме с действительно минимальным скруглением и не наследуют 24px doctor button radius (`#967`). Owner live recheck 2026-07-22 отклонил промежуточный `rounded-md` как всё ещё слишком округлый; rounded section tabs этим пунктом не меняются.” | `navChrome.ts:6-7` fixes the shared menu radius at `rounded-sm`; `shell/DoctorMenuAccordion.tsx:80-95,207-210,359-396`, `DoctorAdminSidebar.tsx:85-93` and `DoctorHeader.tsx:190-198` apply it after the doctor button class, so it overrides the 24px default. Tabs remain independently pill-shaped in `DoctorSectionTabs.ts`. | `DoctorPresentationChrome.test.tsx:89-100` asserts `rounded-sm`, rejects radius sharing and preserves tab pills. The 2026-07-23 focused rerun passed 1 file / 5 tests. | D0–D2 retain the minimally rounded desktop sidebar. The 2026-07-23 mobile continuation opens the actual Sheet at `390x844`: its PNG shows the complete first level, while persisted computed evidence proves all nine visible menu rows share the exact live `rounded-sm` radius `4.8px`, versus `24px` for the header control and four section tabs. | **real-done** |
 | 8 | “Clients search находится в page-header slot.” | `PatientsPageClient.tsx:657-688` passes the search input through `DoctorPageHeader.tabs`; the shared header right slot is `shell/DoctorPageHeader.tsx:81-92`. | `PatientsPageClient.test.tsx:134-139` proves the search is inside `[data-doctor-page-header-tabs]`, full-width, and not in the toolbar. | D1 shows the search aligned in the desktop header right half; M1 shows the compact mobile header placement. | **real-done** |
 
 ## Validation
@@ -98,18 +112,18 @@ so it is an owner question tracked as taskdb `#986`, not an implicit correction 
 
 ## Aggregate verdict
 
-- real-done: **5/8**;
-- partial: **3/8** — rows 4, 5 and 7;
+- real-done: **6/8**;
+- partial: **2/8** — rows 4 and 5;
 - fake-done: **0/8**;
 - owner-deferred: **0/8**.
 
-**Closed: 5/8 against `docs/_TODO/DOCTOR_UI_REWORK_2026-07-20/PLAN.md#UI-P`.**
+**Closed: 6/8 against `docs/_TODO/DOCTOR_UI_REWORK_2026-07-20/PLAN.md#UI-P`.**
 
 **NOT DONE:** only populated Messages live state remains for rows 4/5: primary typography, divider/full-row hover,
 whole-row activation and selected-dialog state. Its existing normal-product DEV fixture path is blocked by the
-locked-principal POST failure recorded above. The mobile menu must still be opened in a live capture to seal its
-minimal row radius independently of desktop. Owner acceptance remains separate and has not been set.
+locked-principal POST failure recorded above. Owner acceptance remains separate and has not been set.
 
 A product-path defect was found only by the later bounded fixture attempt. Its safe correction requires a separate
 owner-triaged DB/security capability (`#986`) and is not silently folded into this presentation audit. Until that
-gate is resolved, the residual live-evidence pass remains blocked rather than becoming ad hoc fixture scope.
+gate is resolved, the residual populated-Messages live-evidence pass remains blocked rather than becoming ad hoc
+fixture scope.

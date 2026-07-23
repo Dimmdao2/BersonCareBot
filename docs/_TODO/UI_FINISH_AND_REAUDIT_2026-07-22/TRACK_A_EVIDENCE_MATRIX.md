@@ -18,9 +18,9 @@ A row is retained for every authority occurrence. DNA S0 and UI-P/P2B overlap on
 - #848, #963, #964, UI-5b/U5A gates and money/security/data/tenant items remain represented exactly where they occur in the denominator and retain their explicit deferred/blocked semantics.
 - Test and accumulated-CI evidence is cited only where the corresponding fresh audit binds it to the product tree. A green suite is not promoted into live or owner acceptance.
 - Source-bound live evidence is now available for the populated Today boundary/row, the removed Broadcasts phrase,
-  the corrected UI-4 Clients preview/status slots and three UI-5a workspace/history rows. Empty fixtures remain
-  partial for states they cannot render. Pure DAG rows keep the separate dependency-contract verdicts from
-  `TRACK_A_ROADMAP_DAG_REALITY_AUDIT.md`.
+  the corrected UI-4 Clients preview/status slots, three UI-5a workspace/history rows and the opened mobile doctor
+  menu. Empty fixtures remain partial for states they cannot render. Pure DAG rows keep the separate
+  dependency-contract verdicts from `TRACK_A_ROADMAP_DAG_REALITY_AUDIT.md`.
 - No environment, DB, taskdb, deploy, plan-checkbox or owner-acceptance state was changed by this docs-only pass.
 
 | Source item | Code path:line evidence or explicit missing | Current contract-specific test evidence or explicit missing | Runtime/live PNG evidence or explicit missing | Dependency / owner gate | Verdict |
@@ -137,7 +137,7 @@ A row is retained for every authority occurrence. DNA S0 and UI-P/P2B overlap on
 | A-UI-105 — docs/_TODO/DOCTOR_UI_REWORK_2026-07-20/PLAN.md:527 · UI-P — shared doctor presentation ('#925'): “Основной текст doctor-списков крупнее и легче без изменения meta/badge/calendar typography.” | `DoctorDnaFlatListRow.tsx:17-27` owns `text-base font-normal` primary and `text-xs` meta; all three consumers reuse it: `DoctorTodayDashboard.tsx:185-190`, `PatientsPageClient.tsx:779-787`, `DoctorSupportInbox.tsx:374-407`. Calendar/meta markup remains outside the primary role. | `DoctorPresentationChrome.test.tsx:68-87`; `PatientsPageClient.test.tsx:157-174`; `DoctorSupportInbox.test.tsx:93-121`; `DoctorTodayDashboard.test.tsx:249-309`. | Clients and the later populated Today continuation show the larger/lighter primary role while calendar labels stay compact. The source-bound Messages list remains empty, so its primary-row typography is still unavailable live. | Fresh evidence authority: docs/_TODO/UI_FINISH_AND_REAUDIT_2026-07-22/TRACK_A_UIP_REALITY_AUDIT.md, row 4. Owner acceptance remains a separate owner-only layer. | partial |
 | A-UI-106 — docs/_TODO/DOCTOR_UI_REWORK_2026-07-20/PLAN.md:528 · UI-P — shared doctor presentation ('#925'): “Clients/messages используют один shared list-row contract: геометрия как «На сопровождении», full-row hover и divider '#f0efeb' ('#967').” | The only shared contract is `DoctorDnaFlatListRow.tsx:8-27`: top-only `#f0efeb` divider, no side/bottom border and whole-row hover. Today, Clients and Messages consume it at `DoctorTodayDashboard.tsx:185-210`, `PatientsPageClient.tsx:761-800`, `DoctorSupportInbox.tsx:358-422`; their list surfaces add no side frame. | `DoctorPresentationChrome.test.tsx:68-87`; Today whole native link `DoctorTodayDashboard.test.tsx:249-309`; Clients pointer/keyboard button `PatientsPageClient.test.tsx:209-232`; Messages pointer/keyboard/selected marker `DoctorSupportInbox.test.tsx:77-121`. | Later Today and Clients continuations prove frameless divider rhythm, whole-row hover, far-right pointer activation and keyboard activation. The source-bound Messages list remains empty, so its row/divider/hover/selected state is unavailable. | Fresh evidence authority: docs/_TODO/UI_FINISH_AND_REAUDIT_2026-07-22/TRACK_A_UIP_REALITY_AUDIT.md, row 5. Owner acceptance remains a separate owner-only layer. | partial |
 | A-UI-107 — docs/_TODO/DOCTOR_UI_REWORK_2026-07-20/PLAN.md:530 · UI-P — shared doctor presentation ('#925'): “Общие tabs имеют более округлые края и более тёмный нейтральный hover без page-local divergence ('#967').” | `DoctorSectionTabs.ts:3-16` is the shared tab vocabulary and uses its own 24px pill plus `--doctor-section-tab-hover`; schedule, communications, analytics and booking tabs consume the same helper. It does not import menu radius. | `DoctorPresentationChrome.test.tsx:89-100` proves active, inactive hover and independence from menu radius. | D2/M2 show the common rounded Communications tabs; D0/D2 simultaneously show that sidebar menu rows retain a different geometry. | Fresh evidence authority: docs/_TODO/UI_FINISH_AND_REAUDIT_2026-07-22/TRACK_A_UIP_REALITY_AUDIT.md, row 6. Owner acceptance remains a separate owner-only layer. | real-done |
-| A-UI-108 — docs/_TODO/DOCTOR_UI_REWORK_2026-07-20/PLAN.md:531 · UI-P — shared doctor presentation ('#925'): “Пункты основного sidebar/mobile menu возвращены к прежней почти прямоугольной форме с действительно минимальным скруглением и не наследуют 24px doctor button radius ('#967'). Owner live recheck 2026-07-22 отклонил промежуточный 'rounded-md' как всё ещё слишком округлый; rounded section tabs этим пунктом не меняются.” | `navChrome.ts:6-7` fixes the shared menu radius at `rounded-sm`; `shell/DoctorMenuAccordion.tsx:80-95,207-210,359-396`, `DoctorAdminSidebar.tsx:85-93` and `DoctorHeader.tsx:190-198` apply it after the doctor button class, so it overrides the 24px default. Tabs remain independently pill-shaped in `DoctorSectionTabs.ts`. | `DoctorPresentationChrome.test.tsx:89-100` asserts `rounded-sm`, rejects radius sharing and preserves tab pills. | D0–D2 show minimally rounded desktop sidebar rows next to pill section tabs. M0–M2 show the mobile header but do not open the mobile menu drawer, so the mobile menu row geometry lacks live evidence. | Fresh evidence authority: docs/_TODO/UI_FINISH_AND_REAUDIT_2026-07-22/TRACK_A_UIP_REALITY_AUDIT.md, row 7. Owner acceptance remains a separate owner-only layer. | partial |
+| A-UI-108 — docs/_TODO/DOCTOR_UI_REWORK_2026-07-20/PLAN.md:531 · UI-P — shared doctor presentation ('#925'): “Пункты основного sidebar/mobile menu возвращены к прежней почти прямоугольной форме с действительно минимальным скруглением и не наследуют 24px doctor button radius ('#967'). Owner live recheck 2026-07-22 отклонил промежуточный 'rounded-md' как всё ещё слишком округлый; rounded section tabs этим пунктом не меняются.” | `navChrome.ts:6-7` fixes the shared menu radius at `rounded-sm`; `shell/DoctorMenuAccordion.tsx:80-95,207-210,359-396`, `DoctorAdminSidebar.tsx:85-93` and `DoctorHeader.tsx:190-198` apply it after the doctor button class, so it overrides the 24px default. Tabs remain independently pill-shaped in `DoctorSectionTabs.ts`. | `DoctorPresentationChrome.test.tsx:89-100` asserts `rounded-sm`, rejects radius sharing and preserves tab pills; the 2026-07-23 focused rerun passed 1 file / 5 tests. | Source-bound mobile Sheet evidence at SHA `55a3120b6` shows the opened first-level menu at `390x844`. All nine visible menu rows compute to the same exact `4.8px` live `rounded-sm` radius, while the mobile header control and four visible section tabs remain `24px`; HTTP/console/page error counts are zero. External manifest: `/home/dev/dev-projects/.lead/runs/uip-mobile-menu-live/55a3120b6f-20260723T020042Z/manifest.md`. | Fresh evidence authority: docs/_TODO/UI_FINISH_AND_REAUDIT_2026-07-22/TRACK_A_UIP_REALITY_AUDIT.md, row 7. Owner acceptance remains a separate owner-only layer. | real-done |
 | A-UI-109 — docs/_TODO/DOCTOR_UI_REWORK_2026-07-20/PLAN.md:534 · UI-P — shared doctor presentation ('#925'): “Clients search находится в page-header slot.” | `PatientsPageClient.tsx:657-688` passes the search input through `DoctorPageHeader.tabs`; the shared header right slot is `shell/DoctorPageHeader.tsx:81-92`. | `PatientsPageClient.test.tsx:134-139` proves the search is inside `[data-doctor-page-header-tabs]`, full-width, and not in the toolbar. | D1 shows the search aligned in the desktop header right half; M1 shows the compact mobile header placement. | Fresh evidence authority: docs/_TODO/UI_FINISH_AND_REAUDIT_2026-07-22/TRACK_A_UIP_REALITY_AUDIT.md, row 8. Owner acceptance remains a separate owner-only layer. | real-done |
 | A-UI-110 — docs/_TODO/DOCTOR_UI_REWORK_2026-07-20/PLAN.md:538 · UI-7 — scheduled communications ('#964'): “Scheduling покрывает doctor/patient chat и doctor/patient comments.” | Explicit missing — no round-3 current code path:line census; plan status or historical audit is not code evidence. | Explicit missing — no current contract-specific test evidence. Round-2 3-file / 22-test PASS is historical only. | Explicit missing — no source-bound LIVE PNG. Round-2 recorded no usable dev auth/env in this worktree; no screenshot or owner acceptance is claimed. | Dependency or out-of-scope gate remains; no code batch. | blocked |
 | A-UI-111 — docs/_TODO/DOCTOR_UI_REWORK_2026-07-20/PLAN.md:539 · UI-7 — scheduled communications ('#964'): “Schedule action рядом с Send открывает date/time picker и меняет основное действие на «Запланировать».” | Explicit missing — no round-3 current code path:line census; plan status or historical audit is not code evidence. | Explicit missing — no current contract-specific test evidence. Round-2 3-file / 22-test PASS is historical only. | Explicit missing — no source-bound LIVE PNG. Round-2 recorded no usable dev auth/env in this worktree; no screenshot or owner acceptance is claimed. | Dependency or out-of-scope gate remains; no code batch. | blocked |
@@ -211,11 +211,11 @@ corresponding live package.
 | Transition from Clients list to the full-workspace patient card | 3 | 2 | 0 | 0 | 5 |
 | Full patient-card composition after U5A/U5B | 0 | 0 | 0 | 24 | 24 |
 | Today dashboard behavior and presentation | 6 | 2 | 1 | 0 | 9 |
-| Shared doctor presentation primitives | 5 | 3 | 0 | 0 | 8 |
+| Shared doctor presentation primitives | 6 | 2 | 0 | 0 | 8 |
 | Scheduled doctor/patient communications | 0 | 0 | 0 | 24 | 24 |
 | Commercial contour, warmups, personal exercise/media and patient mood | 2 | 3 | 0 | 0 | 5 |
 | Accumulated milestone gates | 0 | 2 | 1 | 2 | 5 |
-| **Product/live total** | **41** | **48** | **9** | **50** | **148** |
+| **Product/live total** | **42** | **47** | **9** | **50** | **148** |
 
 The separate SaaS roadmap registry is closed **19/19 as dependency contracts**: 6 contract-real,
 7 blocked-by-upstream-dependency and 6 owner-deferred optional nodes. That contract closure does not claim the
@@ -225,8 +225,8 @@ corresponding product stages are complete.
 
 | Verdict | Exact count |
 |---|---:|
-| product/live evidence-real (DNA/UI) | 41 |
-| product/live partial (DNA/UI) | 48 |
+| product/live evidence-real (DNA/UI) | 42 |
+| product/live partial (DNA/UI) | 47 |
 | product/live fake-done (DNA/UI) | 0 |
 | product/live deferred (DNA/UI) | 9 |
 | product/live blocked (DNA/UI) | 50 |
@@ -254,7 +254,7 @@ dependency/inclusion contracts. Evidence-real is not owner acceptance: owner-acc
 - UI-3 remains 1/8 because seven rows require populated interaction states. UI-5a remains 3/5 because non-zero
   live scroll restore and negative cross-organization denial are absent. UI-6 remains 6/9 because the Settings
   switch and populated «Недавние с визитами» state are absent and row 9 is owner-deferred.
-- UI-P remains 5/8: populated Messages rows and the opened mobile menu are still missing. The patient-mood row
+- UI-P is now 6/8: the opened mobile menu is source-bound; only the two populated Messages rows remain partial. The patient-mood row
   remains partial: empty desktop/mobile state is source-bound, but the post-first-mark state has no reversible live
   evidence path.
 - UI-5b (24 rows) and UI-7 (24 rows) remain dependency-blocked; the reconciliation does not start them.
@@ -292,7 +292,7 @@ Command executed after writing this matrix:
       [93,101],[102,109],[110,133],[134,138],[139,143]].map(([from, to]) => summarize(uiRange(from, to)));
     const pageExpected = [[11,3,0,0,14],[2,2,1,0,5],[0,16,4,0,20],[0,6,1,0,7],
       [1,7,0,0,8],[9,0,0,0,9],[3,2,0,0,5],[0,0,0,24,24],[6,2,1,0,9],
-      [5,3,0,0,8],[0,0,0,24,24],[2,3,0,0,5],[0,2,1,2,5]];
+      [6,2,0,0,8],[0,0,0,24,24],[2,3,0,0,5],[0,2,1,2,5]];
     const actual = {
       matrixRows: rows.length,
       uniqueRows: unique,
@@ -313,13 +313,13 @@ Command executed after writing this matrix:
     const expected = {
       matrixRows: 167, uniqueRows: 167, ownerTextUnchanged: true, pageCountsValid: true,
       dna: 5, doctorUi: 143, dag: 19,
-      productReal: 41, productPartial: 48, productDeferred: 9, productBlocked: 50,
+      productReal: 42, productPartial: 47, productDeferred: 9, productBlocked: 50,
       dagReal: 6, dagBlocked: 7, dagDeferred: 6,
     };
     if (JSON.stringify(actual) !== JSON.stringify(expected)) process.exit(1);
     NODE
 
-Result: `{ matrixRows: 167, uniqueRows: 167, ownerTextUnchanged: true, pageCountsValid: true, dna: 5, doctorUi: 143, dag: 19, productReal: 41, productPartial: 48, productDeferred: 9, productBlocked: 50, dagReal: 6, dagBlocked: 7, dagDeferred: 6 }`.
+Result: `{ matrixRows: 167, uniqueRows: 167, ownerTextUnchanged: true, pageCountsValid: true, dna: 5, doctorUi: 143, dag: 19, productReal: 42, productPartial: 47, productDeferred: 9, productBlocked: 50, dagReal: 6, dagBlocked: 7, dagDeferred: 6 }`.
 
 ## Stage reports
 
@@ -328,8 +328,8 @@ evidence-closed 2/5 against `docs/_TODO/DOCTOR_DNA_MIGRATION/PLAN.md`
 three-screen desktop/mobile owner decision row remains deferred.
 Owner-closed is 0/5.
 
-evidence-closed 39/143 against `docs/_TODO/DOCTOR_UI_REWORK_2026-07-20/PLAN.md`
-**NOT DONE:** 46 rows remain partial, 8 deferred and 50 blocked. UI-4 is evidence-closed 9/9; UI-5a is 3/5;
+evidence-closed 40/143 against `docs/_TODO/DOCTOR_UI_REWORK_2026-07-20/PLAN.md`
+**NOT DONE:** 45 rows remain partial, 8 deferred and 50 blocked. UI-4 is evidence-closed 9/9; UI-5a is 3/5;
 UI-6 is 6/9; Communications is 1/8; shared Today/Clients/Messages acceptance is 11/14. Owner PNG/click acceptance
 remains open.
 All other partial/deferred/blocked reasons are preserved per row from the fresh audit documents. Owner-closed is
