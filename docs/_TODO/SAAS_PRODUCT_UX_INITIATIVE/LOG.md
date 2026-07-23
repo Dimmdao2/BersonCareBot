@@ -5166,3 +5166,28 @@ The refreshed static inventory records `21 hits / 6 files` for raw-table referen
 `operationalPoolReadiness.ts`. The aggregate current Rubitime gate was already red before this docs pass: R0 freeze
 counts grew in `pgBookingEngine.ts` and `system-settings/registry.ts`. That code/baseline drift is reported, not
 waived or fixed in docs-only `#981`.
+
+## 2026-07-23 — external orchestration process audit
+
+Independent external Opus audit
+`claude-auditor-adhoc-2026-07-23T13-43-21-602Z` returned **CORRECT COURSE**, not `PASS` and not `STOP`.
+It confirmed three real isolated streams with non-overlapping scope, bounded Track D decomposition, explicit
+supersession of the obsolete HTTP-envelope work, the UI-7 two-round autostop, a clean pushed integration branch and
+no `main`/`test` mutation.
+
+The audit requested branch/worktree cleanup, regular worker backup pushes, durable taskdb/audit evidence and an
+owner-facing decision sheet before future decision-gated stages. Corrections applied during/after the audit:
+
+- worker branches for SMTP and D0 were pushed; the integration branch was already aligned with origin;
+- stale local worktrees were reduced to the integration tree plus the three active isolated streams;
+- the superseded unmerged E3 HTTP-envelope branch was removed after exact review; pending admin-support, LOG-01 and
+  SEC-02 branches were backed up to origin before their local worktrees were removed;
+- taskdb `#984`–`#987`, `#796`, `#808`, `#900`, `#914`, `#977` and superseded `#980` were updated through the
+  canonical taskdb port; `accepted` was not changed;
+- the independent patient-Messages `#986` verdict is persisted in the existing Track A report rather than remaining
+  mailbox-only;
+- the integration worktree is clean; the audit's `.env.example` drift observation did not reproduce in the actual
+  unrestricted integration checkout.
+
+Remote/local branch deletion beyond these proven cases remains subject to exact commit comparison; no branch was
+discarded merely because it was old.

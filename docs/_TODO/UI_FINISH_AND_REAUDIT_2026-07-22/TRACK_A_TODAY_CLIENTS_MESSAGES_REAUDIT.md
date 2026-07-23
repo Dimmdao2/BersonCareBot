@@ -205,3 +205,25 @@ the locked-principal failure is fixed or an approved populated DEV fixture path 
 - Audit PASS or evidence-real status is not owner acceptance.
 - Do not mark the plan or taskdb done from this audit record.
 - No new findings are opened by this documentation-only persistence step.
+
+## Patient Messages locked-principal correction — independent re-audit 2026-07-23
+
+The cumulative correction was integrated on `feat/doctor-ui-rebuild` as `aba80b004` + `890f182b1` only after the
+original independent auditor reran the full seven-row security matrix and returned **PASS 7/7**:
+
+1. the current patient can send to their own open conversation under locked `app_patient`;
+2. the send updates activity and `last_message_at` with one server transaction timestamp;
+3. direct broad UPDATE remains denied, and foreign, closed or inactive conversations fail before durable activity;
+4. organization/patient identity is derived only from the signed DB principal;
+5. migration, Drizzle journal and E1 overlay are aligned and idempotent;
+6. focused repository/service/route/security tests, typecheck, lint and DB regression checks pass;
+7. a cleanup `25P02` can no longer mask the original callback `42501`; the outer transaction rolls back first.
+
+Executed evidence: affected suites `55/55`, patient Messages route `9/9`, webapp typecheck, scoped ESLint, journal
+sync, frozen-migration guard, SaaS DB regression, `git diff --check`, and a disposable real-PostgreSQL rehearsal
+covering own send/activity, foreign patient/org denial, stale/forged-role denial, closed-dialog insert rollback,
+unchanged closed-dialog activity and least-privilege ACL. The auditor made no code changes.
+
+This closes the backend/security prerequisite only. The task and P2B Messages rows remain open until an ordinary
+TEST deploy proves a real patient POST and the single independent populated-dialog presentation audit verifies
+whole-row activation, border/divider/typography and selected state. No owner acceptance is inferred.
