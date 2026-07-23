@@ -25,6 +25,28 @@
   shared DEV server stopped accepting connections before mobile and appointment-detail capture; these unavailable
   states remain `partial` and were not converted into synthetic evidence.
 
+### Appointment-detail residual attempt — BLOCKED 2026-07-23
+
+A later bounded GET-only DEV pass used exact source SHA
+`671ebb6bf7f2c2fe52182387ce205b0030b6216c`, `dev:doctor`, and one existing confirmed appointment. External
+manifest with hashed artifacts:
+
+`/home/dev/dev-projects/.lead/runs/ui1-appointment-baseline/671ebb6bf-20260723T020031Z/MANIFEST.md`
+
+(SHA-256 `72c61126db32d58d6fbd8e3679aae1cecd748e6efd1b231781a4b8ed8838f842`).
+
+The census found three existing appointments and three eligible canonical-patient records without fixture or DB
+writes. Desktop and mobile appointment-detail PNGs were captured. The desktop ledger observed the intended rows
+9, 10, 13, 14 and 15 states; mobile observed the visual/absence states, while whitespace submit was not repeated.
+No non-GET request, HTTP error, console error or page error occurred.
+
+The pass is nevertheless `BLOCKED`: controlled desktop-to-mobile navigation produced four `net::ERR_ABORTED`
+entries for still-pending read-only comments/lifecycle GETs. The saved result has no per-request timestamps, so it
+cannot prove that every abort belongs only to that transition or that both PNGs predate the aborts. Under the
+one-pass stop rule the run was not corrected or repeated. It changes no row verdict or aggregate count; rows 9,
+10, 13, 14 and 15 remain `partial`, and owner acceptance remains separate. Canonical DEV stop left ports `5200`
+and `4200` free.
+
 ## Targeted verification actually run
 
 The isolated audit worktree has no installed `node_modules`; its first command stopped before Vitest with
@@ -99,7 +121,8 @@ Money/provider rows 16–18 and SCH-G5 row 20 are excluded from that batch and s
 closed 0/20 against `docs/_TODO/DOCTOR_UI_REWORK_2026-07-20/PLAN.md` § UI-1
 
 **NOT DONE:** populated/mobile work-grid evidence remains missing for rows 1–5; row 6 still needs a live
-multi-location fixture; current source-bound embedded/modal appointment evidence remains missing for rows 7–15;
-owner interaction acceptance remains open for row 19. Exact contract tests are additionally missing for rows 4, 5
-and the modal-wrapper half of row 7. Rows 16–18 await the separate money/provider gate. Row 20 awaits owner decision
-`#848`.
+multi-location fixture; current source-bound embedded/modal appointment evidence remains unclosed for rows 7–15.
+The later rows 9/10/13/14/15 attempt produced useful non-closing PNGs but stopped on the diagnostic-causality gap
+documented above. Owner interaction acceptance remains open for row 19. Exact contract tests are additionally
+missing for rows 4, 5 and the modal-wrapper half of row 7. Rows 16–18 await the separate money/provider gate. Row
+20 awaits owner decision `#848`.
