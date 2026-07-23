@@ -1,5 +1,11 @@
 # SaaS Foundation Plan — Dormant-but-Ready Multi-Tenant / Multi-Lingual / Multi-Region
 
+> ⚠️ **ЧАСТИЧНО УСТАРЕЛО (2026-06-16, DRAFT v3).** Ранний design-черновик, предшествовавший текущему Phase 0/T0
+> плану; его архитектурные решения впитаны и захардены в `CORRECTED_PLAN.md`/`00_DECISIONS_AND_SCHEMA.md`, а
+> текущая живая работа идёт по `SAAS_ENFORCE_ROADMAP.md`/`T0_TENANT_CONTEXT_CUTOVER_CHECKLIST.md`. Актуально:
+> [`01_MASTER_PLAN.md`](01_MASTER_PLAN.md), [`SAAS_ENFORCE_ROADMAP.md`](SAAS_ENFORCE_ROADMAP.md). Отдельные
+> детали (например billing domain design, §458) всё ещё цитируются как справочные (`STORE_EXECUTION_PLAN.md`).
+
 Status: DRAFT v3 (2026-06-16) — grounded against the prod-mirror DB + deploy configs; Rubitime
 deprecation folded in. **Read the "v3 — GROUNDED PLAN" section directly below first** — it is
 authoritative and supersedes earlier framing where they conflict. §12 = adversarial findings, §13 =

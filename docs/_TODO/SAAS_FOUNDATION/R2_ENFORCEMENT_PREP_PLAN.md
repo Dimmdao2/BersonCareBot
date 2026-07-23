@@ -1,5 +1,13 @@
 # R2 enforcement prep — Trek B plan (autonomous engineering track)
 
+> ⚠️ **НЕ АКТУАЛЬНО (last touched 2026-07-11).** Написан до owner-пивота 2026-07-15
+> (`SAAS_R1_FINISH_LINE_AND_DOC_HYGIENE.md`: «The old `bersoncare` production is LEGACY and frozen. There
+> will be NO prod cutover — ever»); цель этого файла — «provably safe to flip FORCE RLS» — решает проблему
+> пути, по которому больше не идут. Актуально: [`SAAS_ENFORCE_ROADMAP.md`](SAAS_ENFORCE_ROADMAP.md) (там
+> свой раздел «R2 — TEST enforced product parity plus isolation»), [`SEQUENCE.md`](SEQUENCE.md). Часть
+> закрытых технических пунктов (B4-core patient wall, B4-fanout GUC alignment) зафиксирована как DONE и
+> остаётся исторически верной.
+
 Single source of "done" for the pre-flip engineering work (owner rule #1). Ops/deploy/flip
 (Trek A steps 2-3, Trek C steps 9-10) are owner-gated and NOT in this file. Report = closed X/N
 against this checklist + a "НЕ СДЕЛАНО" section. Each item: worker → independent audit → owner.

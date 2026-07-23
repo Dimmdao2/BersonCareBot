@@ -1,5 +1,11 @@
 # SAAS_FOUNDATION — мультитенантный SaaS (shared-DB + Postgres RLS)
 
+> ⚠️ **НЕ АКТУАЛЬНО (2026-07-02, исходная постановка задачи).** Описывает старт "2-я в очереди после
+> DB_ACCESS_CHOKEPOINT_INITIATIVE" и ссылается на `CORRECTED_PLAN.md`/`ROADMAP_TO_SAAS.md` как канон — оба
+> уже частично устарели (Phase 0 spine выполнен, product-путь изменён owner-пивотом 2026-07-15). Актуально:
+> [`01_MASTER_PLAN.md`](01_MASTER_PLAN.md), [`SEQUENCE.md`](SEQUENCE.md),
+> [`OWNER_RULINGS_2026-07-15.md`](OWNER_RULINGS_2026-07-15.md), [`SAAS_ENFORCE_ROADMAP.md`](SAAS_ENFORCE_ROADMAP.md).
+
 **Приоритет:** высокий
 **От:** владелец
 **Статус:** заготовка в `_TODO/` — **2-я в очереди, стартует ПОСЛЕ `DB_ACCESS_CHOKEPOINT_INITIATIVE`.**

@@ -1,5 +1,14 @@
 # Roadmap to SaaS
 
+> ⚠️ **ЧАСТИЧНО УСТАРЕЛО (2026-07-02).** Стадии R2–R7 ниже описывают путь через реальный prod cutover и
+> самостоятельный SaaS-маркетплейс/биллинг; фактический owner-путь с 2026-07-15 — TEST-first, «old `bersoncare`
+> production is LEGACY and frozen… NO prod cutover — ever», затем копия на новом домене
+> (`SAAS_R1_FINISH_LINE_AND_DOC_HYGIENE.md`). «Related plans» таблица тоже устарела: `CORRECTED_PLAN.md`'s
+> Phase 0 spine уже выполнен и закрыт. Актуально: [`SEQUENCE.md`](SEQUENCE.md),
+> [`OWNER_RULINGS_2026-07-15.md`](OWNER_RULINGS_2026-07-15.md), [`SAAS_ENFORCE_ROADMAP.md`](SAAS_ENFORCE_ROADMAP.md).
+> Держат силу: общие инженерные принципы («dormant tenant metadata», «entitlements not separate apps»),
+> используемые как generic guidance для новых фич.
+
 This document links the hardened tenancy foundation to the broader product path from the current single-clinic app to a paid multi-organization SaaS.
 
 ## Current point

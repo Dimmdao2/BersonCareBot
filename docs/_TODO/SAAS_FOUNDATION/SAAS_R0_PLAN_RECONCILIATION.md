@@ -1,5 +1,10 @@
 # R0 — Plan reconciliation stage · tier: gpt-5.5 · audit: gpt-5.6-sol
 
+> ⚠️ **ИСТОРИЧЕСКАЯ ЗАПИСЬ (frozen, 2026-07-15).** Это frozen independent-audit stage record ("must not
+> retick this historical stage record") — не текущий план. Плановая канонизация, которую эта запись
+> зафиксировала, продолжена в: [`SAAS_ENFORCE_ROADMAP.md`](SAAS_ENFORCE_ROADMAP.md) (canonical plan),
+> [`SEQUENCE.md`](SEQUENCE.md), [`OWNER_RULINGS_2026-07-15.md`](OWNER_RULINGS_2026-07-15.md).
+
 > Stage owner: orchestrator (Claude/Opus). Created 2026-07-15 after an owner-facing audit found two rival plan
 > documents, an unticked checklist in both, a red gate reported as PASS, and uncommitted work.
 

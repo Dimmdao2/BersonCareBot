@@ -1,5 +1,12 @@
 # Decisions & target schema — SAAS_FOUNDATION
 
+> ⚠️ **ЧАСТИЧНО УСТАРЕЛО (2026-06-17, SKELETON).** Как активный план-документ заменён `CORRECTED_PLAN.md` в
+> тот же день (см. `LOG.md` 2026-06-17 «corrected-plan»: «README repointed to LIVE docs; 00/01/02 marked
+> history»), затем — текущей enforcement/T0-работой. Актуально: [`01_MASTER_PLAN.md`](01_MASTER_PLAN.md),
+> [`SAAS_ENFORCE_ROADMAP.md`](SAAS_ENFORCE_ROADMAP.md). Держит силу: решения D1–D10 и target-schema реализованы
+> как есть (`be_organization_members`, `org_enrollments`, RLS GUC-модель) и до сих пор цитируются как
+> historical rationale (например D2 в `PATIENT_INVITE_AND_MANUAL_CREATION_DESIGN.md:230`).
+
 SKELETON (2026-06-17). Decisions are **settled** (concrete); schema is the **target sketch** to be
 generated via Drizzle. Grounded against prod-mirror `bcb_webapp_dev` (read-only) — see FOUNDATION_PLAN §v3.
 

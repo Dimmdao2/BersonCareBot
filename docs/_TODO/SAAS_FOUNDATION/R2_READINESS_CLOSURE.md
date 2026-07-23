@@ -1,5 +1,10 @@
 # R2 readiness closure
 
+> ⚠️ **НЕ АКТУАЛЬНО (2026-07-10).** Снимок готовности к pre-pivot "R2 tenant-context cutover" (до owner-пивота
+> 2026-07-15 «NO prod cutover — ever», `SAAS_R1_FINISH_LINE_AND_DOC_HYGIENE.md`). Актуально:
+> [`SAAS_ENFORCE_ROADMAP.md`](SAAS_ENFORCE_ROADMAP.md), [`R2_MVP_MASTER_CHECKLIST.md`](R2_MVP_MASTER_CHECKLIST.md)
+> (verified 2026-07-23), [`T0_TENANT_CONTEXT_CUTOVER_CHECKLIST.md`](T0_TENANT_CONTEXT_CUTOVER_CHECKLIST.md).
+
 Date: 2026-07-10
 
 Taskdb: `#641`

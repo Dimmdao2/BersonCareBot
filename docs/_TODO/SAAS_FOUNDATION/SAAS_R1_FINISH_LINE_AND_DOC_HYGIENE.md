@@ -1,5 +1,10 @@
 # R1 — Finish line correction + stale-doc hygiene · worker: gpt-5.6-terra · audit: gpt-5.6-sol
 
+> ⚠️ **ИСТОРИЧЕСКАЯ ЗАПИСЬ (frozen, 2026-07-15).** Это frozen independent-audit stage record — не текущий
+> план. Пивот к TEST-first/no-prod-cutover, зафиксированный здесь, действует как ground truth дальше в:
+> [`SEQUENCE.md`](SEQUENCE.md), [`OWNER_RULINGS_2026-07-15.md`](OWNER_RULINGS_2026-07-15.md),
+> [`SAAS_ENFORCE_ROADMAP.md`](SAAS_ENFORCE_ROADMAP.md) (canonical plan).
+
 > Stage owner: orchestrator (Claude/Opus), 2026-07-15. Follows R0 (`SAAS_R0_PLAN_RECONCILIATION.md`), whose
 > independent Sol audit returned **4/9**, not the worker's claimed 9/9. This stage fixes the doc-level failures
 > from that audit AND corrects a much bigger problem: **the roadmap's definition of done describes a path the

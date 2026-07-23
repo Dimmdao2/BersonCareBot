@@ -1,5 +1,13 @@
 # SAAS Foundation — PLAN v9 (canonical, 2026-06-30)
 
+> ⚠️ **ЧАСТИЧНО УСТАРЕЛО (2026-06-30).** Phase 0 micro-stage spine (P0.1–P0.13) описанный здесь уже выполнен
+> и закрыт (см. `LOG.md`; `T0_TENANT_CONTEXT_CUTOVER_CHECKLIST.md`: «Current branch already completed Phase 0
+> artifacts and T0.3 doctor/admin principal closure»). Текущая исполняемая работа — TEST-enforcement/T0, не
+> этот P0-spine. Актуально: [`01_MASTER_PLAN.md`](01_MASTER_PLAN.md), [`SAAS_ENFORCE_ROADMAP.md`](SAAS_ENFORCE_ROADMAP.md),
+> [`T0_TENANT_CONTEXT_CUTOVER_CHECKLIST.md`](T0_TENANT_CONTEXT_CUTOVER_CHECKLIST.md). Держат силу: разделы
+> «Locked architecture (stable)» и «Reconciliation» (219-table tiering) — до сих пор активно цитируются как
+> evidence в `R1_TABLE_TAXONOMY.md`, `P0_2_MEMBERSHIP_RESOLVER_CHECKLIST.md`, `P0_4_BATCHES.md`.
+
 v9 changelog (pre-start sizing pass): architecture/scope unchanged from v8, but the executable Phase 0 spine is no longer allowed to run from aggregate labels. The pass found oversized start risks in P0.4/P0.7/P0.8/P0.11/P0.13 and split them into micro-stages with local gates. P0.1 remains the first executable stage; any agent brief must target one `P0.x.y` micro-stage, not an aggregate `P0.x` bucket.
 
 v8 changelog (folds round-7 confirmation — 1 HIGH, a real leak the 1st clean missed → why 2-consecutive matters): 3 audit tables (`admin_audit_log`, `broadcast_audit`, `content_section_slug_history`) had a **FK / soft reference to `platform_users`** via non-standard columns (`actor_id`/`changed_by_user_id`) → my column-name heuristic tiered them **INFRA/global = cross-tenant leak**. Root cause systematic (same class as r5). **Fix: derivation is now FK-based** (`pg_constraint` FK→platform_users) **+ soft user-ref columns**; the 3 → SCOPED. New tally SCOPED 155 / INFRA 22 / TELEMETRY 2; **111 need org_id**. P0.10 invariant hardened (below).
