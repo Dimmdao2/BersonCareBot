@@ -192,7 +192,12 @@ the locked-principal failure is fixed or an approved populated DEV fixture path 
 - Clients: **10/10**. **NOT DONE:** formal owner acceptance only.
 - Messages/Chats: **6/9**. **NOT DONE:** no populated dialog exists. The bounded normal-product fixture attempt is
   blocked by the locked DEV `POST /api/patient/messages` failure recorded above, so live whole-row activation,
-  divider/primary typography and selected state are still not verified.
+  divider/primary typography and selected state are still not verified. Follow-up diagnosis found the primary
+  failure: the patient-principal path inserts the message and then attempts to update staff-owned
+  `support_conversations.last_message_at`, which is intentionally absent from the `app_patient` UPDATE grant;
+  PostgreSQL `42501` aborts the transaction and the later `RESET ROLE` surfaces only secondary `25P02`. A narrow
+  current-patient capability is the safe correction shape, but that DB/security migration is outside these
+  presentation rows and waits for owner triage in taskdb `#986`.
 
 ## Mandatory NOT DONE and owner-acceptance boundary
 

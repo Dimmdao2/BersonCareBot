@@ -65,6 +65,14 @@ Browser capture was therefore not started. The server was canonically stopped, p
 free, and incomplete artifacts/cookies were removed. Rows 4 and 5 remain partial; this blocker does not change the
 matrix or authorize ad hoc fixture SQL/scripts.
 
+Static follow-up localized the original abort before the cleanup error: `appendWebappMessage` inserts the owned
+message and then updates `support_conversations.last_message_at`, while the locked `app_patient` role intentionally
+has UPDATE only on `organization_id`, `platform_user_id` and `updated_at`. The resulting PostgreSQL `42501` abort is
+then masked by `RESET ROLE`/`25P02`. Widening the patient grant would violate the staff-owned conversation-state
+boundary; the safe shape is a narrow current-patient `SECURITY DEFINER` capability that derives and verifies the
+signed principal, conversation and inserted message. These UI presentation rows do not authorize that migration,
+so it is an owner question tracked as taskdb `#986`, not an implicit correction batch.
+
 ## Exact reality matrix
 
 | # | Checkbox quoted verbatim | Code evidence | Test evidence | Source-bound D/M PNG | Verdict |
@@ -102,5 +110,6 @@ whole-row activation and selected-dialog state. Its existing normal-product DEV 
 locked-principal POST failure recorded above. The mobile menu must still be opened in a live capture to seal its
 minimal row radius independently of desktop. Owner acceptance remains separate and has not been set.
 
-No dependency-ready product defect was found, so this audit does not create a correction batch. The residual is one
-batched live-evidence pass, not implementation scope.
+A product-path defect was found only by the later bounded fixture attempt. Its safe correction requires a separate
+owner-triaged DB/security capability (`#986`) and is not silently folded into this presentation audit. Until that
+gate is resolved, the residual live-evidence pass remains blocked rather than becoming ad hoc fixture scope.
