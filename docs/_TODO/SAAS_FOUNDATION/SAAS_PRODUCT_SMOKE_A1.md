@@ -1,3 +1,5 @@
+> RE-VERIFIED 2026-07-23 (all [x] audited vs code): see docs/_TODO/UI_FINISH_AND_REAUDIT_2026-07-22/PRODUCTION_READINESS_LEDGER_2026-07-23.md
+
 # SaaS Product Smoke A1
 
 Status: Phase A1 executable contract, 2026-07-14.
@@ -56,20 +58,20 @@ fixture IDs only. The runner masks auth material and never prints response bodie
 
 ## A1 Checklist
 
-- [x] Route/API/state matrix is versioned in `saas-product-smoke-contract.json`.
-- [x] Read-only dormant smoke is separated from controlled mutation scenarios.
-- [x] Runner supports `--mode dormant|shadow|locked`.
-- [x] Runner emits machine-readable JSON and optional JUnit.
+- [x] Route/API/state matrix is versioned in `saas-product-smoke-contract.json`. (✓ evidence)
+- [x] Read-only dormant smoke is separated from controlled mutation scenarios. (✓ evidence)
+- [x] Runner supports `--mode dormant|shadow|locked`. (✓ evidence)
+- [x] Runner emits machine-readable JSON and optional JUnit. (✓ evidence)
 - [x] Runner fails on 401/403/5xx, Next render digests, permission/RLS text, unexpected empty fixture facts, and
-  configured forbidden body text.
+  configured forbidden body text. (✓ evidence)
 - [x] JSON API scenarios assert successful response semantics and their relevant fixture fact; a non-empty error
-  object or an empty appointments/working-hours/slots/summary payload cannot count as PASS.
+  object or an empty appointments/working-hours/slots/summary payload cannot count as PASS. (✓ evidence)
 - [x] The `public` profile is required to have zero auth headers, authenticated profiles require non-empty auth
   material, redirects are classified before they can resolve to a login page, and JSON/JUnit evidence records path
-  templates rather than rendered fixture identifiers.
-- [x] Self-tests prove failure classifiers, including the known G1 doctor/admin identity symptom classifier.
+  templates rather than rendered fixture identifiers. (✓ evidence)
+- [x] Self-tests prove failure classifiers, including the known G1 doctor/admin identity symptom classifier. (✓ evidence)
 - [x] No prod auth bypass, env read, DB read/write, live delivery, S3 operation, or Rubitime cleanup is performed by
-  the contract validation command.
+  the contract validation command. (✓ evidence)
 
 ## Fixture Shape
 

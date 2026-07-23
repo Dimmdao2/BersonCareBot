@@ -1,3 +1,5 @@
+> RE-VERIFIED 2026-07-23 (all [x] audited vs code): see docs/_TODO/UI_FINISH_AND_REAUDIT_2026-07-22/PRODUCTION_READINESS_LEDGER_2026-07-23.md
+
 # SaaS B1 Doctor/Admin Identity Assertion
 
 Status: Phase B1 repo-side assertion package, 2026-07-14.
@@ -39,16 +41,16 @@ The public `deploy-test-full-reset.sh` entrypoint runs this B1 assertion through
 
 ## Checklist
 
-- [x] Refuses obvious live-like DB names.
-- [x] Checks owner doctor phone has exactly one live row.
-- [x] Checks canonical doctor has role `doctor` and the expected doctor email.
-- [x] Refuses the proven credential-less legacy gmail `platform_users.role='admin'` artifact even after email OTP verification; the owner email is elevated only per fresh session policy.
-- [x] Checks the solo doctor has an active `owner` membership.
-- [x] Checks `admin_phones` TEST override shape when present.
-- [x] Classifies likely failure reasons without guessing a code fix.
-- [x] No patient samples, raw payloads, env reads, SSH, service calls, or DB writes.
-- [x] `deploy-test-saas.sh` invokes the assertion after from-zero data-fix/migrate/override/consolidation.
-- [x] A1 product smoke can be filtered to the doctor/admin subset needed for B1 exit evidence.
+- [x] Refuses obvious live-like DB names. (✓ evidence)
+- [x] Checks owner doctor phone has exactly one live row. (✓ evidence)
+- [x] Checks canonical doctor has role `doctor` and the expected doctor email. (✓ evidence)
+- [x] Refuses the proven credential-less legacy gmail `platform_users.role='admin'` artifact even after email OTP verification; the owner email is elevated only per fresh session policy. (✓ evidence)
+- [x] Checks the solo doctor has an active `owner` membership. (✓ evidence)
+- [x] Checks `admin_phones` TEST override shape when present. (✓ evidence)
+- [x] Classifies likely failure reasons without guessing a code fix. (✓ evidence)
+- [x] No patient samples, raw payloads, env reads, SSH, service calls, or DB writes. (✓ evidence)
+- [x] `deploy-test-saas.sh` invokes the assertion after from-zero data-fix/migrate/override/consolidation. (✓ evidence)
+- [x] A1 product smoke can be filtered to the doctor/admin subset needed for B1 exit evidence. (✓ evidence)
 
 ## B1 Boundary
 

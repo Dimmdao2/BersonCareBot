@@ -1,3 +1,5 @@
+> RE-VERIFIED 2026-07-23 (all [x] audited vs code): see docs/_TODO/UI_FINISH_AND_REAUDIT_2026-07-22/PRODUCTION_READINESS_LEDGER_2026-07-23.md
+
 # D2 FB#1 bootstrap phone-write closure
 
 Status: Repo/scratch-safe evidence package, 2026-07-14. This does not claim final D2 exit and does
@@ -62,17 +64,17 @@ Isolation negatives:
 
 ## Checklist
 
-- [x] Code-search used before exact file reads for D2/FB#1 locations.
+- [x] Code-search used before exact file reads for D2/FB#1 locations. (✓ evidence)
 - [x] Minimal bootstrap grant artifact exists for `user_phone_history`, `platform_user_contacts`, and
-  `app.close_active_user_phone_history(uuid)`.
-- [x] FORCE preflight asserts the bootstrap direct DML/function surface before flipping.
+  `app.close_active_user_phone_history(uuid)`. (✓ evidence: d2-fb1-bootstrap-phone-write-grants.sql:39-42)
+- [x] FORCE preflight asserts the bootstrap direct DML/function surface before flipping. (✓ evidence: phase4-force-rls-cutover.sql:62-77)
 - [x] Locked phone-history repository path uses the SECURITY DEFINER close helper, not a caller-visible
-  RLS-scoped `UPDATE`.
+  RLS-scoped `UPDATE`. (✓ evidence: pgPhoneHistory.ts:25-44)
 - [x] Rehearsal app smoke exercises `applyPlatformUserPhoneHistoryTransition` over pre-existing NULL
-  and org-stamped rows.
+  and org-stamped rows. (✓ evidence: rehearse-multitenant-isolation.mjs)
 - [x] Rehearsal negatives cover staff cannot see bootstrap NULL phone-history PII and bootstrap cannot
-  read/write org-stamped phone-history PII.
-- [x] Static checker `check-d2-fb1-bootstrap-phone-write.mjs` pins the contract above.
+  read/write org-stamped phone-history PII. (✓ evidence: rehearse-multitenant-isolation.mjs + smoke-r2-real-policy-isolation.mjs)
+- [x] Static checker `check-d2-fb1-bootstrap-phone-write.mjs` pins the contract above. (✓ evidence)
 - [ ] Future owner-authorized strict+FORCE production-topology gate.
 
 ## Future owner-authorized strict+FORCE production-topology gate

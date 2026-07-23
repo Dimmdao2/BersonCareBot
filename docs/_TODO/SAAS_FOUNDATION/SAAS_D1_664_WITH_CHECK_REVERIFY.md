@@ -1,3 +1,5 @@
+> RE-VERIFIED 2026-07-23 (all [x] audited vs code): see docs/_TODO/UI_FINISH_AND_REAUDIT_2026-07-22/PRODUCTION_READINESS_LEDGER_2026-07-23.md
+
 # D1 #664 WITH CHECK and deferred columns re-verify
 
 Status: repo/scratch evidence package, 2026-07-14. This document does not authorize TEST/PROD/dev
@@ -59,17 +61,17 @@ Scratch proof coverage to run where local postgres sudo is available:
 
 ## Checklist
 
-- [x] Code-search used before exact file reads for D1/#664/patient value guard locations.
-- [x] #664 exact columns pinned without re-deriving them.
-- [x] `public.treatment_program_events.actor_id` excluded from app_patient INSERT column grant.
+- [x] Code-search used before exact file reads for D1/#664/patient value guard locations. (✓ evidence)
+- [x] #664 exact columns pinned without re-deriving them. (✓ evidence)
+- [x] `public.treatment_program_events.actor_id` excluded from app_patient INSERT column grant. (✓ evidence: p0-5b-grants-sql.mjs:508-520,739-744)
 - [x] `user_channel_preferences.is_preferred_for_auth` allowed only through the curated column grant
-  plus P2-C2 ownership/auth-channel/one-preferred guard.
+  plus P2-C2 ownership/auth-channel/one-preferred guard. (✓ evidence: p2-c2-patient-value-guards.sql:158-189)
 - [x] Patient treatment event actor auto-fill, cross-org / cross-patient instance rejection, forged
-  actor rejection, and staff bypass are covered by scratch smoke assertions.
+  actor rejection, and staff bypass are covered by scratch smoke assertions. (✓ evidence: p2-c1-patient-value-guards.sql:49,153-155 + smoke-p2-c1)
 - [x] User channel preference owned auth-channel writes, non-auth rejection, foreign patient rejection,
-  and second-preferred rejection are covered by scratch smoke assertions.
+  and second-preferred rejection are covered by scratch smoke assertions. (✓ evidence: p2-c2 guard + smoke-p2-c2)
 - [x] Bootstrap/legacy semantics documented honestly: legacy `user_id` rows are allowed only when
-  owned by `platform_user_id`; no separate bootstrap/pre-auth smoke is claimed in D1.
+  owned by `platform_user_id`; no separate bootstrap/pre-auth smoke is claimed in D1. (✓ evidence)
 - [ ] Owner-authorized strict+FORCE/live gates remain future work.
 
 ## Future owner-authorized gates

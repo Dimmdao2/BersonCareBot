@@ -1,3 +1,5 @@
+> RE-VERIFIED 2026-07-23 (all [x] audited vs code): see docs/_TODO/UI_FINISH_AND_REAUDIT_2026-07-22/PRODUCTION_READINESS_LEDGER_2026-07-23.md
+
 # SaaS S5 — разделение restricted settings и runtime config
 
 Статус: **частично реализован.** На 2026-07-19 S5-0 (reality lock), S5-1 (additive runtime/audit contract) и S5-2 (RLS/grants/config-reader contract) завершены. S5-3 находится в executor/audit-gate: write chokepoint и dual-read/dual-write compatibility реализуются до независимого аудита. S5-4—S5-6 не начаты; S5-7 остаётся TEST/owner/ops-gated. S5 не complete.
