@@ -4,7 +4,14 @@
 **Branch:** `feat/doctor-ui-rebuild`
 **Scope:** `apps/webapp`, `apps/integrator`, `apps/media-worker`, `deploy/*`
 **Method:** verify prior audit findings against current code + targeted current-code vuln scan (XSS, injection, SSRF, open redirect, authz/IDOR, secrets, cookies/CSRF, file handling, rate limiting, security headers).
-**Policy applied:** security findings default to OWNER-TRIAGE; no auth/session/tenant/infra code was changed. No code changes were made (no trivially-safe, zero-behavior-risk, self-contained fix was available).
+**Policy applied:** security findings default to OWNER-TRIAGE; no auth/session/tenant/infra code was changed by the review pass.
+
+> **UPDATE 2026-07-23 (owner asked to fix safe weaknesses):** Finding #1 (missing global security headers) —
+> PARTIALLY FIXED. Added safe site-wide headers in `apps/webapp/next.config.ts` headers(): `X-Content-Type-Options:
+> nosniff`, `Referrer-Policy: strict-origin-when-cross-origin`, `Strict-Transport-Security: max-age=31536000`, and
+> `Content-Security-Policy: frame-ancestors 'self'` on `/app/*` (clickjacking) — `/book` kept embeddable (Tilda).
+> Verified: webapp build exit 0. **STILL OWNER-TRIAGE:** a full CSP (`default-src`/`script-src`…) — needs a tested
+> policy; findings #2 (SVG upload) and #3 (CSRF matcher scope) unchanged.
 
 ---
 

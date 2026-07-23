@@ -42,6 +42,23 @@ const nextConfig: NextConfig = {
     ].join(" ");
     return [
       {
+        // Site-wide safe hardening headers (PHI app). Applied to all paths incl. /book.
+        // NB: no X-Frame-Options here — /book must stay embeddable (Tilda); framing is
+        // controlled per-path via CSP frame-ancestors below. Full CSP default-src is
+        // intentionally NOT set here (needs a tested policy) — owner triage.
+        source: "/:path*",
+        headers: [
+          { key: "X-Content-Type-Options", value: "nosniff" },
+          { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
+          { key: "Strict-Transport-Security", value: "max-age=31536000" },
+        ],
+      },
+      {
+        // Clickjacking protection for the app surface — /app must not be framed.
+        source: "/app/:path*",
+        headers: [{ key: "Content-Security-Policy", value: "frame-ancestors 'self'" }],
+      },
+      {
         source: "/book/:path*",
         headers: [{ key: "Content-Security-Policy", value: `frame-ancestors ${frameAncestors}` }],
       },
