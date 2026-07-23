@@ -3,6 +3,15 @@
 **Owner:** Dmitry Berson · **Created:** 2026-07-22 · **Runs on:** THIS box = DEV + TEST only.
 **Authority for "done":** the linked *detailed* plan file of each stage — NEVER the roadmap one-line summary.
 
+> **RE-VERIFIED 2026-07-23:** all production `[x]` across the roadmap and detailed plans (~676) were audited against
+> code. Verified state + remaining-volume: [`PRODUCTION_READINESS_LEDGER_2026-07-23.md`](PRODUCTION_READINESS_LEDGER_2026-07-23.md)
+> and [`CHECKPOINT_2026-07-23_STATE_AND_BACKEND_WORK_ORDER.md`](CHECKPOINT_2026-07-23_STATE_AND_BACKEND_WORK_ORDER.md).
+> 659/676 confirmed; **3 functional fake-done reopened** → `[ ]`: Rubitime *patient/public "create works without
+> Rubitime"* (Track C — falsified by incident #839 + D0 census; Rubitime create-path coupling still live) and
+> `TASK_A` *"Full prod-copy PII rehearsal DONE"* (no artifact, contradicts its own "NOT YET PROVEN"). 11 live-only
+> items reclassified `[~]`. Reality of the tracks below is unchanged: **Track C NOT done** (`branchServiceId` live,
+> R3C-11 past deadline, R7 not started, no drop migration); **Track D only D0 done**, D1-D10 open.
+
 ---
 
 ## 0. Hard boundaries (read first, do not violate)

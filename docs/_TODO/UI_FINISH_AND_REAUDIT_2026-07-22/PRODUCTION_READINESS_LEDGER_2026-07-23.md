@@ -84,6 +84,50 @@ Backend, не зависит от фронта. Owner/legal-гейты выне�
 7. **RU-privacy юр-гейты** — consent/DSAR/ISPDn/GO-NO-GO (внешний юрист).
 8. **Приёмочные клик-through сессии** по фронту (U6A, Doctor-UI residuals, Tiptap) и по evidence-real backend.
 
+## 8. Результаты системной перепроверки ВСЕХ `[x]` (2026-07-23)
+
+Вскрыто по коду **~676 `[x]`** в 7 кластерах (весь production-`[x]` в `docs/_TODO`, кроме исторических
+ARCHITECTURE-логов). Каждый тик проверен против кода; на риск-кластере — adversarial-аудит (0 refuted).
+
+| Кластер | audited | confirmed | REOPENED | → `[~]` |
+|---------|--------:|----------:|---------:|-------:|
+| Rubitime retirement | 129 | 124 | 2 | 3 |
+| Isolation (P0_9-13, T0, PHASE0) | 114 | 114 | 0 | 0 |
+| Stability + roadmap + owner-ready-test | 174 | 174 | 0 | 0 |
+| RU-privacy stages | 40 | 40 | 0 | 0 |
+| Commercial / identity | 95 | 95 | 0 | 0 |
+| SAAS long-tail + misc | 46 | 45 | 1 | 0 |
+| Doctor-UI | 78 | 67 | 3 | 8 |
+| **ИТОГО** | **~676** | **~659** | **6** | **11** |
+
+**Реальный fake-done снят в `[ ]` (3 функциональных):**
+1. Rubitime «patient create работает без Rubitime» (Track C) — опровергнуто инцидентом #839 + D0-census (35 live-refs).
+2. Rubitime «public create работает без Rubitime» — то же.
+3. `TASK_A` «Full prod-copy PII rehearsal DONE» — нет артефакта, противоречит собственной секции «NOT YET PROVEN».
+Ещё 3 REOPENED в Doctor-UI — «протухшая TEST-SHA» (код цел, ссылки устарели → бухгалтерия, не ложь о готовности).
+
+**→ `[~]` (код есть, ждёт живого cutover/приёмки): 11** — 3 Rubitime runtime-приёмка + 8 Doctor-UI визуальные суждения.
+
+**Вывод:** доки были в основном честны (**659/676 подтверждено кодом**), но 3 реальных фейк-done выловлены —
+ровно там, где ты опасался. Планы теперь надёжны как источник.
+
+### Побочно почин­ено кодом (DB-free, эта сессия)
+- 4 дрейфнувших CI-гейта (`check-t0-4-*`, `check-r2-readiness-closure`) — fail→pass, teeth сохранены (`395c741b`).
+- SEC-01 добивка: `.semgrepignore` + gitleaks negative-secret self-test (`5fe487e2`).
+- ⚠️ Флаг: `check-c3-integrator-fanout-inventory.mjs` красный — новый роут `registerOperatorAlertRelayRoute` без
+  маппинга в c3-инвентаре. Отдельная DB-free правка.
+
+### Что можно сделать СЕЙЧАС без БД/TEST (чисто код)
+- Починить c3-гейт (добавить маппинг роута operator-alert-relay ИЛИ подтвердить его org-principal обёртку).
+- Бамп `next 16.2.6 → ≥16.2.11` (SSRF-CVE): bump + install + typecheck + `build:webapp`.
+- CRYPTO-01 C0 ADR-черновик, LOG-01 L0 data-flow census — агенто-делаемая подготовка RU-privacy.
+- НЕ здесь (нужна БД): вкручивание Track D D1, применение миграции mark-read, DR-drill, PII Task A, FORCE-cutover.
+
+### Что НЕ сделано (сводка остатка)
+- **Кодом с БД/TEST:** U3B добивка, Track D D1-D10, Track C drain+R7, PII Task A, A4 RLS cutover, DR-drill, U4→U10.
+- **Владелец/юр (не код):** SMTP-креды TEST, FORCE-cutover, age-ключ, session TTL, платный биллинг, RU-privacy
+  юр-гейты, визуальная приёмка UI (8 `[~]` Doctor-UI + фронт-стадии).
+
 ---
 
 _Первоисточники: `IMPLEMENTATION_ROADMAP.md` (§7.3, §8, §9.1), `SAAS_FOUNDATION/*CHECKLIST*`, `SECURITY_CI_STACK_PLAN.md`,
