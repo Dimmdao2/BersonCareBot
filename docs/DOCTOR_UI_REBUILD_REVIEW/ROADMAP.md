@@ -1,5 +1,14 @@
 # Doctor UI Rebuild — fix roadmap (по owner-ревью 2026-06-13)
 
+> ⚠️ **НЕ АКТУАЛЬНО / ЧАСТИЧНО УСТАРЕЛО (2026-06-13).** Исполнительный план для того же скоупа (расписание/
+> коммуникации/клиенты/сегодня/общий shell) пересобран заново с более свежим owner-контекстом и re-audit'ом.
+> Актуально: [`docs/_TODO/DOCTOR_UI_REWORK_2026-07-20/PLAN.md`](../_TODO/DOCTOR_UI_REWORK_2026-07-20/PLAN.md) +
+> [`docs/_TODO/UI_FINISH_AND_REAUDIT_2026-07-22/WORK_ORDER.md`](../_TODO/UI_FINISH_AND_REAUDIT_2026-07-22/WORK_ORDER.md).
+> Решения D1 (booking canonical) и D3 (комментарии read-on-view) описывают завершённые в этой ветке фиксы —
+> историческая ценность сохраняется, но текущий completion tracker и любые новые расхождения — только по PLAN.md
+> (§«Atomic owner checklist — единственный completion tracker»). Карточка пациента (§2.2) прямо вне скоупа этого
+> файла — по ней см. `docs/design/bersoncare-карточка-пациента-CURRENT-SPEC.md`.
+
 **Ветка:** `feat/doctor-ui-rebuild` · **Референс:** [`docs/design/doctor-cabinet-wireframe.html`](../design/doctor-cabinet-wireframe.html) · **Источник замечаний:** [`REVIEW_2026-06-13.md`](REVIEW_2026-06-13.md)
 
 Этот документ — план исполнения замечаний ревью. Разбит на этапы с корневыми причинами (привязка к коду), границами scope, проверками, картой параллелизма и делегированием по агентам. Исполнение — только после ревью этого плана владельцем. Перед каждым этапом исполнитель читает `.cursor/rules/*.mdc` (особенно `plan-authoring-execution-standard`, `doctor-ui-shared-primitives`, `clean-architecture-module-isolation`, `test-execution-policy`, `git-commit-push-full-worktree`).

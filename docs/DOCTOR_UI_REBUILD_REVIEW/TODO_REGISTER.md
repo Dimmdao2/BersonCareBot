@@ -1,5 +1,11 @@
 # TODO Register — Doctor UI Rebuild (S5.1 sweep, 2026-06-16)
 
+> См. также новее: [`docs/design/bersoncare-карточка-пациента-CURRENT-SPEC.md`](../design/bersoncare-карточка-пациента-CURRENT-SPEC.md).
+> T05/T06 reference `PatientTabProgram.tsx`/`PatientTabRecords.tsx` — under CURRENT-SPEC the `records` tab is
+> removed and its content folds into the «Карточка» tab body, so these file-path pointers may no longer match the
+> post-rebuild tab layout (4 tabs: Карточка/Программа/Файлы/Учётка). Re-check line refs against current code before
+> acting. T02–T04, T07 (Account/Karta tabs) are not affected by the tab-count change.
+
 Registered TODOs that require owner decision, backend work, or significant scope.
 All plan-doc cross-ref markers (TODO#2, TODO#3) were cleaned from source files in this sweep.
 

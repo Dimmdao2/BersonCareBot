@@ -1,5 +1,12 @@
 # DOCTOR_APP_UI_STYLE_GUIDE
 
+> ⚠️ **ЧАСТИЧНО УСТАРЕЛО.** §9 «Карточка сущности (ClientProfileCard)» — конкретика по вкладке «Обзор» (§9c пример
+> `TabsTrigger value="overview"`) и статус-пилюле Архив/Заблокирован в шапке (§9a/§9b) больше не действует.
+> Актуально: [`docs/design/bersoncare-карточка-пациента-CURRENT-SPEC.md`](../design/bersoncare-карточка-пациента-CURRENT-SPEC.md)
+> (4 вкладки Карточка/Программа/Файлы/Учётка без «Обзор»; из шапки убраны chips Архив/Заблокирован и правая
+> мини-сводка; звезда «На сопровождении» и portal-invite остаются). Общая структура §9 (article > entity-header >
+> action-strip > TabsList > TabsContent) и остальной гайд (§A–§C, §1–§8, §10–§21) в силе.
+
 Единый стандарт для визуальной разработки кабинета врача/администратора (`/app/doctor/**`).
 
 **Каркас страницы:** `apps/webapp/src/shared/ui/doctor/doctorWorkspaceLayout.ts`  
