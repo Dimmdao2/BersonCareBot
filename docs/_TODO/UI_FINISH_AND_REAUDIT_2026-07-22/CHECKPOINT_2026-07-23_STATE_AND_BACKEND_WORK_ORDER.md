@@ -143,6 +143,25 @@
   и токен-дисциплина».
 - Приёмка владельца — в СЕРЕДИНЕ (не только в финале); «audit PASS» ≠ «готово».
 
+## 7. Сделано в этой сессии (2026-07-23, web-агент) — лог для серверного агента
+
+Всё в ветке `feat/doctor-ui-rebuild`. Три backend-потока прогнаны параллельно на Opus, непересекающиеся файловые
+зоны. **B и C сделаны БЕЗ живой БД — им нужна DB-верификация на TEST (см. ⚠️).**
+
+| Коммит | Что | Статус |
+|--------|-----|--------|
+| `cfece2a4` | Правило «код важнее прозы» в `ORCHESTRATOR_PROMPT.md` + `ORCHESTRATION_BINDINGS.md` | готово |
+| `46c4f57a` | Этот checkpoint (аудит + backend-first план + лист решений) | готово |
+| `88b956d5` | `START_HERE_ORCHESTRATOR_KICKOFF.md` + починка путаницы «TEST-сервер vs git-ветка test» | готово |
+| `2027f969` | **A — security-CI:** `.github/workflows/security.yml` (Gitleaks+baseline, Semgrep, Trivy, реальный `pnpm audit`), `.gitleaks.toml`, `.semgrep.yml`, `.trivyignore`, скрипт `audit:cve` | код готов; **первый CI-прогон будет красным** на существующих CVE — ожидаемый triage |
+| `c6e2d2bb` | **C — D1 scaffold:** `apps/integrator/src/infra/db/directPublic/writeIdentityAndPreferencesDirect.ts` + 6 unit-тестов (моки). Транзакционная прямая запись identity/prefs в `public`, **НЕ вкручена в живой путь** | тесты 6/6, typecheck/lint чисто. ⚠️ **DB:** сверить колонки/типы `platform_users`, вкрутить `TODO(server-agent)` |
+| `ca69e348` | **B — mark-read 500 fix:** `deploy/postgres/patient-support-mark-read-grant.sql` (`GRANT UPDATE(read_at)` для `app_patient`, зеркалит паттерн репо, с rollback) + contract-тест | typecheck green, тест зелёный. ⚠️ **DB:** применить миграцию на TEST → `POST /api/patient/messages/read` = 200 (owner) / 0-row (cross-user); сверить, что `app_patient` — живая рантайм-роль |
+
+**Отдельная задача, всплывшая на прогоне:** бампнуть `next@16.2.6 → ≥16.2.11` (2 moderate + 1 high SSRF).
+
+**НЕ трогал (нужна БД/TEST):** isolation CRITICAL `role_pool_mismatch` (§3.3), PII flip-blockers, backup DR-drill,
+Track C R7 дроп, delivery-alerting fault-injection, реальный рантайм-пруф B. Порядок — по §4.
+
 ---
 
 _Провенанс: сведено из 7 read-only разборов кода 2026-07-23 (треки A/B/C/D + backend: SaaS-монетизация, security,
