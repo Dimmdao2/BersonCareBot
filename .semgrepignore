@@ -1,0 +1,51 @@
+# Semgrep ignore for BersonCareBot (SEC-01 / task #881, part of security.yml `semgrep` job).
+#
+# Purpose: keep Semgrep's SAST scan focused on hand-written source. Everything here is either
+# vendored/installed, machine-generated, a build artifact, or a data/fixture blob — scanning it
+# wastes CI time and produces noise, not real findings. Mirrors `.gitignore` plus a few
+# Semgrep-specific carve-outs (generated DB migration snapshots, test fixtures).
+#
+# Semgrep also respects .gitignore automatically, but we keep this file explicit and
+# self-contained so the exclusion list is auditable in one place without cross-referencing.
+
+# --- Dependencies / vendored -----------------------------------------------------------------
+node_modules/
+**/node_modules/
+
+# --- Build outputs -----------------------------------------------------------------------------
+dist/
+build/
+**/dist/
+**/build/
+.next/
+**/.next/
+.turbo/
+**/.turbo/
+apps/webapp/out/
+
+# --- Test coverage ------------------------------------------------------------------------------
+coverage/
+**/coverage/
+
+# --- Minified / bundled JS ------------------------------------------------------------------
+*.min.js
+**/*.min.js
+
+# --- Lockfiles (not source, huge, no actionable SAST signal) --------------------------------
+pnpm-lock.yaml
+**/pnpm-lock.yaml
+
+# --- Generated DB migration snapshots (drizzle-kit metadata, not hand-written code) ----------
+apps/webapp/db/drizzle-migrations/meta/
+**/drizzle-migrations/meta/
+
+# --- Test fixtures (demo/synthetic data, not app logic — memory: demo-test-fixtures-on-test-db)
+apps/integrator/e2e/fixtures/
+apps/webapp/public/test-fixtures/
+apps/webapp/src/modules/saas-test-fixture/
+**/fixtures/
+**/test-fixtures/
+
+# --- Local agent tooling / transient working files (never committed, but excluded defensively)
+.claude/
+.tmp/

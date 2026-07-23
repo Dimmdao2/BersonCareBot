@@ -34,12 +34,12 @@
 - [x] Новый job `secrets-scan` в `ci.yml` (PR + push): `gitleaks/gitleaks-action` или пинованный бинарь. (✓ .github/workflows/security.yml:24-49 job `gitleaks`, pinned binary v8.18.4, on: push[main]+pull_request | commit 2027f969)
 - [x] Полноисторический скан хотя бы на push в `main` (не только diff) — прошлый инцидент был про содержимое `.env`. (✓ .github/workflows/security.yml:29-35 checkout `fetch-depth: 0` + `gitleaks git .` full-history | commit 2027f969)
 - [x] `.gitleaks.toml` для осознанных allowlist (тестовые фикстуры/демо-креды — см. память `demo-test-fixtures-on-test-db`), чтобы не было ложных фейлов. (✓ .gitleaks.toml (52 lines, path-based allowlist for gitignored `.env` family) | commit 2027f969)
-- [ ] Проверить, что реальный секрет валит PR (негативный тест на заведомом фейковом токене в отдельной ветке). (REMAINING: negative-secret test not yet run in a live PR)
+- [x] Проверить, что реальный секрет валит PR (негативный тест на заведомом фейковом токене в отдельной ветке). (✓ .github/workflows/security.yml job `gitleaks-selftest` plants a fake AWS-key-shaped dummy under `$RUNNER_TEMP` at runtime (never committed, outside the real checkout scan) and asserts `gitleaks detect` exits non-zero, failing the workflow if the guard doesn't fire | 2026-07-23)
 - [x] fail-closed: находка high-confidence секрета = красный PR. (✓ .github/workflows/security.yml:39 `gitleaks git .` runs without `continue-on-error`, non-zero exit on finding = red build | commit 2027f969)
 
 ### Этап 2 — Semgrep
 - [x] Job `semgrep` (PR): `semgrep ci` с рулсетами `p/default`, `p/typescript`, `p/react`, `p/nodejs`, `p/secrets`. (✓ .github/workflows/security.yml:52-77 job `semgrep`, pinned image semgrep/semgrep:1.85.0, `--config .semgrep.yml --config p/default --config p/typescript --config p/react --config p/nodejs --config p/secrets` | commit 2027f969)
-- [ ] `.semgrepignore` для генератов (`.next/`, `dist/`, `node_modules/`, снапшоты тестов). (REMAINING: no .semgrepignore file yet)
+- [x] `.semgrepignore` для генератов (`.next/`, `dist/`, `node_modules/`, снапшоты тестов). (✓ .semgrepignore (repo root) — node_modules/, .next/, dist/, build/, .turbo/, coverage/, *.min.js, pnpm-lock.yaml, drizzle-migrations meta snapshots, test-fixtures dirs | 2026-07-23)
 - [x] Порог фейла: `ERROR`-severity валит PR; `WARNING` — аннотация, не блок (чтобы не заспамить на старте). (✓ .github/workflows/security.yml:71-72 `--severity ERROR --error` | commit 2027f969)
 - [ ] Прогнать разово по всему репо, разобрать первый шум, зафиксировать baseline-исключения осознанно (не глушить массово). (REMAINING: first live-CI run + noise triage not yet performed)
 
