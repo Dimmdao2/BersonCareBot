@@ -77,3 +77,19 @@
   `TEST_DEPLOY_EVIDENCE_2026-07-22.md` instead of remaining only in transient orchestration context.
 - Continuing rule: do not repeat the 167-row census. Advance only bounded residuals and keep owner-closed status at
   zero until the owner accepts live evidence.
+
+## 2026-07-23 — `ui-finish-process-audit-3`
+
+- Auditor: external read-only Claude Opus 4.8 (`claude-opus-4-8`, `xhigh`); artifact:
+  `/home/dev/brain/runs/agent-port/ui-finish-process-audit-3.json`.
+- Verdict: **PASS (conditional)**. The continuation used the exact linked U6A checklist, moderate isolated packets,
+  serialized the integration gate/TEST deploy, did not create work from roadmap summaries, did not claim owner
+  acceptance, and stopped only after executable U6A residuals were exhausted into explicit owner/live/dependency
+  gates.
+- Worktree/branch hygiene and DEV/TEST/PROD boundaries passed. Completed patch-equivalent worktrees were pruned;
+  four unrelated pre-existing worktrees and the one unverified non-patch-equivalent UI branch were preserved.
+- Carry-forward N1: cite the later U6B route addendum that supersedes the old O-1. Action completed in
+  `U6A_PUBLIC_ENTRY_RECONCILIATION_2026-07-23.md`: exact roadmap section and dated addendum are now named.
+- Carry-forward N2: run final full repo CI before owner acceptance. This remains an explicit final gate, not a reason
+  to repeat full CI for the bounded two-commit delta.
+- Process status: no hard stop, fake-done, zero-checkbox loop or audit-created product scope.
