@@ -106,8 +106,8 @@ function runChecks(overrides = {}) {
   for (const needle of [
     "App runtime role",
     "Must be `NOBYPASSRLS`",
-    "Runtime role switching is not performed in P0.5.1",
-    "No production role creation.",
+    "Runtime role switching is not performed in P0.5/B5",
+    "No dev/prod DB write.",
   ]) {
     assertContains(files.roleSplit, roleSplit, needle);
   }

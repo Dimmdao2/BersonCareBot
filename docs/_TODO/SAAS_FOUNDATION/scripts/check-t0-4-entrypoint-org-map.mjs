@@ -197,7 +197,7 @@ function runChecks(overrides = {}) {
     assertContains(files.rubitimeAudit, rubitimeAudit, needle);
   }
 
-  assertContains(files.schedulerMain, schedulerMain, "source: 'scheduler'");
+  assertContains(files.schedulerMain, schedulerMain, "source: 'scheduler:acquire-lock'");
   for (const needle of [
     "async function persistWritesByOrganization",
     "runWithOptionalOrganizationPrincipal",

@@ -93,7 +93,7 @@ function runChecks(overrides = {}) {
     "async function projectRows(\n  organizationId: string",
     "organizationId: params.organizationId",
     "projectAppointmentRecords(organizationId)",
-    "projectRubitimeRecords(organizationId)",
+    "upsertCanonicalFromRubitimeRecordImpl({\n      organizationId,",
   ]) {
     assertContains(files.bridgeRepo, bridgeRepo, needle);
   }

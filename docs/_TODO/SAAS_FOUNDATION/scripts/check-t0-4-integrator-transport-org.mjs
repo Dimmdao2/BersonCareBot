@@ -32,7 +32,7 @@ function runChecks(overrides = {}) {
     "INSERT INTO conversation_messages (",
     "SELECT organization_id FROM conversations",
     "INSERT INTO user_questions (id, user_identity_id, conversation_id, organization_id",
-    "COALESCE(parent.organization_id, ti.organization_id)",
+    "parent.organization_id, ti.organization_id)",
     "INSERT INTO question_messages (id, question_id, organization_id",
     "SELECT organization_id FROM user_questions",
     "count(DISTINCT active_user_orgs.organization_id) = 1",
@@ -50,7 +50,7 @@ function runChecks(overrides = {}) {
 
   for (const needle of [
     "stamps question rows from conversation or identity organization context",
-    "COALESCE(parent.organization_id, ti.organization_id)",
+    "parent.organization_id, ti.organization_id)",
     "SELECT organization_id FROM conversations",
     "SELECT organization_id FROM user_questions",
   ]) {
@@ -60,8 +60,8 @@ function runChecks(overrides = {}) {
 
 if (process.argv.includes("--self-test")) {
   const messageThreads = read(files.messageThreads).replace(
-    "COALESCE(parent.organization_id, ti.organization_id)",
-    "ti.organization_id",
+    "parent.organization_id, ti.organization_id)",
+    "ti.organization_id)",
   );
   try {
     runChecks({ messageThreads });
