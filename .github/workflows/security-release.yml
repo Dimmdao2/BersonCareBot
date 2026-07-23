@@ -1,0 +1,68 @@
+name: Security (pre-release full scan)
+
+# Pre-release full-severity Trivy (Этап 3, docs/_TODO/SECURITY_CI_STACK_PLAN.md line 49).
+# Deliberately a SEPARATE workflow from security.yml: security.yml triggers on push/PR (fast,
+# HIGH/CRITICAL-only `trivy-fs` job); this one is manual/release-only and scans ALL severities
+# (LOW/MEDIUM/HIGH/CRITICAL, no severity filter) so nothing is silently dropped before a release.
+# This is a pre-release TRIAGE job, not a per-PR gate: it does not fail-closed on every finding
+# (LOW/MEDIUM/HIGH are reported, not blocking) — but it DOES fail on CRITICAL, so a release cannot
+# ship with a known-critical CVE/misconfig/secret without an explicit `.trivyignore` triage entry.
+#
+# Trigger: manual (workflow_dispatch) or on a published GitHub Release. Never on push/PR.
+
+on:
+  workflow_dispatch: {}
+  release:
+    types: [published]
+
+permissions:
+  contents: read
+
+env:
+  TRIVY_ACTION_REF: "0.28.0"
+
+jobs:
+  trivy-full:
+    name: Trivy (full-severity pre-release scan)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Trivy filesystem scan (all severities, report-only)
+        # Same scan-type/scanners/.trivyignore as the PR-time `trivy-fs` job in security.yml, but
+        # no `severity:` filter (scans LOW/MEDIUM/HIGH/CRITICAL) and exit-code 0 so the job does
+        # not fail the run — findings are surfaced via the SARIF artifact below for owner triage.
+        uses: aquasecurity/trivy-action@0.28.0
+        with:
+          scan-type: fs
+          scan-ref: .
+          scanners: vuln,misconfig,secret
+          ignore-unfixed: true
+          exit-code: "0"
+          trivyignores: .trivyignore
+          format: sarif
+          output: trivy-full-report.sarif
+
+      - name: Trivy filesystem scan (CRITICAL-only, fail-closed)
+        # Second pass, CRITICAL severity only, exit-code 1: this is the actual release gate — a
+        # release must not ship with a known, un-triaged CRITICAL finding. Re-uses the same
+        # .trivyignore, so anything already triaged there is exempt.
+        uses: aquasecurity/trivy-action@0.28.0
+        with:
+          scan-type: fs
+          scan-ref: .
+          scanners: vuln,misconfig,secret
+          severity: CRITICAL
+          ignore-unfixed: true
+          exit-code: "1"
+          trivyignores: .trivyignore
+          format: table
+
+      - name: Upload full-severity SARIF report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: trivy-full-report
+          path: trivy-full-report.sarif
+          if-no-files-found: warn
