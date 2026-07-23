@@ -115,8 +115,9 @@ fail by themselves.
 1. Before owner-approved cutoff/drain: use this document as inventory only.
 2. After cutoff/drain proof passes: remove/unmount Rubitime runtime routes and connector code.
 3. Run `node docs/_TODO/SAAS_FOUNDATION/scripts/rubitime-r6-r7-static-inventory.mjs --expect-post-r6`.
-4. R6 code removal is not complete until the three post-R6 categories above are zero. Remaining
-   `rubitimeOpsToolingRefs` must stay ops-only and must not be wired into runtime routes/workers.
+4. R6/D10 code removal is not complete until every category marked `postR6MustBeZero` is zero: the three historical
+   Rubitime route/API categories plus all eight D0 appointment-projection and HTTP/outbox transport categories.
+   Remaining `rubitimeOpsToolingRefs` must stay ops-only and must not be wired into runtime routes/workers.
 5. R7 archive/drop is not complete until this static inventory, the R7 runbook reference scans, fresh restore/migrate
    proof, and owner archive/drop decision all pass.
 
