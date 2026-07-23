@@ -94,18 +94,6 @@ async function renderPatientsPage(
   });
 }
 
-function expectFramelessPatientPreview(state: "empty" | "selected"): HTMLElement {
-  const preview = document.querySelector<HTMLElement>(
-    `[data-patient-preview-surface="flat"][data-patient-preview-state="${state}"]`,
-  );
-  expect(preview).toBeInTheDocument();
-  expect(preview?.className).not.toMatch(
-    /(?:^|\s)(?:rounded|border|ring|shadow|bg-(?:card|primary|muted))(?:-|\s|$)/,
-  );
-  expect(preview?.querySelector("article")).toBeNull();
-  return preview as HTMLElement;
-}
-
 afterEach(() => {
   vi.unstubAllGlobals();
   vi.clearAllMocks();
@@ -218,26 +206,27 @@ describe("PatientsPageClient", () => {
     expect(within(appointmentsCard as HTMLElement).getByText("2")).toBeInTheDocument();
   });
 
-  it("keeps each client row as a full-width native button action without a list side frame", async () => {
-    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: false, json: async () => ({ ok: false }) }));
-    const user = userEvent.setup();
+  it("renders each client row as a full-width link that opens the full patient card without a list side frame", async () => {
     await renderPatientsPage([
       client({ userId: "first", displayName: "Первый клиент" }),
       client({ userId: "second", displayName: "Второй клиент" }),
     ]);
 
-    const firstRow = screen.getByRole("button", { name: /Первый клиент/i });
-    const secondRow = screen.getByRole("button", { name: /Второй клиент/i });
+    const firstRow = screen.getByRole("link", { name: /Первый клиент/i });
     expect(firstRow).toHaveClass("w-full", "cursor-pointer", "hover:bg-muted");
     expect(firstRow).toHaveClass("border-x-0", "border-b-0");
-    expect(firstRow).not.toHaveAttribute("href");
+    // The row is a real navigation link to the full card, not a selection toggle.
+    expect(firstRow).not.toHaveAttribute("aria-pressed");
+    const href = new URL(firstRow.getAttribute("href") ?? "", "https://bersoncare.local");
+    expect(href.pathname).toBe("/app/doctor/patients/first");
+    expect(href.searchParams.get("returnTo")).toBeTruthy();
 
-    await user.click(within(firstRow).getByLabelText("Статусы клиента"));
-    expect(firstRow).toHaveAttribute("aria-pressed", "true");
+    const secondRow = screen.getByRole("link", { name: /Второй клиент/i });
+    const secondHref = new URL(secondRow.getAttribute("href") ?? "", "https://bersoncare.local");
+    expect(secondHref.pathname).toBe("/app/doctor/patients/second");
 
-    secondRow.focus();
-    await user.keyboard("{Enter}");
-    expect(secondRow).toHaveAttribute("aria-pressed", "true");
+    // No right-pane preview is rendered anymore.
+    expect(document.querySelector("[data-patient-preview-surface]")).toBeNull();
 
     const flatListSurface = document.querySelector("[data-doctor-flat-list-surface]");
     expect(flatListSurface?.className).not.toMatch(/\bborder\b|\brounded-/);
@@ -467,47 +456,8 @@ describe("PatientsPageClient", () => {
     expect(screen.queryByText("Старая строка")).not.toBeInTheDocument();
   });
 
-  it("uses the existing preview before opening the standalone full-workspace patient card", async () => {
+  it("opens the full patient card directly from a client-row click and encodes list state in returnTo", async () => {
     const user = userEvent.setup();
-    const patientResponse = {
-      ok: true,
-      json: async () => ({
-        ok: true,
-        header: {
-          identity: {
-            userId: PATIENT_ID,
-            displayName: "Петров Иван",
-            firstName: "Иван",
-            lastName: "Петров",
-            patronymic: null,
-            phone: "+79990000001",
-            email: "patient@example.com",
-            bindings: { telegramId: "123456", maxId: "max-1" },
-            hasConversation: true,
-            isArchived: false,
-            isBlocked: false,
-            birthDate: null,
-            age: null,
-            gender: null,
-          },
-          support: { isOnSupport: true, startedAt: null, supportMonthsApprox: null },
-          lastVisit: null,
-          nextAppointment: null,
-          totalVisits: 1,
-          cancellationsCount: 0,
-          reschedulesCount: 0,
-          firstVisitDate: null,
-        },
-      }),
-    };
-    let resolveFetch: ((response: typeof patientResponse) => void) | undefined;
-    const fetchMock = vi.fn().mockImplementation(
-      () =>
-        new Promise<typeof patientResponse>((resolve) => {
-          resolveFetch = resolve;
-        }),
-    );
-    vi.stubGlobal("fetch", fetchMock);
     await renderPatientsPage([
       client({
         userId: PATIENT_ID,
@@ -527,11 +477,16 @@ describe("PatientsPageClient", () => {
       }),
     ]);
 
-    expect(screen.getByText("Выберите пациента, чтобы открыть превью")).toBeInTheDocument();
-    expectFramelessPatientPreview("empty");
-    const patientRow = screen.getByRole("button", { name: /Петров Иван/i });
-    expect(patientRow).toHaveAttribute("aria-pressed", "false");
+    // No right-pane preview card exists anymore — the row itself is the link to the full card.
+    expect(screen.queryByText("Выберите пациента, чтобы открыть превью")).not.toBeInTheDocument();
+    expect(document.querySelector("[data-patient-preview-surface]")).toBeNull();
     expect(screen.queryByRole("button", { name: "Закрыть" })).not.toBeInTheDocument();
+
+    const patientRow = screen.getByRole("link", { name: /Петров Иван/i });
+    expect(patientRow).not.toHaveAttribute("aria-pressed");
+    expect(new URL(patientRow.getAttribute("href") ?? "", "https://bersoncare.local").pathname).toBe(
+      `/app/doctor/patients/${PATIENT_ID}`,
+    );
     expect(screen.getByLabelText("Сортировка: клиенты")).toHaveClass(
       "w-full",
       "min-w-0",
@@ -540,10 +495,10 @@ describe("PatientsPageClient", () => {
       "lg:shrink-0",
     );
 
+    // Filters live in the right pane / mobile drawer only.
     await user.click(screen.getByRole("button", { name: "Фильтры" }));
     expect(screen.getByRole("button", { name: "← Назад" })).toBeInTheDocument();
     expect(screen.getByText("Каналы связи")).toBeInTheDocument();
-
     await user.click(screen.getByRole("button", { name: "← Назад" }));
     expect(screen.queryByRole("button", { name: "← Назад" })).not.toBeInTheDocument();
 
@@ -556,21 +511,9 @@ describe("PatientsPageClient", () => {
     const list = document.getElementById("doctor-patients-list") as HTMLUListElement;
     list.scrollTop = 64;
     fireEvent.scroll(list);
-    await user.click(patientRow);
 
-    await waitFor(() =>
-      expect(fetchMock).toHaveBeenCalledWith(`/api/doctor/patients/${PATIENT_ID}`, expect.any(Object)),
-    );
-    expect(patientRow).toHaveAttribute("aria-pressed", "true");
-    const selectedPreview = expectFramelessPatientPreview("selected");
-    expect(within(selectedPreview).getByText("Загрузка…")).toBeInTheDocument();
-    expect(within(selectedPreview).getByRole("link", { name: "Открыть карточку" })).toBeInTheDocument();
-    await act(async () => {
-      resolveFetch?.(patientResponse);
-    });
-    expect(await within(selectedPreview).findByText("На сопровождении")).toBeInTheDocument();
-    expect(within(selectedPreview).getAllByText("Петров Иван").length).toBeGreaterThan(0);
-    const fullCardLink = await screen.findByRole("link", { name: "Открыть карточку" });
+    // The row href reflects the current list workspace so the full card can return to it.
+    const fullCardLink = screen.getByRole("link", { name: /Петров Иван/i });
     const cardUrl = new URL(fullCardLink.getAttribute("href") ?? "", "https://bersoncare.local");
     expect(cardUrl.pathname).toBe(`/app/doctor/patients/${PATIENT_ID}`);
     const returnTo = new URL(cardUrl.searchParams.get("returnTo") ?? "", "https://bersoncare.local");
@@ -578,12 +521,12 @@ describe("PatientsPageClient", () => {
     expect(returnTo.searchParams.get("q")).toBe("Петров");
     expect(returnTo.searchParams.get("segments")).toBe("appointments");
     expect(returnTo.searchParams.get("sort")).toBe("fio");
-    expect(returnTo.searchParams.get("selected")).toBe(PATIENT_ID);
     expect(returnTo.searchParams.get("scroll")).toBe("64");
+    // Selection is no longer tracked now that the preview is gone.
+    expect(returnTo.searchParams.get("selected")).toBeNull();
   });
 
-  it("restores search, sort, selected preview, and list scroll from the list URL state", async () => {
-    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: false, json: async () => ({ ok: false }) }));
+  it("restores search, sort, and list scroll from the list URL state without tracking a selection", async () => {
     await renderPatientsPage(
       [client({ userId: PATIENT_ID, displayName: "Петров Иван", firstName: "Иван", lastName: "Петров" })],
       {
@@ -597,13 +540,14 @@ describe("PatientsPageClient", () => {
 
     expect(screen.getByRole("searchbox", { name: "Поиск: клиенты" })).toHaveValue("Петров");
     expect(screen.getByRole("button", { name: "По фамилии: А–Я" })).toHaveAttribute("aria-pressed", "true");
-    expect(screen.getByRole("button", { name: /Петров Иван/i })).toHaveAttribute("aria-pressed", "true");
+    const patientRow = screen.getByRole("link", { name: /Петров Иван/i });
+    expect(patientRow).not.toHaveAttribute("aria-pressed");
+    expect(patientRow.getAttribute("href")).toContain(`/app/doctor/patients/${PATIENT_ID}`);
+    expect(patientRow.getAttribute("href")).toContain("returnTo=");
     await waitFor(() => expect(document.getElementById("doctor-patients-list")).toHaveProperty("scrollTop", 42));
-    const selectedPreview = expectFramelessPatientPreview("selected");
-    expect(await within(selectedPreview).findByText("Не удалось загрузить детали пациента.")).toBeInTheDocument();
-    const fullCardLink = await screen.findByRole("link", { name: "Открыть карточку" });
-    expect(fullCardLink.getAttribute("href")).toContain("returnTo=");
-    expect(window.location.search).toContain(`selected=${PATIENT_ID}`);
+    // The right-pane preview is gone and the incoming `selected` param is dropped from list URL state.
+    expect(document.querySelector("[data-patient-preview-surface]")).toBeNull();
+    expect(window.location.search).not.toContain("selected=");
     expect(window.location.search).toContain("scroll=42");
   });
 

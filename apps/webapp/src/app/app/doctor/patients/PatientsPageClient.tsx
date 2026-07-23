@@ -5,12 +5,15 @@
  *
  * Layout (desktop, 2-column):
  *   LEFT  – patient list with count and sorting
- *   RIGHT – selected patient preview + filter panel
+ *   RIGHT – filter panel
+ *
+ * A client-row click opens the FULL patient card directly (no right-pane preview).
  *
  * Search logic: debounced client-side match across the loaded organization roster.
  */
 
 import { Suspense, use, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { ArrowDown, ArrowUp, Bell, CalendarDays, Dumbbell, Filter, Handshake, Plus, Search, Ticket, X } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -41,7 +44,6 @@ import { DoctorPageHeader } from "@/shared/ui/doctor/shell/DoctorPageHeader";
 import { CatalogSplitLayout } from "@/shared/ui/doctor/catalog/CatalogSplitLayout";
 import { CatalogRightPane } from "@/shared/ui/doctor/catalog/CatalogRightPane";
 import { formatDoctorFio } from "@/shared/lib/fio";
-import { PatientPreviewPane } from "./PatientPreviewPane";
 import {
   buildPatientListWorkspaceHref,
   patientCardHrefWithReturnTo,
@@ -555,11 +557,9 @@ type PatientsContentProps = {
   mobileFiltersOpen: boolean;
   sort: ClientListSort;
   sortDirection: ClientListSortDirection;
-  selectedPatientId: string | null;
   listScrollTop: number;
   workspaceState: PatientListWorkspaceState;
   onSortSelect: (sort: ClientListSort) => void;
-  onPatientSelect: (userId: string) => void;
   onListScroll: (scrollTop: number) => void;
   onSegmentToggle: (key: SegmentKey) => void;
   onChannelChange: (channel: PatientListChannel | null, archived: boolean) => void;
@@ -582,11 +582,9 @@ function PatientsContent({
   mobileFiltersOpen,
   sort,
   sortDirection,
-  selectedPatientId,
   listScrollTop,
   workspaceState,
   onSortSelect,
-  onPatientSelect,
   onListScroll,
   onSegmentToggle,
   onChannelChange,
@@ -618,12 +616,6 @@ function PatientsContent({
     );
   }
   filtered = sortClients(filtered, sort, sortDirection);
-  const selectedPatient = selectedPatientId
-    ? (allClients.find((client) => client.userId === selectedPatientId) ?? null)
-    : null;
-  const fullCardHref = selectedPatient
-    ? patientCardHrefWithReturnTo(selectedPatient.userId, workspaceState)
-    : undefined;
 
   useEffect(() => {
     const list = listRef.current;
@@ -769,17 +761,14 @@ function PatientsContent({
                   const programOrSupervision = c.isOnSupport === true || c.activeTreatmentProgram;
                   return (
                     <li key={c.userId} id={`doctor-patients-item-${c.userId}`}>
-                      <button
-                        type="button"
+                      <Link
                         id={`doctor-patients-card-${c.userId}`}
-                        aria-pressed={selectedPatientId === c.userId}
-                        onClick={() => onPatientSelect(c.userId)}
+                        href={patientCardHrefWithReturnTo(c.userId, workspaceState)}
                         className={cn(
                           buttonVariants({ variant: "ghost" }),
                           doctorDnaFlatListRowClass,
                           doctorDnaFlatListClickableClass,
                           "h-auto w-full rounded-none bg-transparent text-left shadow-none active:bg-muted/80 md:gap-3",
-                          selectedPatientId === c.userId && "bg-primary/15 text-primary hover:bg-primary/20",
                           index === 0 && "border-t-0",
                         )}
                       >
@@ -797,7 +786,7 @@ function PatientsContent({
                             <CalendarDays className="size-3.5" aria-hidden />
                           </IconSlot>
                         </div>
-                      </button>
+                      </Link>
                     </li>
                   );
                 })}
@@ -807,8 +796,7 @@ function PatientsContent({
         }
         right={
           <CatalogRightPane className="h-full bg-transparent" contentClassName="gap-3 p-0">
-            <PatientPreviewPane patient={selectedPatient} cardHref={fullCardHref} />
-            {/* Filter panel */}
+            {/* Filter panel (right pane holds filters only) */}
             <section className="rounded-[var(--doctor-page-block-radius,12px)] border border-border bg-card p-[var(--doctor-block-padding,18px)]">
               {/* Factual filters in the desktop right panel. */}
               <TooltipProvider delay={450}>
@@ -929,7 +917,6 @@ export function PatientsPageClient({ listPromise: initialListPromise, metricsPro
   // Category mechanism remains dormant/reversible; this page defaults to all organization people.
   const [sort, setSort] = useState<ClientListSort>(initialFilters.sort);
   const [sortDirection, setSortDirection] = useState<ClientListSortDirection>(initialFilters.sortDirection);
-  const [selectedPatientId, setSelectedPatientId] = useState<string | null>(initialFilters.selectedPatientId);
   const [listScrollTop, setListScrollTop] = useState(initialFilters.scrollTop);
 
   const [mobileFiltersOpen, setMobileFiltersOpen] = useState(false);
@@ -942,10 +929,12 @@ export function PatientsPageClient({ listPromise: initialListPromise, metricsPro
       archivedOnly,
       sort,
       sortDirection,
-      selectedPatientId,
+      // Right-pane preview removed: a client-row click opens the full card directly,
+      // so the list no longer tracks a selected patient.
+      selectedPatientId: null,
       scrollTop: listScrollTop,
     }),
-    [activeChannel, activeSegments, archivedOnly, listScrollTop, searchInput, selectedPatientId, sort, sortDirection],
+    [activeChannel, activeSegments, archivedOnly, listScrollTop, searchInput, sort, sortDirection],
   );
 
   useEffect(() => {
@@ -997,7 +986,6 @@ export function PatientsPageClient({ listPromise: initialListPromise, metricsPro
     setArchivedOnly(initialFilters.archivedOnly);
     setSort(initialFilters.sort);
     setSortDirection(initialFilters.sortDirection);
-    setSelectedPatientId(initialFilters.selectedPatientId);
     setListScrollTop(initialFilters.scrollTop);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [initialListPromise]);
@@ -1013,11 +1001,6 @@ export function PatientsPageClient({ listPromise: initialListPromise, metricsPro
     },
     [sort],
   );
-
-  const handlePatientSelect = useCallback((userId: string) => {
-    setSelectedPatientId(userId);
-    setMobileFiltersOpen(true);
-  }, []);
 
   return (
     <Suspense fallback={<PatientListSkeleton />}>
@@ -1035,11 +1018,9 @@ export function PatientsPageClient({ listPromise: initialListPromise, metricsPro
         mobileFiltersOpen={mobileFiltersOpen}
         sort={sort}
         sortDirection={sortDirection}
-        selectedPatientId={selectedPatientId}
         listScrollTop={listScrollTop}
         workspaceState={workspaceState}
         onSortSelect={handleSortSelect}
-        onPatientSelect={handlePatientSelect}
         onListScroll={setListScrollTop}
         onSegmentToggle={handleSegmentToggle}
         onChannelChange={handleChannelChange}

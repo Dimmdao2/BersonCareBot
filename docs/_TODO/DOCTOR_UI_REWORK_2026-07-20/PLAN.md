@@ -150,9 +150,10 @@ patient chat, doctor comments и patient comments — до scheduled-message р�
   launch manifest — §4.
 - **UI-4b metrics/backend:** all-time cancellations/reschedules, active-only и expired membership semantics —
   отдельный contract stage с repository/API evidence. Presentation не должна выдумывать недоступные цифры.
-- В обычном режиме страница сохраняет `list + filters + functional preview` в split 50/50. Выбор полной карточки
+- ~~В обычном режиме страница сохраняет `list + filters + functional preview` в split 50/50. Выбор полной карточки
   переключает весь рабочий контейнер в UI-5a card mode; это не удаление preview и не попытка втиснуть карточку в
-  правую половину.
+  правую половину.~~ **SUPERSEDED 2026-07-23 (owner ruling: remove the right-pane preview entirely; a client-row
+  click opens the FULL patient card. The right pane holds filters only.)**
 
 **UI-4a exact presentation:** поиск переезжает в page header, а количество и сортировка остаются в шапке списка;
 KPI показываются по три в ряд, filtered value — отдельной меньшей цифрой без slash с filter icon; tooltip появляется
@@ -508,8 +509,9 @@ brief или заменять одним общим пунктом.
   (✓ PatientsPageClient.tsx:143-158 tooltip keys "за всё время"/active/expired; infra/repos/pgDoctorClients.ts:120-228)
 - [x] Информационные иконки имеют стабильные слоты membership → program-or-supervision → appointment без boxes.
   (✓ PatientsPageClient.tsx:790-798 IconSlot order; no bg/border classes on the slot)
-- [x] Правая половина содержит functional patient preview, а не только фильтры или пустое место (`#958`).
-  (✓ PatientsPageClient.tsx:810 `<PatientPreviewPane>`)
+- [x] ~~Правая половина содержит functional patient preview, а не только фильтры или пустое место (`#958`).
+  (✓ PatientsPageClient.tsx:810 `<PatientPreviewPane>`)~~ **SUPERSEDED 2026-07-23 (owner ruling: remove the
+  right-pane preview entirely; a client-row click opens the FULL patient card. The right pane holds filters only.)**
 
 #### UI-5a — full-workspace existing card reuse (`#958`)
 
