@@ -45,6 +45,17 @@ taskdb и owner checkboxes в scope не входят.
   live DEV. `LOG.md:4576-4583` фиксирует отдельный mechanical PASS для warmup defaults, также без live-сценария.
 - Единственная начатая DEV-попытка client-home screenshot завершилась route-level `404` и исключена из evidence.
   После этого дальнейшие live-действия не запускались: DEV был зарезервирован сериализованной приёмкой UI-4.
+- Bounded live follow-up `2026-07-23T00:55:57.818Z` на текущем feature HEAD
+  `eb5ebb09570366d6e9f561b9f34c65dd8dddf13f` использовал канонический `/app/patient`, а не несуществующий
+  `/app/patient/home`. Роль `dev:client`, desktop `1440x1024` и mobile `390x844`. В обоих viewport блок
+  самочувствия видим, заголовок `Как ваше сегодня?` и пять активных controls присутствуют, а `Ваша неделя` и SVG
+  `График самочувствия за последние дни` отсутствуют. HTTP `>=400`, console errors, page errors и request failures —
+  по нулям. Чтобы проход оставался read-only, harness локально перехватил четыре автоматических analytics POST и
+  два organization-context POST; `/api/patient/mood` не вызывался. Визуально проверены четыре PNG.
+- External hashed manifest:
+  `/home/dev/dev-projects/.lead/runs/patient-mood-live/eb5ebb095-20260723T005449Z/manifest.md`.
+  Продукт предоставляет только `POST /api/patient/mood`; канонический обратимый delete/reset path не найден.
+  Поэтому первая отметка ради evidence не создавалась и after-first-mark половина остаётся недоказанной live.
 
 Статусы: `real-done` — текущая строка полностью доказана допустимым для неё code/test/live набором; `partial` —
 реализация и тесты есть, но обязательная приёмочная грань не доказана; `fake-done` — owner checkbox закрыт без
@@ -59,7 +70,7 @@ taskdb и owner checkboxes в scope не входят.
 | `[x] Для новых назначений разминок default = 12:00 и 15:00 в рабочие дни; существующие назначения не изменяются (#191).` | `modules/reminders/scheduleSlots.ts:21-25` задаёт exact default `12:00`, `15:00`, `weekdays`. `ensureWarmupsReminderOnFirstPwaPush.ts:31-34,41-72` работает только на первой PWA subscription, сначала ищет canonical/legacy existing rule и создаёт default только при отсутствии. `warmup-schedule/route.ts:103-122` при редактировании merge-ит существующее schedule data, без backfill/rewrite. | `ensureWarmupsReminderOnFirstPwaPush.test.ts:35-71` доказывает новый default, `73-89` повторный push skip, `109-135` сохранение существующего правила и отсутствие create. Fresh файл прошёл. | TEST/live сценарий, источник-привязанный одновременно к новому назначению и заранее существующему расписанию, отсутствует. Старый mechanical PASS не заменяет runtime behavior acceptance. | **partial** |
 | `[x] UI-9 создаёт personal-scoped exercise из program editor; org-catalog save только явный.` | `InstanceAddLibraryItemDialog.tsx:176-221,414-496,600-714,768-807` держит `saveToCatalog=false` по умолчанию, создаёт `individual_exercise` внутри editor и показывает явный checkbox сохранения в каталог. `instanceEditorBatchSchema.ts:113-131` задаёт strict schema с `.default(false)`. `instanceEditorBatchApply.ts:583-614` ведёт в существующий individual path. `pgTreatmentProgramInstance.ts:994-1012,1035-1073` создаёт exact-org/owner exercise с `personal`, если явный flag не выбран, и сохраняет snapshot. | `InstanceAddLibraryItemDialog.test.tsx:271-305` доказывает unchecked default и explicit `true`. `instanceEditorBatch.test.ts:562-624,665-704` проверяет personal create/default false/explicit true. `pgTreatmentProgramIndividualExercise.behavior.test.ts:117-173` проверяет personal default и exact-org fail-closed. Все вошли в fresh packet. | Нет source-bound живого прохода program editor: «Создать новое» с default personal, затем отдельный явный catalog opt-in. Исторический high-risk audit был code/test-only. | **partial** |
 | `[x] UI-9 media использует exact-org ownership/presign path, назначенное видео immutable.` | `media-presign/route.ts:23-86` использует doctor guard, exact instance и patient folder из авторизованного workspace. `_doctorInstanceWorkspace.ts:8-43` fail-closed проверяет exact organization и patient identity. `pgTreatmentProgramInstance.ts:953-992` требует exact media org/patient/folder/ready video, `1024-1046` замораживает media в snapshot, `1077-1135` разрешает только title update. `instanceEditorBatchSchema.ts:37-43` не имеет media mutation path. | `media-presign/route.test.ts:68-114` проверяет authorized folder, cross-org `404` без writes и video-only. Behavior test `163-195` проверяет wrong org/patient/folder/status fail-closed. Contract test `18-41` фиксирует exact bindings и отсутствие media update path; batch tests доказывают неизменность snapshot и reject media patch. Все прошли fresh. | Security/immutability row: точные negative tests и code boundary, independent high-risk PASS, пустой relevant diff и deployed gates достаточны; cosmetic PNG не доказывал бы ownership лучше. | **real-done** |
-| `[x] Пустой patient mood chart скрыт до первой отметки, controls не удалены.` | `PatientHomeMoodCheckin.tsx:132,145-155,178-224` рендерит week heading/chart только при `moodWeekMarks.length > 0`, а mood controls и stats оставляет вне condition. | `PatientHomeMoodCheckin.test.tsx:65-99` проверяет отсутствие heading/chart при пустой истории, сохранение пяти controls и появление chart после первой отметки. Fresh файл прошёл. | Source-bound client-home PNG для пустого состояния отсутствует; попытка дала `404` и не считается evidence. Также нет парного live state после первой отметки. | **partial** |
+| `[x] Пустой patient mood chart скрыт до первой отметки, controls не удалены.` | `PatientHomeMoodCheckin.tsx:132,145-155,178-224` рендерит week heading/chart только при `moodWeekMarks.length > 0`, а mood controls и stats оставляет вне condition. | `PatientHomeMoodCheckin.test.tsx:65-99` проверяет отсутствие heading/chart при пустой истории, сохранение пяти controls и появление chart после первой отметки. Fresh файл прошёл. | Source-bound DEV `dev:client` `/app/patient` на `eb5ebb095`: desktop `1440x1024` и mobile `390x844` подтверждают пустое состояние — week heading/chart отсутствуют, пять активных controls и ссылка статистики остаются; diagnostics `0`. Hashed manifest: `/home/dev/dev-projects/.lead/runs/patient-mood-live/eb5ebb095-20260723T005449Z/manifest.md`. Парного live state после первой отметки нет: без канонического reversible cleanup запись ради evidence не создавалась. | **partial** |
 
 ## Closure counts
 
@@ -74,8 +85,9 @@ taskdb и owner checkboxes в scope не входят.
   `15:00` после first PWA push и неизменность заранее существующего rule.
 - UI-9 personal/catalog: один source-bound program-editor проход с default personal create и отдельным explicit
   org-catalog opt-in.
-- Client mood: один source-bound client-home проход с пустой историей (chart скрыт, пять controls сохранены) и с
-  первой отметкой (chart появляется).
+- Client mood: empty-state половина теперь source-bound доказана на desktop/mobile; остаётся source-bound live state
+  после первой отметки, где chart появляется, а пять controls сохраняются. Без канонического reversible cleanup
+  этот проход намеренно не мутировал DEV.
 - Это один будущий batched live-evidence pass после освобождения DEV, а не три correction workers. Если проход
   обнаружит реальный дефект, findings следует собрать в один coherent fix batch; серийный audit-fix loop не запускать.
 - Owner acceptance остаётся отдельным и owner-only; этот аудит не меняет plan/taskdb checkboxes.
