@@ -19,15 +19,16 @@ A row is retained for every authority occurrence. DNA S0 and UI-P/P2B overlap on
 - Test and accumulated-CI evidence is cited only where the corresponding fresh audit binds it to the product tree. A green suite is not promoted into live or owner acceptance.
 - Source-bound live evidence is now available for the populated Today boundary/row, the removed Broadcasts phrase,
   the corrected UI-4 Clients preview/status slots, three UI-5a workspace/history rows and the opened mobile doctor
-  menu. Empty fixtures remain partial for states they cannot render. Pure DAG rows keep the separate
+  menu. A bounded desktop/mobile doctor capture also supplies the exact computed Nunito runtime atom. Empty
+  fixtures remain partial for states they cannot render. Pure DAG rows keep the separate
   dependency-contract verdicts from `TRACK_A_ROADMAP_DAG_REALITY_AUDIT.md`.
 - No environment, DB, taskdb, deploy, plan-checkbox or owner-acceptance state was changed by this docs-only pass.
 
 | Source item | Code path:line evidence or explicit missing | Current contract-specific test evidence or explicit missing | Runtime/live PNG evidence or explicit missing | Dependency / owner gate | Verdict |
 |---|---|---|---|---|---|
 | A-DNA-001 — docs/_TODO/DOCTOR_DNA_MIGRATION/PLAN.md:29 · S0 — Живой DNA-предпросмотр (текущая, под решение владельца): “Навесить 'theme-bersoncare-doctor-dna' на '#app-shell-doctor' (токен-флип: холст/синий/радиус).” | `apps/webapp/src/shared/ui/doctor/DoctorAppShell.tsx:30-43` attaches `theme-bersoncare-doctor-dna` in both shell layouts; `apps/webapp/src/app/styles/bersoncare-tweakcn-theme.css:88-101` applies the DNA canvas, ink, semantic surfaces and doctor primary inside that exact scope. | `doctorDnaTheme.contract.test.ts:7-14` locks the DNA canvas/semantic-background mapping; `DoctorPresentationChrome.test.tsx:20-65,89-100` locks the shared radius, surface, control and primary contracts consumed by the themed shell. | Source-bound desktop/mobile doctor captures D0–D2/M0–M2 at `0eda771fe2d9152f9252248ebe11f586737b0eed` are HTTP 200 with zero console errors; direct samples prove canvas `(246, 244, 239)`, white primary surfaces and doctor primary `(64, 108, 167)`. The exact relevant product-tree diff from that evidence SHA to current HEAD is empty. | Fresh evidence authority: `TRACK_A_TODAY_CLIENTS_MESSAGES_REAUDIT.md`, rows P2B-02/P2B-07. Owner acceptance remains a separate owner-only layer in A-DNA-005. | real-done |
-| A-DNA-002 — docs/_TODO/DOCTOR_DNA_MIGRATION/PLAN.md:30 · S0 — Живой DNA-предпросмотр (текущая, под решение владельца): “Подключить и применить Nunito в doctor-scope ('--font-sans').” | `apps/webapp/src/app/layout.tsx:10,23-28,76` loads Cyrillic Nunito through `next/font` and exposes `--font-nunito`; `apps/webapp/src/app/styles/bersoncare-tweakcn-theme.css:53,88-93` maps and consumes it in doctor scope. | Explicit missing — `doctorDnaTheme.contract.test.ts` locks the canvas but does not assert the Nunito load/application chain. | The source-bound desktop/mobile doctor PNGs render the current typography on an exact current product tree, but their manifests contain no computed `font-family` or `document.fonts.check` atom capable of distinguishing loaded Nunito from its fallback stack. | Keep partial until one source-bound computed-font atom is recorded in an existing/future live capture; no second presentation-audit pass or owner acceptance is required for that evidence step. | partial |
-| A-DNA-003 — docs/_TODO/DOCTOR_DNA_MIGRATION/PLAN.md:31 · S0 — Живой DNA-предпросмотр (текущая, под решение владельца): “Ввести DNA-строку списка (плоская, волосяная линия, выделение = полоска слева + вес, **без заливки/пилюль**) как новый shared-примитив — применить на: **Сегодня**, **Клиенты**, **Настройки**.” | `DoctorDnaFlatListRow.tsx:17-31` owns the flat-row contract; Today and Clients consume it in `DoctorTodayDashboard.tsx` and `PatientsPageClient.tsx`. Exact consumer census finds no consumer under `app/app/settings`; `AccountTabs.tsx` belongs to the separate `/app/account` route and cannot satisfy the explicit Settings requirement. | `DoctorPresentationChrome.test.tsx:68-87` locks the shared row contract; the current Today and Clients focused tests lock their consumers. No Settings-consumer test exists because that consumer is absent. | Source-bound populated Today desktop/mobile evidence at `e669e2c123c41ddb1167af8e31e4f2f9f472c98b` and populated Clients evidence at `c431fe7a102e4056737e3052e63143ad5046a762` prove those two consumers on exact current product trees. The required Settings consumer has no live state because it is not implemented. | Keep partial until the same shared primitive is applied to the actual `/app/settings` surface and receives ordinary targeted evidence; Account is not a substitute and docs-only reconciliation cannot close missing product code. | partial |
+| A-DNA-002 — docs/_TODO/DOCTOR_DNA_MIGRATION/PLAN.md:30 · S0 — Живой DNA-предпросмотр (текущая, под решение владельца): “Подключить и применить Nunito в doctor-scope ('--font-sans').” | `apps/webapp/src/app/layout.tsx:10,23-28,76` loads Cyrillic Nunito through `next/font` and exposes `--font-nunito`; `apps/webapp/src/app/styles/bersoncare-tweakcn-theme.css:53,88-93` maps and consumes it in doctor scope. | No dedicated font-chain assertion exists in `doctorDnaTheme.contract.test.ts`; the exact residual named by the prior matrix was the source-bound runtime atom, not another presentation-test pass. | Exact-SHA desktop/mobile evidence at `e231ad38325010e78e489ff8bb124bd63d5a3e0d` records Nunito in computed `font-family` for the doctor shell, page header/title and populated Today row; `document.fonts.status=loaded`, `document.fonts.check("16px Nunito")=true`, and loaded Nunito faces are persisted. Both routes are HTTP 200 with zero non-GET requests, HTTP `>=400`, console errors or page errors. Artifacts: `TRACK_A_DNA_LIVE_EVIDENCE.md`. | The missing runtime-font atom is now present. Owner screenshot/click acceptance remains the separate A-DNA-005 row and is not claimed here. | real-done |
+| A-DNA-003 — docs/_TODO/DOCTOR_DNA_MIGRATION/PLAN.md:31 · S0 — Живой DNA-предпросмотр (текущая, под решение владельца): “Ввести DNA-строку списка (плоская, волосяная линия, выделение = полоска слева + вес, **без заливки/пилюль**) как новый shared-примитив — применить на: **Сегодня**, **Клиенты**, **Настройки**.” | `DoctorDnaFlatListRow.tsx:17-31` owns the flat-row contract; Today and Clients consume it in `DoctorTodayDashboard.tsx` and `PatientsPageClient.tsx`. Integrated commit `bc2c5c090` applies the same non-clickable flat-row primary/meta contract to the actual `/app/settings?tab=team` member and pending-invite lists in `TeamSection.tsx` without creating another settings tree. | `DoctorPresentationChrome.test.tsx` plus `TeamSection.test.tsx` and `settings/page.test.tsx` passed **3 files / 18 tests**; the focused Settings assertions cover both lists while preserving invite/revoke behavior and the one guarded settings surface. | Existing source-bound Today and Clients evidence remains valid. The GET-only Settings preflight on exact SHA `e231ad383` stopped before capture because `dev:clinic-admin` received `307` from `/app/settings?tab=team` to `/app/settings?tab=organization`; no entitlement/fixture was changed. Blocker: `TRACK_A_DNA_LIVE_EVIDENCE.md`. | Keep partial until an already-entitled organization renders the real Settings member list in an ordinary source-bound live pass. Account is not a substitute; integrated code/tests alone do not replace this exact live boundary. | partial |
 | A-DNA-004 — docs/_TODO/DOCTOR_DNA_MIGRATION/PLAN.md:33 · S0 — Живой DNA-предпросмотр (текущая, под решение владельца): “Убрать захардкоженный холодный '#f7f9fc' в 'doctor.css', где он бьётся с холстом.” | `apps/webapp/src/app/styles/doctor.css:3-15` uses `--bc-canvas` with exact DNA fallback `#f6f4ef`; the exact current `apps/webapp/src` census contains zero `#f7f9fc` occurrences. | `doctorDnaTheme.contract.test.ts:7-14` locks `--doctor-page-gap-background: var(--bc-canvas, #f6f4ef)` and the semantic DNA canvas mapping. | Source-bound D0–D2/M0–M2 direct canvas samples are `(246, 244, 239)` (`#F6F4EF`) on evidence SHA `0eda771fe2d9152f9252248ebe11f586737b0eed`; the exact relevant product-tree diff to current HEAD is empty. | Fresh evidence authority: `TRACK_A_TODAY_CLIENTS_MESSAGES_REAUDIT.md`, row P2B-02. Owner acceptance remains separate and no second presentation-audit pass is required. | real-done |
 | A-DNA-005 — docs/_TODO/DOCTOR_DNA_MIGRATION/PLAN.md:34 · S0 — Живой DNA-предпросмотр (текущая, под решение владельца): “Скриншоты 3 экранов (desktop+mobile) владельцу → его решение по строкам/холсту/шрифту.” | Explicit missing — owner-review/screenshot action has no code-path substitute. | Explicit missing — owner/live review is not test-replaceable. | Explicit missing — no source-bound LIVE PNG. Round-2 recorded no usable dev auth/env in this worktree; no screenshot or owner acceptance is claimed. | Owner decision / explicitly deferred authority; no code batch. | deferred |
 | A-UI-001 — docs/_TODO/DOCTOR_UI_REWORK_2026-07-20/PLAN.md:326 · Atomic acceptance — worker/auditor authority: “**P2B-01** Desktop «Сегодня» использует точное разделение '50/50'; mobile composition не регрессирует.” | `DoctorTodayDashboard.tsx:118-122`. | `DoctorTodayDashboard.test.tsx:198-205`. | D0 shows equal panes; M0 shows the stacked mobile composition. | Fresh evidence authority: docs/_TODO/UI_FINISH_AND_REAUDIT_2026-07-22/TRACK_A_TODAY_CLIENTS_MESSAGES_REAUDIT.md, row P2B-01. Owner acceptance remains a separate owner-only layer. | real-done |
@@ -201,7 +202,7 @@ corresponding live package.
 
 | User-facing area | evidence-real | partial | deferred | blocked | total |
 |---|---:|---:|---:|---:|---:|
-| Doctor visual foundation: canvas, font and shared DNA row preview | 2 | 2 | 1 | 0 | 5 |
+| Doctor visual foundation: canvas, font and shared DNA row preview | 3 | 1 | 1 | 0 | 5 |
 | Shared appearance/behavior of Today, Clients and Messages lists | 11 | 3 | 0 | 0 | 14 |
 | Booking funnel and calendar-created client navigation | 2 | 2 | 1 | 0 | 5 |
 | Schedule and appointment details | 0 | 16 | 4 | 0 | 20 |
@@ -215,7 +216,7 @@ corresponding live package.
 | Scheduled doctor/patient communications | 0 | 0 | 0 | 24 | 24 |
 | Commercial contour, warmups, personal exercise/media and patient mood | 2 | 3 | 0 | 0 | 5 |
 | Accumulated milestone gates | 0 | 2 | 1 | 2 | 5 |
-| **Product/live total** | **44** | **45** | **9** | **50** | **148** |
+| **Product/live total** | **45** | **44** | **9** | **50** | **148** |
 
 The separate SaaS roadmap registry is closed **19/19 as dependency contracts**: 6 contract-real,
 7 blocked-by-upstream-dependency and 6 owner-deferred optional nodes. That contract closure does not claim the
@@ -225,8 +226,8 @@ corresponding product stages are complete.
 
 | Verdict | Exact count |
 |---|---:|
-| product/live evidence-real (DNA/UI) | 44 |
-| product/live partial (DNA/UI) | 45 |
+| product/live evidence-real (DNA/UI) | 45 |
+| product/live partial (DNA/UI) | 44 |
 | product/live fake-done (DNA/UI) | 0 |
 | product/live deferred (DNA/UI) | 9 |
 | product/live blocked (DNA/UI) | 50 |
@@ -259,6 +260,10 @@ dependency/inclusion contracts. Evidence-real is not owner acceptance: owner-acc
 - UI-P is now 6/8: the opened mobile menu is source-bound; only the two populated Messages rows remain partial. The patient-mood row
   remains partial: empty desktop/mobile state is source-bound, but the post-first-mark state has no reversible live
   evidence path.
+- Doctor DNA is now 3/5 evidence-closed: the exact computed Nunito desktop/mobile atom closes A-DNA-002. The
+  integrated Settings flat-row consumer and its 18/18 focused gate close the prior code/test gap for A-DNA-003,
+  but that row remains partial because the canonical `dev:clinic-admin` Team route redirected through the
+  fail-closed `clinic_team` entitlement gate before live capture.
 - UI-5b (24 rows) and UI-7 (24 rows) remain dependency-blocked; the reconciliation does not start them.
 - The remaining partial rows require the exact populated/live scenarios named by their fresh audit documents.
   Deferred rows retain their explicit owner/dependency gates.
@@ -315,19 +320,19 @@ Command executed after writing this matrix:
     const expected = {
       matrixRows: 167, uniqueRows: 167, ownerTextUnchanged: true, pageCountsValid: true,
       dna: 5, doctorUi: 143, dag: 19,
-      productReal: 44, productPartial: 45, productDeferred: 9, productBlocked: 50,
+      productReal: 45, productPartial: 44, productDeferred: 9, productBlocked: 50,
       dagReal: 6, dagBlocked: 7, dagDeferred: 6,
     };
     if (JSON.stringify(actual) !== JSON.stringify(expected)) process.exit(1);
     NODE
 
-Result: `{ matrixRows: 167, uniqueRows: 167, ownerTextUnchanged: true, pageCountsValid: true, dna: 5, doctorUi: 143, dag: 19, productReal: 44, productPartial: 45, productDeferred: 9, productBlocked: 50, dagReal: 6, dagBlocked: 7, dagDeferred: 6 }`.
+Result: `{ matrixRows: 167, uniqueRows: 167, ownerTextUnchanged: true, pageCountsValid: true, dna: 5, doctorUi: 143, dag: 19, productReal: 45, productPartial: 44, productDeferred: 9, productBlocked: 50, dagReal: 6, dagBlocked: 7, dagDeferred: 6 }`.
 
 ## Stage reports
 
-evidence-closed 2/5 against `docs/_TODO/DOCTOR_DNA_MIGRATION/PLAN.md`
-**NOT DONE:** the Nunito runtime atom and the actual Settings shared-row consumer remain partial; the
-three-screen desktop/mobile owner decision row remains deferred.
+evidence-closed 3/5 against `docs/_TODO/DOCTOR_DNA_MIGRATION/PLAN.md`
+**NOT DONE:** the Settings shared-row consumer is integrated and test-covered but still lacks an entitled live
+render; the three-screen desktop/mobile owner decision row remains deferred.
 Owner-closed is 0/5.
 
 evidence-closed 42/143 against `docs/_TODO/DOCTOR_UI_REWORK_2026-07-20/PLAN.md`
