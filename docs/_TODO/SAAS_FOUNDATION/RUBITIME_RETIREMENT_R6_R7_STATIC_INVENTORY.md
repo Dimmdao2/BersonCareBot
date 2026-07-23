@@ -38,27 +38,43 @@ blockers unless they are wired into live runtime code.
 
 ## Current pre-cutoff output summary
 
-Latest run time against current branch baseline: 2026-07-22 21:25:58 MSK.
+Latest run time against current branch baseline: 2026-07-23 (D0 truthful-retirement-gate correction).
 
 | Category | Phase | Current result | Meaning |
 | --- | --- | ---: | --- |
 | `mountedRubitimeRouteLiterals` | R6 | 0 hits / 0 files | No Rubitime-named runtime route surfaces remain in scanned runtime source. |
 | `integratorRubitimeRuntimeImports` | R6 | 0 hits / 0 files | Integrator app wiring no longer imports/mounts Rubitime runtime registrars. |
 | `rubitimeApiClientRuntimeTokens` | R6 | 0 hits / 0 files | No Rubitime API client/throttle/post-create runtime tokens remain. |
+| `rubitimeBookingUpsertRuntime` | R6/D9 | 22 hits / 11 files | The Rubitime-specific `booking.upsert` branch and `booking-rubitime-sync` package remain active. |
+| `appointmentRecordUpsertedFanoutBuilder` | R6/D9 | 5 hits / 2 files | `buildAppointmentRecordUpsertedFanout` remains in the integrator write path. |
+| `appointmentRecordUpsertedProducer` | R6/D9 | 2 hits / 2 files | Integrator still produces `appointment.record.upserted`. |
+| `appointmentRecordUpsertedHandler` | R6/D9 | 2 hits / 1 file | Webapp still handles `appointment.record.upserted`. |
+| `integratorEventsRoute` | D10 | 1 hit / 1 file | The filesystem-mounted `/api/integrator/events` receiver remains. |
+| `projectionEmitOrEnqueueRuntime` | D10 | 3 hits / 2 files | `tryEmitWebappProjectionThenEnqueue` remains in runtime. |
+| `projectionOutboxRuntime` | D10 | 64 hits / 14 files | Projection transport storage, repositories and health/runtime references remain. |
+| `projectionWorkerRuntime` | D10 | 7 hits / 2 files | The projection worker implementation and runtime loop remain. |
 | `legacyAppointmentRecordRuntimeRefs` | R6/R7 | 150 hits / 28 files | Legacy appointment table references remain for archive/backfill/compat paths. |
 | `rubitimeRawTableRuntimeRefs` | R7 | 21 hits / 6 files | Raw Rubitime table/queue references remain in runtime/schema/readiness/active purge storage until R7 archive/drop/defer decision. Ops tooling is reported separately. |
-| `providerNeutralKeepTableRefs` | R7 keep-list | 159 hits / 42 files | Explicit keep-list references, not a drop signal. |
+| `providerNeutralKeepTableRefs` | R7 keep-list | 160 hits / 43 files | Explicit keep-list references, not a drop signal. |
 | `rubitimeOpsToolingRefs` | R6/R7 ops | 543 hits / 25 files | Ops/audit/backfill scripts with Rubitime references; reported, not a post-R6 runtime blocker. |
 
-The post-R6 static inventory gate now passes for runtime Rubitime route/API blockers:
+The three narrow legacy route/API categories remain zero, but they were an incomplete gate. The corrected post-R6
+and direct-public retirement verdict is **FAIL** while the eight D0 categories below remain:
 
 ```text
-mountedRubitimeRouteLiterals=0
-integratorRubitimeRuntimeImports=0
-rubitimeApiClientRuntimeTokens=0
+rubitimeBookingUpsertRuntime=22
+appointmentRecordUpsertedFanoutBuilder=5
+appointmentRecordUpsertedProducer=2
+appointmentRecordUpsertedHandler=2
+integratorEventsRoute=1
+projectionEmitOrEnqueueRuntime=3
+projectionOutboxRuntime=64
+projectionWorkerRuntime=7
 ```
 
-This does not by itself complete R6 because `RUBITIME_RETIREMENT_R6_CUTOFF_DRAIN_PROOF.md` still requires owner-approved
+Default inventory mode remains non-destructive and exits zero while reporting these categories. The final
+`--expect-post-r6` mode exits non-zero until later Track D packages retire every category. This gate correction does
+not complete R6: `RUBITIME_RETIREMENT_R6_CUTOFF_DRAIN_PROOF.md` still separately requires owner-approved
 cutoff/drain, fresh post-cutoff CSV reconciliation and proof capture.
 
 ## Current R6 blocker files
@@ -74,6 +90,20 @@ Integrator Rubitime runtime imports:
 Rubitime API/client/runtime tokens:
 
 - none after `R6-INTEGRATOR-LEGACY-SOURCE-DELETE-codex-2026-07-14`.
+
+Corrected D9/D10 blockers:
+
+- `apps/integrator/src/infra/db/writePort.ts` and `packages/booking-rubitime-sync/src/**` — Rubitime-specific
+  `booking.upsert` branch/package;
+- `apps/integrator/src/infra/db/buildAppointmentRecordUpsertedFanout.ts` plus its write-port calls — producer
+  builder;
+- `apps/integrator/src/kernel/contracts/projectionEventTypes.ts` and
+  `apps/integrator/src/infra/db/buildAppointmentRecordUpsertedFanout.ts` — `appointment.record.upserted` producer;
+- `apps/webapp/src/modules/integrator/events.ts` — `appointment.record.upserted` handler;
+- `apps/webapp/src/app/api/integrator/events/route.ts` — mounted receiver;
+- `apps/integrator/src/infra/db/repos/projectionFanout.ts` and `writePort.ts` — immediate HTTP emit/outbox fallback;
+- integrator projection-outbox schema/repositories/health/runtime references — transport storage;
+- `apps/integrator/src/infra/runtime/worker/projectionWorker.ts` and `main.ts` — projection worker and loop.
 
 Ops/audit/backfill tooling with Rubitime references is reported under `rubitimeOpsToolingRefs`. It includes
 historical backfills, schema cleanup scans, phone-admin purge tooling and seed/audit scripts. These files are not
@@ -198,3 +228,27 @@ Current six raw-table reference files:
 
 This refresh does not close R6/R7. The R6 removal state is repository provenance only until `RR-PROOF-09`, and all
 six references remain R7 migration/defer scope.
+
+## 2026-07-23 D0 Truthful Retirement Gate Correction
+
+Track D D0 corrected the false-green `--expect-post-r6` verdict. The earlier three-category check did not cover the
+still-active Rubitime appointment projection and generic HTTP/outbox transport that Track D retires in D9/D10.
+
+Deterministic self-test:
+
+```bash
+node docs/_TODO/SAAS_FOUNDATION/scripts/rubitime-r6-r7-static-inventory.mjs --self-test
+```
+
+The self-test starts from a clean temporary source tree and injects one runtime fixture for each of the eight D0
+categories. Every case proves `cleanVerdict=pass` and `fixtureVerdict=fail`. It reads no env/DB/runtime data and
+removes its temporary fixture tree after every case.
+
+Current/final behavior:
+
+- default/current inventory: exits `0` and reports every blocker with source paths;
+- `--expect-post-r6`: exits `1` on the current branch with all eight D0 categories listed;
+- final completion gate inherits that non-zero verdict until later D packages remove the relevant runtime.
+
+This package changes only the guard and its evidence. It does not delete producers, handlers, routes, outbox
+storage/workers, runtime code, migrations or data.

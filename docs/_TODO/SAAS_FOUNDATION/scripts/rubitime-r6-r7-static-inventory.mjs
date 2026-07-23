@@ -1,18 +1,29 @@
 #!/usr/bin/env node
-import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
-import { join, relative } from 'node:path';
+import {
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readdirSync,
+  readFileSync,
+  rmSync,
+  statSync,
+  writeFileSync,
+} from 'node:fs';
+import { tmpdir } from 'node:os';
+import { dirname, join, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const repoRoot = fileURLToPath(new URL('../../../..', import.meta.url));
 
 const HELP = `Usage:
-  node docs/_TODO/SAAS_FOUNDATION/scripts/rubitime-r6-r7-static-inventory.mjs [--expect-post-r6]
+  node docs/_TODO/SAAS_FOUNDATION/scripts/rubitime-r6-r7-static-inventory.mjs [--expect-post-r6|--self-test]
 
 Static, aggregate-only R6/R7 inventory. It does not connect to DB, read env files,
 call Rubitime, or inspect patient data.
 
 Default mode records known pre-cutoff runtime references.
---expect-post-r6 fails if R6 runtime blockers remain.`;
+--expect-post-r6 fails if R6/direct-public retirement blockers remain.
+--self-test proves every D0 blocker category changes the post-R6 verdict.`;
 
 const scanRoots = [
   'apps/integrator/src',
@@ -61,6 +72,106 @@ const categories = [
       /withRubitimeApiThrottle/g,
       /api2\/(?:get-schedule|get-record|create-record|update-record|remove-record)/g,
       /runPostCreateProjection/g,
+    ],
+  },
+  {
+    key: 'rubitimeBookingUpsertRuntime',
+    description: 'Rubitime-specific booking.upsert branch or booking-rubitime-sync package runtime.',
+    phase: 'R6/D9',
+    postR6MustBeZero: true,
+    fileFilter: (rel) =>
+      rel === 'apps/integrator/src/infra/db/writePort.ts'
+      || rel.startsWith('packages/booking-rubitime-sync/src/'),
+    pathPatterns: [
+      /^packages\/booking-rubitime-sync\/src\/.+\.(?:ts|tsx|js|mjs)$/,
+    ],
+    patterns: [
+      /case\s+["']booking\.upsert["']\s*:/g,
+      /@bersoncare\/booking-rubitime-sync/g,
+      /upsertPatientBookingFromRubitime/g,
+      /resolveRubitimeStatusFromBookingUpsert/g,
+    ],
+  },
+  {
+    key: 'appointmentRecordUpsertedFanoutBuilder',
+    description: 'buildAppointmentRecordUpsertedFanout producer builder remains in runtime.',
+    phase: 'R6/D9',
+    postR6MustBeZero: true,
+    fileFilter: (rel) => rel.startsWith('apps/integrator/src/infra/db/'),
+    patterns: [
+      /buildAppointmentRecordUpsertedFanout/g,
+    ],
+  },
+  {
+    key: 'appointmentRecordUpsertedProducer',
+    description: 'Integrator still produces the appointment.record.upserted projection event.',
+    phase: 'R6/D9',
+    postR6MustBeZero: true,
+    fileFilter: (rel) =>
+      rel === 'apps/integrator/src/kernel/contracts/projectionEventTypes.ts'
+      || rel === 'apps/integrator/src/infra/db/buildAppointmentRecordUpsertedFanout.ts',
+    patterns: [
+      /export\s+const\s+APPOINTMENT_RECORD_UPSERTED\s*=\s*["']appointment\.record\.upserted["']/g,
+      /eventType\s*:\s*APPOINTMENT_RECORD_UPSERTED/g,
+    ],
+  },
+  {
+    key: 'appointmentRecordUpsertedHandler',
+    description: 'Webapp still handles the appointment.record.upserted projection event.',
+    phase: 'R6/D9',
+    postR6MustBeZero: true,
+    fileFilter: (rel) => rel === 'apps/webapp/src/modules/integrator/events.ts',
+    patterns: [
+      /const\s+APPOINTMENT_RECORD_UPSERTED\s*=\s*["']appointment\.record\.upserted["']/g,
+      /event\.eventType\s*===\s*APPOINTMENT_RECORD_UPSERTED/g,
+    ],
+  },
+  {
+    key: 'integratorEventsRoute',
+    description: 'Legacy webapp POST /api/integrator/events projection receiver remains mounted.',
+    phase: 'D10',
+    postR6MustBeZero: true,
+    fileFilter: (rel) => rel === 'apps/webapp/src/app/api/integrator/events/route.ts',
+    pathPatterns: [
+      /^apps\/webapp\/src\/app\/api\/integrator\/events\/route\.(?:ts|tsx|js|mjs)$/,
+    ],
+    patterns: [],
+  },
+  {
+    key: 'projectionEmitOrEnqueueRuntime',
+    description: 'Immediate HTTP projection fanout with outbox fallback remains in runtime.',
+    phase: 'D10',
+    postR6MustBeZero: true,
+    fileFilter: (rel) => rel.startsWith('apps/integrator/src/'),
+    patterns: [
+      /tryEmitWebappProjectionThenEnqueue/g,
+    ],
+  },
+  {
+    key: 'projectionOutboxRuntime',
+    description: 'Legacy projection_outbox transport storage/repositories remain in runtime.',
+    phase: 'D10',
+    postR6MustBeZero: true,
+    fileFilter: (rel) => rel.startsWith('apps/integrator/src/'),
+    patterns: [
+      /projection_outbox/g,
+      /projectionOutbox/g,
+      /enqueueProjectionEvent/g,
+      /claimDueProjectionEvents/g,
+    ],
+  },
+  {
+    key: 'projectionWorkerRuntime',
+    description: 'Legacy projection-outbox worker implementation or loop remains in runtime.',
+    phase: 'D10',
+    postR6MustBeZero: true,
+    fileFilter: (rel) => rel.startsWith('apps/integrator/src/infra/runtime/worker/'),
+    pathPatterns: [
+      /^apps\/integrator\/src\/infra\/runtime\/worker\/projectionWorker\.(?:ts|tsx|js|mjs)$/,
+    ],
+    patterns: [
+      /runProjectionWorkerTick/g,
+      /projectionOutboxLoop/g,
     ],
   },
   {
@@ -174,12 +285,21 @@ function countMatches(src, patterns) {
   return count;
 }
 
-function collect() {
+function countPathMatches(rel, patterns = []) {
+  let count = 0;
+  for (const pattern of patterns) {
+    pattern.lastIndex = 0;
+    if (pattern.test(rel)) count += 1;
+  }
+  return count;
+}
+
+function collect(root = repoRoot) {
   const files = scanRoots
-    .flatMap((root) => listFiles(join(repoRoot, root)))
+    .flatMap((scanRoot) => listFiles(join(root, scanRoot)))
     .map((abs) => ({
       abs,
-      rel: relative(repoRoot, abs).replace(/\\/g, '/'),
+      rel: relative(root, abs).replace(/\\/g, '/'),
     }))
     .filter((file) => isRuntimeFile(file.rel));
 
@@ -197,7 +317,9 @@ function collect() {
       return true;
     });
     for (const file of filesForCategory) {
-      const hits = countMatches(file.src, category.patterns);
+      const hits =
+        countMatches(file.src, category.patterns)
+        + countPathMatches(file.rel, category.pathPatterns);
       if (hits === 0) continue;
       totalHits += hits;
       filesWithHits.push({ path: file.rel, hits });
@@ -215,12 +337,133 @@ function collect() {
 
   return {
     mode: process.argv.includes('--expect-post-r6') ? 'expect-post-r6' : 'pre-cutoff-inventory',
-    repoRoot,
+    repoRoot: root,
     scannedRoots: scanRoots,
     scannedRuntimeFiles: sourceFiles.length,
     generatedAt: new Date().toISOString(),
+    postR6Verdict: {
+      ready: categoryResults.every(
+        (category) => !category.postR6MustBeZero || category.totalHits === 0,
+      ),
+      blockerCategories: categoryResults
+        .filter((category) => category.postR6MustBeZero && category.totalHits > 0)
+        .map((category) => ({ key: category.key, hits: category.totalHits })),
+    },
     categories: categoryResults,
   };
+}
+
+function postR6Blockers(result) {
+  return result.categories.filter(
+    (category) => category.postR6MustBeZero && category.totalHits > 0,
+  );
+}
+
+function writeSelfTestFixture(root, rel, source) {
+  const absolutePath = join(root, rel);
+  mkdirSync(dirname(absolutePath), { recursive: true });
+  writeFileSync(absolutePath, source, 'utf8');
+}
+
+function runSelfTest() {
+  const fixtures = [
+    {
+      key: 'rubitimeBookingUpsertRuntime',
+      path: 'packages/booking-rubitime-sync/src/index.ts',
+      source: 'export const activeRubitimeBookingSync = true;\n',
+    },
+    {
+      key: 'appointmentRecordUpsertedFanoutBuilder',
+      path: 'apps/integrator/src/infra/db/buildAppointmentRecordUpsertedFanout.ts',
+      source: 'export function buildAppointmentRecordUpsertedFanout() { return {}; }\n',
+    },
+    {
+      key: 'appointmentRecordUpsertedProducer',
+      path: 'apps/integrator/src/kernel/contracts/projectionEventTypes.ts',
+      source: "export const APPOINTMENT_RECORD_UPSERTED = 'appointment.record.upserted';\n",
+    },
+    {
+      key: 'appointmentRecordUpsertedHandler',
+      path: 'apps/webapp/src/modules/integrator/events.ts',
+      source: [
+        "const APPOINTMENT_RECORD_UPSERTED = 'appointment.record.upserted';",
+        'export const handles = (event) => event.eventType === APPOINTMENT_RECORD_UPSERTED;',
+        '',
+      ].join('\n'),
+    },
+    {
+      key: 'integratorEventsRoute',
+      path: 'apps/webapp/src/app/api/integrator/events/route.ts',
+      source: 'export async function POST() { return new Response(null); }\n',
+    },
+    {
+      key: 'projectionEmitOrEnqueueRuntime',
+      path: 'apps/integrator/src/infra/db/repos/projectionFanout.ts',
+      source: 'export async function tryEmitWebappProjectionThenEnqueue() {}\n',
+    },
+    {
+      key: 'projectionOutboxRuntime',
+      path: 'apps/integrator/src/infra/db/repos/projectionOutbox.ts',
+      source: "export const tableName = 'projection_outbox';\n",
+    },
+    {
+      key: 'projectionWorkerRuntime',
+      path: 'apps/integrator/src/infra/runtime/worker/projectionWorker.ts',
+      source: 'export async function runProjectionWorkerTick() { return 0; }\n',
+    },
+  ];
+
+  const resultRows = [];
+  for (const fixture of fixtures) {
+    const root = mkdtempSync(join(tmpdir(), 'bcb-rubitime-d0-inventory-'));
+    try {
+      writeSelfTestFixture(
+        root,
+        'apps/integrator/src/self-test-placeholder.ts',
+        'export const cleanFixture = true;\n',
+      );
+      const cleanBlockers = postR6Blockers(collect(root));
+      if (cleanBlockers.length !== 0) {
+        throw new Error(
+          `clean fixture unexpectedly failed: ${cleanBlockers.map((item) => item.key).join(', ')}`,
+        );
+      }
+
+      writeSelfTestFixture(root, fixture.path, fixture.source);
+      const blockers = postR6Blockers(collect(root));
+      const target = blockers.find((item) => item.key === fixture.key);
+      if (!target || target.totalHits < 1) {
+        throw new Error(`${fixture.key} fixture did not change the post-R6 verdict`);
+      }
+      const unexpected = blockers.filter((item) => item.key !== fixture.key);
+      if (unexpected.length > 0) {
+        throw new Error(
+          `${fixture.key} fixture also triggered: ${unexpected.map((item) => item.key).join(', ')}`,
+        );
+      }
+      resultRows.push({
+        category: fixture.key,
+        fixture: fixture.path,
+        cleanVerdict: 'pass',
+        fixtureVerdict: 'fail',
+        hits: target.totalHits,
+      });
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  }
+
+  console.log(
+    JSON.stringify(
+      {
+        selfTest: 'rubitime-r6-r7-static-inventory-d0',
+        ok: true,
+        cases: resultRows,
+      },
+      null,
+      2,
+    ),
+  );
 }
 
 if (process.argv.includes('--help')) {
@@ -228,13 +471,16 @@ if (process.argv.includes('--help')) {
   process.exit(0);
 }
 
+if (process.argv.includes('--self-test')) {
+  runSelfTest();
+  process.exit(0);
+}
+
 const result = collect();
 console.log(JSON.stringify(result, null, 2));
+const blockers = postR6Blockers(result);
 
 if (process.argv.includes('--expect-post-r6')) {
-  const blockers = result.categories.filter(
-    (category) => category.postR6MustBeZero && category.totalHits > 0,
-  );
   if (blockers.length > 0) {
     console.error(
       `rubitime-r6-r7-static-inventory: post-R6 blockers remain: ${blockers
@@ -243,4 +489,10 @@ if (process.argv.includes('--expect-post-r6')) {
     );
     process.exit(1);
   }
+} else if (blockers.length > 0) {
+  console.error(
+    `rubitime-r6-r7-static-inventory: inventory-only mode; post-R6 is NOT READY: ${blockers
+      .map((item) => `${item.key}=${item.totalHits}`)
+      .join(', ')}`,
+  );
 }
