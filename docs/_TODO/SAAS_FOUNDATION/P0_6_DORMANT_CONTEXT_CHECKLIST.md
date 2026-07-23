@@ -41,7 +41,7 @@ Forbidden:
 - [x] Run the pre-P0.6 guard: `pnpm run check:saas-db-regression`. (✓ scripts/check-saas-db-regression.mjs | sub-checks green 2026-07-23)
 - [x] Identify the existing dormant hook names for webapp, integrator, and media-worker. (✓ webapp infra/db/withClient.ts:32,79 | apps/integrator/src/infra/db/withClient.ts | apps/media-worker/src/withClient.ts)
 - [x] Define one module/API for current DB principal state, preferably AsyncLocalStorage-backed if the chokepoint already expects request-local state. (✓ packages/db-principal/src/index.ts:253 AsyncLocalStorage)
-- [x] Ensure unset context is the default and performs no tenant SQL. (✓ db-principal/index.ts:29 DEFAULT_DB_PRINCIPAL_CONTEXT_MODE="legacy-guc"; :611 legacy-guc no set_config)
+- [x] Ensure unset context is the default and performs no tenant SQL. (✓ db-principal/index.ts:29 DEFAULT_DB_PRINCIPAL_CONTEXT_MODE="legacy-guc"; applyDbPrincipalToTransaction/Connection return false → no SET emitted when principal absent (~:680-682/:713-715))
 - [x] Ensure set context validates UUID shape before it reaches SQL. (✓ db-principal/index.ts:4 UUID_RE; :763 UUID_RE.test guard)
 - [x] Ensure principal application is centralized in the client prepare hook, not in routes/services. (✓ withClient.ts:32,79 prepareClientForRequest/prepareTransactionClientForRequest → applyDbPrincipalToConnection/Transaction)
 - [x] Use transaction/pinned-client semantics for any `SET LOCAL app.org` path; do not rely on a pooled session retaining a request principal. (✓ db-principal/index.ts:685 set_config('app.org',$1,true) local=true inside transaction path)

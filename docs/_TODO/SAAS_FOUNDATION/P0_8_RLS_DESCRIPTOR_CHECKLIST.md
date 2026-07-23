@@ -31,7 +31,7 @@ Forbidden:
 
 Checklist:
 
-- [x] Descriptor represents exactly one tier for every artifact in `tiers-218.tsv`. (✓ node scripts/check-p0-8-rls-descriptors.mjs — 239 descriptors cover tiers-218.tsv exactly once, 2026-07-23)
+- [x] Descriptor represents exactly one tier for every artifact in `tiers-218.tsv`. (✓ node docs/_TODO/SAAS_FOUNDATION/scripts/check-p0-8-rls-descriptors.mjs — 239 descriptors cover tiers-218.tsv exactly once, 2026-07-23)
 - [x] SCOPED descriptors declare direct org, FK path, or denorm path. (✓ check-p0-8-rls-descriptors PASS: SCOPED sources batch=115, be_fk_path=2, be_direct_or_self=45)
 - [x] BOOTSTRAP descriptors declare global/tenant hybrid semantics where applicable. (✓ node check-p0-8-6-policy-generator.mjs — 3 global + 2 PII org-gated bootstrap hybrids)
 - [x] INFRA/LEGACY/TELEMETRY descriptors include explicit exemptions. (✓ node check-p0-8-7-explicit-exemptions.mjs — INFRA=26 LEGACY=16 TELEMETRY=5)
@@ -41,7 +41,7 @@ Checklist:
 
 Pure unit-test cases:
 
-- [x] Direct `organization_id = app.org` predicate. (✓ node scripts/check-p0-8-sql-renderer.mjs — predicate tests OK, 2026-07-23)
+- [x] Direct `organization_id = app.org` predicate. (✓ node docs/_TODO/SAAS_FOUNDATION/scripts/check-p0-8-sql-renderer.mjs — predicate tests OK, 2026-07-23)
 - [x] Patient ownership predicate where applicable. (✓ check-p0-8-sql-renderer PASS | rls-sql-renderer.mjs patient/chain/conditional/polymorphic shapes)
 - [x] Bootstrap hybrid predicate: global NULL row or matching `app.org`. (✓ check-p0-8-sql-renderer PASS; predicate in migration 0163_p0_8_6_bootstrap_hybrid_rls.sql)
 - [x] Unset-GUC dormant permit where the phase requires permissive mode. (✓ check-p0-8-sql-renderer PASS)
@@ -66,7 +66,8 @@ as the execution brief.
 
 Minimum implementation facts:
 
-- target count must be exactly `103`;
+- target count must be exactly `103`; <!-- NOTE 2026-07-23: check-p0-8-rls-descriptors now reports 110 direct-org targets + 4 parent-copy holds; reconcile this figure with owner (target likely grew as tables were added) -->
+
 - parent-copy holds remain excluded;
 - generator/smoke tooling exists and must pass before a real policy migration;
 - real migration is allowed only after scratch smoke passes;
@@ -197,7 +198,8 @@ Preflight required before code:
 Execution facts:
 
 - `check-p0-8-7-explicit-exemptions.mjs` verifies exactly the explicit-exemption treatment for
-  `INFRA=22`, `LEGACY=16`, and `TELEMETRY=2` descriptors;
+  `INFRA=26`, `LEGACY=16`, and `TELEMETRY=5` descriptors; <!-- reconciled 2026-07-23 to check-p0-8-7 output (was 22/16/2) -->
+
 - unsupported user references are derived only from static scope artifacts, not live DB:
   `fk-edges.tsv`, `method-columns.tsv`, `all-218-signals.tsv`, and `p0-4-batches.tsv`;
 - any `INFRA` or `TELEMETRY` descriptor with a static FK/soft-ref/P0.4 scoped-source signal fails the

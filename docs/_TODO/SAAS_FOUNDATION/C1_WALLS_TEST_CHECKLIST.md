@@ -23,7 +23,7 @@ Anchors: Точка Здоровья = org `a0000000-0000-4000-8000-000000000001
 - [x] Single DB layer derives the **organization from the session** (resolve membership) and stamps the
       signed principal context — in ONE place, on every query (no per-route work) (✓ app-layer/principal/sessionPrincipal.ts:41 resolveOrganizationForUser | requireRole.ts:197,215 stampStaffPrincipal centralised)
 - [x] **Bootstrap/login path works under enforce**: pre-session queries (password login, OTP) run under the
-      bootstrap principal so the owner can actually LOG IN with walls on (critical — else nobody gets in) (✓ infra/db/webappPoolProvider.ts:226 bootstrap pool + createDbBootstrapPrincipal | live-proven login 200 both doctors, RESULT 2026-07-13)
+      bootstrap principal so the owner can actually LOG IN with walls on (critical — else nobody gets in) (✓ bootstrap principal routes to the `nonstaff` pool via webappPoolProvider selectPool + runWithDbBootstrapPrincipal wraps login/health/public-auth, client.ts:108 | live-proven login 200 both doctors, RESULT 2026-07-13)
 - [x] Audit: no query reaches the DB bypassing the common layer (find any stray `pg.connect`/pool → close it) (✓ node scripts/check-db-chokepoint.mjs — OK, 2026-07-23)
 
 ### Enforce (flip on TEST)
