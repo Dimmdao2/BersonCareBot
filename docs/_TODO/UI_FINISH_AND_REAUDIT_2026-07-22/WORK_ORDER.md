@@ -70,7 +70,7 @@ deletion.
 Execute these packages in order; each package is one worker stage with the same exact rows supplied to its independent
 auditor:
 
-- [ ] **D0 — truthful retirement gate, no deletion.** `--expect-post-r6` must detect the Rubitime
+- [x] **D0 — truthful retirement gate, no deletion.** `--expect-post-r6` must detect the Rubitime
   `booking.upsert` branch/package, `buildAppointmentRecordUpsertedFanout`, the producer and handler for
   `appointment.record.upserted`, `/api/integrator/events`, `tryEmitWebappProjectionThenEnqueue`,
   `projection_outbox`, and the projection worker. A fixture/self-test must prove each category changes the verdict.
