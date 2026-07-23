@@ -51,11 +51,18 @@ evidence remains intentionally unverified and outside this B4 code slice.
   `integrator.system_settings`; the server runtime projection resolves the same value.
 - No complete `smtp_outbound` setting exists in TEST or DEV. No OTP was sent and `email_verified_at` was not changed
   manually. Real email-OTP login is therefore an owner/configuration gate, not a completed acceptance item.
+- A follow-up source check used the canonical six-field contract (`host`, `port`, `secure`, `user`, `password`,
+  `from`) and printed only field-presence booleans. Both TEST mirror rows have a non-object/null value. The DEV
+  mirror rows are objects but all six required fields are absent. TEST `system_settings_audit` contains no prior
+  `smtp_outbound` value that can be restored, and the TEST integrator legacy `SMTP_*` / `MAIL_FROM` fallback is
+  empty. Therefore there is no existing TEST/DEV platform SMTP configuration available to copy; no PROD env or
+  PROD database was read.
 - TEST already had a complete DB-backed `web_push_vapid` public setting, but its integrator mirror differed. A
   TEST-only owner-authorized transaction copied the existing public row into the integrator mirror without printing
   key values; the exact mirror check passed.
 - `manifest-staff.webmanifest` and `sw.js` both return HTTP 200 with the expected content types on TEST.
 - The owner currently has zero push subscriptions. No notification was sent.
 
-The remaining live sequence still requires successful email OTP, an owner browser/PWA install, permission and
-subscribe/unsubscribe proof, one non-clinical test notification, and the negative clinical-access checks above.
+The remaining live sequence still requires the owner to supply/save a complete TEST `smtp_outbound` value through
+platform Settings, then successful email OTP, an owner browser/PWA install, permission and subscribe/unsubscribe
+proof, one non-clinical test notification, and the negative clinical-access checks above.
