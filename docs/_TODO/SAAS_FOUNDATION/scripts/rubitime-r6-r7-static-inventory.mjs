@@ -273,8 +273,12 @@ function isRuntimeFile(rel) {
   return !(
     rel.endsWith('.test.ts') ||
     rel.endsWith('.test.tsx') ||
+    rel.endsWith('.test.js') ||
+    rel.endsWith('.test.mjs') ||
     rel.endsWith('.spec.ts') ||
     rel.endsWith('.spec.tsx') ||
+    rel.endsWith('.spec.js') ||
+    rel.endsWith('.spec.mjs') ||
     rel.endsWith('.d.ts') ||
     rel.includes('/__tests__/') ||
     rel.includes('/test-fixtures/')
@@ -289,7 +293,7 @@ function isHistoricalMigrationFile(rel) {
   return rel.includes('/migrations/');
 }
 
-function isTestOnlyHelperFile(rel) {
+function looksLikeTestHelperFile(rel) {
   const basename = rel.slice(rel.lastIndexOf('/') + 1);
   return (
     rel.includes('/test-helpers/')
@@ -298,14 +302,25 @@ function isTestOnlyHelperFile(rel) {
     || rel.includes('/fixtures/')
     || rel.includes('/mocks/')
     || /(?:ForTests?|TestHelper|TestUtils|TestingHelper)\.(?:ts|tsx|js|mjs)$/.test(basename)
+    || /(?:^|[._-])(?:stub|fixture|mock|harness)(?:[._-]|[A-Z]|$)/.test(basename)
   );
 }
 
-function isExecutableRuntimeFile(rel) {
+function isTestOnlyHelperFile(rel, importUsage) {
+  if (!looksLikeTestHelperFile(rel)) return false;
+  const usage = importUsage.get(rel);
+  return Boolean(
+    usage
+    && usage.testConsumers.size > 0
+    && usage.runtimeConsumers.size === 0,
+  );
+}
+
+function isExecutableRuntimeFile(rel, importUsage) {
   return (
     !isOpsToolingFile(rel)
     && !isHistoricalMigrationFile(rel)
-    && !isTestOnlyHelperFile(rel)
+    && !isTestOnlyHelperFile(rel, importUsage)
   );
 }
 
@@ -524,28 +539,87 @@ function countFileContractMatches(file, contracts = []) {
   return count;
 }
 
+function extractRelativeImports(source) {
+  const specifiers = new Set();
+  const patterns = [
+    /\b(?:import|export)\s+(?:type\s+)?(?:[^"'`;]*?\s+from\s+)?["']([^"']+)["']/g,
+    /\b(?:import|require)\s*\(\s*["']([^"']+)["']\s*\)/g,
+  ];
+  for (const pattern of patterns) {
+    pattern.lastIndex = 0;
+    for (const match of source.matchAll(pattern)) {
+      if (match[1]?.startsWith('.')) specifiers.add(match[1]);
+    }
+  }
+  return specifiers;
+}
+
+function resolveRelativeImport(importerRel, specifier, knownPaths) {
+  const base = join(dirname(importerRel), specifier).replace(/\\/g, '/');
+  const candidates = [base];
+  if (/\.(?:js|mjs)$/.test(base)) {
+    const withoutExtension = base.replace(/\.(?:js|mjs)$/, '');
+    candidates.push(`${withoutExtension}.ts`, `${withoutExtension}.tsx`);
+  } else if (!extensionOf(base)) {
+    for (const extension of runtimeExtensions) {
+      candidates.push(`${base}${extension}`, `${base}/index${extension}`);
+    }
+  }
+  return candidates.find((candidate) => knownPaths.has(candidate));
+}
+
+function collectImportUsage(files) {
+  const knownPaths = new Set(files.map((file) => file.rel));
+  const usage = new Map();
+  for (const importer of files) {
+    const isRuntimeConsumer =
+      isRuntimeFile(importer.rel)
+      && !isOpsToolingFile(importer.rel)
+      && !isHistoricalMigrationFile(importer.rel);
+    for (const specifier of extractRelativeImports(importer.executableSrc)) {
+      const target = resolveRelativeImport(importer.rel, specifier, knownPaths);
+      if (!target) continue;
+      const targetUsage = usage.get(target) ?? {
+        testConsumers: new Set(),
+        runtimeConsumers: new Set(),
+      };
+      if (isRuntimeConsumer) {
+        targetUsage.runtimeConsumers.add(importer.rel);
+      } else if (!isRuntimeFile(importer.rel)) {
+        targetUsage.testConsumers.add(importer.rel);
+      }
+      usage.set(target, targetUsage);
+    }
+  }
+  return usage;
+}
+
 function collect(root = repoRoot) {
   const files = scanRoots
     .flatMap((scanRoot) => listFiles(join(root, scanRoot)))
     .map((abs) => ({
       abs,
       rel: relative(root, abs).replace(/\\/g, '/'),
-    }))
-    .filter((file) => isRuntimeFile(file.rel));
+    }));
 
-  const sourceFiles = files.map((file) => ({
+  const allSourceFiles = files.map((file) => ({
     ...file,
     src: readFileSync(file.abs, 'utf8'),
   })).map((file) => ({
     ...file,
     executableSrc: maskJsComments(file.src),
   }));
+  const importUsage = collectImportUsage(allSourceFiles);
+  const sourceFiles = allSourceFiles.filter((file) => isRuntimeFile(file.rel));
 
   const categoryResults = categories.map((category) => {
     const filesWithHits = [];
     let totalHits = 0;
     const filesForCategory = sourceFiles.filter((file) => {
-      if (category.postR6MustBeZero && !isExecutableRuntimeFile(file.rel)) return false;
+      if (
+        category.postR6MustBeZero
+        && !isExecutableRuntimeFile(file.rel, importUsage)
+      ) return false;
       if (category.fileFilter && !category.fileFilter(file.rel)) return false;
       return true;
     });
@@ -746,18 +820,44 @@ function runSelfTest() {
       ].join('\n'),
     },
     {
-      name: 'test-only-helper-imported-by-test',
-      path: 'apps/integrator/src/infra/db/stubProjectionForTests.ts',
+      name: 'javascript-test-file',
+      path: 'apps/integrator/src/infra/db/repos/projectionFanout.test.js',
       source: [
         'export function buildAppointmentRecordUpsertedFanout() { return {}; }',
         'export async function tryEmitWebappProjectionThenEnqueue() {}',
         "export const projectionTable = 'projection_outbox';",
         '',
       ].join('\n'),
+    },
+    {
+      name: 'mjs-spec-file',
+      path: 'apps/integrator/src/infra/db/repos/projectionFanout.spec.mjs',
+      source: [
+        'export function buildAppointmentRecordUpsertedFanout() { return {}; }',
+        'export async function tryEmitWebappProjectionThenEnqueue() {}',
+        "export const projectionTable = 'projection_outbox';",
+        '',
+      ].join('\n'),
+    },
+    {
+      name: 'fixture-helper-imported-only-by-test',
+      path: 'apps/integrator/src/infra/db/projection.fixture.ts',
+      source: "export const projectionTable = 'projection_outbox';\n",
+      relatedFiles: [
+        {
+          path: 'apps/integrator/src/infra/db/projection.fixture.test.ts',
+          source: "import './projection.fixture.js';\n",
+        },
+      ],
+    },
+    {
+      name: 'stub-helper-imported-only-by-test',
+      path: 'apps/integrator/src/infra/db/stubProjection.ts',
+      source: "export const projectionTable = 'projection_outbox';\n",
       relatedFiles: [
         {
           path: 'apps/integrator/src/infra/db/stubProjection.test.ts',
-          source: "import './stubProjectionForTests.js';\n",
+          source: "import './stubProjection.js';\n",
         },
       ],
     },
@@ -814,6 +914,53 @@ function runSelfTest() {
         category: 'global-exclusion',
         fixture: opsPath,
         case: 'ops-tooling-is-separate-inventory',
+        verdict: 'pass',
+      });
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  }
+
+  {
+    const root = mkdtempSync(join(tmpdir(), 'bcb-rubitime-d0-mixed-consumer-'));
+    try {
+      const helperPath = 'apps/integrator/src/infra/db/stubProjection.ts';
+      writeSelfTestFixture(
+        root,
+        helperPath,
+        "export const projectionTable = 'projection_outbox';\n",
+      );
+      writeSelfTestFixture(
+        root,
+        'apps/integrator/src/infra/db/stubProjection.test.ts',
+        "import './stubProjection.js';\n",
+      );
+      writeSelfTestFixture(
+        root,
+        'apps/integrator/src/infra/db/runtimeProjectionConsumer.ts',
+        "import './stubProjection.js';\n",
+      );
+      const blockers = postR6Blockers(collect(root));
+      const target = blockers.find(
+        (category) => category.key === 'projectionOutboxRuntime',
+      );
+      if (!target || target.totalHits !== 1) {
+        throw new Error('mixed test/runtime helper consumer was hidden from runtime census');
+      }
+      const unexpected = blockers.filter(
+        (category) => category.key !== 'projectionOutboxRuntime',
+      );
+      if (unexpected.length > 0) {
+        throw new Error(
+          `mixed helper consumer also triggered: ${unexpected
+            .map((category) => category.key)
+            .join(', ')}`,
+        );
+      }
+      negativeRows.push({
+        category: 'import-classification',
+        fixture: helperPath,
+        case: 'mixed-test-and-runtime-consumers-stays-visible',
         verdict: 'pass',
       });
     } finally {

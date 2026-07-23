@@ -38,6 +38,10 @@ remain intact. It excludes tests/spec files, named test-only helper contracts an
 does not scan docs/archive as runtime evidence. Ops/audit scripts are always excluded from post-R6 runtime categories
 before category-specific filters run and are reported separately as `rubitimeOpsToolingRefs`.
 
+Test/spec classification covers the scanned TypeScript, JavaScript and MJS extensions. A fixture/stub/helper-named
+module is treated as test-only only when the source import census finds at least one test consumer and no runtime
+consumer. The same helper remains visible when any runtime module imports it.
+
 ## Current pre-cutoff output summary
 
 Latest run time against current branch baseline: 2026-07-23 (D0 truthful-retirement-gate correction).
@@ -251,6 +255,8 @@ Its negative/adversarial matrix also proves:
 - line-comment-only and block-comment-only source stays zero for every one of the eight D0 categories;
 - source-looking snippets under `docs/`, historical TypeScript migrations and test-only helpers imported by tests do
   not become runtime blockers;
+- `.test.js` and `.spec.mjs` sources are test-only, while fixture/stub helpers imported by both test and runtime code
+  remain visible as runtime blockers;
 - `apps/integrator/src/infra/scripts/resync-rubitime-records.ts`-style ops tooling remains non-blocking but is still
   visible in `rubitimeOpsToolingRefs`;
 - comment markers inside strings, regex literals and template literals do not hide a following executable blocker.
