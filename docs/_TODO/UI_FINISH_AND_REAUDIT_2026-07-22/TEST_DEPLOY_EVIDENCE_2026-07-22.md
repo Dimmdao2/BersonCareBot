@@ -92,3 +92,31 @@
 - UI-1 Schedule remains partial: the single permitted live pass had an empty work-grid fixture, only one location,
   no mobile populated state and no appointment-detail state. No audit/fix retry loop was started.
 - Email OTP/PWA and Rubitime owner gates remain recorded in taskdb tasks `#985` and `#981` respectively.
+
+## Final DNA/settings delta deploy — exact SHA `b993883e6`
+
+- The only product delta from the accumulated-CI/deployed tree `2c3b40e77` is
+  `TeamSection.tsx` plus its focused test: existing `/app/settings?tab=team` member and pending-invite lists now
+  reuse the shared flat DNA row without adding a second settings tab tree or changing API/DB/entitlement behavior.
+- Delta gate on exact integration SHA `b993883e62aa3889d54ed9081df909ce2187c724`: focused Vitest
+  **3 files / 18 tests PASS**, touched-file ESLint PASS, webapp typecheck PASS, `git diff --check` PASS. The full
+  167-row matrix validator passed with unchanged owner text and product totals `45 real / 44 partial / 9 deferred /
+  50 blocked`; the accumulated full CI was not redundantly repeated for this two-file product delta.
+- Canonical command: `bash deploy/host/deploy-test.sh feat/doctor-ui-rebuild`. The existing
+  `bersoncarebot_test` database was preserved; no dump/reset/PROD read or action, `main` push or `test` push occurred.
+- `/opt/projects/bersoncarebot-test` resolves exactly to `b993883e62aa3889d54ed9081df909ce2187c724`.
+  Build, controlled forward migrations, strict closure, health and nginx passed; all five TEST units are active.
+- Locked product smoke: **22/22 PASS**. The separate global-admin clinical-write deny smoke passed HTTP 403.
+- The diagnostic-only E1 post-runtime gate again stopped before current coverage on the two already recorded
+  historical active/unexplained aggregates: `role_pool_mismatch` (7 occurrences, last 2026-07-19) and
+  `invalid_signature_or_install` (3 occurrences, last 2026-07-21). Current 24-hour count is zero and both groups
+  predate this deploy by more than 32 hours, but neither has evidence-backed benign triage; they were not resolved
+  or coverage-completed automatically. FORCE-RLS and product smoke remained hard-green per the TEST deploy contract.
+
+## Final delta NOT DONE
+
+- The new Team shared-row consumer is code/test/deployed, but its DEV live page redirects because the current clinic
+  lacks the `clinic_team` entitlement; its DNA owner row therefore remains partial rather than being inferred closed.
+- Track B still needs a complete TEST `smtp_outbound` plus owner OTP/PWA browser acceptance (`#985`).
+- Patient Messages needs owner authorization for the bounded current-patient security capability (`#986`) before a
+  populated Messages live pass. Rubitime provider/cutoff/archive decisions remain in `#981`.
