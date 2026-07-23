@@ -1,3 +1,5 @@
+> RE-VERIFIED 2026-07-23 (all [x] audited vs code): see docs/_TODO/UI_FINISH_AND_REAUDIT_2026-07-22/PRODUCTION_READINESS_LEDGER_2026-07-23.md
+
 # PR-00 — Scope lock
 
 Статус: owner-activated DEV execution, baseline SHA `2f8147e91`. Реестр сверён с taskdb и foundation logs
@@ -16,7 +18,7 @@
 - [ ] Инвентаризировать secrets по имени/owner/storage/rotation без значений.
 - [ ] Выполнить read-only production preflight строго по каноническим runbooks; неизвестное оставить `unconfirmed`.
 - [x] Для каждого gap назначить `covered`, `active_dependency`, `executable_now`, `owner_or_legal_gate` или
-      `prod_host_later`.
+      `prod_host_later`. (✓ verified «Реестр исполнения» table below — each row carries exactly one taxonomy status)
 - [ ] Независимый аудитор проверяет отсутствие дублей и вмешательства в active scope.
 
 ## Реестр исполнения

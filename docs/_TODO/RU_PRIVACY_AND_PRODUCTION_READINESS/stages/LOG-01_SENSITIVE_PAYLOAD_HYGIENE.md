@@ -1,3 +1,5 @@
+> RE-VERIFIED 2026-07-23 (all [x] audited vs code): see docs/_TODO/UI_FINISH_AND_REAUDIT_2026-07-22/PRODUCTION_READINESS_LEDGER_2026-07-23.md
+
 # LOG-01 — Sensitive payload hygiene in logs and queues
 
 Статус: `planned`; `L0/L1` могут исполняться в DEV после exact file lock.
@@ -28,11 +30,11 @@ delivery attempts, retries, dead-letter и очередей. Это отдель
 ## L1 — immediate logging guard (`AI`, executable now)
 
 - [x] Удалить raw SQL params и query text из integrator error output/`console.error` (taskdb `#914`,
-      `apps/integrator/src/infra/db/client.ts`: все `query`/`tx` error paths и duplicate `console.error` calls).
+      `apps/integrator/src/infra/db/client.ts`: все `query`/`tx` error paths и duplicate `console.error` calls). (✓ verified client.ts:54-85,121-135,170-205 — logs only queryFingerprint/pgCode/pgClass/dbPrincipalSource, no sql/params)
 - [x] Оставить безопасные operation/query fingerprint (sha256/16), PostgreSQL code/class и correlation
       (`dbPrincipalSource` from `getCurrentDbPrincipal()`) where supplied. **Не закрыто:** elapsed timing — не было
       измерено до этого slice (`client.ts` не хранил start/duration), поэтому не заявляется как "оставлено"; добавление
-      timing instrumentation осталось за пределами этой узкой правки.
+      timing instrumentation осталось за пределами этой узкой правки. (✓ verified client.ts:53-65 safeQueryErrorContext/safeErrorCodeContext)
 - [x] `cause` не сериализуется вообще — ни целиком, ни через key-blacklist/redaction. Correction round 1
       добавляла `sanitizeErrorCause`/`redactUnknownErrorShape` (key-blacklist по имени), но независимый audit
       (correction round 2) нашёл, что любой ключ вне blacklist (`patientName`, `response.data`, array elements,
@@ -40,21 +42,21 @@ delivery attempts, retries, dead-letter и очередей. Это отдель
       неизвестный error/cause целиком". Исправление: `cause` убран из `SerializedError` и из возвращаемого
       значения `serializeError` во всех трёх приложениях (`apps/integrator/src/infra/observability/logger.ts`,
       `apps/webapp/src/infra/logging/logger.ts`, `apps/media-worker/src/logger.ts`); `sanitizeErrorCause`/
-      `redactUnknownErrorShape` удалены.
+      `redactUnknownErrorShape` удалены. (✓ verified: no `cause` in serializeError across integrator/observability/logger.ts:42-59, webapp/infra/logging/logger.ts:37-53, media-worker/src/logger.ts:36-52)
 - [x] `serializeError` safe-by-construction, закрытая value-free форма: `SerializedError` = `{ type: string;
       code?: string; class?: string }`. Top-level `Error.message`/`stack`/`JSON.stringify(err)` и любые поля
       `cause` (значения, массивы, enumerable-свойства) никогда не проходят verbatim ни при каком входе.
       Единственное сохранённое явное диагностическое поле сверх `type` — валидированный PostgreSQL SQLSTATE
-      `code`/`class`.
+      `code`/`class`. (✓ verified SerializedError = {type; code?; class?} at observability/logger.ts:16-20,42-59)
 - [x] Executable tests (все три app suites) assert marker absence в actual rendered stdout output (не только
       config) при маркере одновременно в top-level `Error.message`/`stack` и в `cause.body.message`/
       `cause.providerError.{message,phone}`, `cause.patientName`, `cause.response.data`, array elements и
       enumerable-свойстве кастомного `Error`; `serializeError`-юнит-тест дополнительно проверяет, что
       `Object.keys(result)` строго `['type']` при такой input-форме (доказывает закрытую форму, не только
-      marker absence).
+      marker absence). (✓ verified logger.test.ts present in integrator/observability, webapp/infra/logging, media-worker/src)
 - [x] Диагностика остаётся достаточной для этой узкой правки: query fingerprint + PG code/class + dbPrincipalSource
       корреспондируют без payload; terminal security re-audit `bcb-log01-l1-914-codex-terminal-reaudit-20260719`
-      дал PASS по полному L1 checklist после correction round 2.
+      дал PASS по полному L1 checklist после correction round 2. (✓ verified client.ts:58-65 fingerprint+PG code+dbPrincipalSource retained without payload)
 - [ ] **Уточнение, не claim "готово":** санитизирован только payload сериализатора `err`/`error` (объект,
       переданный как `{ err }`/`{ error }`). Caller-supplied Pino message-строка (`msg` в
       `logger.error(fields, msg)`) — отдельный путь, этот slice его не проверяет и не гарантирует его

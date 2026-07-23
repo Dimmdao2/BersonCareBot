@@ -1,3 +1,5 @@
+> RE-VERIFIED 2026-07-23 (all [x] audited vs code): see docs/_TODO/UI_FINISH_AND_REAUDIT_2026-07-22/PRODUCTION_READINESS_LEDGER_2026-07-23.md
+
 # NTF-01 — App push and messenger auth-only boundary
 
 Статус: `owner_gated`; N0, N1, N1A и N1B0 repository slices закрыты 2026-07-21. N1B1 выполняется позже внутри
@@ -96,13 +98,13 @@ push без blanket masking» повторно не открывается.
 
 ### N0 — census, contracts and exact manifests (`AI`, executable now docs/read-only)
 
-- [x] Построить source-backed producer → resolver → queue → dispatch → provider → canonical in-app map ниже.
-- [x] Для каждого path записать current channels, copied fields, queue/log/attempt facts, tests и replacement source.
+- [x] Построить source-backed producer → resolver → queue → dispatch → provider → canonical in-app map ниже. (✓ census map §N0 below; cited sources exist e.g. apps/webapp/src/modules/messaging/relayOutbound.ts)
+- [x] Для каждого path записать current channels, copied fields, queue/log/attempt facts, tests и replacement source. (✓ required-family census table below; e.g. apps/integrator/src/infra/db/repos/outgoingDeliveryQueue.ts)
 - [x] Зафиксировать provisional class/tier matrix: она является engineering safe default и ждёт одного пакета
-      `MOB-O9` acceptance; `G-15` не переоткрывается, `G-04B` остаётся правовым gate.
-- [x] Выявить pending legacy row kinds и direct-provider surfaces для отдельного controlled cutover.
+      `MOB-O9` acceptance; `G-15` не переоткрывается, `G-04B` остаётся правовым gate. (✓ §3/§4 matrices in-doc)
+- [x] Выявить pending legacy row kinds и direct-provider surfaces для отдельного controlled cutover. (✓ direct-provider/pending-row inventory below; apps/integrator/src/infra/db/repos/jobQueue.ts)
 - [x] Описать exact non-overlapping N1/N3 child manifests. Это предложения для orchestrator triage, не новые
-      taskdb items и не расширение `#751/#844/#845`.
+      taskdb items и не расширение `#751/#844/#845`. (✓ child-manifest table §N0 in-doc)
 
 #### N0 method, scope and status vocabulary
 
@@ -216,12 +218,12 @@ run.
 
 ### N1 — central egress policy guard (`AI`, after exact dispatch scope)
 
-- [x] Ввести strict typed `OutboundMessageClass/Capability`; product module не передаёт произвольную строку.
+- [x] Ввести strict typed `OutboundMessageClass/Capability`; product module не передаёт произвольную строку. (✓ apps/integrator/src/kernel/contracts/events.ts:5-24)
 - [x] В нижнем integrator dispatch chokepoint Telegram/MAX допускают только `auth_code` и минимальный auth
-      handshake allowlist. Ошибка resolver/legacy setting не обходит guard.
-- [x] Email/SMS product delivery default-deny; разрешённые service classes имеют отдельные tests/templates.
-- [x] Static/runtime checker запрещает product notification → Telegram/MAX/email/SMS и direct provider calls.
-- [x] Существующий OTP/login/bind regression остаётся зелёным; code/token не логируется и не попадает в URL.
+      handshake allowlist. Ошибка resolver/legacy setting не обходит guard. (✓ apps/integrator/src/infra/adapters/outboundMessagePolicy.ts:66-71; enforced first at dispatchPort.ts:220)
+- [x] Email/SMS product delivery default-deny; разрешённые service classes имеют отдельные tests/templates. (✓ outboundMessagePolicy.ts:72-75; sendEmailRoute.test.ts, sendSmsRoute.test.ts)
+- [x] Static/runtime checker запрещает product notification → Telegram/MAX/email/SMS и direct provider calls. (✓ apps/integrator/src/infra/adapters/outboundMessagePolicy.static.test.ts)
+- [x] Существующий OTP/login/bind regression остаётся зелёным; code/token не логируется и не попадает в URL. (✓ dispatchPort.ts:26-39,63 OTP redaction; phoneAuth.test.ts)
 
 Scope boundary: не менять feature UI/routes в этом slice. Checks: dispatch policy tests, fake legacy config, replay,
 unknown class, direct-call checker, auth regression, independent security audit.
@@ -282,19 +284,19 @@ not the full U9 admin console; it owns only global configuration read/write plus
 
 - [x] Add independent global admin runtime flags for `auth_email_enabled`, `auth_sms_enabled`,
       `auth_telegram_enabled` and `auth_max_enabled` through the existing DB-backed `system_settings` registry,
-      service and public-runtime projection. Provider credentials/readiness remain separate.
+      service and public-runtime projection. Provider credentials/readiness remain separate. (✓ apps/webapp/src/modules/auth/authChannelPolicy.ts; system-settings/registry.ts, runtimeConfig.ts)
 - [x] Reuse the existing `/app/doctor/admin/auth` settings surface, the system-settings registry/service/UoW and
       integrator mirror. Add a separate platform-only API/helper; do not redirect clinic settings through it and do
-      not introduce a second config store, env flag, provider adapter, route-level mirror or audit store.
+      not introduce a second config store, env flag, provider adapter, route-level mirror or audit store. (✓ apps/webapp/src/app/app/(global-admin)/doctor/admin/auth/PlatformAuthChannelPolicySection.tsx)
 - [x] Apply each flag to discovery and server execution: check-phone/channel picker/phone start, email OTP starts,
       Telegram Widget/login, MAX init, channel-link and messenger-bind paths. A crafted request cannot use a disabled
-      channel; re-enable restores only an already configured provider path.
+      channel; re-enable restores only an already configured provider path. (✓ checkPhoneMethods.ts, publicAuthSnapshot.ts, loginAlternativesConfig.ts, integrator/infra/db/authChannelPolicy.ts)
 - [x] Preserve SMTP/SMSC/Telegram/MAX modules and settings. Existing bindings remain stored when a channel is off.
       `sms_fallback_enabled` stays a temporary legacy doctor/global compatibility key and is not reused as the new
-      platform auth policy.
+      platform auth policy. (✓ authChannelPolicy.ts decouples sms_fallback_enabled; provider modules untouched)
 - [x] Migration-safe rollout preserves current behavior: Email/Telegram/MAX default enabled; SMS seeds from the
       existing effective public SMS policy and otherwise defaults disabled. Any direct migration write maintains the
-      `public` + `integrator.system_settings` mirror; no migration is executed on TEST/PROD by this stage.
+      `public` + `integrator.system_settings` mirror; no migration is executed on TEST/PROD by this stage. (✓ apps/webapp/src/modules/system-settings/authChannelPolicyMigration.ts + .test.ts)
 
 Acceptance: platform admin independently controls four auth/binding channels; disabled channels are neither offered
 nor executable; account-existence responses remain neutral; missing provider config still fails closed; SMS OTP
@@ -374,15 +376,15 @@ second template store or channel sender.
 - [x] `N1B0 contract/editor`: define typed event × audience × channel templates and versioned effective resolution:
       platform default → eligible organization override → channel renderer. Platform admin owns defaults;
       organization owner/admin owns org overrides. Per-specialist override is not launch scope until a later owner
-      decision.
+      decision. (✓ apps/webapp/src/modules/notif-templates/managedNotifTemplate.ts:31,69-70,103-125)
 - [x] Replace the current global variable list with a server-enforced allowlist per event/channel/content tier.
       Unknown variable, raw chat/comment, diagnosis, complaint, phone/name where not explicitly allowed, absolute
-      untrusted URL and secret/token fail closed.
+      untrusted URL and secret/token fail closed. (✓ managedNotifTemplate.ts allowedNotifTemplateVariables/eventPolicy:103-133)
 - [x] Email templates have subject, sanitized HTML and required plain-text fallback. Telegram/MAX/push render only
-      their supported safe fields/formatting. Preview uses synthetic data and never performs a real DEV send.
+      their supported safe fields/formatting. Preview uses synthetic data and never performs a real DEV send. (✓ managedNotifTemplate.ts:200-218 email subject/plainText; notifTemplatesService.managed.test.ts)
 - [x] Branding changes presentation only after the existing organization `branding` entitlement and published
       assets/readiness. Core organization identification remains available without paid branding; custom sender
-      identity/readiness remains the separate U8/branding-domain contract.
+      identity/readiness remains the separate U8/branding-domain contract. (✓ managedNotifTemplate.ts branding gating + test)
 - [ ] `N1B1 adoption` is executed inside the matching N3 family child: appointment reminder, exercise reminder and
       neutral message/comment builders bind to exact template ids/classes and channel allowlists. Generic email or
       messenger relay never becomes a template escape hatch.

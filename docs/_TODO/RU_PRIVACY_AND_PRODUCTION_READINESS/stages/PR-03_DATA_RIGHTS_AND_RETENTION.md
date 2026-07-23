@@ -1,3 +1,5 @@
+> RE-VERIFIED 2026-07-23 (all [x] audited vs code): see docs/_TODO/UI_FINISH_AND_REAUDIT_2026-07-22/PRODUCTION_READINESS_LEDGER_2026-07-23.md
+
 # PR-03 — Data rights, retention and organization offboarding
 
 ## Зависимости
@@ -24,15 +26,15 @@ unscoped delete scripts и production purge без dry-run/owner gate.
 ## PR-03A0 — close existing immediate hard-delete
 
 - [x] Baseline честно FAIL: admin `POST .../permanent-delete` вызывает `runStrictPurgePlatformUser` с DB+S3
-      hard-delete; operational `purge-by-id` также входит в census, а не остаётся скрытым bypass.
+      hard-delete; operational `purge-by-id` также входит в census, а не остаётся скрытым bypass. (✓ documented in checker apps/webapp/scripts/check-account-purge-disabled.mjs; strict-purge core retained at apps/webapp/src/infra/platformUserFullPurge.ts)
 - [x] Administrative API/UI/operational entrypoints временно fail-closed до принятой retention state machine;
-      strict-purge implementation не удаляется и не переписывается.
+      strict-purge implementation не удаляется и не переписывается. (✓ permanent-delete/route.ts:21 returns 409 account_purge_disabled; user-phone-admin.ts:583-619 rejectAccountPurge)
 - [x] Census различает account/organization hard purge и resource-specific cleanup. `media-pending-delete` остаётся
-      отдельным cleanup конкретного media resource.
+      отдельным cleanup конкретного media resource. (✓ user-phone-admin.ts commands; media pending-delete untouched)
 - [x] Checker/test сначала подтверждает текущий FAIL, затем PASS только когда ни один administrative/runtime
-      entrypoint не может запустить account/org irreversible purge.
-- [x] Slice не создаёт `pending_deletion`, deadline, notification, export, S3 delete, job, timer или schema.
-- [x] PASS доказывает только закрытие доступного immediate purge; он не закрывает `PR-03A`.
+      entrypoint не может запустить account/org irreversible purge. (✓ apps/webapp/scripts/check-account-purge-disabled.mjs + .test.mjs)
+- [x] Slice не создаёт `pending_deletion`, deadline, notification, export, S3 delete, job, timer или schema. (✓ route.ts is a bare 409; no schema/job added)
+- [x] PASS доказывает только закрытие доступного immediate purge; он не закрывает `PR-03A`. (✓ PR-03A section below remains all-open)
 
 Worker implementation и correction round 1 завершены 2026-07-19 на base `d1fad7c65`; независимый audit и
 integration commit остаются stage gate. `reset-user` включён в fail-close вместе с `purge-by-id`, потому что он

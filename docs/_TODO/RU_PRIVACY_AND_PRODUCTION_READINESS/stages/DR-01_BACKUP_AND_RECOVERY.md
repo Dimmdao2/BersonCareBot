@@ -1,3 +1,5 @@
+> RE-VERIFIED 2026-07-23 (all [x] audited vs code): see docs/_TODO/UI_FINISH_AND_REAUDIT_2026-07-22/PRODUCTION_READINESS_LEDGER_2026-07-23.md
+
 # DR-01/DR-02 — Backup, S3 and recovery
 
 ## Зависимости
@@ -18,24 +20,24 @@ TEST restore proof + `G-11`.
       normalized absolute non-root `BACKUPS_ROOT`/mode dirs `0700`, final artifact + checksum manifest `0600`, and
       signal cleanup of tracked partial/pending/current-run pair paths with retained partial inode proof (so cleanup
       cannot delete a collision); symlink components are refused. Не покрывает
-      host-level owner/ACL provisioning вне этого скрипта.
+      host-level owner/ACL provisioning вне этого скрипта. (✓ verified deploy/postgres/postgres-backup.sh:74 umask 077, :183-189 ensure_dir_0700/chmod 0700)
 - [x] Убрать credential-bearing `DATABASE_URL` из process argv; использовать `.pgpass`/controlled env/Unix socket
       либо другой доказанный PostgreSQL credential path без вывода секрета.
       Closed for `postgres-backup.sh`: data-only parser requires exactly one valid env-file assignment and ignores
       inherited values; `DATABASE_URL` передаётся `pg_dump`/`psql` только через libpq env `PGDATABASE`, никогда через
-      argv.
+      argv. (✓ verified postgres-backup.sh:33-34,76-77 — never a command-line arg, injected via PGDATABASE)
 - [x] Шифровать поток `pg_dump → age` до записи конечного artifact; если временный plaintext технически неизбежен,
       он допускается только на encrypted volume с trap cleanup и отдельным evidence. Recovery key хранится отдельно
       от VPS и backup repository.
       Closed for `postgres-backup.sh`: настроенный `age -R` parser принимает весь public-recipients file до
       `pg_dump`; затем `pg_dump` стримится напрямую в `age`, plaintext final/temp файл не создаётся
       никогда (сильнее допущенного minimum). Реальный `age`/recovery-key lifecycle на хосте остаётся отдельным
-      owner-gated rehearsal — репозиторная реализация проверена только синтетически.
+      owner-gated rehearsal — репозиторная реализация проверена только синтетически. (✓ verified postgres-backup.sh:14-15,283-286,454 — age -R stream, no plaintext dump on disk)
 - [x] Создавать atomic artifact + authenticated encryption и независимый checksum manifest; signing добавляется
       только если `CRYPTO-01/C0` определил signing-key owner/verification path. Повреждённая копия fail closed.
       Closed for `postgres-backup.sh`: ciphertext + manifest пишутся в `.partial` на том же каталоге; manifest then
       artifact publish uses atomic no-clobber links, with rollback if the pair cannot complete; `sha256sum -c`
-      детектирует повреждение (доказано синтетическим тестом). Signing не добавлен — ждёт `CRYPTO-01/C0` по плану.
+      детектирует повреждение (доказано синтетическим тестом). Signing не добавлен — ждёт `CRYPTO-01/C0` по плану. (✓ verified postgres-backup.sh:15-20,193 — .partial atomic publish + sha256sum manifest)
 - [ ] Настроить `restic` offsite copy, retention и integrity check; backend находится в РФ.
 - [ ] Периодически копировать encrypted S3 media ciphertext **и** envelope/object manifests во вторую российскую
       failure domain с отдельными credentials. Versioning того же bucket/account не считается защитой от потери

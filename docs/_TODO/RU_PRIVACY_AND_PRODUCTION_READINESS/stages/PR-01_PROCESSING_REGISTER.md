@@ -1,3 +1,5 @@
+> RE-VERIFIED 2026-07-23 (all [x] audited vs code): see docs/_TODO/UI_FINISH_AND_REAUDIT_2026-07-22/PRODUCTION_READINESS_LEDGER_2026-07-23.md
+
 # PR-01 — Processing register
 
 Статус: фактический register подготовлен и независимо проверен 2026-07-21 (`0 P0 / 0 P1 / 0 P2`); owner/legal
@@ -22,7 +24,7 @@ gates остаются открыты. Это не правовое
 `PR-00` принят владельцем. Юрист/ответственный по ПДн должен быть назначен через `O-01`; это register не
 подменяет ни назначение, ни external legal review.
 
-- [x] Factual map построена от repository code/data-flow без ПДн и вынесла неизвестное в decision sheet ниже.
+- [x] Factual map построена от repository code/data-flow без ПДн и вынесла неизвестное в decision sheet ниже. (✓ processing-rows/vendor tables below; all cited paths exist e.g. apps/webapp/db/schema/patientClinical.ts, apps/webapp/src/infra/s3/client.ts)
 - [ ] Владелец/юрист закрывают `G-01`: собственные platform purposes отдельно от обработки для клиники/специалиста.
 - [ ] Для каждого фактически включённого vendor из rows `PR01-16`…`PR01-22` собрать договор, роль, регион,
       content/data categories, logs/support access, subprocessors, incident/deletion clauses (`G-04`).
@@ -113,8 +115,8 @@ review; values must not be copied into this register.
 
 ## Checks and exit
 
-- [x] Every factual row has source path(s), accountable owner/decision owner and one PR-00 taxonomy status.
-- [x] Repository evidence is separated from legal conclusions and unconfirmed runtime/provider facts.
-- [x] PII values, secret values, account IDs, tokens, connection strings and live logs are absent.
+- [x] Every factual row has source path(s), accountable owner/decision owner and one PR-00 taxonomy status. (✓ verified across PR01-01..PR01-34 tables in-doc)
+- [x] Repository evidence is separated from legal conclusions and unconfirmed runtime/provider facts. (✓ each row splits engineering fact vs owner/legal gate)
+- [x] PII values, secret values, account IDs, tokens, connection strings and live logs are absent. (✓ secret-name inventory PR01-23..29 lists key names only, no values)
 - [ ] Owner/legal review closes no gate merely by reading this register; `G-01`, `G-02`, `G-03`, `G-04`, `G-04A`,
       `G-05` and `G-05A` remain open until dated provenance is recorded.
