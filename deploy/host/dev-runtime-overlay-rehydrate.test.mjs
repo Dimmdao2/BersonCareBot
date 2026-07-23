@@ -73,6 +73,7 @@ const canonicalOrder = [
 
 const exactProtectedOverlaySignatures = [
   "app.get_web_push_vapid_public_key()",
+  "app.email_otp_public_consume_latest_challenge(text,text)",
   "app.resolve_public_booking_organization(uuid,uuid,uuid)",
   "app.resolve_public_organization_by_slug(text)",
   "app.resolve_payment_webhook_organization(text,text,text)",
