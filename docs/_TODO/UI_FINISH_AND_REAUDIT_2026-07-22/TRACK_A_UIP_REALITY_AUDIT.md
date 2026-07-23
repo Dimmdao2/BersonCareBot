@@ -55,6 +55,16 @@ The later bounded Communications pass is source-bound to SHA `77843fa2bda4da7a88
 (`TRACK_A_UI3_REALITY_AUDIT.md`, “Empty-state/route live addendum”). Its Chats list still contains zero dialogs, so
 it cannot prove row typography, divider/hover, whole-row activation or selected state for Messages.
 
+A later bounded attempt on 2026-07-23 did not create new live evidence. It started only the DEV webapp on
+`127.0.0.1:5200`, kept `:4200` free and verified on the child `next-server` that `INTEGRATOR_API_URL` looped back to
+the same local webapp, so no external delivery path was available. `dev:client` auth and the normal-product
+`GET /api/patient/messages` returned HTTP 200, but the single `POST /api/patient/messages` returned HTTP 500 after
+the locked DEV transaction aborted in `patientMessagingService.sendText`; cleanup surfaced PostgreSQL `25P02` on
+`RESET ROLE`. Doctor readback returned HTTP 200 and zero conversations, proving no populated dialog persisted.
+Browser capture was therefore not started. The server was canonically stopped, ports `:5200`/`:4200` were confirmed
+free, and incomplete artifacts/cookies were removed. Rows 4 and 5 remain partial; this blocker does not change the
+matrix or authorize ad hoc fixture SQL/scripts.
+
 ## Exact reality matrix
 
 | # | Checkbox quoted verbatim | Code evidence | Test evidence | Source-bound D/M PNG | Verdict |
@@ -88,7 +98,8 @@ it cannot prove row typography, divider/hover, whole-row activation or selected 
 **Closed: 5/8 against `docs/_TODO/DOCTOR_UI_REWORK_2026-07-20/PLAN.md#UI-P`.**
 
 **NOT DONE:** only populated Messages live state remains for rows 4/5: primary typography, divider/full-row hover,
-whole-row activation and selected-dialog state. The mobile menu must still be opened in a live capture to seal its
+whole-row activation and selected-dialog state. Its existing normal-product DEV fixture path is blocked by the
+locked-principal POST failure recorded above. The mobile menu must still be opened in a live capture to seal its
 minimal row radius independently of desktop. Owner acceptance remains separate and has not been set.
 
 No dependency-ready product defect was found, so this audit does not create a correction batch. The residual is one

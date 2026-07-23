@@ -43,6 +43,25 @@ The interaction harness clicked the native row at `right edge - 4px` and focused
 reached the patient workspace before the run continued. The reversible appointment was cancelled through the
 canonical API with `notifyPatient=false` after capture.
 
+### Messages populated-state attempt — blocked 2026-07-23
+
+One bounded DEV attempt used only the existing patient product path; no fixture SQL, seed script, TEST/PROD access
+or shared-setting change was used. The preflight started only webapp on `127.0.0.1:5200`, kept `:4200` free, and
+verified on the actual child `next-server` process that `INTEGRATOR_API_URL` was looped back to the same local
+webapp URL. Therefore any relay request could only terminate locally; the write failed before notification, and no
+external delivery path was reached.
+
+`dev:client` authentication and `GET /api/patient/messages` both returned HTTP 200. The single normal-product
+`POST /api/patient/messages` then returned HTTP 500: the locked DEV transaction aborted in
+`patientMessagingService.sendText`, and cleanup surfaced PostgreSQL `25P02` on `RESET ROLE`. A doctor-side readback
+returned HTTP 200 with `conversations.length = 0`, proving that no personal message/populated dialog persisted.
+The browser capture was not started. The DEV server was canonically stopped and both `:5200` and `:4200` were
+confirmed free; incomplete runtime artifacts and cookie jars were removed.
+
+This is a recorded evidence-fixture blocker, not implementation evidence. P2B-06, P2B-10 and P2B-13 remain
+**partial** with the matrix counts below unchanged. A future worker must not repeat this product-write path until
+the locked-principal failure is fixed or an approved populated DEV fixture path exists.
+
 ## Atomic acceptance matrix
 
 ### P2B-01 — real-done
@@ -171,7 +190,9 @@ canonical API with `notifyPatient=false` after capture.
 
 - Today: **11/11 evidence-real**. **NOT DONE:** formal owner acceptance only.
 - Clients: **10/10**. **NOT DONE:** formal owner acceptance only.
-- Messages/Chats: **6/9**. **NOT DONE:** the fixture has no dialog, so live whole-row activation, divider/primary typography, and selected state are not verified.
+- Messages/Chats: **6/9**. **NOT DONE:** no populated dialog exists. The bounded normal-product fixture attempt is
+  blocked by the locked DEV `POST /api/patient/messages` failure recorded above, so live whole-row activation,
+  divider/primary typography and selected state are still not verified.
 
 ## Mandatory NOT DONE and owner-acceptance boundary
 
