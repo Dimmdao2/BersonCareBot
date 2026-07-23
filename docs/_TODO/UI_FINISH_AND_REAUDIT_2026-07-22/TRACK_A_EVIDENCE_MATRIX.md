@@ -69,9 +69,9 @@ A row is retained for every authority occurrence. DNA S0 and UI-P/P2B overlap on
 | A-UI-037 — docs/_TODO/DOCTOR_UI_REWORK_2026-07-20/PLAN.md:425 · UI-1 — Schedule ('#851', residual '#960') и appointment detail ('#951'): “После отдельного money/provider gate состояние «Не оплачено» даёт server-authorized действия «Оплачено наличными» и «Выставить счёт»; UI-1c не изобретает эти contracts.” | Correct safe state: `DoctorCalendarEventPanel` does not invent cash/invoice actions. | The sentinel payment-panel assertion passes; server-authorized money actions have no in-scope tests because their contract is not yet gated. | No provider/server-authorization evidence. | Fresh evidence authority: docs/_TODO/UI_FINISH_AND_REAUDIT_2026-07-22/TRACK_A_UI1_REALITY_AUDIT.md, row 18. The explicit owner/dependency gate remains open. | deferred |
 | A-UI-038 — docs/_TODO/DOCTOR_UI_REWORK_2026-07-20/PLAN.md:427 · UI-1 — Schedule ('#851', residual '#960') и appointment detail ('#951'): “UI-1c присутствует на exact TEST SHA 'eb64a495644'; mandatory patient-card/schedule smoke и первичная read-only visual проверка прошли. Owner interaction acceptance остаётся отдельным gate.” | `eb64a495644` is an ancestor of current deployed product SHA `45ffed731`; UI-1c commits `68eec658d`, `d65c73c23`, `cd9d5d06c` and picker `31b6326bc` are also ancestors. The literal SHA is stale as current-state wording, but this is evidence drift, not a product regression. | Current targeted 3 files / 53 tests PASS; accumulated CI on `45ffed731` is recorded green. | `TEST_DEPLOY_EVIDENCE_2026-07-22.md:41-55` records current TEST `45ffed731`, 22/22 locked smoke and 403 deny smoke. Historical DEV visual result is log-only; owner interaction acceptance and a current source-bound PNG remain missing. | Fresh evidence authority: docs/_TODO/UI_FINISH_AND_REAUDIT_2026-07-22/TRACK_A_UI1_REALITY_AUDIT.md, row 19. Owner acceptance remains a separate owner-only layer. | partial |
 | A-UI-039 — docs/_TODO/DOCTOR_UI_REWORK_2026-07-20/PLAN.md:429 · UI-1 — Schedule ('#851', residual '#960') и appointment detail ('#951'): “SCH-G5 остаётся отдельным owner gate '#848', не скрывается внутри UI-1 completion.” | No fallback-slot semantic change was added to UI-1 code. | N/A: the row is a product decision gate, not a code assertion to implement here. | Owner gate `#848` remains open; it is not hidden by the repository implementation. | Fresh evidence authority: docs/_TODO/UI_FINISH_AND_REAUDIT_2026-07-22/TRACK_A_UI1_REALITY_AUDIT.md, row 20. The explicit owner/dependency gate remains open. | deferred |
-| A-UI-040 — docs/_TODO/DOCTOR_UI_REWORK_2026-07-20/PLAN.md:433 · UI-2 — built-in Online location: “«Онлайн» является встроенной включаемой локацией в существующей модели, а не вручную создаваемым workaround.” | `modules/booking-engine/onlineLocation.ts:4-35,45-117` defines the reserved identity, exact-organization singleton lookup and idempotent state setter over the existing `BeBranch`/catalog port. `BookingSoloLocationsSection.tsx:86-117` separates that built-in row from physical branches and renders its dedicated switch. `api/admin/booking-engine/branches/[id]/route.ts:30-42,69-70` prevents manual edit/delete of the reserved row. | `onlineLocation.test.ts:31-139` proves identity, exact-org lookup, idempotent singleton creation, duplicate rejection and state/color updates; `online-location/route.test.ts:19-116` proves exact organization and authorization; the focused Settings tests also pass. Included in fresh `165/165 PASS`. | Source-bound DEV `01-settings-online-off-desktop.png` plus the API census prove exactly one reserved «Онлайн» control and one reserved branch, separate from the physical-location form. The on-state and owner acceptance were not reached. Manifest: `/home/dev/dev-projects/.lead/runs/ui2-online-location-live/77843fa2b-20260723T002730Z/manifest.md`. | Fresh evidence authority: docs/_TODO/UI_FINISH_AND_REAUDIT_2026-07-22/TRACK_A_UI2_REALITY_AUDIT.md, row 1. Owner acceptance remains a separate owner-only layer. | partial |
+| A-UI-040 — docs/_TODO/DOCTOR_UI_REWORK_2026-07-20/PLAN.md:433 · UI-2 — built-in Online location: “«Онлайн» является встроенной включаемой локацией в существующей модели, а не вручную создаваемым workaround.” | `modules/booking-engine/onlineLocation.ts:4-35,45-117` defines the reserved identity, exact-organization singleton lookup and idempotent state setter over the existing `BeBranch`/catalog port. `BookingSoloLocationsSection.tsx:86-117` separates that built-in row from physical branches and renders its dedicated switch. `api/admin/booking-engine/branches/[id]/route.ts:30-42,69-70` prevents manual edit/delete of the reserved row. | `onlineLocation.test.ts:31-139` proves identity, exact-org lookup, OFF → ON on the same row, singleton preservation, duplicate rejection and state/color updates; `online-location/route.test.ts:19-116` proves exact organization and authorization; `BookingSoloLocationsSection.test.tsx:65-80` proves the dedicated switch calls the existing state endpoint. Included in fresh `165/165 PASS`. | Source-bound DEV `01-settings-online-off-desktop.png` plus the existing overview API census prove exactly one reserved «Онлайн» control and one `be_branches`-backed singleton, separate from the physical-location create/list surface. Positive ON presentation belongs to rows 2/4/5. Manifest: `/home/dev/dev-projects/.lead/runs/ui2-online-location-live/77843fa2b-20260723T002730Z/manifest.md`. | Fresh evidence authority: docs/_TODO/UI_FINISH_AND_REAUDIT_2026-07-22/TRACK_A_UI2_REALITY_AUDIT.md, row 1. Owner acceptance remains a separate owner-only layer. | real-done |
 | A-UI-041 — docs/_TODO/DOCTOR_UI_REWORK_2026-07-20/PLAN.md:434 · UI-2 — built-in Online location: “Состояние Online location гейтит существующие online-галочки услуг.” | `BookingSoloAvailabilitySection.tsx:43-49,100-128` builds service columns only from active existing branches, so inactive Online exposes no service checkbox; activation exposes the same existing availability switches. `onlineLocation.ts:41-43,45-117` changes branch state without deleting service-availability rows. | `BookingSoloAvailabilitySection.test.tsx:57-72` proves the Online column absent while off and present with existing service switches while on. Included in fresh `165/165 PASS`. | The same source-bound DEV PNG proves the negative half: Online is off and the existing service-location matrix exposes zero Online switches. The positive on-state pair and owner acceptance were not captured. | Fresh evidence authority: docs/_TODO/UI_FINISH_AND_REAUDIT_2026-07-22/TRACK_A_UI2_REALITY_AUDIT.md, row 2. Owner acceptance remains a separate owner-only layer. | partial |
-| A-UI-042 — docs/_TODO/DOCTOR_UI_REWORK_2026-07-20/PLAN.md:435 · UI-2 — built-in Online location: “Не создана новая schema/delivery-mode/booking engine.” | Feature-manifest census of `838253c72` finds no schema, migration, package or integrator file. `booking-engine/service.ts:257-264` delegates to the helper through the existing catalog port; `inPersonServicesCatalog.ts:69-159` and the patient/public loaders retain the existing branch/service/specialist assignment path. | The helper, route, Settings, schedule, patient-catalog and public-catalog suites all pass in the fresh 11-file packet. This is a structural negative additionally supported by the file/symbol census, not inferred from tests alone. | The bounded DEV pass used only the existing Settings route and `/api/admin/booking-engine/overview`; the API census remained one `be_branches`-backed Online singleton. Owner acceptance remains absent. | Fresh evidence authority: docs/_TODO/UI_FINISH_AND_REAUDIT_2026-07-22/TRACK_A_UI2_REALITY_AUDIT.md, row 3. Owner acceptance remains a separate owner-only layer. | partial |
+| A-UI-042 — docs/_TODO/DOCTOR_UI_REWORK_2026-07-20/PLAN.md:435 · UI-2 — built-in Online location: “Не создана новая schema/delivery-mode/booking engine.” | Exact feature-manifest census of `838253c72` finds no schema, migration, package or integrator file. `booking-engine/service.ts:257-264` delegates to the helper through the existing catalog port; the current non-test symbol census shows that helper reused by Settings and existing patient/public branch-service-specialist paths, with no second engine or delivery-mode projection. | The helper, route, Settings, schedule, patient-catalog and public-catalog suites all pass in the fresh 11-file / `165/165` packet. This structural negative is supported by the exact file/symbol census, not inferred from tests alone. | Source-bound DEV used only the existing Settings route and `/api/admin/booking-engine/overview`; the API census remained one `be_branches`-backed Online singleton. A positive mutation or cosmetic PNG would not prove this negative architecture atom better. | Fresh evidence authority: docs/_TODO/UI_FINISH_AND_REAUDIT_2026-07-22/TRACK_A_UI2_REALITY_AUDIT.md, row 3. Owner acceptance remains a separate owner-only layer. | real-done |
 | A-UI-043 — docs/_TODO/DOCTOR_UI_REWORK_2026-07-20/PLAN.md:436 · UI-2 — built-in Online location: “Отдельно доказано, что Online присутствует в существующих schedule location list/filters без второго projection.” | `doctorScheduleApi.ts:43-60` supplies active branches from the existing booking overview. `ScheduleWorkTab.tsx:564-566,700-710,1138-1179` maps that same branch list directly into the independent location filters. `pgBookingCalendar.ts:57-69,119-126` returns active `be_branches` through existing calendar filter metadata, consumed directly by `ScheduleCalendarTab.tsx:988-993,1102-1106,1691-1697`. | `ScheduleWorkTab.test.tsx:437-460` proves the built-in Online branch is present in the existing work-location filters. `ScheduleCalendarTab.test.tsx:508-525` proves the same for the calendar filter. Both broad suites pass in fresh `165/165 PASS`. | Exact code is on TEST; no current source-bound Work/Calendar Online-filter PNG or owner acceptance was found. | Fresh evidence authority: docs/_TODO/UI_FINISH_AND_REAUDIT_2026-07-22/TRACK_A_UI2_REALITY_AUDIT.md, row 4. Owner acceptance remains a separate owner-only layer. | partial |
 | A-UI-044 — docs/_TODO/DOCTOR_UI_REWORK_2026-07-20/PLAN.md:438 · UI-2 — built-in Online location: “Отдельно доказано, что online services видны в существующем client booking wizard при включённой Online location.” | `inPersonServicesCatalog.ts:69-84,101-159` returns Online only when its existing branch is active and has a public service assigned to an active exact-org specialist. `bookingCatalogRsc.ts:157-214` exposes that location and service list to the authenticated patient flow. `FormatStepClient.tsx:64-75` and `ServiceStepClient.tsx:92-128` continue through the existing service/slot wizard. | `bookingCatalogRsc.test.ts:110-181` proves enabled Online plus an assigned service reaches the authenticated wizard. `inPersonServicesCatalog.test.ts:204-290` proves the active/assigned positive and inactive/unassigned negatives. Included in fresh `165/165 PASS`. | No PNG. Canonical `migrate-dev.sh --execute`, migration/artifact/closure checks and DEV restart all passed, yet `dev:client` still rendered zero «Запись» markers and six markers for the same `app.read_current_patient_booking_rows(...)` RSC failure. Missing migration/function ACL is excluded; the full enrichment/request-principal path remains the live blocker, so no Online mutation or second correction loop ran. | Fresh evidence authority: docs/_TODO/UI_FINISH_AND_REAUDIT_2026-07-22/TRACK_A_UI2_REALITY_AUDIT.md, row 5. Owner acceptance remains a separate owner-only layer. | partial |
 | A-UI-045 — docs/_TODO/DOCTOR_UI_REWORK_2026-07-20/PLAN.md:440 · UI-2 — built-in Online location: “Online-only services на публичной странице попадают в online-block, а не в physical location ('#972').” | `inPersonServicesCatalog.ts:40-67` excludes the built-in Online branch from physical cities. `publicOrganizationBooking.ts:63-83` returns physical cities and Online separately under the organization principal. `PublicFormatStepClient.tsx:29-83` renders separate physical and Online blocks; `book/[slug]/page.tsx:22-40` supplies the published organization projection. | `publicOrganizationBooking.test.ts:110-210` proves an Online-only service is absent from physical Moscow and present under Online. `PublicFormatStepClient.test.tsx:49-66` proves the link is absent from the physical block and present in the Online block. Included in fresh `165/165 PASS`. | TEST smoke proves the general public slots endpoint returns HTTP 200, but no sanctioned published-slug source-bound PNG proves this separation live. | Fresh evidence authority: docs/_TODO/UI_FINISH_AND_REAUDIT_2026-07-22/TRACK_A_UI2_REALITY_AUDIT.md, row 6. Owner acceptance remains a separate owner-only layer. | partial |
@@ -205,7 +205,7 @@ corresponding live package.
 | Shared appearance/behavior of Today, Clients and Messages lists | 11 | 3 | 0 | 0 | 14 |
 | Booking funnel and calendar-created client navigation | 2 | 2 | 1 | 0 | 5 |
 | Schedule and appointment details | 0 | 16 | 4 | 0 | 20 |
-| Built-in Online location across Settings, schedule and booking | 0 | 6 | 1 | 0 | 7 |
+| Built-in Online location across Settings, schedule and booking | 2 | 4 | 1 | 0 | 7 |
 | Communications: chats, comments, intake and broadcasts | 1 | 7 | 0 | 0 | 8 |
 | Clients list, KPI and functional frameless preview | 9 | 0 | 0 | 0 | 9 |
 | Transition from Clients list to the full-workspace patient card | 3 | 2 | 0 | 0 | 5 |
@@ -215,7 +215,7 @@ corresponding live package.
 | Scheduled doctor/patient communications | 0 | 0 | 0 | 24 | 24 |
 | Commercial contour, warmups, personal exercise/media and patient mood | 2 | 3 | 0 | 0 | 5 |
 | Accumulated milestone gates | 0 | 2 | 1 | 2 | 5 |
-| **Product/live total** | **42** | **47** | **9** | **50** | **148** |
+| **Product/live total** | **44** | **45** | **9** | **50** | **148** |
 
 The separate SaaS roadmap registry is closed **19/19 as dependency contracts**: 6 contract-real,
 7 blocked-by-upstream-dependency and 6 owner-deferred optional nodes. That contract closure does not claim the
@@ -225,8 +225,8 @@ corresponding product stages are complete.
 
 | Verdict | Exact count |
 |---|---:|
-| product/live evidence-real (DNA/UI) | 42 |
-| product/live partial (DNA/UI) | 47 |
+| product/live evidence-real (DNA/UI) | 44 |
+| product/live partial (DNA/UI) | 45 |
 | product/live fake-done (DNA/UI) | 0 |
 | product/live deferred (DNA/UI) | 9 |
 | product/live blocked (DNA/UI) | 50 |
@@ -249,8 +249,10 @@ dependency/inclusion contracts. Evidence-real is not owner acceptance: owner-acc
   Broadcasts empty-state PNGs close only the removed-phrase row; the UI-5a batch closes workspace replacement,
   absence of a second card tree and direct/reload/history mode preservation. Their remaining rows stay partial for
   the exact fixture/tenant gaps recorded in the source audits.
-- UI-2 remains 0/7: row 5 still repeats the patient-booking enrichment/request-principal RSC failure after the
-  canonical DEV migration closure and restart; row 7 still waits for sanctioned U6B/public-slug evidence.
+- UI-2 is 2/7 evidence-closed: rows 1 and 3 are closed by the built-in singleton/toggle contract and the exact
+  no-new-schema/engine structural packet. Rows 2 and 4 still need positive Online-on live states; row 5 repeats the
+  patient-booking enrichment/request-principal RSC failure after canonical DEV migration closure and restart; row 6
+  lacks the sanctioned published-slug split, and row 7 retains its explicit U6B/public-slug defer.
 - UI-3 remains 1/8 because seven rows require populated interaction states. UI-5a remains 3/5 because non-zero
   live scroll restore and negative cross-organization denial are absent. UI-6 remains 6/9 because the Settings
   switch and populated «Недавние с визитами» state are absent and row 9 is owner-deferred.
@@ -290,7 +292,7 @@ Command executed after writing this matrix:
       countVerdict(set, 'deferred'), countVerdict(set, 'blocked'), set.length];
     const pageActual = [[1,14],[15,19],[20,39],[40,46],[47,54],[55,63],[64,68],[69,92],
       [93,101],[102,109],[110,133],[134,138],[139,143]].map(([from, to]) => summarize(uiRange(from, to)));
-    const pageExpected = [[11,3,0,0,14],[2,2,1,0,5],[0,16,4,0,20],[0,6,1,0,7],
+    const pageExpected = [[11,3,0,0,14],[2,2,1,0,5],[0,16,4,0,20],[2,4,1,0,7],
       [1,7,0,0,8],[9,0,0,0,9],[3,2,0,0,5],[0,0,0,24,24],[6,2,1,0,9],
       [6,2,0,0,8],[0,0,0,24,24],[2,3,0,0,5],[0,2,1,2,5]];
     const actual = {
@@ -313,13 +315,13 @@ Command executed after writing this matrix:
     const expected = {
       matrixRows: 167, uniqueRows: 167, ownerTextUnchanged: true, pageCountsValid: true,
       dna: 5, doctorUi: 143, dag: 19,
-      productReal: 42, productPartial: 47, productDeferred: 9, productBlocked: 50,
+      productReal: 44, productPartial: 45, productDeferred: 9, productBlocked: 50,
       dagReal: 6, dagBlocked: 7, dagDeferred: 6,
     };
     if (JSON.stringify(actual) !== JSON.stringify(expected)) process.exit(1);
     NODE
 
-Result: `{ matrixRows: 167, uniqueRows: 167, ownerTextUnchanged: true, pageCountsValid: true, dna: 5, doctorUi: 143, dag: 19, productReal: 42, productPartial: 47, productDeferred: 9, productBlocked: 50, dagReal: 6, dagBlocked: 7, dagDeferred: 6 }`.
+Result: `{ matrixRows: 167, uniqueRows: 167, ownerTextUnchanged: true, pageCountsValid: true, dna: 5, doctorUi: 143, dag: 19, productReal: 44, productPartial: 45, productDeferred: 9, productBlocked: 50, dagReal: 6, dagBlocked: 7, dagDeferred: 6 }`.
 
 ## Stage reports
 
@@ -328,10 +330,10 @@ evidence-closed 2/5 against `docs/_TODO/DOCTOR_DNA_MIGRATION/PLAN.md`
 three-screen desktop/mobile owner decision row remains deferred.
 Owner-closed is 0/5.
 
-evidence-closed 40/143 against `docs/_TODO/DOCTOR_UI_REWORK_2026-07-20/PLAN.md`
-**NOT DONE:** 45 rows remain partial, 8 deferred and 50 blocked. UI-4 is evidence-closed 9/9; UI-5a is 3/5;
-UI-6 is 6/9; Communications is 1/8; shared Today/Clients/Messages acceptance is 11/14. Owner PNG/click acceptance
-remains open.
+evidence-closed 42/143 against `docs/_TODO/DOCTOR_UI_REWORK_2026-07-20/PLAN.md`
+**NOT DONE:** 43 rows remain partial, 8 deferred and 50 blocked. UI-2 is evidence-closed 2/7; UI-4 is 9/9;
+UI-5a is 3/5; UI-6 is 6/9; Communications is 1/8; shared Today/Clients/Messages acceptance is 11/14. Owner
+PNG/click acceptance remains open.
 All other partial/deferred/blocked reasons are preserved per row from the fresh audit documents. Owner-closed is
 0/143.
 
