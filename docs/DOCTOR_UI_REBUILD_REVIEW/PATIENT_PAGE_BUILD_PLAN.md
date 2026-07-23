@@ -1,5 +1,10 @@
 # Patient Page Build — Orchestration Plan (2026-06-14, overnight)
 
+> ⚠️ **НЕ АКТУАЛЬНО (оркестрационный план 2026-06-14).** Именно здесь появился «preview» в списке (Wave 2A) —
+> правая мини-карточка, которую владелец отверг; она удалена из кода (commit `561f9d89`). Актуальная структура
+> карты пациента — в **[`../design/bersoncare-карточка-пациента-CURRENT-SPEC.md`](../design/bersoncare-карточка-пациента-CURRENT-SPEC.md)**.
+> Не реализовывать по этому плану — только по актуальной спеке.
+
 **Goal:** Build the doctor-facing **Patient card** (карточка пациента, 6 tabs) and finish the **Patients list** page (Пациенты: filters + search + preview + link to card). Deliver a navigable, visually-faithful, testable UI by morning. Real data where cheap; faithful UI + stub data where backend is deep.
 
 **Branch:** working on `claude/admiring-hodgkin-c8fa92` (== `feat/doctor-ui-rebuild` at start). Parallel chat owns `feat/doctor-ui-rebuild` in the MAIN worktree (schedule/«Сегодня» work) — do NOT touch schedule/today files. Commit regularly here; push after big blocks. Do NOT run FULL CI (parallel dev). Use `pnpm test:webapp` / typecheck locally.
