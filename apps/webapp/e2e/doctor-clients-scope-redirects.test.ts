@@ -74,7 +74,9 @@ describe("doctor clients scope and subscribers redirects", () => {
       "utf8",
     );
 
-    expect(listSource).toContain("<PatientPreviewPane");
+    // Preview pane was intentionally removed (owner: "убрана правая полоска-превью") — a row click
+    // navigates straight to the canonical standalone patient route, no duplicated card tree.
+    expect(listSource).not.toContain("PatientPreviewPane");
     expect(listSource).toContain("patientCardHrefWithReturnTo");
     expect(listSource).not.toContain("<PatientCardClient");
     expect(listSource).not.toContain("<iframe");

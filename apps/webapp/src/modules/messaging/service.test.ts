@@ -5,7 +5,9 @@ import type { SupportCommunicationPort } from "@/infra/repos/pgSupportCommunicat
 describe("createPatientMessagingService", () => {
   it("sendText returns validation error for empty text", async () => {
     const port = {
-      getConversationIfOwnedByUser: vi.fn().mockResolvedValue({ id: "c1" }),
+      // status/closedAt required since 890f182b1 (fix(patient): reject inactive support sends
+      // safely) — sendText now gates on conversation being open before validating the text.
+      getConversationIfOwnedByUser: vi.fn().mockResolvedValue({ id: "c1", status: "open", closedAt: null }),
       appendWebappMessage: vi.fn(),
     } as unknown as SupportCommunicationPort;
     const svc = createPatientMessagingService(port);
@@ -30,6 +32,8 @@ describe("createPatientMessagingService", () => {
       getConversationIfOwnedByUser: vi.fn().mockResolvedValue({
         id: "c1",
         organizationId: "11111111-1111-4111-8111-111111111111",
+        status: "open",
+        closedAt: null,
       }),
       ensureWebappConversationForUser: vi.fn().mockResolvedValue({
         id: "c1",
