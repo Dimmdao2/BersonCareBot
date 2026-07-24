@@ -937,6 +937,86 @@ SELECT (
   echo "   specialist-owner provisioning seam: OK (app_owner pinned, be_organizations FORCE RLS intact)"
 }
 
+assert_app_owner_secdef_table_grants_complete(){
+  # Whole-class gate (independent audit finding, taskdb follow-up): app_owner is NOLOGIN+BYPASSRLS,
+  # so it never trips a row-security check -- but BYPASSRLS does NOT substitute for the base
+  # SQL-level table GRANT every SECURITY DEFINER function it owns still needs to touch its tables.
+  # A missing GRANT is silent until the exact code path runs live (this is precisely the class the
+  # email_challenges gap shipped as: a live-only hotfix on TEST, absent from every deploy/postgres/
+  # *.sql, that a fresh deploy/prod cutover would have silently regressed). Read-only, runs after
+  # every mutating overlay/restart above, so a FATAL here never leaves TEST half-configured.
+  #
+  # (a) explicit required-grant set, one row per (table, privilege) app_owner's reviewed SECURITY
+  #     DEFINER functions are known to need as of this writing.
+  local missing
+  missing="$(sudo -u postgres psql -d "$DB" -X -v ON_ERROR_STOP=1 -tAc "
+WITH required(tbl, priv) AS (
+  VALUES
+    ('public.email_challenges', 'SELECT'),
+    ('public.email_challenges', 'UPDATE'),
+    ('public.email_challenges', 'DELETE'),
+    ('public.be_organizations', 'INSERT'),
+    ('public.be_organizations', 'SELECT'),
+    ('public.be_organization_members', 'SELECT'),
+    ('public.be_organization_members', 'INSERT'),
+    ('public.platform_users', 'SELECT'),
+    ('public.platform_users', 'UPDATE'),
+    ('public.specialist_signup_intents', 'SELECT'),
+    ('public.specialist_signup_intents', 'UPDATE'),
+    ('public.reference_categories', 'INSERT'),
+    ('public.reference_categories', 'SELECT'),
+    ('public.reference_items', 'INSERT'),
+    ('public.reference_items', 'SELECT'),
+    ('public.reference_catalog_snapshot_receipts', 'INSERT'),
+    ('public.reference_catalog_snapshot_receipts', 'SELECT'),
+    ('public.courses', 'SELECT')
+)
+SELECT coalesce(string_agg(tbl || ' ' || priv, ', ' ORDER BY tbl, priv), '')
+FROM required
+WHERE NOT has_table_privilege('app_owner', tbl, priv);
+")"
+  [ -z "$missing" ] || {
+    echo "FATAL: app_owner is missing required table GRANT(s): $missing" >&2
+    echo "       app_owner is BYPASSRLS -- this is a base table-ACL gap, not an RLS/policy gap." >&2
+    exit 1
+  }
+
+  local operator_incidents_ok
+  operator_incidents_ok="$(sudo -u postgres psql -d "$DB" -X -v ON_ERROR_STOP=1 -tAc "
+SELECT has_column_privilege('app_owner', 'public.operator_incidents', 'alert_sent_at', 'UPDATE')::text;
+")"
+  [ "$operator_incidents_ok" = "t" ] || {
+    echo "FATAL: app_owner is missing UPDATE (alert_sent_at) on public.operator_incidents" >&2
+    exit 1
+  }
+
+  # (b) anti-drift: any NEW SECURITY DEFINER function handed to app_owner must be reviewed for its
+  # own table grants before it ships, exactly like the two gaps this gate exists to catch. Pin the
+  # exact reviewed count rather than silently accepting drift; bump the constant (with a comment
+  # citing which new function and which table grants were reviewed for it) the one time a real new
+  # app_owner SECURITY DEFINER function is intentionally added.
+  # 48 pre-existing + 4 that move to app_owner as part of this fix: app.provision_specialist_owner
+  # and app.current_provisioned_owner_organization() (this file, literal OWNER TO app_owner) plus
+  # app.seed_reference_catalog_snapshot(uuid) and app.seed_reference_catalog_after_organization_insert()
+  # (reassigned dynamically by deploy/postgres/reference-catalog-rls.sql's :"provisioning_owner",
+  # which resolves from provision_specialist_owner's owner and runs later in the same deploy pass --
+  # confirmed live via BEGIN;...;ROLLBACK simulating the full post-deploy chain, never committed).
+  local expected_secdef_count=52
+  local actual_secdef_count
+  actual_secdef_count="$(sudo -u postgres psql -d "$DB" -X -v ON_ERROR_STOP=1 -tAc "
+SELECT count(*) FROM pg_proc p WHERE pg_get_userbyid(p.proowner) = 'app_owner' AND p.prosecdef;
+")"
+  [ "$actual_secdef_count" = "$expected_secdef_count" ] || {
+    echo "FATAL: app_owner now owns $actual_secdef_count SECURITY DEFINER functions, expected exactly $expected_secdef_count." >&2
+    echo "       A new app_owner SECURITY DEFINER function was added without review -- check its body for" >&2
+    echo "       every table it reads/writes, add the matching GRANT next to that table's canonical" >&2
+    echo "       reapplied overlay, extend the required-grant set above, and only then bump this constant." >&2
+    exit 1
+  }
+
+  echo "   app_owner SECURITY DEFINER table-grant completeness: OK (18 required table grants + 1 column grant present, $actual_secdef_count/$expected_secdef_count secdef functions pinned)"
+}
+
 mark_e1_runtime_coverage_start(){
   E1_RUNTIME_COVERAGE_STARTED_AT="$(node -e 'process.stdout.write(new Date().toISOString())')"
 }
@@ -1120,6 +1200,8 @@ run_strict_post_migration_closure(){
   run_specialist_signup_provisioning_smoke
   log "specialist-owner provisioning seam pin (app_owner + be_organizations FORCE RLS)"
   assert_specialist_owner_provisioning_seam_pinned
+  log "app_owner SECURITY DEFINER table-grant completeness (whole-class gate)"
+  assert_app_owner_secdef_table_grants_complete
   log "E1 post-runtime coverage/read gate"
   run_e1_post_runtime_coverage_gate
   assert_awg_relay_active

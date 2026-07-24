@@ -119,6 +119,16 @@ GRANT SELECT, INSERT, UPDATE ON TABLE public.be_organization_members TO app_owne
 -- so it needs read access to the tariff catalog and per-org overrides too.
 GRANT SELECT ON TABLE public.saas_tariffs TO app_owner;
 GRANT SELECT ON TABLE public.saas_org_entitlement_overrides TO app_owner;
+-- app.email_otp_public_consume_latest_challenge(text, text) (defined below, owned by app_owner)
+-- SELECTs/UPDATEs/DELETEs public.email_challenges directly. This overlay is the canonical,
+-- every-deploy-reapplied home for that function's full lifecycle (owner, EXECUTE grants); the
+-- table grant belongs alongside it, not only in the one-shot migration
+-- apps/webapp/db/drizzle-migrations/0232_email_otp_atomic_consume.sql (which never re-runs and
+-- never carried this grant -- confirmed missing from every deploy/postgres/*.sql; the only place it
+-- existed was a live hotfix applied directly on TEST, which a fresh deploy/prod cutover would lose,
+-- breaking every client email-code login). app_owner is BYPASSRLS (clears any RLS on this table),
+-- but BYPASSRLS does not substitute for the base table GRANT.
+GRANT SELECT, UPDATE, DELETE ON TABLE public.email_challenges TO app_owner;
 
 CREATE OR REPLACE FUNCTION app.lookup_pending_org_invite(p_token_hash text)
 RETURNS TABLE (
