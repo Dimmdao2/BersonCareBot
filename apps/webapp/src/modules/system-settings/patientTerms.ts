@@ -12,10 +12,12 @@ export type PatientTerms = {
   patientPluralLabel: string;
   /** Родительный падеж мн.ч.: «пациентов» или «клиентов». */
   patientGenPlural: string;
+  /** Именительный падеж ед.ч.: «Пациент» или «Клиент». */
+  patientSingularLabel: string;
 };
 
 /**
- * Резолвит пару {именительный мн.ч., родительный мн.ч.} из значения настройки `patient_label`.
+ * Резолвит {именительный мн.ч., родительный мн.ч., именительный ед.ч.} из значения настройки `patient_label`.
  *
  * @param singular — необработанное значение из БД (например «пациент», «клиент», «Клиент»).
  *                   Если не передано или `undefined/null`, используется дефолт «пациент».
@@ -23,7 +25,7 @@ export type PatientTerms = {
 export function resolvePatientTerms(singular?: string | null): PatientTerms {
   const normalized = (singular ?? "пациент").trim().toLowerCase();
   if (normalized === "клиент") {
-    return { patientPluralLabel: "Клиенты", patientGenPlural: "клиентов" };
+    return { patientPluralLabel: "Клиенты", patientGenPlural: "клиентов", patientSingularLabel: "Клиент" };
   }
-  return { patientPluralLabel: "Пациенты", patientGenPlural: "пациентов" };
+  return { patientPluralLabel: "Пациенты", patientGenPlural: "пациентов", patientSingularLabel: "Пациент" };
 }

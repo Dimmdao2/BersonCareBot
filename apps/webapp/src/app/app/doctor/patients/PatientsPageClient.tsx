@@ -78,6 +78,8 @@ export type PatientsPageClientProps = {
   metricsPromise: Promise<DoctorDashboardPatientMetrics>;
   initialFilters: PatientListWorkspaceState;
   patientPluralLabel?: string;
+  /** Именительный ед.ч. из настройки терминологии («Пациент»/«Клиент») — используется для кнопки/диалога создания. */
+  patientSingularLabel?: string;
   displayIana?: string;
 };
 
@@ -167,7 +169,11 @@ const SEGMENTS: SegmentDef[] = [
 ];
 
 // ---------------------------------------------------------------------------
-function applyChannelFilter(list: ClientListItem[], activeChannel: PatientListChannel | null): ClientListItem[] {
+/**
+ * Exported (not just page-local) so the underlying channel-filter mechanism stays covered by a
+ * direct test even while its UI is hidden — see `CHANNEL_FILTERS_UI_ENABLED` below.
+ */
+export function applyChannelFilter(list: ClientListItem[], activeChannel: PatientListChannel | null): ClientListItem[] {
   if (activeChannel === "telegram") {
     return list.filter((c) => Boolean(c.bindings.telegramId?.trim()) && !c.bindings.telegramBotBlocked);
   }
@@ -185,6 +191,21 @@ function applyChannelFilter(list: ClientListItem[], activeChannel: PatientListCh
   }
   return list;
 }
+
+/**
+ * Owner punch-list item 4: hide the communication-channel filter buttons from the right pane while
+ * keeping every prop/state/URL-param wire-up they depend on intact (see the block that reads this
+ * flag further down). Flip back to `true` to re-enable — no other code needs to change.
+ */
+const CHANNEL_FILTERS_UI_ENABLED = false;
+
+/**
+ * Muted "active" tone for the sort toggles (owner punch-list item 5: the old solid
+ * `variant="default"` primary fill read as too strong). Same tint DoctorStatCard already uses for
+ * a selected segment card — keeps the active-state language consistent across the page.
+ */
+const doctorDnaActiveSortToneClass =
+  "border-primary/35 bg-primary/15 text-primary hover:border-primary/40 hover:bg-primary/20 hover:text-primary";
 
 const DEFAULT_LEGACY_FILTERS: LegacyFiltersState = {
   telegram: false,
@@ -391,14 +412,30 @@ function manualVisitErrorLabel(error: string | undefined): string {
   if (error === "invalid_phone") return "Проверьте номер телефона.";
   if (error === "invalid_email") return "Проверьте email.";
   if (error === "invalid_fio") return "Укажите фамилию и имя.";
+  if (error === "invalid_request_id") return "Не удалось сформировать запрос, обновите страницу.";
   if (error === "email_conflict") return "Этот email уже связан с другой карточкой.";
+  if (error === "idempotency_conflict") return "Заявка уже обрабатывается, обновите страницу.";
   if (error === "patient_not_available") return "Карточка недоступна в этой организации.";
   if (error === "specialist_required") return "Для сотрудника не назначен профиль специалиста.";
   if (error === "visit_in_future") return "Время визита не может быть в будущем.";
-  return "Не удалось создать визит.";
+  if (error === "client_creation_unavailable") return "Создание карточки сейчас недоступно.";
+  return "Не удалось сохранить.";
 }
 
-function ManualWalkInPatientDialog() {
+type NewClientDialogProps = {
+  /** Именительный ед.ч. («Пациент»/«Клиент») — управляет и текстом кнопки, и заголовком диалога. */
+  patientSingularLabel: string;
+};
+
+/**
+ * PAT-CLIENTS-2/3: unified "new person" entry point.
+ *
+ * The card (identity) is always created. The visit date/time is OPTIONAL and empty by default:
+ *  - empty  → POST /api/doctor/clients (identity only, no visit — #806's sanctioned no-visit path)
+ *  - filled → POST /api/doctor/booking-engine/appointments/manual-patient-visit, kind "walk_in"
+ *             (identity + a completed walk-in visit, same as before)
+ */
+function NewClientDialog({ patientSingularLabel }: NewClientDialogProps) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [pending, setPending] = useState(false);
@@ -408,8 +445,11 @@ function ManualWalkInPatientDialog() {
   const [patronymic, setPatronymic] = useState("");
   const [phone, setPhone] = useState("");
   const [email, setEmail] = useState("");
-  const [visitedAt, setVisitedAt] = useState(currentLocalDateTimeValue);
+  // Empty by default and not required — visit creation is opt-in (owner punch-list item 2).
+  const [visitedAt, setVisitedAt] = useState("");
   const [requestId, setRequestId] = useState(() => crypto.randomUUID());
+
+  const singularLower = patientSingularLabel.toLocaleLowerCase("ru-RU");
 
   function reset() {
     setError(null);
@@ -418,14 +458,14 @@ function ManualWalkInPatientDialog() {
     setPatronymic("");
     setPhone("");
     setEmail("");
-    setVisitedAt(currentLocalDateTimeValue());
+    setVisitedAt("");
     setRequestId(crypto.randomUUID());
   }
 
   async function submit() {
     setError(null);
-    if (!lastName.trim() || !firstName.trim() || !visitedAt) {
-      setError("Укажите фамилию, имя и время визита.");
+    if (!lastName.trim() || !firstName.trim()) {
+      setError("Укажите фамилию и имя.");
       return;
     }
     if (!phone.trim() && email.trim()) {
@@ -434,20 +474,34 @@ function ManualWalkInPatientDialog() {
     }
     setPending(true);
     try {
-      const response = await fetch("/api/doctor/booking-engine/appointments/manual-patient-visit", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          requestId,
-          kind: "walk_in",
-          lastName,
-          firstName,
-          patronymic: patronymic.trim() || null,
-          phone,
-          email: email.trim() || null,
-          visitedAt: new Date(visitedAt).toISOString(),
-        }),
-      });
+      const hasVisit = visitedAt.trim().length > 0;
+      const response = hasVisit
+        ? await fetch("/api/doctor/booking-engine/appointments/manual-patient-visit", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              requestId,
+              kind: "walk_in",
+              lastName,
+              firstName,
+              patronymic: patronymic.trim() || null,
+              phone,
+              email: email.trim() || null,
+              visitedAt: new Date(visitedAt).toISOString(),
+            }),
+          })
+        : await fetch("/api/doctor/clients", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              requestId,
+              lastName,
+              firstName,
+              patronymic: patronymic.trim() || null,
+              phone: phone.trim() || null,
+              email: email.trim() || null,
+            }),
+          });
       const result = (await response.json()) as {
         ok?: boolean;
         error?: string;
@@ -462,11 +516,13 @@ function ManualWalkInPatientDialog() {
       router.push(routePaths.doctorPatientCard(result.client.id));
       router.refresh();
     } catch {
-      setError("Не удалось создать визит.");
+      setError("Не удалось сохранить.");
     } finally {
       setPending(false);
     }
   }
+
+  const triggerLabel = `Новый ${singularLower}`;
 
   return (
     <Dialog
@@ -482,49 +538,51 @@ function ManualWalkInPatientDialog() {
             type="button"
             size="sm"
             className="shrink-0 gap-1.5"
-            aria-label="Новый визит"
+            aria-label={triggerLabel}
           />
         }
       >
         <Plus className="size-4" aria-hidden />
-        <span className="hidden sm:inline">Новый визит</span>
-        <span className="sr-only sm:hidden">Новый визит</span>
+        <span className="hidden sm:inline">{triggerLabel}</span>
+        <span className="sr-only sm:hidden">{triggerLabel}</span>
       </DialogTrigger>
       <DialogContent className="max-h-[min(90dvh,680px)] overflow-y-auto sm:max-w-lg">
         <DialogHeader>
-          <DialogTitle>Новый пациент без предварительной записи</DialogTitle>
+          <DialogTitle>{triggerLabel}</DialogTitle>
         </DialogHeader>
         <p className="text-xs text-muted-foreground">
-          Карточка и состоявшийся визит создадутся вместе. Доступ пациента в портал не активируется.
+          Карточка {singularLower}а создастся всегда. Дата и время визита — по желанию: если указать, визит
+          зафиксируется как состоявшийся вместе с карточкой. Доступ в портал не активируется.
         </p>
         <div className="grid gap-3 sm:grid-cols-2">
           <div className="grid gap-1.5">
-            <Label htmlFor="manual-walk-in-last-name">Фамилия</Label>
-            <Input id="manual-walk-in-last-name" value={lastName} onChange={(event) => setLastName(event.target.value)} autoComplete="family-name" />
+            <Label htmlFor="doctor-new-client-last-name">Фамилия</Label>
+            <Input id="doctor-new-client-last-name" value={lastName} onChange={(event) => setLastName(event.target.value)} autoComplete="family-name" />
           </div>
           <div className="grid gap-1.5">
-            <Label htmlFor="manual-walk-in-first-name">Имя</Label>
-            <Input id="manual-walk-in-first-name" value={firstName} onChange={(event) => setFirstName(event.target.value)} autoComplete="given-name" />
+            <Label htmlFor="doctor-new-client-first-name">Имя</Label>
+            <Input id="doctor-new-client-first-name" value={firstName} onChange={(event) => setFirstName(event.target.value)} autoComplete="given-name" />
           </div>
           <div className="grid gap-1.5 sm:col-span-2">
-            <Label htmlFor="manual-walk-in-patronymic">Отчество</Label>
-            <Input id="manual-walk-in-patronymic" value={patronymic} onChange={(event) => setPatronymic(event.target.value)} />
+            <Label htmlFor="doctor-new-client-patronymic">Отчество</Label>
+            <Input id="doctor-new-client-patronymic" value={patronymic} onChange={(event) => setPatronymic(event.target.value)} />
           </div>
           <div className="grid gap-1.5">
-            <Label htmlFor="manual-walk-in-phone">Телефон, если есть</Label>
-            <Input id="manual-walk-in-phone" type="tel" value={phone} onChange={(event) => setPhone(event.target.value)} autoComplete="tel" placeholder="+7 999 000-00-00" />
+            <Label htmlFor="doctor-new-client-phone">Телефон, если есть</Label>
+            <Input id="doctor-new-client-phone" type="tel" value={phone} onChange={(event) => setPhone(event.target.value)} autoComplete="tel" placeholder="+7 999 000-00-00" />
           </div>
           <div className="grid gap-1.5">
-            <Label htmlFor="manual-walk-in-email">Email, если есть</Label>
-            <Input id="manual-walk-in-email" type="email" value={email} onChange={(event) => setEmail(event.target.value)} autoComplete="email" />
+            <Label htmlFor="doctor-new-client-email">Email, если есть</Label>
+            <Input id="doctor-new-client-email" type="email" value={email} onChange={(event) => setEmail(event.target.value)} autoComplete="email" />
           </div>
           <div className="grid gap-1.5 sm:col-span-2">
-            <Label htmlFor="manual-walk-in-visited-at">Дата и время визита</Label>
+            <Label htmlFor="doctor-new-client-visited-at">Дата и время визита, если есть</Label>
             <Input
-              id="manual-walk-in-visited-at"
+              id="doctor-new-client-visited-at"
               type="datetime-local"
               value={visitedAt}
               max={currentLocalDateTimeValue(2)}
+              placeholder="Не указано — создастся только карточка"
               onChange={(event) => setVisitedAt(event.target.value)}
             />
           </div>
@@ -532,7 +590,7 @@ function ManualWalkInPatientDialog() {
         {error ? <p role="alert" className="text-sm text-destructive">{error}</p> : null}
         <DialogFooter>
           <Button type="button" variant="outline" disabled={pending} onClick={() => setOpen(false)}>Отмена</Button>
-          <Button type="button" disabled={pending} onClick={() => void submit()}>{pending ? "Создаём…" : "Создать визит"}</Button>
+          <Button type="button" disabled={pending} onClick={() => void submit()}>{pending ? "Создаём…" : "Создать"}</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
@@ -547,6 +605,7 @@ type PatientsContentProps = {
   listPromise: Promise<ClientListItem[]>;
   metricsPromise: Promise<DoctorDashboardPatientMetrics>;
   patientPluralLabel: string;
+  patientSingularLabel: string;
   activeSegments: SegmentKey[];
   activeChannel: PatientListChannel | null;
   archivedOnly: boolean;
@@ -572,6 +631,7 @@ function PatientsContent({
   listPromise,
   metricsPromise,
   patientPluralLabel,
+  patientSingularLabel,
   activeSegments,
   activeChannel,
   archivedOnly,
@@ -597,38 +657,48 @@ function PatientsContent({
   const activeCategory: ClientCategory = "all";
   const listRef = useRef<HTMLUListElement>(null);
 
-  // Apply category filter first, then segment, channel, and legacy filters.
-  let filtered = applyCategoryFilter(allClients, activeCategory);
-  filtered = applySegmentFilters(filtered, activeSegments);
-  filtered = applyChannelFilter(filtered, activeChannel);
-  // Legacy filters (AND-logic)
-  if (legacyFilters.cancellations) filtered = filtered.filter((c) => c.cancellationsCount > 0);
-  if (legacyFilters.visitedMonth) filtered = filtered.filter((c) => c.visitedThisCalendarMonth === true);
-  if (legacyFilters.withoutAppointments) filtered = filtered.filter((c) => !(c.hasAppointmentHistory ?? false) && (c.activeAppointmentsCount ?? 0) === 0);
-  if (legacyFilters.memberships) filtered = filtered.filter((c) => c.hasActiveMemberships === true);
-  if (legacyFilters.reschedules) filtered = filtered.filter((c) => c.reschedulesCount > 0);
+  // Context base for segment card counts (PAT-02/06/#540):
+  // KPI cards are multi-select filters with AND policy. Each card shows the
+  // count for its own segment after all other selected KPI filters are applied,
+  // followed by the full total for that segment in the current category.
+  const categoryBase = useMemo(() => applyCategoryFilter(allClients, activeCategory), [allClients, activeCategory]);
+  const filteredBySegments = useMemo(() => applySegmentFilters(categoryBase, activeSegments), [categoryBase, activeSegments]);
 
-  // PAT-09/10: client-side text search across all name fields
-  if (searchQuery.trim()) {
-    const q = searchQuery.trim().toLowerCase();
-    filtered = filtered.filter(
-      (c) => c.displayName?.toLowerCase().includes(q) || c.firstName?.toLowerCase().includes(q) || c.lastName?.toLowerCase().includes(q) || c.phone?.toLowerCase().includes(q),
-    );
-  }
-  filtered = sortClients(filtered, sort, sortDirection);
+  // PAT-CLIENTS-1: filter+sort is real work (localeCompare sort over the whole roster) and must NOT
+  // recompute on every render. Before this was memoized it recomputed synchronously on every native
+  // `scroll` event (see onListScroll below), which — combined with the scrollTop restore effect —
+  // produced the reported jitter: heavy work delayed the DOM `scrollTop` write-back, which then
+  // "snapped" the list to a stale position while the user was still actively scrolling.
+  const filtered = useMemo(() => {
+    // Apply category filter first, then segment, channel, and legacy filters.
+    let list = applySegmentFilters(categoryBase, activeSegments);
+    list = applyChannelFilter(list, activeChannel);
+    // Legacy filters (AND-logic)
+    if (legacyFilters.cancellations) list = list.filter((c) => c.cancellationsCount > 0);
+    if (legacyFilters.visitedMonth) list = list.filter((c) => c.visitedThisCalendarMonth === true);
+    if (legacyFilters.withoutAppointments) list = list.filter((c) => !(c.hasAppointmentHistory ?? false) && (c.activeAppointmentsCount ?? 0) === 0);
+    if (legacyFilters.memberships) list = list.filter((c) => c.hasActiveMemberships === true);
+    if (legacyFilters.reschedules) list = list.filter((c) => c.reschedulesCount > 0);
 
+    // PAT-09/10: client-side text search across all name fields
+    if (searchQuery.trim()) {
+      const q = searchQuery.trim().toLowerCase();
+      list = list.filter(
+        (c) => c.displayName?.toLowerCase().includes(q) || c.firstName?.toLowerCase().includes(q) || c.lastName?.toLowerCase().includes(q) || c.phone?.toLowerCase().includes(q),
+      );
+    }
+    return sortClients(list, sort, sortDirection);
+  }, [categoryBase, activeSegments, activeChannel, legacyFilters, searchQuery, sort, sortDirection]);
+
+  // Restores/pins the DOM scroll position from state (e.g. on initial mount, or when the filtered
+  // list identity changes). `listScrollTop` itself is now committed by the parent on a debounce
+  // (see PatientsPageClient.handleListScroll), so this effect no longer fights the user's own
+  // in-flight scroll gesture — by the time it fires, `listScrollTop` already matches reality.
   useEffect(() => {
     const list = listRef.current;
     if (!list || Math.abs(list.scrollTop - listScrollTop) < 1) return;
     list.scrollTop = listScrollTop;
   }, [filtered.length, listScrollTop]);
-
-  // Context base for segment card counts (PAT-02/06/#540):
-  // KPI cards are multi-select filters with AND policy. Each card shows the
-  // count for its own segment after all other selected KPI filters are applied,
-  // followed by the full total for that segment in the current category.
-  const categoryBase = applyCategoryFilter(allClients, activeCategory);
-  const filteredBySegments = applySegmentFilters(categoryBase, activeSegments);
 
   // Determine if any filter is active (for "найдено N" header)
   const isAnyFilterActive =
@@ -651,30 +721,39 @@ function PatientsContent({
         title={patientPluralLabel}
         tabsClassName="w-full"
         tabs={
-          <div className="relative w-full min-w-0">
-            <span className="pointer-events-none absolute inset-y-0 left-2.5 flex items-center text-muted-foreground">
-              <Search className="size-3.5" aria-hidden />
-            </span>
-            <Input
-              type="search"
-              placeholder={`Поиск: ${patientPluralLabelLower}`}
-              value={searchInput}
-              onChange={(event) => onSearchInput(event.target.value)}
-              className="h-8 pl-8 pr-8 text-sm"
-              aria-label={`Поиск: ${patientPluralLabelLower}`}
-            />
-            {searchInput ? (
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon-sm"
-                onClick={onClearSearch}
-                className="absolute inset-y-0 right-0 my-auto size-8 text-muted-foreground hover:text-foreground"
-                aria-label="Сбросить поиск"
-              >
-                <X className="size-3.5" />
-              </Button>
-            ) : null}
+          <div className="flex w-full min-w-0 items-center gap-2">
+            <NewClientDialog patientSingularLabel={patientSingularLabel} />
+            {/*
+              Search width matches the right-hand (filters) pane below: that pane is one column of
+              CatalogSplitLayout's `lg:grid-cols-2`, so on desktop it renders at ~50% of the content
+              width. Capping the search field here at the same fraction keeps the two visually
+              aligned instead of letting the search stretch across the full header row.
+            */}
+            <div className="relative min-w-0 flex-1 lg:max-w-[calc(50%-0.375rem)]">
+              <span className="pointer-events-none absolute inset-y-0 left-2.5 flex items-center text-muted-foreground">
+                <Search className="size-3.5" aria-hidden />
+              </span>
+              <Input
+                type="search"
+                placeholder={`Поиск: ${patientPluralLabelLower}`}
+                value={searchInput}
+                onChange={(event) => onSearchInput(event.target.value)}
+                className="h-8 pl-8 pr-8 text-sm"
+                aria-label={`Поиск: ${patientPluralLabelLower}`}
+              />
+              {searchInput ? (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon-sm"
+                  onClick={onClearSearch}
+                  className="absolute inset-y-0 right-0 my-auto size-8 text-muted-foreground hover:text-foreground"
+                  aria-label="Сбросить поиск"
+                >
+                  <X className="size-3.5" />
+                </Button>
+              ) : null}
+            </div>
           </div>
         }
       />
@@ -714,13 +793,17 @@ function PatientsContent({
                 className="flex w-full min-w-0 flex-wrap items-center gap-1.5 lg:w-auto lg:shrink-0 lg:justify-end"
                 aria-label={`Сортировка: ${patientPluralLabelLower}`}
               >
-                <ManualWalkInPatientDialog />
                 <span className="text-xs text-muted-foreground">Сортировать</span>
                 <Button
                   type="button"
               size="sm"
-              variant={sort === "recent_appointments" ? "default" : "outline"}
-              className="h-8 gap-1.5 px-2 text-xs"
+              variant="outline"
+              className={cn(
+                "h-8 gap-1.5 px-2 text-xs",
+                // Softened active tone (DNA muted-primary tint, same as the selected segment cards)
+                // instead of a solid `variant="default"` fill — owner punch-list item 5.
+                sort === "recent_appointments" && doctorDnaActiveSortToneClass,
+              )}
               aria-pressed={sort === "recent_appointments"}
               aria-label={`Недавние: ${sort === "recent_appointments" && sortDirection === "asc" ? "давние сверху" : "недавние сверху"}`}
                   onClick={() => onSortSelect("recent_appointments")}
@@ -731,8 +814,11 @@ function PatientsContent({
                 <Button
                   type="button"
               size="sm"
-              variant={sort === "fio" ? "default" : "outline"}
-              className="h-8 gap-1.5 px-2 text-xs"
+              variant="outline"
+              className={cn(
+                "h-8 gap-1.5 px-2 text-xs",
+                sort === "fio" && doctorDnaActiveSortToneClass,
+              )}
               aria-pressed={sort === "fio"}
               aria-label={`По фамилии: ${sort === "fio" && sortDirection === "desc" ? "Я–А" : "А–Я"}`}
                   onClick={() => onSortSelect("fio")}
@@ -826,63 +912,73 @@ function PatientsContent({
                 </DoctorMetricList>
               </TooltipProvider>
 
-              {/* Communication channels */}
-              <div className="mt-3 border-t border-border/60 pt-3">
-            <p className="mb-2 text-xs text-muted-foreground">Каналы связи</p>
-            <div id="doctor-patients-filters" className="flex flex-wrap gap-1.5">
-              <Button
-                type="button"
-                size="sm"
-                variant={activeChannel === "telegram" ? "default" : "outline"}
-                className="h-7 px-2 text-xs"
-                onClick={() => onChannelChange(activeChannel === "telegram" ? null : "telegram", false)}
-                aria-pressed={activeChannel === "telegram"}
-              >
-                Telegram
-              </Button>
-              <Button
-                type="button"
-                size="sm"
-                variant={activeChannel === "max" ? "default" : "outline"}
-                className="h-7 px-2 text-xs"
-                onClick={() => onChannelChange(activeChannel === "max" ? null : "max", false)}
-                aria-pressed={activeChannel === "max"}
-              >
-                MAX
-              </Button>
-              <Button
-                type="button"
-                size="sm"
-                variant={activeChannel === "email" ? "default" : "outline"}
-                className="h-7 px-2 text-xs"
-                onClick={() => onChannelChange(activeChannel === "email" ? null : "email", false)}
-                aria-pressed={activeChannel === "email"}
-              >
-                Email
-              </Button>
-              <Button
-                type="button"
-                size="sm"
-                variant={activeChannel === "phone" ? "default" : "outline"}
-                className="h-7 px-2 text-xs"
-                onClick={() => onChannelChange(activeChannel === "phone" ? null : "phone", false)}
-                aria-pressed={activeChannel === "phone"}
-              >
-                Телефон
-              </Button>
-              <Button
-                type="button"
-                size="sm"
-                variant={activeChannel === "web_push" ? "default" : "outline"}
-                className="h-7 px-2 text-xs"
-                onClick={() => onChannelChange(activeChannel === "web_push" ? null : "web_push", false)}
-                aria-pressed={activeChannel === "web_push"}
-              >
-                <Bell className="mr-1 size-3.5" aria-hidden />
-                Пуш-уведомления
-              </Button>
+              {/*
+                Communication-channel filters (owner punch-list item 4): UI hidden per owner request —
+                the buttons duplicated info doctors rarely filtered by and cluttered the panel. The
+                mechanism stays fully wired (activeChannel state, onChannelChange, applyChannelFilter,
+                PatientListChannel/PATIENT_LIST_CHANNELS, the `channel` URL param) so this can be
+                re-enabled by flipping the flag below without touching any plumbing. A channel still
+                seeded via URL state (e.g. a saved/shared link) keeps filtering the list even with the
+                buttons hidden — see the "keeps the communication-channel filter mechanism wired" test.
+              */}
+              {CHANNEL_FILTERS_UI_ENABLED ? (
+                <div className="mt-3 border-t border-border/60 pt-3">
+                  <p className="mb-2 text-xs text-muted-foreground">Каналы связи</p>
+                  <div id="doctor-patients-filters" className="flex flex-wrap gap-1.5">
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant={activeChannel === "telegram" ? "default" : "outline"}
+                      className="h-7 px-2 text-xs"
+                      onClick={() => onChannelChange(activeChannel === "telegram" ? null : "telegram", false)}
+                      aria-pressed={activeChannel === "telegram"}
+                    >
+                      Telegram
+                    </Button>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant={activeChannel === "max" ? "default" : "outline"}
+                      className="h-7 px-2 text-xs"
+                      onClick={() => onChannelChange(activeChannel === "max" ? null : "max", false)}
+                      aria-pressed={activeChannel === "max"}
+                    >
+                      MAX
+                    </Button>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant={activeChannel === "email" ? "default" : "outline"}
+                      className="h-7 px-2 text-xs"
+                      onClick={() => onChannelChange(activeChannel === "email" ? null : "email", false)}
+                      aria-pressed={activeChannel === "email"}
+                    >
+                      Email
+                    </Button>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant={activeChannel === "phone" ? "default" : "outline"}
+                      className="h-7 px-2 text-xs"
+                      onClick={() => onChannelChange(activeChannel === "phone" ? null : "phone", false)}
+                      aria-pressed={activeChannel === "phone"}
+                    >
+                      Телефон
+                    </Button>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant={activeChannel === "web_push" ? "default" : "outline"}
+                      className="h-7 px-2 text-xs"
+                      onClick={() => onChannelChange(activeChannel === "web_push" ? null : "web_push", false)}
+                      aria-pressed={activeChannel === "web_push"}
+                    >
+                      <Bell className="mr-1 size-3.5" aria-hidden />
+                      Пуш-уведомления
+                    </Button>
+                  </div>
                 </div>
-              </div>
+              ) : null}
             </section>
           </CatalogRightPane>
         }
@@ -896,8 +992,16 @@ function PatientsContent({
 // ---------------------------------------------------------------------------
 
 const SEARCH_DEBOUNCE_MS = 200;
+// See handleListScroll below — same delay as search debounce, reused deliberately for consistency.
+const SCROLL_COMMIT_DEBOUNCE_MS = 200;
 
-export function PatientsPageClient({ listPromise: initialListPromise, metricsPromise, initialFilters, patientPluralLabel = "Пациенты" }: PatientsPageClientProps) {
+export function PatientsPageClient({
+  listPromise: initialListPromise,
+  metricsPromise,
+  initialFilters,
+  patientPluralLabel = "Пациенты",
+  patientSingularLabel = "Пациент",
+}: PatientsPageClientProps) {
   const isListPending = false;
 
   // Search state (local, debounced)
@@ -917,7 +1021,12 @@ export function PatientsPageClient({ listPromise: initialListPromise, metricsPro
   // Category mechanism remains dormant/reversible; this page defaults to all organization people.
   const [sort, setSort] = useState<ClientListSort>(initialFilters.sort);
   const [sortDirection, setSortDirection] = useState<ClientListSortDirection>(initialFilters.sortDirection);
+  // `listScrollTop` is the COMMITTED scroll position (drives URL/history + the DOM-restore effect
+  // in PatientsContent). It intentionally does NOT track every native `scroll` event — see
+  // handleListScroll below for why that was the root cause of the reported scroll jitter.
   const [listScrollTop, setListScrollTop] = useState(initialFilters.scrollTop);
+  const scrollTopRef = useRef(initialFilters.scrollTop);
+  const scrollCommitTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const [mobileFiltersOpen, setMobileFiltersOpen] = useState(false);
 
@@ -944,6 +1053,28 @@ export function PatientsPageClient({ listPromise: initialListPromise, metricsPro
 
   useEffect(() => () => {
     if (debounceRef.current) clearTimeout(debounceRef.current);
+    if (scrollCommitTimerRef.current) clearTimeout(scrollCommitTimerRef.current);
+  }, []);
+
+  /**
+   * Root cause of the reported "list jitters/jumps wildly on scroll": the native `scroll` handler
+   * used to call `setListScrollTop` directly on every event. Each of those triggered a full
+   * `PatientsContent` re-render (recomputing the filtered/sorted roster — see the `useMemo` there)
+   * plus a `history.replaceState` call, all synchronously while the browser was still actively
+   * scrolling. The DOM-restore effect in `PatientsContent` then wrote the (now-stale) captured
+   * `scrollTop` back onto the list element, which "snapped" the list backwards mid-gesture.
+   *
+   * Fix: track the live value in a ref (no re-render) and only commit it to React state — which is
+   * what feeds the URL/history and the restore effect — after the user pauses scrolling. By the
+   * time the commit fires, the DOM's real `scrollTop` already matches, so the restore effect is a
+   * no-op and nothing snaps.
+   */
+  const handleListScroll = useCallback((value: number) => {
+    scrollTopRef.current = value;
+    if (scrollCommitTimerRef.current) clearTimeout(scrollCommitTimerRef.current);
+    scrollCommitTimerRef.current = setTimeout(() => {
+      setListScrollTop(scrollTopRef.current);
+    }, SCROLL_COMMIT_DEBOUNCE_MS);
   }, []);
 
   const handleSegmentToggle = useCallback((key: SegmentKey) => {
@@ -987,6 +1118,8 @@ export function PatientsPageClient({ listPromise: initialListPromise, metricsPro
     setSort(initialFilters.sort);
     setSortDirection(initialFilters.sortDirection);
     setListScrollTop(initialFilters.scrollTop);
+    scrollTopRef.current = initialFilters.scrollTop;
+    if (scrollCommitTimerRef.current) clearTimeout(scrollCommitTimerRef.current);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [initialListPromise]);
 
@@ -1008,6 +1141,7 @@ export function PatientsPageClient({ listPromise: initialListPromise, metricsPro
         listPromise={listPromise}
         metricsPromise={metricsPromise}
         patientPluralLabel={patientPluralLabel}
+        patientSingularLabel={patientSingularLabel}
         activeSegments={activeSegments}
         activeChannel={activeChannel}
         archivedOnly={archivedOnly}
@@ -1021,7 +1155,7 @@ export function PatientsPageClient({ listPromise: initialListPromise, metricsPro
         listScrollTop={listScrollTop}
         workspaceState={workspaceState}
         onSortSelect={handleSortSelect}
-        onListScroll={setListScrollTop}
+        onListScroll={handleListScroll}
         onSegmentToggle={handleSegmentToggle}
         onChannelChange={handleChannelChange}
         onClearSearch={clearSearch}

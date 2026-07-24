@@ -88,6 +88,7 @@ async function renderPatientsPage(
         metricsPromise={Promise.resolve(metrics)}
         initialFilters={{ ...defaultWorkspaceState, ...initialFilters }}
         patientPluralLabel="Клиенты"
+        patientSingularLabel="Клиент"
         displayIana="Europe/Moscow"
       />,
     );
@@ -136,21 +137,27 @@ describe("PatientsPageClient", () => {
     expect(pageHeader).not.toBeNull();
     expect(search.closest("[data-doctor-page-header-tabs]")).toHaveClass("w-full");
     expect(pageHeader?.querySelector("[data-doctor-page-header-toolbar]")).toBeNull();
-    expect(pageHeader).not.toContainElement(screen.getByRole("button", { name: "Новый визит" }));
+    // Owner punch-list item 2: the "new person" button now lives in the page header, before search.
+    const newClientButton = screen.getByRole("button", { name: "Новый клиент" });
+    expect(pageHeader).toContainElement(newClientButton);
+    const headerTabs = search.closest("[data-doctor-page-header-tabs]") as HTMLElement;
+    const tabChildren = Array.from(headerTabs.querySelectorAll(":scope > div > *"));
+    expect(tabChildren.indexOf(newClientButton)).toBeLessThan(tabChildren.indexOf(search.closest("div")!));
     expect(screen.queryByRole("group", { name: "Фильтр: пациенты или все" })).not.toBeInTheDocument();
     expect(screen.queryByRole("group", { name: "Категория клиентов" })).not.toBeInTheDocument();
     expect(screen.getByText("Подписчик")).toBeInTheDocument();
     expect(screen.getByText("Только абонемент")).toBeInTheDocument();
-    expect(screen.getByText("Каналы связи")).toBeInTheDocument();
+    // Owner punch-list item 4: communication-channel filters are hidden from the UI.
+    expect(screen.queryByText("Каналы связи")).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Фильтр записей" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Фильтр программы упражнений" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Фильтр сопровождения" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Фильтр абонементов" })).not.toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Пуш-уведомления" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Пуш-уведомления" })).not.toBeInTheDocument();
     const allClientsCard = screen.getByRole("button", { name: /^Все клиенты/i });
     expect(allClientsCard.parentElement).toHaveClass("grid-cols-3", "xl:grid-cols-3", "2xl:grid-cols-3");
     expect(screen.getByRole("button", { name: /^Все/i })).toHaveAttribute("aria-pressed", "true");
-    const rightPanel = screen.getByText("Каналы связи").closest("section");
+    const rightPanel = allClientsCard.closest("section");
     expect(rightPanel).toBeVisible();
     const splitLayout = Array.from(document.querySelectorAll("div")).find((element) => element.className.includes("lg:grid-cols-2"));
     expect(splitLayout).toBeDefined();
@@ -321,30 +328,9 @@ describe("PatientsPageClient", () => {
     expect(screen.queryByText("Старые отмены")).not.toBeInTheDocument();
   });
 
-  it("filters channel buttons client-side without reloading the list", async () => {
-    const user = userEvent.setup();
-    await renderPatientsPage([
-      client({
-        userId: "telegram",
-        displayName: "Telegram client",
-        bindings: { telegramId: "tg-1" },
-      }),
-      client({ userId: "push", displayName: "Push client", hasWebPush: true }),
-      client({ userId: "plain", displayName: "Plain client" }),
-    ]);
-
-    expect(await screen.findByText("Telegram client")).toBeInTheDocument();
-    expect(screen.getByText("Push client")).toBeInTheDocument();
-    expect(screen.getByText("Plain client")).toBeInTheDocument();
-    expect(window.location.search).toBe("");
-
-    await user.click(screen.getByRole("button", { name: "Пуш-уведомления" }));
-
-    expect(screen.queryByText("Telegram client")).not.toBeInTheDocument();
-    expect(screen.getByText("Push client")).toBeInTheDocument();
-    expect(screen.queryByText("Plain client")).not.toBeInTheDocument();
-    expect(window.location.search).toBe("?channel=web_push");
-  });
+  // The channel-filter buttons are hidden (owner punch-list item 4) — coverage for the underlying
+  // mechanism moved to "keeps the communication-channel filter mechanism wired..." below, which
+  // seeds `activeChannel` via URL state instead of clicking a (now hidden) button.
 
   it("sorts recent occurred appointments first, supports FIO sorting, and preserves search", async () => {
     const user = userEvent.setup();
@@ -498,7 +484,7 @@ describe("PatientsPageClient", () => {
     // Filters live in the right pane / mobile drawer only.
     await user.click(screen.getByRole("button", { name: "Фильтры" }));
     expect(screen.getByRole("button", { name: "← Назад" })).toBeInTheDocument();
-    expect(screen.getByText("Каналы связи")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /^Все/i })).toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "← Назад" }));
     expect(screen.queryByRole("button", { name: "← Назад" })).not.toBeInTheDocument();
 
@@ -511,6 +497,11 @@ describe("PatientsPageClient", () => {
     const list = document.getElementById("doctor-patients-list") as HTMLUListElement;
     list.scrollTop = 64;
     fireEvent.scroll(list);
+    // The scroll position is committed to state on a debounce (see handleListScroll) so it
+    // no longer fights the user's in-flight scroll gesture — wait for it to settle.
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 220));
+    });
 
     // The row href reflects the current list workspace so the full card can return to it.
     const fullCardLink = screen.getByRole("link", { name: /Петров Иван/i });
@@ -600,7 +591,51 @@ describe("PatientsPageClient", () => {
     ).toBe("/app/doctor/patients?q=%D0%98%D0%B2%D0%B0%D0%BD&segments=appointments");
   });
 
-  it("creates a structured walk-in without sending organization or specialist authority", async () => {
+  it("creates a client only (no visit) by default when the visit date/time is left empty", async () => {
+    const user = userEvent.setup();
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        ok: true,
+        created: true,
+        emailSetupEnqueued: true,
+        client: { id: "created-client" },
+      }),
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    await renderPatientsPage([]);
+
+    await user.click(screen.getByRole("button", { name: "Новый клиент" }));
+    expect(screen.getByRole("dialog")).toHaveTextContent("Новый клиент");
+    await user.type(screen.getByLabelText("Фамилия"), "Петров");
+    await user.type(screen.getByLabelText("Имя"), "Иван");
+    await user.type(screen.getByLabelText("Отчество"), "Сергеевич");
+    await user.type(screen.getByLabelText("Телефон, если есть"), "+7 999 000-00-00");
+    await user.type(screen.getByLabelText("Email, если есть"), "patient@example.com");
+    // The visit date/time is empty by default and not required (owner punch-list item 2).
+    expect(screen.getByLabelText("Дата и время визита, если есть")).toHaveValue("");
+    await user.click(screen.getByRole("button", { name: "Создать" }));
+
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledOnce());
+    const [url, init] = fetchMock.mock.calls[0] ?? [];
+    expect(url).toBe("/api/doctor/clients");
+    const body = JSON.parse(String(init?.body)) as Record<string, unknown>;
+    expect(body).toMatchObject({
+      requestId: expect.stringMatching(/^[0-9a-f-]{36}$/),
+      lastName: "Петров",
+      firstName: "Иван",
+      patronymic: "Сергеевич",
+      phone: "+7 999 000-00-00",
+      email: "patient@example.com",
+    });
+    expect(body).not.toHaveProperty("kind");
+    expect(body).not.toHaveProperty("visitedAt");
+    expect(body).not.toHaveProperty("organizationId");
+    expect(body).not.toHaveProperty("specialistId");
+    expect(routerPushMock).toHaveBeenCalledWith("/app/doctor/patients/created-client");
+  });
+
+  it("also creates a walk-in visit when a visit date/time is filled in, without sending organization or specialist authority", async () => {
     const user = userEvent.setup();
     const fetchMock = vi.fn().mockResolvedValue({
       ok: true,
@@ -614,17 +649,20 @@ describe("PatientsPageClient", () => {
     vi.stubGlobal("fetch", fetchMock);
     await renderPatientsPage([]);
 
-    await user.click(screen.getByRole("button", { name: "Новый визит" }));
+    await user.click(screen.getByRole("button", { name: "Новый клиент" }));
     await user.type(screen.getByLabelText("Фамилия"), "Петров");
     await user.type(screen.getByLabelText("Имя"), "Иван");
     await user.type(screen.getByLabelText("Отчество"), "Сергеевич");
     await user.type(screen.getByLabelText("Телефон, если есть"), "+7 999 000-00-00");
     await user.type(screen.getByLabelText("Email, если есть"), "patient@example.com");
-    expect(screen.getByLabelText("Дата и время визита")).toHaveAttribute("max");
-    await user.click(screen.getByRole("button", { name: "Создать визит" }));
+    const visitedAtInput = screen.getByLabelText("Дата и время визита, если есть");
+    expect(visitedAtInput).toHaveAttribute("max");
+    fireEvent.change(visitedAtInput, { target: { value: "2026-07-01T09:00" } });
+    await user.click(screen.getByRole("button", { name: "Создать" }));
 
     await waitFor(() => expect(fetchMock).toHaveBeenCalledOnce());
-    const [, init] = fetchMock.mock.calls[0] ?? [];
+    const [url, init] = fetchMock.mock.calls[0] ?? [];
+    expect(url).toBe("/api/doctor/booking-engine/appointments/manual-patient-visit");
     const body = JSON.parse(String(init?.body)) as Record<string, unknown>;
     expect(body).toMatchObject({
       requestId: expect.stringMatching(/^[0-9a-f-]{36}$/),
@@ -638,5 +676,25 @@ describe("PatientsPageClient", () => {
     expect(body).not.toHaveProperty("organizationId");
     expect(body).not.toHaveProperty("specialistId");
     expect(routerPushMock).toHaveBeenCalledWith("/app/doctor/patients/created-patient");
+  });
+
+  it("keeps the communication-channel filter mechanism wired even though its UI is hidden", async () => {
+    // Owner punch-list item 4: the channel-filter buttons are hidden, but the state/prop wiring
+    // (activeChannel, applyChannelFilter, the `channel` URL param) must still work — e.g. a
+    // previously-shared/bookmarked list link with `?channel=...` should keep filtering correctly.
+    await renderPatientsPage(
+      [
+        client({ userId: "telegram", displayName: "Telegram client", bindings: { telegramId: "tg-1" } }),
+        client({ userId: "push", displayName: "Push client", hasWebPush: true }),
+        client({ userId: "plain", displayName: "Plain client" }),
+      ],
+      { channel: "web_push" },
+    );
+
+    expect(screen.queryByText("Каналы связи")).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Пуш-уведомления" })).not.toBeInTheDocument();
+    expect(await screen.findByText("Push client")).toBeInTheDocument();
+    expect(screen.queryByText("Telegram client")).not.toBeInTheDocument();
+    expect(screen.queryByText("Plain client")).not.toBeInTheDocument();
   });
 });

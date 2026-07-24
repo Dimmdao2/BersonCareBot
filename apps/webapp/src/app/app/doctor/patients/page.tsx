@@ -35,7 +35,7 @@ export default async function DoctorPatientsPage({ searchParams }: PageProps) {
     organizationId: workspace.organizationId,
   });
   const patientSingular = getValueJson(doctorSettings.find((x) => x.key === "patient_label")?.valueJson, "пациент");
-  const { patientPluralLabel } = resolvePatientTerms(String(patientSingular));
+  const { patientPluralLabel, patientSingularLabel } = resolvePatientTerms(String(patientSingular));
 
   const listPromise = deps.doctorClients.listClients({
     // PAT-10: search is done client-side — do not pass q to DB
@@ -56,6 +56,7 @@ export default async function DoctorPatientsPage({ searchParams }: PageProps) {
         metricsPromise={metricsPromise}
         initialFilters={initialFilters}
         patientPluralLabel={patientPluralLabel}
+        patientSingularLabel={patientSingularLabel}
         displayIana={displayIana}
       />
     </DoctorAppShell>
