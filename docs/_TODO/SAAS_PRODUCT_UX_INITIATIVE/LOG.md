@@ -1,5 +1,41 @@
 # Log — SaaS Product UX Initiative
 
+## 2026-07-23 — U5A TEST lifecycle harness audit correction (`#796`)
+
+The first candidate was rejected by independent audit because its CLI used the seeder-style database authority
+directly and its private proof did not reproduce the locked TEST principal/ACL wall. The corrected harness now uses
+the protected `SAAS_ISOLATION_OPERATOR_DATABASE_URL` login only. Before product access the CLI verifies exact
+`bersoncarebot_test`, LOGIN/INHERIT, all dangerous role attributes off, no application-role membership, no direct
+`org_enrollments` privilege and exact EXECUTE on one ephemeral capability.
+
+The root-only exact-TEST wrapper installs a closed `SECURITY DEFINER` function owned by the existing canonical
+NOLOGIN `app_owner`, invokes the ordinary operator login, and removes the function on success or failure. The
+function uses the canonical patient-invites strict-overlay `app_owner` `SELECT, UPDATE` ACL; it creates no role,
+table grant or seeder BYPASS window. A short table lock protects the exact two-row A+B relationship set against
+concurrent writers, Clinic A must remain active, and only the exact Clinic B row can move
+`active ↔ discharged`. Arbitrary `PGOPTIONS` pass-through was removed.
+
+The repository proof starts a private disposable PostgreSQL, applies the exact generated strict
+`org_enrollments` policy with ENABLE+FORCE and canonical ACL shape, then runs the actual operator CLI through
+`status → discharge → repeated discharge → restore → repeated restore → status`. It also proves a concurrent third
+relationship insert is blocked, ends with exactly two active rows, and leaves neither the capability nor an operator
+table grant. Focused tests, typecheck/lint, shell/static gates and diff-check are recorded with the correction commit.
+No persistent TEST/DEV/PROD database, deploy, service, environment secret or external channel was touched. The U5A
+live checkboxes remain open until an authorized TEST browser pass records A↔B/deep-link/refresh/revoked-preference
+evidence and restores the fixture.
+
+A second independent audit then found two remaining entry-boundary gaps: a raw libpq URI `options=-c role=...`
+could make `session_user` differ from apparently-safe `current_user`, and the wrapper validated its checkout/env/SQL
+but not `BASH_SOURCE` itself. The hardened boundary now rejects every case/percent-encoded URI `options` key before
+connection, scrubs ambient libpq `PG*` variables at every psql/Node child, requires
+`URL login = session_user = current_user`, and validates the operator's exact sole direct
+`saas_telemetry_operator` membership. The SQL function repeats the session/current and membership checks, while
+EXECUTE is granted only to that exact login. The root wrapper must itself be the regular non-symlink canonical
+`/opt/projects/bersoncarebot-test/deploy/host/run-u5a-patient-organization-test-lifecycle.sh`; relative paths,
+aliases, symlinks and FIFOs are negative-tested. The disposable PostgreSQL proof reproduces a real startup
+role-switch mismatch and proves the actual CLI rejects it before connecting. This remains repo/disposable-only:
+TEST/DEV/PROD and external systems were not opened or changed.
+
 ## 2026-07-22 — owner roadmap reconciled against full Doctor UI brief (`#959`)
 
 Owner stopped further implementation after the active plan had compressed part of the detailed Doctor UI brief.

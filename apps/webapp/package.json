@@ -49,6 +49,7 @@
     "sanitize-reschedule-count": "tsx scripts/sanitize-reschedule-count.ts",
     "consolidate-specialist-identity": "tsx scripts/consolidate-specialist-identity.ts",
     "seed:saas-test-walkthrough": "tsx scripts/seed-saas-test-walkthrough-fixtures.ts",
+    "test-fixture:patient-organization-lifecycle": "tsx scripts/patient-organization-test-lifecycle.ts",
     "update:saas-product-smoke-fixture-canonical-slots": "tsx scripts/update-saas-product-smoke-fixture-canonical-slots.ts",
     "test:saas-product-smoke-fixture-canonical-slots": "vitest run --config scripts/update-saas-product-smoke-fixture-canonical-slots.vitest.config.ts",
     "diagnostics:saas-isolation": "tsx scripts/report-saas-isolation-diagnostics.ts",

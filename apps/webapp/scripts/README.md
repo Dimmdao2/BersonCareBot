@@ -38,6 +38,18 @@ Shared patient также имеет свой reserved `.test` email/password cr
 защищённый Clinic A packet key, поэтому нового секрета нет. Детерминированные login/context/route/viewport
 ссылки лежат в `SAAS_TEST_FIXTURE_MANIFEST.operatorRefs`; operator walkthrough описан в
 [`ST-02_WALKTHROUGH.md`](../../../docs/_TODO/SAAS_FOUNDATION/OWNER_READY_TEST/ST-02_WALKTHROUGH.md).
+Для U5A live recovery отдельный
+[`patient-organization-test-lifecycle.ts`](patient-organization-test-lifecycle.ts) может обратимо перевести только
+reserved shared-patient enrollment клиники B между `active` и `discharged`. Он требует exact
+`bersoncarebot_test`, sanctioned `SAAS_ISOLATION_OPERATOR_DATABASE_URL`, явный `--execute` и закрытую ephemeral
+capability от root-only wrapper `deploy/host/run-u5a-patient-organization-test-lifecycle.sh`. Operator login
+из URL обязан совпасть с `session_user` и `current_user`, иметь только canonical
+`saas_telemetry_operator` membership и не иметь прямых table grants. URI `options` запрещён до соединения, а
+libpq `PG*` окружение очищается на каждой psql/Node границе. Operator вызывает только SECURITY DEFINER function;
+wrapper снимает function в EXIT cleanup. Function использует существующий узкий `app_owner` ACL из canonical
+patient-invites strict overlay; новых table grants, BYPASS-ролей и seeder elevation не создаёт.
+`restore --execute` является обязательным data cleanup после проверки. Это TEST fixture control, не продуктовый
+enrollment writer.
 Store/payment использует только `fixture_noop`, уведомления выключены. Media rows имеют `s3_key IS NULL`
 и ссылаются на коммиченный `public/test-fixtures/saas-exercise.svg`: `/api/media/[id]` отдаёт его
 только для exact DB `bersoncarebot_test`, а playback descriptor возвращает same-origin URL. Внешние S3
