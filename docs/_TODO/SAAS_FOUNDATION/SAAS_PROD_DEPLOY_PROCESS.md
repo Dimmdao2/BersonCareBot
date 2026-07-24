@@ -111,6 +111,27 @@ was pollution, not canonical (see `ROLE_GRANTS_PROVENANCE_AND_PROD_MIGRATION_PLA
 ## 6. Post-cutover (INFRA-01 §I6)
 - Verify delivery/alerting live; decommission old host only after owner authorizes + rollback horizon passes.
 
+## 7. Per-item readiness matrix + gaps (inventory 2026-07-24)
+Cross-cutting finding (READ FIRST): **almost every destructive DB-mutation script has a hard code-level refusal of any DB name containing `prod`/`production`/`live`, with NO override flag** (the "prod untouchable" rule, baked in). So the audited single-command paths are proven on TEST/disposable copies but **cannot literally be pointed at the real prod DB** until a reviewed unlock (`--allow-prod-target` on the guard) or a temporarily-renamed DB is arranged. This is engineering work, separate from the (proven) business logic.
+
+| # | Step | Asset | Status |
+|---|---|---|---|
+| 1 | Specialist/doctor merge | `apps/webapp/scripts/consolidate-specialist-identity.ts` (dry-run default, `--commit`) | PARTIAL — script prod-agnostic but canonical UUID is a TEST constant; needs real-data re-derivation + reviewed invocation |
+| 2 | Global-admin account | `deploy/postgres/p0-data-fix-doctor-admin-split.sql` (frees owner email → admin via `admin_emails` policy, session-only) | READY (mechanically) — relies on prod dump carrying `admin_emails` in system_settings. This is "the instruction owner gave" |
+| 3 | Delete old test records | `purge-placeholder-bookings.ts` + `backfill-...--cleanup-only --delete-test ...` (`purge-placeholder-bookings-safety.ts`) | PARTIAL/BLOCKED — safety module unconditionally refuses prod-named DB; needs reviewed override before cutover |
+| 4 | Rubitime CSV → canonical schema | `apps/webapp/scripts/backfill-canonical-from-legacy-appointments.ts` (idempotent). NB older `backfill-rubitime-records-and-clients.ts` targeted the OLD schema, ran on prod 2026-06-13 — superseded, different target | COMPLETE (mechanism) — needs real CSV+hashes + invocation once #3 guard solved |
+| 5 | Drop integrator-duplicate + rubitime tables | rubitime drop migration `apps/integrator/.../20260724_0002_drop_r7_raw_tables.sql` (authored, **unapplied even on TEST**); integrator-duplicate removal = Track D (#7) | PARTIAL/GAP |
+| 6 | Cut legacy tables | same R7 drop migration; `appointment_records`/rubitime-mirror archive-then-drop = **PROSE ONLY, no script**; `booking_*` catalog **blocked** on Track C R3-CATALOG (`branchServiceId` removal, not done) | PARTIAL/GAP |
+| 7 | Track D — integrator writes public directly, no HTTP transport | D0/D1/D2 merged (`directPublic/*`); D3–D10 unstarted; doc says "PROD out of scope" now | PARTIAL (3/11); prod-cutover implication undocumented |
+| 8 | Roles + grants | overlays exist + proven on TEST (§3 above); **no `deploy-prod-saas.sh`** (deploy-prod.sh has ZERO grants) | PARTIAL — manual-by-choice; script = taskdb #994, not built |
+| 9 | Install walls (strict RLS + FORCE) | policy `\ir` includes reusable, but finalizer `test-strict-rls-finalizer.sql` hard-asserts DB=`bersoncarebot_test` | GAP — no `prod-strict-rls-finalizer.sql`; authoring gap, not design gap |
+| 10 | Post-cutover verification | `assert-c4-operational-runtime-ready.sh` + `assert_*` gates + `smoke-saas-product.mjs --mode=locked --base-url=…` (env-parameterized, no prod lockout) | COMPLETE — genuinely prod-ready as-is |
+| 11 | Fix ФИО by reviewed table | `apps/webapp/scripts/fio-backfill/*` — hardcoded `targetDatabase="bersoncarebot_test"`, throws if env≠TEST | GAP for prod — TEST-only by design; prod "Phase 9" (`.cursor/plans/fio_identity_cleanup.plan.md`, taskdb #857) unimplemented |
+
+**Ready against prod today:** only #2 (mechanically) + #10 (fully). **Real authoring gaps:** #9 (prod FORCE finalizer), #11 (prod ФИО apply), #5/#6 (archive-then-drop scripts + Track C R3-CATALOG unblock), #7 (Track D D3–D10). **Guard-unlock needed:** #3 (and the shared wrapper #1/#4 ride on it).
+
+**Confirmed hard ordering (not preference):** merge #1 → test-cleanup #3 → CSV backfill #4 → legacy-drop #5/#6; roles/grants #8 → walls #9; ФИО #11 after history-normalization; `booking_*` drop needs Track C R3-CATALOG first; a fully-clean #5 needs Track D #7 at D9/D10.
+
 ---
 _Maintenance: when a grant/overlay changes, update §3 here. If the prod grant closure ever gets scripted into a real
 `deploy-prod-saas.sh` (taskdb #994), replace §3's manual invocation with the script name + keep the topology
