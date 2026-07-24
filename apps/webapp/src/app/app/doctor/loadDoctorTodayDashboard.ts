@@ -468,11 +468,12 @@ export async function loadDoctorTodayDashboard(
     proactiveResult,
     exerciseCommentAttention,
   ] = await Promise.all([
-    // §1.3: грузим все открытые задачи (без лимита) для подсчёта total и фильтрации «сегодня»
+    // §1.3: грузим ВСЕ открытые задачи владельца (без лимита, без фильтра по patientUserId —
+    // owner punch-list 2026-07-25 item 1: раньше `patientUserId: null` скрывал задачи,
+    // привязанные к пациенту, отсюда полностью).
     deps.specialistTasks && deps.specialistOwnerUserId
       ? deps.specialistTasks.listForOwner({
           ownerUserId: deps.specialistOwnerUserId,
-          patientUserId: null,
           includeCompleted: false,
         })
       : Promise.resolve([] as SpecialistTaskRow[]),

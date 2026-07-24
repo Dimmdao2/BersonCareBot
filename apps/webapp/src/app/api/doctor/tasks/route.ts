@@ -1,5 +1,13 @@
 /**
- * GET/POST /api/doctor/tasks — глобальные задачи специалиста (без patient_user_id).
+ * GET/POST /api/doctor/tasks — задачи специалиста для дашборда «Сегодня».
+ *
+ * Owner punch-list (2026-07-25) item 1 bugfix: GET раньше жёстко фильтровал
+ * `patientUserId: null`, поэтому задача, созданная с привязкой к пациенту (через
+ * SpecialistTaskFormDialog → POST с непустым patientUserId), полностью пропадала из
+ * этого списка после первого reload() — она реально сохранялась в БД, но больше никогда
+ * не возвращалась GET-запросом. Теперь GET отдаёт ВСЕ открытые задачи владельца
+ * (привязанные к пациенту и глобальные) — как и SSR-загрузка в loadDoctorTodayDashboard.ts.
+ * POST по-прежнему поддерживает опциональный patientUserId (создание с привязкой к пациенту).
  */
 import { NextResponse } from "next/server";
 import { z } from "zod";
@@ -19,9 +27,10 @@ export async function GET(request: Request) {
   const limit = limitRaw ? Math.min(100, Math.max(1, Number.parseInt(limitRaw, 10) || 20)) : 20;
 
   const deps = buildAppDeps();
+  // patientUserId omitted (not `null`) — root-cause fix: `null` filtered the query down to
+  // only unlinked tasks, which is why a patient-linked task never showed up here again.
   const tasks = await deps.specialistTasks.listForOwner({
     ownerUserId: session.user.userId,
-    patientUserId: null,
     includeCompleted,
     limit: includeCompleted ? undefined : limit,
   });

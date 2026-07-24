@@ -1,6 +1,5 @@
 "use client";
 
-import { useCallback, useState } from "react";
 import { CircleHelp, Dumbbell, MessageSquare } from "lucide-react";
 import Link from "next/link";
 import { DateTime } from "luxon";
@@ -21,7 +20,6 @@ import { doctorInlineLinkClass, doctorPageStackClass } from "@/shared/ui/doctor/
 import { formatDoctorFio } from "@/shared/lib/fio";
 import { DoctorGlobalTasksSection } from "./DoctorGlobalTasksSection";
 import { DoctorTodayLeftKpiRow } from "./DoctorTodayLeftKpiRow";
-import { DoctorTodaySignalsSection } from "./DoctorTodaySignalsSection";
 import { TodayMiniCalendarWithModal } from "./TodayMiniCalendarWithModal";
 import {
   ON_SUPPORT_LIST_HREF,
@@ -69,16 +67,6 @@ export function DoctorTodayDashboard({
   const todayDateLabel = nowDt.setLocale("ru").toFormat("EEE, d MMMM");
   const peopleListIsOnSupport = data.peopleListMode === "on_support";
   const peopleListTitle = peopleListIsOnSupport ? "На сопровождении" : "Недавние с визитами";
-
-  // SEG-07: Общий счётчик комментариев к упражнениям — синхронизирует KPI-тайл
-  // (DoctorTodayLeftKpiRow) и диалог «Сигналы пациентов» (DoctorTodaySignalsSection).
-  const [exerciseCommentTotal, setExerciseCommentTotal] = useState(
-    data.exerciseCommentAttentionTotal,
-  );
-  // stageItemId is passed by the dialog but we only need to decrement the counter
-  const handleExerciseCommentResolved = useCallback((_stageItemId: string) => {
-    setExerciseCommentTotal((prev) => Math.max(0, prev - 1));
-  }, []);
 
   return (
     <div id="doctor-today-dashboard" className={doctorPageStackClass}>
@@ -134,7 +122,6 @@ export function DoctorTodayDashboard({
             exerciseCommentAttentionItems={data.exerciseCommentAttentionItems}
             exerciseCommentAttentionTotal={data.exerciseCommentAttentionTotal}
             exerciseCommentAttentionTruncated={data.exerciseCommentAttentionTruncated}
-            exerciseCommentsTotalOverride={exerciseCommentTotal}
           />
 
           {/* §1.3: Задачи — поднять над «На сопровождении» */}
@@ -245,22 +232,12 @@ export function DoctorTodayDashboard({
             )}
           </DoctorSection>
 
-          {/* Сигналы пациентов */}
-          {data.visibleProactiveInsightKinds.length > 0 ? <DoctorTodaySignalsSection
-            proactiveInsights={data.proactiveInsights}
-            proactiveInsightsTotal={data.proactiveInsightsTotal}
-            proactiveInsightsTruncated={data.proactiveInsightsTruncated}
-            newIntakeRequests={data.newIntakeRequests}
-            unreadConversations={data.unreadConversations}
-            unreadTotal={data.unreadTotal}
-            pendingProgramTests={data.pendingProgramTests}
-            pendingProgramTestsTotal={data.pendingProgramTestsTotal}
-            pendingProgramTestsTruncated={data.pendingProgramTestsTruncated}
-            exerciseCommentAttentionItems={data.exerciseCommentAttentionItems}
-            exerciseCommentAttentionTotal={data.exerciseCommentAttentionTotal}
-            exerciseCommentAttentionTruncated={data.exerciseCommentAttentionTruncated}
-            onExerciseCommentResolved={handleExerciseCommentResolved}
-          /> : null}
+          {/* Owner punch-list (2026-07-25) item 2: the «Сигналы пациентов» card is removed —
+              it was unclear to the owner. The underlying signal mechanism (doctor-proactive-insights,
+              data.proactiveInsights) is kept and now surfaces as an attention mark + reason tooltip
+              on the patient's row in the support/messages list instead
+              (see DoctorSupportInbox.tsx). DoctorTodaySignalsSection.tsx is left in the tree unused
+              in case the owner wants a variant of it back later. */}
         </div>
 
         {/* ───── Правое полотно: приём и время ───── */}

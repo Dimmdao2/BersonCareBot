@@ -7,6 +7,7 @@ import { DoctorTodayDashboard } from "./DoctorTodayDashboard";
 import { DoctorTodayRightKpiRow } from "./DoctorTodayRightKpiRow";
 import type { TodayAppointmentItem, TodayDashboardData } from "./loadDoctorTodayDashboard";
 import type { DoctorStatsState } from "@/modules/doctor-stats/service";
+import type { SpecialistTaskRow } from "@/modules/specialist-tasks/types";
 
 // Мини-календарь «Сегодня» теперь на FullCalendar (R35) — мокаем его, чтобы
 // дашборд-тесты не тащили реальный FC и next/navigation.
@@ -131,6 +132,26 @@ function appointmentItem(overrides: Partial<TodayAppointmentItem> = {}): TodayAp
   };
 }
 
+let taskFixtureSeq = 0;
+
+function taskFixture(overrides: Partial<SpecialistTaskRow> = {}): SpecialistTaskRow {
+  taskFixtureSeq += 1;
+  return {
+    id: overrides.id ?? `task-${taskFixtureSeq}`,
+    ownerUserId: overrides.ownerUserId ?? "u1",
+    patientUserId: overrides.patientUserId ?? null,
+    title: overrides.title ?? "Задача",
+    description: overrides.description ?? null,
+    dueAt: overrides.dueAt !== undefined ? overrides.dueAt : "2099-01-01T09:00:00.000Z",
+    remindAt: overrides.remindAt ?? null,
+    isImportant: overrides.isImportant ?? false,
+    completedAt: overrides.completedAt ?? null,
+    reminderSentAt: overrides.reminderSentAt ?? null,
+    createdAt: overrides.createdAt ?? "2026-06-01T00:00:00.000Z",
+    updatedAt: overrides.updatedAt ?? "2026-06-01T00:00:00.000Z",
+  };
+}
+
 async function openLeftKpiDialog(label: RegExp) {
   const user = userEvent.setup();
   await user.click(screen.getByRole("button", { name: label }));
@@ -148,7 +169,9 @@ describe("DoctorTodayDashboard", () => {
     expect(screen.queryByRole("link", { name: "Аналитика по клиентам" })).not.toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "На сопровождении" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Задачи" })).toBeInTheDocument();
-    expect(screen.getByRole("heading", { name: "Сигналы пациентов" })).toBeInTheDocument();
+    // Owner punch-list (2026-07-25) item 2: «Сигналы пациентов» card removed from «Сегодня» —
+    // the mechanism moved to an attention mark on the support/messages row (DoctorSupportInbox).
+    expect(screen.queryByRole("heading", { name: "Сигналы пациентов" })).not.toBeInTheDocument();
     // R19: блок «Следующая запись» убран со страницы «Сегодня».
     expect(screen.queryByRole("heading", { name: "Следующая запись" })).not.toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Открыть расписание" })).toHaveAttribute(
@@ -368,13 +391,24 @@ describe("DoctorTodayDashboard", () => {
     expect(screen.queryByText("Программа без сопровождения")).not.toBeInTheDocument();
   });
 
-  it("hides only the proactive signals section when every proven signal kind is disabled", () => {
-    render(
-      <DoctorTodayDashboard
-        {...defaultProps()}
-        data={{ ...emptyData(), visibleProactiveInsightKinds: [] }}
-      />,
-    );
+  // Owner punch-list (2026-07-25) item 2: the section is gone unconditionally now — regardless
+  // of visibleProactiveInsightKinds / proactiveInsights data (mechanism kept server-side, UI removed).
+  it("never renders the removed proactive signals section, even with active insights present", () => {
+    const data: TodayDashboardData = {
+      ...emptyData(),
+      proactiveInsightsTotal: 2,
+      proactiveInsights: [
+        {
+          kind: "wellbeing_low_streak",
+          patientUserId: "u1",
+          patientDisplayName: "Петров",
+          summary: "Низкое самочувствие 3 дн. подряд",
+          sortAt: "2026-06-02T00:00:00.000Z",
+          href: "/app/doctor/clients/u1",
+        },
+      ],
+    };
+    render(<DoctorTodayDashboard {...defaultProps()} data={data} />);
 
     expect(screen.queryByRole("heading", { name: "Сигналы пациентов" })).not.toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "На сопровождении" })).toBeInTheDocument();
@@ -434,31 +468,6 @@ describe("DoctorTodayDashboard", () => {
       "href",
       "/app/doctor/clients/u1?scope=appointments#doctor-client-section-pending-program-tests",
     );
-  });
-
-  it("opens proactive patient insights via signals section button", async () => {
-    const user = userEvent.setup();
-    const data: TodayDashboardData = {
-      ...emptyData(),
-      proactiveInsightsTotal: 2,
-      proactiveInsightsTruncated: false,
-      proactiveInsights: [
-        {
-          kind: "wellbeing_low_streak",
-          patientUserId: "u1",
-          patientDisplayName: "Петров",
-          summary: "Низкое самочувствие 3 дн. подряд",
-          sortAt: "2026-06-02T00:00:00.000Z",
-          href: "/app/doctor/clients/u1",
-        },
-      ],
-    };
-    render(<DoctorTodayDashboard {...defaultProps()} data={data} />);
-    // Кнопка счётчика в секции «Сигналы пациентов»
-    const signalBtn = screen.getByRole("button", { name: "2" });
-    await user.click(signalBtn);
-    expect(screen.getByRole("dialog")).toBeInTheDocument();
-    expect(screen.getByText("Петров")).toBeInTheDocument();
   });
 
   it("opens unread messages KpiPreviewModal via left KPI card", async () => {
@@ -599,61 +608,105 @@ describe("DoctorTodayDashboard", () => {
     expect(tasksIdx).toBeLessThan(supportIdx);
   });
 
-  // §1.3 — Метрика «сегодня N / всего M»
-  it("§1.3 shows today/total task metric when tasks exist", () => {
-    const todayTask = {
-      id: "t1",
-      ownerUserId: "u1",
-      patientUserId: null,
-      title: "Задача на сегодня",
-      description: null,
-      dueAt: "2026-06-13T09:00:00.000Z",
-      remindAt: null,
-      isImportant: false,
-      completedAt: null,
-      reminderSentAt: null,
-      createdAt: "2026-06-01T00:00:00.000Z",
-      updatedAt: "2026-06-01T00:00:00.000Z",
-    };
+  // Owner punch-list (2026-07-25) item 1: top «всего» metric removed — it duplicated the
+  // bottom «Все задачи» entry point onto the same modal.
+  it("§1.3 / owner punch-list item 1: no longer shows the duplicate top task metric", () => {
     const data: TodayDashboardData = {
       ...emptyData(),
-      globalOpenTasks: [todayTask],
-      globalOpenTasksTotal: 3,
-    };
-    render(<DoctorTodayDashboard {...defaultProps()} data={data} />);
-    // Метрика total должна присутствовать в DOM
-    expect(document.getElementById("doctor-today-tasks-metric")).toBeInTheDocument();
-  });
-
-  // §1.3 — Кнопка «Все задачи» появляется, когда есть задачи не на сегодня
-  it("§1.3 shows All-tasks button when total > today count", async () => {
-    const user = userEvent.setup();
-    const otherTask = {
-      id: "t2",
-      ownerUserId: "u1",
-      patientUserId: null,
-      title: "Задача на другой день",
-      description: null,
-      dueAt: "2099-12-31T09:00:00.000Z",
-      remindAt: null,
-      isImportant: false,
-      completedAt: null,
-      reminderSentAt: null,
-      createdAt: "2026-06-01T00:00:00.000Z",
-      updatedAt: "2026-06-01T00:00:00.000Z",
-    };
-    const data: TodayDashboardData = {
-      ...emptyData(),
-      globalOpenTasks: [otherTask],
+      globalOpenTasks: [taskFixture()],
       globalOpenTasksTotal: 1,
     };
-    // todayIso не совпадает с дедлайном otherTask → hasMore должен быть true
     render(<DoctorTodayDashboard {...defaultProps()} data={data} />);
+    expect(document.getElementById("doctor-today-tasks-metric")).not.toBeInTheDocument();
+  });
+
+  // Owner punch-list item 1: bottom «Все задачи» now opens the full-list modal (single
+  // chokepoint) instead of expanding an inline unbounded list.
+  it("§1.3 / owner punch-list item 1: «Все задачи» button opens the full-list modal when more tasks exist than fit the preview", async () => {
+    const user = userEvent.setup();
+    const nearest = [1, 2, 3].map((n) =>
+      taskFixture({ id: `near${n}`, title: `Ближайшая ${n}`, dueAt: `2099-02-0${n}T09:00:00.000Z` }),
+    );
+    const overflow = taskFixture({
+      id: "overflow1",
+      title: "Задача за пределами превью",
+      dueAt: "2099-03-01T09:00:00.000Z",
+    });
+    const data: TodayDashboardData = {
+      ...emptyData(),
+      globalOpenTasks: [...nearest, overflow],
+      globalOpenTasksTotal: 4,
+    };
+    render(<DoctorTodayDashboard {...defaultProps()} data={data} />);
+    // 4th task doesn't fit the 3-nearest-upcoming compact preview — not in the DOM yet.
+    expect(screen.queryByText("Задача за пределами превью")).not.toBeInTheDocument();
     const showAllBtn = document.getElementById("doctor-today-tasks-show-all");
     expect(showAllBtn).toBeInTheDocument();
-    // Клик раскрывает все задачи
     await user.click(showAllBtn!);
-    expect(screen.getByText("Задача на другой день")).toBeInTheDocument();
+    expect(screen.getByRole("dialog")).toBeInTheDocument();
+    expect(screen.getByText("Задача за пределами превью")).toBeInTheDocument();
+  });
+
+  // Owner punch-list item 1: overdue tasks pinned at the very top, highlighted red via
+  // SpecialistTaskRow's own real-time isSpecialistTaskOverdue check (DNA danger token).
+  it("§1.3 / owner punch-list item 1: pins overdue tasks first and marks them «Просрочено»", () => {
+    const upcoming = taskFixture({ id: "upcoming1", title: "Будущая задача", dueAt: "2099-01-01T09:00:00.000Z" });
+    const overdue = taskFixture({ id: "overdue1", title: "Просроченная задача", dueAt: "2020-01-01T09:00:00.000Z" });
+    const data: TodayDashboardData = {
+      ...emptyData(),
+      // Input order deliberately NOT overdue-first — proves the component itself sorts.
+      globalOpenTasks: [upcoming, overdue],
+      globalOpenTasksTotal: 2,
+    };
+    render(<DoctorTodayDashboard {...defaultProps()} data={data} />);
+    const titles = screen.getAllByText(/Просроченная задача|Будущая задача/);
+    expect(titles[0]).toHaveTextContent("Просроченная задача");
+    expect(screen.getByText("Просрочено")).toBeInTheDocument();
+  });
+
+  // Owner punch-list item 1: shows only the nearest 3 upcoming tasks in the compact preview.
+  it("§1.3 / owner punch-list item 1: shows only the nearest 3 upcoming tasks, rest behind «Все задачи»", () => {
+    const tasks = [1, 2, 3, 4].map((n) =>
+      taskFixture({ id: `t${n}`, title: `Задача ${n}`, dueAt: `2099-01-0${n}T09:00:00.000Z` }),
+    );
+    const data: TodayDashboardData = {
+      ...emptyData(),
+      globalOpenTasks: tasks,
+      globalOpenTasksTotal: tasks.length,
+    };
+    render(<DoctorTodayDashboard {...defaultProps()} data={data} />);
+    expect(screen.getByText("Задача 1")).toBeInTheDocument();
+    expect(screen.getByText("Задача 2")).toBeInTheDocument();
+    expect(screen.getByText("Задача 3")).toBeInTheDocument();
+    expect(screen.queryByText("Задача 4")).not.toBeInTheDocument();
+    expect(document.getElementById("doctor-today-tasks-show-all")).toBeInTheDocument();
+  });
+
+  // Bugfix regression (owner punch-list item 1): a task linked to a patient used to vanish
+  // entirely (GET /api/doctor/tasks + SSR both hard-filtered patientUserId: null).
+  it("§1.3 bugfix: a task linked to a patient is shown in the list", () => {
+    const linked = taskFixture({ id: "linked1", title: "Позвонить пациенту", patientUserId: "patient-1" });
+    const data: TodayDashboardData = {
+      ...emptyData(),
+      globalOpenTasks: [linked],
+      globalOpenTasksTotal: 1,
+    };
+    render(<DoctorTodayDashboard {...defaultProps()} data={data} />);
+    expect(screen.getByText("Позвонить пациенту")).toBeInTheDocument();
+  });
+
+  // Bugfix regression (owner punch-list item 1): a task without a due date used to only ever
+  // appear inside the "все задачи (N)" expansion, never in the default view.
+  it("§1.3 bugfix: a task without a due date is shown in the compact preview, not only behind «Все задачи»", () => {
+    const noDate = taskFixture({ id: "nodate1", title: "Задача без срока", dueAt: null });
+    const data: TodayDashboardData = {
+      ...emptyData(),
+      globalOpenTasks: [noDate],
+      globalOpenTasksTotal: 1,
+    };
+    render(<DoctorTodayDashboard {...defaultProps()} data={data} />);
+    expect(screen.getByText("Задача без срока")).toBeInTheDocument();
+    expect(document.getElementById("doctor-today-tasks-show-all")).not.toBeInTheDocument();
   });
 
   // §1.2 — workingBounds передаётся в mini-calendar

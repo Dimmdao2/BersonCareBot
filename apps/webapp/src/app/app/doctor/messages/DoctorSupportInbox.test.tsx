@@ -376,6 +376,77 @@ describe("DoctorSupportInbox — ошибки", () => {
   });
 });
 
+describe("DoctorSupportInbox — сигналы внимания (owner punch-list 2026-07-25, item 2)", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  function makeRoutedFetch(conversations: object[], signalItems: object[]) {
+    return vi.fn(async (input: RequestInfo | URL) => {
+      const url =
+        typeof input === "string"
+          ? input
+          : input instanceof URL
+            ? input.toString()
+            : (input as Request).url;
+      if (url.includes("/api/doctor/proactive-insights/by-patient")) {
+        return new Response(JSON.stringify({ ok: true, items: signalItems }));
+      }
+      return new Response(JSON.stringify({ ok: true, conversations }));
+    });
+  }
+
+  it("показывает метку «внимание» с тултипом-причиной, когда у пациента есть активный сигнал", async () => {
+    vi.stubGlobal(
+      "fetch",
+      makeRoutedFetch(
+        [BASE_CONV],
+        [
+          {
+            patientUserId: BASE_CONV.patientUserId,
+            kind: "wellbeing_low_streak",
+            summary: "Низкое самочувствие 3 дн. подряд",
+          },
+        ],
+      ),
+    );
+    const { container } = render(<DoctorSupportInbox />);
+    await screen.findByText("Пациент");
+
+    const mark = await waitFor(() => {
+      const el = container.querySelector('[aria-label^="Внимание:"]');
+      expect(el).toBeInTheDocument();
+      return el!;
+    });
+    expect(mark).toHaveAttribute(
+      "aria-label",
+      expect.stringContaining("Низкое самочувствие 3 дн. подряд"),
+    );
+  });
+
+  it("не показывает метку «внимание», когда у пациента нет сигналов", async () => {
+    vi.stubGlobal("fetch", makeRoutedFetch([BASE_CONV], []));
+    const { container } = render(<DoctorSupportInbox />);
+    await screen.findByText("Пациент");
+
+    expect(container.querySelector('[aria-label^="Внимание:"]')).not.toBeInTheDocument();
+  });
+
+  it("не показывает метку «внимание» для диалогов без patientUserId (Telegram/MAX)", async () => {
+    vi.stubGlobal(
+      "fetch",
+      makeRoutedFetch(
+        [{ ...BASE_CONV, patientUserId: null }],
+        [{ patientUserId: BASE_CONV.patientUserId, kind: "wellbeing_low_streak", summary: "Сигнал" }],
+      ),
+    );
+    const { container } = render(<DoctorSupportInbox />);
+    await screen.findByText("Пациент");
+
+    expect(container.querySelector('[aria-label^="Внимание:"]')).not.toBeInTheDocument();
+  });
+});
+
 describe("DoctorSupportInbox — polling", () => {
   afterEach(() => {
     vi.unstubAllGlobals();

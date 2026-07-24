@@ -4,49 +4,38 @@ import { useCallback, useState, useTransition } from "react";
 import { Button } from "@/shared/ui/doctor/primitives/button";
 import { DoctorEmptyState } from "@/shared/ui/doctor/DoctorEmptyState";
 import { DoctorSection, DoctorSectionTitle } from "@/shared/ui/doctor/DoctorSection";
-import { doctorSectionSubtitleClass } from "@/shared/ui/doctor/doctorVisual";
 import { KpiPreviewModal } from "@/shared/ui/doctor/KpiPreviewModal";
 import type { SpecialistTaskRow } from "@/modules/specialist-tasks/types";
+import { isSpecialistTaskOverdue } from "@/modules/specialist-tasks/taskPriority";
 import { cn } from "@/lib/utils";
-import { DEFAULT_APP_DISPLAY_TIMEZONE } from "@/modules/system-settings/calendarIana";
 import { SpecialistTaskFormDialog } from "./clients/SpecialistTaskFormDialog";
 import { SpecialistTaskRow as TaskRow } from "./clients/SpecialistTaskRow";
 
+/** How many non-overdue tasks to show in the compact preview before collapsing into "Все задачи". */
+const NEAREST_UPCOMING_PREVIEW_LIMIT = 3;
+
 /**
- * Сортировка: сначала к выполнению (просроченные + сегодня) — по дате asc (самые
- * просроченные сверху), затем будущие по дате, затем без срока. (R2)
+ * Owner punch-list (2026-07-25) item 1: single ordering shared by the compact preview and the
+ * full-list modal — no more separate "today only" concept.
+ * Rank 0: overdue (any due date in the past, real time — matches SpecialistTaskRow's own red
+ *         "Просрочено" badge) — earliest due date first (most overdue on top).
+ * Rank 1: has a future/today due date — nearest first.
+ * Rank 2: no due date at all — by creation date (oldest first), always last.
+ * A task with a linked patient is included exactly like any other — the previous bug excluded
+ * patient-linked and date-less tasks entirely (see loadDoctorTodayDashboard.ts / tasks route.ts).
  */
-function sortTasksByDeadline(tasks: SpecialistTaskRow[], todayIso: string): SpecialistTaskRow[] {
-  const rank = (t: SpecialistTaskRow): number => {
-    if (t.dueAt == null) return 2;
-    return t.dueAt.slice(0, 10) <= todayIso ? 0 : 1;
+function sortTasksForDisplay(tasks: SpecialistTaskRow[]): SpecialistTaskRow[] {
+  const rank = (t: SpecialistTaskRow): 0 | 1 | 2 => {
+    if (isSpecialistTaskOverdue(t)) return 0;
+    if (t.dueAt != null) return 1;
+    return 2;
   };
   return [...tasks].sort((a, b) => {
     const ra = rank(a);
     const rb = rank(b);
     if (ra !== rb) return ra - rb;
-    if (a.dueAt == null || b.dueAt == null) return 0;
-    return a.dueAt.localeCompare(b.dueAt);
-  });
-}
-
-/**
- * Задачи к выполнению на сегодня = дедлайн сегодня ИЛИ просроченные (вчера и раньше).
- * R2: «просрочено так просрочено» — просроченные не скрываем, показываем вместе с сегодняшними.
- * Сравнение по дате-части ISO (YYYY-MM-DD) лексикографически корректно.
- */
-function filterTodayTasks(tasks: SpecialistTaskRow[], todayIso: string): SpecialistTaskRow[] {
-  return tasks.filter((t) => t.dueAt != null && t.dueAt.slice(0, 10) <= todayIso);
-}
-
-function formatWhenShort(iso: string | null, displayIana?: string): string | null {
-  if (!iso) return null;
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return null;
-  return d.toLocaleString("ru-RU", {
-    dateStyle: "short",
-    timeStyle: "short",
-    timeZone: displayIana ?? DEFAULT_APP_DISPLAY_TIMEZONE,
+    if (ra === 2) return a.createdAt.localeCompare(b.createdAt);
+    return (a.dueAt ?? "").localeCompare(b.dueAt ?? "");
   });
 }
 
@@ -63,15 +52,14 @@ export function DoctorGlobalTasksSection({
    * Если не передано — считается по initialTasks.length.
    */
   initialTasksTotal?: number;
-  /** Дата сегодня в формате YYYY-MM-DD (из сервера) для сортировки по дедлайну. */
+  /** Дата сегодня в формате YYYY-MM-DD (из сервера) — используется только для quick-filter «Сегодня» в модалке. */
   todayIso: string;
   /** IANA timezone for display — threads from parent instead of hardcoding Europe/Moscow. */
   displayIana?: string;
   className?: string;
 }) {
-  const [tasks, setTasks] = useState(() => sortTasksByDeadline(initialTasks, todayIso));
+  const [tasks, setTasks] = useState(initialTasks);
   const [tasksTotal, setTasksTotal] = useState(initialTasksTotal ?? initialTasks.length);
-  const [showAll, setShowAll] = useState(false);
   const [createOpen, setCreateOpen] = useState(false);
   const [editOpen, setEditOpen] = useState(false);
   const [editing, setEditing] = useState<SpecialistTaskRow | null>(null);
@@ -89,11 +77,11 @@ export function DoctorGlobalTasksSection({
         return;
       }
       const data = (await res.json()) as { tasks?: SpecialistTaskRow[] };
-      const sorted = sortTasksByDeadline(data.tasks ?? [], todayIso);
-      setTasks(sorted);
-      setTasksTotal(sorted.length);
+      const loaded = data.tasks ?? [];
+      setTasks(loaded);
+      setTasksTotal(loaded.length);
     });
-  }, [todayIso]);
+  }, []);
 
   function handleComplete(taskId: string) {
     startTransition(async () => {
@@ -102,44 +90,22 @@ export function DoctorGlobalTasksSection({
     });
   }
 
-  // §1.3: задачи на сегодня (фильтр) и все остальные
-  const todayTasks = filterTodayTasks(tasks, todayIso);
-  const todayCount = todayTasks.length;
-  const totalCount = tasksTotal;
-
-  // По умолчанию — показываем задачи на сегодня.
-  // «Все задачи» раскрывает остальные (задачи не на сегодня).
-  const visibleTasks = showAll ? tasks : todayTasks;
-
-  // hasMore = есть задачи вне сегодняшних (не зависит от того, показаны ли сегодняшние)
-  const hasMore = !showAll && totalCount > todayCount;
+  const sortedTasks = sortTasksForDisplay(tasks);
+  const overdueCount = sortedTasks.filter((t) => isSpecialistTaskOverdue(t)).length;
+  // Owner punch-list item 1: ALL overdue tasks pinned at top (red, via SpecialistTaskRow) +
+  // the nearest N upcoming; everything else is reachable via the "Все задачи" button/modal.
+  const visibleTasks = sortedTasks.slice(0, overdueCount + NEAREST_UPCOMING_PREVIEW_LIMIT);
+  const hasMore = tasksTotal > visibleTasks.length;
 
   return (
     <DoctorSection id="doctor-today-global-tasks" className={cn("h-full gap-2", className)}>
       <div className="flex items-center justify-between gap-2">
         <DoctorSectionTitle>Задачи</DoctorSectionTitle>
-        <div className="flex items-center gap-2">
-          {/* Метрика сегодня/всего §1.3 — click opens KpiPreviewModal (S2.8) */}
-          {totalCount > 0 ? (
-            <Button
-              type="button"
-              variant="ghost"
-              size="sm"
-              className={cn(
-                doctorSectionSubtitleClass,
-                "h-auto px-1 py-0 underline-offset-2 hover:underline cursor-pointer",
-              )}
-              id="doctor-today-tasks-metric"
-              onClick={() => setTaskModalOpen(true)}
-              title="Просмотреть все задачи"
-            >
-              {todayCount > 0 ? `сегодня ${todayCount} / всего ${totalCount}` : `всего ${totalCount}`}
-            </Button>
-          ) : null}
-          <Button type="button" size="sm" variant="outline" onClick={() => setCreateOpen(true)}>
-            Новая
-          </Button>
-        </div>
+        {/* Owner punch-list item 1: top «всего» metric removed — it duplicated the bottom
+            «Все задачи» entry point onto the same modal. */}
+        <Button type="button" size="sm" variant="outline" onClick={() => setCreateOpen(true)}>
+          Новая
+        </Button>
       </div>
       {loadError ? <p className="text-sm text-destructive">{loadError}</p> : null}
       {tasks.length === 0 && !loadError ? (
@@ -148,48 +114,32 @@ export function DoctorGlobalTasksSection({
         </DoctorEmptyState>
       ) : (
         <>
-          {visibleTasks.length === 0 && !showAll ? (
-            /* Нет задач на сегодня, но есть другие — пустое состояние с подсказкой */
-            <p className="text-xs text-muted-foreground">Задач на сегодня нет</p>
-          ) : (
-            <ul className="m-0 flex min-h-0 list-none flex-col gap-2 overflow-y-auto p-0">
-              {visibleTasks.map((task) => (
-                <TaskRow
-                  key={task.id}
-                  task={task}
-                  busy={isPending}
-                  displayIana={displayIana}
-                  onComplete={handleComplete}
-                  onEdit={(t) => {
-                    setEditing(t);
-                    setEditOpen(true);
-                  }}
-                />
-              ))}
-            </ul>
-          )}
-          {/* §1.3: «Все задачи» кнопка */}
+          <ul className="m-0 flex min-h-0 list-none flex-col gap-2 overflow-y-auto p-0">
+            {visibleTasks.map((task) => (
+              <TaskRow
+                key={task.id}
+                task={task}
+                busy={isPending}
+                displayIana={displayIana}
+                onComplete={handleComplete}
+                onEdit={(t) => {
+                  setEditing(t);
+                  setEditOpen(true);
+                }}
+              />
+            ))}
+          </ul>
+          {/* §1.3 / owner punch-list item 1: «Все задачи» — единственная точка входа в полный список (модалка с поиском). */}
           {hasMore ? (
             <Button
               type="button"
               variant="link"
               size="sm"
               className="h-auto w-fit p-0 text-xs underline-offset-2"
-              onClick={() => setShowAll(true)}
+              onClick={() => setTaskModalOpen(true)}
               id="doctor-today-tasks-show-all"
             >
-              Все задачи ({totalCount})
-            </Button>
-          ) : null}
-          {showAll && tasks.length > 0 ? (
-            <Button
-              type="button"
-              variant="ghost"
-              size="sm"
-              className="h-auto w-fit p-0 text-xs text-muted-foreground underline-offset-2 hover:underline"
-              onClick={() => setShowAll(false)}
-            >
-              Скрыть
+              Все задачи ({tasksTotal})
             </Button>
           ) : null}
         </>
@@ -200,8 +150,8 @@ export function DoctorGlobalTasksSection({
         open={taskModalOpen}
         onClose={() => setTaskModalOpen(false)}
         title="Задачи"
-        count={totalCount}
-        items={tasks}
+        count={tasksTotal}
+        items={sortedTasks}
         renderItem={(task) => (
           <TaskRow
             task={task}
@@ -225,9 +175,12 @@ export function DoctorGlobalTasksSection({
         }
         quickFilters={[
           {
+            label: "Просрочено",
+            predicate: (task) => isSpecialistTaskOverdue(task),
+          },
+          {
             label: "Сегодня",
-            predicate: (task) =>
-              task.dueAt != null && task.dueAt.slice(0, 10) <= todayIso,
+            predicate: (task) => task.dueAt != null && task.dueAt.slice(0, 10) <= todayIso,
           },
           {
             label: "Важные",
