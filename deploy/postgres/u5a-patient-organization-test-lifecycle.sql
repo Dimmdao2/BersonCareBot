@@ -71,6 +71,37 @@ SELECT 1 / (
   AND NOT pg_has_role(:'u5a_lifecycle_operator_role', 'app_staff', 'MEMBER')
   AND NOT pg_has_role(:'u5a_lifecycle_operator_role', 'app_patient', 'MEMBER')
   AND NOT pg_has_role(:'u5a_lifecycle_operator_role', 'app_worker', 'MEMBER')
+  AND (
+    SELECT count(*) = 1
+      AND bool_and(
+        granted_role.rolname = 'saas_telemetry_operator'
+        AND NOT membership.admin_option
+        AND membership.inherit_option
+        AND membership.set_option
+      )
+    FROM pg_catalog.pg_auth_members AS membership
+    JOIN pg_catalog.pg_roles AS member_role ON member_role.oid = membership.member
+    JOIN pg_catalog.pg_roles AS granted_role ON granted_role.oid = membership.roleid
+    WHERE member_role.rolname = :'u5a_lifecycle_operator_role'
+  )
+  AND EXISTS (
+    SELECT 1
+    FROM pg_catalog.pg_roles AS capability_role
+    WHERE capability_role.rolname = 'saas_telemetry_operator'
+      AND NOT capability_role.rolcanlogin
+      AND NOT capability_role.rolinherit
+      AND NOT capability_role.rolsuper
+      AND NOT capability_role.rolcreatedb
+      AND NOT capability_role.rolcreaterole
+      AND NOT capability_role.rolreplication
+      AND NOT capability_role.rolbypassrls
+  )
+  AND NOT EXISTS (
+    SELECT 1
+    FROM pg_catalog.pg_auth_members AS membership
+    JOIN pg_catalog.pg_roles AS member_role ON member_role.oid = membership.member
+    WHERE member_role.rolname = 'saas_telemetry_operator'
+  )
 )::int AS u5a_lifecycle_operator_is_sanctioned;
 
 SELECT 1 / (
@@ -111,7 +142,9 @@ BEGIN
   IF p_action NOT IN ('status', 'discharge', 'restore') THEN
     RAISE EXCEPTION 'u5a_lifecycle_invalid_action' USING ERRCODE = '22023';
   END IF;
-  IF NOT EXISTS (
+  IF current_user <> 'app_owner'
+  OR current_setting('role', true) IS DISTINCT FROM 'none'
+  OR NOT EXISTS (
     SELECT 1
     FROM pg_catalog.pg_roles
     WHERE rolname = session_user
@@ -126,7 +159,38 @@ BEGIN
   OR pg_has_role(session_user, 'app_owner', 'MEMBER')
   OR pg_has_role(session_user, 'app_staff', 'MEMBER')
   OR pg_has_role(session_user, 'app_patient', 'MEMBER')
-  OR pg_has_role(session_user, 'app_worker', 'MEMBER') THEN
+  OR pg_has_role(session_user, 'app_worker', 'MEMBER')
+  OR NOT (
+    SELECT count(*) = 1
+      AND bool_and(
+        granted_role.rolname = 'saas_telemetry_operator'
+        AND NOT membership.admin_option
+        AND membership.inherit_option
+        AND membership.set_option
+      )
+    FROM pg_catalog.pg_auth_members AS membership
+    JOIN pg_catalog.pg_roles AS member_role ON member_role.oid = membership.member
+    JOIN pg_catalog.pg_roles AS granted_role ON granted_role.oid = membership.roleid
+    WHERE member_role.rolname = session_user
+  )
+  OR NOT EXISTS (
+    SELECT 1
+    FROM pg_catalog.pg_roles AS capability_role
+    WHERE capability_role.rolname = 'saas_telemetry_operator'
+      AND NOT capability_role.rolcanlogin
+      AND NOT capability_role.rolinherit
+      AND NOT capability_role.rolsuper
+      AND NOT capability_role.rolcreatedb
+      AND NOT capability_role.rolcreaterole
+      AND NOT capability_role.rolreplication
+      AND NOT capability_role.rolbypassrls
+  )
+  OR EXISTS (
+    SELECT 1
+    FROM pg_catalog.pg_auth_members AS membership
+    JOIN pg_catalog.pg_roles AS member_role ON member_role.oid = membership.member
+    WHERE member_role.rolname = 'saas_telemetry_operator'
+  ) THEN
     RAISE EXCEPTION 'u5a_lifecycle_operator_required' USING ERRCODE = '42501';
   END IF;
 
@@ -203,7 +267,7 @@ $function$;
 ALTER FUNCTION app.control_u5a_patient_organization_fixture(text) OWNER TO app_owner;
 REVOKE ALL ON FUNCTION app.control_u5a_patient_organization_fixture(text) FROM PUBLIC;
 REVOKE ALL ON FUNCTION app.control_u5a_patient_organization_fixture(text)
-  FROM app_staff, app_patient, app_worker;
+  FROM app_staff, app_patient, app_worker, saas_telemetry_operator;
 SELECT format(
   'GRANT EXECUTE ON FUNCTION app.control_u5a_patient_organization_fixture(text) TO %I',
   :'u5a_lifecycle_operator_role'

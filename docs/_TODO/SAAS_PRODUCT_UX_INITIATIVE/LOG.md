@@ -24,6 +24,18 @@ No persistent TEST/DEV/PROD database, deploy, service, environment secret or ext
 live checkboxes remain open until an authorized TEST browser pass records A↔B/deep-link/refresh/revoked-preference
 evidence and restores the fixture.
 
+A second independent audit then found two remaining entry-boundary gaps: a raw libpq URI `options=-c role=...`
+could make `session_user` differ from apparently-safe `current_user`, and the wrapper validated its checkout/env/SQL
+but not `BASH_SOURCE` itself. The hardened boundary now rejects every case/percent-encoded URI `options` key before
+connection, scrubs ambient libpq `PG*` variables at every psql/Node child, requires
+`URL login = session_user = current_user`, and validates the operator's exact sole direct
+`saas_telemetry_operator` membership. The SQL function repeats the session/current and membership checks, while
+EXECUTE is granted only to that exact login. The root wrapper must itself be the regular non-symlink canonical
+`/opt/projects/bersoncarebot-test/deploy/host/run-u5a-patient-organization-test-lifecycle.sh`; relative paths,
+aliases, symlinks and FIFOs are negative-tested. The disposable PostgreSQL proof reproduces a real startup
+role-switch mismatch and proves the actual CLI rejects it before connecting. This remains repo/disposable-only:
+TEST/DEV/PROD and external systems were not opened or changed.
+
 ## 2026-07-22 — owner roadmap reconciled against full Doctor UI brief (`#959`)
 
 Owner stopped further implementation after the active plan had compressed part of the detailed Doctor UI brief.

@@ -17,8 +17,10 @@ export type PatientOrganizationLifecycleStatus = 'active' | 'discharged';
 export type PatientOrganizationLifecycleCommand = 'status' | 'discharge' | 'restore';
 
 export type PatientOrganizationOperatorProbe = Readonly<{
+  urlLoginRole: string;
   databaseName: string;
-  loginRole: string;
+  sessionRole: string;
+  currentRole: string;
   canLogin: boolean;
   inherit: boolean;
   superuser: boolean;
@@ -27,6 +29,7 @@ export type PatientOrganizationOperatorProbe = Readonly<{
   replication: boolean;
   bypassRls: boolean;
   appRoleMember: boolean;
+  sanctionedMembershipTopology: boolean;
   directProductTableAccess: boolean;
   capabilityExecute: boolean;
 }>;
@@ -55,6 +58,36 @@ function fail(code: string): never {
   throw new PatientOrganizationLifecycleError(code);
 }
 
+export function parsePatientOrganizationOperatorDatabaseUrl(rawValue: string): Readonly<{
+  connectionString: string;
+  loginRole: string;
+}> {
+  const connectionString = rawValue.trim();
+  if (!connectionString) fail('operator_database_url_required');
+  let parsed: URL;
+  try {
+    parsed = new URL(connectionString);
+  } catch {
+    fail('operator_database_url_invalid');
+  }
+  if (parsed.protocol !== 'postgres:' && parsed.protocol !== 'postgresql:') {
+    fail('operator_database_url_invalid');
+  }
+  for (const key of parsed.searchParams.keys()) {
+    if (key.toLowerCase() === 'options') fail('operator_database_url_options_forbidden');
+  }
+  let loginRole: string;
+  try {
+    loginRole = decodeURIComponent(parsed.username);
+  } catch {
+    fail('operator_database_url_invalid');
+  }
+  if (!/^[A-Za-z_][A-Za-z0-9_]{0,62}$/.test(loginRole)) {
+    fail('operator_database_url_login_invalid');
+  }
+  return { connectionString, loginRole };
+}
+
 export function parsePatientOrganizationLifecycleArgs(
   argv: readonly string[],
 ): Readonly<{ command: PatientOrganizationLifecycleCommand; execute: boolean }> {
@@ -72,7 +105,8 @@ export function parsePatientOrganizationLifecycleArgs(
 function assertOperatorProbe(probe: PatientOrganizationOperatorProbe): void {
   if (probe.databaseName !== REQUIRED_DATABASE) fail('wrong_database');
   if (
-    !probe.loginRole ||
+    probe.urlLoginRole !== probe.sessionRole ||
+    probe.sessionRole !== probe.currentRole ||
     !probe.canLogin ||
     !probe.inherit ||
     probe.superuser ||
@@ -81,6 +115,7 @@ function assertOperatorProbe(probe: PatientOrganizationOperatorProbe): void {
     probe.replication ||
     probe.bypassRls ||
     probe.appRoleMember ||
+    !probe.sanctionedMembershipTopology ||
     probe.directProductTableAccess ||
     !probe.capabilityExecute
   ) {
@@ -121,12 +156,13 @@ function numberValue(value: unknown): number {
   return parsed;
 }
 
-function createPgPort(client: PoolClient): PatientOrganizationLifecyclePort {
+function createPgPort(client: PoolClient, urlLoginRole: string): PatientOrganizationLifecyclePort {
   return {
     async readOperatorProbe() {
       const result = await client.query<{
         database_name: unknown;
-        login_role: unknown;
+        session_role: unknown;
+        current_role: unknown;
         rolcanlogin: unknown;
         rolinherit: unknown;
         rolsuper: unknown;
@@ -135,12 +171,14 @@ function createPgPort(client: PoolClient): PatientOrganizationLifecyclePort {
         rolreplication: unknown;
         rolbypassrls: unknown;
         app_role_member: unknown;
+        sanctioned_membership_topology: unknown;
         direct_product_table_access: unknown;
         capability_execute: unknown;
       }>(`
         SELECT
           current_database()::text AS database_name,
-          current_user::text AS login_role,
+          session_user::text AS session_role,
+          current_user::text AS current_role,
           role.rolcanlogin,
           role.rolinherit,
           role.rolsuper,
@@ -155,6 +193,39 @@ function createPgPort(client: PoolClient): PatientOrganizationLifecyclePort {
             OR pg_has_role(current_user, 'app_worker', 'MEMBER')
           ) AS app_role_member,
           (
+            (
+              SELECT count(*) = 1
+                AND bool_and(
+                  granted_role.rolname = 'saas_telemetry_operator'
+                  AND NOT membership.admin_option
+                  AND membership.inherit_option
+                  AND membership.set_option
+                )
+              FROM pg_catalog.pg_auth_members AS membership
+              JOIN pg_catalog.pg_roles AS member_role ON member_role.oid = membership.member
+              JOIN pg_catalog.pg_roles AS granted_role ON granted_role.oid = membership.roleid
+              WHERE member_role.rolname = session_user
+            )
+            AND EXISTS (
+              SELECT 1
+              FROM pg_catalog.pg_roles AS capability_role
+              WHERE capability_role.rolname = 'saas_telemetry_operator'
+                AND NOT capability_role.rolcanlogin
+                AND NOT capability_role.rolinherit
+                AND NOT capability_role.rolsuper
+                AND NOT capability_role.rolcreatedb
+                AND NOT capability_role.rolcreaterole
+                AND NOT capability_role.rolreplication
+                AND NOT capability_role.rolbypassrls
+            )
+            AND NOT EXISTS (
+              SELECT 1
+              FROM pg_catalog.pg_auth_members AS membership
+              JOIN pg_catalog.pg_roles AS member_role ON member_role.oid = membership.member
+              WHERE member_role.rolname = 'saas_telemetry_operator'
+            )
+          ) AS sanctioned_membership_topology,
+          (
             has_table_privilege(current_user, 'public.org_enrollments', 'SELECT')
             OR has_table_privilege(current_user, 'public.org_enrollments', 'INSERT')
             OR has_table_privilege(current_user, 'public.org_enrollments', 'UPDATE')
@@ -167,8 +238,10 @@ function createPgPort(client: PoolClient): PatientOrganizationLifecyclePort {
       const row = result.rows[0];
       if (!row) fail('operator_probe_missing');
       return {
+        urlLoginRole,
         databaseName: stringValue(row.database_name),
-        loginRole: stringValue(row.login_role),
+        sessionRole: stringValue(row.session_role),
+        currentRole: stringValue(row.current_role),
         canLogin: booleanValue(row.rolcanlogin),
         inherit: booleanValue(row.rolinherit),
         superuser: booleanValue(row.rolsuper),
@@ -177,6 +250,7 @@ function createPgPort(client: PoolClient): PatientOrganizationLifecyclePort {
         replication: booleanValue(row.rolreplication),
         bypassRls: booleanValue(row.rolbypassrls),
         appRoleMember: booleanValue(row.app_role_member),
+        sanctionedMembershipTopology: booleanValue(row.sanctioned_membership_topology),
         directProductTableAccess: booleanValue(row.direct_product_table_access),
         capabilityExecute: booleanValue(row.capability_execute),
       };
@@ -204,10 +278,12 @@ export async function runPatientOrganizationLifecycleCli(input: {
   log?: (message: string) => void;
 }): Promise<void> {
   const { command } = parsePatientOrganizationLifecycleArgs(input.argv);
-  const operatorDatabaseUrl = input.env[OPERATOR_DATABASE_URL_ENV]?.trim() ?? '';
-  if (!operatorDatabaseUrl) fail('operator_database_url_required');
+  const operatorDatabase = parsePatientOrganizationOperatorDatabaseUrl(
+    input.env[OPERATOR_DATABASE_URL_ENV] ?? '',
+  );
   const pool = new Pool({
-    connectionString: operatorDatabaseUrl,
+    connectionString: operatorDatabase.connectionString,
+    options: '',
     application_name: 'bcb_u5a_patient_organization_fixture_operator',
     max: 1,
     statement_timeout: 10_000,
@@ -216,7 +292,10 @@ export async function runPatientOrganizationLifecycleCli(input: {
   try {
     const client = await pool.connect();
     try {
-      const result = await runPatientOrganizationLifecycle(createPgPort(client), command);
+      const result = await runPatientOrganizationLifecycle(
+        createPgPort(client, operatorDatabase.loginRole),
+        command,
+      );
       (input.log ?? console.log)(
         `patient_organization_test_lifecycle:${result.status};active_relationships=${result.activeRelationships}`,
       );

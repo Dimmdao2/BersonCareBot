@@ -59,14 +59,18 @@ read/write matrix. This document does not claim that downstream gate.
 
 The canonical shared-patient fixture is also the only allowed target for the U5A revoked-remembered-organization
 walkthrough. Run only the root/operator wrapper from exact `/opt/projects/bersoncarebot-test`:
-`bash deploy/host/run-u5a-patient-organization-test-lifecycle.sh status`. In an authorized TEST window,
+`bash /opt/projects/bersoncarebot-test/deploy/host/run-u5a-patient-organization-test-lifecycle.sh status`. Relative,
+aliased, symlink and FIFO wrapper source paths are rejected. In an authorized TEST window,
 `discharge --execute` changes only the reserved Clinic B shared-patient enrollment from `active` to `discharged`;
 `restore --execute` restores the canonical two-active-relationship state.
 
 The wrapper validates the exact non-symlink TEST checkout, env and SQL artifact, then verifies
-`SAAS_ISOLATION_OPERATOR_DATABASE_URL` against `pg_catalog` before any product-table access: exact
-`bersoncarebot_test`, LOGIN/INHERIT, NOSUPERUSER/NOCREATEDB/NOCREATEROLE/NOREPLICATION/NOBYPASSRLS and no app-role
-membership. It installs one closed SECURITY DEFINER function owned by the existing canonical NOLOGIN `app_owner`,
+`SAAS_ISOLATION_OPERATOR_DATABASE_URL` against `pg_catalog` before any product-table access: URI `options` is
+forbidden, the explicit URL login must equal both `session_user` and `current_user`, the database must be exact
+`bersoncarebot_test`, and the LOGIN/INHERIT role must be
+NOSUPERUSER/NOCREATEDB/NOCREATEROLE/NOREPLICATION/NOBYPASSRLS with exactly the canonical direct
+`saas_telemetry_operator` membership and no app-role membership. Every psql/Node boundary scrubs ambient libpq
+`PG*` configuration. It installs one closed SECURITY DEFINER function owned by the existing canonical NOLOGIN `app_owner`,
 grants no direct table access to the operator, invokes the CLI without `PGOPTIONS`, and always removes the function
 through EXIT cleanup. The function uses the existing `app_owner` `SELECT, UPDATE` ACL installed by the canonical
 patient-invites strict overlay; this harness adds no table ACL. It takes a short `SHARE` table lock, verifies the
@@ -87,8 +91,9 @@ The command performs no HTTP, delivery, S3 or external integration call and prin
 aggregate active-relationship count. It is not available through a product route and must not be copied to DEV or
 PROD. The repo gate `pnpm run prove:u5a-patient-organization-test-lifecycle` runs the actual operator CLI against a
 private disposable PostgreSQL with the exact canonical strict `org_enrollments` policy plus FORCE RLS, proves a
-concurrent third relationship write is blocked, restores two active rows, removes the temporary function, and
-asserts that the operator retains no product-table grant.
+real URI-options role switch would produce `session_user != current_user` but is rejected by the actual CLI before
+connection, proves a concurrent third relationship write is blocked, restores two active rows, removes the temporary
+function, and asserts that the operator retains no product-table grant.
 
 ## Global-admin visual handoff
 

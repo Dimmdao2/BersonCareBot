@@ -15,6 +15,37 @@ const socketDir = path.join(scratchRoot, 'socket');
 const postgresLog = path.join(scratchRoot, 'postgres.log');
 const databaseName = 'bersoncarebot_test';
 const operatorRole = 'u5a_fixture_operator_login';
+const optionSwitchedRole = 'u5a_option_switched_role';
+const pgEnvironmentKeys = [
+  'PGAPPNAME',
+  'PGCHANNELBINDING',
+  'PGCLIENTENCODING',
+  'PGCONNECT_TIMEOUT',
+  'PGDATABASE',
+  'PGGSSENCMODE',
+  'PGGSSLIB',
+  'PGHOST',
+  'PGHOSTADDR',
+  'PGKRBSRVNAME',
+  'PGOPTIONS',
+  'PGPASSFILE',
+  'PGPASSWORD',
+  'PGPORT',
+  'PGREQUIREAUTH',
+  'PGREQUIREPEER',
+  'PGSERVICE',
+  'PGSERVICEFILE',
+  'PGSSLCERT',
+  'PGSSLCRL',
+  'PGSSLCRLDIR',
+  'PGSSLKEY',
+  'PGSSLMODE',
+  'PGSSLNEGOTIATION',
+  'PGSSLROOTCERT',
+  'PGSSLSNI',
+  'PGTARGETSESSIONATTRS',
+  'PGUSER',
+];
 const capabilitySql = path.join(
   repoRoot,
   'deploy/postgres/u5a-patient-organization-test-lifecycle.sql',
@@ -35,11 +66,17 @@ function assertRegularNoSymlink(filePath, label) {
   if (!stat.isFile() || stat.isSymbolicLink()) fail(`${label} must be a regular non-symlink file`);
 }
 
+function cleanPgEnvironment(source) {
+  const clean = { ...source };
+  for (const key of pgEnvironmentKeys) delete clean[key];
+  return clean;
+}
+
 function run(command, args, options = {}) {
   const result = spawnSync(command, args, {
     cwd: repoRoot,
     encoding: 'utf8',
-    env: options.env ?? process.env,
+    env: cleanPgEnvironment(options.env ?? process.env),
     input: options.input,
   });
   if (result.status !== 0) {
@@ -84,7 +121,10 @@ function operatorUrl() {
 }
 
 function cli(command, execute = false) {
-  const env = { ...process.env, SAAS_ISOLATION_OPERATOR_DATABASE_URL: operatorUrl() };
+  const env = {
+    ...cleanPgEnvironment(process.env),
+    SAAS_ISOLATION_OPERATOR_DATABASE_URL: operatorUrl(),
+  };
   for (const key of [
     'DATABASE_URL',
     'DATABASE_URL_NONSTAFF',
@@ -113,6 +153,43 @@ function cli(command, execute = false) {
   process.stdout.write(result.stdout ?? '');
 }
 
+function proveUriOptionsRejectedBeforeCliConnection() {
+  const maliciousUrl = `${operatorUrl()}&options=-c%20role%3D${optionSwitchedRole}`;
+  const mismatch = run(
+    path.join(pgBin, 'psql'),
+    ['-d', maliciousUrl, '-X', '-v', 'ON_ERROR_STOP=1', '-qAt', '-F', '|', '-c', 'SELECT session_user, current_user'],
+    { label: 'URI options session/current mismatch proof' },
+  );
+  if (mismatch.stdout.trim() !== `${operatorRole}|${optionSwitchedRole}`) {
+    fail('scratch URI options did not reproduce the session/current mismatch');
+  }
+
+  const env = {
+    ...cleanPgEnvironment(process.env),
+    SAAS_ISOLATION_OPERATOR_DATABASE_URL: maliciousUrl,
+  };
+  const rejected = spawnSync(
+    'pnpm',
+    [
+      '--dir',
+      'apps/webapp',
+      'run',
+      'test-fixture:patient-organization-lifecycle',
+      '--',
+      'status',
+    ],
+    { cwd: repoRoot, encoding: 'utf8', env },
+  );
+  const output = `${rejected.stdout ?? ''}${rejected.stderr ?? ''}`;
+  if (
+    rejected.status === 0 ||
+    !output.includes('operator_database_url_options_forbidden') ||
+    /postgres(?:ql)?:\/\/|53000000-/.test(output)
+  ) {
+    fail('actual operator CLI did not safely reject URI options before connection');
+  }
+}
+
 function exactStrictPolicyStatement() {
   const source = readFileSync(canonicalPolicySql, 'utf8');
   const start = source.indexOf('-- public.org_enrollments (saas_org_dormant_p0_8_3)');
@@ -134,7 +211,12 @@ function startLockHolder() {
       '-c',
       "BEGIN; SELECT * FROM app.control_u5a_patient_organization_fixture('status'); SELECT pg_sleep(3); COMMIT;",
     ],
-    { cwd: repoRoot, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] },
+    {
+      cwd: repoRoot,
+      encoding: 'utf8',
+      env: cleanPgEnvironment(process.env),
+      stdio: ['ignore', 'pipe', 'pipe'],
+    },
   );
   let output = '';
   child.stdout.on('data', (chunk) => {
@@ -186,7 +268,7 @@ async function proveConcurrentSetProtection() {
         );
       `,
     ],
-    { cwd: repoRoot, encoding: 'utf8' },
+    { cwd: repoRoot, encoding: 'utf8', env: cleanPgEnvironment(process.env) },
   );
   const holderCode = await Promise.race([
     holder.completion,
@@ -208,6 +290,14 @@ function assertNoResidue() {
       AND has_table_privilege('app_owner', 'public.org_enrollments', 'UPDATE')
       AND NOT has_table_privilege('${operatorRole}', 'public.org_enrollments', 'SELECT')
       AND NOT has_table_privilege('${operatorRole}', 'public.org_enrollments', 'UPDATE')
+      AND (
+        SELECT count(*) = 1
+          AND bool_and(granted_role.rolname = 'saas_telemetry_operator')
+        FROM pg_catalog.pg_auth_members AS membership
+        JOIN pg_catalog.pg_roles AS member_role ON member_role.oid = membership.member
+        JOIN pg_catalog.pg_roles AS granted_role ON granted_role.oid = membership.roleid
+        WHERE member_role.rolname = '${operatorRole}'
+      )
       AND (SELECT relrowsecurity AND relforcerowsecurity
            FROM pg_catalog.pg_class
            WHERE oid = 'public.org_enrollments'::regclass)
@@ -242,7 +332,11 @@ try {
     CREATE ROLE app_staff NOLOGIN NOSUPERUSER NOBYPASSRLS;
     CREATE ROLE app_patient NOLOGIN NOSUPERUSER NOBYPASSRLS;
     CREATE ROLE app_worker NOLOGIN NOSUPERUSER NOBYPASSRLS;
+    CREATE ROLE saas_telemetry_operator NOLOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION NOINHERIT NOBYPASSRLS;
     CREATE ROLE ${operatorRole} LOGIN INHERIT NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION NOBYPASSRLS;
+    CREATE ROLE ${optionSwitchedRole} NOLOGIN INHERIT NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION NOBYPASSRLS;
+    GRANT saas_telemetry_operator TO ${operatorRole};
+    GRANT ${optionSwitchedRole} TO ${operatorRole};
     CREATE SCHEMA app;
     CREATE FUNCTION app.is_staff() RETURNS boolean LANGUAGE sql STABLE AS 'SELECT false';
     CREATE FUNCTION app.current_org_id() RETURNS uuid LANGUAGE sql STABLE AS 'SELECT NULL::uuid';
@@ -266,6 +360,8 @@ try {
     GRANT USAGE ON SCHEMA app TO ${operatorRole};
   `);
 
+  proveUriOptionsRejectedBeforeCliConnection();
+  psql(`REVOKE ${optionSwitchedRole} FROM ${operatorRole}; DROP ROLE ${optionSwitchedRole};`);
   applyCapability('install');
   capabilityInstalled = true;
   cli('status');
@@ -279,7 +375,7 @@ try {
   capabilityInstalled = false;
   assertNoResidue();
   process.stdout.write(
-    'u5a_patient_organization_lifecycle_strict_proof: PASS; strict_force=true; final_active_relationships=2; capability_residue=0\n',
+    'u5a_patient_organization_lifecycle_strict_proof: PASS; strict_force=true; uri_options_rejected=true; session_current_mismatch_proved=true; final_active_relationships=2; capability_residue=0\n',
   );
 } finally {
   if (capabilityInstalled) {
