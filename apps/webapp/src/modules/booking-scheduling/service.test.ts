@@ -70,6 +70,46 @@ describe("buildSlotsForContext per-date branch scoping", () => {
   });
 });
 
+describe("SCH-G5: weekday schedule is the schedule (weekly be_working_hours fills days with no per-date entry)", () => {
+  function weekdayOnlyPort(overrides: Partial<BookingSchedulingPort> = {}): BookingSchedulingPort {
+    return {
+      listWorkingHours: async () => [{ weekday: TEST_WEEKDAY, startMinute: 9 * 60, endMinute: 18 * 60 }],
+      getBufferMinutes: async () => 0,
+      getMinNoticeHours: async () => 0,
+      listBusyIntervals: async () => [],
+      listWorkingDays: async () => [], // no per-date be_working_days row for this date at all
+      ...overrides,
+    } as unknown as BookingSchedulingPort;
+  }
+
+  it("(a) a day with only weekly be_working_hours and no per-date entry yields slots per the weekly hours", async () => {
+    const slots = await buildSlotsForContext(weekdayOnlyPort(), context("branch-A"));
+    const flat = slots.flatMap((d) => d.slots);
+    expect(flat.length).toBeGreaterThan(0);
+    // Weekly hours are 09:00–18:00 → first slot must start at 09:00, not be absent.
+    expect(new Date(flat[0]!.startAt).getUTCHours()).toBe(9);
+    expect(new Date(flat.at(-1)!.endAt).getUTCHours()).toBe(18);
+  });
+
+  it("(b) an explicit per-date be_working_days entry still overrides the weekday default", async () => {
+    // Per-date row (from makePort) is 11:00–19:00, weekly hours are 09:00–18:00.
+    const slots = await buildSlotsForContext(makePort("branch-A"), context("branch-A"));
+    const flat = slots.flatMap((d) => d.slots);
+    expect(flat.length).toBeGreaterThan(0);
+    expect(new Date(flat[0]!.startAt).getUTCHours()).toBe(11);
+    expect(new Date(flat.at(-1)!.endAt).getUTCHours()).toBe(19);
+  });
+
+  it("(c) a weekday with no weekly be_working_hours and no per-date entry still yields no slots", async () => {
+    const slots = await buildSlotsForContext(
+      weekdayOnlyPort({ listWorkingHours: async () => [] }),
+      context("branch-A"),
+    );
+    const total = slots.reduce((n, d) => n + d.slots.length, 0);
+    expect(total).toBe(0);
+  });
+});
+
 describe("legacy scheduling compatibility", () => {
   it("fails closed instead of resolving a legacy branch-service key", async () => {
     const service = createBookingSchedulingService({} as BookingSchedulingPort);
