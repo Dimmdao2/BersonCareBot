@@ -409,6 +409,63 @@ export async function executeAction(
         return { actionId: action.id, status: 'failed', error: 'webapp.event.emit: eventType required' };
       }
       const payload = asRecord(action.params.payload ?? {});
+
+      // D2: `diary.symptom.tracking.created` / `diary.lfk.complex.created` are retired HTTP projection
+      // event types — write directly to public.symptom_trackings / public.lfk_complexes instead of
+      // emitting the webhook. See writeDiaryLfkDirect.ts for the platform-user resolution + exact-org
+      // (no default-org fallback) + fail-closed semantics this replaces the old fire-and-forget emit with.
+      if (eventType === 'diary.symptom.tracking.created' || eventType === 'diary.lfk.complex.created') {
+        const source = asString(ctx.event.meta.source) ?? 'telegram';
+        const channelUserId = asNumericString(readExternalActorId(ctx))
+          ?? asNumericString((ctx.event.payload as { incoming?: { channelUserId?: unknown } })?.incoming?.channelUserId);
+        const link = channelUserId && deps.readPort
+          ? await deps.readPort.readDb<{ userId?: string } | null>({
+              type: 'user.byIdentity',
+              params: { resource: source, externalId: channelUserId },
+            })
+          : null;
+        const integratorUserId = link && typeof link === 'object' && typeof link.userId === 'string' ? link.userId : null;
+        if (!channelUserId || !integratorUserId) {
+          return {
+            actionId: action.id,
+            status: 'success',
+            values: { webappEmit: { ok: false, reason: 'actor identity not resolved' } },
+          };
+        }
+        if (eventType === 'diary.symptom.tracking.created') {
+          const symptomTitle = asString(payload.symptomTitle);
+          if (!symptomTitle) {
+            return { actionId: action.id, status: 'failed', error: 'diary.symptom.tracking.created: payload.symptomTitle required' };
+          }
+          await persistWrites(deps.writePort, [{
+            type: 'diary.symptom.tracking.create',
+            params: {
+              resource: source,
+              externalId: channelUserId,
+              integratorUserId,
+              symptomKey: asString(payload.symptomKey),
+              symptomTitle,
+            },
+          }]);
+        } else {
+          const title = asString(payload.title);
+          if (!title) {
+            return { actionId: action.id, status: 'failed', error: 'diary.lfk.complex.created: payload.title required' };
+          }
+          await persistWrites(deps.writePort, [{
+            type: 'diary.lfk.complex.create',
+            params: {
+              resource: source,
+              externalId: channelUserId,
+              integratorUserId,
+              title,
+              origin: payload.origin,
+            },
+          }]);
+        }
+        return { actionId: action.id, status: 'success', values: { webappEmit: { ok: true, status: 202 } } };
+      }
+
       let userId = asString(payload.userId);
       if (!userId && deps.readPort) {
         const source = asString(ctx.event.meta.source) ?? 'telegram';
@@ -2440,35 +2497,36 @@ export async function executeAction(
         return { actionId: action.id, status: 'failed', error: 'diary.symptom.entryType: trackingId and chatId required' };
       }
       let userId: string | null = asString(action.params.userId);
-      if (!userId && deps.readPort) {
-        const source = asString(ctx.event.meta.source) ?? 'telegram';
-        const channelUserId = asNumericString(readExternalActorId(ctx))
-          ?? asNumericString((ctx.event.payload as { incoming?: { channelUserId?: unknown } })?.incoming?.channelUserId);
-        if (channelUserId) {
-          const link = await deps.readPort.readDb<{ userId?: string } | null>({
-            type: 'user.byIdentity',
-            params: { resource: source, externalId: channelUserId },
-          });
-          userId = link && typeof link === 'object' && typeof link.userId === 'string' ? link.userId : null;
-        }
+      const entrySource = asString(ctx.event.meta.source) ?? 'telegram';
+      const entryChannelUserId = asNumericString(readExternalActorId(ctx))
+        ?? asNumericString((ctx.event.payload as { incoming?: { channelUserId?: unknown } })?.incoming?.channelUserId);
+      if (!userId && deps.readPort && entryChannelUserId) {
+        const link = await deps.readPort.readDb<{ userId?: string } | null>({
+          type: 'user.byIdentity',
+          params: { resource: entrySource, externalId: entryChannelUserId },
+        });
+        userId = link && typeof link === 'object' && typeof link.userId === 'string' ? link.userId : null;
       }
       const intents: OutgoingIntent[] = [];
       if (callbackQueryId) {
         intents.push({ type: 'callback.answer', meta: buildIntentMeta(action, ctx), payload: { callbackQueryId } });
       }
-      const port = deps.webappEventsPort;
-      if (port && userId) {
-        await port.emit({
-          eventType: 'diary.symptom.entry.created',
-          occurredAt: nowIso(ctx),
-          payload: {
-            userId,
+      // D2: `diary.symptom.entry.created` is a retired HTTP projection event type — write directly to
+      // public.symptom_entries instead. `userId` here is the integrator-space id (ChannelUserLinkRow);
+      // writeDiaryLfkDirect.ts resolves the actual canonical public.platform_users.id from it.
+      if (userId && entryChannelUserId) {
+        await persistWrites(deps.writePort, [{
+          type: 'diary.symptom.entry.create',
+          params: {
+            resource: entrySource,
+            externalId: entryChannelUserId,
+            integratorUserId: userId,
             trackingId,
             value0_10,
             entryType,
             recordedAt: nowIso(ctx),
           },
-        });
+        }]);
       }
       const successText = deps.templatePort
         ? (await renderText({
@@ -2717,29 +2775,34 @@ export async function executeAction(
         return { actionId: action.id, status: 'failed', error: 'diary.lfk.session: complexId and chatId required' };
       }
       let userId: string | null = asString(action.params.userId);
-      if (!userId && deps.readPort) {
-        const source = asString(ctx.event.meta.source) ?? 'telegram';
-        const channelUserId = asNumericString(readExternalActorId(ctx))
-          ?? asNumericString((ctx.event.payload as { incoming?: { channelUserId?: unknown } })?.incoming?.channelUserId);
-        if (channelUserId) {
-          const link = await deps.readPort.readDb<{ userId?: string } | null>({
-            type: 'user.byIdentity',
-            params: { resource: source, externalId: channelUserId },
-          });
-          userId = link && typeof link === 'object' && typeof link.userId === 'string' ? link.userId : null;
-        }
+      const sessionSource = asString(ctx.event.meta.source) ?? 'telegram';
+      const sessionChannelUserId = asNumericString(readExternalActorId(ctx))
+        ?? asNumericString((ctx.event.payload as { incoming?: { channelUserId?: unknown } })?.incoming?.channelUserId);
+      if (!userId && deps.readPort && sessionChannelUserId) {
+        const link = await deps.readPort.readDb<{ userId?: string } | null>({
+          type: 'user.byIdentity',
+          params: { resource: sessionSource, externalId: sessionChannelUserId },
+        });
+        userId = link && typeof link === 'object' && typeof link.userId === 'string' ? link.userId : null;
       }
       const intents: OutgoingIntent[] = [];
       if (callbackQueryId) {
         intents.push({ type: 'callback.answer', meta: buildIntentMeta(action, ctx), payload: { callbackQueryId } });
       }
-      const port = deps.webappEventsPort;
-      if (port && userId) {
-        await port.emit({
-          eventType: 'diary.lfk.session.created',
-          occurredAt: nowIso(ctx),
-          payload: { userId, complexId, completedAt: nowIso(ctx) },
-        });
+      // D2: `diary.lfk.session.created` is a retired HTTP projection event type — write directly to
+      // public.lfk_sessions instead. `userId` here is the integrator-space id (ChannelUserLinkRow);
+      // writeDiaryLfkDirect.ts resolves the actual canonical public.platform_users.id from it.
+      if (userId && sessionChannelUserId) {
+        await persistWrites(deps.writePort, [{
+          type: 'diary.lfk.session.create',
+          params: {
+            resource: sessionSource,
+            externalId: sessionChannelUserId,
+            integratorUserId: userId,
+            complexId,
+            completedAt: nowIso(ctx),
+          },
+        }]);
       }
       const successText = deps.templatePort
         ? (await renderText({

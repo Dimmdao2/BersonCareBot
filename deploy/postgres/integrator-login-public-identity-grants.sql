@@ -193,6 +193,47 @@
 --   integrator.conversation_messages SELECT (whole table; RLS FORCE, same policy family) -- read via
 --                                    a correlated subquery inside `getOpenConversationByIdentity`.
 --
+-- ============================================================================================
+-- D2 addendum: symptom diary + LFK direct-public writes.
+--
+-- Scope (evidence-based, mirrors writeDiaryLfkDirect.ts exactly):
+--   public.symptom_trackings  SELECT (whole table -- ownership-check SELECT by id+platform_user_id in
+--                              addSymptomEntryDirect) + INSERT (user_id, platform_user_id,
+--                              organization_id, symptom_key, symptom_title, is_active, updated_at) --
+--                              createSymptomTrackingDirect. No UPDATE/DELETE: D2 only creates.
+--   public.symptom_entries    INSERT (user_id, platform_user_id, tracking_id, value_0_10, entry_type,
+--                              recorded_at, source, notes, organization_id) -- addSymptomEntryDirect.
+--                              No SELECT needed: the INSERT has no RETURNING-independent read and no
+--                              ON CONFLICT clause referencing the table's own columns.
+--   public.lfk_complexes      SELECT (whole table -- ownership-check SELECT by id+platform_user_id in
+--                              addLfkSessionDirect) + INSERT (user_id, platform_user_id,
+--                              organization_id, title, origin, is_active, updated_at) --
+--                              createLfkComplexDirect.
+--   public.lfk_sessions       INSERT (user_id, complex_id, completed_at, source, recorded_at,
+--                              organization_id) -- addLfkSessionDirect. `user_id` here IS the
+--                              `platform_users.id` UUID directly (no separate platform_user_id column
+--                              on this table -- see migration 059_lfk_sessions_user_id_to_uuid.sql).
+--
+-- RLS: all four tables have RLS ENABLED (NO FORCE — 0177_phase4_no_force_rls_compat.sql) with a
+-- `saas_org_dormant_*` policy. LIVE re-verify on TEST (2026-07-24) found this policy now reads
+-- `(app.is_staff() AND app.current_org_id() IS NOT NULL AND organization_id = app.current_org_id())
+-- OR (app.current_patient_user_id() IS NOT NULL AND platform_user_id = app.current_patient_user_id())`
+-- — the `app.*()` SECURITY DEFINER accessor form (superseding the raw `current_setting('app.org', …)`
+-- GUC form still visible in the older migration files this comment originally cited) — both
+-- `app.current_org_id()` and `app.current_patient_user_id()` are already EXECUTE-granted below (A7
+-- addendum #1, shared with D1), so NO new function grant is needed. `app.current_org_id()` resolves
+-- from `app.principal_context`, populated only when the caller ran under `applySignedDbPrincipal`
+-- ("locked"/"shadow" mode, `@bersoncare/db-principal`) — i.e. this direct write only succeeds when
+-- `db.tx()` runs inside `runWithOrganizationPrincipal(organizationId, …)` (webhook.ts, resolved during
+-- pre-routing for an already-onboarded user — the only case D2 writes for). LIVE-VERIFIED end-to-end
+-- on TEST: installed a real HMAC-signed organization-principal context (same shape
+-- `installSignedDbPrincipalContext` produces) for `a0000000-0000-4000-8000-000000000001`, then ran the
+-- EXACT INSERT/SELECT statements `writeDiaryLfkDirect.ts` issues against all four tables under
+-- `bcb_test_integrator_login` + `SET ROLE app_staff` with ONLY the grants below — all four writes and
+-- both ownership-check reads passed RLS; rolled back, zero residue. A bootstrap/bare-role principal
+-- (no `app.principal_context` row) was independently confirmed BLOCKED by RLS, matching the D1
+-- overlay's "row scope is enforced by RLS, not by this grant" property.
+--
 -- Idempotent (repeated GRANT/REVOKE is safe). Invoke with the required psql variable:
 --   psql '<database-url>' -v integrator_login_public_identity_grants_role=bcb_test_integrator_login \
 --     -f deploy/postgres/integrator-login-public-identity-grants.sql
@@ -221,6 +262,18 @@ SELECT 1 / (
 
 \if :{?integrator_login_public_identity_grants_down}
 \echo 'Integrator login public identity grants DOWN: revoking.'
+-- D2 addendum (symptom diary + LFK) -- revoked first, independent of the D1 tables below.
+REVOKE INSERT ("user_id", "complex_id", "completed_at", "source", "recorded_at", "organization_id")
+  ON TABLE public.lfk_sessions FROM :"integrator_login_public_identity_grants_role";
+REVOKE SELECT,
+  INSERT ("user_id", "platform_user_id", "organization_id", "title", "origin", "is_active", "updated_at")
+  ON TABLE public.lfk_complexes FROM :"integrator_login_public_identity_grants_role";
+REVOKE INSERT ("user_id", "platform_user_id", "tracking_id", "value_0_10", "entry_type", "recorded_at", "source", "notes", "organization_id")
+  ON TABLE public.symptom_entries FROM :"integrator_login_public_identity_grants_role";
+REVOKE SELECT,
+  INSERT ("user_id", "platform_user_id", "organization_id", "symptom_key", "symptom_title", "is_active", "updated_at")
+  ON TABLE public.symptom_trackings FROM :"integrator_login_public_identity_grants_role";
+
 -- A7 addendum #3 (integrator's own schema) -- revoke before the app.* functions/public.* tables
 -- below so a partial-DOWN run never leaves a write grant without its matching RLS-function EXECUTE.
 REVOKE SELECT, DELETE,
@@ -361,6 +414,23 @@ GRANT SELECT, INSERT ("key", "request_hash", "status", "response_body", "expires
 GRANT SELECT ON TABLE integrator.message_drafts TO :"integrator_login_public_identity_grants_role";
 GRANT SELECT ON TABLE integrator.conversations TO :"integrator_login_public_identity_grants_role";
 GRANT SELECT ON TABLE integrator.conversation_messages TO :"integrator_login_public_identity_grants_role";
+
+-- D2 addendum: symptom diary + LFK direct-public writes (writeDiaryLfkDirect.ts). See the D2 addendum
+-- header comment above for the full per-table trace to source; no NEW app.* EXECUTE grant is required
+-- (these tables' RLS policies key off session GUCs, not the app.*() accessor functions).
+GRANT SELECT ON TABLE public.symptom_trackings TO :"integrator_login_public_identity_grants_role";
+GRANT INSERT ("user_id", "platform_user_id", "organization_id", "symptom_key", "symptom_title", "is_active", "updated_at")
+  ON TABLE public.symptom_trackings TO :"integrator_login_public_identity_grants_role";
+
+GRANT INSERT ("user_id", "platform_user_id", "tracking_id", "value_0_10", "entry_type", "recorded_at", "source", "notes", "organization_id")
+  ON TABLE public.symptom_entries TO :"integrator_login_public_identity_grants_role";
+
+GRANT SELECT ON TABLE public.lfk_complexes TO :"integrator_login_public_identity_grants_role";
+GRANT INSERT ("user_id", "platform_user_id", "organization_id", "title", "origin", "is_active", "updated_at")
+  ON TABLE public.lfk_complexes TO :"integrator_login_public_identity_grants_role";
+
+GRANT INSERT ("user_id", "complex_id", "completed_at", "source", "recorded_at", "organization_id")
+  ON TABLE public.lfk_sessions TO :"integrator_login_public_identity_grants_role";
 
 \echo 'Integrator login public identity grants UP complete.'
 \endif
