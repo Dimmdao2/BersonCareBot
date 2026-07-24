@@ -1,15 +1,38 @@
-import { describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { DbPort } from '../../kernel/contracts/index.js';
 import { createDbWritePort } from './writePort.js';
 import { stubIntegratorDrizzleForTests } from './stubIntegratorDrizzleForTests.js';
 
+// Keep this hermetic — `recordOperatorFailureIncident` (called on the D3 durability-fallback path)
+// otherwise hits a REAL pg pool via `getIntegratorDrizzle()`/`client.ts` (not the injected mock `db`),
+// which would try to write into whatever DATABASE_URL vitest.setup.ts falls back to. Mock at the same
+// module reportOperatorFailure.test.ts mocks (../db/repos/operatorHealthDrizzle.js).
+const openOrTouchOperatorIncidentMock = vi.hoisted(() =>
+  vi.fn(async (_input: Record<string, unknown>) => ({ id: 'incident-1', occurrenceCount: 1 })),
+);
+vi.mock('./repos/operatorHealthDrizzle.js', () => ({
+  openOrTouchOperatorIncident: openOrTouchOperatorIncidentMock,
+}));
+
 describe('writePort communication projection events', () => {
+  beforeEach(() => {
+    openOrTouchOperatorIncidentMock.mockClear();
+  });
+
   const D3_PLATFORM_USER_ID = 'pu-9001';
   const D3_ORG_ID = 'org-9001';
   const D3_CONVERSATION_ROW_ID = 'sc-conv-1';
 
-  function makeMockDb(capture: { projectionInserts: { eventType: string; idempotencyKey: string; payload: unknown }[] }): DbPort {
+  type SqlOverride = { match: (sql: string) => boolean; respond: () => Awaited<ReturnType<DbPort['query']>> };
+
+  function makeMockDb(
+    capture: { projectionInserts: { eventType: string; idempotencyKey: string; payload: unknown }[] },
+    overrides: SqlOverride[] = [],
+  ): DbPort {
     const query = vi.fn(async (sql: string, _params: unknown[]) => {
+      for (const o of overrides) {
+        if (typeof sql === 'string' && o.match(sql)) return o.respond();
+      }
       if (
         typeof sql === 'string' &&
         sql.includes('user_id::text AS user_id') &&
@@ -163,6 +186,155 @@ describe('writePort communication projection events', () => {
     );
     expect(updateCall).toBeDefined();
     expect(updateCall![1]).toEqual(['conv-1', 'closed', null, '2025-01-01T12:02:00.000Z', 'resolved']);
+  });
+
+  // Durability fix (adversarial audit, post-D3-merge): a direct-write failure must NOT silently drop
+  // the conversation/message/status — it must fall back to the same durable outbox the retired HTTP
+  // projection used (`enqueueProjectionEvent` -> capture.projectionInserts here), and record an
+  // operator-visible incident. Legitimately fail-closed conditions (ambiguous/unresolved org or
+  // platform-user) are the ONE exception: no write, no fallback, no incident.
+
+  it('conversation.open: ambiguous org enrollment is legitimately fail-closed — no outbox fallback, no incident', async () => {
+    const capture = { projectionInserts: [] as { eventType: string; idempotencyKey: string; payload: unknown }[] };
+    const db = makeMockDb(capture, [
+      {
+        match: (sql) => sql.includes('FROM public.org_enrollments'),
+        respond: () =>
+          ({ rows: [{ organization_id: 'org-a' }, { organization_id: 'org-b' }] }) as Awaited<ReturnType<DbPort['query']>>,
+      },
+    ]);
+    const writePort = createDbWritePort({ db });
+    await writePort.writeDb({
+      type: 'conversation.open',
+      params: {
+        id: 'conv-1',
+        resource: 'telegram',
+        externalId: '123',
+        source: 'telegram',
+        adminScope: 'support',
+        status: 'waiting_admin',
+        openedAt: '2025-01-01T12:00:00.000Z',
+        lastMessageAt: '2025-01-01T12:00:00.000Z',
+      },
+    });
+    // The integrator-local conversation row still gets written (separate, earlier tx) — only the
+    // public-side write is skipped.
+    const localInsert = (db.query as ReturnType<typeof vi.fn>).mock.calls.find(
+      (call: unknown[]) => typeof call[0] === 'string' && call[0].includes('INSERT INTO conversations'),
+    );
+    expect(localInsert).toBeDefined();
+    const publicInsert = (db.query as ReturnType<typeof vi.fn>).mock.calls.find(
+      (call: unknown[]) => typeof call[0] === 'string' && call[0].includes('INSERT INTO public.support_conversations'),
+    );
+    expect(publicInsert).toBeUndefined();
+    expect(capture.projectionInserts.length).toBe(0);
+    expect(openOrTouchOperatorIncidentMock).not.toHaveBeenCalled();
+  });
+
+  it('conversation.open: unexpected direct-write error falls back to the durable outbox + records an operator incident', async () => {
+    const capture = { projectionInserts: [] as { eventType: string; idempotencyKey: string; payload: unknown }[] };
+    const db = makeMockDb(capture, [
+      {
+        match: (sql) => sql.includes('INSERT INTO public.support_conversations'),
+        respond: () => {
+          throw new Error('simulated deadlock / connection blip');
+        },
+      },
+    ]);
+    const writePort = createDbWritePort({ db });
+    await writePort.writeDb({
+      type: 'conversation.open',
+      params: {
+        id: 'conv-1',
+        resource: 'telegram',
+        externalId: '123',
+        source: 'telegram',
+        adminScope: 'support',
+        status: 'waiting_admin',
+        openedAt: '2025-01-01T12:00:00.000Z',
+        lastMessageAt: '2025-01-01T12:00:00.000Z',
+      },
+    });
+    expect(capture.projectionInserts.length).toBe(1);
+    const ev = capture.projectionInserts[0]!;
+    expect(ev.eventType).toBe('support.conversation.opened');
+    expect((ev.payload as Record<string, unknown>).integratorConversationId).toBe('conv-1');
+    expect((ev.payload as Record<string, unknown>).integratorUserId).toBe('9001');
+    expect(ev.idempotencyKey.startsWith('support.conversation.opened:conv-1:')).toBe(true);
+    expect(openOrTouchOperatorIncidentMock).toHaveBeenCalledTimes(1);
+    expect(openOrTouchOperatorIncidentMock.mock.calls[0]![0]).toMatchObject({
+      direction: 'db_write',
+      integration: 'support_conversations',
+      errorClass: 'conversation_open_direct_write_fallback',
+    });
+  });
+
+  it('conversation.message.add: conversation_not_found falls back to the durable outbox + records an operator incident', async () => {
+    const capture = { projectionInserts: [] as { eventType: string; idempotencyKey: string; payload: unknown }[] };
+    const db = makeMockDb(capture, [
+      {
+        match: (sql) => sql.includes('SELECT id::text AS id, organization_id') && sql.includes('FROM public.support_conversations'),
+        respond: () => ({ rows: [] }) as Awaited<ReturnType<DbPort['query']>>,
+      },
+    ]);
+    const writePort = createDbWritePort({ db });
+    await writePort.writeDb({
+      type: 'conversation.message.add',
+      params: {
+        id: 'msg-1',
+        conversationId: 'conv-1',
+        senderRole: 'user',
+        text: 'Hello',
+        source: 'telegram',
+        createdAt: '2025-01-01T12:01:00.000Z',
+      },
+    });
+    expect(capture.projectionInserts.length).toBe(1);
+    const ev = capture.projectionInserts[0]!;
+    expect(ev.eventType).toBe('support.conversation.message.appended');
+    expect((ev.payload as Record<string, unknown>).integratorMessageId).toBe('msg-1');
+    expect((ev.payload as Record<string, unknown>).integratorConversationId).toBe('conv-1');
+    expect(openOrTouchOperatorIncidentMock).toHaveBeenCalledTimes(1);
+    expect(openOrTouchOperatorIncidentMock.mock.calls[0]![0]).toMatchObject({
+      direction: 'db_write',
+      integration: 'support_conversations',
+      // eslint-disable-next-line no-secrets/no-secrets -- low-cardinality errorClass identifier, not a secret
+      errorClass: 'conversation_message_add_direct_write_fallback',
+      errorDetail: 'conversation_not_found',
+    });
+  });
+
+  it('conversation.state.set: conversation_not_found (0 rows updated) falls back to the durable outbox + records an operator incident', async () => {
+    const capture = { projectionInserts: [] as { eventType: string; idempotencyKey: string; payload: unknown }[] };
+    const db = makeMockDb(capture, [
+      {
+        match: (sql) => sql.includes('UPDATE public.support_conversations SET') && sql.includes('status ='),
+        respond: () => ({ rows: [], rowCount: 0 }) as Awaited<ReturnType<DbPort['query']>>,
+      },
+    ]);
+    const writePort = createDbWritePort({ db });
+    await writePort.writeDb({
+      type: 'conversation.state.set',
+      params: {
+        id: 'conv-1',
+        conversationId: 'conv-1',
+        status: 'closed',
+        closedAt: '2025-01-01T12:02:00.000Z',
+        closeReason: 'resolved',
+      },
+    });
+    expect(capture.projectionInserts.length).toBe(1);
+    const ev = capture.projectionInserts[0]!;
+    expect(ev.eventType).toBe('support.conversation.status.changed');
+    expect((ev.payload as Record<string, unknown>).integratorConversationId).toBe('conv-1');
+    expect((ev.payload as Record<string, unknown>).status).toBe('closed');
+    expect(openOrTouchOperatorIncidentMock).toHaveBeenCalledTimes(1);
+    expect(openOrTouchOperatorIncidentMock.mock.calls[0]![0]).toMatchObject({
+      direction: 'db_write',
+      integration: 'support_conversations',
+      errorClass: 'conversation_state_set_direct_write_fallback',
+      errorDetail: 'conversation_not_found',
+    });
   });
 
   it('question.create enqueues support.question.created', async () => {

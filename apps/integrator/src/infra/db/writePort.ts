@@ -97,10 +97,12 @@ import {
 } from './directPublic/writeDiaryLfkDirect.js';
 import {
   appendSupportConversationMessageDirect,
-  isSupportConversationsFailClosedError,
   openSupportConversationDirect,
   setSupportConversationStatusDirect,
+  SupportConversationsDirectWriteError,
 } from './directPublic/writeSupportConversationsDirect.js';
+import { enqueueProjectionEvent } from './repos/projectionOutbox.js';
+import { recordOperatorFailureIncident } from '../operatorIncident/reportOperatorFailure.js';
 
 type BookingUpsertParams = {
   externalRecordId?: unknown;
@@ -811,11 +813,55 @@ export function createDbWritePort(input: {
                 : null;
           });
           // D3: replaces the `support.conversation.opened` HTTP projection fanout. Runs in its OWN
-          // transaction AFTER the integrator-local `conversations` row above has already committed —
-          // see writeSupportConversationsDirect.ts header for why this must never block/roll back that
-          // write. Swallows ALL errors (not just the classified fail-closed ones), matching the
-          // non-blocking, fire-and-forget property of the projection this replaces.
-          if (resolvedIntegratorUserId) {
+          // transaction AFTER the integrator-local `conversations` row above has already committed — see
+          // writeSupportConversationsDirect.ts header ("DURABILITY") for why this must never block/roll
+          // back that write, and for the two-bucket error handling below: platform-user/org ambiguity is
+          // a genuine fail-closed (no row, ever, no alert); anything else falls back to the SAME durable
+          // outbox the retired projection used, so the write is at-least-once again.
+          const conversationOpenFallbackPayload: Record<string, unknown> = {
+            integratorConversationId: id,
+            integratorUserId: resolvedIntegratorUserId,
+            source,
+            adminScope,
+            status,
+            openedAt,
+            lastMessageAt,
+            channelCode: resource,
+            channelExternalId: externalId,
+          };
+          const enqueueConversationOpenFallback = async (reason: string, err?: unknown): Promise<void> => {
+            await enqueueProjectionEvent(db, {
+              eventType: 'support.conversation.opened',
+              idempotencyKey: projectionIdempotencyKey(
+                'support.conversation.opened',
+                id,
+                hashPayloadExcludingKeys(conversationOpenFallbackPayload, ['integratorUserId']),
+              ),
+              occurredAt: openedAt,
+              payload: conversationOpenFallbackPayload,
+            });
+            logger.warn(
+              { err, mutationType: mutation.type, id, resource, externalId, reason },
+              'conversation.open: direct public write failed, fell back to durable outbox',
+            );
+            await recordOperatorFailureIncident({
+              direction: 'db_write',
+              integration: 'support_conversations',
+              errorClass: 'conversation_open_direct_write_fallback',
+              errorDetail: reason,
+            }).catch((incidentErr: unknown) => {
+              logger.error(
+                { err: incidentErr, mutationType: mutation.type, id },
+                'conversation.open: failed to record operator incident for direct-write fallback',
+              );
+            });
+          };
+          if (!resolvedIntegratorUserId) {
+            // No integrator identity resolved at all — the retired projection would still have emitted
+            // (webapp's resolvePlatformUserId falls back to channel-binding lookup with a null
+            // integratorUserId); preserve that durability rather than silently dropping the open.
+            await enqueueConversationOpenFallback('no_resolved_integrator_user_id');
+          } else {
             try {
               await openSupportConversationDirect(
                 db,
@@ -833,13 +879,14 @@ export function createDbWritePort(input: {
                 { mergeCandidateIds: mergeCandidateIdsViaPlatformMerge },
               );
             } catch (err) {
-              const failClosed = isSupportConversationsFailClosedError(err) || isIdentityMergeAmbiguityError(err);
-              logger[failClosed ? 'warn' : 'error'](
-                { err, mutationType: mutation.type, id, resource, externalId },
-                failClosed
-                  ? 'conversation.open: direct public write fail-closed'
-                  : 'conversation.open: direct public write failed unexpectedly (integrator-local write already committed)',
-              );
+              if (isDiaryLfkFailClosedError(err) || isIdentityMergeAmbiguityError(err)) {
+                logger.warn(
+                  { err, mutationType: mutation.type, id, resource, externalId },
+                  'conversation.open: direct public write fail-closed (org/platform-user unresolved or ambiguous) — no write, no fallback',
+                );
+              } else {
+                await enqueueConversationOpenFallback('direct_write_unexpected_error', err);
+              }
             }
           }
           return;
@@ -869,9 +916,12 @@ export function createDbWritePort(input: {
           });
           // D3: replaces the `support.conversation.message.appended` HTTP projection fanout. Own
           // transaction after the integrator-local write above; see writeSupportConversationsDirect.ts
-          // header. Fails closed (no write) when the parent conversation's D3 direct write never
-          // resolved (`conversation_not_found`) — swallows ALL errors, same non-blocking property as
-          // the removed fire-and-forget projection.
+          // header ("DURABILITY"). `conversation_not_found` (parent row not yet visible — e.g. its OWN
+          // open is mid-fallback) is NOT a legitimately-fail-closed condition here: the message text
+          // itself must not be lost, so it — like any other unexpected error — falls back to the durable
+          // outbox. Only D1/D2's platform-user/org ambiguity is a genuine no-write-ever case, and this
+          // mutation never resolves an actor itself (it reuses the already-resolved parent conversation),
+          // so that bucket cannot occur here.
           try {
             await appendSupportConversationMessageDirect(db, {
               integratorConversationId: conversationId,
@@ -885,13 +935,40 @@ export function createDbWritePort(input: {
               createdAt,
             });
           } catch (err) {
-            const failClosed = isSupportConversationsFailClosedError(err);
-            logger[failClosed ? 'warn' : 'error'](
-              { err, mutationType: mutation.type, id, conversationId },
-              failClosed
-                ? 'conversation.message.add: direct public write fail-closed'
-                : 'conversation.message.add: direct public write failed unexpectedly (integrator-local write already committed)',
+            const fallbackPayload: Record<string, unknown> = {
+              integratorMessageId: id,
+              integratorConversationId: conversationId,
+              senderRole,
+              messageType,
+              text,
+              source,
+              externalChatId: externalChatId ?? null,
+              externalMessageId: externalMessageId ?? null,
+              createdAt,
+            };
+            await enqueueProjectionEvent(db, {
+              eventType: 'support.conversation.message.appended',
+              idempotencyKey: projectionIdempotencyKey('support.conversation.message.appended', id, hashPayload(fallbackPayload)),
+              occurredAt: createdAt,
+              payload: fallbackPayload,
+            });
+            const reason = err instanceof SupportConversationsDirectWriteError ? err.code : 'direct_write_unexpected_error';
+            logger.warn(
+              { err, mutationType: mutation.type, id, conversationId, reason },
+              'conversation.message.add: direct public write failed, fell back to durable outbox',
             );
+            await recordOperatorFailureIncident({
+              direction: 'db_write',
+              integration: 'support_conversations',
+              // eslint-disable-next-line no-secrets/no-secrets -- low-cardinality errorClass identifier, not a secret
+              errorClass: 'conversation_message_add_direct_write_fallback',
+              errorDetail: reason,
+            }).catch((incidentErr: unknown) => {
+              logger.error(
+                { err: incidentErr, mutationType: mutation.type, id, conversationId },
+                'conversation.message.add: failed to record operator incident for direct-write fallback',
+              );
+            });
           }
           return;
         }
@@ -913,9 +990,9 @@ export function createDbWritePort(input: {
           });
           // D3: replaces the `support.conversation.status.changed` HTTP projection fanout. Own
           // transaction after the integrator-local write above; see writeSupportConversationsDirect.ts
-          // header. No-ops (no error) when the conversation row was never opened via D3's direct write —
-          // deliberately NOT mirroring the retired projection's insert-a-stub-row-on-0-rowcount fallback
-          // (that fallback never set organization_id, recreating exactly the NULL-org gap D3 fixes).
+          // header ("DURABILITY"). `conversation_not_found` (row not opened via D3 yet) and any other
+          // unexpected error both fall back to the durable outbox — the status change (e.g. closing a
+          // conversation) must not be silently and permanently lost.
           try {
             await setSupportConversationStatusDirect(db, {
               integratorConversationId: id,
@@ -925,10 +1002,35 @@ export function createDbWritePort(input: {
               closeReason,
             });
           } catch (err) {
-            logger.error(
-              { err, mutationType: mutation.type, id },
-              'conversation.state.set: direct public write failed unexpectedly (integrator-local write already committed)',
+            const fallbackPayload: Record<string, unknown> = {
+              integratorConversationId: id,
+              status,
+              lastMessageAt: lastMessageAt ?? null,
+              closedAt: closedAt ?? null,
+              closeReason: closeReason ?? null,
+            };
+            await enqueueProjectionEvent(db, {
+              eventType: 'support.conversation.status.changed',
+              idempotencyKey: projectionIdempotencyKey('support.conversation.status.changed', id, hashPayload(fallbackPayload)),
+              occurredAt: new Date().toISOString(),
+              payload: fallbackPayload,
+            });
+            const reason = err instanceof SupportConversationsDirectWriteError ? err.code : 'direct_write_unexpected_error';
+            logger.warn(
+              { err, mutationType: mutation.type, id, reason },
+              'conversation.state.set: direct public write failed, fell back to durable outbox',
             );
+            await recordOperatorFailureIncident({
+              direction: 'db_write',
+              integration: 'support_conversations',
+              errorClass: 'conversation_state_set_direct_write_fallback',
+              errorDetail: reason,
+            }).catch((incidentErr: unknown) => {
+              logger.error(
+                { err: incidentErr, mutationType: mutation.type, id },
+                'conversation.state.set: failed to record operator incident for direct-write fallback',
+              );
+            });
           }
           return;
         }

@@ -29,16 +29,31 @@
  * `writePort.ts`'s `insertConversation` / `insertConversationMessage` / `setConversationState` already
  * maintain — are UNCHANGED and keep writing in their own transaction exactly as before: integrator-only
  * state (messenger admin-forward bookkeeping), not a duplicate business projection, explicitly retained
- * per WORK_ORDER §Track D framing. This module's functions run in a SEPARATE, best-effort transaction
- * that `writePort.ts` calls AFTER the integrator-local transaction has already committed, so a
- * public-side fail-closed outcome (unresolved org/platform-user; RLS denial under a bootstrap principal
- * with no organization context yet) never blocks or rolls back the integrator-local conversation the
- * user-facing admin-forward flow depends on — the same non-blocking relationship the removed HTTP
- * projection had (fire-and-forget via the outbox worker, never awaited by the request path). Unlike
- * D1/D2 (where an unexpected error is rethrown because the direct write is the SOLE effect of that
- * mutation), `writePort.ts` swallows ALL errors from these calls, not just the classified fail-closed
- * ones — deliberately, to preserve that exact non-blocking property for a write that now runs after
- * another write has already committed.
+ * per WORK_ORDER §Track D framing. This module's functions run in a SEPARATE transaction that
+ * `writePort.ts` calls AFTER the integrator-local transaction has already committed, so a public-side
+ * failure never blocks or rolls back the integrator-local conversation the user-facing admin-forward
+ * flow depends on.
+ *
+ * DURABILITY (adversarial-audit fix, post-merge): a direct write here is the PRIMARY path, but it is
+ * NOT the only path — `writePort.ts` treats exactly two error buckets differently:
+ *   1. LEGITIMATELY FAIL-CLOSED (`isDiaryLfkFailClosedError` / `isIdentityMergeAmbiguityError` — D1/D2
+ *      machinery reused unchanged: platform-user candidate unresolved/ambiguous, org enrollment
+ *      unresolved/ambiguous). This is a genuine "we do not know whose conversation this is" outcome —
+ *      no row is written, ever, by design, matching D1/D2's no-default-org philosophy. No retry, no
+ *      alert: retrying would not change an ambiguous/absent identity.
+ *   2. EVERYTHING ELSE, including `SupportConversationsDirectWriteError('conversation_not_found')`
+ *      (thrown by `appendSupportConversationMessageDirect` / `setSupportConversationStatusDirect` when
+ *      their parent conversation row is not yet visible — e.g. because `conversation.open`'s OWN direct
+ *      write is still pending in the fallback below) and any unexpected/transient DB error. `writePort.ts`
+ *      falls back to `enqueueProjectionEvent` — the SAME durable outbox the retired HTTP projection used
+ *      — for the equivalent `support.conversation.opened` / `.message.appended` / `.status.changed`
+ *      event, so the still-present webapp consumer (`pgSupportCommunication.ts`) reconciles it via the
+ *      outbox worker's at-least-once retry. This restores the durability property the direct write would
+ *      otherwise regress (a transient failure must not silently and permanently drop a patient's support
+ *      message). Both the direct-write INSERT/UPDATE statements above (`ON CONFLICT` by
+ *      `integrator_conversation_id` / `integrator_message_id`) and the webapp consumer they fall back to
+ *      are idempotent on the SAME natural keys, so a fallback replay — including one that races with, or
+ *      follows, a direct write that actually DID succeed — converges to the same row, never duplicates.
  *
  * NOT MIRRORED (deliberate simplification, out of D3's bounded scope): the retired
  * `appendConversationMessageFromProjection`'s opportunistic `platform_user_id` healing UPDATE (backfills
@@ -47,20 +62,16 @@
  * `webapp:platform:{id}` duplicate threads) are webapp-side remediations for conversations that were
  * created WITHOUT a resolved platform user / organization. D3's `openSupportConversationDirect` always
  * resolves both up front (or fails closed, writing no row at all), so there is no NULL-platform-user
- * row left for a later message to heal. Backfilling pre-existing legacy rows is a one-time data-cleanup
- * concern (WORK_ORDER Track D "table-cleanup deferred until UI works" boundary), not an ongoing
- * per-write concern of this module.
+ * row left for a later message to heal on the PRIMARY path. The fallback path (above) can still reach
+ * that legacy healing logic — it runs the retired webapp consumer unchanged — which is a deliberate
+ * degraded-but-safe outcome for the rare fallback case, not a gap in this module.
  *
  * CHOKEPOINT: injected `DbPort`; writes run on the tx-bound connection inside `db.tx(...)`. Raw SQL is
  * allowed here (src/infra/db repo, see scripts/check-db-chokepoint.mjs).
  */
 import type { DbPort } from '../../../kernel/contracts/index.js';
 import type { DiaryLfkActorInput, DiaryLfkResolveDeps } from './writeDiaryLfkDirect.js';
-import {
-  isDiaryLfkFailClosedError,
-  resolveExactActiveOrganizationId,
-  resolvePlatformUserIdForActor,
-} from './writeDiaryLfkDirect.js';
+import { resolveExactActiveOrganizationId, resolvePlatformUserIdForActor } from './writeDiaryLfkDirect.js';
 
 function trimmedOrNull(value: string | null | undefined): string | null {
   if (typeof value !== 'string') return null;
@@ -70,6 +81,11 @@ function trimmedOrNull(value: string | null | undefined): string | null {
 
 export type SupportConversationsWriteFailureCode = 'conversation_not_found';
 
+/**
+ * NOT a "fail-closed, swallow silently" signal (unlike D1/D2's error classes) — `conversation_not_found`
+ * means the parent conversation row is not yet visible, which is exactly the condition `writePort.ts`
+ * routes to the durable outbox fallback (see module header "DURABILITY"). Callers must NOT swallow this.
+ */
 export class SupportConversationsDirectWriteError extends Error {
   readonly code: SupportConversationsWriteFailureCode;
 
@@ -81,17 +97,6 @@ export class SupportConversationsDirectWriteError extends Error {
     this.code = code;
     this.details = details;
   }
-}
-
-/**
- * True when `err` is a fail-closed condition (platform-user unresolved/ambiguous — D1/D2 machinery
- * reuse — org resolution failure, or "conversation row not found" for a message/status write whose
- * `conversation.open` counterpart never resolved) that callers should log-and-swallow (no write, no
- * crash).
- */
-export function isSupportConversationsFailClosedError(err: unknown): boolean {
-  if (err instanceof SupportConversationsDirectWriteError) return true;
-  return isDiaryLfkFailClosedError(err);
 }
 
 export type OpenSupportConversationDirectInput = DiaryLfkActorInput & {
@@ -231,9 +236,17 @@ export type SetSupportConversationStatusDirectInput = {
   closeReason?: string | null;
 };
 
-export type SetSupportConversationStatusDirectResult = { updated: boolean };
+export type SetSupportConversationStatusDirectResult = { updated: true };
 
-/** D3 entrypoint replacing the `support.conversation.status.changed` HTTP projection. */
+/**
+ * D3 entrypoint replacing the `support.conversation.status.changed` HTTP projection.
+ *
+ * Throws `SupportConversationsDirectWriteError('conversation_not_found')` when the conversation row
+ * does not exist yet — deliberately NOT mirroring the retired projection's insert-a-stub-row-on-0-rowcount
+ * fallback (that stub never set `organization_id`, recreating the exact NULL-org gap D3 fixes). The
+ * caller (`writePort.ts`) treats this thrown error as "needs the durable outbox fallback", not as a
+ * silent no-op — see this module's header "DURABILITY".
+ */
 export async function setSupportConversationStatusDirect(
   db: DbPort,
   input: SetSupportConversationStatusDirectInput,
@@ -255,6 +268,12 @@ export async function setSupportConversationStatusDirect(
         input.closeReason ?? null,
       ],
     );
-    return { updated: (res.rowCount ?? res.rows.length ?? 0) > 0 };
+    const updated = (res.rowCount ?? res.rows.length ?? 0) > 0;
+    if (!updated) {
+      throw new SupportConversationsDirectWriteError('conversation_not_found', {
+        integratorConversationId: input.integratorConversationId,
+      });
+    }
+    return { updated: true };
   });
 }

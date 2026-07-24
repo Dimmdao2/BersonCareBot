@@ -6,7 +6,6 @@ import { DiaryLfkDirectWriteError } from './writeDiaryLfkDirect.js';
 import {
   SupportConversationsDirectWriteError,
   appendSupportConversationMessageDirect,
-  isSupportConversationsFailClosedError,
   openSupportConversationDirect,
   setSupportConversationStatusDirect,
 } from './writeSupportConversationsDirect.js';
@@ -220,23 +219,14 @@ describe('setSupportConversationStatusDirect (D3 direct public write)', () => {
     expect(result).toEqual({ updated: true });
   });
 
-  it('no-ops (no error) when the conversation row was never opened via D3', async () => {
-    const { db } = createDbMock(baseRouter({ 'support_conversations:status_update': rows([], 0) }));
-    const result = await setSupportConversationStatusDirect(db, {
+  it('throws conversation_not_found (NOT a silent no-op) when the conversation row was never opened via D3 — caller must route this to the durable outbox fallback', async () => {
+    const { db, state } = createDbMock(baseRouter({ 'support_conversations:status_update': rows([], 0) }));
+    const err = await setSupportConversationStatusDirect(db, {
       integratorConversationId: 'integrator-conv-missing',
       status: 'closed',
-    });
-    expect(result).toEqual({ updated: false });
-  });
-});
-
-describe('isSupportConversationsFailClosedError', () => {
-  it('classifies SupportConversationsDirectWriteError and reused D1/D2 fail-closed errors', () => {
-    expect(isSupportConversationsFailClosedError(new SupportConversationsDirectWriteError('conversation_not_found'))).toBe(
-      true,
-    );
-    expect(isSupportConversationsFailClosedError(new DiaryLfkDirectWriteError('no_active_org_enrollment'))).toBe(true);
-    expect(isSupportConversationsFailClosedError(new DirectPublicWriteError('no_platform_user_candidate'))).toBe(true);
-    expect(isSupportConversationsFailClosedError(new Error('unrelated'))).toBe(false);
+    }).catch((e) => e);
+    expect(err).toBeInstanceOf(SupportConversationsDirectWriteError);
+    expect((err as SupportConversationsDirectWriteError).code).toBe('conversation_not_found');
+    expect(state.rolledBack).toBe(true);
   });
 });
