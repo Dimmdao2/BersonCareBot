@@ -1,8 +1,36 @@
--- Mandatory TEST-only strict-policy + FORCE RLS finalizer.
+-- Mandatory strict-policy + FORCE RLS finalizer (TEST-default, PROD-gated).
 --
 -- This is deliberately separate from historical compatibility migration 0177. Every supported TEST
 -- migration/deploy path must run this file after migrations and reviewed policy overlays, before runtime
 -- services restart. It is idempotent and fail-closed.
+--
+-- DB-name gate, plain-language: by default this file ONLY runs against `bersoncarebot_test` (or, with
+-- `-v test_allow_disposable_database=1`, a `bcb_saas_*_scratch_*`/`bcb_saas_*_rehearsal_*` disposable copy
+-- that does not look like prod/test/dev). Passing no extra flag => refuses any prod-named database exactly as
+-- before this header was added; nothing below changes that path.
+--
+-- PROD CUTOVER (owner-gated, one-off): the real production cutover runs this exact file against the real
+-- prod database. That requires an EXPLICIT extra flag, `-v allow_authorized_prod_target=1`, in addition to
+-- (not instead of) `-v test_expected_database=<exact prod DB name>` (already required below). Without the
+-- flag, a prod-named `test_expected_database` is refused exactly like today. With the flag, the file still
+-- requires `current_database()` to equal the operator-supplied `test_expected_database` verbatim — a typo or
+-- mismatch still aborts (fail-closed, division-by-zero abort, same mechanism as every other gate here).
+--
+-- Exact cutover invocation (run by the owner-authorized operator only, per
+-- docs/_TODO/SAAS_FOUNDATION/HARD_MIGRATION_PROTOCOL.md §10 "B1, A2, and product smoke gates" — i.e. AFTER
+-- migrations, data cleanup, settings, runtime roles/grants (§3 of SAAS_PROD_DEPLOY_PROCESS.md), and reviewed
+-- policy overlays, BEFORE runtime services restart):
+--
+--   sudo -u postgres psql -d "$PROD_DB" -X -v ON_ERROR_STOP=1 \
+--     -v allow_authorized_prod_target=1 \
+--     -v test_expected_database="$PROD_DB" \
+--     -v phase4_bootstrap_base_role="$PROD_BOOTSTRAP_ROLE" \
+--     -v phase4_staff_role="$PROD_STAFF_ROLE" \
+--     -v phase4_owner_role="$PROD_OWNER_ROLE" \
+--     -f deploy/postgres/test-strict-rls-finalizer.sql
+--
+-- This does NOT lower any FORCE/policy strictness -- only the DB-name refusal is relaxed, and only when both
+-- the flag is set AND the name matches exactly. No other assertion in this file is weakened by the flag.
 
 \set ON_ERROR_STOP on
 \pset pager off
@@ -20,8 +48,15 @@ SELECT 1 / (current_database() = :'test_expected_database')::int AS test_databas
 \set test_allow_disposable_database 0
 \endif
 
+\if :{?allow_authorized_prod_target}
+\else
+\set allow_authorized_prod_target 0
+\endif
+
 SELECT 1 / (:'test_allow_disposable_database' IN ('0', '1'))::int
   AS test_allow_disposable_database_is_valid;
+SELECT 1 / (:'allow_authorized_prod_target' IN ('0', '1'))::int
+  AS allow_authorized_prod_target_is_valid;
 SELECT 1 / (
   current_database() = 'bersoncarebot_test'
   OR (
@@ -29,7 +64,14 @@ SELECT 1 / (
     AND current_database() ~ '^bcb_saas_[a-z0-9_]*(scratch|rehearsal)_[a-z0-9_]+$'
     AND current_database() !~ '(prod|test|dev)'
   )
-)::int AS test_database_is_canonical_test_or_explicit_disposable;
+  OR (
+    -- PROD cutover unlock (owner-gated). Requires the explicit flag AND an exact match against the
+    -- operator-supplied expected DB name (already hard-asserted above as `test_database_is_expected`,
+    -- re-checked here so this branch never depends on assertion ordering elsewhere in the file).
+    :'allow_authorized_prod_target' = '1'
+    AND current_database() = :'test_expected_database'
+  )
+)::int AS test_database_is_canonical_test_or_explicit_disposable_or_authorized_prod;
 
 \if :{?phase4_bootstrap_base_role}
 \else

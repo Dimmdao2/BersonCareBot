@@ -95,6 +95,38 @@ table ownership can NEVER cover function-level privileges or a separate-identity
 **NEVER run:** the incident's ad-hoc `GRANT ALL ON ALL TABLES/SEQUENCES/FUNCTIONS IN SCHEMA integrator/app` — that
 was pollution, not canonical (see `ROLE_GRANTS_PROVENANCE_AND_PROD_MIGRATION_PLAN.md` §1). Only the overlays above.
 
+## 3.5 Install walls: strict RLS + FORCE (item #9 in §7) — MANUAL invocation, owner-GATED
+**Context:** the policy `\ir` includes (`phase4-locked-helper-rls-policies.sql`, the reviewed overlays, and
+`phase4-force-rls-cutover.sql`) are already generic/reusable — none of them hardcode a TEST database name. The only
+prod blocker was the finalizer's own DB-name guard, which by design refuses to run against anything that isn't
+`bersoncarebot_test` (or an explicitly-flagged disposable rehearsal copy). Per the owner ruling 2026-07-24, that
+refusal is a safety rail for the unattended prep period, not a permanent block — cutover is exactly when this file
+is supposed to run against the real prod DB. `deploy/postgres/test-strict-rls-finalizer.sql` now supports an
+**explicit-flag unlock** for that one-off run (blanket removal of the guard was rejected — the flag stays gated).
+
+**Must run:** AFTER migrations, data cleanup, runtime roles/grants (§3 above), and reviewed policy overlays; BEFORE
+runtime services restart — per `HARD_MIGRATION_PROTOCOL.md` §10 ("B1, A2, and product smoke gates"), which documents
+this exact ordering for the TEST wrapper and applies unchanged to prod.
+
+**Invocation (owner-authorized operator only):**
+```bash
+sudo -u postgres psql -d "$PROD_DB" -X -v ON_ERROR_STOP=1 \
+  -v allow_authorized_prod_target=1 \
+  -v test_expected_database="$PROD_DB" \
+  -v phase4_bootstrap_base_role="$PROD_BOOTSTRAP_ROLE" \
+  -v phase4_staff_role="$PROD_STAFF_ROLE" \
+  -v phase4_owner_role="$PROD_OWNER_ROLE" \
+  -f deploy/postgres/test-strict-rls-finalizer.sql
+```
+- `allow_authorized_prod_target=1` is the explicit gate — omitted or any value other than `1` and the file behaves
+  exactly as it always has on TEST (refuses any non-`bersoncarebot_test`/non-disposable database name).
+- Even with the flag set, the file still hard-requires `current_database()` to equal the operator-supplied
+  `test_expected_database` exactly (fail-closed division-by-zero abort on any mismatch/typo) — the flag alone is
+  never sufficient.
+- The flag changes ONLY the DB-name refusal. No FORCE/policy strictness is lowered; the same exact-163-target FORCE
+  assertion and specialized-policy assertions run identically to TEST.
+- Full guard text + the owner-gated header block: `deploy/postgres/test-strict-rls-finalizer.sql` (top of file).
+
 ## 4. Service deploy + gates (SCRIPTED)
 - Build+release services (mirror `deploy-prod.sh` code path).
 - **Run the same `assert_*` gates the TEST closure runs** (they're env-parameterized — point them at prod env files),
@@ -112,7 +144,7 @@ was pollution, not canonical (see `ROLE_GRANTS_PROVENANCE_AND_PROD_MIGRATION_PLA
 - Verify delivery/alerting live; decommission old host only after owner authorizes + rollback horizon passes.
 
 ## 7. Per-item readiness matrix + gaps (inventory 2026-07-24)
-Cross-cutting finding (READ FIRST): **almost every destructive DB-mutation script has a hard code-level refusal of any DB name containing `prod`/`production`/`live`, with NO override flag** (the "prod untouchable" rule, baked in). So the audited single-command paths are proven on TEST/disposable copies but **cannot literally be pointed at the real prod DB** until a reviewed unlock (`--allow-prod-target` on the guard) or a temporarily-renamed DB is arranged. This is engineering work, separate from the (proven) business logic.
+Cross-cutting finding (READ FIRST): **almost every destructive DB-mutation script has a hard code-level refusal of any DB name containing `prod`/`production`/`live`, with NO override flag** (the "prod untouchable" rule, baked in). So the audited single-command paths are proven on TEST/disposable copies but **cannot literally be pointed at the real prod DB** until a reviewed unlock (an explicit-flag gate on the guard) or a temporarily-renamed DB is arranged. This is engineering work, separate from the (proven) business logic. **#9 is the first item where this unlock is now built** (`-v allow_authorized_prod_target=1`, §3.5) — same explicit-flag pattern (not a blanket removal) is the model for #3's still-open guard.
 
 | # | Step | Asset | Status |
 |---|---|---|---|
@@ -124,11 +156,14 @@ Cross-cutting finding (READ FIRST): **almost every destructive DB-mutation scrip
 | 6 | Cut legacy tables | same R7 drop migration; `appointment_records`/rubitime-mirror archive-then-drop = **PROSE ONLY, no script**; `booking_*` catalog **blocked** on Track C R3-CATALOG (`branchServiceId` removal, not done) | PARTIAL/GAP |
 | 7 | Track D — integrator writes public directly, no HTTP transport | D0/D1/D2 merged (`directPublic/*`); D3–D10 unstarted; doc says "PROD out of scope" now | PARTIAL (3/11); prod-cutover implication undocumented |
 | 8 | Roles + grants | overlays exist + proven on TEST (§3 above); **no `deploy-prod-saas.sh`** (deploy-prod.sh has ZERO grants) | PARTIAL — manual-by-choice; script = taskdb #994, not built |
-| 9 | Install walls (strict RLS + FORCE) | policy `\ir` includes reusable, but finalizer `test-strict-rls-finalizer.sql` hard-asserts DB=`bersoncarebot_test` | GAP — no `prod-strict-rls-finalizer.sql`; authoring gap, not design gap |
+| 9 | Install walls (strict RLS + FORCE) | policy `\ir` includes reusable (verified no hardcoded TEST DB name); finalizer `test-strict-rls-finalizer.sql` now supports an explicit-flag prod unlock (`-v allow_authorized_prod_target=1` + exact `test_expected_database` match) — see §3.5 | EXISTS — invocation documented in §3.5; no separate `prod-strict-rls-finalizer.sql` needed |
 | 10 | Post-cutover verification | `assert-c4-operational-runtime-ready.sh` + `assert_*` gates + `smoke-saas-product.mjs --mode=locked --base-url=…` (env-parameterized, no prod lockout) | COMPLETE — genuinely prod-ready as-is |
 | 11 | Fix ФИО by reviewed table | `apps/webapp/scripts/fio-backfill/*` — hardcoded `targetDatabase="bersoncarebot_test"`, throws if env≠TEST | GAP for prod — TEST-only by design; prod "Phase 9" (`.cursor/plans/fio_identity_cleanup.plan.md`, taskdb #857) unimplemented |
 
-**Ready against prod today:** only #2 (mechanically) + #10 (fully). **Real authoring gaps:** #9 (prod FORCE finalizer), #11 (prod ФИО apply), #5/#6 (archive-then-drop scripts + Track C R3-CATALOG unblock), #7 (Track D D3–D10). **Guard-unlock needed:** #3 (and the shared wrapper #1/#4 ride on it).
+**Ready against prod today:** #2 (mechanically), #9 (walls finalizer, gated flag — §3.5), and #10 (fully). **Real
+authoring gaps:** #11 (prod ФИО apply), #5/#6 (archive-then-drop scripts + Track C R3-CATALOG unblock), #7 (Track D
+D3–D10). **Guard-unlock needed:** #3 (and the shared wrapper #1/#4 ride on it) — #9's own guard-unlock is now done,
+see §3.5.
 
 **Confirmed hard ordering (not preference):** merge #1 → test-cleanup #3 → CSV backfill #4 → legacy-drop #5/#6; roles/grants #8 → walls #9; ФИО #11 after history-normalization; `booking_*` drop needs Track C R3-CATALOG first; a fully-clean #5 needs Track D #7 at D9/D10.
 

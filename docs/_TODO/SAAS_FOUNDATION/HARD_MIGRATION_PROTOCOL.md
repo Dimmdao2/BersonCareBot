@@ -469,6 +469,11 @@ after migrations, data cleanup, settings, runtime roles/grants, reviewed overlay
 The runtime owner must already be `NOBYPASSRLS`, and temporary membership/BYPASS cleanup is asserted again after the
 finalizer. Recovery means fixing code/policy and rerunning; TEST walls are never switched off.
 
+The same file is also the prod-cutover walls installer (owner-gated `-v allow_authorized_prod_target=1` unlock,
+otherwise byte-for-byte the same TEST-only refusal) — exact invocation, ordering proof, and readiness-matrix status
+are in `SAAS_PROD_DEPLOY_PROCESS.md` §3.5 (item #9), which points back to this §10 for the after-grants/
+before-restart ordering.
+
 The wrapper must then reconcile the S3 walkthrough fixture through
 `apps/webapp/scripts/seed-saas-test-walkthrough-fixtures.ts` in a separate controlled TEST-only fixture
 reconciliation window. This happens after migrations, runtime overlays, TEST settings,
