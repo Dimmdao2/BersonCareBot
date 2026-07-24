@@ -1,17 +1,20 @@
 import { describe, expect, it } from "vitest";
-import type { AppSession } from "@/shared/types/session";
+import type { AppSession, UserRole } from "@/shared/types/session";
 import {
   renewSessionIfActive,
   shouldRenewSession,
   decodeSessionCookie,
   encodeSessionCookie,
+  sessionTtlSecondsForRole,
+  SESSION_SLIDING_TTL_SECONDS,
+  SESSION_SLIDING_TTL_STAFF_SECONDS,
 } from "@/modules/auth/sessionCookie";
 
-function makeSession(issuedAt: number, expiresAt: number): AppSession {
+function makeSession(issuedAt: number, expiresAt: number, role: UserRole = "client"): AppSession {
   return {
     user: {
       userId: "u1",
-      role: "client",
+      role,
       displayName: "Test",
       bindings: {},
     },
@@ -97,5 +100,62 @@ describe("sessionCookie sliding", () => {
       operatorSession: null as unknown as AppSession["operatorSession"],
     };
     expect(decodeSessionCookie(encodeSessionCookie(session))).toBeNull();
+  });
+});
+
+describe("sessionTtlSecondsForRole (D1 owner ruling 2026-07-24)", () => {
+  it("gives staff (doctor) a 7-day sliding TTL", () => {
+    expect(sessionTtlSecondsForRole("doctor")).toBe(60 * 60 * 24 * 7);
+    expect(sessionTtlSecondsForRole("doctor")).toBe(SESSION_SLIDING_TTL_STAFF_SECONDS);
+  });
+
+  it("gives global-admin a 7-day sliding TTL, same bucket as doctor", () => {
+    expect(sessionTtlSecondsForRole("admin")).toBe(60 * 60 * 24 * 7);
+    expect(sessionTtlSecondsForRole("admin")).toBe(SESSION_SLIDING_TTL_STAFF_SECONDS);
+  });
+
+  it("leaves the patient (client) TTL at 90 days, unchanged", () => {
+    expect(sessionTtlSecondsForRole("client")).toBe(60 * 60 * 24 * 90);
+    expect(sessionTtlSecondsForRole("client")).toBe(SESSION_SLIDING_TTL_SECONDS);
+  });
+
+  it("renews a doctor session once less than half of the 7-day TTL remains", () => {
+    const now = 1_700_000_000;
+    const ttl = SESSION_SLIDING_TTL_STAFF_SECONDS;
+    const freshEnough = makeSession(now - 100, now + ttl, "doctor");
+    const staleEnough = makeSession(now - 100, now + ttl / 4, "doctor");
+    expect(shouldRenewSession(freshEnough, now)).toBe(false);
+    expect(shouldRenewSession(staleEnough, now)).toBe(true);
+  });
+
+  it("a real (encoded/decoded) doctor cookie past its 7-day expiry is rejected, not kept alive on the old 90-day scale", () => {
+    const now = Math.floor(Date.now() / 1000);
+    // A doctor cookie whose signed expiresAt already sits 1 second in the past. Under the old
+    // (pre-D1) shared 90-day constant this offset would still be "fresh"; decodeSessionCookie
+    // must reject strictly on the signed expiresAt regardless of role, so a short-TTL doctor
+    // cookie that has actually expired is never resurrected.
+    const session = makeSession(now - 60 * 60 * 24 * 7 - 1, now - 1, "doctor");
+    const encoded = encodeSessionCookie(session);
+    expect(decodeSessionCookie(encoded)).toBeNull();
+  });
+
+  it("renews an admin session once less than half of its own 7-day TTL remains, same rule as doctor", () => {
+    const now = 1_700_000_000;
+    const ttl = SESSION_SLIDING_TTL_STAFF_SECONDS;
+    const freshEnough = makeSession(now - 100, now + ttl, "admin");
+    const staleEnough = makeSession(now - 100, now + ttl / 4, "admin");
+    expect(shouldRenewSession(freshEnough, now)).toBe(false);
+    expect(shouldRenewSession(staleEnough, now)).toBe(true);
+  });
+
+  it("renewSessionIfActive extends a staff session by the 7-day staff TTL, not the 90-day patient TTL", () => {
+    const issuedAt = Math.floor(Date.now() / 1000) - 100;
+    const session = makeSession(issuedAt, issuedAt + 1000, "doctor");
+    const renewed = renewSessionIfActive(session);
+    const nowSec = Math.floor(Date.now() / 1000);
+    expect(renewed.expiresAt).toBeGreaterThanOrEqual(nowSec + SESSION_SLIDING_TTL_STAFF_SECONDS - 5);
+    expect(renewed.expiresAt).toBeLessThanOrEqual(nowSec + SESSION_SLIDING_TTL_STAFF_SECONDS + 5);
+    // Sanity: proves the extension genuinely used the shorter staff bucket, not the patient one.
+    expect(renewed.expiresAt).toBeLessThan(nowSec + SESSION_SLIDING_TTL_SECONDS);
   });
 });

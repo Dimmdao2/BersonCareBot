@@ -304,4 +304,71 @@ describe("getCurrentSession identity-self concurrency", () => {
     expect(mocks.stampDbPrincipalFromSession).not.toHaveBeenCalled();
     expect(getCurrentDbPrincipal()).toBeUndefined();
   });
+
+  // D1 — session_version / logout-everywhere enforcement. `app.revoke_staff_sessions()` bumps
+  // `staff_security_profiles.session_version`; every request re-reads it via
+  // `pgUserByPhonePort.findByUserId()` and compares it against the version embedded in the signed
+  // cookie at login. A mismatch must reject the cookie fail-closed (see service.ts ~L912).
+  describe("staff security_version enforcement (revoke-everywhere)", () => {
+    it("rejects a staff cookie whose embedded security version is behind the DB's after a revoke bumped it", async () => {
+      const staleCookieUser = { ...doctorUser(), securityVersion: 1 };
+      mocks.decodedSession = {
+        user: staleCookieUser,
+        issuedAt: 1,
+        expiresAt: 9_999_999_999,
+      } satisfies AppSession;
+      // Simulates `app.revoke_staff_sessions()` having bumped session_version to 2 in the DB —
+      // this cookie was issued before the revoke and must be treated as logged out.
+      mocks.findByUserId.mockResolvedValue({ ...staleCookieUser, securityVersion: 2 });
+      mocks.getVerifiedEmailForUser.mockResolvedValue(null);
+      mocks.isVerifiedEmailGlobalAdminAsync.mockResolvedValue(false);
+
+      const session = await runWithDbBootstrapPrincipal(
+        { source: "service.sessionConcurrency.revoked-version" },
+        () => getCurrentSession(),
+      );
+
+      expect(session).toBeNull();
+    });
+
+    it("accepts a staff cookie whose embedded security version matches the DB's current version", async () => {
+      const currentUser = { ...doctorUser(), securityVersion: 2 };
+      mocks.decodedSession = {
+        user: currentUser,
+        issuedAt: 1,
+        expiresAt: 9_999_999_999,
+      } satisfies AppSession;
+      mocks.findByUserId.mockResolvedValue({ ...currentUser, securityVersion: 2 });
+      mocks.getVerifiedEmailForUser.mockResolvedValue(null);
+      mocks.isVerifiedEmailGlobalAdminAsync.mockResolvedValue(false);
+
+      const session = await runWithDbBootstrapPrincipal(
+        { source: "service.sessionConcurrency.current-version" },
+        () => getCurrentSession(),
+      );
+
+      expect(session?.user.role).toBe("doctor");
+      expect(session?.user.securityVersion).toBe(2);
+    });
+
+    it("accepts a legacy pre-versioning cookie against a never-revoked profile — both default to version 0, so no deploy-wide logout", async () => {
+      const legacyUser = doctorUser(); // no `securityVersion` field, as pre-migration cookies are
+      mocks.decodedSession = {
+        user: legacyUser,
+        issuedAt: 1,
+        expiresAt: 9_999_999_999,
+      } satisfies AppSession;
+      // DB row also has never seen a revoke, so its session_version is still 0 (unset).
+      mocks.findByUserId.mockResolvedValue(legacyUser);
+      mocks.getVerifiedEmailForUser.mockResolvedValue(null);
+      mocks.isVerifiedEmailGlobalAdminAsync.mockResolvedValue(false);
+
+      const session = await runWithDbBootstrapPrincipal(
+        { source: "service.sessionConcurrency.legacy-no-version" },
+        () => getCurrentSession(),
+      );
+
+      expect(session?.user.role).toBe("doctor");
+    });
+  });
 });

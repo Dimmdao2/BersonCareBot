@@ -8,7 +8,12 @@ import { FRESH_LOGIN_COOKIE_NAME, SESSION_COOKIE_NAME } from "@/modules/auth/ses
 export { FRESH_LOGIN_COOKIE_NAME, SESSION_COOKIE_NAME } from "@/modules/auth/sessionCookieNames";
 const FRESH_LOGIN_COOKIE_MAX_AGE_SEC = 120;
 export const SESSION_SLIDING_TTL_SECONDS = 60 * 60 * 24 * 90;
-export const SESSION_SLIDING_TTL_DOCTOR_SECONDS = 60 * 60 * 24 * 90;
+/**
+ * Owner ruling (D1, stability plan §Phase 2): staff (doctor) and global-admin sessions get a
+ * short sliding TTL so `app.revoke_staff_sessions()` / logout-everywhere has a bounded blast
+ * radius even before a next login. Patient TTL is untouched at 90 days.
+ */
+export const SESSION_SLIDING_TTL_STAFF_SECONDS = 60 * 60 * 24 * 7;
 
 /** Минимальный интервал между продлениями cookie (сек). */
 const RENEW_MIN_INTERVAL_SEC = 60 * 60 * 24;
@@ -24,7 +29,11 @@ function safeEqual(a: string, b: string): boolean {
 }
 
 export function sessionTtlSecondsForRole(role: SessionUser["role"]): number {
-  return role === "doctor" ? SESSION_SLIDING_TTL_DOCTOR_SECONDS : SESSION_SLIDING_TTL_SECONDS;
+  // Staff = doctor + global-admin (`admin`). Owner ruling 2026-07-24: both get the short 7-day
+  // sliding TTL; only the patient (`client`) role keeps the 90-day TTL.
+  return role === "doctor" || role === "admin"
+    ? SESSION_SLIDING_TTL_STAFF_SECONDS
+    : SESSION_SLIDING_TTL_SECONDS;
 }
 
 export function encodeSessionCookie(session: AppSession): string {
