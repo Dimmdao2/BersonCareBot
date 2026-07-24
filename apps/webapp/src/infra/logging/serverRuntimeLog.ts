@@ -26,8 +26,10 @@ export function logServerRuntimeError(
       scope,
       digest,
       errName: name,
-      errMessage: message,
-      err: err instanceof Error ? err : serializeError(err),
+      // Raw `err.message` never goes into the log payload verbatim (same safe-by-construction
+      // contract as `serializeError`/L1) — it is only returned to the caller below for a
+      // dev-gated UI display, never logged.
+      err: serializeError(err),
       ...extra,
     },
     "server_runtime_error",

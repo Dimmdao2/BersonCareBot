@@ -32,7 +32,9 @@ describe("logServerRuntimeError", () => {
     expect(msg).toBe("server_runtime_error");
     expect(payload.scope).toBe("test.scope");
     expect(payload.digest).toBe(r.digest);
-    expect(payload.errMessage).toBe("connection refused");
+    // Raw error message must never be a logged field — only returned to the caller
+    // (dev-gated UI display), see logServerRuntimeError.
+    expect(payload).not.toHaveProperty("errMessage");
     expect(payload.route).toBe("/x");
   });
 });

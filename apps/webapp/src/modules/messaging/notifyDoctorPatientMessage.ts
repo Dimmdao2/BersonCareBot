@@ -13,6 +13,7 @@ import {
   isWebappPlatformConversationId,
   webappPlatformConversationId,
 } from "@/modules/messaging/supportConversationIds";
+import { logger, serializeError } from "@/infra/logging/logger";
 
 export function buildDoctorMessagesOpenPath(platformUserId: string): string {
   const convKey = encodeURIComponent(webappPlatformConversationId(platformUserId));
@@ -103,7 +104,7 @@ export async function notifyDoctorPatientMessage(
       },
       opts.staffDeps,
     ).catch((err: unknown) => {
-      console.error("[notifyDoctorPatientMessage] staff notify error:", err);
+      logger.error({ err: serializeError(err) }, "[notifyDoctorPatientMessage] staff notify error");
     });
     return;
   }

@@ -4,6 +4,7 @@
 import type { SupportCommunicationPort, SupportConversationMessageRow } from "@/infra/repos/pgSupportCommunication";
 import { isSupportChatMessage } from "@/shared/lib/supportMessageKinds";
 import { serializeSupportMessage, type SerializedSupportMessage } from "@/modules/messaging/serializeSupportMessage";
+import { logger, serializeError } from "@/infra/logging/logger";
 
 const MAX_LEN = 4000;
 
@@ -33,7 +34,7 @@ export function createPatientMessagingService(
     }> {
       const { id } = await port.ensureWebappConversationForUser(platformUserId);
       await port.mergeLegacySupportConversationsForPlatformUser?.(platformUserId).catch((err: unknown) => {
-        console.error("[patientMessaging] merge legacy conversations error:", err);
+        logger.error({ err: serializeError(err) }, "[patientMessaging] merge legacy conversations error");
       });
       const messages = await port.listMessagesSince(id, { sinceCreatedAt: null, limit: 100 });
       return { conversationId: id, messages: messages.filter(isSupportChatMessage) };
@@ -73,7 +74,7 @@ export function createPatientMessagingService(
       const integratorMessageId = `webapp-msg:${crypto.randomUUID()}`;
       const now = new Date().toISOString();
       await port.mergeLegacySupportConversationsForPlatformUser?.(platformUserId).catch((err: unknown) => {
-        console.error("[patientMessaging] merge legacy conversations error:", err);
+        logger.error({ err: serializeError(err) }, "[patientMessaging] merge legacy conversations error");
       });
       const { id: targetConversationId } = await port.ensureWebappConversationForUser(platformUserId);
 
@@ -100,7 +101,7 @@ export function createPatientMessagingService(
             patientLabel,
           });
         })().catch((err: unknown) => {
-          console.error("[patientMessaging] doctor notify error:", err);
+          logger.error({ err: serializeError(err) }, "[patientMessaging] doctor notify error");
         });
       }
 
@@ -132,7 +133,7 @@ export function createPatientMessagingService(
 
     async unreadCount(platformUserId: string): Promise<number> {
       await port.mergeLegacySupportConversationsForPlatformUser?.(platformUserId).catch((err: unknown) => {
-        console.error("[patientMessaging] merge legacy conversations error:", err);
+        logger.error({ err: serializeError(err) }, "[patientMessaging] merge legacy conversations error");
       });
       return port.countUnreadForUser(platformUserId);
     },

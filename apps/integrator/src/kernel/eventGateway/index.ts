@@ -7,6 +7,7 @@ import type {
 import { incomingEventSchema } from '../contracts/index.js';
 import { buildDedupKey } from './dedup.js';
 import { checkGatewayRateLimit } from './rateLimit.js';
+import { logger, serializeError } from '../../infra/observability/logger.js';
 
 /**
  * Зависимости eventGateway.
@@ -70,10 +71,10 @@ export function createEventGateway(deps: EventGatewayDeps = {}): EventGateway {
             try {
               await release(dedupKey);
             } catch (releaseErr) {
-              console.error('eventGateway dedup release failed', releaseErr);
+              logger.error({ err: serializeError(releaseErr) }, 'eventGateway dedup release failed');
             }
           }
-          console.error('eventGateway pipeline failed', error);
+          logger.error({ err: serializeError(error) }, 'eventGateway pipeline failed');
           return {
             status: 'rejected',
             dedupKey,
