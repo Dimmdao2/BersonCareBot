@@ -2250,8 +2250,9 @@ export async function runSaasTestFixtureCli(options: {
   try {
     await run(options.env);
     return 0;
-  } catch {
-    writeError('[saas-test-fixture] FAILED\n');
+  } catch (error) {
+    const detail = error instanceof Error ? (error.stack ?? error.message) : String(error);
+    writeError(`[saas-test-fixture] FAILED: ${detail}\n`);
     return 1;
   }
 }
