@@ -462,8 +462,8 @@ function assertOperationalSqlAndDeploy(loaded) {
     5,
   );
   requireFragments(files.jobQueue, loaded.jobQueue, [
-    "FROM integrator.rubitime_create_retry_jobs",
-    "UPDATE integrator.rubitime_create_retry_jobs",
+    "FROM integrator.message_retry_jobs",
+    "UPDATE integrator.message_retry_jobs",
   ]);
   requireFragments(files.operationalSql, loaded.operationalSql, [
     "WITH INHERIT FALSE, SET TRUE",
@@ -1240,8 +1240,8 @@ if (process.argv.includes("--self-test")) {
     "projection_outbox",
   );
   const jobQueueUnqualified = read(files.jobQueue).replaceAll(
-    "integrator.rubitime_create_retry_jobs",
-    "rubitime_create_retry_jobs",
+    "integrator.message_retry_jobs",
+    "message_retry_jobs",
   );
   const mediaClaimAmbiguousRetry = read(files.mediaClaim).replaceAll(
     "j.next_attempt_at",

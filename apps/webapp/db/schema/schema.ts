@@ -2471,7 +2471,7 @@ export const rubitimeBranches = pgTable("rubitime_branches", {
 	unique("rubitime_branches_rubitime_branch_id_key").on(table.rubitimeBranchId),
 ]);
 
-export const rubitimeCreateRetryJobs = pgTable("rubitime_create_retry_jobs", {
+export const messageRetryJobs = pgTable("message_retry_jobs", {
 	id: bigserial({ mode: "bigint" }).primaryKey().notNull(),
 	phoneNormalized: text("phone_normalized"),
 	messageText: text("message_text"),
@@ -2485,7 +2485,7 @@ export const rubitimeCreateRetryJobs = pgTable("rubitime_create_retry_jobs", {
 	kind: text().default('message.deliver').notNull(),
 	payloadJson: jsonb("payload_json"),
 }, (table) => [
-	index("idx_rubitime_create_retry_jobs_due").using("btree", table.status.asc().nullsLast().op("text_ops"), table.nextTryAt.asc().nullsLast().op("text_ops")),
+	index("idx_message_retry_jobs_due").using("btree", table.status.asc().nullsLast().op("text_ops"), table.nextTryAt.asc().nullsLast().op("text_ops")),
 ]);
 
 export const bookingCalendarMap = pgTable("booking_calendar_map", {

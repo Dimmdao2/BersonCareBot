@@ -29,7 +29,7 @@ const TABLES: Array<{ schema: string; table: string }> = [
   { schema: "integrator", table: "rubitime_events" },
   { schema: "integrator", table: "rubitime_records" },
   { schema: "integrator", table: "rubitime_booking_profiles" },
-  { schema: "integrator", table: "rubitime_create_retry_jobs" },
+  { schema: "integrator", table: "message_retry_jobs" },
   { schema: "integrator", table: "contacts" },
   { schema: "public", table: "user_channel_bindings" },
   { schema: "integrator", table: "conversations" },

@@ -363,14 +363,14 @@ async function info(phone: string): Promise<void> {
       [digs],
     );
     const rj = await integratorDb.query<{ cnt: number }>(
-      `SELECT count(*)::int AS cnt FROM rubitime_create_retry_jobs
+      `SELECT count(*)::int AS cnt FROM message_retry_jobs
        WHERE regexp_replace(phone_normalized, '\\D', '', 'g') = $1`,
       [digs],
     );
     console.log("\nIntegrator (очищается при reset-user):");
     console.log(`  users.id (удаление строки users + CASCADE): ${intIds.length ? intIds.join(", ") : "—"}`);
     console.log(`  rubitime_records: ${rub.rows[0]?.cnt ?? 0}`);
-    console.log(`  rubitime_create_retry_jobs: ${rj.rows[0]?.cnt ?? 0}`);
+    console.log(`  message_retry_jobs: ${rj.rows[0]?.cnt ?? 0}`);
   } else {
     console.log("\nIntegrator: URL не задан (INTEGRATOR_DATABASE_URL / api.prod) — блок integrator пропущен.");
   }

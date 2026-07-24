@@ -67,17 +67,17 @@ SELECT 'projection_outbox_dead' AS metric, count(*)::bigint AS rows
 FROM integrator.projection_outbox
 WHERE status = 'dead';
 
-SELECT 'rubitime_create_retry_jobs' AS queue, status, count(*)::bigint AS rows
-FROM integrator.rubitime_create_retry_jobs
+SELECT 'message_retry_jobs' AS queue, status, count(*)::bigint AS rows
+FROM integrator.message_retry_jobs
 GROUP BY status
 ORDER BY status;
 
-SELECT 'rubitime_create_retry_jobs_due' AS metric, count(*)::bigint AS rows
-FROM integrator.rubitime_create_retry_jobs
+SELECT 'message_retry_jobs_due' AS metric, count(*)::bigint AS rows
+FROM integrator.message_retry_jobs
 WHERE status = 'pending' AND next_try_at <= now();
 
-SELECT 'rubitime_create_retry_jobs_dead_or_failed' AS metric, count(*)::bigint AS rows
-FROM integrator.rubitime_create_retry_jobs
+SELECT 'message_retry_jobs_dead_or_failed' AS metric, count(*)::bigint AS rows
+FROM integrator.message_retry_jobs
 WHERE status IN ('dead', 'failed');
 SQL
 ```
@@ -86,8 +86,14 @@ Pass criteria before route removal:
 
 - `projection_outbox_due = 0`
 - `projection_outbox_dead = 0`, or every dead row is owner-reviewed and waived/archived
-- `rubitime_create_retry_jobs_due = 0`
-- `rubitime_create_retry_jobs_dead_or_failed = 0`, or every row is owner-reviewed and waived/archived
+- `message_retry_jobs_due = 0`
+- `message_retry_jobs_dead_or_failed = 0`, or every row is owner-reviewed and waived/archived
+
+Note (2026-07-24): the physical table `integrator.rubitime_create_retry_jobs` was renamed to
+`integrator.message_retry_jobs` -- it is permanent generic message-delivery infra
+(`apps/integrator/src/infra/db/migrations/core/20260724_0001_rename_rubitime_create_retry_jobs_to_message_retry_jobs.sql`),
+not a Rubitime raw-table drain/archive/drop target. These queries still make sense as an operational health check of
+the retry queue, but they are not part of the Rubitime provider cutoff/drain proper.
 
 Optional existing helper:
 

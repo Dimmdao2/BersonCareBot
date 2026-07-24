@@ -395,7 +395,7 @@ export async function deleteIntegratorPhoneData(
 
     await runPurgeClientPgText(
       client,
-      `DELETE FROM rubitime_create_retry_jobs
+      `DELETE FROM message_retry_jobs
        WHERE regexp_replace(phone_normalized, '\\D', '', 'g') = $1`,
       [digs],
     );

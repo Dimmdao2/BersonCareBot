@@ -81,7 +81,7 @@ Classification:
 - `integrator.rubitime_records`: live Rubitime raw/projection runtime state.
 - `integrator.booking_calendar_map`: technical integration map.
 - `integrator.rubitime_api_throttle`: live one-row provider throttle state.
-- `integrator.rubitime_create_retry_jobs`: live technical retry queue.
+- `integrator.message_retry_jobs` (renamed from `rubitime_create_retry_jobs` 2026-07-24): live technical retry queue.
 - `integrator.rubitime_branches/services/cooperators/booking_profiles`: deprecated v1 profile catalog, still referenced by legacy fallback/admin paths.
 
 Evidence:
@@ -167,7 +167,7 @@ Open cleanup:
 
 Classification:
 
-- Technical runtime state: `integrator.projection_outbox`, `public.outgoing_delivery_queue`, `public.integrator_push_outbox`, `integrator.rubitime_create_retry_jobs`, `public.idempotency_keys`, `integrator.idempotency_keys`, `integrator.rubitime_api_throttle`, `public.operator_job_status`, `public.integration_webhook_last_status`.
+- Technical runtime state: `integrator.projection_outbox`, `public.outgoing_delivery_queue`, `public.integrator_push_outbox`, `integrator.message_retry_jobs` (renamed from `rubitime_create_retry_jobs` 2026-07-24), `public.idempotency_keys`, `integrator.idempotency_keys`, `integrator.rubitime_api_throttle`, `public.operator_job_status`, `public.integration_webhook_last_status`.
 - Technical telemetry/ops audit: `public.notification_delivery_attempts`, `integrator.delivery_attempt_logs`, `public.integration_webhook_error_events`, `public.operator_incidents`, `public.operator_health_alert_sent`, `public.operator_health_failure_archive`, `integrator.integration_data_quality_incidents`.
 - Business/audit canon: `public.broadcast_audit`, `public.broadcast_audit_recipients`, reminder occurrence/history/log tables, support delivery events, `public.admin_audit_log`.
 

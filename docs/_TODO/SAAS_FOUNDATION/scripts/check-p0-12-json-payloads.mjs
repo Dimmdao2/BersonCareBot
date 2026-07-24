@@ -50,7 +50,7 @@ const expectedRows = new Map([
   ["integrator.projection_outbox", "payload,last_error"],
   ["public.outgoing_delivery_queue", "payload_json,last_error"],
   ["integrator.delivery_attempt_logs", "payload_json,reason"],
-  ["integrator.rubitime_create_retry_jobs", "message_text,payload_json,last_error"],
+  ["integrator.message_retry_jobs", "message_text,payload_json,last_error"],
   ["integrator.rubitime_records", "payload_json,phone_normalized"],
   ["integrator.rubitime_events", "payload_json"],
   ["public.appointment_records", "payload_json,phone_normalized"],
