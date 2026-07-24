@@ -90,12 +90,15 @@ export function DoctorModal({
   };
 
   if (isMobile) {
+    // `data-[side=bottom]:rounded-t-2xl` below (not a plain `rounded-t-*`) matches the
+    // modifier the base Sheet primitive uses for its own default radius, so this override
+    // reliably wins the class merge instead of racing it via unrelated CSS cascade order.
     return (
       <Sheet open={open} onOpenChange={handleOpenChange}>
         <SheetContent
           side="bottom"
           showCloseButton
-          className="flex max-h-[92dvh] flex-col gap-0 overflow-hidden rounded-t-xl p-0"
+          className="flex max-h-[92dvh] flex-col gap-0 overflow-hidden p-0 data-[side=bottom]:rounded-t-2xl"
         >
           <SheetHeader className="shrink-0 border-b border-border/60 px-4 pt-4 pb-3 pr-12">
             <SheetTitle>{title}</SheetTitle>

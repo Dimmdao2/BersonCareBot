@@ -73,6 +73,7 @@ export function DoctorTimeColumn({
             key={slot}
             ref={isSelected ? selectedRef : undefined}
             type="button"
+            variant="ghost"
             role="option"
             aria-selected={isSelected}
             disabled={disabled}

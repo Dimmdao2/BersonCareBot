@@ -311,7 +311,14 @@ describe("DoctorTodayDashboard", () => {
     expect(firstRowLink).toContainElement(screen.getByLabelText("Отметки упражнений за сегодня: 1"));
     expect(firstRowLink).toContainElement(screen.getByLabelText("Новые комментарии по упражнениям: 1"));
     expect(firstRowLink.querySelector("button")).toBeNull();
-    expect(firstRowLink.closest("ul")?.className).not.toMatch(/\bborder\b|\brounded-/);
+    // No card chrome around the whole list (no rounding); the hairline divider between
+    // rows now lives on the wrapper as `[&>li+li]:border-t` instead of on each row's
+    // `first:border-t-0`, which broke for this exact shape — the row class sits on the
+    // <a>, and the <a> is always its own <li>'s first child, so `first:` always matched
+    // and silently deleted every divider. See DoctorDnaFlatListRow.tsx.
+    const list = firstRowLink.closest("ul");
+    expect(list?.className).not.toMatch(/\brounded-/);
+    expect(list?.className).toContain("[&>li+li]:border-t");
 
     const keyboardClick = vi.fn((event: MouseEvent) => event.preventDefault());
     firstRowLink.addEventListener("click", keyboardClick);

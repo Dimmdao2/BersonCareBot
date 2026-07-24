@@ -4,6 +4,7 @@ import { render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 import { DoctorSection } from "@/shared/ui/doctor/DoctorSection";
 import {
+  doctorDnaFlatListClass,
   doctorDnaFlatListClickableClass,
   doctorDnaFlatListInsetClass,
   doctorDnaFlatListPrimaryClass,
@@ -72,14 +73,18 @@ describe("doctor presentation chrome", () => {
     expect(doctorDnaFlatListRowClass).toContain(
       "px-[var(--doctor-list-inline-padding,18px)]",
     );
-    expect(doctorDnaFlatListRowClass).toContain("border-t");
-    expect(doctorDnaFlatListRowClass).toContain(
-      "border-t-[var(--doctor-flat-list-divider,#f0efeb)]",
-    );
+    // The divider lives on the `<ul>` wrapper (`> li + li`), not on the row class itself:
+    // the row class is applied both directly to `<li>` (TeamSection) and to an inner
+    // `<Link>`/`<Button>` that is always its `<li>`'s first child (Patients/Today/Messages
+    // lists). A `first:` self-check on the row class would always match in the second shape
+    // and silently delete every divider — see DoctorDnaFlatListRow.tsx for the incident.
+    expect(doctorDnaFlatListRowClass).toContain("border-t-0");
     expect(doctorDnaFlatListRowClass).toContain("border-x-0");
     expect(doctorDnaFlatListRowClass).toContain("border-b-0");
-    expect(doctorDnaFlatListRowClass).not.toContain(
-      "border-[var(--doctor-flat-list-divider,#f0efeb)]",
+    expect(doctorDnaFlatListRowClass).not.toContain("first:");
+    expect(doctorDnaFlatListClass).toContain("[&>li+li]:border-t");
+    expect(doctorDnaFlatListClass).toContain(
+      "[&>li+li]:border-t-[var(--doctor-flat-list-divider,#f0efeb)]",
     );
     expect(doctorDnaFlatListClickableClass).toContain("hover:bg-muted");
     expect(doctorDnaFlatListPrimaryClass).toContain("text-base");
