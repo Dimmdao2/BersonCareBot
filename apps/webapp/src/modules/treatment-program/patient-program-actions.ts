@@ -24,6 +24,7 @@ import {
   resolvePatientPlanPassageWindowUtc,
   type PatientPlanPassageStats,
 } from "./patient-plan-passage-stats";
+import { logger, serializeError } from "@/infra/logging/logger";
 
 export type { PatientPlanPassageStats } from "./patient-plan-passage-stats";
 
@@ -475,7 +476,7 @@ export function createTreatmentProgramPatientActionService(deps: {
             patientLabel,
           });
         })().catch((err: unknown) => {
-          console.error("[patient-program-note] notify failed", err);
+          logger.error({ err: serializeError(err) }, "[patient-program-note] notify failed");
         });
       }
       return savedMessage;
@@ -550,7 +551,7 @@ export function createTreatmentProgramPatientActionService(deps: {
             patientLabel,
           });
         })().catch((err: unknown) => {
-          console.error("[patient-program-note] notify failed", err);
+          logger.error({ err: serializeError(err) }, "[patient-program-note] notify failed");
         });
       }
     },

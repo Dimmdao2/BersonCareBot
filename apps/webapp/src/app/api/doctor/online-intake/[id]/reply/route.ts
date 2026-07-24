@@ -10,6 +10,7 @@ import { getOnlineIntakeService } from "@/app-layer/di/onlineIntakeDeps";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import { requireDoctorWorkspaceApiContext } from "@/app-layer/guards/requireRole";
 import { withDoctorWorkspacePrincipal } from "@/app-layer/guards/doctorWorkspacePrincipal";
+import { logger, serializeError } from "@/infra/logging/logger";
 
 const bodySchema = z.object({
   text: z.string().min(1).max(4000),
@@ -66,7 +67,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
         }),
       );
     } catch (err) {
-      console.error("[reply-route] auto-transition new→in_review failed:", err);
+      logger.error({ err: serializeError(err) }, "[reply-route] auto-transition new→in_review failed");
     }
   }
 

@@ -3,6 +3,7 @@
  * Используется для рассылок, lifecycle записи и т.п. (без notifyPatientDoctorReply).
  */
 import type { PatientInboundChatPort } from "@/modules/messaging/ports";
+import { logger, serializeError } from "@/infra/logging/logger";
 
 const MAX_TEXT_LEN = 4000;
 
@@ -29,7 +30,7 @@ export async function appendPatientInboundAdminMessage(
   if (!text && !params.mediaUrl) return null;
 
   await port.mergeLegacySupportConversationsForPlatformUser?.(params.platformUserId).catch((err: unknown) => {
-    console.error("[appendPatientInboundAdminMessage] merge legacy error:", err);
+    logger.error({ err: serializeError(err) }, "[appendPatientInboundAdminMessage] merge legacy error");
   });
 
   const { id: conversationId } = await port.ensureWebappConversationForUser(params.platformUserId);

@@ -346,6 +346,11 @@ export async function executeIntegratorPlatformUserMerge(params: {
 
       const errBody = parseIntegratorMergeHttpDetails(merged.bodyText);
       const http = merged.status >= 400 && merged.status < 600 ? merged.status : 502;
+      // Only a validated error code goes into logs/audit (never the raw M2M response body,
+      // which may echo back caller-supplied fields); the raw parsed body is still returned
+      // to the authenticated operator via `details` below (live API response, not a log copy).
+      const safeErrorCode =
+        parsedHttpErr.error ?? `integrator_merge_failed status=${merged.status}`;
       await recordIntegratorMergeFailure({
         pool,
         actorId,
@@ -353,7 +358,7 @@ export async function executeIntegratorPlatformUserMerge(params: {
         duplicateId,
         dryRun,
         phase: "integrator_m2m",
-        error: merged.bodyText || `integrator_merge_failed status=${merged.status}`,
+        error: safeErrorCode,
         httpStatus: merged.status,
       });
       return {

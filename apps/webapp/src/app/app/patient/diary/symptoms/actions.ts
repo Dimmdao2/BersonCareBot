@@ -11,6 +11,7 @@ import {
 } from "./symptomEntryDedup";
 import { isSymptomJournalEntryEditable } from "./symptomJournalEditWindow";
 import { isGeneralWellbeingTracking } from "@/modules/patient-mood/wellbeingConstants";
+import { logger, serializeError } from "@/infra/logging/logger";
 
 function parseOptionalId(raw: unknown): string | null {
   if (typeof raw !== "string") return null;
@@ -99,7 +100,7 @@ export async function addSymptomEntry(
       notes,
     });
   } catch (err) {
-    console.error("addSymptomEntry failed:", err);
+    logger.error({ err: serializeError(err) }, "addSymptomEntry failed");
     return { ok: false };
   }
   revalidatePath(routePaths.diary);
@@ -134,7 +135,7 @@ export async function renameSymptomTracking(formData: FormData): Promise<{ ok: b
       symptomTitle: newTitle,
     });
   } catch (e) {
-    console.error("renameSymptomTracking", e);
+    logger.error({ err: serializeError(e) }, "renameSymptomTracking failed");
     return { ok: false };
   }
   revalidatePath(routePaths.diary);
@@ -156,7 +157,7 @@ export async function archiveSymptomTracking(formData: FormData): Promise<{ ok: 
       trackingId,
     });
   } catch (e) {
-    console.error("archiveSymptomTracking", e);
+    logger.error({ err: serializeError(e) }, "archiveSymptomTracking failed");
     return { ok: false };
   }
   revalidatePath(routePaths.diary);
@@ -202,7 +203,7 @@ export async function updateSymptomJournalEntry(formData: FormData): Promise<{ o
       notes,
     });
   } catch (e) {
-    console.error("updateSymptomJournalEntry", e);
+    logger.error({ err: serializeError(e) }, "updateSymptomJournalEntry failed");
     return { ok: false };
   }
   revalidatePath(routePaths.diary);
@@ -227,7 +228,7 @@ export async function deleteSymptomJournalEntry(formData: FormData): Promise<{ o
   try {
     await deps.diaries.deleteSymptomEntry({ userId, entryId });
   } catch (e) {
-    console.error("deleteSymptomJournalEntry", e);
+    logger.error({ err: serializeError(e) }, "deleteSymptomJournalEntry failed");
     return { ok: false };
   }
   revalidatePath(routePaths.diary);

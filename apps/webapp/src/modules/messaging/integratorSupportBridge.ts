@@ -5,6 +5,7 @@ import {
 import type { NotifyPatientDoctorReplyParams } from "@/modules/messaging/notifyPatientDoctorReply";
 import { NOTIFICATION_TOPIC_SUPPORT_MESSAGES } from "@/modules/patient-notifications/notificationTopicCodes";
 import type { SendProgramNoteReply } from "@/modules/messaging/sendProgramNoteReply";
+import { logger, serializeError } from "@/infra/logging/logger";
 
 export type IntegratorSupportSyncMessageInput = {
   platformUserId: string;
@@ -47,7 +48,7 @@ export function createIntegratorSupportBridge(deps: {
 
       const { id: conversationId, organizationId } = await deps.port.ensureWebappConversationForUser(platformUserId);
       await deps.port.mergeLegacySupportConversationsForPlatformUser?.(platformUserId).catch((err: unknown) => {
-        console.error("[integratorSupportBridge] merge legacy conversations error:", err);
+        logger.error({ err: serializeError(err) }, "[integratorSupportBridge] merge legacy conversations error");
       });
 
       await deps.port.appendWebappMessage({
@@ -76,7 +77,7 @@ export function createIntegratorSupportBridge(deps: {
             source,
           })
           .catch((err: unknown) => {
-            console.error("[integratorSupportBridge] doctor notify error:", err);
+            logger.error({ err: serializeError(err) }, "[integratorSupportBridge] doctor notify error");
           });
       }
 

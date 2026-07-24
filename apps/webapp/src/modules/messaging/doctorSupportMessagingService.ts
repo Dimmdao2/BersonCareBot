@@ -4,6 +4,7 @@
 import type { SupportCommunicationPort } from "@/infra/repos/pgSupportCommunication";
 import type { AdminConversationListRow, SupportConversationMessageRow } from "@/infra/repos/pgSupportCommunication";
 import { isSupportChatMessage } from "@/shared/lib/supportMessageKinds";
+import { logger, serializeError } from "@/infra/logging/logger";
 import { relayOutbound, type RelayOutboundDeps } from "./relayOutbound";
 import type { NotifyPatientDoctorReplyParams } from "./notifyPatientDoctorReply";
 
@@ -91,7 +92,7 @@ export function createDoctorSupportMessagingService(
             text: trimmed,
           })
           .catch((err: unknown) => {
-            console.error("[doctorSupport] patient notify error:", err);
+            logger.error({ err: serializeError(err) }, "[doctorSupport] patient notify error");
           });
       } else if (channelCode && channelExternalId) {
         // Legacy: диалог без platform_user_id — только канал из projection
@@ -104,7 +105,7 @@ export function createDoctorSupportMessagingService(
           },
           opts,
         ).catch((err: unknown) => {
-          console.error("[doctorSupport] relay error:", err);
+          logger.error({ err: serializeError(err) }, "[doctorSupport] relay error");
         });
       }
 

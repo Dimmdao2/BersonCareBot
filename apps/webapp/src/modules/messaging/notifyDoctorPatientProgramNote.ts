@@ -9,6 +9,7 @@ import {
 } from "@/modules/doctor-notifications/notifyDoctorPatientMessageToStaff";
 import { resolvePatientTelegramUsernameMention } from "@/app-layer/messaging/resolvePatientTelegramUsernameMention";
 import { buildPatientNotifyFromLine } from "@/modules/messaging/patientTelegramUsernameMention";
+import { logger, serializeError } from "@/infra/logging/logger";
 
 export function buildDoctorPatientProgramOpenPath(input: {
   patientUserId: string;
@@ -100,7 +101,7 @@ export async function notifyDoctorPatientProgramNote(
       },
       opts.staffDeps,
     ).catch((err: unknown) => {
-      console.error("[notifyDoctorPatientProgramNote] staff notify error:", err);
+      logger.error({ err: serializeError(err) }, "[notifyDoctorPatientProgramNote] staff notify error");
     });
     return;
   }

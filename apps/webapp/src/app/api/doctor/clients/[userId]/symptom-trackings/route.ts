@@ -6,6 +6,7 @@ import { z } from "zod";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import { requireDoctorWorkspaceApiContext } from "@/app-layer/guards/requireRole";
 import { withDoctorWorkspacePrincipal } from "@/app-layer/guards/doctorWorkspacePrincipal";
+import { logger, serializeError } from "@/infra/logging/logger";
 
 const postBodySchema = z.object({
   symptomTitle: z.string().min(1).max(200),
@@ -66,7 +67,7 @@ export async function POST(
       },
     });
   } catch (e) {
-    console.error("doctor symptom-tracking create", e);
+    logger.error({ err: serializeError(e) }, "doctor symptom-tracking create failed");
     return NextResponse.json({ ok: false, error: "server_error" }, { status: 500 });
   }
 }

@@ -8,6 +8,7 @@ import { revalidatePath } from "next/cache";
 import { requirePatientAccessWithPhone } from "@/app-layer/guards/requireRole";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import { routePaths } from "@/app-layer/routes/paths";
+import { logger, serializeError } from "@/infra/logging/logger";
 
 function parseOptionalInt(raw: unknown): number | null {
   if (typeof raw !== "string" || !raw.trim()) return null;
@@ -61,7 +62,7 @@ export async function markLfkSession(formData: FormData) {
       comment,
     });
   } catch (err) {
-    console.error("markLfkSession failed:", err);
+    logger.error({ err: serializeError(err) }, "markLfkSession failed");
     return;
   }
   revalidatePath(routePaths.diary);
@@ -108,7 +109,7 @@ export async function updateLfkJournalSession(formData: FormData): Promise<{ ok:
       comment,
     });
   } catch (e) {
-    console.error("updateLfkJournalSession", e);
+    logger.error({ err: serializeError(e) }, "updateLfkJournalSession failed");
     return { ok: false };
   }
   revalidatePath(routePaths.diary);
@@ -128,7 +129,7 @@ export async function deleteLfkJournalSession(formData: FormData): Promise<{ ok:
   try {
     await deps.diaries.deleteLfkSession({ userId, sessionId });
   } catch (e) {
-    console.error("deleteLfkJournalSession", e);
+    logger.error({ err: serializeError(e) }, "deleteLfkJournalSession failed");
     return { ok: false };
   }
   revalidatePath(routePaths.diary);
