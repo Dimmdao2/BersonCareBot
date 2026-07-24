@@ -5,7 +5,6 @@ import { getAppBaseUrl } from '../../../config/appBaseUrl.js';
 import { createWebappEventsPort } from '../../adapters/webappEventsClient.js';
 import { createDbPort } from '../../db/client.js';
 import { logger } from '../../observability/logger.js';
-import { createDbReadPort } from '../../db/readPort.js';
 import { createDbWritePort } from '../../db/writePort.js';
 import { PATIENT_NOTIFICATION_TOPIC_APPOINTMENT_REMINDERS } from '../../../kernel/domain/reminders/patientNotificationTopics.js';
 import { runWorkerTick } from './runner.js';
@@ -40,8 +39,7 @@ async function startWorker(): Promise<void> {
   const projectionDb = createDbPort();
   await getAppBaseUrl(projectionDb);
   const deliveryDb = createDbPort();
-  const deliveryReadPort = createDbReadPort({ db: deliveryDb });
-  const deliveryWritePort = createDbWritePort({ db: deliveryDb, readPort: deliveryReadPort });
+  const deliveryWritePort = createDbWritePort({ db: deliveryDb });
   const { buildDeps } = await import('../../../app/di.js');
   const deps = buildDeps({
     dispatchAttemptWritePort: createOperatorAwareDeliveryAttemptWritePort({
