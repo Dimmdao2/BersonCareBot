@@ -63,8 +63,19 @@ question (can the integrator write these tables directly? — yes, proven above)
       removing the `user.upserted` / `preferences.updated` projection producers (keep the outbox/worker
       transport drain-only — teardown is D10). Remove now-dead `readPort` plumbing from `createDbWritePort`
       + its callers (`worker/main.ts`, `di.ts`).
-- [ ] **A5. Assert grants precondition** — no new grant/migration required (integrator=app_staff has DML;
-      RLS off). Record this as an explicit assertion, not silence.
+- [~] **A5. Grants precondition — CORRECTED 2026-07-24 (live A7 finding).** Original claim "no grant needed
+      (integrator=app_staff has DML)" was WRONG: `bcb_test_integrator_login` is **NOINHERIT**, so app_staff
+      membership grants nothing without `SET ROLE`, and the inbound-telegram **bootstrap** principal
+      (`telegram-webhook:pre-routing`, `withClient.ts`) does NOT `SET ROLE` → it runs as the bare login role
+      which has USAGE on `public` but **zero table grants** → `SELECT public.platform_users` → 42501, breaking
+      ALL inbound telegram on TEST *before* the D1 write is even reached. Root: migration
+      `20260413_0002_integrator_grants_public_messenger_canon.sql` grants `TO CURRENT_USER` (owner at migrate
+      time, not the login role); its own comment calls for a follow-up grant to the app role that was never
+      applied on TEST (prod gets this via table ownership — same topology divergence as TASK_A FB#1-bootstrap).
+      **Fix (in progress):** overlay `deploy/postgres/integrator-login-public-identity-grants.sql` granting the
+      integrator login role the census'd public.* privileges, wired into deploy. Branch B's `GRANT TO CURRENT_USER`
+      had the SAME latent flaw. This does NOT change the A-vs-B decision (A/TS still correct); it adds the missing
+      grant both approaches needed.
 - [ ] **A6. Tests** — update `writePort.userUpsert.test.ts` to assert direct writes; keep/extend the scaffold
       unit test; chokepoint guard green; integrator + webapp typecheck + lint green (scoped).
 - [ ] **A7. Live-TEST verification** (cloud could not do this): exercise the real telegram + max webhook
