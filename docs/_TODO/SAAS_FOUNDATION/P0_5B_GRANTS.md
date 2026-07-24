@@ -51,7 +51,7 @@ psql '<database-url>' -f deploy/postgres/p0-5b-grants.sql
 
 Rollback: `-v p0_5b_grants_down=1` (revokes everything this script grants; does not drop the roles).
 
-## app_staff — reviewed P0.5b runtime surface (220 tables)
+## app_staff — reviewed P0.5b runtime surface (213 tables)
 
 Derived from `tiers-218.tsv` (`readTierRows()`): every table in the reviewed P0.5b snapshot across SCOPED,
 BOOTSTRAP, INFRA, LEGACY, and TELEMETRY, **excluding 4 pure migration-bookkeeping tables**

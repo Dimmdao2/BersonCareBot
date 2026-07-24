@@ -19,7 +19,7 @@ import {
 import { entityComments } from "./entityComments";
 import { courses } from "./courses";
 import { platformUserContacts } from "./platformUserContacts";
-import { platformUsers, supportConversations, messageLog, userChannelBindings, supportQuestions, supportQuestionMessages, supportConversationMessages, supportDeliveryEvents, symptomEntries, symptomTrackings, contentAccessGrantsWebapp, branches, appointmentRecords, emailChallenges, userPins, channelLinkSecrets, userChannelPreferences, userOauthBindings, lfkComplexes, lfkSessions, loginTokens, referenceCategories, referenceItems, doctorNotes, lfkExercises, lfkComplexTemplateExercises, lfkComplexTemplates, lfkExerciseMedia, patientLfkAssignments, lfkComplexExercises, mediaFolders, mediaFiles, bookingCities, bookingBranches, bookingSpecialists, bookingBranchServices, bookingServices, onlineIntakeRequests, patientBookings, onlineIntakeAnswers, onlineIntakeAttachments, onlineIntakeStatusHistory, reminderRules, reminderOccurrenceHistory, reminderJournal, adminAuditLog, mediaUploadSessions, users, identities, contacts, contentPages, messageDrafts, conversations, conversationMessages, userQuestions, questionMessages, userReminderRules, userReminderOccurrences, userReminderDeliveryLogs, contentAccessGrants, mailingTopics, mailings, telegramState, rubitimeBranches, rubitimeBookingProfiles, rubitimeCooperators, rubitimeServices, emailSendCooldowns, userNotificationTopics, userSubscriptions, systemSettings, mailingLogs } from "./schema";
+import { platformUsers, supportConversations, messageLog, userChannelBindings, supportQuestions, supportQuestionMessages, supportConversationMessages, supportDeliveryEvents, symptomEntries, symptomTrackings, contentAccessGrantsWebapp, branches, appointmentRecords, emailChallenges, userPins, channelLinkSecrets, userChannelPreferences, userOauthBindings, lfkComplexes, lfkSessions, loginTokens, referenceCategories, referenceItems, doctorNotes, lfkExercises, lfkComplexTemplateExercises, lfkComplexTemplates, lfkExerciseMedia, patientLfkAssignments, lfkComplexExercises, mediaFolders, mediaFiles, bookingCities, bookingBranches, bookingSpecialists, bookingBranchServices, bookingServices, onlineIntakeRequests, patientBookings, onlineIntakeAnswers, onlineIntakeAttachments, onlineIntakeStatusHistory, reminderRules, reminderOccurrenceHistory, reminderJournal, adminAuditLog, mediaUploadSessions, users, identities, contacts, contentPages, messageDrafts, conversations, conversationMessages, userQuestions, questionMessages, userReminderRules, userReminderOccurrences, userReminderDeliveryLogs, contentAccessGrants, mailingTopics, mailings, telegramState, emailSendCooldowns, userNotificationTopics, userSubscriptions, systemSettings, mailingLogs } from "./schema";
 
 export const supportConversationsRelations = relations(supportConversations, ({one, many}) => ({
 	platformUser: one(platformUsers, {
@@ -693,33 +693,6 @@ export const telegramStateRelations = relations(telegramState, ({one}) => ({
 		fields: [telegramState.identityId],
 		references: [identities.id]
 	}),
-}));
-
-export const rubitimeBookingProfilesRelations = relations(rubitimeBookingProfiles, ({one}) => ({
-	rubitimeBranch: one(rubitimeBranches, {
-		fields: [rubitimeBookingProfiles.branchId],
-		references: [rubitimeBranches.id]
-	}),
-	rubitimeCooperator: one(rubitimeCooperators, {
-		fields: [rubitimeBookingProfiles.cooperatorId],
-		references: [rubitimeCooperators.id]
-	}),
-	rubitimeService: one(rubitimeServices, {
-		fields: [rubitimeBookingProfiles.serviceId],
-		references: [rubitimeServices.id]
-	}),
-}));
-
-export const rubitimeBranchesRelations = relations(rubitimeBranches, ({many}) => ({
-	rubitimeBookingProfiles: many(rubitimeBookingProfiles),
-}));
-
-export const rubitimeCooperatorsRelations = relations(rubitimeCooperators, ({many}) => ({
-	rubitimeBookingProfiles: many(rubitimeBookingProfiles),
-}));
-
-export const rubitimeServicesRelations = relations(rubitimeServices, ({many}) => ({
-	rubitimeBookingProfiles: many(rubitimeBookingProfiles),
 }));
 
 export const emailSendCooldownsRelations = relations(emailSendCooldowns, ({one}) => ({

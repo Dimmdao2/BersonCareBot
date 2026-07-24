@@ -43,7 +43,7 @@ export const expectedP09EnforceActionCounts = Object.freeze({
   bootstrap_runtime_audit: 1,
   bootstrap_global_read: 23,
   explicit_global: 31,
-  legacy_frozen_deny: 16,
+  legacy_frozen_deny: 9,
 });
 
 const orgColumnScopedKinds = new Set(["direct_org_column", "denorm_org_column", "self_org_id"]);
@@ -240,8 +240,8 @@ export function assertP09EnforceDescriptors(descriptors) {
   const actualTables = descriptors.map((descriptor) => descriptor.table);
   const actualSet = new Set(actualTables);
 
-  if (actualTables.length !== 239) {
-    throw new Error(`Expected 239 P0.9 enforce descriptors, got ${actualTables.length}`);
+  if (actualTables.length !== 232) {
+    throw new Error(`Expected 232 P0.9 enforce descriptors, got ${actualTables.length}`);
   }
 
   if (actualSet.size !== actualTables.length) {

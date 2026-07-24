@@ -55,13 +55,6 @@ INFRA|public.saas_tariffs
 INFRA|public.saas_trial_policy
 INFRA|public.webapp_schema_migrations
 LEGACY|integrator.message_retry_jobs
-LEGACY|integrator.rubitime_api_throttle
-LEGACY|integrator.rubitime_booking_profiles
-LEGACY|integrator.rubitime_branches
-LEGACY|integrator.rubitime_cooperators
-LEGACY|integrator.rubitime_events
-LEGACY|integrator.rubitime_records
-LEGACY|integrator.rubitime_services
 LEGACY|public.appointment_records
 LEGACY|public.booking_branch_services
 LEGACY|public.booking_branches

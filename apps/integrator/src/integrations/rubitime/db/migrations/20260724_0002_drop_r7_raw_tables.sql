@@ -25,12 +25,17 @@
 -- Unqualified names, matching every other migration in this directory (connection search_path resolves
 -- to the integrator schema; these tables were originally created unqualified by
 -- 20260306_0009_add_rubitime_tables.sql / 20260401_0004_rubitime_booking_profiles.sql / 20260413_0001_rubitime_api_throttle.sql).
-DROP TABLE IF EXISTS
-  rubitime_records,
-  rubitime_events,
-  rubitime_api_throttle,
-  rubitime_booking_profiles,
-  rubitime_branches,
-  rubitime_services,
-  rubitime_cooperators
-CASCADE;
+--
+-- One statement per table (repo convention -- every other migration in this codebase drops one table per
+-- DROP TABLE statement, never a comma-separated multi-table list; a comma-separated list also isn't
+-- parsed correctly by docs/_TODO/SAAS_FOUNDATION/scripts/actual-schema-tables.mjs's DROP_TABLE_RE, which
+-- only captures the first table name after DROP TABLE). rubitime_booking_profiles is dropped first since
+-- it is the FK child (branch_id/service_id/cooperator_id -> rubitime_branches/services/cooperators); the
+-- CASCADE on each remaining statement is a defensive no-op once that FK holder is already gone.
+DROP TABLE IF EXISTS rubitime_booking_profiles CASCADE;
+DROP TABLE IF EXISTS rubitime_records CASCADE;
+DROP TABLE IF EXISTS rubitime_events CASCADE;
+DROP TABLE IF EXISTS rubitime_api_throttle CASCADE;
+DROP TABLE IF EXISTS rubitime_branches CASCADE;
+DROP TABLE IF EXISTS rubitime_services CASCADE;
+DROP TABLE IF EXISTS rubitime_cooperators CASCADE;

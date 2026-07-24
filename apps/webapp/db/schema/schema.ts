@@ -2404,32 +2404,6 @@ export const telegramUsers = pgTable("telegram_users", {
 	unique("telegram_users_chat_id_key").on(table.telegramId),
 ]);
 
-export const rubitimeEvents = pgTable("rubitime_events", {
-	id: bigserial({ mode: "bigint" }).primaryKey().notNull(),
-	rubitimeRecordId: text("rubitime_record_id"),
-	event: text().notNull(),
-	payloadJson: jsonb("payload_json").notNull(),
-	receivedAt: timestamp("received_at", { withTimezone: true, mode: 'string' }).defaultNow().notNull(),
-});
-
-export const rubitimeRecords = pgTable("rubitime_records", {
-	id: bigserial({ mode: "bigint" }).primaryKey().notNull(),
-	rubitimeRecordId: text("rubitime_record_id").notNull(),
-	phoneNormalized: text("phone_normalized"),
-	recordAt: timestamp("record_at", { withTimezone: true, mode: 'string' }),
-	status: text().notNull(),
-	payloadJson: jsonb("payload_json").notNull(),
-	lastEvent: text("last_event").notNull(),
-	createdAt: timestamp("created_at", { withTimezone: true, mode: 'string' }).defaultNow().notNull(),
-	updatedAt: timestamp("updated_at", { withTimezone: true, mode: 'string' }).defaultNow().notNull(),
-	gcalEventId: text("gcal_event_id"),
-}, (table) => [
-	index("idx_rubitime_records_phone_normalized").using("btree", table.phoneNormalized.asc().nullsLast().op("text_ops")),
-	index("idx_rubitime_records_record_at").using("btree", table.recordAt.asc().nullsLast().op("timestamptz_ops")),
-	unique("rubitime_records_rubitime_record_id_key").on(table.rubitimeRecordId),
-	check("rubitime_records_status_check", sql`status = ANY (ARRAY['created'::text, 'updated'::text, 'canceled'::text])`),
-]);
-
 export const telegramState = pgTable("telegram_state", {
 	// You can use { mode: "bigint" } if numbers are exceeding js number limitations
 	identityId: bigint("identity_id", { mode: "number" }).primaryKey().notNull(),
@@ -2455,20 +2429,6 @@ export const telegramState = pgTable("telegram_state", {
 			foreignColumns: [identities.id],
 			name: "telegram_state_identity_id_fkey"
 		}).onDelete("cascade"),
-]);
-
-export const rubitimeBranches = pgTable("rubitime_branches", {
-	id: bigserial({ mode: "bigint" }).primaryKey().notNull(),
-	rubitimeBranchId: integer("rubitime_branch_id").notNull(),
-	cityCode: text("city_code").notNull(),
-	title: text().notNull(),
-	address: text().default('').notNull(),
-	isActive: boolean("is_active").default(true).notNull(),
-	createdAt: timestamp("created_at", { withTimezone: true, mode: 'string' }).defaultNow().notNull(),
-	updatedAt: timestamp("updated_at", { withTimezone: true, mode: 'string' }).defaultNow().notNull(),
-	timezone: text().default('Europe/Moscow').notNull(),
-}, (table) => [
-	unique("rubitime_branches_rubitime_branch_id_key").on(table.rubitimeBranchId),
 ]);
 
 export const messageRetryJobs = pgTable("message_retry_jobs", {
@@ -2499,66 +2459,6 @@ export const bookingCalendarMap = pgTable("booking_calendar_map", {
 	unique("booking_calendar_map_rubitime_record_id_key").on(table.rubitimeRecordId),
 ]);
 
-export const rubitimeBookingProfiles = pgTable("rubitime_booking_profiles", {
-	id: bigserial({ mode: "bigint" }).primaryKey().notNull(),
-	bookingType: text("booking_type").notNull(),
-	categoryCode: text("category_code").notNull(),
-	cityCode: text("city_code"),
-	// You can use { mode: "bigint" } if numbers are exceeding js number limitations
-	branchId: bigint("branch_id", { mode: "number" }).notNull(),
-	// You can use { mode: "bigint" } if numbers are exceeding js number limitations
-	serviceId: bigint("service_id", { mode: "number" }).notNull(),
-	// You can use { mode: "bigint" } if numbers are exceeding js number limitations
-	cooperatorId: bigint("cooperator_id", { mode: "number" }).notNull(),
-	isActive: boolean("is_active").default(true).notNull(),
-	createdAt: timestamp("created_at", { withTimezone: true, mode: 'string' }).defaultNow().notNull(),
-	updatedAt: timestamp("updated_at", { withTimezone: true, mode: 'string' }).defaultNow().notNull(),
-}, (table) => [
-	index("idx_rbp_is_active").using("btree", table.isActive.asc().nullsLast().op("bool_ops")),
-	uniqueIndex("idx_rbp_type_category_city").using("btree", sql`booking_type`, sql`category_code`, sql`COALESCE(city_code, ''::text)`),
-	foreignKey({
-			columns: [table.branchId],
-			foreignColumns: [rubitimeBranches.id],
-			name: "rubitime_booking_profiles_branch_id_fkey"
-		}),
-	foreignKey({
-			columns: [table.cooperatorId],
-			foreignColumns: [rubitimeCooperators.id],
-			name: "rubitime_booking_profiles_cooperator_id_fkey"
-		}),
-	foreignKey({
-			columns: [table.serviceId],
-			foreignColumns: [rubitimeServices.id],
-			name: "rubitime_booking_profiles_service_id_fkey"
-		}),
-	check("rubitime_booking_profiles_booking_type_check", sql`booking_type = ANY (ARRAY['online'::text, 'in_person'::text])`),
-]);
-
-export const rubitimeServices = pgTable("rubitime_services", {
-	id: bigserial({ mode: "bigint" }).primaryKey().notNull(),
-	rubitimeServiceId: integer("rubitime_service_id").notNull(),
-	title: text().notNull(),
-	categoryCode: text("category_code").notNull(),
-	durationMinutes: integer("duration_minutes").notNull(),
-	isActive: boolean("is_active").default(true).notNull(),
-	createdAt: timestamp("created_at", { withTimezone: true, mode: 'string' }).defaultNow().notNull(),
-	updatedAt: timestamp("updated_at", { withTimezone: true, mode: 'string' }).defaultNow().notNull(),
-}, (table) => [
-	unique("rubitime_services_rubitime_service_id_key").on(table.rubitimeServiceId),
-	check("rubitime_services_duration_minutes_check", sql`duration_minutes > 0`),
-]);
-
-export const rubitimeCooperators = pgTable("rubitime_cooperators", {
-	id: bigserial({ mode: "bigint" }).primaryKey().notNull(),
-	rubitimeCooperatorId: integer("rubitime_cooperator_id").notNull(),
-	title: text().notNull(),
-	isActive: boolean("is_active").default(true).notNull(),
-	createdAt: timestamp("created_at", { withTimezone: true, mode: 'string' }).defaultNow().notNull(),
-	updatedAt: timestamp("updated_at", { withTimezone: true, mode: 'string' }).defaultNow().notNull(),
-}, (table) => [
-	unique("rubitime_cooperators_rubitime_cooperator_id_key").on(table.rubitimeCooperatorId),
-]);
-
 export const integrationDataQualityIncidents = pgTable("integration_data_quality_incidents", {
 	id: bigserial({ mode: "bigint" }).primaryKey().notNull(),
 	integration: text().notNull(),
@@ -2577,13 +2477,6 @@ export const integrationDataQualityIncidents = pgTable("integration_data_quality
 	unique("integration_data_quality_incidents_dedup").on(table.integration, table.entity, table.externalId, table.field, table.errorReason),
 	check("integration_data_quality_incidents_error_reason_check", sql`error_reason = ANY (ARRAY['invalid_datetime'::text, 'invalid_timezone'::text, 'unsupported_format'::text, 'invalid_branch_id'::text, 'query_failed'::text, 'missing_or_empty'::text, 'invalid_iana'::text, 'backfill_unresolvable'::text])`),
 	check("integration_data_quality_incidents_status_check", sql`status = ANY (ARRAY['open'::text, 'resolved'::text, 'unresolved'::text])`),
-]);
-
-export const rubitimeApiThrottle = pgTable("rubitime_api_throttle", {
-	id: smallint().primaryKey().notNull(),
-	lastCompletedAt: timestamp("last_completed_at", { withTimezone: true, mode: 'string' }).default('1970-01-01 01:00:00+01').notNull(),
-}, (table) => [
-	check("rubitime_api_throttle_id_check", sql`id = 1`),
 ]);
 
 export const emailSendCooldowns = pgTable("email_send_cooldowns", {
