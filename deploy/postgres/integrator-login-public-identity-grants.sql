@@ -371,14 +371,17 @@ GRANT SELECT ON TABLE public.be_organization_members TO :"integrator_login_publi
 -- bootstrap principal -- never per-organization rows. See header comment for the full trace.
 GRANT SELECT ON TABLE public.system_settings TO :"integrator_login_public_identity_grants_role";
 
--- A7 addendum #1: app.* RLS-helper EXECUTE grants. Required by every RLS-FORCE table this overlay
--- grants below (and by public.system_settings above) -- see the header comment for the full
--- table -> function mapping. RLS itself still limits every one of these tables to zero visible rows
--- for a bootstrap principal; this only lets the query run instead of 42501ing at parse time.
-GRANT EXECUTE ON FUNCTION app.current_org_id() TO :"integrator_login_public_identity_grants_role";
-GRANT EXECUTE ON FUNCTION app.is_staff() TO :"integrator_login_public_identity_grants_role";
-GRANT EXECUTE ON FUNCTION app.current_integrator_user_id() TO :"integrator_login_public_identity_grants_role";
-GRANT EXECUTE ON FUNCTION app.current_patient_user_id() TO :"integrator_login_public_identity_grants_role";
+-- A7 addendum #1 — REMOVED 2026-07-24. Granting the api login role EXECUTE on
+-- app.current_org_id()/is_staff()/current_integrator_user_id()/current_patient_user_id() VIOLATES the
+-- deploy's designed security assertion `assert_api_runtime_can_release_principal_context`
+-- (deploy/host/deploy-test-saas.sh:483-488), which requires the api runtime role to have
+-- release_principal_context but NOT these principal-context accessors directly — they are reachable
+-- only through the signed-principal (SET ROLE) mechanism, never the bare bootstrap login role. Granting
+-- them made the closure assertion FATAL, aborting the operational-role grant chain (c4) and taking TEST
+-- down. The correct fix for the bootstrap pre-routing reads that hit these functions (system_settings /
+-- org_enrollments admin+org resolution) is FAIL-OPEN in code (like resolveMessengerStaffAdmin already
+-- does), NOT a grant. Those reads 42501 on the function under bootstrap and must degrade gracefully.
+-- (The SELECT table grants below stay — harmless; the read simply fails-open at the function check.)
 
 -- A7 addendum #2: public.org_enrollments / public.be_organizations SELECT. RLS still reduces both to
 -- zero rows for a bootstrap principal (see header) -- these grants only stop the UNION'd/plain SELECT
