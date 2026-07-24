@@ -75,6 +75,7 @@ OWNER_READY_LOCKED_MATRIX=deploy/postgres/test-owner-ready-locked-matrix.sql
 SAAS_ISOLATION_TELEMETRY=deploy/postgres/saas-isolation-telemetry.sql
 SAAS_SYSTEM_HEALTH_DIAGNOSTICS=deploy/postgres/saas-system-health-diagnostics.sql
 INTEGRATOR_SERVER_RUNTIME_CONFIG=deploy/postgres/integrator-server-runtime-config.sql
+INTEGRATOR_LOGIN_PUBLIC_IDENTITY_GRANTS=deploy/postgres/integrator-login-public-identity-grants.sql
 E1_WEBAPP_RUNTIME_CONFIG=deploy/postgres/e1-webapp-runtime-config.sql
 C4_OPERATIONAL_RUNTIME=deploy/postgres/c4-operational-runtime.sql
 C4_WEB_PUSH_REMINDER_RUNTIME=deploy/postgres/c4-web-push-reminder-runtime.sql
@@ -712,6 +713,21 @@ install_integrator_server_runtime_config_overlay(){
   echo "   integrator server-runtime config API: OK"
 }
 
+# Fixes: integrator login role (bootstrap/infra technical principals never SET ROLE, see
+# apps/integrator/src/infra/db/withClient.ts) has zero public.* table grants beyond
+# 20260413_0002/0003's narrow SELECT/USAGE -> 42501 on the very first pre-routing read, breaking
+# inbound Telegram/Max and blocking Track D1 direct writes. See
+# deploy/postgres/integrator-login-public-identity-grants.sql header for the full trace.
+install_integrator_login_public_identity_grants_overlay(){
+  local api_runtime_role
+  api_runtime_role="$(discover_api_runtime_role)"
+  validate_pg_identifier "api.test login public identity grants role" "$api_runtime_role"
+  sudo -u postgres psql -d "$DB" -X -v ON_ERROR_STOP=1 \
+    -v integrator_login_public_identity_grants_role="$api_runtime_role" \
+    -f "$DEPLOY_REPO/$INTEGRATOR_LOGIN_PUBLIC_IDENTITY_GRANTS"
+  echo "   integrator login public identity grants: OK"
+}
+
 assert_integrator_server_runtime_config_ready(){
   local ok
   ok="$(sudo -u deploy bash -lc "set -a && . '$API_ENV' && set +a && psql \"\$DATABASE_URL\" -X -v ON_ERROR_STOP=1 -tAc \"SELECT (NOT (SELECT rolinherit FROM pg_roles WHERE rolname = current_user) AND 3 = (SELECT count(*) FROM pg_auth_members membership JOIN pg_roles member_role ON member_role.oid = membership.member JOIN pg_roles granted_role ON granted_role.oid = membership.roleid WHERE member_role.rolname = current_user AND granted_role.rolname IN ('app_staff', 'app_patient', 'app_worker') AND NOT membership.inherit_option AND membership.set_option) AND has_function_privilege(current_user, 'app.read_global_server_runtime_setting(text)', 'EXECUTE') AND has_function_privilege(current_user, 'app.read_integrator_smtp_outbound_setting()', 'EXECUTE') AND (SELECT count(*) FROM pg_proc procedure CROSS JOIN LATERAL aclexplode(COALESCE(procedure.proacl, acldefault('f', procedure.proowner))) privilege WHERE procedure.oid = 'app.read_integrator_smtp_outbound_setting()'::regprocedure AND privilege.grantee = (SELECT oid FROM pg_roles WHERE rolname = current_user) AND privilege.privilege_type = 'EXECUTE' AND NOT privilege.is_grantable) = 1 AND NOT EXISTS (SELECT 1 FROM pg_proc procedure JOIN pg_roles owner ON owner.oid = procedure.proowner CROSS JOIN LATERAL aclexplode(COALESCE(procedure.proacl, acldefault('f', procedure.proowner))) privilege WHERE procedure.oid = 'app.read_integrator_smtp_outbound_setting()'::regprocedure AND (NOT procedure.prosecdef OR owner.rolname <> 'app_owner' OR privilege.grantee NOT IN (procedure.proowner, (SELECT oid FROM pg_roles WHERE rolname = current_user)) OR privilege.privilege_type <> 'EXECUTE' OR privilege.is_grantable)) AND NOT EXISTS (SELECT 1 FROM pg_class relation CROSS JOIN LATERAL aclexplode(COALESCE(relation.relacl, acldefault('r', relation.relowner))) privilege WHERE relation.oid IN ('public.app_runtime_settings'::regclass, 'public.system_settings'::regclass) AND privilege.privilege_type = 'SELECT' AND privilege.grantee IN (0, (SELECT oid FROM pg_roles WHERE rolname = current_user))) AND NOT EXISTS (SELECT 1 FROM pg_class relation WHERE relation.oid IN ('public.app_runtime_settings'::regclass, 'public.system_settings'::regclass) AND pg_has_role(current_user, pg_get_userbyid(relation.relowner), 'MEMBER')) AND COALESCE((app.read_global_server_runtime_setting('app_base_url')->>'value') ~ '^https?://', false))::text;\"")"
@@ -992,6 +1008,8 @@ run_strict_post_migration_closure(){
   install_saas_isolation_telemetry_overlay
   install_saas_system_health_diagnostics_overlay
   install_integrator_server_runtime_config_overlay
+  log "strict closure: integrator login public identity grants"
+  install_integrator_login_public_identity_grants_overlay
   log "strict closure: reversible SaaS isolation TEST scenario proof"
   run_saas_isolation_test_scenario_proof
   if [ "$P2_B_CONTEXT_INSTALLED" = "1" ]; then
@@ -1243,6 +1261,7 @@ stage_hash_bound_rubitime_csv
 [ -r "$SRC_REPO/$SAAS_ISOLATION_TELEMETRY" ] || { echo "FATAL: missing repo file: $SRC_REPO/$SAAS_ISOLATION_TELEMETRY"; exit 1; }
 [ -r "$SRC_REPO/$SAAS_SYSTEM_HEALTH_DIAGNOSTICS" ] || { echo "FATAL: missing repo file: $SRC_REPO/$SAAS_SYSTEM_HEALTH_DIAGNOSTICS"; exit 1; }
 [ -r "$SRC_REPO/$INTEGRATOR_SERVER_RUNTIME_CONFIG" ] || { echo "FATAL: missing repo file: $SRC_REPO/$INTEGRATOR_SERVER_RUNTIME_CONFIG"; exit 1; }
+[ -r "$SRC_REPO/$INTEGRATOR_LOGIN_PUBLIC_IDENTITY_GRANTS" ] || { echo "FATAL: missing repo file: $SRC_REPO/$INTEGRATOR_LOGIN_PUBLIC_IDENTITY_GRANTS"; exit 1; }
 [ -r "$SRC_REPO/$C4_OPERATIONAL_RUNTIME" ] || { echo "FATAL: missing repo file: $SRC_REPO/$C4_OPERATIONAL_RUNTIME"; exit 1; }
 [ -r "$SRC_REPO/$C4_WEB_PUSH_REMINDER_RUNTIME" ] || { echo "FATAL: missing repo file: $SRC_REPO/$C4_WEB_PUSH_REMINDER_RUNTIME"; exit 1; }
 [ -r "$SRC_REPO/$C4_OPERATIONAL_PROVISIONER" ] || { echo "FATAL: missing repo file: $SRC_REPO/$C4_OPERATIONAL_PROVISIONER"; exit 1; }
