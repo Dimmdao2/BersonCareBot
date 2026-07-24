@@ -880,6 +880,61 @@ run_locked_product_smoke(){
     --junit-output="$smoke_dir/saas-product-smoke-global-admin-denial.junit.xml"
 }
 
+run_specialist_signup_provisioning_smoke(){
+  # U3S specialist signup/provisioning/binding smoke (taskdb: stalled self-signup provisioning
+  # fix). This never touches TEST -- it starts its own private, disposable PostgreSQL cluster under
+  # /tmp, installs the exact canonical overlays this deploy also applies (including
+  # specialist-owner-provisioning-rls.sql), and exercises app.provision_specialist_owner(uuid)
+  # through a locked app_patient principal end to end (org+membership creation, replay/concurrent
+  # idempotency, second-organization denial, C5A trial assignment, staff commercial read wall,
+  # specialist binding). Fail-closed like run_locked_product_smoke: a non-zero exit aborts this
+  # deploy so the provisioning class this fix addresses is caught at the gate, not live.
+  sudo -u deploy bash -lc "cd '$DEPLOY_REPO' && node docs/_TODO/SAAS_FOUNDATION/scripts/smoke-phase3-specialist-signup-provisioning.mjs"
+}
+
+assert_specialist_owner_provisioning_seam_pinned(){
+  # Pins the trusted-seam invariant the stalled-signup fix depends on, read-only and after every
+  # mutating overlay/restart above has already run (so a FATAL here never leaves TEST
+  # half-configured -- it can only fail a fully-closed state). app_owner legitimately owns exactly
+  # the three P2-B principal-context tables (deploy/postgres/p2-b-protected-principal-context.sql);
+  # it must never silently pick up ownership of ordinary application tables beyond that.
+  local ok
+  ok="$(sudo -u postgres psql -d "$DB" -X -v ON_ERROR_STOP=1 -tAc "
+SELECT (
+  EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'app_owner' AND NOT rolcanlogin AND rolbypassrls)
+  AND 0 = (SELECT count(*) FROM pg_auth_members m JOIN pg_roles r ON r.oid = m.roleid WHERE r.rolname = 'app_owner')
+  AND NOT EXISTS (
+    SELECT 1 FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
+    WHERE pg_get_userbyid(c.relowner) = 'app_owner' AND c.relkind IN ('r', 'p')
+      AND NOT (n.nspname = 'app' AND c.relname IN ('context_signing_secrets', 'principal_context', 'context_nonce_ledger'))
+  )
+  AND (SELECT pg_get_userbyid(p.proowner) FROM pg_proc p WHERE p.oid = 'app.provision_specialist_owner(uuid)'::regprocedure) = 'app_owner'
+  AND (SELECT c.relrowsecurity AND c.relforcerowsecurity FROM pg_class c WHERE c.oid = 'public.be_organizations'::regclass)
+  AND NOT EXISTS (
+    SELECT 1 FROM pg_policy pol
+    WHERE pol.polrelid = 'public.be_organizations'::regclass
+      AND pol.polcmd IN ('a', '*')
+      AND (
+        pol.polroles = '{0}'
+        OR EXISTS (
+          SELECT 1 FROM unnest(pol.polroles) AS r(oid)
+          JOIN pg_roles ro ON ro.oid = r.oid
+          WHERE ro.rolname IN ('app_staff', 'app_patient')
+        )
+      )
+  )
+)::text;
+")"
+  [ "$ok" = "t" ] || {
+    echo "FATAL: specialist-owner provisioning seam is not pinned as expected -- app_owner must stay" >&2
+    echo "       NOLOGIN+BYPASSRLS with zero SET ROLE members, own only its three P2-B context tables," >&2
+    echo "       own app.provision_specialist_owner(uuid), and public.be_organizations must stay under" >&2
+    echo "       FORCE RLS with no app_staff/app_patient/PUBLIC INSERT-capable policy." >&2
+    exit 1
+  }
+  echo "   specialist-owner provisioning seam: OK (app_owner pinned, be_organizations FORCE RLS intact)"
+}
+
 mark_e1_runtime_coverage_start(){
   E1_RUNTIME_COVERAGE_STARTED_AT="$(node -e 'process.stdout.write(new Date().toISOString())')"
 }
@@ -1059,6 +1114,10 @@ run_strict_post_migration_closure(){
   run_a2_nginx_preflight
   log "A2 product smoke gate (mandatory locked)"
   run_locked_product_smoke
+  log "U3S specialist signup/provisioning smoke (private cluster, mandatory)"
+  run_specialist_signup_provisioning_smoke
+  log "specialist-owner provisioning seam pin (app_owner + be_organizations FORCE RLS)"
+  assert_specialist_owner_provisioning_seam_pinned
   log "E1 post-runtime coverage/read gate"
   run_e1_post_runtime_coverage_gate
   assert_awg_relay_active

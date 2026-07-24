@@ -135,6 +135,18 @@ export function StaffSecuritySection(props: Props) {
             <Link className="text-sm underline" href="/app/doctor/schedule?tab=setup">Настроить запись</Link>
           ) : null}
         </div>
+        {/* Desktop hides DoctorHeader/DoctorAdminSidebar (no clinical/org capability yet) while this
+            checklist is incomplete, so a stuck first-run account otherwise has no way to sign out. */}
+        <form action="/api/auth/logout" method="post" className="mt-2">
+          <Button
+            type="submit"
+            size="sm"
+            variant="outline"
+            className="border-destructive/50 text-destructive hover:bg-destructive/10 hover:text-destructive active:bg-destructive/15"
+          >
+            Выйти
+          </Button>
+        </form>
       </DoctorSection> : null}
 
       <DoctorSection>

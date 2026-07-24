@@ -7,7 +7,31 @@
 --   psql <approved-test-or-host-connection> -v ON_ERROR_STOP=1 -v specialist_owner_provisioning_down=1 -f deploy/postgres/specialist-owner-provisioning-rls.sql
 --
 -- This file intentionally contains no connection strings. Operators provide the approved TEST
--- connection context. It does not grant BYPASSRLS and does not weaken existing tables.
+-- connection context. It does not grant BYPASSRLS to any login/app role and does not weaken
+-- existing tables.
+--
+-- Owner seam (taskdb follow-up, root cause of stalled specialist self-signup): app.
+-- provision_specialist_owner(uuid) INSERTs into public.be_organizations, which has FORCE ROW
+-- LEVEL SECURITY and no INSERT policy. Under FORCE, even a table's own owner is policy-bound
+-- unless it carries BYPASSRLS -- so when this function was owned by the migrator role (NOLOGIN
+-- false, NOBYPASSRLS), the very first write of every self-signup provisioning attempt raised
+-- "new row violates row-level security policy" and rolled back the whole transaction. app_owner
+-- (NOLOGIN + BYPASSRLS, zero SET ROLE members, already the trusted definer-owner of
+-- app.is_staff()/app.current_org_id()/app.current_patient_user_id() -- see
+-- deploy/postgres/p2-b-protected-principal-context.sql) is not request-reachable and is only ever
+-- invoked through specifically-granted-and-owned SECURITY DEFINER functions. This function derives
+-- the acting user exclusively from the signed principal (app.require_staff_security_self_user_id(),
+-- itself reading the locked app.principal_context) and never from a caller argument, and it rejects
+-- a second active org membership under a row lock -- so reassigning it to app_owner is safe: no
+-- caller can widen what it does, only what row-security wall it clears. Two sibling overlays
+-- already resolve their own reassignment target dynamically from this function's current owner
+-- (deploy/postgres/reference-catalog-rls.sql's :"provisioning_owner" \gset, and the \gexec grant in
+-- deploy/postgres/c5a-platform-operations-runtime.sql) and both run later in the same deploy pass,
+-- so flipping the owner here cascades seed_reference_catalog_snapshot()/its be_organizations AFTER
+-- trigger and the start_provisioned_organization_trial() EXECUTE grant onto app_owner automatically
+-- -- no edits needed in either sibling file. Proved read-only against TEST inside BEGIN;...;ROLLBACK
+-- (never committed): the full per-write chain passes under FORCE after this reassignment plus the
+-- three narrow grants below.
 
 \set ON_ERROR_STOP on
 \pset pager off
@@ -54,11 +78,17 @@ SELECT (
     'app.require_staff_security_self_user_id()',
     'EXECUTE'
   )
+  AND EXISTS (
+    SELECT 1 FROM pg_roles
+    WHERE rolname = 'app_owner'
+      AND rolcanlogin = false
+      AND rolbypassrls = true
+  )
 )::int AS specialist_owner_provisioning_preflight_ok \gset
 
 \if :specialist_owner_provisioning_preflight_ok
 \else
-\echo 'FATAL: prerequisites missing -- app_patient, schema app, signup/users/orgs/members and reference catalog baseline must all exist.'
+\echo 'FATAL: prerequisites missing -- app_patient, app_owner (NOLOGIN+BYPASSRLS), schema app, signup/users/orgs/members and reference catalog baseline must all exist.'
 SELECT 1 / 0 AS specialist_owner_provisioning_abort;
 \endif
 
@@ -240,7 +270,17 @@ $$;
 COMMENT ON FUNCTION app.provision_specialist_owner(uuid) IS
   'Signed identity-self specialist owner provisioning. Rejects a second active staff organization and defers be_specialists to a real staff principal.';
 
-ALTER FUNCTION app.provision_specialist_owner(uuid) OWNER TO :specialist_owner_provisioning_owner_ident;
+-- Owner-exempt trusted seam: app_owner is NOLOGIN + BYPASSRLS with zero SET ROLE members (asserted
+-- in the preflight above), so this is the ONLY function in this file reassigned off the migrator.
+-- Its two sibling helpers stay on the migrator: current_provisioned_owner_organization() is read by
+-- app.start_provisioned_organization_trial() (owned by app_platform_settings, already granted
+-- EXECUTE on it directly in deploy/postgres/c5a-platform-operations-runtime.sql) against
+-- public.be_organization_members, which has RLS disabled entirely; seed_reference_catalog_snapshot()
+-- is re-owned dynamically by deploy/postgres/reference-catalog-rls.sql (its :"provisioning_owner"
+-- resolves from THIS function's current owner and that overlay runs later in the same deploy pass),
+-- which also carries the matching reference_categories/reference_items table grants -- so it ends
+-- the deploy owned by app_owner too, without any edit in this file.
+ALTER FUNCTION app.provision_specialist_owner(uuid) OWNER TO app_owner;
 ALTER FUNCTION app.current_provisioned_owner_organization() OWNER TO :specialist_owner_provisioning_owner_ident;
 ALTER FUNCTION app.seed_reference_catalog_snapshot(uuid) OWNER TO :specialist_owner_provisioning_owner_ident;
 GRANT SELECT ON TABLE public.reference_catalog_baselines TO :specialist_owner_provisioning_owner_ident;
@@ -249,6 +289,28 @@ REVOKE ALL ON FUNCTION app.provision_specialist_owner(uuid) FROM PUBLIC;
 REVOKE ALL ON FUNCTION app.current_provisioned_owner_organization() FROM PUBLIC, app_staff, app_patient;
 REVOKE ALL ON FUNCTION app.seed_reference_catalog_snapshot(uuid) FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION app.provision_specialist_owner(uuid) TO app_patient;
+
+-- app_owner now runs the function body. It needs EXECUTE on the one sibling helper it calls
+-- directly (app.require_staff_security_self_user_id(); the other two direct calls --
+-- start_provisioned_organization_trial() and seed_reference_catalog_snapshot() -- resolve their own
+-- EXECUTE/ownership onto app_owner dynamically from the two sibling overlays noted above) and base
+-- table ACL on the rows the function body writes directly (BYPASSRLS clears FORCE RLS itself, but
+-- table-level GRANT is a separate, still-required gate).
+GRANT EXECUTE ON FUNCTION app.require_staff_security_self_user_id() TO app_owner;
+GRANT INSERT ON TABLE public.be_organizations TO app_owner;
+GRANT SELECT, UPDATE ON TABLE public.specialist_signup_intents TO app_owner;
+
+SELECT 1 / (
+  EXISTS (
+    SELECT 1 FROM pg_proc p
+    WHERE p.oid = 'app.provision_specialist_owner(uuid)'::regprocedure
+      AND pg_get_userbyid(p.proowner) = 'app_owner'
+  )
+  AND has_function_privilege('app_owner', 'app.require_staff_security_self_user_id()', 'EXECUTE')
+  AND has_table_privilege('app_owner', 'public.be_organizations', 'INSERT')
+  AND has_table_privilege('app_owner', 'public.specialist_signup_intents', 'SELECT')
+  AND has_table_privilege('app_owner', 'public.specialist_signup_intents', 'UPDATE')
+)::int AS specialist_owner_provisioning_seam_ready;
 \endif
 
 COMMIT;

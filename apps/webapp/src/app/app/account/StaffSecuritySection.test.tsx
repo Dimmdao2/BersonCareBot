@@ -45,6 +45,14 @@ describe('StaffSecuritySection first-run acceptance', () => {
       screen.queryByRole('button', { name: 'Подключить рабочий кабинет' }),
     ).not.toBeInTheDocument();
 
+    // A stuck pre-provisioning account has no clinical/org capability, so the desktop shell hides
+    // its own header/sidebar logout entirely; the first-run checklist must offer its own way out.
+    const logoutButton = screen.getByRole('button', { name: 'Выйти' });
+    expect(logoutButton).toHaveAttribute('type', 'submit');
+    const logoutForm = logoutButton.closest('form');
+    expect(logoutForm).toHaveAttribute('action', '/api/auth/logout');
+    expect(logoutForm).toHaveAttribute('method', 'post');
+
     await userEvent.click(screen.getByRole('button', { name: 'Повторить настройку аккаунта' }));
 
     expect(fetch).toHaveBeenCalledWith('/api/auth/specialist-signup/retry', {
@@ -113,5 +121,8 @@ describe('StaffSecuritySection first-run acceptance', () => {
     expect(
       screen.getByRole('button', { name: 'Подключить приложение-аутентификатор' }),
     ).toBeInTheDocument();
+    // The first-run logout affordance lives only in the "Первый запуск" block above; the
+    // replacement-only recovery surface is out of scope for this exact stuck-signup fix.
+    expect(screen.queryByRole('button', { name: 'Выйти' })).not.toBeInTheDocument();
   });
 });

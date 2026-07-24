@@ -978,6 +978,13 @@ function assertStaticSourceGuards() {
     'canonical provisioning must deny a second active staff organization',
   );
   assert(
+    source.ownerProvisioningOverlay.includes(
+      'ALTER FUNCTION app.provision_specialist_owner(uuid) OWNER TO app_owner;',
+    ),
+    'canonical provisioning must stay owned by the trusted app_owner seam (NOLOGIN+BYPASSRLS) so ' +
+      'its INSERT into FORCE-RLS public.be_organizations clears the wall that stalled self-signup',
+  );
+  assert(
     source.provisioningRepo.includes('async ensureOwnBookableSpecialist') &&
       source.provisioningRepo.includes('specialist_self_binding_created'),
     'specialist binding must remain in the canonical provisioning repository',
