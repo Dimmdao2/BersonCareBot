@@ -132,17 +132,18 @@ describe("PatientsPageClient", () => {
       }),
     ]);
 
+    // Owner correction: the search field lives in the LEFT clients-list block, not the page header.
     const search = await screen.findByRole("searchbox", { name: "Поиск: клиенты" });
-    const pageHeader = search.closest("[data-doctor-page-header]");
+    const leftListBlock = search.closest("[data-doctor-flat-list-surface]");
+    expect(leftListBlock).not.toBeNull();
+    expect(leftListBlock).toContainElement(document.getElementById("doctor-patients-list"));
+    const pageHeader = document.getElementById("doctor-patients-header");
     expect(pageHeader).not.toBeNull();
-    expect(search.closest("[data-doctor-page-header-tabs]")).toHaveClass("w-full");
+    expect(pageHeader).not.toContainElement(search);
     expect(pageHeader?.querySelector("[data-doctor-page-header-toolbar]")).toBeNull();
-    // Owner punch-list item 2: the "new person" button now lives in the page header, before search.
+    // Owner punch-list item 2: the "new person" button stays in the page header.
     const newClientButton = screen.getByRole("button", { name: "Новый клиент" });
     expect(pageHeader).toContainElement(newClientButton);
-    const headerTabs = search.closest("[data-doctor-page-header-tabs]") as HTMLElement;
-    const tabChildren = Array.from(headerTabs.querySelectorAll(":scope > div > *"));
-    expect(tabChildren.indexOf(newClientButton)).toBeLessThan(tabChildren.indexOf(search.closest("div")!));
     expect(screen.queryByRole("group", { name: "Фильтр: пациенты или все" })).not.toBeInTheDocument();
     expect(screen.queryByRole("group", { name: "Категория клиентов" })).not.toBeInTheDocument();
     expect(screen.getByText("Подписчик")).toBeInTheDocument();
@@ -178,7 +179,8 @@ describe("PatientsPageClient", () => {
     );
     const flatListSurface = document.querySelector("[data-doctor-flat-list-surface]");
     expect(flatListSurface).toBeInTheDocument();
-    expect(flatListSurface?.className).not.toMatch(/\bborder\b|\brounded-/);
+    // Owner correction: DNA rounded corners restored on the left list container.
+    expect(flatListSurface?.className).toMatch(/rounded-/);
 
     await user.click(screen.getByRole("button", { name: /С записями/i }));
 
@@ -236,7 +238,8 @@ describe("PatientsPageClient", () => {
     expect(document.querySelector("[data-patient-preview-surface]")).toBeNull();
 
     const flatListSurface = document.querySelector("[data-doctor-flat-list-surface]");
-    expect(flatListSurface?.className).not.toMatch(/\bborder\b|\brounded-/);
+    // Owner correction: DNA rounded corners restored on the left list container.
+    expect(flatListSurface?.className).toMatch(/rounded-/);
   });
 
   it("separates all-time records, occurred visits, and visit history without future appointments", async () => {

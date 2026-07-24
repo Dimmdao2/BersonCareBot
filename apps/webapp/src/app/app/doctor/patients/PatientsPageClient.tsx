@@ -719,43 +719,7 @@ function PatientsContent({
       <DoctorPageHeader
         id="doctor-patients-header"
         title={patientPluralLabel}
-        tabsClassName="w-full"
-        tabs={
-          <div className="flex w-full min-w-0 items-center gap-2">
-            <NewClientDialog patientSingularLabel={patientSingularLabel} />
-            {/*
-              Search width matches the right-hand (filters) pane below: that pane is one column of
-              CatalogSplitLayout's `lg:grid-cols-2`, so on desktop it renders at ~50% of the content
-              width. Capping the search field here at the same fraction keeps the two visually
-              aligned instead of letting the search stretch across the full header row.
-            */}
-            <div className="relative min-w-0 flex-1 lg:max-w-[calc(50%-0.375rem)]">
-              <span className="pointer-events-none absolute inset-y-0 left-2.5 flex items-center text-muted-foreground">
-                <Search className="size-3.5" aria-hidden />
-              </span>
-              <Input
-                type="search"
-                placeholder={`Поиск: ${patientPluralLabelLower}`}
-                value={searchInput}
-                onChange={(event) => onSearchInput(event.target.value)}
-                className="h-8 pl-8 pr-8 text-sm"
-                aria-label={`Поиск: ${patientPluralLabelLower}`}
-              />
-              {searchInput ? (
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon-sm"
-                  onClick={onClearSearch}
-                  className="absolute inset-y-0 right-0 my-auto size-8 text-muted-foreground hover:text-foreground"
-                  aria-label="Сбросить поиск"
-                >
-                  <X className="size-3.5" />
-                </Button>
-              ) : null}
-            </div>
-          </div>
-        }
+        tabs={<NewClientDialog patientSingularLabel={patientSingularLabel} />}
       />
       <CatalogSplitLayout
         desktopColsClassName="lg:grid-cols-2"
@@ -769,10 +733,45 @@ function PatientsContent({
         }
         className="lg:h-[calc(100dvh_-_var(--doctor-sticky-offset,calc(3.5rem_+_env(safe-area-inset-top,0px)))_-_6rem)]"
         left={
-          <section data-doctor-flat-list-surface className="flex h-full min-h-0 flex-col overflow-hidden bg-card">
-            {/* Sticky header: count + reversible sorting */}
-            {/* On mobile the page scrolls naturally; sticky is only needed on lg+ where the section has overflow-hidden and its own scroll context */}
-            <div className="lg:sticky lg:top-0 z-10 flex shrink-0 flex-wrap items-center justify-between gap-2 border-b border-border/60 bg-card px-[var(--doctor-block-padding,18px)] py-2">
+          <section
+            data-doctor-flat-list-surface
+            className="flex h-full min-h-0 flex-col overflow-hidden rounded-[var(--doctor-page-block-radius,12px)] bg-card"
+          >
+            {/*
+              Sticky header: search, then count + reversible sorting.
+              On mobile the page scrolls naturally; sticky is only needed on lg+ where the section
+              has overflow-hidden and its own scroll context.
+            */}
+            <div className="lg:sticky lg:top-0 z-10 flex shrink-0 flex-col border-b border-border/60 bg-card">
+              {/* Client search lives in this (left) block, not the page header — owner direction. */}
+              <div className="border-b border-border/40 px-[var(--doctor-block-padding,18px)] py-2">
+                <div className="relative min-w-0">
+                  <span className="pointer-events-none absolute inset-y-0 left-2.5 flex items-center text-muted-foreground">
+                    <Search className="size-3.5" aria-hidden />
+                  </span>
+                  <Input
+                    type="search"
+                    placeholder={`Поиск: ${patientPluralLabelLower}`}
+                    value={searchInput}
+                    onChange={(event) => onSearchInput(event.target.value)}
+                    className="h-8 pl-8 pr-8 text-sm"
+                    aria-label={`Поиск: ${patientPluralLabelLower}`}
+                  />
+                  {searchInput ? (
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon-sm"
+                      onClick={onClearSearch}
+                      className="absolute inset-y-0 right-0 my-auto size-8 text-muted-foreground hover:text-foreground"
+                      aria-label="Сбросить поиск"
+                    >
+                      <X className="size-3.5" />
+                    </Button>
+                  ) : null}
+                </div>
+              </div>
+              <div className="flex flex-wrap items-center justify-between gap-2 px-[var(--doctor-block-padding,18px)] py-2">
               <p className="min-w-0 truncate text-xs text-muted-foreground">
                 {isAnyFilterActive ? (
                   <>
@@ -830,6 +829,7 @@ function PatientsContent({
                   <Filter className="size-3.5" aria-hidden />
                   Фильтры
                 </Button>
+              </div>
               </div>
             </div>
 
