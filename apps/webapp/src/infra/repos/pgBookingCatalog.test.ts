@@ -83,23 +83,6 @@ describe("createPgBookingCatalogPort", () => {
     });
   });
 
-  describe("resolveBranchService", () => {
-    it("returns null when no rows returned", async () => {
-      runWebappPgTextMock.mockResolvedValueOnce({ rows: [] });
-      const port = createPgBookingCatalogPort();
-      const result = await port.resolveBranchService("nonexistent-id");
-      expect(result).toBeNull();
-    });
-
-    it("requires active city (parity with listServicesByCity)", async () => {
-      runWebappPgTextMock.mockResolvedValueOnce({ rows: [] });
-      const port = createPgBookingCatalogPort();
-      await port.resolveBranchService("bbbbbbbb-bbbb-4bbb-bbbb-bbbbbbbbbbbb");
-      const sql = String(runWebappPgTextMock.mock.calls[0]?.[0] ?? "");
-      expect(sql).toContain("c.is_active = TRUE");
-    });
-  });
-
   describe("upsertCity", () => {
     it("uses ON CONFLICT (code) DO UPDATE", async () => {
       runWebappPgTextMock.mockResolvedValueOnce({ rows: [cityRow()] });

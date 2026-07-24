@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import { createBookingCatalogService } from "./service";
 import type { BookingCatalogReadPort } from "./ports";
-import type { BookingCity, BookingBranchService, ResolvedBranchService } from "./types";
+import type { BookingCity, BookingBranchService } from "./types";
 
 const mockCity: BookingCity = {
   id: "city-1",
@@ -25,51 +25,10 @@ const mockBranchService: BookingBranchService = {
   updatedAt: "2026-01-01T00:00:00.000Z",
 };
 
-const mockResolved: ResolvedBranchService = {
-  branchService: mockBranchService,
-  branch: {
-    id: "branch-1",
-    cityId: "city-1",
-    title: "Москва. Точка Здоровья",
-    address: "Красносельский тупик, 5",
-    rubitimeBranchId: "17356",
-    timezone: "Europe/Moscow",
-    isActive: true,
-    sortOrder: 1,
-    createdAt: "2026-01-01T00:00:00.000Z",
-    updatedAt: "2026-01-01T00:00:00.000Z",
-  },
-  service: {
-    id: "svc-1",
-    title: "Сеанс 60 мин",
-    description: null,
-    durationMinutes: 60,
-    breakAfterMinutes: 0,
-    priceMinor: 600000,
-    isActive: true,
-    sortOrder: 2,
-    createdAt: "2026-01-01T00:00:00.000Z",
-    updatedAt: "2026-01-01T00:00:00.000Z",
-  },
-  specialist: {
-    id: "sp-1",
-    branchId: "branch-1",
-    fullName: "Дмитрий Берсон",
-    description: null,
-    rubitimeCooperatorId: "34729",
-    isActive: true,
-    sortOrder: 1,
-    createdAt: "2026-01-01T00:00:00.000Z",
-    updatedAt: "2026-01-01T00:00:00.000Z",
-  },
-  city: mockCity,
-};
-
 function makePort(overrides: Partial<BookingCatalogReadPort> = {}): BookingCatalogReadPort {
   return {
     listCitiesForPatient: vi.fn(async () => [mockCity]),
     listServicesByCity: vi.fn(async () => [mockBranchService]),
-    resolveBranchService: vi.fn(async () => mockResolved),
     ...overrides,
   };
 }
@@ -97,23 +56,6 @@ describe("createBookingCatalogService", () => {
     it("throws city_code_required for empty input", async () => {
       const svc = createBookingCatalogService(makePort());
       await expect(svc.listServicesByCity("  ")).rejects.toThrow("city_code_required");
-    });
-  });
-
-  describe("resolveBranchService", () => {
-    it("returns resolved record when port returns data", async () => {
-      const svc = createBookingCatalogService(makePort());
-      const result = await svc.resolveBranchService("bbs-1");
-      expect(result.branchService.id).toBe("bbs-1");
-      expect(result.service.title).toBe("Сеанс 60 мин");
-    });
-
-    it("throws branch_service_not_found when port returns null", async () => {
-      const port = makePort({ resolveBranchService: vi.fn(async () => null) });
-      const svc = createBookingCatalogService(port);
-      await expect(svc.resolveBranchService("unknown-id")).rejects.toThrow(
-        "branch_service_not_found",
-      );
     });
   });
 });

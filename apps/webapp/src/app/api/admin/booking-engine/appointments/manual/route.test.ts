@@ -22,7 +22,6 @@ const deleteAppointmentHardMock = vi.hoisted(() => vi.fn());
 const emitBookingEventMock = vi.hoisted(() => vi.fn());
 const createRecordMock = vi.hoisted(() => vi.fn());
 const resolveLegacyBranchServiceIdMock = vi.hoisted(() => vi.fn());
-const resolveBranchServiceMock = vi.hoisted(() => vi.fn());
 const assertSlotAvailableMock = vi.hoisted(() => vi.fn());
 const listSpecialistsMock = vi.hoisted(() => vi.fn());
 const bridgeEnabledState = vi.hoisted(() => ({ value: true }));
@@ -53,9 +52,6 @@ vi.mock("@/app-layer/di/buildAppDeps", () => ({
     bookingScheduling: {
       assertSlotAvailable: assertSlotAvailableMock,
       resolveLegacyBranchServiceId: resolveLegacyBranchServiceIdMock,
-    },
-    bookingCatalog: {
-      resolveBranchService: resolveBranchServiceMock,
     },
     bookingEngine: {
       catalog: { listSpecialists: listSpecialistsMock },
@@ -124,7 +120,6 @@ describe("POST admin manual appointment", () => {
 
     expect(res.status).toBe(200);
     expect(resolveLegacyBranchServiceIdMock).not.toHaveBeenCalled();
-    expect(resolveBranchServiceMock).not.toHaveBeenCalled();
     expect(createRecordMock).not.toHaveBeenCalled();
     expect(deleteAppointmentHardMock).not.toHaveBeenCalled();
     expect(transitionAppointmentStatusMock).not.toHaveBeenCalled();
@@ -208,11 +203,6 @@ describe("POST admin manual appointment", () => {
       expect(principalState.inside).toBe(false);
     });
     resolveLegacyBranchServiceIdMock.mockResolvedValue("branch-service-id");
-    resolveBranchServiceMock.mockResolvedValue({
-      branch: { rubitimeBranchId: "123" },
-      specialist: { rubitimeCooperatorId: "456" },
-      branchService: { rubitimeServiceId: "789" },
-    });
     createRecordMock.mockResolvedValue({ rubitimeId: "rt-1", raw: {} });
 
     const res = await POST(
