@@ -15,6 +15,7 @@
 | **Ночной прогон 2026-07-23 (что сделано / с чего начать)** | `docs/_TODO/UI_FINISH_AND_REAUDIT_2026-07-22/NIGHT_2026-07-23_AUTONOMOUS_WORK_REPORT.md` | — |
 | **Перезапуск оркестратора** | `docs/_TODO/UI_FINISH_AND_REAUDIT_2026-07-22/START_HERE_ORCHESTRATOR_KICKOFF.md` | — |
 | **🖥️ СЕРВЕР: доделать всё + инкрементальный TEST-деплой (rubitime дроп, чистка, всё закрыть)** | `docs/_TODO/UI_FINISH_AND_REAUDIT_2026-07-22/SERVER_FINISH_AND_TEST_DEPLOY_KICKOFF.md` | — |
+| **🖥️ СЕРВЕР — живой прогон 2026-07-24 (что закрыто с evidence, репо-гигиена Codex-веток, решения)** | `docs/_TODO/UI_FINISH_AND_REAUDIT_2026-07-22/SERVER_FINISH_EXECUTION_LEDGER_2026-07-24.md` | KICKOFF Шаг 3 = исходный список; ledger миррорит его с evidence |
 | **Состояние продукта (verified 2026-07-23)** | `docs/_TODO/UI_FINISH_AND_REAUDIT_2026-07-22/PRODUCTION_READINESS_LEDGER_2026-07-23.md` + `CHECKPOINT_2026-07-23_STATE_AND_BACKEND_WORK_ORDER.md` | — |
 | **Правила агентов (канон)** | `AGENTS.md` + `.cursor/rules/*.mdc` + `docs/ORCHESTRATION_BINDINGS.md` | — |
 | **Реестр инициатив** | `docs/INITIATIVES.md` | — |
@@ -46,7 +47,7 @@
 | **RU privacy / 152-ФЗ** | `docs/_TODO/RU_PRIVACY_AND_PRODUCTION_READINESS/MASTER_PLAN.md` (+ stages/) |
 | **DB-access chokepoint (R0 закрыт)** | `docs/_TODO/DB_ACCESS_CHOKEPOINT_INITIATIVE/MASTER_PLAN.md` |
 | **Delivery/alerting** | `docs/_TODO/OUTBOUND_DELIVERY_ALERTING_PLAN.md` |
-| **Direct integrator→public (Track D)** | `WORK_ORDER.md` §Track D (D0 done; D1-D10 open) |
+| **Direct integrator→public (Track D)** | `WORK_ORDER.md` §Track D (D0 done; D1-D10 open) — **D1 approach decided (A over B), см. `SAAS_FOUNDATION/TRACK_D1_APPROACH_DECISION_2026-07-24.md`** |
 
 ## Как поддерживать актуальность
 

@@ -1,6 +1,18 @@
 # TASK A — Tighten PII bootstrap-hybrid tables (plan + checklist)
 
 > RE-VERIFIED 2026-07-23 (all [x] audited vs code): see docs/_TODO/UI_FINISH_AND_REAUDIT_2026-07-22/PRODUCTION_READINESS_LEDGER_2026-07-23.md
+>
+> **⚠️ STALE-CORRECTION (verified live on TEST 2026-07-24):** the §Checklist step-3 boxes and the 07-23 note
+> "step 3 (RLS DSL split) not done / bootstrap_hybrid_org_gated never added" are **WRONG — that work IS done and
+> DEPLOYED on TEST.** Reality: `rls-descriptor-model.mjs:205` gives both PII tables `scopingKind:
+> "bootstrap_hybrid_org_gated"`; `renderBootstrapHybridOrgGatedPredicate` (rls-sql-renderer.mjs:504);
+> `p0-8-6-policy-targets.mjs` asserts per-table shapes; live TEST policy `saas_bootstrap_hybrid_p0_8_6` = the
+> exact strict gated predicate under FORCE (relforcerowsecurity=t) → **the NULL-org staff-read leak is CLOSED on
+> TEST.** New canon for current status: `docs/_TODO/UI_FINISH_AND_REAUDIT_2026-07-22/SERVER_FINISH_EXECUTION_LEDGER_2026-07-24.md` §item 5.
+> **STILL-VALID here (not superseded — carry forward):** the "NOT DONE — FLIP-BLOCKERS" section below (FB#1
+> bootstrap/OTP phone-write under enforce; FB#1 close-prior UPDATE vs partial unique index for NULL-org active
+> rows; FB#2 base-role shape) — these runtime paths are NOT yet proven under the live strict+FORCE on TEST and
+> remain the real open work.
 
 > Single source of "done" for this task (owner rule #2). Every item `- [ ]/[x]` with an evidence link.
 > Canon model: `TENANT_WALLS_AND_ACCESS_MODEL.md`. Spec: `HANDOFF_2026-07-12.md` §"TASK A". Task: taskdb #708.
