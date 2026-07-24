@@ -22,6 +22,7 @@ import type { DbWriteMutation } from '../contracts/index.js';
 import { executeAction } from './executor/executeAction.js';
 import { buildScriptInterpolationVars } from '../orchestrator/scriptVars.js';
 import { interpolateTemplate } from '../orchestrator/templateInterpolation.js';
+import { logger } from '../../infra/observability/logger.js';
 
 type HandleIncomingEventDeps = {
   readPort?: DbReadPort;
@@ -135,19 +136,43 @@ async function loadUserContext(
     : null;
   if (!resource) return {};
 
+  // Fail-open per read: on the bootstrap pre-routing/unresolved-org path (brand-new/never-enrolled
+  // messenger user, runWithBootstrapPrincipal({source:'*-webhook:unresolved-org'})) these three reads
+  // hit RLS-FORCE tables (integrator.contacts/message_drafts/conversations) whose policies call
+  // app.is_staff()/app.current_org_id()/app.current_integrator_user_id() — functions the bare bootstrap
+  // login role does NOT have EXECUTE on by design (deploy/postgres/integrator-login-public-identity-
+  // grants.sql, "A7 addendum #1 — REMOVED" comment: granting that EXECUTE broke a deploy assertion and
+  // took TEST down). A 42501 here must degrade to "no linked user / no draft / no open conversation"
+  // (same shape as the existing !user branch below), not propagate and drop the whole inbound message
+  // (see kernel/eventGateway/index.ts pipeline.run try/catch -> status:'rejected').
   const [user, draft, openConversation] = await Promise.all([
-    readPort.readDb<ReadUserContext | null>({
-      type: 'user.byIdentity',
-      params: { resource, externalId },
-    }),
-    readPort.readDb<ReadDraftContext | null>({
-      type: 'draft.activeByIdentity',
-      params: { resource, externalId, source: event.meta.source },
-    }),
-    readPort.readDb<ReadConversationContext | null>({
-      type: 'conversation.openByIdentity',
-      params: { resource, externalId, source: event.meta.source },
-    }),
+    readPort
+      .readDb<ReadUserContext | null>({
+        type: 'user.byIdentity',
+        params: { resource, externalId },
+      })
+      .catch((err: unknown) => {
+        logger.warn({ err }, 'loadUserContext: user.byIdentity failed, treating as unknown user');
+        return null;
+      }),
+    readPort
+      .readDb<ReadDraftContext | null>({
+        type: 'draft.activeByIdentity',
+        params: { resource, externalId, source: event.meta.source },
+      })
+      .catch((err: unknown) => {
+        logger.warn({ err }, 'loadUserContext: draft.activeByIdentity failed, treating as no active draft');
+        return null;
+      }),
+    readPort
+      .readDb<ReadConversationContext | null>({
+        type: 'conversation.openByIdentity',
+        params: { resource, externalId, source: event.meta.source },
+      })
+      .catch((err: unknown) => {
+        logger.warn({ err }, 'loadUserContext: conversation.openByIdentity failed, treating as no open conversation');
+        return null;
+      }),
   ]);
 
   const result: Pick<
