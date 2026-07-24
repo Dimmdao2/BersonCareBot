@@ -30,6 +30,13 @@
 | (c) **Encryption-at-rest w/ separated key custody**, tables stay together | **M–L** | at-rest / key-holder breach | ≈ what CRYPTO-01 §C4 already plans |
 | (d) **Pseudonymization / tokenization** (medical keyed by opaque token, identity map in a separate guarded store) | **L–XL** | medical-store-only breach (strongest) | breaks search/join ergonomics; needs Track D identity-write updated |
 
+## ⛔ OWNER DECISION 2026-07-24 — DEFERRED
+Store-separation is **deferred** (not in first-launch scope). Rationale confirmed with owner: full pseudonymization
+touches ~40–50 backend files + breaks search/join ergonomics; even a separate schema is M-effort and rubs against
+the unified-Postgres direction. The **encryption angle is already covered by CRYPTO-01** (field-level encryption) —
+picked up when 152-ФЗ work lands. Optional tiny cleanup (move `height_cm`/`weight_kg` out of the `platform_users`
+identity row) can happen anytime cheaply but is also not urgent. **No store-separation build now.**
+
 ## Bottom line (recon)
 - First-order cleanup independent of any option: `height_cm/weight_kg` (measurements) sitting in the identity row
   `platform_users` is the sharpest "identity+health co-located" smell.

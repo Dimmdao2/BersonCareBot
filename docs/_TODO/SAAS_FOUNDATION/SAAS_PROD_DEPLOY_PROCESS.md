@@ -71,11 +71,11 @@ scripts but nothing calls them on prod. Per owner's pragmatic rule, we do NOT (y
 prod closure script — instead this section is the **MANUAL instruction to run the existing overlay scripts against
 prod, in order, with prod role names substituted.** (Each `.sql` is idempotent; safe to re-run.)
 
-**MANUAL prerequisite (read-only, before any grant):** inspect prod role topology — does prod already have the split
-`*_login` roles (webapp/api/media/scheduler/delivery/diagnostic/web-push) like TEST, or the old single-owner model?
-`\du` + `SELECT schemaname,tableowner FROM pg_tables WHERE schemaname IN ('public','integrator')`. If single-owner,
-decide (owner): adopt TEST-style split-login on prod (recommended) or keep ownership for migrated data (then table
-grants may be redundant, but the function grants below are still mandatory).
+**Prod role topology — RESOLVED (owner 2026-07-24):** current prod is the OLD **single-owner model — ONE DB user/role**
+for the connection (pre-SaaS). So there is NO ownership shortcut to lean on: the cutover **creates the TEST-style
+split login roles and grants them** exactly via the overlays below. The earlier "verify topology / ownership might
+cover it" caveat is moot — run ALL overlays in full; nothing is redundant. (This also means the OLD single role
+should be retired/reduced post-cutover, not reused as a service login.)
 
 **Run these overlays against prod (order matters), substituting the prod integrator/service role names for the
 `-v ..._role=` variables** (mirror `deploy-test-saas.sh`'s closure order):
