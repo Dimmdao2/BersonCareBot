@@ -23,15 +23,18 @@
 Цель: регистрация специалиста/клиники доходит до создания организации под strict FORCE-RLS, без 42501 и без
 silent-empty; изоляция не ослаблена.
 
-- [🟡] **A1. `provision_specialist_owner` + `current_provisioned_owner_organization` → владелец `app_owner`** (шов
-  NOLOGIN+BYPASSRLS, не request-reachable, актор — из подписанного принципала).
-  · Проверка: rollback-tx прогон полной функции под FORCE → `ok=t`, org+membership+trial+catalog созданы, ни одного
-  42501/0-строк. · Доказательство: SHA `88ca5b7cf`,`8072dc899`; overlay `deploy/postgres/specialist-owner-provisioning-rls.sql`. · **Ждёт независимого верификатора.**
-- [🟡] **A2. Табличные гранты `app_owner` под цепочку** (BYPASSRLS ≠ обход GRANT): INSERT `be_organizations`,
-  SELECT+UPDATE `specialist_signup_intents`, EXECUTE `require_staff_security_self_user_id()`; проверить, что
-  seed/trial-подфункции покрыты каскадом sibling-оверлеев. · Проверка: `role_table_grants`/`\sf` + rollback-прогон. · Доказательство: тот же overlay-diff. · Ждёт верификатора.
-- [⬜] **A3. Логаут на онбординге «Первый запуск»** (застрявший спец без org не мог выйти). · Проверка: тест рендерит
-  `form action=/api/auth/logout`; живой клик на TEST после деплоя. · Доказательство: `StaffSecuritySection.tsx` + тест (в коммитах воркера) — верифицировать.
+- [🔵] **A1. `provision_specialist_owner` + `current_provisioned_owner_organization` → владелец `app_owner`** (шов
+  NOLOGIN+BYPASSRLS, не request-reachable, актор — из подписанного принципала). **Верификатор: PASS** — цепочка
+  grant-complete под FORCE, реассайн 2-й функции чинит silent-empty, регрессий нет (единственный вызов —
+  `start_provisioned_organization_trial`). · Доказательство: SHA `88ca5b7cf`,`8072dc899`; overlay `deploy/postgres/specialist-owner-provisioning-rls.sql`. · Ждёт деплоя+живой регистрации (A4).
+- [🔵] **A2. Табличные гранты `app_owner` под цепочку** (BYPASSRLS ≠ обход GRANT): INSERT `be_organizations`,
+  SELECT+UPDATE `specialist_signup_intents`, EXECUTE `require_staff_security_self_user_id()`. **Верификатор: PASS —
+  минимальны** (без избыточных; app_owner уже держал platform_users SELECT+UPDATE, be_organizations SELECT,
+  be_organization_members SELECT+INSERT); никому не выдан BYPASSRLS. · Инфо-край: `platform_users` UPDATE +
+  `be_organization_members` INSERT нигде не запинены → см. D3. · Доказательство: overlay-diff + live `has_table_privilege`.
+- [🔵] **A3. Логаут на онбординге «Первый запуск»** (застрявший спец без org не мог выйти). **Верификатор: PASS** —
+  `StaffSecuritySection.tsx:140-149` рендерит `form action=/api/auth/logout` в `!recoveryOnly`-блоке, не загейчен
+  org/binding; на recovery-only отсутствует. · Ждёт живого клика на TEST после деплоя.
 - [⬜] **A4. Деплой A1–A3 на TEST + живая регистрация новой клиники доходит до кабинета.** · Проверка: runtime —
   регистрация с чистого email создаёт org, `Кабинет создан ✓`; застрявший intent оживает. · Мой шаг после ✅ верификации.
 
@@ -44,9 +47,13 @@ silent-empty; изоляция не ослаблена.
   email_challenges) → после гранта вход ок. · **Дыра: грант ЖИВОЙ, не в оверлее** → см. B2.
 - [⬜] **B2. Вписать B1 в канонический оверлей** (`runtime-overlay-app-owner-handoff.sql` / d3-4) + assert. · Проверка:
   `grep` оверлея; свежий disposable-деплой даёт вход по коду зелёным. · Доказательство: overlay-diff + smoke.
-- [⬜] **B3. Свип: перечислить ВСЕ `app_owner`-owned secdef функции, по каждой сверить гранты на все читаемые/писомые
-  таблицы, закрыть найденные дыры в оверлеях.** · Проверка: `pg_proc proowner=app_owner prosecdef` × тела × `role_table_grants`;
-  по каждой находке — overlay-grant + rollback-прогон. · Доказательство: **дополню из отчёта верификатора (item 8).**
+- [🟡] **B3. Свип ВСЕХ `app_owner`-owned secdef функций (48 шт) — выполнен верификатором.** Найдена **одна реальная
+  спящая мина того же класса:** `app.enforce_courses_snapshot_quota()` (AFTER-INSERT триггер `courses_snapshot_quota_guard`
+  на `public.courses`) делает `SELECT count(*) FROM public.courses`, а у `app_owner` нет SELECT на `courses` → 42501
+  сломает создание курса, как только тариф/оверрайд задаст числовую квоту `courses`. Сейчас **DORMANT** (нет числовой
+  квоты, 0 строк), pre-existing (не из этих коммитов). Остальные 46 — покрыты; 1 false-positive (`operator_incidents`
+  column-level UPDATE — ок). · Закрытие: `GRANT SELECT ON public.courses TO app_owner` в оверлей (воркер) → см. D3-пин.
+  · Доказательство: отчёт верификатора item 8 + `has_table_privilege`.
 
 ## C. Гейт / почему CI не ловил
 Цель: этот класс ловится в CI/деплой-гейте, а не владельцем живьём.
@@ -63,9 +70,15 @@ silent-empty; изоляция не ослаблена.
 ## D. Дисциплина выката (операционная хрупкость)
 Цель: недостающий грант роняет РЕПЕТИЦИЮ, а не прод; ассерт не оставляет систему полу-настроенной.
 
-- [🟡] **D1. Pinning-ассерт шва** `assert_specialist_owner_provisioning_seam_pinned` (app_owner NOLOGIN+BYPASSRLS,
-  0 SET ROLE членов, владеет только своими; be_organizations FORCE без широкой INSERT-политики). · Проверка: ассерт
-  краснеет при LOGIN/лишнем члене/смене владельца. · Доказательство: `deploy-test-saas.sh` (коммит воркера) — верифицировать.
+- [🔵] **D1. Pinning-ассерт шва** `assert_specialist_owner_provisioning_seam_pinned` (app_owner NOLOGIN+BYPASSRLS,
+  0 SET ROLE членов, владеет только своими; be_organizations FORCE без широкой INSERT-политики). **Верификатор: PASS —
+  fail-closed** на LOGIN / лишнем члене / смене владельца / потере FORCE / широкой INSERT-политике. · Доказательство: `deploy-test-saas.sh` (коммит воркера).
+- [🟡] **D3. Grant-completeness ассерт `assert_app_owner_secdef_table_grants_complete`** (крон-фикс гейта: верификатор
+  показал, что scratch-smoke МАСКИРУЕТ missing-grant регресс — app_owner владеет scratch-таблицами + superuser-fallback
+  обходит RLS, — а pin-ассерт прав на таблицы НЕ проверяет; поэтому баг класса email_challenges прошёл бы и smoke, и pin).
+  Ассерт: `has_table_privilege('app_owner',…)` по всему требуемому набору + инфо-гранты (platform_users UPDATE,
+  be_organization_members INSERT) + **анти-дрифт**: пин COUNT app_owner-secdef функций → новая функция без ревью грантов
+  роняет деплой. · Проверка: намеренно снять грант → ассерт краснеет; `bash -n`. · Доказательство: closure-diff + прогон. · Воркер строит.
 - [⬜] **D2. Ассерты прав — ПРЕФЛАЙТОМ до мутаций** (инцидент 24.07: лишний грант → FATAL посреди closure → TEST лёг;
   сегодняшний одночасовой всплеск role_pool_mismatch — тот же класс на операционных сервисах). Ограниченно: перенести
   критичные assert_* в preflight/сделать closure идемпотентно-resumable. Полный рефактор движка — отдельным пунктом. · Проверка:
