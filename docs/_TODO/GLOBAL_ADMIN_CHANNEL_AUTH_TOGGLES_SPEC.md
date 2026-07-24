@@ -41,11 +41,42 @@ login/registration UI must reflect those toggles **dynamically**.
 - 2FA toggle semantics: disabling 2FA entirely vs making it optional-per-user?
 - Confirm which email/OAuth providers are in scope (Google, Yandex, + others?).
 
-## Current state — RECON (to be filled from worker report)
-_(login-option gating source, existing channel/auth flags, mini-app locations — grounds the implementation plan.)_
+## Current state — RECON (verified 2026-07-24, `scratchpad/channel-auth-toggles-recon.md`)
+- **Login resolver:** `apps/webapp/src/modules/auth/authChannelPolicy.ts` + `loginAlternativesConfig.ts` →
+  `/api/auth/login/alternatives-config`, `/api/auth/telegram-login/config`, `/api/auth/oauth/providers` →
+  `AuthFlowV2.tsx`/`AuthBootstrap.tsx`. **Fail-closed by default**, and ~30 API routes ALSO server-enforce the channel
+  flag (not just UI hiding — good). So the dynamic-gating machinery already exists; we extend its inputs.
+- **Per-method gating today:**
+  - **email / sms / telegram / max** — ALREADY have individual `system_settings` booleans (`auth_email_enabled` etc.,
+    `registry.ts:102-105`), wired end-to-end. **DONE — reuse.**
+  - **Google / Yandex / Apple OAuth** — currently DERIVED FROM CREDENTIAL PRESENCE via DB trigger (migrations
+    0193/0209/0210), NOT an independent toggle. **GAP vs R2** ("disable Gmail regardless of configured key").
+  - **2FA** (staff TOTP, `modules/staff-security/`) — NO global gate, per-user opt-in only. **GAP.**
+- **Admin write path:** `/api/platform/settings` (`app/api/platform/settings/route.ts`) — the existing global-admin
+  settings API; already carries the 4 boolean auth-channel keys (`PLATFORM_GLOBAL_SETTINGS_API_KEYS`, generic boolean
+  normalization). **Reuse point** — new toggles = new registry keys + add to that array. **No admin UI page found** → build.
+- **OAuth inventory:** Google, Yandex, **Apple** all implemented (Apple not in owner's list → open question).
+- **Mini-apps:** single chokepoint — any bot button carrying `web_app:{url}` (MAX converts `web_app`→`open_app` in
+  `deliveryAdapter.ts`). Removal targets: `reminderInlineKeyboard.ts`, `reminderMessengerWebAppUrls.ts`,
+  `executeAction.ts:362-382` (no_channel_binding fallback), `helpers.ts:373-459` (`webAppUrlFact`). Bot `sendMessage` /
+  Telegram Login Widget / MAX auth codes are SEPARATE → keep untouched. (Not yet located: menu-button mini-app vector,
+  staff-login separateness — confirm before removal.)
 
-## Plan — TBD after recon + owner acceptance
-Likely shape: a canonical `enabled channels/auth-methods` config (admin-editable, one source of truth) →
-consumed by `public.login.config` / the login-surface resolver → UI renders only enabled+available methods; mini-app
-entry points removed. Wire into the existing capability/entitlements infra if it already models this, rather than a new
-parallel flag store.
+## Plan (grounded — awaiting owner acceptance; NOT started)
+1. **Extend the settings registry** with independent boolean toggles: `auth_oauth_google_enabled`,
+   `auth_oauth_yandex_enabled`, (`auth_oauth_apple_enabled`?), `auth_2fa_enabled` — add to `registry.ts` +
+   `PLATFORM_GLOBAL_SETTINGS_API_KEYS`. OAuth toggle becomes `enabled AND creds-present` (decouple from creds-only).
+2. **Login resolver:** feed the new toggles into `authChannelPolicy`/`oauth/providers` + the ~30 server-enforcing routes
+   so a disabled method vanishes from UI AND is rejected server-side (fail-closed).
+3. **2FA:** add the global gate honoring `auth_2fa_enabled` (define disable semantics — owner Q).
+4. **Admin UI:** build the global-admin settings page (checkbox grid) consuming `/api/platform/settings` (backing API
+   exists). 
+5. **Mini-app removal:** strip the `web_app` button chokepoint (the 4 targets above), keep bot auth/notification
+   messaging. Aligns `NTF-01`.
+6. Tests + live TEST verification (toggle off → method gone from login UI + server rejects; mini-app buttons gone).
+
+## Owner decisions (→ decision sheet)
+- Method ON but unconfigured: hide vs show-with-admin-warning?
+- Include **Apple** OAuth toggle? (it's implemented but wasn't in the request.)
+- Toggle scope: **global** (assumed) vs per-clinic?
+- 2FA disable semantics: fully off vs optional-per-user?
