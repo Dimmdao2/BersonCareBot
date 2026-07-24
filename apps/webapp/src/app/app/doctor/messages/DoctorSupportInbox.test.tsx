@@ -110,7 +110,9 @@ describe("DoctorSupportInbox — базовый рендер", () => {
     expect(list).toHaveClass("mx-[var(--doctor-block-padding,18px)]");
     const flatListSurface = document.querySelector("[data-doctor-flat-list-surface]");
     expect(flatListSurface).toBeInTheDocument();
-    expect(flatListSurface?.className).not.toMatch(/\bborder\b|\brounded-/);
+    // Owner: the left support-list container is a rounded card (matching the right detail panel),
+    // while the individual rows stay flat (the shared DoctorDnaFlatListRow element).
+    expect(flatListSurface?.className).toMatch(/\brounded-/);
 
     await userEvent.click(primaryName);
     expect(row?.querySelector("[aria-hidden]")).toHaveClass(
