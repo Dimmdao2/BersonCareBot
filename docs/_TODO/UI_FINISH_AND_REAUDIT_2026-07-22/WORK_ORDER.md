@@ -83,10 +83,16 @@ auditor:
   `booking.upsert` branch/package, `buildAppointmentRecordUpsertedFanout`, the producer and handler for
   `appointment.record.upserted`, `/api/integrator/events`, `tryEmitWebappProjectionThenEnqueue`,
   `projection_outbox`, and the projection worker. A fixture/self-test must prove each category changes the verdict.
-- [~] **D1 — identity and notification preferences.** One integrator transaction writes channel anchors plus
+- [x] **D1 — identity and notification preferences.** One integrator transaction writes channel anchors plus
   canonical `public.platform_users` / `user_channel_bindings` / `user_notification_topics`; retain integrator-only
   channel identity and messenger state that are not duplicate business projections.
-  <br>**CODE DONE + MERGED; live telegram A7-proof REVERTED 2026-07-24 (see below).** Approach A (TS infra-repo
+  <br>**DONE + LIVE-PROVEN 2026-07-24 (correct fix landed).** A7 re-verified live on TEST (feat `79571f8f0`,
+  green closure): synthetic NEW telegram user → webhook `{"ok":true}` (no crash), `platform_users` +
+  `user_channel_bindings` written DIRECTLY, `projection_outbox` `user.upserted` unchanged (18, producer removed).
+  Telegram bootstrap now works via **fail-open reads in code** (`max/webhook.ts`, `handleIncomingEvent.ts`,
+  merge `4997c9513`) — NOT via role grants (the earlier grant approach violated deploy assertions + took TEST
+  down; reverted). Deploy stays green (assertions pass). Below = history of the reverted attempt.
+  <br>**HISTORY (reverted grant attempt):** Approach A (TS infra-repo
   `directPublic/writeIdentityAndPreferencesDirect.ts`, decision `SAAS_FOUNDATION/TRACK_D1_APPROACH_DECISION_2026-07-24.md`).
   Merged (`b4fa18544`), adversarial Opus audit no-blocker, byte-parity with `pgUserProjection.ts`. The direct-write
   MECHANISM is live-proven under an org-principal via **D2**. The telegram **A7** proof (new user → direct
