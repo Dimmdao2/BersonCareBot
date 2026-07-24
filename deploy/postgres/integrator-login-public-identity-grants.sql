@@ -367,9 +367,13 @@ GRANT UPDATE ("is_enabled", "updated_at")
 GRANT SELECT ON TABLE public.be_organization_members TO :"integrator_login_public_identity_grants_role";
 
 -- public.system_settings: RLS ENABLED + FORCE with a global-row (organization_id IS NULL) policy that
--- applies regardless of role, so this whole-table SELECT only ever exposes global settings rows to a
--- bootstrap principal -- never per-organization rows. See header comment for the full trace.
-GRANT SELECT ON TABLE public.system_settings TO :"integrator_login_public_identity_grants_role";
+-- REMOVED 2026-07-24: direct SELECT on public.system_settings VIOLATES the deploy assertion
+-- assert_integrator_server_runtime_config_ready (deploy-test-saas.sh ~line 715), which requires the api
+-- runtime role to read settings ONLY through the SECURITY DEFINER accessors
+-- (app.read_global_server_runtime_setting / app.read_integrator_smtp_outbound_setting) and to have NO
+-- direct table SELECT on public.system_settings / public.app_runtime_settings. Granting it took TEST down
+-- on the recovery deploy. The bootstrap admin-id read that used it fails-open in code instead.
+-- (intentionally no GRANT here)
 
 -- A7 addendum #1 — REMOVED 2026-07-24. Granting the api login role EXECUTE on
 -- app.current_org_id()/is_staff()/current_integrator_user_id()/current_patient_user_id() VIOLATES the
