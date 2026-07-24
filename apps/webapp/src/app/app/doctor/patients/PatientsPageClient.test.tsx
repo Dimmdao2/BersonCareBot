@@ -166,13 +166,13 @@ describe("PatientsPageClient", () => {
       "text-base",
       "font-normal",
     );
-    expect(document.getElementById("doctor-patients-card-support-only")).toHaveClass(
-      "border-t",
-      "border-t-[var(--doctor-flat-list-divider,#f0efeb)]",
-      "border-x-0",
-      "border-b-0",
-    );
-    expect(document.getElementById("doctor-patients-card-support-only")).not.toHaveClass("border-0");
+    // Between-rows divider moved from each row's own `border-t` to the list wrapper's
+    // `[&>li+li]:border-t` (DoctorDnaFlatListRow fix — `first:border-t-0` broke when the row
+    // class sits on an inner Link/Button that is always its <li>'s first child). The row itself
+    // no longer carries a top border; the sibling-order divider lives on the enclosing <ul>.
+    const supportOnlyRow = document.getElementById("doctor-patients-card-support-only");
+    expect(supportOnlyRow).toHaveClass("border-t-0", "border-x-0", "border-b-0");
+    expect(supportOnlyRow?.closest("ul")?.className).toContain("[&>li+li]:border-t");
     expect(document.getElementById("doctor-patients-list")).toHaveClass(
       "mx-[var(--doctor-block-padding,18px)]",
     );
