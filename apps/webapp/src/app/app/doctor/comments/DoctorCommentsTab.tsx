@@ -17,6 +17,15 @@ import type {
   ExerciseCommentItem,
 } from "./loadDoctorPatientExercisesWithComments";
 import { ExerciseListCatalogThumb } from "@/shared/ui/doctor/media/ExerciseListCatalogThumb";
+import {
+  DoctorDnaFlatListSelectionStrip,
+  doctorDnaFlatListClass,
+  doctorDnaFlatListClickableClass,
+  doctorDnaFlatListMetaClass,
+  doctorDnaFlatListPrimaryClass,
+  doctorDnaFlatListRowClass,
+  doctorDnaFlatListSelectedPrimaryClass,
+} from "@/shared/ui/doctor/DoctorDnaFlatListRow";
 import { Input } from "@/shared/ui/doctor/primitives/input";
 import { Button } from "@/shared/ui/doctor/primitives/button";
 import { Textarea } from "@/shared/ui/doctor/primitives/textarea";
@@ -118,41 +127,55 @@ function PatientRow({
   patient,
   isSelected,
   onClick,
+  isFirst,
 }: {
   patient: CommentPatientRow;
   isSelected: boolean;
   onClick: () => void;
+  isFirst: boolean;
 }) {
   const hasUnread = patient.unreadCount > 0;
   return (
-    <Button
-      type="button"
-      variant="ghost"
-      onClick={onClick}
-      className={cn(
-        "flex w-full cursor-pointer items-center gap-2 border-b border-border px-3 py-2.5 text-left transition-colors",
-        isSelected ? "bg-primary/15" : "hover:bg-muted/40",
-      )}
-      aria-pressed={isSelected}
-    >
-      <div className="min-w-0 flex-1 overflow-hidden">
-        <div className="flex items-baseline justify-between gap-1.5">
-          {/* Имя: жирное если есть непрочитанные, обычное если всё прочитано */}
-          <span className={cn("truncate text-sm", hasUnread ? "font-bold" : "font-normal")}>
-            {patient.displayName}
-            {/* ★ = на сопровождении (визуальный маркер, НЕ фильтр) */}
-            {patient.isOnSupport && (
-              <span className="ml-1 text-[10px] font-semibold text-primary" title="На сопровождении">★</span>
-            )}
-          </span>
-          {hasUnread && (
-            <span className="shrink-0 rounded-full bg-destructive/15 px-1.5 py-0.5 text-[10px] font-semibold text-destructive">
-              {patient.unreadCount}
+    <li>
+      <Button
+        type="button"
+        variant="ghost"
+        onClick={onClick}
+        className={cn(
+          doctorDnaFlatListRowClass,
+          doctorDnaFlatListClickableClass,
+          "w-full rounded-none bg-transparent shadow-none",
+          isFirst && "border-t-0",
+        )}
+        aria-pressed={isSelected}
+      >
+        {isSelected ? <DoctorDnaFlatListSelectionStrip /> : null}
+        <div className="min-w-0 flex-1 overflow-hidden">
+          <div className="flex items-baseline justify-between gap-1.5">
+            {/* Имя: жирное если есть непрочитанные, обычное если всё прочитано */}
+            <span
+              className={cn(
+                "min-w-0 truncate",
+                doctorDnaFlatListPrimaryClass,
+                hasUnread && "font-bold",
+                isSelected && doctorDnaFlatListSelectedPrimaryClass,
+              )}
+            >
+              {patient.displayName}
+              {/* ★ = на сопровождении (визуальный маркер, НЕ фильтр) */}
+              {patient.isOnSupport && (
+                <span className="ml-1 text-[10px] font-semibold text-primary" title="На сопровождении">★</span>
+              )}
             </span>
-          )}
+            {hasUnread && (
+              <span className="shrink-0 rounded-full bg-destructive/15 px-1.5 py-0.5 text-[10px] font-semibold text-destructive">
+                {patient.unreadCount}
+              </span>
+            )}
+          </div>
         </div>
-      </div>
-    </Button>
+      </Button>
+    </li>
   );
 }
 
@@ -162,44 +185,59 @@ function ExerciseRow({
   item,
   isSelected,
   onClick,
+  isFirst,
 }: {
   item: ExerciseCommentItem;
   isSelected: boolean;
   onClick: () => void;
+  isFirst: boolean;
 }) {
+  const hasUnread = item.unreadComments > 0;
   return (
-    <Button
-      type="button"
-      variant="ghost"
-      onClick={onClick}
-      className={cn(
-        "flex w-full cursor-pointer items-center gap-2.5 border-b border-border px-3 py-2 text-left transition-colors",
-        isSelected ? "bg-primary/15" : "hover:bg-muted/40",
-      )}
-    >
-      {/* Превью первого медиа упражнения (канон-миниатюра 36×36). */}
-      <ExerciseListCatalogThumb media={thumbToExerciseMedia(item.thumb)} />
-      <div className="min-w-0 flex-1 overflow-hidden">
-        {/* Название упражнения: жирное если есть непрочитанные, обычное если всё прочитано */}
-        <p className={cn("truncate text-sm", item.unreadComments > 0 ? "font-bold" : "font-normal")}>
-          {item.title}
-        </p>
-        {item.latestCommentAt && (
-          <p className="truncate text-xs text-muted-foreground">
-            {formatRelativeTime(item.latestCommentAt)}
+    <li>
+      <Button
+        type="button"
+        variant="ghost"
+        onClick={onClick}
+        className={cn(
+          doctorDnaFlatListRowClass,
+          doctorDnaFlatListClickableClass,
+          "w-full rounded-none bg-transparent shadow-none",
+          isFirst && "border-t-0",
+        )}
+      >
+        {isSelected ? <DoctorDnaFlatListSelectionStrip /> : null}
+        {/* Превью первого медиа упражнения (канон-миниатюра 36×36). */}
+        <ExerciseListCatalogThumb media={thumbToExerciseMedia(item.thumb)} />
+        <div className="min-w-0 flex-1 overflow-hidden">
+          {/* Название упражнения: жирное если есть непрочитанные, обычное если всё прочитано */}
+          <p
+            className={cn(
+              "truncate",
+              doctorDnaFlatListPrimaryClass,
+              hasUnread && "font-bold",
+              isSelected && doctorDnaFlatListSelectedPrimaryClass,
+            )}
+          >
+            {item.title}
           </p>
-        )}
-      </div>
-      <div className="shrink-0 text-right">
-        {item.unreadComments > 0 ? (
-          <span className="rounded-full bg-destructive/15 px-1.5 py-0.5 text-[10px] font-semibold text-destructive">
-            {item.unreadComments}
-          </span>
-        ) : (
-          <span className="text-xs text-muted-foreground">{item.totalComments}</span>
-        )}
-      </div>
-    </Button>
+          {item.latestCommentAt && (
+            <p className={cn("truncate", doctorDnaFlatListMetaClass)}>
+              {formatRelativeTime(item.latestCommentAt)}
+            </p>
+          )}
+        </div>
+        <div className="shrink-0 text-right">
+          {hasUnread ? (
+            <span className="rounded-full bg-destructive/15 px-1.5 py-0.5 text-[10px] font-semibold text-destructive">
+              {item.unreadComments}
+            </span>
+          ) : (
+            <span className={doctorDnaFlatListMetaClass}>{item.totalComments}</span>
+          )}
+        </div>
+      </Button>
+    </li>
   );
 }
 
@@ -239,7 +277,7 @@ function StageGroup({
         type="button"
         variant="ghost"
         onClick={() => setCollapsed((c) => !c)}
-        className="flex w-full items-center gap-1.5 px-3 py-1.5 text-left hover:bg-muted/30 transition-colors"
+        className="flex w-full items-center gap-1.5 rounded-none px-3 py-1.5 text-left hover:bg-muted/30 transition-colors"
       >
         <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wide flex-1">
           {group.stageTitle}
@@ -254,16 +292,17 @@ function StageGroup({
         )}
       </Button>
       {!collapsed && (
-        <div>
-          {orderedExercises.map((ex) => (
+        <ul className={doctorDnaFlatListClass}>
+          {orderedExercises.map((ex, index) => (
             <ExerciseRow
               key={ex.stageItemId}
               item={ex}
               isSelected={selectedItemId === ex.stageItemId}
               onClick={() => onSelectItem(ex)}
+              isFirst={index === 0}
             />
           ))}
-        </div>
+        </ul>
       )}
     </div>
   );
@@ -867,14 +906,17 @@ export function DoctorCommentsTab({
               : "Нет пациентов с непрочитанными комментариями"}
           </DoctorEmptyState>
         ) : (
-          patientsToShow.map((patient) => (
-            <PatientRow
-              key={patient.patientUserId}
-              patient={patient}
-              isSelected={selectedPatient?.patientUserId === patient.patientUserId}
-              onClick={() => handleSelectPatient(patient)}
-            />
-          ))
+          <ul className={doctorDnaFlatListClass}>
+            {patientsToShow.map((patient, index) => (
+              <PatientRow
+                key={patient.patientUserId}
+                patient={patient}
+                isSelected={selectedPatient?.patientUserId === patient.patientUserId}
+                onClick={() => handleSelectPatient(patient)}
+                isFirst={index === 0}
+              />
+            ))}
+          </ul>
         )}
       </div>
     </div>
