@@ -8,7 +8,7 @@
 -- table got SELECT-only vs a write grant, and which BOOTSTRAP tables were deliberately excluded).
 --
 -- Purpose:
---   - app_staff: the reviewed P0.5b runtime DML surface -- 220 tables (SCOPED +
+--   - app_staff: the reviewed P0.5b runtime DML surface -- 213 tables (SCOPED +
 --     BOOTSTRAP + INFRA + LEGACY + TELEMETRY, excluding migration bookkeeping and post-P0.5b tables
 --     whose dedicated overlays own their grants).
 --   - app_patient: ONLY the patient-facing surface -- 109 tables (the patient-owned
@@ -71,13 +71,6 @@ VALUES
   ('integrator', 'message_retry_jobs'),
   ('integrator', 'projection_outbox'),
   ('integrator', 'question_messages'),
-  ('integrator', 'rubitime_api_throttle'),
-  ('integrator', 'rubitime_booking_profiles'),
-  ('integrator', 'rubitime_branches'),
-  ('integrator', 'rubitime_cooperators'),
-  ('integrator', 'rubitime_events'),
-  ('integrator', 'rubitime_records'),
-  ('integrator', 'rubitime_services'),
   ('integrator', 'system_settings'),
   ('integrator', 'telegram_state'),
   ('integrator', 'telegram_users'),
@@ -592,5 +585,5 @@ SELECT (NOT pg_has_role('app_patient', 'app_staff', 'MEMBER'))::int AS p0_5b_gra
 SELECT 1 / 0 AS p0_5b_grants_abort;
 \endif
 
-\echo 'P0.5b grants UP complete: app_staff 220 tables, app_patient 109 tables.'
+\echo 'P0.5b grants UP complete: app_staff 213 tables, app_patient 109 tables.'
 \endif

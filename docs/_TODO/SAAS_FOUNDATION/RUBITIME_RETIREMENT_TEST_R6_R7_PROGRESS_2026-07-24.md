@@ -36,5 +36,23 @@ check:rubitime-retirement-inventory --expect-post-r6` green + `rg` shows only do
 NORMAL repo migration for the DROP (no ad-hoc DROP) → **explicit owner GO on this exact table list** → disposable
 restore+migrate proof. Then apply on TEST.
 
+## R7 code cleanup + migration authoring — DONE (worker, not yet applied)
+- Last runtime reader removed: `apps/webapp/src/infra/platformUserFullPurge.ts` GDPR full-purge no longer
+  deletes from `rubitime_records` / `rubitime_events` (dropped tables make purging them moot). Test added
+  in `platformUserFullPurge.bridge.test.ts` proving other purge targets (`message_retry_jobs`, `users`) stay
+  intact and no SQL references the two dropped tables.
+- Static reference audit (`check:rubitime-retirement-inventory`) confirms `platformUserFullPurge.ts` no
+  longer appears under `rubitimeRawTableRuntimeRefs`; only declarative Drizzle schema mirrors remain
+  (`apps/integrator/src/infra/db/integratorDrizzleSchema.ts`, `.../schema/integratorDomainRepos.ts` — type
+  declarations, not a query path, not gated).
+- DROP migration authored (idempotent, not applied to any DB):
+  `apps/integrator/src/integrations/rubitime/db/migrations/20260724_0002_drop_r7_raw_tables.sql`.
+- FK check: only internal FK is `rubitime_booking_profiles` -> `rubitime_branches`/`rubitime_services`/`rubitime_cooperators`,
+  all in the same drop batch; no table outside the batch references any of the 7.
+- `pnpm --dir apps/integrator typecheck`, `pnpm -C apps/webapp run typecheck`, touched vitest, and
+  `check:rubitime-r7-table-disposition` / `check:rubitime-retirement-inventory` all green.
+- NOT done here: applying the migration to any DB (orchestrator's job on TEST after independent audit).
+
 ## Status
-R6 drain ✓ · R3C-11 in progress · R7 = awaiting R3C-11 + archive + static-no-ref + owner GO on the list above.
+R6 drain ✓ · R3C-11 done (merged) · R7 code cleanup + DROP migration authored ✓ · awaiting independent audit +
+owner GO to apply the migration on TEST.

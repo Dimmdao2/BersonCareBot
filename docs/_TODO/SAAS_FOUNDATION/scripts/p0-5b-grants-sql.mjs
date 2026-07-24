@@ -91,6 +91,24 @@ const overlayManagedAppStaffTables = new Set([
   "public.app_runtime_settings_audit",
 ]);
 
+// R7 (rubitime retirement, 2026-07-24, taskdb Track C R7): these 7 raw Rubitime provider tables are
+// DROP-migrated by apps/integrator/src/integrations/rubitime/db/migrations/20260724_0002_drop_r7_raw_tables.sql.
+// They remain tiered LEGACY in tiers-218.tsv as a historical record (see also
+// check-p0-10-tier-completeness.mjs, which is updated in the same change to stop expecting them in the
+// live schema), but they must never receive an app_staff GRANT again: deploy-test-saas.sh's
+// install_p0_5b_runtime_wall applies this generator's output with `-v ON_ERROR_STOP=1`, and
+// `GRANT ... ON TABLE integrator.rubitime_records ...` on a table that no longer exists is a hard error
+// that would take the whole P0.5b runtime-wall install step down.
+const r7DroppedRawRubitimeTables = new Set([
+  "integrator.rubitime_records",
+  "integrator.rubitime_events",
+  "integrator.rubitime_api_throttle",
+  "integrator.rubitime_booking_profiles",
+  "integrator.rubitime_branches",
+  "integrator.rubitime_services",
+  "integrator.rubitime_cooperators",
+]);
+
 const appStaffGrantTiers = new Set(["SCOPED", "BOOTSTRAP", "INFRA", "LEGACY", "TELEMETRY"]);
 
 function splitQualifiedName(qualifiedName) {
@@ -109,7 +127,8 @@ export function getAppStaffGrantTables() {
       (row) =>
         appStaffGrantTiers.has(row.tier) &&
         !migrationOnlyTables.has(row.table) &&
-        !overlayManagedAppStaffTables.has(row.table),
+        !overlayManagedAppStaffTables.has(row.table) &&
+        !r7DroppedRawRubitimeTables.has(row.table),
     )
     .map((row) => ({ ...splitQualifiedName(row.table), qualifiedName: row.table, tier: row.tier }))
     .sort((left, right) => left.qualifiedName.localeCompare(right.qualifiedName));
