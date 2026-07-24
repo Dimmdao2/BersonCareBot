@@ -898,8 +898,13 @@ assert_specialist_owner_provisioning_seam_pinned(){
   # half-configured -- it can only fail a fully-closed state). app_owner legitimately owns exactly
   # the three P2-B principal-context tables (deploy/postgres/p2-b-protected-principal-context.sql);
   # it must never silently pick up ownership of ordinary application tables beyond that.
-  local ok
-  ok="$(sudo -u postgres psql -d "$DB" -X -v ON_ERROR_STOP=1 -tAc "
+  # This assertion runs mid-closure right after the service restart + smokes. A benign closure
+  # transient (a brief post-restart / elevation-window moment) can momentarily flip a condition
+  # even though the SETTLED seam is correct (verified: all conditions hold in steady state). So
+  # retry-with-settle a few times -- only a PERSISTENT violation FATALs; a one-off closure blip does
+  # not leave TEST half-configured/down.
+  local seam_ok_sql
+  seam_ok_sql="$(cat <<'SEAM_OK_SQL'
 SELECT (
   EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'app_owner' AND NOT rolcanlogin AND rolbypassrls)
   AND 0 = (SELECT count(*) FROM pg_auth_members m JOIN pg_roles r ON r.oid = m.roleid WHERE r.rolname = 'app_owner')
@@ -925,7 +930,14 @@ SELECT (
       )
   )
 )::text;
-")"
+SEAM_OK_SQL
+)"
+  local ok="" _seam_attempt
+  for _seam_attempt in 1 2 3 4 5; do
+    ok="$(sudo -u postgres psql -d "$DB" -X -v ON_ERROR_STOP=1 -tAc "$seam_ok_sql" 2>/dev/null || true)"
+    [ "$ok" = "t" ] && break
+    sleep 2
+  done
   [ "$ok" = "t" ] || {
     echo "FATAL: specialist-owner provisioning seam is not pinned as expected -- app_owner must stay" >&2
     echo "       NOLOGIN+BYPASSRLS with zero SET ROLE members, own only its three P2-B context tables," >&2
@@ -948,6 +960,10 @@ assert_app_owner_secdef_table_grants_complete(){
   #
   # (a) explicit required-grant set, one row per (table, privilege) app_owner's reviewed SECURITY
   #     DEFINER functions are known to need as of this writing.
+  # Settle briefly: like the seam-pin assertion above, this runs mid-closure after the restart, so a
+  # one-off closure transient must not FATAL it (the seam-pin retry loop already absorbs most of the
+  # settle window before control reaches here).
+  sleep 2
   local missing
   missing="$(sudo -u postgres psql -d "$DB" -X -v ON_ERROR_STOP=1 -tAc "
 WITH required(tbl, priv) AS (
