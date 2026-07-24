@@ -127,4 +127,25 @@ describe("platformUserFullPurge SQL bridge", () => {
     expect(poolReleaseMock).toHaveBeenCalledTimes(1);
     expect(runWebappPgTextMock.mock.calls.some((c) => String(c[0]).includes("DELETE FROM users"))).toBe(true);
   });
+
+  it("deleteIntegratorPhoneData still purges message_retry_jobs and the integrator user row, and no longer references the dropped Rubitime raw tables (R7)", async () => {
+    const sqlCalls: string[] = [];
+    runWebappPgTextMock.mockImplementation(async (sql: string) => {
+      sqlCalls.push(String(sql));
+      return { rows: [], rowCount: 0 };
+    });
+    const integratorPool = { connect: () => poolConnectMock() } as never;
+
+    await deleteIntegratorPhoneData(integratorPool, "79001234567", ["42"]);
+
+    // Other purge targets remain intact.
+    expect(sqlCalls.some((s) => s.includes("DELETE FROM message_retry_jobs"))).toBe(true);
+    expect(sqlCalls.some((s) => s.includes("DELETE FROM users"))).toBe(true);
+
+    // R7: rubitime_records / rubitime_events are dropped from the schema; the purge must no longer
+    // issue any query against them.
+    expect(sqlCalls.some((s) => s.includes("rubitime_records") || s.includes("rubitime_events"))).toBe(false);
+
+    expect(clientQueryMock).toHaveBeenCalledWith("COMMIT");
+  });
 });

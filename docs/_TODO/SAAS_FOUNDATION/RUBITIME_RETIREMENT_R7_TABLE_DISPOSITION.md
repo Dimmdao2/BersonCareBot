@@ -74,7 +74,16 @@ It is not a drop candidate.
 
 - Keep/defer decisions above are explicit and checked.
 - Non-final post-R6 static reference audit is prepared in `RUBITIME_RETIREMENT_R7_STATIC_REFERENCE_AUDIT.md`.
-- Archive/export is not complete.
-- Drop migration is not generated.
-- Non-prod restore/migrate proof is not complete.
-- R7 remains pending until the R7 runbook is executed after R6 cutoff/drain.
+- Archive/export of `integrator.rubitime_records` / `integrator.rubitime_events` done on TEST (owner-authorized
+  destructive batch, TEST only; see `RUBITIME_RETIREMENT_TEST_R6_R7_PROGRESS_2026-07-24.md`).
+- Last runtime reader removed: `apps/webapp/src/infra/platformUserFullPurge.ts` GDPR full-purge no longer
+  deletes from `rubitime_records` / `rubitime_events` (purging rows in a table about to be dropped is moot).
+- Drop migration generated (not yet applied to any DB):
+  `apps/integrator/src/integrations/rubitime/db/migrations/20260724_0002_drop_r7_raw_tables.sql`. It drops all
+  7 tables (`rubitime_records`, `rubitime_events`, `rubitime_api_throttle`, `rubitime_booking_profiles`,
+  `rubitime_branches`, `rubitime_services`, `rubitime_cooperators`) with `IF EXISTS ... CASCADE`, idempotent.
+  Only internal FK found: `rubitime_booking_profiles` -> `rubitime_branches`/`rubitime_services`/`rubitime_cooperators`,
+  all in the same batch; no table outside this batch references any of these 7 tables.
+- Non-prod restore/migrate proof is not complete (orchestrator applies the migration on TEST after independent
+  audit; this worktree does not apply it).
+- R7 archive+code-removal+migration-authoring is done; owner GO to apply on TEST is the remaining gate.

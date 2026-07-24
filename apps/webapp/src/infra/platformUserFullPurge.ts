@@ -374,24 +374,9 @@ export async function deleteIntegratorPhoneData(
       await clearMessengerAttributedPhonesForBindings(client, messengerBindings);
     }
 
-    await runPurgeClientPgText(
-      client,
-      `DELETE FROM rubitime_events e
-       USING rubitime_records rr
-       WHERE e.rubitime_record_id IS NOT NULL
-         AND e.rubitime_record_id = rr.rubitime_record_id
-         AND rr.phone_normalized IS NOT NULL
-         AND regexp_replace(rr.phone_normalized, '\\D', '', 'g') = $1`,
-      [digs],
-    );
-
-    await runPurgeClientPgText(
-      client,
-      `DELETE FROM rubitime_records
-       WHERE phone_normalized IS NOT NULL
-         AND regexp_replace(phone_normalized, '\\D', '', 'g') = $1`,
-      [digs],
-    );
+    // R7 (rubitime retirement): the two raw Rubitime provider-history tables formerly purged here
+    // are dropped from the schema (see docs/_TODO/SAAS_FOUNDATION/RUBITIME_RETIREMENT_R7_TABLE_DISPOSITION.md).
+    // Purging them is moot once the tables no longer exist -- the data is gone with the table itself.
 
     await runPurgeClientPgText(
       client,
