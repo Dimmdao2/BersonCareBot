@@ -4,8 +4,12 @@ import { createDbWritePort } from './writePort.js';
 import { stubIntegratorDrizzleForTests } from './stubIntegratorDrizzleForTests.js';
 
 describe('writePort communication projection events', () => {
+  const D3_PLATFORM_USER_ID = 'pu-9001';
+  const D3_ORG_ID = 'org-9001';
+  const D3_CONVERSATION_ROW_ID = 'sc-conv-1';
+
   function makeMockDb(capture: { projectionInserts: { eventType: string; idempotencyKey: string; payload: unknown }[] }): DbPort {
-    const query = vi.fn(async (sql: string, params: unknown[]) => {
+    const query = vi.fn(async (sql: string, _params: unknown[]) => {
       if (
         typeof sql === 'string' &&
         sql.includes('user_id::text AS user_id') &&
@@ -20,6 +24,33 @@ describe('writePort communication projection events', () => {
       if (typeof sql === 'string' && sql.includes('user_identity_id') && sql.includes('FROM conversations')) {
         return { rows: [{ user_identity_id: '42' }] } as Awaited<ReturnType<DbPort['query']>>;
       }
+      // D3 direct-public-write plumbing (writeSupportConversationsDirect.ts, reusing D1/D2's
+      // candidate/org resolution against apps/integrator/src/infra/db/directPublic).
+      if (typeof sql === 'string' && sql.includes('FROM public.platform_users') && sql.includes('integrator_user_id =')) {
+        return { rows: [] } as Awaited<ReturnType<DbPort['query']>>;
+      }
+      if (typeof sql === 'string' && sql.includes('FROM public.user_channel_bindings ucb')) {
+        return { rows: [{ user_id: D3_PLATFORM_USER_ID }] } as Awaited<ReturnType<DbPort['query']>>;
+      }
+      if (typeof sql === 'string' && sql.includes('FROM public.org_enrollments')) {
+        return { rows: [{ organization_id: D3_ORG_ID }] } as Awaited<ReturnType<DbPort['query']>>;
+      }
+      if (typeof sql === 'string' && sql.includes('INSERT INTO public.support_conversations')) {
+        return { rows: [{ id: D3_CONVERSATION_ROW_ID }] } as Awaited<ReturnType<DbPort['query']>>;
+      }
+      if (
+        typeof sql === 'string' &&
+        sql.includes('SELECT id::text AS id, organization_id') &&
+        sql.includes('FROM public.support_conversations')
+      ) {
+        return { rows: [{ id: D3_CONVERSATION_ROW_ID, organization_id: D3_ORG_ID }] } as Awaited<ReturnType<DbPort['query']>>;
+      }
+      if (typeof sql === 'string' && sql.includes('INSERT INTO public.support_conversation_messages')) {
+        return { rows: [{ id: 'sc-msg-1' }] } as Awaited<ReturnType<DbPort['query']>>;
+      }
+      if (typeof sql === 'string' && sql.includes('UPDATE public.support_conversations')) {
+        return { rows: [], rowCount: 1 } as Awaited<ReturnType<DbPort['query']>>;
+      }
       return { rows: [] } as Awaited<ReturnType<DbPort['query']>>;
     });
     const drizzle = stubIntegratorDrizzleForTests(capture);
@@ -33,7 +64,14 @@ describe('writePort communication projection events', () => {
     return { query, tx, integratorDrizzle: drizzle } as DbPort;
   }
 
-  it('conversation.open enqueues support.conversation.opened', async () => {
+  // D3 (Track D): conversation.open / conversation.message.add / conversation.state.set no longer
+  // enqueue an HTTP projection (support.conversation.opened / .message.appended / .status.changed) —
+  // they write directly to public.support_conversations / public.support_conversation_messages in a
+  // separate best-effort transaction. See writeSupportConversationsDirect.ts + its own unit tests
+  // (writeSupportConversationsDirect.test.ts) for the resolution/fail-closed coverage; these tests only
+  // assert the writePort wiring: no projection enqueued, direct-write SQL issued with the right params.
+
+  it('conversation.open writes public.support_conversations directly, no projection enqueued', async () => {
     const capture = { projectionInserts: [] as { eventType: string; idempotencyKey: string; payload: unknown }[] };
     const db = makeMockDb(capture);
     const writePort = createDbWritePort({ db });
@@ -50,15 +88,26 @@ describe('writePort communication projection events', () => {
         lastMessageAt: '2025-01-01T12:00:00.000Z',
       },
     });
-    expect(capture.projectionInserts.length).toBe(1);
-    const ev = capture.projectionInserts[0]!;
-    expect(ev.eventType).toBe('support.conversation.opened');
-    expect((ev.payload as Record<string, unknown>).integratorConversationId).toBe('conv-1');
-    expect((ev.payload as Record<string, unknown>).integratorUserId).toBe('9001');
-    expect(ev.idempotencyKey.startsWith('support.conversation.opened:conv-1:')).toBe(true);
+    expect(capture.projectionInserts.length).toBe(0);
+    const insertCall = (db.query as ReturnType<typeof vi.fn>).mock.calls.find(
+      (call: unknown[]) => typeof call[0] === 'string' && call[0].includes('INSERT INTO public.support_conversations'),
+    );
+    expect(insertCall).toBeDefined();
+    expect(insertCall![1]).toEqual([
+      'conv-1',
+      D3_PLATFORM_USER_ID,
+      D3_ORG_ID,
+      'telegram',
+      'support',
+      'waiting_admin',
+      '2025-01-01T12:00:00.000Z',
+      '2025-01-01T12:00:00.000Z',
+      'telegram',
+      '123',
+    ]);
   });
 
-  it('conversation.message.add enqueues support.conversation.message.appended', async () => {
+  it('conversation.message.add writes public.support_conversation_messages directly, no projection enqueued', async () => {
     const capture = { projectionInserts: [] as { eventType: string; idempotencyKey: string; payload: unknown }[] };
     const db = makeMockDb(capture);
     const writePort = createDbWritePort({ db });
@@ -73,14 +122,27 @@ describe('writePort communication projection events', () => {
         createdAt: '2025-01-01T12:01:00.000Z',
       },
     });
-    expect(capture.projectionInserts.length).toBe(1);
-    const ev = capture.projectionInserts[0]!;
-    expect(ev.eventType).toBe('support.conversation.message.appended');
-    expect((ev.payload as Record<string, unknown>).integratorMessageId).toBe('msg-1');
-    expect((ev.payload as Record<string, unknown>).integratorConversationId).toBe('conv-1');
+    expect(capture.projectionInserts.length).toBe(0);
+    const insertCall = (db.query as ReturnType<typeof vi.fn>).mock.calls.find(
+      (call: unknown[]) =>
+        typeof call[0] === 'string' && call[0].includes('INSERT INTO public.support_conversation_messages'),
+    );
+    expect(insertCall).toBeDefined();
+    expect(insertCall![1]).toEqual([
+      'msg-1',
+      D3_CONVERSATION_ROW_ID,
+      D3_ORG_ID,
+      'user',
+      'text',
+      'Hello',
+      'telegram',
+      null,
+      null,
+      '2025-01-01T12:01:00.000Z',
+    ]);
   });
 
-  it('conversation.state.set enqueues support.conversation.status.changed', async () => {
+  it('conversation.state.set updates public.support_conversations status directly, no projection enqueued', async () => {
     const capture = { projectionInserts: [] as { eventType: string; idempotencyKey: string; payload: unknown }[] };
     const db = makeMockDb(capture);
     const writePort = createDbWritePort({ db });
@@ -94,11 +156,13 @@ describe('writePort communication projection events', () => {
         closeReason: 'resolved',
       },
     });
-    expect(capture.projectionInserts.length).toBe(1);
-    const ev = capture.projectionInserts[0]!;
-    expect(ev.eventType).toBe('support.conversation.status.changed');
-    expect((ev.payload as Record<string, unknown>).integratorConversationId).toBe('conv-1');
-    expect((ev.payload as Record<string, unknown>).status).toBe('closed');
+    expect(capture.projectionInserts.length).toBe(0);
+    const updateCall = (db.query as ReturnType<typeof vi.fn>).mock.calls.find(
+      (call: unknown[]) =>
+        typeof call[0] === 'string' && call[0].includes('UPDATE public.support_conversations SET') && call[0].includes('status ='),
+    );
+    expect(updateCall).toBeDefined();
+    expect(updateCall![1]).toEqual(['conv-1', 'closed', null, '2025-01-01T12:02:00.000Z', 'resolved']);
   });
 
   it('question.create enqueues support.question.created', async () => {

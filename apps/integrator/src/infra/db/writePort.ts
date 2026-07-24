@@ -95,6 +95,12 @@ import {
   createSymptomTrackingDirect,
   isDiaryLfkFailClosedError,
 } from './directPublic/writeDiaryLfkDirect.js';
+import {
+  appendSupportConversationMessageDirect,
+  isSupportConversationsFailClosedError,
+  openSupportConversationDirect,
+  setSupportConversationStatusDirect,
+} from './directPublic/writeSupportConversationsDirect.js';
 
 type BookingUpsertParams = {
   externalRecordId?: unknown;
@@ -782,7 +788,7 @@ export function createDbWritePort(input: {
           const openedAt = asNonEmptyString(mutation.params.openedAt);
           const lastMessageAt = asNonEmptyString(mutation.params.lastMessageAt) ?? openedAt;
           if (!resource || !externalId || !source || !id || !openedAt || !lastMessageAt) return;
-          const pendingConvOpen: ProjectionFanoutInput[] = [];
+          let resolvedIntegratorUserId: string | null = null;
           await db.tx(async (txDb) => {
             await insertConversation(txDb, {
               id,
@@ -799,33 +805,43 @@ export function createDbWritePort(input: {
               [id],
             );
             const rawIdentityId = convRow.rows[0]?.user_identity_id ?? null;
-            const integratorUserId =
+            resolvedIntegratorUserId =
               rawIdentityId != null
                 ? await resolveCanonicalUserIdFromIdentityId(txDb, rawIdentityId)
                 : null;
-            const payload: Record<string, unknown> = {
-              integratorConversationId: id,
-              integratorUserId,
-              source,
-              adminScope,
-              status,
-              openedAt,
-              lastMessageAt,
-              channelCode: resource,
-              channelExternalId: externalId,
-            };
-            pendingConvOpen.push({
-              eventType: 'support.conversation.opened',
-              idempotencyKey: projectionIdempotencyKey(
-                'support.conversation.opened',
-                id,
-                hashPayloadExcludingKeys(payload, ['integratorUserId']),
-              ),
-              occurredAt: openedAt,
-              payload,
-            });
           });
-          await fanoutProjectionsAfterTx(pendingConvOpen);
+          // D3: replaces the `support.conversation.opened` HTTP projection fanout. Runs in its OWN
+          // transaction AFTER the integrator-local `conversations` row above has already committed —
+          // see writeSupportConversationsDirect.ts header for why this must never block/roll back that
+          // write. Swallows ALL errors (not just the classified fail-closed ones), matching the
+          // non-blocking, fire-and-forget property of the projection this replaces.
+          if (resolvedIntegratorUserId) {
+            try {
+              await openSupportConversationDirect(
+                db,
+                {
+                  integratorUserId: resolvedIntegratorUserId,
+                  channelCode: resource,
+                  externalId,
+                  integratorConversationId: id,
+                  source,
+                  adminScope,
+                  status,
+                  openedAt,
+                  lastMessageAt,
+                },
+                { mergeCandidateIds: mergeCandidateIdsViaPlatformMerge },
+              );
+            } catch (err) {
+              const failClosed = isSupportConversationsFailClosedError(err) || isIdentityMergeAmbiguityError(err);
+              logger[failClosed ? 'warn' : 'error'](
+                { err, mutationType: mutation.type, id, resource, externalId },
+                failClosed
+                  ? 'conversation.open: direct public write fail-closed'
+                  : 'conversation.open: direct public write failed unexpectedly (integrator-local write already committed)',
+              );
+            }
+          }
           return;
         }
         case 'conversation.message.add': {
@@ -839,7 +855,6 @@ export function createDbWritePort(input: {
           const externalMessageId = asNullableString(mutation.params.externalMessageId);
           const messageType = asNullableString(mutation.params.messageType) ?? 'text';
           if (!id || !conversationId || !senderRole || !text || !createdAt) return;
-          const pendingConvMsg: ProjectionFanoutInput[] = [];
           await db.tx(async (txDb) => {
             await insertConversationMessage(txDb, {
               id,
@@ -851,25 +866,33 @@ export function createDbWritePort(input: {
               ...(externalMessageId !== null ? { externalMessageId } : {}),
               createdAt,
             });
-            const payload: Record<string, unknown> = {
-              integratorMessageId: id,
+          });
+          // D3: replaces the `support.conversation.message.appended` HTTP projection fanout. Own
+          // transaction after the integrator-local write above; see writeSupportConversationsDirect.ts
+          // header. Fails closed (no write) when the parent conversation's D3 direct write never
+          // resolved (`conversation_not_found`) — swallows ALL errors, same non-blocking property as
+          // the removed fire-and-forget projection.
+          try {
+            await appendSupportConversationMessageDirect(db, {
               integratorConversationId: conversationId,
+              integratorMessageId: id,
               senderRole,
               messageType,
               text,
               source,
-              externalChatId: externalChatId ?? null,
-              externalMessageId: externalMessageId ?? null,
+              externalChatId,
+              externalMessageId,
               createdAt,
-            };
-            pendingConvMsg.push({
-              eventType: 'support.conversation.message.appended',
-              idempotencyKey: projectionIdempotencyKey('support.conversation.message.appended', id, hashPayload(payload)),
-              occurredAt: createdAt,
-              payload,
             });
-          });
-          await fanoutProjectionsAfterTx(pendingConvMsg);
+          } catch (err) {
+            const failClosed = isSupportConversationsFailClosedError(err);
+            logger[failClosed ? 'warn' : 'error'](
+              { err, mutationType: mutation.type, id, conversationId },
+              failClosed
+                ? 'conversation.message.add: direct public write fail-closed'
+                : 'conversation.message.add: direct public write failed unexpectedly (integrator-local write already committed)',
+            );
+          }
           return;
         }
         case 'conversation.state.set': {
@@ -879,7 +902,6 @@ export function createDbWritePort(input: {
           const closedAt = asNullableString(mutation.params.closedAt);
           const closeReason = asNullableString(mutation.params.closeReason);
           if (!id || !status) return;
-          const pendingConvState: ProjectionFanoutInput[] = [];
           await db.tx(async (txDb) => {
             await setConversationState(txDb, {
               id,
@@ -888,21 +910,26 @@ export function createDbWritePort(input: {
               ...(closedAt !== null ? { closedAt } : {}),
               ...(closeReason !== null ? { closeReason } : {}),
             });
-            const payload: Record<string, unknown> = {
+          });
+          // D3: replaces the `support.conversation.status.changed` HTTP projection fanout. Own
+          // transaction after the integrator-local write above; see writeSupportConversationsDirect.ts
+          // header. No-ops (no error) when the conversation row was never opened via D3's direct write —
+          // deliberately NOT mirroring the retired projection's insert-a-stub-row-on-0-rowcount fallback
+          // (that fallback never set organization_id, recreating exactly the NULL-org gap D3 fixes).
+          try {
+            await setSupportConversationStatusDirect(db, {
               integratorConversationId: id,
               status,
-              lastMessageAt: lastMessageAt ?? null,
-              closedAt: closedAt ?? null,
-              closeReason: closeReason ?? null,
-            };
-            pendingConvState.push({
-              eventType: 'support.conversation.status.changed',
-              idempotencyKey: projectionIdempotencyKey('support.conversation.status.changed', id, hashPayload(payload)),
-              occurredAt: new Date().toISOString(),
-              payload,
+              lastMessageAt,
+              closedAt,
+              closeReason,
             });
-          });
-          await fanoutProjectionsAfterTx(pendingConvState);
+          } catch (err) {
+            logger.error(
+              { err, mutationType: mutation.type, id },
+              'conversation.state.set: direct public write failed unexpectedly (integrator-local write already committed)',
+            );
+          }
           return;
         }
         case 'question.create': {

@@ -262,7 +262,16 @@ SELECT 1 / (
 
 \if :{?integrator_login_public_identity_grants_down}
 \echo 'Integrator login public identity grants DOWN: revoking.'
--- D2 addendum (symptom diary + LFK) -- revoked first, independent of the D1 tables below.
+-- D3 addendum (support conversations + messages) -- revoked first, independent of D1/D2 below.
+REVOKE INSERT ("integrator_message_id", "conversation_id", "organization_id", "sender_role", "message_type", "text", "source", "external_chat_id", "external_message_id", "created_at"),
+  UPDATE ("conversation_id")
+  ON TABLE public.support_conversation_messages FROM :"integrator_login_public_identity_grants_role";
+REVOKE SELECT,
+  INSERT ("integrator_conversation_id", "platform_user_id", "organization_id", "source", "admin_scope", "status", "opened_at", "last_message_at", "channel_code", "channel_external_id"),
+  UPDATE ("platform_user_id", "organization_id", "status", "last_message_at", "closed_at", "close_reason", "updated_at")
+  ON TABLE public.support_conversations FROM :"integrator_login_public_identity_grants_role";
+
+-- D2 addendum (symptom diary + LFK) -- revoked next, independent of the D1 tables below.
 REVOKE INSERT ("user_id", "complex_id", "completed_at", "source", "recorded_at", "organization_id")
   ON TABLE public.lfk_sessions FROM :"integrator_login_public_identity_grants_role";
 REVOKE SELECT,
@@ -438,6 +447,45 @@ GRANT INSERT ("user_id", "platform_user_id", "organization_id", "title", "origin
 
 GRANT INSERT ("user_id", "complex_id", "completed_at", "source", "recorded_at", "organization_id")
   ON TABLE public.lfk_sessions TO :"integrator_login_public_identity_grants_role";
+
+-- D3 addendum: support conversations + messages direct-public writes (writeSupportConversationsDirect.ts).
+-- Mirrors D1/D2's candidate/org resolution (public.platform_users / public.user_channel_bindings /
+-- public.org_enrollments — all already granted above, reused unchanged); no NEW app.* EXECUTE grant is
+-- required (saas_org_dormant_p0_8_3/_4 key off app.is_staff()/app.current_org_id()/
+-- app.current_patient_user_id(), all already EXECUTE-granted by the A7 addendum #1 section above).
+--   public.support_conversations         whole-table SELECT (openSupportConversationDirect's
+--                                         ON CONFLICT DO UPDATE SET reads its own platform_user_id/
+--                                         organization_id/last_message_at by qualified name;
+--                                         appendSupportConversationMessageDirect's parent-conversation
+--                                         lookup by integrator_conversation_id; setSupportConversation
+--                                         StatusDirect's UPDATE ... WHERE integrator_conversation_id
+--                                         also needs SELECT on the WHERE-referenced column) + INSERT
+--                                         (integrator_conversation_id, platform_user_id,
+--                                         organization_id, source, admin_scope, status, opened_at,
+--                                         last_message_at, channel_code, channel_external_id) + UPDATE
+--                                         (platform_user_id, organization_id, status, last_message_at,
+--                                         closed_at, close_reason, updated_at) -- union of the open
+--                                         upsert's SET clause, the message-append "touch"
+--                                         last_message_at UPDATE, and the status-set UPDATE.
+--   public.support_conversation_messages INSERT (integrator_message_id, conversation_id,
+--                                         organization_id, sender_role, message_type, text, source,
+--                                         external_chat_id, external_message_id, created_at) + UPDATE
+--                                         (conversation_id) -- appendSupportConversationMessageDirect's
+--                                         ON CONFLICT (integrator_message_id) DO UPDATE SET
+--                                         conversation_id = EXCLUDED.conversation_id. No SELECT: that
+--                                         SET clause only reads EXCLUDED (matches the
+--                                         public.user_notification_topics precedent above), and the
+--                                         INSERT's RETURNING id needs no SELECT grant on the row it just
+--                                         inserted (matches the public.lfk_sessions precedent above).
+GRANT SELECT ON TABLE public.support_conversations TO :"integrator_login_public_identity_grants_role";
+GRANT INSERT ("integrator_conversation_id", "platform_user_id", "organization_id", "source", "admin_scope", "status", "opened_at", "last_message_at", "channel_code", "channel_external_id")
+  ON TABLE public.support_conversations TO :"integrator_login_public_identity_grants_role";
+GRANT UPDATE ("platform_user_id", "organization_id", "status", "last_message_at", "closed_at", "close_reason", "updated_at")
+  ON TABLE public.support_conversations TO :"integrator_login_public_identity_grants_role";
+
+GRANT INSERT ("integrator_message_id", "conversation_id", "organization_id", "sender_role", "message_type", "text", "source", "external_chat_id", "external_message_id", "created_at")
+  ON TABLE public.support_conversation_messages TO :"integrator_login_public_identity_grants_role";
+GRANT UPDATE ("conversation_id") ON TABLE public.support_conversation_messages TO :"integrator_login_public_identity_grants_role";
 
 \echo 'Integrator login public identity grants UP complete.'
 \endif
