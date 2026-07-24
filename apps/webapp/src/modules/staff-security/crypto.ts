@@ -62,7 +62,7 @@ export function createStaffSecurityCrypto(config: StaffSecurityKeyringConfig): S
     encryptTotpSecret(secret) {
       const keyId = keyring.activeKeyId;
       const iv = randomBytes(12);
-      const cipher = createCipheriv("aes-256-gcm", keyFor(keyId), iv);
+      const cipher = createCipheriv("aes-256-gcm", keyFor(keyId), iv, { authTagLength: 16 });
       cipher.setAAD(Buffer.from(`${ENVELOPE_PREFIX}:${keyId}`, "utf8"));
       const encrypted = Buffer.concat([cipher.update(secret, "utf8"), cipher.final()]);
       return [
@@ -79,7 +79,9 @@ export function createStaffSecurityCrypto(config: StaffSecurityKeyringConfig): S
       if (`${namespace}.${version}` !== ENVELOPE_PREFIX || !keyId || !ivRaw || !tagRaw || !payloadRaw || extra) {
         throw new Error("staff_security_envelope_invalid");
       }
-      const decipher = createDecipheriv("aes-256-gcm", keyFor(keyId), Buffer.from(ivRaw, "base64url"));
+      const decipher = createDecipheriv("aes-256-gcm", keyFor(keyId), Buffer.from(ivRaw, "base64url"), {
+        authTagLength: 16,
+      });
       decipher.setAAD(Buffer.from(`${ENVELOPE_PREFIX}:${keyId}`, "utf8"));
       decipher.setAuthTag(Buffer.from(tagRaw, "base64url"));
       return Buffer.concat([decipher.update(Buffer.from(payloadRaw, "base64url")), decipher.final()]).toString("utf8");
