@@ -204,6 +204,20 @@ describe('buildAdminFacts', () => {
     const facts = await buildAdminFacts(body(111222), resolve);
     expect(facts.isAdmin).toBe(false);
   });
+
+  it('fails open (isAdmin false) and logs a warning when the resolver throws', async () => {
+    const warnSpy = vi.spyOn(loggerMod.logger, 'warn').mockImplementation(() => undefined as never);
+    const resolve = vi.fn(async () => {
+      throw new Error('permission denied for function current_org_id');
+    });
+    const facts = await buildAdminFacts(body(111222), resolve);
+    expect(facts.isAdmin).toBe(false);
+    expect(warnSpy).toHaveBeenCalledWith(
+      expect.objectContaining({ err: expect.any(Error) }),
+      expect.stringContaining('resolveMessengerStaffAdmin failed'),
+    );
+    warnSpy.mockRestore();
+  });
 });
 
 describe('registerTelegramWebhookRoutes', () => {

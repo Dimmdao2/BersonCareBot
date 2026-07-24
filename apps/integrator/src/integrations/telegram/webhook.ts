@@ -6,7 +6,7 @@ import {
   runWithIntegratorPrincipal,
   runWithOrganizationPrincipal,
 } from '../../infra/principal/organizationPrincipal.js';
-import { getRequestLogger, newEventId } from '../../infra/observability/logger.js';
+import { getRequestLogger, logger, newEventId } from '../../infra/observability/logger.js';
 import type { EventGateway } from '../../kernel/contracts/index.js';
 import type { IncomingUpdate } from '../../kernel/domain/types.js';
 import { telegramIncomingToEvent } from './connector.js';
@@ -101,7 +101,16 @@ export async function buildAdminFacts(
     chatId === adminTelegramId;
   let dbAdmin = false;
   if (typeof chatId === 'number' && resolveMessengerStaffAdmin) {
-    dbAdmin = await resolveMessengerStaffAdmin('telegram', String(chatId));
+    try {
+      dbAdmin = await resolveMessengerStaffAdmin('telegram', String(chatId));
+    } catch (err) {
+      // Fail open like every other pre-routing lookup in this file (all try/catch and default): a
+      // transient DB/privilege hiccup here must degrade admin-detection to "not admin", not crash the
+      // whole inbound Telegram pipeline (see the 42501 this masked before
+      // deploy/postgres/integrator-login-public-identity-grants.sql closed the underlying privilege gap).
+      logger.warn({ err }, 'buildAdminFacts: resolveMessengerStaffAdmin failed, treating as non-admin');
+      dbAdmin = false;
+    }
   }
   const isAdmin = envAdmin || dbAdmin;
   const result: Record<string, unknown> = { isAdmin };
