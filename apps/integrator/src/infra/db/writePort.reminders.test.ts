@@ -1,3 +1,4 @@
+/* eslint-disable no-secrets/no-secrets -- function-name identifier in a code comment, not a secret */
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { DbPort } from '../../kernel/contracts/index.js';
 import {
@@ -179,6 +180,130 @@ describe('writePort reminder/content projection events', () => {
     const ev = capture.projectionInserts[0]!;
     expect(ev.eventType).toBe(CONTENT_ACCESS_GRANTED);
     expect((ev.payload as Record<string, unknown>).integratorGrantId).toBe('grant-1');
+  });
+
+  it('reminders.rule.upsert: direct public write succeeds (platform user + one active org resolve) -> writes public.reminder_rules directly, NO outbox fallback, local user_reminder_rules write still happens', async () => {
+    const capture = { projectionInserts: [] as { eventType: string; idempotencyKey: string; payload: unknown }[] };
+    const publicInserts: unknown[][] = [];
+    const localRuleUpserts: unknown[] = [];
+    const query = vi.fn(async (sql: string, params: unknown[]) => {
+      if (typeof sql === 'string' && sql.includes('merged_into_user_id') && sql.includes('FROM users')) {
+        return { rows: [{ merged_into_user_id: null }] } as Awaited<ReturnType<DbPort['query']>>;
+      }
+      if (typeof sql === 'string' && sql.includes('FROM public.platform_users') && sql.includes('integrator_user_id =')) {
+        return { rows: [{ id: 'pu-1' }] } as Awaited<ReturnType<DbPort['query']>>;
+      }
+      if (typeof sql === 'string' && sql.includes('FROM public.org_enrollments')) {
+        return { rows: [{ organization_id: 'org-1' }] } as Awaited<ReturnType<DbPort['query']>>;
+      }
+      if (typeof sql === 'string' && sql.includes('INSERT INTO public.reminder_rules')) {
+        publicInserts.push(params);
+        return { rows: [{ updated_at: '2025-01-01T12:00:00.000Z' }] } as Awaited<ReturnType<DbPort['query']>>;
+      }
+      return { rows: [] } as Awaited<ReturnType<DbPort['query']>>;
+    });
+    const drizzle = stubIntegratorDrizzleForTests(capture);
+    // Capture the integrator-local upsertReminderRule write via the drizzle stub's insert tracking too —
+    // stubIntegratorDrizzleForTests already records all `.insert(...)`/`.onConflictDoUpdate(...)` calls
+    // into `capture`; the local write targets `userReminderRules`, distinguishable by NOT being a
+    // projection-outbox row (no eventType field).
+    const tx = vi.fn(async (fn: (txDb: DbPort) => Promise<void>) => {
+      return fn({ query, tx, integratorDrizzle: drizzle } as DbPort);
+    });
+    const db = { query, tx, integratorDrizzle: drizzle } as DbPort;
+    const writePort = createDbWritePort({ db });
+    await writePort.writeDb({
+      type: 'reminders.rule.upsert',
+      params: {
+        id: 'rule-3',
+        userId: '44',
+        category: 'lfk',
+        isEnabled: true,
+        scheduleType: 'daily',
+        timezone: 'Europe/Moscow',
+        intervalMinutes: 60,
+        windowStartMinute: 0,
+        windowEndMinute: 1440,
+        daysMask: '1111111',
+        contentMode: 'none',
+        linkedObjectType: 'lfk_complex',
+        linkedObjectId: 'complex-9',
+      },
+    });
+    // Direct write succeeded -> no reminder.rule.upserted outbox fallback event.
+    expect(capture.projectionInserts.filter((e) => e.eventType === REMINDER_RULE_UPSERTED)).toHaveLength(0);
+    // ...but the direct public write DID happen, with the full field set (including linkedObjectType/Id,
+    // which the OLD narrow projection payload never carried).
+    expect(publicInserts).toHaveLength(1);
+    const [insertParams] = publicInserts;
+    expect(insertParams).toEqual([
+      'rule-3',
+      'pu-1',
+      'org-1',
+      '44',
+      'lfk',
+      true,
+      'daily',
+      'Europe/Moscow',
+      60,
+      0,
+      1440,
+      '1111111',
+      'none',
+      'lfk_complex',
+      'complex-9',
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      false,
+    ]);
+  });
+
+  it('reminders.rule.upsert: direct write failure (ambiguous org) falls back to the durable outbox with the SAME narrow payload shape as before D5, plus an operator incident', async () => {
+    const capture = { projectionInserts: [] as { eventType: string; idempotencyKey: string; payload: unknown }[] };
+    const query = vi.fn(async (sql: string) => {
+      if (typeof sql === 'string' && sql.includes('merged_into_user_id') && sql.includes('FROM users')) {
+        return { rows: [{ merged_into_user_id: null }] } as Awaited<ReturnType<DbPort['query']>>;
+      }
+      if (typeof sql === 'string' && sql.includes('FROM public.platform_users') && sql.includes('integrator_user_id =')) {
+        return { rows: [{ id: 'pu-1' }] } as Awaited<ReturnType<DbPort['query']>>;
+      }
+      if (typeof sql === 'string' && sql.includes('FROM public.org_enrollments')) {
+        // 2 active orgs -> ambiguous, D2's resolveExactActiveOrganizationId fail-closed.
+        return { rows: [{ organization_id: 'org-1' }, { organization_id: 'org-2' }] } as Awaited<ReturnType<DbPort['query']>>;
+      }
+      return { rows: [] } as Awaited<ReturnType<DbPort['query']>>;
+    });
+    const drizzle = stubIntegratorDrizzleForTests(capture);
+    const tx = vi.fn(async (fn: (txDb: DbPort) => Promise<void>) => {
+      return fn({ query, tx, integratorDrizzle: drizzle } as DbPort);
+    });
+    const db = { query, tx, integratorDrizzle: drizzle } as DbPort;
+    const writePort = createDbWritePort({ db });
+    await writePort.writeDb({
+      type: 'reminders.rule.upsert',
+      params: {
+        id: 'rule-4',
+        userId: '45',
+        category: 'lfk',
+        isEnabled: true,
+        scheduleType: 'daily',
+        timezone: 'Europe/Moscow',
+        intervalMinutes: 60,
+        windowStartMinute: 0,
+        windowEndMinute: 1440,
+        daysMask: '1111111',
+        contentMode: 'none',
+      },
+    });
+    expect(capture.projectionInserts).toHaveLength(1);
+    const ev = capture.projectionInserts[0]!;
+    expect(ev.eventType).toBe(REMINDER_RULE_UPSERTED);
+    expect((ev.payload as Record<string, unknown>).integratorRuleId).toBe('rule-4');
   });
 
   it('reminder.rule.upsert idempotency key is deterministic', async () => {

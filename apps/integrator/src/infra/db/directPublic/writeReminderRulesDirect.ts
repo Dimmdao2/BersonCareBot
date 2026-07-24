@@ -1,0 +1,218 @@
+/* eslint-disable no-secrets/no-secrets -- table tags, failure-code identifiers, not secrets */
+/**
+ * Track D — D5: reminder rules direct-public write (identity/org-resolution precedent: D1's
+ * `writeIdentityAndPreferencesDirect.ts` candidate resolver, D2's `writeDiaryLfkDirect.ts` exact-org
+ * resolver — both reused unchanged here).
+ *
+ * ONE bounded integrator transaction writes directly to `public.reminder_rules`, replacing the
+ * `reminder.rule.upserted` HTTP projection fanout (`writePort.ts`'s `reminders.rule.upsert` case →
+ * `tryEmitWebappProjectionThenEnqueue` → webapp `handleIntegratorEvent` →
+ * `reminderProjection.upsertRuleFromProjection`, `apps/webapp/src/infra/repos/pgReminderProjection.ts`).
+ *
+ * TWO gaps found and fixed while consolidating (same "found + fixed a latent bug in the retired path"
+ * pattern as D1/D2/D3):
+ *
+ * 1. FIELD-COMPLETENESS GAP. The retired projection's payload (`buildReminderRuleUpsertKeyPayload`,
+ *    `writePort.ts`) only ever carried the narrow fingerprint field set (id/user/category/enabled/
+ *    schedule/timezone/interval/window/daysMask/contentMode) — `linkedObjectType`, `linkedObjectId`,
+ *    `customTitle`, `customText`, `scheduleData`, `reminderIntent`, `quietHoursStart/EndMinute` and
+ *    `notificationTopicCode` were ALWAYS written to the integrator-local `user_reminder_rules` row
+ *    (`upsertReminderRule`, `apps/integrator/src/infra/db/repos/reminders.ts`) but NEVER propagated to
+ *    `public.reminder_rules` — every bot/webhook-originated rule with a linked object (LFK complex,
+ *    rehab program, custom text, etc.) landed in the webapp/patient-facing table missing those fields.
+ *    This direct write carries the FULL field set (parity with `upsertReminderRule`'s own column list).
+ * 2. ORGANIZATION-ID GAP. `upsertRuleFromProjection`'s INSERT never set `organization_id` at all — every
+ *    projection-consumer-created row is permanently org-NULL, invisible to any `app.is_staff()` +
+ *    `current_org_id()` org-scoped read (same class of bug D3 found for `support_conversations`: "none
+ *    of the retired HTTP consumers ever wrote organization_id"). This direct write resolves the platform
+ *    user's exactly-one active `org_enrollments` row (D2's `resolveExactActiveOrganizationId`, reused
+ *    unchanged) and sets it.
+ *
+ * DURABILITY / FAIL-CLOSED PHILOSOPHY — deliberately DIFFERENT from D2's diary/lfk and closer to D3's
+ * `conversation.open`: `reminder_rules` has NEVER had an ownership/ambiguity fail-closed gate (the retired
+ * consumer wrote the row unconditionally, even with a NULL-resolved platform user — `platform_user_id` is
+ * nullable on this table and `resolvePlatformUserId` returning null there was tolerated, not fatal).
+ * Introducing a NEW hard "no write" case here (unlike D2's diary/lfk, which legitimately requires an
+ * already-onboarded person) would be a behavioural REGRESSION, not a hardening. So this module has NO
+ * fail-closed-no-write branch of its own: platform-user-unresolved, ambiguous-platform-user, and
+ * org-unresolved/ambiguous ALL throw and are treated by the caller (`writePort.ts`) as "fall back to the
+ * durable outbox" (`enqueueProjectionEvent` with the SAME narrow-field `reminder.rule.upserted` payload
+ * shape the retired path used — still accepted by the still-present webapp consumer, teardown is D10),
+ * not as a silent drop. This keeps the write at-least-once in every case, same as before D5, while the
+ * HAPPY path gets full field parity + a correct organization_id.
+ *
+ * PLATFORM-USER RESOLUTION: integrator_user_id-only (no channel/phone args), matching the CURRENTLY-LIVE
+ * projection's own resolution (`resolvePlatformUserId` → `findCanonicalUserIdByIntegratorId`, integrator-
+ * space id only) — same precedent as D1's `writeNotificationTopicsDirect` (`collectPlatformUserCandidates`
+ * called with `channelCode: ''`, `externalId: ''`; the channel-binding branch is a no-op on empty args).
+ *
+ * CHOKEPOINT: injected `DbPort`; writes run on the tx-bound connection inside `db.tx(...)`. Raw SQL is
+ * allowed here (src/infra/db repo, see scripts/check-db-chokepoint.mjs).
+ */
+import type { DbPort } from '../../../kernel/contracts/index.js';
+import { resolveCanonicalIntegratorUserId } from '../repos/canonicalUserId.js';
+import { collectPlatformUserCandidates } from './writeIdentityAndPreferencesDirect.js';
+import { resolveExactActiveOrganizationId } from './writeDiaryLfkDirect.js';
+
+export type UpsertReminderRuleDirectInput = {
+  /** Raw integrator-space id (`identities.user_id`), NOT a `public.platform_users.id`. */
+  integratorUserId: string;
+  integratorRuleId: string;
+  category: string;
+  isEnabled: boolean;
+  scheduleType: string;
+  timezone: string;
+  intervalMinutes: number;
+  windowStartMinute: number;
+  windowEndMinute: number;
+  daysMask: string;
+  contentMode: string;
+  linkedObjectType: string | null;
+  linkedObjectId: string | null;
+  customTitle: string | null;
+  customText: string | null;
+  scheduleData: unknown;
+  reminderIntent: string | null;
+  quietHoursStartMinute: number | null;
+  quietHoursEndMinute: number | null;
+  /**
+   * `undefined` (caller's mutation had no `notificationTopicCode` key at all — the `reminders.rule.toggle`
+   * / `.cyclePreset` write paths never send it) means PRESERVE the existing stored value, matching
+   * `upsertReminderRule`'s (the integrator-local writer's) own `hasOwnProperty` preserve-on-absent
+   * semantic — NOT "clear it". `null` means explicitly clear.
+   */
+  notificationTopicCode: string | null | undefined;
+};
+
+export type UpsertReminderRuleDirectResult = {
+  platformUserId: string;
+  organizationId: string;
+  updatedAt: string;
+};
+
+export type ReminderRuleDirectWriteFailureCode = 'no_platform_user_candidate';
+
+/**
+ * Thrown ONLY for the one case that is neither a resolvable write nor a D1/D2-style ambiguity (which
+ * throw their own `DirectPublicWriteError` / `DiaryLfkDirectWriteError`): no platform user has ever been
+ * linked to this integrator user. Callers treat this identically to any other unexpected failure — fall
+ * back to the durable outbox — it is exported/typed only so tests and callers can assert on it by name.
+ */
+export class ReminderRuleDirectWriteError extends Error {
+  readonly code: ReminderRuleDirectWriteFailureCode;
+
+  readonly details: Record<string, unknown>;
+
+  constructor(code: ReminderRuleDirectWriteFailureCode, details: Record<string, unknown> = {}) {
+    super(code);
+    this.name = 'ReminderRuleDirectWriteError';
+    this.code = code;
+    this.details = details;
+  }
+}
+
+function scheduleDataJson(raw: unknown): string | null {
+  if (raw === undefined || raw === null) return null;
+  try {
+    return JSON.stringify(raw);
+  } catch {
+    return null;
+  }
+}
+
+/** D5 entrypoint replacing the `reminder.rule.upserted` HTTP projection. */
+export async function upsertReminderRuleDirect(
+  db: DbPort,
+  input: UpsertReminderRuleDirectInput,
+): Promise<UpsertReminderRuleDirectResult> {
+  return db.tx(async (txDb) => {
+    const canonicalIntegratorUserId = await resolveCanonicalIntegratorUserId(txDb, input.integratorUserId);
+    // Integrator_user_id-only resolution (no channel/phone args) — see file header.
+    const candidates = await collectPlatformUserCandidates(txDb, {
+      integratorUserId: canonicalIntegratorUserId,
+      phoneNormalized: null,
+      channelCode: '',
+      externalId: '',
+    });
+    const platformUserId = candidates[0];
+    if (!platformUserId) {
+      throw new ReminderRuleDirectWriteError('no_platform_user_candidate', { integratorUserId: canonicalIntegratorUserId });
+    }
+    // Fail-closed via D2's exact-org resolver on 0/2+ active enrollments — propagates as
+    // DiaryLfkDirectWriteError, which the caller (writePort.ts) treats as a durable-outbox fallback
+    // (see file header: this module has no no-write-ever branch of its own).
+    const organizationId = await resolveExactActiveOrganizationId(txDb, platformUserId);
+    const notificationTopicCodeProvided = input.notificationTopicCode !== undefined;
+
+    const res = await txDb.query<{ updated_at: string }>(
+      `INSERT INTO public.reminder_rules (
+         integrator_rule_id, platform_user_id, organization_id, integrator_user_id, category, is_enabled,
+         schedule_type, timezone, interval_minutes, window_start_minute, window_end_minute,
+         days_mask, content_mode,
+         linked_object_type, linked_object_id, custom_title, custom_text,
+         schedule_data, reminder_intent, quiet_hours_start_minute, quiet_hours_end_minute,
+         notification_topic_code, updated_at
+       )
+       VALUES (
+         $1, $2::uuid, $3::uuid, $4::bigint, $5, $6,
+         $7, $8, $9, $10, $11,
+         $12, $13,
+         $14, $15, $16, $17,
+         $18::jsonb, $19, $20, $21,
+         $22, now()
+       )
+       ON CONFLICT (integrator_rule_id) DO UPDATE SET
+         platform_user_id = COALESCE(EXCLUDED.platform_user_id, reminder_rules.platform_user_id),
+         organization_id = COALESCE(EXCLUDED.organization_id, reminder_rules.organization_id),
+         integrator_user_id = EXCLUDED.integrator_user_id,
+         category = EXCLUDED.category,
+         is_enabled = EXCLUDED.is_enabled,
+         schedule_type = EXCLUDED.schedule_type,
+         timezone = EXCLUDED.timezone,
+         interval_minutes = EXCLUDED.interval_minutes,
+         window_start_minute = EXCLUDED.window_start_minute,
+         window_end_minute = EXCLUDED.window_end_minute,
+         days_mask = EXCLUDED.days_mask,
+         content_mode = EXCLUDED.content_mode,
+         linked_object_type = EXCLUDED.linked_object_type,
+         linked_object_id = EXCLUDED.linked_object_id,
+         custom_title = EXCLUDED.custom_title,
+         custom_text = EXCLUDED.custom_text,
+         schedule_data = EXCLUDED.schedule_data,
+         reminder_intent = EXCLUDED.reminder_intent,
+         quiet_hours_start_minute = EXCLUDED.quiet_hours_start_minute,
+         quiet_hours_end_minute = EXCLUDED.quiet_hours_end_minute,
+         notification_topic_code = CASE WHEN $23 THEN EXCLUDED.notification_topic_code ELSE reminder_rules.notification_topic_code END,
+         updated_at = EXCLUDED.updated_at
+       RETURNING updated_at::text AS updated_at`,
+      [
+        input.integratorRuleId,
+        platformUserId,
+        organizationId,
+        canonicalIntegratorUserId,
+        input.category,
+        input.isEnabled,
+        input.scheduleType,
+        input.timezone,
+        input.intervalMinutes,
+        input.windowStartMinute,
+        input.windowEndMinute,
+        input.daysMask,
+        input.contentMode,
+        input.linkedObjectType,
+        input.linkedObjectId,
+        input.customTitle,
+        input.customText,
+        scheduleDataJson(input.scheduleData),
+        input.reminderIntent,
+        input.quietHoursStartMinute,
+        input.quietHoursEndMinute,
+        notificationTopicCodeProvided ? input.notificationTopicCode : null,
+        notificationTopicCodeProvided,
+      ],
+    );
+    const updatedAt = res.rows[0]?.updated_at;
+    if (!updatedAt) throw new Error('reminder_rules upsert returned no row');
+    return { platformUserId, organizationId, updatedAt };
+  });
+}

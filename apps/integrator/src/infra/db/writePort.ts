@@ -108,6 +108,7 @@ import {
   markSupportQuestionAnsweredDirect,
   SupportQuestionsDirectWriteError,
 } from './directPublic/writeSupportQuestionsDirect.js';
+import { upsertReminderRuleDirect } from './directPublic/writeReminderRulesDirect.js';
 import { enqueueProjectionEvent } from './repos/projectionOutbox.js';
 import { recordOperatorFailureIncident } from '../operatorIncident/reportOperatorFailure.js';
 
@@ -1432,11 +1433,31 @@ export function createDbWritePort(input: {
             return;
           }
           const isEnabled = mutation.params.isEnabled === true;
-          const pendingRule: ProjectionFanoutInput[] = [];
+          const linkedObjectType = asNullableString(mutation.params.linkedObjectType);
+          const linkedObjectId = asNullableString(mutation.params.linkedObjectId);
+          const customTitle = asNullableString(mutation.params.customTitle);
+          const customText = asNullableString(mutation.params.customText);
+          const reminderIntent = asNullableString(mutation.params.reminderIntent);
+          const quietHoursStartMinute = asNullableIntegerMinute(mutation.params.quietHoursStartMinute);
+          const quietHoursEndMinute = asNullableIntegerMinute(mutation.params.quietHoursEndMinute);
+          const notificationTopicCodeProvided = Object.prototype.hasOwnProperty.call(
+            mutation.params,
+            'notificationTopicCode',
+          );
+          const notificationTopicCodeRaw = notificationTopicCodeProvided
+            ? asNullableString(mutation.params.notificationTopicCode)
+            : undefined;
+          let canonicalUserId = userId;
           await db.tx(async (txDb) => {
-            const canonicalUserId = await resolveCanonicalIntegratorUserId(txDb, userId);
+            canonicalUserId = await resolveCanonicalIntegratorUserId(txDb, userId);
             await cancelPendingReminderOccurrencesForRule(txDb, id);
-            const updatedAt = await upsertReminderRule(txDb, {
+            // D5 note: `integrator.user_reminder_rules` is retained UNCHANGED here — NOT a duplicate
+            // business projection but genuine local state `user_reminder_occurrences.rule_id` has a hard
+            // FK to (`ON DELETE CASCADE`), so occurrence planning/dispatch (Track D D6/D7) still requires
+            // every rule id to exist here. Classified for migration-backed removal only once D6 migrates
+            // that FK and the scheduler's `getEnabledReminderRules` read off `public.reminder_rules`
+            // instead — out of D5's scope (see WORK_ORDER Track D5 report).
+            await upsertReminderRule(txDb, {
               id,
               userId: canonicalUserId,
               category: category as never,
@@ -1448,21 +1469,42 @@ export function createDbWritePort(input: {
               windowEndMinute,
               daysMask,
               contentMode: contentMode as never,
-              linkedObjectType: asNullableString(mutation.params.linkedObjectType),
-              linkedObjectId: asNullableString(mutation.params.linkedObjectId),
-              customTitle: asNullableString(mutation.params.customTitle),
-              customText: asNullableString(mutation.params.customText),
+              linkedObjectType,
+              linkedObjectId,
+              customTitle,
+              customText,
               deepLink: asNullableString(mutation.params.deepLink),
-              reminderIntent: asNullableString(mutation.params.reminderIntent),
-              quietHoursStartMinute: asNullableIntegerMinute(mutation.params.quietHoursStartMinute),
-              quietHoursEndMinute: asNullableIntegerMinute(mutation.params.quietHoursEndMinute),
+              reminderIntent,
+              quietHoursStartMinute,
+              quietHoursEndMinute,
               ...(typeof mutation.params.scheduleData !== 'undefined'
                 ? { scheduleData: mutation.params.scheduleData }
                 : {}),
             });
-            const keyPayload = buildReminderRuleUpsertKeyPayload({
-              integratorRuleId: id,
+          });
+          // D5: replaces the `reminder.rule.upserted` HTTP projection fanout. Runs in its OWN transaction
+          // AFTER the integrator-local `user_reminder_rules` row above has already committed — see
+          // writeReminderRulesDirect.ts header ("DURABILITY"): this domain never had a fail-closed-no-write
+          // case before D5, so EVERY failure (platform-user unresolved, org unresolved/ambiguous, or any
+          // other unexpected error) falls back to the SAME durable outbox the retired projection used —
+          // never a silent drop.
+          const fallbackKeyPayload = buildReminderRuleUpsertKeyPayload({
+            integratorRuleId: id,
+            integratorUserId: canonicalUserId,
+            category,
+            isEnabled,
+            scheduleType,
+            timezone,
+            intervalMinutes,
+            windowStartMinute,
+            windowEndMinute,
+            daysMask,
+            contentMode,
+          });
+          try {
+            await upsertReminderRuleDirect(db, {
               integratorUserId: canonicalUserId,
+              integratorRuleId: id,
               category,
               isEnabled,
               scheduleType,
@@ -1472,16 +1514,44 @@ export function createDbWritePort(input: {
               windowEndMinute,
               daysMask,
               contentMode,
+              linkedObjectType,
+              linkedObjectId,
+              customTitle,
+              customText,
+              scheduleData: mutation.params.scheduleData,
+              reminderIntent,
+              quietHoursStartMinute,
+              quietHoursEndMinute,
+              notificationTopicCode: notificationTopicCodeRaw,
             });
-            const payload = { ...keyPayload, updatedAt };
-            pendingRule.push({
+          } catch (err) {
+            const fallbackUpdatedAt = new Date().toISOString();
+            await enqueueProjectionEvent(db, {
               eventType: REMINDER_RULE_UPSERTED,
-              idempotencyKey: projectionIdempotencyKey(REMINDER_RULE_UPSERTED, id, hashPayload(keyPayload)),
-              occurredAt: updatedAt,
-              payload,
+              idempotencyKey: projectionIdempotencyKey(
+                REMINDER_RULE_UPSERTED,
+                id,
+                hashPayload(fallbackKeyPayload),
+              ),
+              occurredAt: fallbackUpdatedAt,
+              payload: { ...fallbackKeyPayload, updatedAt: fallbackUpdatedAt },
             });
-          });
-          await fanoutProjectionsAfterTx(pendingRule);
+            logger.warn(
+              { err, mutationType: mutation.type, id, userId: canonicalUserId },
+              'reminders.rule.upsert: direct public write failed, fell back to durable outbox',
+            );
+            await recordOperatorFailureIncident({
+              direction: 'db_write',
+              integration: 'reminder_rules',
+              errorClass: 'reminder_rule_upsert_direct_write_fallback',
+              errorDetail: err instanceof Error ? err.message : String(err),
+            }).catch((incidentErr: unknown) => {
+              logger.error(
+                { err: incidentErr, mutationType: mutation.type, id },
+                'reminders.rule.upsert: failed to record operator incident for direct-write fallback',
+              );
+            });
+          }
           return;
         }
         case 'reminders.occurrence.upsertPlanned': {

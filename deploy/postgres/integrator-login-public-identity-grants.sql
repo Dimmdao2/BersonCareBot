@@ -276,6 +276,13 @@ REVOKE ALL ON TABLE public.support_questions FROM :"integrator_login_public_iden
 REVOKE ALL ON TABLE public.support_question_messages FROM :"integrator_login_public_identity_grants_role";
 REVOKE ALL ON TABLE public.support_delivery_events FROM :"integrator_login_public_identity_grants_role";
 
+-- D5 addendum (reminder rules direct-public write, writeReminderRulesDirect.ts) -- revoked next,
+-- independent of the D2-D4 tables above/below.
+REVOKE SELECT ("platform_user_id", "organization_id", "notification_topic_code"),
+  INSERT ("integrator_rule_id", "platform_user_id", "organization_id", "integrator_user_id", "category", "is_enabled", "schedule_type", "timezone", "interval_minutes", "window_start_minute", "window_end_minute", "days_mask", "content_mode", "linked_object_type", "linked_object_id", "custom_title", "custom_text", "schedule_data", "reminder_intent", "quiet_hours_start_minute", "quiet_hours_end_minute", "notification_topic_code", "updated_at"),
+  UPDATE ("platform_user_id", "organization_id", "integrator_user_id", "category", "is_enabled", "schedule_type", "timezone", "interval_minutes", "window_start_minute", "window_end_minute", "days_mask", "content_mode", "linked_object_type", "linked_object_id", "custom_title", "custom_text", "schedule_data", "reminder_intent", "quiet_hours_start_minute", "quiet_hours_end_minute", "notification_topic_code", "updated_at")
+  ON TABLE public.reminder_rules FROM :"integrator_login_public_identity_grants_role";
+
 -- D2 addendum (symptom diary + LFK) -- revoked next, independent of the D1 tables below.
 REVOKE INSERT ("user_id", "complex_id", "completed_at", "source", "recorded_at", "organization_id")
   ON TABLE public.lfk_sessions FROM :"integrator_login_public_identity_grants_role";
@@ -530,6 +537,26 @@ GRANT INSERT ("integrator_question_message_id", "question_id", "organization_id"
 
 GRANT INSERT ("organization_id", "conversation_message_id", "integrator_intent_event_id", "correlation_id", "channel_code", "status", "attempt", "reason", "payload_json", "occurred_at")
   ON TABLE public.support_delivery_events TO :"integrator_login_public_identity_grants_role";
+
+-- D5 addendum: reminder rules direct-public write (writeReminderRulesDirect.ts). Reuses D1/D2's already-
+-- granted public.platform_users / public.org_enrollments (candidate/exact-active-org resolution, unchanged)
+-- and the same app.is_staff()/app.current_org_id() EXECUTE grants (A7 addendum #1 above) — no new app.*
+-- EXECUTE grant is required.
+--   public.reminder_rules SELECT ("platform_user_id", "organization_id", "notification_topic_code") --
+--                          upsertReminderRuleDirect's ON CONFLICT DO UPDATE SET reads its own
+--                          platform_user_id/organization_id (COALESCE-preserve-if-null-on-conflict) and
+--                          notification_topic_code (CASE-preserve-when-caller's mutation omitted the key,
+--                          e.g. reminders.rule.toggle/.cyclePreset never send it) by qualified name.
+--                          + INSERT (full column set the direct write carries — parity with the
+--                          integrator-local upsertReminderRule's own column list, fixing the pre-D5 gap
+--                          where the retired projection's narrow payload never carried linked_object_*/
+--                          custom_*/schedule_data/reminder_intent/quiet_hours_*/notification_topic_code,
+--                          and never set organization_id at all) + UPDATE (same set, minus the immutable
+--                          integrator_rule_id conflict target) -- the ON CONFLICT DO UPDATE SET clause.
+GRANT SELECT ("platform_user_id", "organization_id", "notification_topic_code"),
+  INSERT ("integrator_rule_id", "platform_user_id", "organization_id", "integrator_user_id", "category", "is_enabled", "schedule_type", "timezone", "interval_minutes", "window_start_minute", "window_end_minute", "days_mask", "content_mode", "linked_object_type", "linked_object_id", "custom_title", "custom_text", "schedule_data", "reminder_intent", "quiet_hours_start_minute", "quiet_hours_end_minute", "notification_topic_code", "updated_at"),
+  UPDATE ("platform_user_id", "organization_id", "integrator_user_id", "category", "is_enabled", "schedule_type", "timezone", "interval_minutes", "window_start_minute", "window_end_minute", "days_mask", "content_mode", "linked_object_type", "linked_object_id", "custom_title", "custom_text", "schedule_data", "reminder_intent", "quiet_hours_start_minute", "quiet_hours_end_minute", "notification_topic_code", "updated_at")
+  ON TABLE public.reminder_rules TO :"integrator_login_public_identity_grants_role";
 
 \echo 'Integrator login public identity grants UP complete.'
 \endif
