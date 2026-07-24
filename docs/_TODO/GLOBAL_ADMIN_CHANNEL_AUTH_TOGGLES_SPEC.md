@@ -17,14 +17,19 @@ login/registration UI must reflect those toggles **dynamically**.
 - **Email** — with **per-provider** control:
   - **Google / Gmail OAuth** — independent toggle
   - **Yandex OAuth** — independent toggle
-  - (any other email/OAuth providers present → same per-provider toggle)
+  - **Apple — NOT included** (owner 2026-07-24; even though implemented, no Apple toggle / not offered).
+- **2FA / TOTP** — owner 2026-07-24: required for **global admin AND specialists** (staff). The toggle governs
+  whether TOTP 2FA is in effect for those roles.
 
 ### R2 — dynamic UI gating
 - Turning a method **OFF** in global-admin → it **disappears** from the login/registration surface, **regardless of
   whether credentials/keys are configured** for it. (Example: disable Gmail → Gmail login option vanishes even if a
   Google OAuth key is still set.)
-- Turning a method **ON** → it **appears** (assuming its creds exist; if a method is ON but unconfigured, define
-  behavior — likely show-but-error or hide-with-admin-warning; **owner decision**).
+- Turning a method **ON** → it **appears to the client ONLY if its required config exists** (integration key /
+  needed keys+addresses in settings). **Owner ruling 2026-07-24:** if a method is ON but its keys/config are
+  missing → **NOT shown to the client**, AND the admin sees a **warning next to that toggle** ("parameters not
+  configured"). So visible-to-client = `enabled AND fully-configured`; admin always sees the toggle + a
+  not-configured warning when applicable.
 - Must apply to: patient login, staff/specialist login, registration flows — everywhere the method is offered.
 
 ### R3 — remove Telegram & MAX mini-apps
@@ -75,8 +80,9 @@ login/registration UI must reflect those toggles **dynamically**.
    messaging. Aligns `NTF-01`.
 6. Tests + live TEST verification (toggle off → method gone from login UI + server rejects; mini-app buttons gone).
 
-## Owner decisions (→ decision sheet)
-- Method ON but unconfigured: hide vs show-with-admin-warning?
-- Include **Apple** OAuth toggle? (it's implemented but wasn't in the request.)
-- Toggle scope: **global** (assumed) vs per-clinic?
-- 2FA disable semantics: fully off vs optional-per-user?
+## Owner decisions
+- ✅ **RESOLVED 2026-07-24** — Method ON but unconfigured → **hidden from client + admin-side warning** next to the
+  toggle. visible-to-client = `enabled AND configured`.
+- ✅ **RESOLVED 2026-07-24** — **Apple NOT included** (no toggle).
+- ✅ **RESOLVED 2026-07-24** — 2FA/TOTP toggle applies to **global admin AND specialists (staff)**.
+- ⏳ **STILL OPEN** — Toggle scope: **global** (platform-wide, assumed) vs per-clinic? (→ decision sheet.)
