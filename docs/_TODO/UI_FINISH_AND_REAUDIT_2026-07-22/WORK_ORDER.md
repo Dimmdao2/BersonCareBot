@@ -123,6 +123,25 @@ auditor:
   writes with tenant mismatch denied; keep `message_drafts` integrator-local as ephemeral state.
 - [ ] **D5 — reminder rules.** `public.reminder_rules` becomes the only business source for CRUD and scheduler reads;
   retire `reminder.rule.upserted`, then classify the integrator rule table for migration-backed removal.
+  <br>**PARTIAL 2026-07-25** (write-side slice, commit `384e7ca29`): `reminder.rule.upserted` HTTP fanout retired —
+  `writePort.ts`'s `reminders.rule.upsert` now writes `public.reminder_rules` directly (`directPublic/
+  writeReminderRulesDirect.ts`, D1-D4 candidate/org-resolution pattern reused), full field parity (fixed a gap:
+  the retired payload never carried `linked_object_type/id`, `custom_title/text`, `schedule_data`,
+  `reminder_intent`, `quiet_hours_*`, `notification_topic_code`) and a correct `organization_id` (the retired
+  consumer never set it at all — same class of bug D3 found for `support_conversations`). Column-scoped grants
+  (UP+DOWN) applied+verified live on TEST; tenant isolation live-proven in rolled-back transactions (bare login
+  denied, org-A principal writes org-A, org-A principal RLS-denied on org-B). Durability: no fail-closed-no-write
+  case (this domain never had one) — every failure falls back to the same durable outbox + operator incident.
+  **NOT done (deferred to D6):** "scheduler reads" — `getEnabledReminderRules` (the `reminders.planDue` read) still
+  reads `integrator.user_reminder_rules`, and the integrator-local write there is UNCHANGED (kept), because
+  `user_reminder_occurrences.rule_id` has a hard `ON DELETE CASCADE` FK to it — cutting that write/read over to
+  `public.reminder_rules` requires migrating that FK, which is occurrence-lifecycle machinery (D6's explicit
+  remit: "reminder lifecycle, delivery... before retiring duplicate... projections"), not an independently-safe
+  D5 change. `integrator.user_reminder_rules` is therefore NOT YET classified for migration-backed removal —
+  that classification is blocked on the same D6 FK migration. Full detail: commit `384e7ca29` message.
+  <br>**Note found, not fixed here (pre-existing, unrelated to D5):** this WORK_ORDER's D3/D4 checkboxes above
+  are still `[ ]` even though both are merged+audited (`fc5493c91`/`3022816da` D3, `e2590d050`/`c376b6b74` D4,
+  confirmed via `git log`) — left as-is since fixing that is outside this D5 push's scope.
 - [ ] **D6 — reminder lifecycle, delivery and content grants.** Reconcile/backfill the currently missing failed
   occurrence history before retiring duplicate delivery/content projections; keep only proven technical scheduler
   state.
