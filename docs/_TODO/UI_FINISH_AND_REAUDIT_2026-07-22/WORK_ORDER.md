@@ -83,9 +83,17 @@ auditor:
   `booking.upsert` branch/package, `buildAppointmentRecordUpsertedFanout`, the producer and handler for
   `appointment.record.upserted`, `/api/integrator/events`, `tryEmitWebappProjectionThenEnqueue`,
   `projection_outbox`, and the projection worker. A fixture/self-test must prove each category changes the verdict.
-- [ ] **D1 — identity and notification preferences.** One integrator transaction writes channel anchors plus
+- [x] **D1 — identity and notification preferences.** One integrator transaction writes channel anchors plus
   canonical `public.platform_users` / `user_channel_bindings` / `user_notification_topics`; retain integrator-only
   channel identity and messenger state that are not duplicate business projections.
+  <br>**DONE 2026-07-24** — approach A (TS infra-repo `directPublic/writeIdentityAndPreferencesDirect.ts`, decision
+  `SAAS_FOUNDATION/TRACK_D1_APPROACH_DECISION_2026-07-24.md`). Merged (`b4fa18544`), adversarial Opus audit
+  no-blocker, byte-parity with `pgUserProjection.ts`. **A7 live on TEST:** synthetic new telegram user →
+  `platform_users`+`user_channel_bindings`+`user_channel_preferences` written directly; `projection_outbox`
+  `user.upserted` stayed 18 (producer removed, no fanout); idempotent replay clean no-op. Required closing a
+  pre-existing TEST privilege gap (integrator login role bootstrap path) — overlay
+  `deploy/postgres/integrator-login-public-identity-grants.sql` + webhook.ts fail-open fix (`207d4ce78`).
+  Proof: `scratchpad/d1-a7-live-proof.md`. Follow-up: promote overlay to a real integrator migration (prod-correct).
 - [ ] **D2 — diary and LFK.** Resolve canonical platform user and exact organization/enrollment, validate ownership,
   write symptom tracking/entries and LFK complexes/sessions directly, and retire the four corresponding HTTP event
   types without a default-org fallback.
