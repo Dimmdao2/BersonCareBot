@@ -85,4 +85,9 @@ login/registration UI must reflect those toggles **dynamically**.
   toggle. visible-to-client = `enabled AND configured`.
 - ✅ **RESOLVED 2026-07-24** — **Apple NOT included** (no toggle).
 - ✅ **RESOLVED 2026-07-24** — 2FA/TOTP toggle applies to **global admin AND specialists (staff)**.
-- ⏳ **STILL OPEN** — Toggle scope: **global** (platform-wide, assumed) vs per-clinic? (→ decision sheet.)
+- ✅ **RESOLVED 2026-07-24** — Toggle scope: **GLOBAL / platform-wide**, configured by the **global admin only**;
+  specialists do NOT access these settings. (Not per-clinic.)
+
+**All owner decisions on this feature are now resolved.** Ready to plan/build when prioritized (build gaps:
+OAuth per-provider toggles, 2FA global gate for admin+staff, admin checkbox UI, per-method configured-check for
+client visibility, mini-app removal).
