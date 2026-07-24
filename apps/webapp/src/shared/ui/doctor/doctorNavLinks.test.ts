@@ -178,6 +178,45 @@ describe("doctor menu structure", () => {
     expect(auditLog?.badgeKey).toBe("registrationSystemFailures");
   });
 
+  it("system links the previously-orphaned global-admin sub-pages (app-settings, auth, booking, integrations, technical)", () => {
+    const items = getDoctorMenuItems(adminAccess);
+    const system = items.find((i) => i.id === "system");
+    const byId = new Map(system!.items!.map((i) => [i.id, i]));
+
+    expect(byId.get("admin-app-settings")).toMatchObject({
+      label: "Настройки приложения",
+      href: "/app/doctor/admin/app-settings",
+      accessTier: "global_admin",
+    });
+    expect(byId.get("admin-auth")).toMatchObject({
+      label: "Авторизация",
+      href: "/app/doctor/admin/auth",
+      accessTier: "global_admin",
+    });
+    expect(byId.get("admin-booking")).toMatchObject({
+      label: "Бронирование",
+      href: "/app/doctor/admin/booking",
+      accessTier: "global_admin",
+    });
+    expect(byId.get("admin-integrations")).toMatchObject({
+      label: "Интеграции",
+      href: "/app/doctor/admin/integrations",
+      accessTier: "global_admin",
+    });
+    expect(byId.get("admin-technical")).toMatchObject({
+      label: "Технические режимы",
+      href: "/app/doctor/admin/technical",
+      accessTier: "global_admin",
+    });
+  });
+
+  it("hides the newly-linked global-admin sub-pages from plain doctors and clinic admins", () => {
+    for (const access of [doctorAccess, clinicAdminAccess]) {
+      const items = getDoctorMenuItems(access);
+      expect(items.find((i) => i.id === "system")).toBeUndefined();
+    }
+  });
+
   it("communications is a direct link with communicationsTotal badge", () => {
     const items = getDoctorMenuItems(doctorAccess);
     const comms = items.find((i) => i.id === "communications");

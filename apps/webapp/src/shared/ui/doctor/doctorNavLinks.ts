@@ -137,6 +137,36 @@ const RAW_DOCTOR_MENU_ITEMS: DoctorMenuLinkItem[] = [
         accessTier: "global_admin",
       },
       {
+        id: "admin-app-settings",
+        label: "Настройки приложения",
+        href: "/app/doctor/admin/app-settings",
+        accessTier: "global_admin",
+      },
+      {
+        id: "admin-auth",
+        label: "Авторизация",
+        href: "/app/doctor/admin/auth",
+        accessTier: "global_admin",
+      },
+      {
+        id: "admin-booking",
+        label: "Бронирование",
+        href: "/app/doctor/admin/booking",
+        accessTier: "global_admin",
+      },
+      {
+        id: "admin-integrations",
+        label: "Интеграции",
+        href: "/app/doctor/admin/integrations",
+        accessTier: "global_admin",
+      },
+      {
+        id: "admin-technical",
+        label: "Технические режимы",
+        href: "/app/doctor/admin/technical",
+        accessTier: "global_admin",
+      },
+      {
         id: "system-health",
         label: "Здоровье системы",
         href: "/app/doctor/system-health",
