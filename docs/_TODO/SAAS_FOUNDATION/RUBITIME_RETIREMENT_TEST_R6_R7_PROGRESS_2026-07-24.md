@@ -57,5 +57,15 @@ restore+migrate proof. Then apply on TEST.
 R6 drain ✓ · R3C-11 done (merged) · **R7 APPLIED on TEST 2026-07-24** — 7 rubitime raw tables DROPPED (archived first),
 deploy GREEN (p0-5b deploy-breaker fixed, no FATAL), smoke 22/22, KEEP tables intact (message_retry_jobs/
 appointment_records/patient_bookings/booking_*/be_external_entity_mappings/booking_calendar_map). Merge 50880c042.
-**Remaining Track C:** appointment_records drop (still has runtime refs, later), legacy booking_* catalog drop
-(unblocked by R3C-11, separate step), R6 connector/webhook code removal if any remains.
+Re-verified live on TEST 2026-07-24 (separate worker pass): all 7 tables confirmed absent (`to_regclass` NULL) and
+migration `rubitime:20260724_0002_drop_r7_raw_tables.sql` confirmed in `integrator.schema_migrations`
+(`applied_at 2026-07-24 17:34:46+03`). This "R7 applied" line is correct; do not trust any later report that
+claims the R7 drop migration is unapplied on TEST without re-querying the live DB/ledger.
+**Remaining Track C:** appointment_records drop (still has runtime refs — reconfirmed 2026-07-24, see
+`RUBITIME_RETIREMENT_R7_TABLE_DISPOSITION.md` "Track C — appointment_records disposition"), legacy booking_*
+catalog drop (~~unblocked by R3C-11, separate step~~ **SUPERSEDED 2026-07-24 — this was wrong**: R3C-11 only
+removed the patient/public `resolveBranchService` compat path; the admin CRUD surface
+(`pgBookingCatalog.ts` + 10 `/api/admin/booking-catalog/*` routes) and `pgRubitimeMapping.ts`'s admin
+mapping-status view still read/write `booking_*` directly, so the tables are still referenced and the drop is
+still blocked — see `RUBITIME_RETIREMENT_R7_TABLE_DISPOSITION.md` "Track C — booking_* legacy catalog
+disposition"), R6 connector/webhook code removal if any remains.

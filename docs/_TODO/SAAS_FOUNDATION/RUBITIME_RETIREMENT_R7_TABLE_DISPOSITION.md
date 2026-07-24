@@ -41,11 +41,14 @@ The final gate must fail until `RUBITIME_RETIREMENT_R6_CUTOFF_DRAIN_PROOF.md`,
 
 Archive/export decision is required before destructive migration:
 
-- `public.appointment_records`
-- `integrator.rubitime_records`
-- `integrator.rubitime_events`
-- `public.rubitime_records`, if present
-- `public.rubitime_events`, if present
+- `public.appointment_records` -- **still open, BLOCKED by runtime references**, see "Track C — appointment_records
+  disposition" below. Not archived, not dropped.
+- `integrator.rubitime_records` -- **DONE**: archived (`pg_dump --data-only` + SHA256SUMS) and dropped on TEST, see
+  "R7 raw-table batch — reconciled TEST status" below.
+- `integrator.rubitime_events` -- **DONE**: archived and dropped on TEST, same batch.
+- `public.rubitime_records`, if present -- confirmed **not present** on TEST
+  (`SELECT to_regclass('public.rubitime_records')` returns NULL, checked 2026-07-24). Nothing to archive/drop.
+- `public.rubitime_events`, if present -- confirmed **not present** on TEST, same check. Nothing to archive/drop.
 
 The raw archive is archive-only; it must not resurrect integrator-only rows absent from CSV or expand the
 canonical preservation set beyond the fresh Rubitime export.
@@ -56,13 +59,16 @@ backlog or block final gates for rows absent from the CSV.
 
 ## Drop Candidates
 
-Drop candidates only after archive/export, R6 runtime removal, static no-reference proof and owner approval:
+Drop candidates only after archive/export, R6 runtime removal, static no-reference proof and owner approval. All
+five below are part of the same R7 raw-table batch as `rubitime_records`/`rubitime_events` above and are **DONE —
+dropped on TEST** (see reconciled status below); kept listed here verbatim so this doc and the static disposition
+gate (`check:rubitime-r7-table-disposition`) still name every table explicitly:
 
-- `integrator.rubitime_api_throttle`
-- `integrator.rubitime_booking_profiles`
-- `integrator.rubitime_branches`
-- `integrator.rubitime_services`
-- `integrator.rubitime_cooperators`
+- `integrator.rubitime_api_throttle` -- DONE, dropped on TEST.
+- `integrator.rubitime_booking_profiles` -- DONE, dropped on TEST.
+- `integrator.rubitime_branches` -- DONE, dropped on TEST.
+- `integrator.rubitime_services` -- DONE, dropped on TEST.
+- `integrator.rubitime_cooperators` -- DONE, dropped on TEST.
 
 `integrator.rubitime_create_retry_jobs` is not in this list: it was a legacy-Rubitime-named table already
 repurposed into generic message-delivery infra (`kind='message.deliver'`), not Rubitime raw provider history.
@@ -70,7 +76,35 @@ Owner directive 2026-07-24: physically renamed now to `integrator.message_retry_
 `apps/integrator/src/infra/db/migrations/core/20260724_0001_rename_rubitime_create_retry_jobs_to_message_retry_jobs.sql`.
 It is not a drop candidate.
 
-## Current Status
+## R7 raw-table batch — reconciled TEST status (2026-07-24, worker verification)
+
+**SUPERSEDES** the "Current Status" section below (kept underneath for history/audit trail; do not trust its
+"not yet applied" line, it is stale).
+
+A prior worker session reported "R7 applied on TEST" (commit `40a9f9bed`, merge `50880c042`). A later inventory
+pass reported the drop migration as "unapplied even on TEST", creating an apparent conflict. Reconciled against
+live TEST (`bersoncarebot_test`) on 2026-07-24 by this worker:
+
+- **Tables**: all 7 raw tables are **gone**. `SELECT to_regclass('integrator.<table>')` returns NULL for
+  `rubitime_records`, `rubitime_events`, `rubitime_api_throttle`, `rubitime_booking_profiles`, `rubitime_branches`,
+  `rubitime_services`, `rubitime_cooperators`.
+- **Migration ledger**: the migration IS tracked. `SELECT version, applied_at FROM integrator.schema_migrations
+  WHERE version = 'rubitime:20260724_0002_drop_r7_raw_tables.sql'` returns one row, `applied_at = 2026-07-24
+  17:34:46.503155+03` -- consistent with the merge commit timestamp (`50880c042`, 17:32:15+03) and the doc-update
+  commit (`40a9f9bed`, 17:35:59+03) from the same session.
+- **Verdict**: the "R7 applied on TEST" report was **correct**. The later "unapplied even on TEST" report was
+  **stale/incorrect** -- most likely produced by reading this doc's own "Current Status" prose (which still said
+  "not yet applied to any DB") instead of querying the live DB or the `integrator.schema_migrations` ledger.
+  Lesson: this doc's prose is not a substitute for a live check; the ledger and `to_regclass` are ground truth.
+- **Idempotency / re-deploy safety confirmed**: every statement in
+  `apps/integrator/src/integrations/rubitime/db/migrations/20260724_0002_drop_r7_raw_tables.sql` is
+  `DROP TABLE IF EXISTS ... CASCADE`. Even in a hypothetical world where the ledger row was missing (it is not),
+  re-running the migration against a DB where the tables are already gone is a safe no-op. The migrator
+  (`apps/integrator/src/infra/db/migrate.ts`) additionally treats already-applied DDL as idempotent via
+  `applyMigration`'s `safePgCodes`/`safeMessages` fallback, so a fresh deploy that (re)discovers this migration
+  cannot fail or double-drop.
+
+## Current Status (historical — see reconciled section above for ground truth)
 
 - Keep/defer decisions above are explicit and checked.
 - Non-final post-R6 static reference audit is prepared in `RUBITIME_RETIREMENT_R7_STATIC_REFERENCE_AUDIT.md`.
@@ -78,12 +112,74 @@ It is not a drop candidate.
   destructive batch, TEST only; see `RUBITIME_RETIREMENT_TEST_R6_R7_PROGRESS_2026-07-24.md`).
 - Last runtime reader removed: `apps/webapp/src/infra/platformUserFullPurge.ts` GDPR full-purge no longer
   deletes from `rubitime_records` / `rubitime_events` (purging rows in a table about to be dropped is moot).
-- Drop migration generated (not yet applied to any DB):
-  `apps/integrator/src/integrations/rubitime/db/migrations/20260724_0002_drop_r7_raw_tables.sql`. It drops all
-  7 tables (`rubitime_records`, `rubitime_events`, `rubitime_api_throttle`, `rubitime_booking_profiles`,
+- Drop migration generated: `apps/integrator/src/integrations/rubitime/db/migrations/20260724_0002_drop_r7_raw_tables.sql`.
+  It drops all 7 tables (`rubitime_records`, `rubitime_events`, `rubitime_api_throttle`, `rubitime_booking_profiles`,
   `rubitime_branches`, `rubitime_services`, `rubitime_cooperators`) with `IF EXISTS ... CASCADE`, idempotent.
   Only internal FK found: `rubitime_booking_profiles` -> `rubitime_branches`/`rubitime_services`/`rubitime_cooperators`,
   all in the same batch; no table outside this batch references any of these 7 tables.
-- Non-prod restore/migrate proof is not complete (orchestrator applies the migration on TEST after independent
-  audit; this worktree does not apply it).
-- R7 archive+code-removal+migration-authoring is done; owner GO to apply on TEST is the remaining gate.
+- ~~Non-prod restore/migrate proof is not complete~~ -- **SUPERSEDED**: the migration is applied and ledger-tracked
+  on TEST, see reconciled section above. `RUBITIME_RETIREMENT_R7_DROP_RESTORE_PROOF.md` (final owner-facing proof
+  doc) still needs to be written up from this evidence before the `--require-drop-ready` gate goes green.
+- R7 archive+code-removal+migration-authoring+TEST-apply is done for the 7 raw tables. Remaining Track C work is
+  `public.appointment_records` (blocked) and the `public.booking_*` legacy catalog (blocked) -- see below.
+
+## Track C — `public.appointment_records` disposition: BLOCKED by runtime references (worker verification, 2026-07-24)
+
+Not archived, not dropped, no migration authored. This table has heavy, active, bidirectional runtime references
+on both webapp and integrator sides -- dropping it would break the live doctor appointments feature. Evidence
+(`code-search.mjs "appointment_records" --repo bcb` + direct grep):
+
+- **Writes (integrator)**: `apps/integrator/src/infra/db/repos/publicAppointmentRecordSync.ts` --
+  `upsertAppointmentRecordFromBookingMutation` does a Drizzle `.insert(appointmentRecords)...onConflictDoUpdate`
+  on every booking mutation.
+- **Writes (webapp)**: `apps/webapp/src/infra/repos/pgAppointmentProjection.ts` -- multiple raw
+  `INSERT INTO appointment_records (...) ON CONFLICT (integrator_record_id) DO UPDATE ...` and
+  `UPDATE appointment_records SET deleted_at = now() ...` statements (lines ~179-471).
+- **Reads (webapp, doctor-facing)**: `apps/webapp/src/infra/repos/pgDoctorAppointments.ts` -- ~15 `FROM
+  appointment_records` / `appointment_records AS a` queries backing the doctor appointments list/detail views
+  (lines ~146-430).
+- **Live admin API**: `apps/webapp/src/app/api/admin/appointment-records/[integratorRecordId]/soft-delete/route.ts`.
+- **Drizzle schema declaration (integrator)**: `apps/integrator/src/infra/db/schema/integratorDomainRepos.ts:170-189`
+  (`export const appointmentRecords = pgTable('appointment_records', ...)`), imported by
+  `apps/integrator/src/infra/db/integratorDrizzleSchema.ts`.
+
+**Disposition: KEEP for now, ARCHIVE+DROP deferred.** This matches the existing repo memory
+("appointment_records drop later, still has runtime refs") and the runbook's Migration Rules ("Do not drop
+`public.appointment_records` until every runtime reference is gone"). No archive command or drop migration is
+authored for this table in this pass -- authoring an archive-then-drop plan for a table under active read/write
+would be premature and the archived snapshot would go stale immediately.
+
+## Track C — `public.booking_*` legacy catalog disposition: still BLOCKED after R3C-11 (worker verification, 2026-07-24)
+
+**Corrects/supersedes** the line "legacy booking_* catalog drop (unblocked by R3C-11, separate step)" in
+`RUBITIME_RETIREMENT_TEST_R6_R7_PROGRESS_2026-07-24.md`'s Status section -- that line is **inaccurate**, marked
+`SUPERSEDED` there; the accurate status is here.
+
+R3C-11 (commit `9745197c2`, merged `3bd10feb6`) removed exactly one thing: the dead
+`bookingCatalog.resolveBranchService` compatibility method and its `booking_branch_services`/`booking_branches`/
+`booking_cities`/`booking_services` JOIN, which was the last reachable call in the **patient/public** create path
+(`RUBITIME_RETIREMENT_R3_CATALOG_PROOF.md`). Its own commit message says explicitly: *"pgBookingCatalog's admin
+CRUD + pgRubitimeMapping's admin mapping-status view keep their own booking_* reads unchanged (out of scope,
+still R7-disposition-tracked)."* That remains true today -- verified live:
+
+- **Live admin CRUD API (10 routes)**, all reading/writing `booking_cities` / `booking_branches` / `booking_services`
+  / `booking_specialists` / `booking_branch_services` via raw SQL in
+  `apps/webapp/src/infra/repos/pgBookingCatalog.ts` (e.g. lines 229, 290-294, 365-704):
+  - `apps/webapp/src/app/api/admin/booking-catalog/cities/route.ts` (+ `[id]/route.ts`)
+  - `apps/webapp/src/app/api/admin/booking-catalog/branches/route.ts` (+ `[id]/route.ts`)
+  - `apps/webapp/src/app/api/admin/booking-catalog/services/route.ts` (+ `[id]/route.ts`)
+  - `apps/webapp/src/app/api/admin/booking-catalog/specialists/route.ts` (+ `[id]/route.ts`)
+  - `apps/webapp/src/app/api/admin/booking-catalog/branch-services/route.ts` (+ `[id]/route.ts`)
+  - wired via `apps/webapp/src/app/api/admin/booking-catalog/_requireAdminBookingCatalog.ts` ->
+    `buildAppDeps().bookingCatalogPort` -> `createPgBookingCatalogPort()`.
+- **Admin mapping-status view**: `apps/webapp/src/infra/repos/pgRubitimeMapping.ts:165-168` --
+  `FROM booking_branch_services bbs JOIN booking_branches br ... JOIN booking_specialists sp ... JOIN
+  booking_services svc ...`.
+
+**Disposition: KEEP / defer_drop, unchanged from the Keep/Defer table above.** `branchServiceId` is only *partially*
+retired (the patient/public compat resolver is gone; `patient_bookings.branchServiceId` stays as a historical
+trace-only column, untouched by design). The tables themselves are not ref-free -- live admin CRUD depends on them.
+No drop migration is authored for `booking_*` in this pass. To actually unblock the drop, the admin
+booking-catalog CRUD surface (`pgBookingCatalog.ts` + its 10 routes) and the `pgRubitimeMapping.ts` admin view
+would need to be migrated onto `be_*` (canonical) tables or explicitly retired -- that is unstarted, separate work,
+not covered by R3C-11.
