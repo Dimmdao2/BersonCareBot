@@ -59,11 +59,16 @@ backlog or block final gates for rows absent from the CSV.
 Drop candidates only after archive/export, R6 runtime removal, static no-reference proof and owner approval:
 
 - `integrator.rubitime_api_throttle`
-- `integrator.rubitime_create_retry_jobs`
 - `integrator.rubitime_booking_profiles`
 - `integrator.rubitime_branches`
 - `integrator.rubitime_services`
 - `integrator.rubitime_cooperators`
+
+`integrator.rubitime_create_retry_jobs` is not in this list: it was a legacy-Rubitime-named table already
+repurposed into generic message-delivery infra (`kind='message.deliver'`), not Rubitime raw provider history.
+Owner directive 2026-07-24: physically renamed now to `integrator.message_retry_jobs` (not deferred to R7) --
+`apps/integrator/src/infra/db/migrations/core/20260724_0001_rename_rubitime_create_retry_jobs_to_message_retry_jobs.sql`.
+It is not a drop candidate.
 
 ## Current Status
 

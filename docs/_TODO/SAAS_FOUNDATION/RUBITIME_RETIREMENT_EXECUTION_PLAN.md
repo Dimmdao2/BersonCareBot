@@ -103,7 +103,8 @@ Current known facts:
 - No Rubitime webhook route mounted.
 - No Rubitime M2M slots/create/update/remove routes mounted.
 - Canonical booking lifecycle endpoint exists outside `integrations/rubitime` and is called by webapp through a provider-neutral URL.
-- No `rubitime_api_throttle`, `rubitime_create_retry_jobs`, raw `rubitime_records/events`, or v1 profile catalog consumers.
+- No `rubitime_api_throttle`, raw `rubitime_records/events`, or v1 profile catalog consumers. (`rubitime_create_retry_jobs`
+  was renamed to `message_retry_jobs` 2026-07-24 -- generic message-delivery infra, not a Rubitime retirement target.)
 - Google Calendar receives canonical lifecycle commands/events.
 - Reminder scheduler receives canonical booking lifecycle events.
 
@@ -126,12 +127,15 @@ Final drop/archive candidates after proof:
 - `integrator.rubitime_records`
 - `integrator.rubitime_events`
 - `integrator.rubitime_api_throttle`
-- `integrator.rubitime_create_retry_jobs`
 - `integrator.rubitime_booking_profiles`
 - `integrator.rubitime_branches`
 - `integrator.rubitime_services`
 - `integrator.rubitime_cooperators`
 - public same-name Rubitime homonym tables if metadata inventory proves they are not runtime-owned
+
+`integrator.rubitime_create_retry_jobs` is not in this list: it was already repurposed generic message-delivery
+infra, not Rubitime raw provider history, and was renamed to `integrator.message_retry_jobs` 2026-07-24 rather than
+scheduled for archive/drop.
 
 Not drop candidates during Rubitime retirement unless a separate migration proves replacement:
 
@@ -484,8 +488,8 @@ Cutoff/drain work:
 - announce provider cutoff time;
 - disable outbound Rubitime bridge and external webhook ingress;
 - drain `projection_outbox`;
-- drain or explicitly archive `rubitime_create_retry_jobs`;
-- confirm no pending/dead Rubitime projection jobs;
+- confirm no pending/dead Rubitime projection jobs (`rubitime_create_retry_jobs` was renamed to `message_retry_jobs`
+  2026-07-24 -- it is permanent generic message-delivery infra now, not drained/archived here);
 - rerun fresh Rubitime CSV reconciliation after cutoff;
 - verify no late CSV-present rows are missing from canonical;
 - only then unmount routes/remove code.
@@ -540,11 +544,13 @@ Migrate/keep live:
 Drop candidates after archive/drain/proof:
 
 - `integrator.rubitime_api_throttle`
-- `integrator.rubitime_create_retry_jobs`
 - `integrator.rubitime_booking_profiles`
 - `integrator.rubitime_branches`
 - `integrator.rubitime_services`
 - `integrator.rubitime_cooperators`
+
+`integrator.rubitime_create_retry_jobs` is not a drop candidate: renamed to `integrator.message_retry_jobs`
+2026-07-24 (repurposed generic message-delivery infra, not Rubitime raw provider history).
 
 Rules:
 
@@ -612,7 +618,7 @@ These are not optional acceptance notes; each proof must produce a saved artifac
 | `RR-PROOF-06-LIFECYCLE-PARITY` | before R6 | lifecycle/integrator worker | parity test suite output | provider-neutral lifecycle endpoint preserves notifications, Web Push, reminders, payment capture, package link/unlink, delete, reschedule request semantics. |
 | `RR-PROOF-07-GCAL-REKEY` | before R6 | GCal worker | migration/rekey report + tests | existing GCal events update/delete without duplicates; `booking_calendar_map` or replacement is canonical/provider-neutral and remains live. |
 | `RR-PROOF-08-IDEMPOTENCY` | before R6 | lifecycle/integrator worker | restart/idempotency test output | repeated lifecycle events and process restarts do not duplicate GCal/reminders/notifications/payments/package effects. |
-| `RR-PROOF-09-CUTOFF-DRAIN` | before R6 | ops worker | cutoff/drain report | provider cutoff timestamp, webhook/outbound bridge disabled, `projection_outbox` drained, `rubitime_create_retry_jobs` drained/archived, CSV-present missing delta zero or owner-waived; integrator-only rows absent from CSV are audit-only. |
+| `RR-PROOF-09-CUTOFF-DRAIN` | before R6 | ops worker | cutoff/drain report | provider cutoff timestamp, webhook/outbound bridge disabled, `projection_outbox` drained (`message_retry_jobs`, renamed from `rubitime_create_retry_jobs` 2026-07-24, is permanent generic message-delivery infra and is not drained here), CSV-present missing delta zero or owner-waived; integrator-only rows absent from CSV are audit-only. |
 | `RR-PROOF-10-DROP-RESTORE` | before R7 | DB worker + Sol audit | migration restore proof | archive/export completed as raw archive is archive-only; migrations drop only approved tables; fresh restore + migrate + typecheck/static checks pass; no runtime references to dropped tables. |
 
 Minimum command families:
@@ -1087,7 +1093,8 @@ only; post-R6 it must pass with `--expect-post-r6`.
 - [ ] outbound Rubitime bridge is disabled.
 - [ ] external Rubitime webhook ingress is disabled.
 - [ ] `projection_outbox` is drained.
-- [ ] `rubitime_create_retry_jobs` is drained or archived.
+- [x] `rubitime_create_retry_jobs` renamed to `message_retry_jobs` 2026-07-24; permanent generic message-delivery
+      infra, not drained/archived here (see `RUBITIME_RETIREMENT_R7_TABLE_DISPOSITION.md`).
 - [ ] no pending/dead Rubitime projection jobs remain.
 - [ ] final dual-source reconciliation after cutoff is run.
 - [ ] final CSV-present missing delta is zero or owner-waived; integrator-only rows absent from the fresh export are audit-only and must not be imported/resurrected.

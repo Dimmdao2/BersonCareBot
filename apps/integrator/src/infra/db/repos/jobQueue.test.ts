@@ -39,6 +39,6 @@ describe('jobQueue', () => {
 
     const fragment = execute.mock.calls[0]?.[0] as { queryChunks?: unknown[] };
     const text = JSON.stringify(fragment);
-    expect(text).toContain('integrator.rubitime_create_retry_jobs');
+    expect(text).toContain('integrator.message_retry_jobs');
   });
 });

@@ -206,7 +206,6 @@ const categories = [
       /rubitimeEvents/g,
       /rubitime_api_throttle/g,
       /rubitimeApiThrottle/g,
-      /rubitime_create_retry_jobs/g,
       /rubitime_booking_profiles/g,
       /rubitimeBookingProfiles/g,
       /rubitime_branches/g,

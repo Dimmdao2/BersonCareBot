@@ -65,7 +65,8 @@ sequenceDiagram
 
 **Реализация:**
 
-1. **Очередь:** расширить существующую инфраструктуру [`rubitime_create_retry_jobs`](apps/integrator/src/infra/db/repos/jobQueue.ts) новым `kind` (например `rubitime.patient_booking_create`) **или** завести отдельную таблицу только под бронирование — чтобы не смешивать с `message.deliver`. В payload хранить всё нужное для `createRubitimeRecord` (v2/v1) и **идентификатор строки `patient_bookings`** (UUID из webapp).
+1. **Очередь:** расширить существующую инфраструктуру [`message_retry_jobs`](apps/integrator/src/infra/db/repos/jobQueue.ts)
+   (переименована из `rubitime_create_retry_jobs` 2026-07-24) новым `kind` (например `rubitime.patient_booking_create`) **или** завести отдельную таблицу только под бронирование — чтобы не смешивать с `message.deliver`. В payload хранить всё нужное для `createRubitimeRecord` (v2/v1) и **идентификатор строки `patient_bookings`** (UUID из webapp).
 2. **Новый signed route на integrator**, например `POST /api/bersoncare/rubitime/create-record-enqueue`: валидация как у текущего [`create-record`](apps/integrator/src/integrations/rubitime/recordM2mRoute.ts), но вместо вызова Rubitime — `INSERT` job, ответ **202** с `jobId` / correlation.
 3. **Worker:** в [`apps/integrator/src/infra/runtime/worker/main.ts`](apps/integrator/src/infra/runtime/worker/main.ts) добавить отдельный цикл (как уже сделано для delivery и projection outbox): claim due jobs нового типа → выполнить create + `runPostCreateProjection` с тем же `deps`, что в HTTP-роуте.
 4. **Финализация в webapp:** после успеха воркер должен перевести `patient_bookings` из `creating` в `confirmed` с `rubitime_id` (и при ошибке — `failed_sync`). Варианты:

@@ -1,6 +1,8 @@
 /**
  * Очереди integrator: projection_outbox, message retry jobs.
- * `messageRetryJobs` still maps to the legacy physical table until the R7 archive/drop migration.
+ * `messageRetryJobs` maps to the `message_retry_jobs` physical table (renamed from the legacy
+ * Rubitime-named `rubitime_create_retry_jobs` by the 2026-07-24 core migration; see
+ * `apps/integrator/src/infra/db/migrations/core/` for the exact file).
  * Сверено с `apps/webapp/db/schema/schema.ts` (колонки, индексы; без FK).
  */
 import { sql } from 'drizzle-orm';
@@ -43,7 +45,7 @@ export const projectionOutbox = pgTable(
 );
 
 export const messageRetryJobs = pgTable(
-  'rubitime_create_retry_jobs',
+  'message_retry_jobs',
   {
     id: bigserial({ mode: 'number' }).primaryKey().notNull(),
     phoneNormalized: text('phone_normalized'),
@@ -59,7 +61,7 @@ export const messageRetryJobs = pgTable(
     payloadJson: jsonb('payload_json'),
   },
   (table) => [
-    index('idx_rubitime_create_retry_jobs_due').using(
+    index('idx_message_retry_jobs_due').using(
       'btree',
       table.status.asc().nullsLast().op('text_ops'),
       table.nextTryAt.asc().nullsLast().op('text_ops'),

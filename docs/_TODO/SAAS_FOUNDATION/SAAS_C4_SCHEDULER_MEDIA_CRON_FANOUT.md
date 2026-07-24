@@ -45,7 +45,7 @@ job fails closed and surfaces in metrics.
 | Process contour | Env URL | SET-only capability | Exact DB surface |
 |---|---|---|---|
 | API diagnostic | `DATABASE_URL_DIAGNOSTIC` | `app_operational_diagnostic` | `integrator.projection_outbox`: `SELECT` |
-| Delivery worker | `DATABASE_URL_DELIVERY_WORKER` | `app_operational_delivery_worker` | `integrator.projection_outbox`, `integrator.rubitime_create_retry_jobs`, `public.outgoing_delivery_queue`: `SELECT/UPDATE`; narrow operator-alert attempt audit function |
+| Delivery worker | `DATABASE_URL_DELIVERY_WORKER` | `app_operational_delivery_worker` | `integrator.projection_outbox`, `integrator.message_retry_jobs` (renamed from `rubitime_create_retry_jobs` 2026-07-24), `public.outgoing_delivery_queue`: `SELECT/UPDATE`; narrow operator-alert attempt audit function |
 | Scheduler | `DATABASE_URL_SCHEDULER` | `app_operational_scheduler` | `integrator.idempotency_keys`: `SELECT/INSERT/UPDATE/DELETE`; PostgreSQL advisory lock |
 | Media worker | `DATABASE_URL` in `media-worker.prod/test` | `app_operational_media_worker` | `public.media_transcode_jobs`, `public.media_files`: `SELECT/UPDATE`; two-key SECURITY DEFINER runtime accessor |
 | Web Push reminder tick | `DATABASE_URL_WEB_PUSH_REMINDER` in `webapp.prod/test` | `app_operational_web_push_reminder` | organization-ID discovery definer, organization-scoped reminder occurrence/delivery/analytics writes, exact `operator_job_status` key |

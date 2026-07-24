@@ -18,7 +18,7 @@ integrator\trubitime_api_throttle\t\t0
 integrator\trubitime_booking_profiles\t\t0
 integrator\trubitime_branches\t\t0
 integrator\trubitime_cooperators\t\t0
-integrator\trubitime_create_retry_jobs\t\t0
+integrator\tmessage_retry_jobs\t\t0
 integrator\trubitime_events\t\t0
 integrator\trubitime_records\t\t0
 integrator\trubitime_services\t\t0

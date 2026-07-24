@@ -75,7 +75,6 @@ const requiredTables = [
   'integrator.rubitime_records',
   'integrator.rubitime_events',
   'integrator.rubitime_api_throttle',
-  'integrator.rubitime_create_retry_jobs',
   'integrator.rubitime_booking_profiles',
   'integrator.rubitime_branches',
   'integrator.rubitime_services',

@@ -56,11 +56,15 @@ rollback; they do not create new import targets and do not turn integrator-only 
 Drop candidates after archive, R6 removal, static no-reference proof, and owner approval:
 
 - `integrator.rubitime_api_throttle`
-- `integrator.rubitime_create_retry_jobs`
 - `integrator.rubitime_booking_profiles`
 - `integrator.rubitime_branches`
 - `integrator.rubitime_services`
 - `integrator.rubitime_cooperators`
+
+`integrator.rubitime_create_retry_jobs` is not in this list: it is a legacy-Rubitime-named table already repurposed
+into generic message-delivery infra, not Rubitime raw provider history. Owner directive 2026-07-24: physically
+renamed now to `integrator.message_retry_jobs` (not deferred to R7) --
+`apps/integrator/src/infra/db/migrations/core/20260724_0001_rename_rubitime_create_retry_jobs_to_message_retry_jobs.sql`.
 
 ## 1. Read-Only Schema Audit
 
@@ -80,7 +84,7 @@ Run in repo checkout after R6 removal branch is applied:
 ```bash
 node docs/_TODO/SAAS_FOUNDATION/scripts/rubitime-r6-r7-static-inventory.mjs --expect-post-r6
 node /home/dev/brain/tools/code-search.mjs "rubitime_records rubitime_events rubitime_api_throttle rubitime_booking_profiles appointment_records booking_calendar_map" --repo bcb -k 100
-rg -n "rubitime_records|rubitime_events|rubitime_api_throttle|rubitime_create_retry_jobs|rubitime_booking_profiles|rubitime_branches|rubitime_services|rubitime_cooperators|appointment_records|booking_calendar_map" \
+rg -n "rubitime_records|rubitime_events|rubitime_api_throttle|rubitime_booking_profiles|rubitime_branches|rubitime_services|rubitime_cooperators|appointment_records|booking_calendar_map" \
   apps packages docs \
   --glob '!docs/archive/**' \
   --glob '!docs/_ARCHIVE/**'

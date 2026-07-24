@@ -36,7 +36,7 @@
 //     `public.<table>`.
 
 import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
-import { join } from "node:path";
+import { basename, join } from "node:path";
 
 export const sourceDirs = Object.freeze({
   webappSchema: "apps/webapp/db/schema",
@@ -107,7 +107,11 @@ function discoverIntegratorMigrationFiles(repoRoot) {
     }
   }
 
-  return files;
+  // Mirror migrate.ts's discoverMigrations(): core + every integration's migrations are
+  // replayed in ONE global chronological order by filename, not grouped directory-by-directory.
+  // Directory-grouped order silently breaks whenever a later core migration (e.g. a rename) acts
+  // on a table created/renamed by an earlier-dated integration migration, or vice versa.
+  return files.sort((a, b) => basename(a).localeCompare(basename(b)));
 }
 
 function extractAll(content, sourceRegex) {

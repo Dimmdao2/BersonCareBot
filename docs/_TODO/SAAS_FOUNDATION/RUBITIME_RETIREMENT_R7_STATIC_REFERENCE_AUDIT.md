@@ -137,9 +137,14 @@ Validation:
 ## 2026-07-14 12:06 MSK Generic Retry Queue Runtime Naming Cleanup
 
 `R7-INTEGRATOR-GENERIC-RETRY-QUEUE-NAMING-codex-2026-07-14` renamed the integrator runtime Drizzle symbol for the
-legacy physical queue table from `rubitimeCreateRetryJobs` to `messageRetryJobs`. The physical table
-`integrator.rubitime_create_retry_jobs` was not renamed or dropped; it remains a R7 drain/archive/drop candidate and
-is still used as storage for provider-neutral message delivery retry jobs until an owner-approved migration decision.
+legacy physical queue table from `rubitimeCreateRetryJobs` to `messageRetryJobs`. At the time of this audit the
+physical table `integrator.rubitime_create_retry_jobs` was not renamed or dropped and was not a Rubitime raw-table
+drop candidate (it was already a repurposed provider-neutral message-delivery retry queue).
+
+STALE, corrected 2026-07-24: per owner directive, the physical rename was done now instead of deferred to R7.
+`integrator.rubitime_create_retry_jobs` is renamed to `integrator.message_retry_jobs` --
+`apps/integrator/src/infra/db/migrations/core/20260724_0001_rename_rubitime_create_retry_jobs_to_message_retry_jobs.sql`.
+It was never a Rubitime raw-table drop candidate and remains not one after the rename.
 
 Static inventory after this cleanup:
 

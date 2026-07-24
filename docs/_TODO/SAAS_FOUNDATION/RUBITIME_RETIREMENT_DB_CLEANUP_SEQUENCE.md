@@ -213,11 +213,17 @@ Drop/defer candidates after R6/R7 proof:
 | Table | Decision | Cleanup action now |
 | --- | --- | --- |
 | `integrator.rubitime_api_throttle` | drop_candidate | Drop only in migration-backed R7 after static no-reference proof. |
-| `integrator.rubitime_create_retry_jobs` | defer_or_migrate_then_drop | Active provider-neutral retry storage still maps to this physical table. Migrate/rename storage first or explicitly defer. |
 | `integrator.rubitime_booking_profiles` | drop_candidate | Drop only after archive/drop owner decision and restore proof. |
 | `integrator.rubitime_branches` | drop_candidate | Drop only after archive/drop owner decision and restore proof. |
 | `integrator.rubitime_services` | drop_candidate | Drop only after archive/drop owner decision and restore proof. |
 | `integrator.rubitime_cooperators` | drop_candidate | Drop only after archive/drop owner decision and restore proof. |
+
+`integrator.rubitime_create_retry_jobs` is intentionally not in this table: it was never Rubitime raw provider
+history, it was a legacy-named generic message-delivery retry queue (`kind='message.deliver'`; see
+`20260310_0002_expand_retry_jobs_for_generic_delivery.sql`). Owner directive 2026-07-24: physically renamed to
+`integrator.message_retry_jobs` now (not deferred to R7) --
+`apps/integrator/src/infra/db/migrations/core/20260724_0001_rename_rubitime_create_retry_jobs_to_message_retry_jobs.sql`.
+It is not a drop/defer candidate.
 
 ### Step 4. Resolve Remaining Raw Runtime References
 
@@ -227,8 +233,8 @@ Current remaining raw-table refs are not safe repo-only deletes. They define the
 | --- | --- |
 | Integrator Drizzle schema declarations | Remove/update only in the migration-backed R7 table drop/defer batch. |
 | `integratorDomainRepos` raw table declarations | Remove/update only after the tables are archived/dropped/deferred. |
-| `integratorQueues` physical retry table mapping | Migrate provider-neutral retry storage to a neutral table name or explicitly defer. |
-| `jobQueue` SQL against legacy retry storage | Move with the retry storage migration or keep if the physical table is deferred. |
+| `integratorQueues` physical retry table mapping | DONE 2026-07-24: renamed to `message_retry_jobs` (see the Drop/defer candidates note above). |
+| `jobQueue` SQL against legacy retry storage | DONE 2026-07-24: `jobQueue.ts` now queries `integrator.message_retry_jobs`. |
 | `platformUserFullPurge` strict raw-table cleanup | Keep until raw tables are dropped, then remove the cleanup branch in the same or immediately following migration batch. |
 
 ### Step 5. Migration Order For Future Execution
@@ -241,8 +247,8 @@ No destructive migration is created in this task. The future R7 worker should us
 4. Record owner archive/drop/defer decision.
 5. Archive/export owner-approved tables and record checksums.
 6. Create a repo migration that is explicit and reversible by archive/restore policy.
-7. If `integrator.rubitime_create_retry_jobs` is still active provider-neutral storage, first migrate it to a neutral
-   table or mark it as explicitly deferred.
+7. DONE 2026-07-24: `integrator.rubitime_create_retry_jobs` (provider-neutral retry storage) is renamed to
+   `integrator.message_retry_jobs`; no longer a step here.
 8. Drop only approved raw/provider tables.
 9. Remove or update Drizzle/schema/runtime cleanup references that depended on dropped tables.
 10. Run fresh restore + migrate proof on a TEST/disposable fresh-copy restore.
@@ -308,8 +314,8 @@ SaaS Foundation full enforce must still wait for:
 
 - `public.appointment_records` remains archive/drop scope, not doctor/client runtime source.
 - `integrator.rubitime_records` and `integrator.rubitime_events` remain raw archive scope, audit-only when CSV exists.
-- `integrator.rubitime_create_retry_jobs` remains a legacy physical storage name for provider-neutral retry jobs until
-  migrated or explicitly deferred.
+- DONE 2026-07-24: `integrator.rubitime_create_retry_jobs` (legacy physical storage name for provider-neutral retry
+  jobs) is renamed to `integrator.message_retry_jobs`; no longer quarantined here.
 - Drizzle/schema declarations remain until migration-backed R7 execution.
 - Strict purge cleanup remains until the raw tables are dropped or deferred with a replacement cleanup policy.
 
