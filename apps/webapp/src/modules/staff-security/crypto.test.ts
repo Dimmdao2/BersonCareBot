@@ -52,4 +52,23 @@ describe("staff security keyring crypto", () => {
     expect(rotated.matchesLoginChallenge("challenge", stored)).toBe(true);
     expect(rotated.matchesLoginChallenge("other", stored)).toBe(false);
   });
+
+  it("pins the GCM auth tag to 16 bytes: valid round-trip still works, a truncated tag is rejected", () => {
+    const crypto = createStaffSecurityCrypto({ activeKeyId: "old", keys: { old: OLD_KEY } });
+    const envelope = crypto.encryptTotpSecret("JBSWY3DPEHPK3PXP");
+
+    // Valid 16-byte tag: round-trip is unaffected by pinning authTagLength.
+    expect(crypto.decryptTotpSecret(envelope)).toBe("JBSWY3DPEHPK3PXP");
+
+    // Truncate the auth tag (16 bytes -> 12 bytes) and splice it back into the envelope.
+    const parts = envelope.split(".");
+    const tagIndex = 4; // [namespace, version, keyId, iv, tag, payload]
+    const fullTag = Buffer.from(parts[tagIndex] ?? "", "base64url");
+    expect(fullTag.length).toBe(16);
+    const truncatedTag = fullTag.subarray(0, 12).toString("base64url");
+    parts[tagIndex] = truncatedTag;
+    const tamperedEnvelope = parts.join(".");
+
+    expect(() => crypto.decryptTotpSecret(tamperedEnvelope)).toThrow();
+  });
 });

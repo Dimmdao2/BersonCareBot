@@ -7,6 +7,8 @@ import { createStaffSecurityCrypto } from "./crypto";
 import { createStaffSecurityService } from "./service";
 
 const USER_ID = "11111111-1111-4111-8111-111111111111";
+// RFC 6238 Appendix B published SHA-1 test vector, not a secret.
+// nosemgrep: generic.secrets.security.detected-generic-secret.detected-generic-secret
 const RFC_SECRET = "GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ";
 const RFC_CODE = "287082";
 const crypto = createStaffSecurityCrypto({

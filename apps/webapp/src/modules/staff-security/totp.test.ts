@@ -5,6 +5,8 @@ describe("staff TOTP primitives", () => {
   afterEach(() => vi.useRealTimers());
 
   it("accepts the RFC 6238 SHA-1 vector truncated to six digits", () => {
+    // RFC 6238 Appendix B published SHA-1 test vector, not a secret.
+    // nosemgrep: generic.secrets.security.detected-generic-secret.detected-generic-secret
     const secret = "GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ";
     expect(verifyTotpCode(secret, "287082", 59_000)).toBe(true);
     expect(verifyTotpCode(secret, "287083", 59_000)).toBe(false);
