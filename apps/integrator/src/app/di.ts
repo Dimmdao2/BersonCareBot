@@ -199,7 +199,6 @@ export function buildDeps(input: BuildDepsInput = {}): AppDeps {
     input.dbWritePort ??
     createDbWritePort({
       db: dbPort,
-      readPort: dbReadPort,
       webappEventsPort,
       getDispatchPort: () => dispatchPortRef.current,
     });

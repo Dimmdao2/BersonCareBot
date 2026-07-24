@@ -102,6 +102,19 @@ function trimmedOrNull(value: string | null | undefined): string | null {
   return t.length > 0 ? t : null;
 }
 
+/**
+ * A3 — concurrent-webhook idempotency: serialize all direct-public writes for the same canonical
+ * integrator user id. Two webhooks racing for the same person (e.g. `user.upsert` + `notifications.update`
+ * fired back-to-back, or duplicate delivery) must not interleave candidate-collection with another
+ * transaction's insert/merge. Key idiom harvested from the retired `codex/direct-public-d1-987` branch's
+ * SECURITY DEFINER function (`hashtextextended('<ns>:' || id, 0)`), reproduced here as plain TS/SQL.
+ */
+async function lockOnIntegratorUserId(txDb: DbPort, integratorUserId: string): Promise<void> {
+  await txDb.query(`SELECT pg_advisory_xact_lock(hashtextextended('direct-public-identity:' || $1::text, 0))`, [
+    integratorUserId,
+  ]);
+}
+
 async function defaultMergeCandidateIds(_txDb: DbPort, candidateIds: string[]): Promise<string> {
   const uniq = [...new Set(candidateIds.filter((id): id is string => typeof id === 'string' && id.length > 0))];
   if (uniq.length === 1) return uniq[0]!;
@@ -113,8 +126,13 @@ async function defaultMergeCandidateIds(_txDb: DbPort, candidateIds: string[]): 
 /**
  * Collect canonical `public.platform_users.id` candidates for this identity, mirroring
  * `pgUserProjection.collectCandidateIds`: by integrator_user_id, by phone, by channel binding.
+ *
+ * The channel-binding lookup runs ONLY when both `channelCode`/`externalId` are non-empty — this lets
+ * `notifications.update`'s direct write match `pgUserProjection`'s `preferences.updated` handler exactly:
+ * that consumer calls `upsertFromProjection({ integratorUserId })` with no channel args, so candidate
+ * resolution there is integrator_user_id-only (see `writeNotificationTopicsDirect` below).
  */
-async function collectPlatformUserCandidates(
+export async function collectPlatformUserCandidates(
   txDb: DbPort,
   input: { integratorUserId: string; phoneNormalized: string | null; channelCode: string; externalId: string },
 ): Promise<string[]> {
@@ -147,20 +165,22 @@ async function collectPlatformUserCandidates(
     if (byPhone.rows[0]) ids.push(byPhone.rows[0].id);
   }
 
-  const byChannel = await txDb.query<{ user_id: string }>(
-    `SELECT pu.id::text AS user_id
-     FROM public.user_channel_bindings ucb
-     INNER JOIN public.platform_users pu ON pu.id = ucb.user_id
-     WHERE ucb.channel_code = $1 AND ucb.external_id = $2 AND pu.merged_into_id IS NULL
-     LIMIT 1`,
-    [input.channelCode, input.externalId],
-  );
-  if (byChannel.rows[0]) ids.push(byChannel.rows[0].user_id);
+  if (input.channelCode && input.externalId) {
+    const byChannel = await txDb.query<{ user_id: string }>(
+      `SELECT pu.id::text AS user_id
+       FROM public.user_channel_bindings ucb
+       INNER JOIN public.platform_users pu ON pu.id = ucb.user_id
+       WHERE ucb.channel_code = $1 AND ucb.external_id = $2 AND pu.merged_into_id IS NULL
+       LIMIT 1`,
+      [input.channelCode, input.externalId],
+    );
+    if (byChannel.rows[0]) ids.push(byChannel.rows[0].user_id);
+  }
 
   return [...new Set(ids)];
 }
 
-async function insertPlatformUser(
+export async function insertPlatformUser(
   txDb: DbPort,
   input: { integratorUserId: string; phoneNormalized: string | null; displayName: string | null; firstName: string | null; lastName: string | null },
 ): Promise<string> {
@@ -188,16 +208,23 @@ async function insertPlatformUser(
   return id;
 }
 
-async function enrichPlatformUser(
+export async function enrichPlatformUser(
   txDb: DbPort,
   platformUserId: string,
   input: { integratorUserId: string; phoneNormalized: string | null; displayName: string | null; firstName: string | null; lastName: string | null; channelCode: string },
 ): Promise<void> {
-  // Enrich-only semantics mirror pgUserProjection: messenger names never overwrite existing names;
-  // integrator_user_id / phone are backfilled via COALESCE; phone sets trust anchor.
+  // Enrich semantics mirror pgUserProjection.upsertFromProjectionTx (pgUserProjection.ts:276-289)
+  // EXACTLY: display_name IS overwritten when displayName+firstName+lastName are ALL non-empty
+  // (structured triple takes priority over whatever is already stored); otherwise it only fills a
+  // currently-empty display_name. integrator_user_id / phone are backfilled via COALESCE; phone sets
+  // trust anchor.
   const upd = await txDb.query(
     `UPDATE public.platform_users SET
        display_name = CASE
+         WHEN $2::text IS NOT NULL AND trim($2::text) <> ''
+          AND $3::text IS NOT NULL AND trim($3::text) <> ''
+          AND $4::text IS NOT NULL AND trim($4::text) <> ''
+         THEN $2::text
          WHEN (display_name IS NULL OR trim(display_name) = '')
           AND $2::text IS NOT NULL AND trim($2::text) <> ''
          THEN $2::text
@@ -234,6 +261,37 @@ async function enrichPlatformUser(
   }
 }
 
+/** Channels for which a fresh binding seeds default broadcast preferences (mirrors webapp's `LINK_CHANNELS`). */
+const CHANNEL_PREFERENCES_SEED_CHANNELS = new Set(['telegram', 'max', 'sms']);
+
+/**
+ * On a genuinely NEW `user_channel_bindings` row, seed `public.user_channel_preferences` opted-in —
+ * byte-parity with `apps/webapp/src/infra/upsertBroadcastDefaultsAfterChannelBind.ts`, which
+ * `pgUserProjection.upsertFromProjectionTx` calls (pgUserProjection.ts:329-331) right after its own
+ * `INSERT ... RETURNING user_id` on `user_channel_bindings` returns a row (i.e. the binding was newly
+ * inserted, not an existing `ON CONFLICT DO NOTHING` no-op). Same columns/values, same upsert policy.
+ */
+async function seedChannelPreferencesDefaults(
+  txDb: DbPort,
+  platformUserId: string,
+  channelCode: string,
+  now: Date = new Date(),
+): Promise<void> {
+  if (!CHANNEL_PREFERENCES_SEED_CHANNELS.has(channelCode)) return;
+  await txDb.query(
+    `INSERT INTO public.user_channel_preferences (
+       user_id, platform_user_id, channel_code, is_enabled_for_messages, is_enabled_for_notifications, updated_at
+     )
+     VALUES ($1::text, $1::uuid, $2, true, true, $3)
+     ON CONFLICT (user_id, channel_code) DO UPDATE SET
+       platform_user_id = COALESCE(public.user_channel_preferences.platform_user_id, EXCLUDED.platform_user_id),
+       is_enabled_for_messages = true,
+       is_enabled_for_notifications = true,
+       updated_at = EXCLUDED.updated_at`,
+    [platformUserId, channelCode, now],
+  );
+}
+
 async function upsertChannelBinding(
   txDb: DbPort,
   platformUserId: string,
@@ -247,10 +305,14 @@ async function upsertChannelBinding(
      RETURNING user_id::text AS user_id`,
     [platformUserId, channelCode, externalId],
   );
-  return res.rows.length > 0;
+  const inserted = res.rows.length > 0;
+  if (inserted) {
+    await seedChannelPreferencesDefaults(txDb, platformUserId, channelCode);
+  }
+  return inserted;
 }
 
-async function upsertNotificationTopics(
+export async function upsertNotificationTopics(
   txDb: DbPort,
   platformUserId: string,
   topics: ReadonlyArray<{ topicCode: string; isEnabled: boolean }>,
@@ -303,6 +365,9 @@ export async function writeIdentityAndPreferencesDirect(
     }
     const integratorUserId = anchor.integratorUserId.trim();
 
+    // A3: serialize concurrent webhooks for the same person before any candidate read/write.
+    await lockOnIntegratorUserId(txDb, integratorUserId);
+
     // 2) Canonical public.platform_users.
     const candidates = await collectPlatformUserCandidates(txDb, {
       integratorUserId,
@@ -344,5 +409,75 @@ export async function writeIdentityAndPreferencesDirect(
     const topicsWritten = await upsertNotificationTopics(txDb, platformUserId, topics);
 
     return { integratorUserId, platformUserId, channelBindingInserted, topicsWritten };
+  });
+}
+
+/** D1 identity input for the `notifications.update` direct write (see {@link writeNotificationTopicsDirect}). */
+export type DirectNotificationTopicsInput = {
+  /** Canonical integrator user id — caller resolves this the same way `user.upsert` does (channel anchor lookup + `resolveCanonicalIntegratorUserId`). */
+  integratorUserId: string;
+  topics: ReadonlyArray<{ topicCode: string; isEnabled: boolean }>;
+};
+
+export type WriteNotificationTopicsDeps = {
+  /** Same contract/default as {@link WriteIdentityAndPreferencesDeps.mergeCandidateIds}. */
+  mergeCandidateIds?: WriteIdentityAndPreferencesDeps['mergeCandidateIds'];
+};
+
+/**
+ * D1 entrypoint for `notifications.update`: parity twin of the webapp `preferences.updated` handler,
+ * which calls `pgUserProjection.upsertFromProjection({ integratorUserId })` (no channel/phone/name args)
+ * to resolve-or-create the canonical `platform_users` row, then `upsertNotificationTopics`. No channel
+ * anchor is written here (unlike `writeIdentityAndPreferencesDirect`) — the identity is assumed to already
+ * exist by the time notification preferences are being changed (parity: the webapp consumer never writes
+ * a channel binding for `preferences.updated` either).
+ */
+export async function writeNotificationTopicsDirect(
+  db: DbPort,
+  input: DirectNotificationTopicsInput,
+  deps: WriteNotificationTopicsDeps = {},
+): Promise<{ platformUserId: string; topicsWritten: number }> {
+  const mergeCandidateIds = deps.mergeCandidateIds ?? defaultMergeCandidateIds;
+  const integratorUserId = trimmedOrNull(input.integratorUserId);
+  if (!integratorUserId) {
+    throw new DirectPublicWriteError('channel_anchor_unresolved');
+  }
+  const topics = input.topics ?? [];
+
+  return db.tx(async (txDb) => {
+    await lockOnIntegratorUserId(txDb, integratorUserId);
+
+    // Integrator_user_id-only candidate resolution — matches `preferences.updated`'s
+    // `upsertFromProjection({ integratorUserId })` call (no channelCode/externalId/phone).
+    const candidates = await collectPlatformUserCandidates(txDb, {
+      integratorUserId,
+      phoneNormalized: null,
+      channelCode: '',
+      externalId: '',
+    });
+
+    let platformUserId: string;
+    if (candidates.length === 0) {
+      platformUserId = await insertPlatformUser(txDb, {
+        integratorUserId,
+        phoneNormalized: null,
+        displayName: null,
+        firstName: null,
+        lastName: null,
+      });
+    } else {
+      platformUserId = await mergeCandidateIds(txDb, candidates);
+      await enrichPlatformUser(txDb, platformUserId, {
+        integratorUserId,
+        phoneNormalized: null,
+        displayName: null,
+        firstName: null,
+        lastName: null,
+        channelCode: 'telegram',
+      });
+    }
+
+    const topicsWritten = await upsertNotificationTopics(txDb, platformUserId, topics);
+    return { platformUserId, topicsWritten };
   });
 }

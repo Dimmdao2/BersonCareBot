@@ -1,6 +1,5 @@
 import type {
   DbPort,
-  DbReadPort,
   DispatchPort,
   DbWriteDbResult,
   DbWriteMutation,
@@ -77,6 +76,18 @@ import { upsertAppointmentRecordFromBookingMutation } from './repos/publicAppoin
 import { resolvePlatformUserIdForRubitimeBooking } from './repos/resolvePlatformUserIdForRubitimeBooking.js';
 import { buildAppointmentRecordUpsertedFanout } from './buildAppointmentRecordUpsertedFanout.js';
 import { isAuthChannelEnabled as readAuthChannelPolicy } from './authChannelPolicy.js';
+import {
+  writeIdentityAndPreferencesDirect,
+  writeNotificationTopicsDirect,
+  DirectPublicWriteError,
+  type ChannelAnchorResult,
+  type DirectPublicChannelCode,
+  type DirectPublicIdentityInput,
+} from './directPublic/writeIdentityAndPreferencesDirect.js';
+import {
+  mergeCandidateIdsViaPlatformMerge,
+  isIdentityMergeAmbiguityError,
+} from './directPublic/mergeCandidatesDirect.js';
 
 type BookingUpsertParams = {
   externalRecordId?: unknown;
@@ -164,6 +175,49 @@ function readResource(params: Record<string, unknown>): string {
   return r ?? 'telegram';
 }
 
+/**
+ * A1 — D1 channel-anchor hook for `writeIdentityAndPreferencesDirect`: writes the retained
+ * integrator-only channel identity (telegram `upsertUser`, max `ensureIdentityForMessenger`) on the
+ * SAME tx-bound `DbPort` the scaffold's public writes use, then resolves the canonical integrator user
+ * id — exactly the same two steps `user.upsert` performed before D1 (see the removed inline logic this
+ * replaces). Returns null (no anchor, no public write) for the same cases that used to silently `return`:
+ * a non-numeric telegram external id, or a max identity that failed to resolve a `user_id`.
+ */
+function buildChannelAnchorWriter(
+  /** Caller has already asserted `resource === 'telegram' || resource === 'max'` at the call site. */
+  resource: string,
+  externalId: string,
+  username: string | null,
+  firstName: string | null,
+  lastName: string | null,
+): (txDb: DbPort, input: DirectPublicIdentityInput) => Promise<ChannelAnchorResult | null> {
+  return async (txDb: DbPort): Promise<ChannelAnchorResult | null> => {
+    let integratorUserId: string | null;
+    if (resource === 'telegram') {
+      const parsedId = Number(externalId);
+      if (!Number.isFinite(parsedId)) return null;
+      const userPayload = {
+        id: Math.trunc(parsedId),
+        ...(username ? { username } : {}),
+        ...(firstName ? { first_name: firstName } : {}),
+        ...(lastName ? { last_name: lastName } : {}),
+      };
+      const row = await upsertUser(txDb, userPayload);
+      integratorUserId = row?.id ?? null;
+    } else {
+      await ensureIdentityForMessenger(txDb, { resource: 'max', externalId });
+      const identityRes = await txDb.query<{ user_id: string }>(
+        'SELECT user_id::text AS user_id FROM identities WHERE resource = $1 AND external_id = $2 LIMIT 1',
+        [resource, externalId],
+      );
+      integratorUserId = identityRes.rows[0]?.user_id ?? null;
+    }
+    if (!integratorUserId) return null;
+    const canonicalUserId = await resolveCanonicalIntegratorUserId(txDb, integratorUserId);
+    return { integratorUserId: canonicalUserId };
+  };
+}
+
 /** Last digits only — avoid logging full E.164 in clear text. */
 function phoneLogSuffix(phoneNormalized: string): string {
   const d = phoneNormalized.replace(/\D/g, '');
@@ -183,7 +237,6 @@ function pgSqlStateFromUnknown(err: unknown): string | undefined {
  */
 export function createDbWritePort(input: {
   db?: DbPort;
-  readPort?: DbReadPort;
   /** When set, projection events are POSTed to webapp immediately after commit; outbox only on failure. */
   webappEventsPort?: WebappEventsPort;
   /** Filled after `buildDeps` constructs `dispatchPort` (avoid circular init). */
@@ -192,7 +245,6 @@ export function createDbWritePort(input: {
   authChannelPolicy?: (channel: 'telegram' | 'max') => Promise<boolean>;
 } = {}): DbWritePort {
   const db = input.db ?? createDbPort();
-  const readPort = input.readPort;
   const webappEventsPort = input.webappEventsPort;
   const getDispatchPort = input.getDispatchPort;
   const authChannelPolicy =
@@ -220,7 +272,6 @@ export function createDbWritePort(input: {
   function createTxBoundWritePort(txDb: DbPort): DbWritePort {
     return createDbWritePort({
       db: txDb,
-      ...(readPort !== undefined ? { readPort } : {}),
       ...(webappEventsPort !== undefined ? { webappEventsPort } : {}),
       ...(getDispatchPort !== undefined ? { getDispatchPort } : {}),
       authChannelPolicy,
@@ -473,52 +524,45 @@ export function createDbWritePort(input: {
           const firstName = asNullableString(mutation.params.firstName);
           const lastName = asNullableString(mutation.params.lastName);
           if (!externalId) return;
-          const pendingUserUpsert: ProjectionFanoutInput[] = [];
-          await db.tx(async (txDb) => {
-            let integratorUserId: string | null;
-            if (resource === 'telegram') {
-              const parsedId = Number(externalId);
-              if (!Number.isFinite(parsedId)) return;
-              const userPayload = {
-                id: Math.trunc(parsedId),
-                ...(username ? { username } : {}),
-                ...(firstName ? { first_name: firstName } : {}),
-                ...(lastName ? { last_name: lastName } : {}),
-              };
-              const row = await upsertUser(txDb, userPayload);
-              integratorUserId = row?.id ?? null;
-            } else {
-              await ensureIdentityForMessenger(txDb, { resource: 'max', externalId });
-              const identityRes = await txDb.query<{ user_id: string }>(
-                "SELECT user_id::text AS user_id FROM identities WHERE resource = $1 AND external_id = $2 LIMIT 1",
-                [resource, externalId]
-              );
-              integratorUserId = identityRes.rows[0]?.user_id ?? null;
+          // `readResource` returns a wide `string`; the guard above only proves it AT RUNTIME, TS does
+          // not narrow a plain `string` from `!==` checks — re-derive a properly literal-typed value.
+          const channelCode: DirectPublicChannelCode = resource === 'max' ? 'max' : 'telegram';
+          // D1: ONE tx writes the retained channel anchor PLUS the canonical public.platform_users /
+          // user_channel_bindings directly — replaces the `user.upserted` HTTP projection fanout.
+          try {
+            await writeIdentityAndPreferencesDirect(
+              db,
+              {
+                channelCode,
+                externalId,
+                firstName,
+                lastName,
+                // Same displayName the removed projection payload used to send. The webapp enrich path
+                // (pgUserProjection.ts:276-289) DOES overwrite an existing display_name when
+                // displayName+firstName+lastName are all non-empty (structured triple wins); otherwise
+                // it only fills a currently-empty display_name — see enrichPlatformUser for the parity SQL.
+                displayName: [lastName, firstName].filter(Boolean).join(' ') || null,
+              },
+              {
+                writeChannelAnchor: buildChannelAnchorWriter(resource, externalId, username, firstName, lastName),
+                mergeCandidateIds: mergeCandidateIdsViaPlatformMerge,
+              },
+            );
+          } catch (err) {
+            if (err instanceof DirectPublicWriteError && err.code === 'channel_anchor_unresolved') {
+              // Parity: old code silently returned when the anchor couldn't resolve (non-numeric
+              // telegram id / missing max identity) — no write, no error.
+              return;
             }
-            if (!integratorUserId) return;
-            const canonicalUserId = await resolveCanonicalIntegratorUserId(txDb, integratorUserId);
-            const projectionPayload: Record<string, unknown> = {
-              integratorUserId: canonicalUserId,
-              channelCode: resource,
-              externalId,
-              // Messenger profile names are weak hints. Send their structured parts so the
-              // webapp projection can fill genuinely empty fields without parsing a label.
-              firstName: firstName ?? undefined,
-              lastName: lastName ?? undefined,
-              displayName: [lastName, firstName].filter(Boolean).join(' ') || undefined,
-            };
-            pendingUserUpsert.push({
-              eventType: 'user.upserted',
-              idempotencyKey: projectionIdempotencyKey(
-                'user.upserted',
-                canonicalUserId,
-                hashPayload(projectionPayload),
-              ),
-              occurredAt: new Date().toISOString(),
-              payload: projectionPayload,
-            });
-          });
-          await fanoutProjectionsAfterTx(pendingUserUpsert);
+            if (isIdentityMergeAmbiguityError(err)) {
+              logger.warn(
+                { err, mutationType: mutation.type, resource, externalId },
+                'user.upsert: ambiguous identity merge deferred (no direct write)',
+              );
+              return;
+            }
+            throw err;
+          }
           return;
         }
         case 'user.state.set': {
@@ -958,41 +1002,48 @@ export function createDbWritePort(input: {
           if (typeof mutation.params.notify_online === 'boolean') settings.notify_online = mutation.params.notify_online;
           if (typeof mutation.params.notify_bookings === 'boolean') settings.notify_bookings = mutation.params.notify_bookings;
           if (Object.keys(settings).length === 0) return;
-          const pendingPrefs: ProjectionFanoutInput[] = [];
-          await db.tx(async (txDb) => {
-            await updateNotificationSettings(txDb, channelUserId, settings);
-            if (readPort) {
-              const link = await readPort.readDb<{ userId?: string } | null>({
-                type: 'user.byIdentity',
-                params: { resource, externalId: String(channelUserId) },
-              });
-              const uid = link && typeof link === 'object' && typeof link.userId === 'string'
-                ? link.userId : null;
-              if (uid) {
-                const canonicalUid = await resolveCanonicalIntegratorUserId(txDb, uid);
-                const topicMap: Record<string, string> = {
-                  notify_spb: 'booking_spb', notify_msk: 'booking_msk',
-                  notify_online: 'booking_online', notify_bookings: 'bookings',
-                };
-                const topics = Object.entries(settings)
-                  .filter(([k]) => k in topicMap)
-                  .map(([k, v]) => ({ topicCode: topicMap[k], isEnabled: v }));
-                if (topics.length > 0) {
-                  pendingPrefs.push({
-                    eventType: 'preferences.updated',
-                    idempotencyKey: projectionIdempotencyKey(
-                      'preferences.updated',
-                      canonicalUid,
-                      hashPayload({ topics }),
-                    ),
-                    occurredAt: new Date().toISOString(),
-                    payload: { integratorUserId: canonicalUid, topics },
-                  });
-                }
-              }
+          // Integrator-only telegram_state.notify_* flags (bot menu state) — retained as-is, always
+          // committed regardless of what happens below (matches the old resilience shape: this write
+          // never depended on / rolled back with the projection-fanout step it used to precede).
+          await updateNotificationSettings(db, channelUserId, settings);
+
+          const topicMap: Record<string, string> = {
+            notify_spb: 'booking_spb', notify_msk: 'booking_msk',
+            notify_online: 'booking_online', notify_bookings: 'bookings',
+          };
+          const topics = Object.entries(settings)
+            .filter(([k]) => k in topicMap)
+            .map(([k, v]) => ({ topicCode: topicMap[k]!, isEnabled: v }));
+          if (topics.length === 0) return;
+
+          // D1: resolve the canonical integrator user id the same way the removed readPort lookup did
+          // (identities by resource+externalId), then write public.user_notification_topics directly —
+          // replaces the `preferences.updated` HTTP projection fanout. Parity with the webapp consumer
+          // (`preferences.updated` → `upsertFromProjection({ integratorUserId })`): no channel binding is
+          // written here, only topics against the integrator_user_id-resolved platform user.
+          const identityRes = await db.query<{ user_id: string }>(
+            'SELECT user_id::text AS user_id FROM identities WHERE resource = $1 AND external_id = $2 LIMIT 1',
+            [resource, String(channelUserId)],
+          );
+          const rawUid = identityRes.rows[0]?.user_id ?? null;
+          if (!rawUid) return;
+          const canonicalUid = await resolveCanonicalIntegratorUserId(db, rawUid);
+          try {
+            await writeNotificationTopicsDirect(
+              db,
+              { integratorUserId: canonicalUid, topics },
+              { mergeCandidateIds: mergeCandidateIdsViaPlatformMerge },
+            );
+          } catch (err) {
+            if (isIdentityMergeAmbiguityError(err)) {
+              logger.warn(
+                { err, mutationType: mutation.type, resource, channelUserId },
+                'notifications.update: ambiguous identity merge deferred (no direct write)',
+              );
+              return;
             }
-          });
-          await fanoutProjectionsAfterTx(pendingPrefs);
+            throw err;
+          }
           return;
         }
         case 'reminders.rule.upsert': {

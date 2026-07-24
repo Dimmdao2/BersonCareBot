@@ -78,6 +78,71 @@ function makeMockDb(capture: {
   return { query, tx, integratorDrizzle: drizzle } as DbPort;
 }
 
+/**
+ * D1: `user.upsert` / `notifications.update` no longer fan out `user.upserted` / `preferences.updated`
+ * projection-outbox rows — they write `public.platform_users` / `user_channel_bindings` /
+ * `user_notification_topics` directly on the tx-bound `DbPort` (see `writeIdentityAndPreferencesDirect.ts`).
+ * This mock is a minimal tag router purpose-built for that path (channel anchor → advisory lock →
+ * candidate resolution → insert/update → binding/topics), distinct from `makeMockDb` above which is
+ * tailored to the (unchanged) `user.phone.link` flow.
+ */
+function makeDirectWriteMockDb(overrides?: {
+  candidateRows?: Record<string, unknown>[];
+  onQuery?: (sql: string, params: unknown[]) => Awaited<ReturnType<DbPort["query"]>> | undefined;
+}) {
+  const queries: { sql: string; params: unknown[] }[] = [];
+  const query = vi.fn(async (sql: string, params: unknown[] = []) => {
+    queries.push({ sql, params });
+    const overridden = overrides?.onQuery?.(sql, params);
+    if (overridden) return overridden;
+
+    // telegram upsertUser() final SELECT
+    if (sql.includes("SELECT ri.user_id::text AS id")) {
+      return { rows: [{ id: "uid-tg", channel_id: "123" }] } as Awaited<ReturnType<DbPort["query"]>>;
+    }
+    // max: identity lookup after ensureIdentityForMessenger()
+    if (sql.includes("SELECT user_id::text AS user_id FROM identities") && !sql.includes("FROM identities i")) {
+      return { rows: [{ user_id: "uid-max" }] } as Awaited<ReturnType<DbPort["query"]>>;
+    }
+    // resolveCanonicalIntegratorUserId
+    if (sql.includes("merged_into_user_id") && sql.includes("FROM users")) {
+      return { rows: [{ merged_into_user_id: null }] } as Awaited<ReturnType<DbPort["query"]>>;
+    }
+    // A3 advisory lock
+    if (sql.includes("pg_advisory_xact_lock")) {
+      return { rows: [] } as Awaited<ReturnType<DbPort["query"]>>;
+    }
+    // collectPlatformUserCandidates: by integrator_user_id / by channel binding
+    if (sql.includes("FROM public.platform_users") && sql.includes("integrator_user_id = $1::bigint") && sql.includes("LIMIT 3")) {
+      return { rows: overrides?.candidateRows ?? [] } as Awaited<ReturnType<DbPort["query"]>>;
+    }
+    if (sql.includes("FROM public.user_channel_bindings ucb")) {
+      return { rows: [] } as Awaited<ReturnType<DbPort["query"]>>;
+    }
+    if (sql.includes("INSERT INTO public.platform_users")) {
+      return { rows: [{ id: "pu-new" }] } as Awaited<ReturnType<DbPort["query"]>>;
+    }
+    if (sql.includes("UPDATE public.platform_users")) {
+      return { rows: [], rowCount: 1 } as Awaited<ReturnType<DbPort["query"]>>;
+    }
+    if (sql.includes("INSERT INTO public.user_channel_bindings")) {
+      return { rows: [{ user_id: "pu-new" }], rowCount: 1 } as Awaited<ReturnType<DbPort["query"]>>;
+    }
+    if (sql.includes("INSERT INTO public.user_notification_topics")) {
+      return { rows: [], rowCount: 1 } as Awaited<ReturnType<DbPort["query"]>>;
+    }
+    return { rows: [] } as Awaited<ReturnType<DbPort["query"]>>;
+  }) as DbPort["query"];
+  const drizzle = stubIntegratorDrizzleForTests();
+  attachExecuteToQuery(query, drizzle);
+  const tx = vi.fn(async <T>(fn: (txDb: DbPort) => Promise<T>) => {
+    const txDb = { query, tx: vi.fn(async <N>(nested: (inner: DbPort) => Promise<N>) => nested(txDb)), integratorDrizzle: drizzle } as DbPort;
+    return fn(txDb);
+  });
+  const db = { query, tx, integratorDrizzle: drizzle } as DbPort;
+  return { db, query, queries };
+}
+
 function makeWriteWrapperDb(): { db: DbPort; query: ReturnType<typeof vi.fn>; tx: ReturnType<typeof vi.fn> } {
   const query = vi.fn(async () => ({ rows: [], rowCount: 1 })) as DbPort["query"] & ReturnType<typeof vi.fn>;
   const tx = vi.fn(async <T>(fn: (txDb: DbPort) => Promise<T>) => {
@@ -161,9 +226,8 @@ describe("writePort user.upsert projection payload", () => {
     expect(tx).not.toHaveBeenCalled();
   });
 
-  it("uses canonical integratorUserId for telegram", async () => {
-    const capture = { projectionInserts: [] as { eventType: string; idempotencyKey: string; payload: Record<string, unknown> }[] };
-    const db = makeMockDb(capture);
+  it("D1: user.upsert writes public.platform_users/user_channel_bindings directly for telegram (no projection fanout)", async () => {
+    const { db, queries } = makeDirectWriteMockDb();
     const writePort = createDbWritePort({ db });
 
     await writePort.writeDb({
@@ -176,18 +240,30 @@ describe("writePort user.upsert projection payload", () => {
       },
     });
 
-    expect(capture.projectionInserts).toHaveLength(1);
-    const ev = capture.projectionInserts[0]!;
-    expect(ev.eventType).toBe("user.upserted");
-    expect(ev.payload.integratorUserId).toBe("uid-tg");
-    expect(ev.payload.channelCode).toBe("telegram");
-    expect(ev.payload.externalId).toBe("123");
-    expect(ev.payload).toMatchObject({ firstName: "Ivan", lastName: "Petrov", displayName: "Petrov Ivan" });
+    // No more projection-outbox writes for user.upsert.
+    expect(queries.some((q) => q.sql.includes("projection_outbox"))).toBe(false);
+
+    const lock = queries.find((q) => q.sql.includes("pg_advisory_xact_lock"));
+    expect(lock).toBeDefined();
+    expect(lock?.params[0]).toBe("uid-tg"); // canonical integratorUserId, resolved via resolveCanonicalIntegratorUserId
+
+    const insert = queries.find((q) => q.sql.includes("INSERT INTO public.platform_users"));
+    expect(insert).toBeDefined();
+    expect(insert?.params).toEqual(["uid-tg", null, "Petrov Ivan", "Ivan", "Petrov"]);
+
+    const binding = queries.find((q) => q.sql.includes("INSERT INTO public.user_channel_bindings"));
+    expect(binding).toBeDefined();
+    expect(binding?.params).toEqual(["pu-new", "telegram", "123"]);
+
+    // A NEW binding seeds default broadcast preferences (parity with
+    // upsertBroadcastDefaultsAfterChannelBind, called by pgUserProjection.ts on the same condition).
+    const seed = queries.find((q) => q.sql.includes("INSERT INTO public.user_channel_preferences"));
+    expect(seed).toBeDefined();
+    expect(seed?.params).toEqual(["pu-new", "telegram", expect.any(Date)]);
   });
 
-  it("emits user.upserted for max with canonical integratorUserId", async () => {
-    const capture = { projectionInserts: [] as { eventType: string; idempotencyKey: string; payload: Record<string, unknown> }[] };
-    const db = makeMockDb(capture);
+  it("D1: user.upsert writes public.platform_users/user_channel_bindings directly for max (no projection fanout)", async () => {
+    const { db, queries } = makeDirectWriteMockDb();
     const writePort = createDbWritePort({ db });
 
     await writePort.writeDb({
@@ -200,13 +276,49 @@ describe("writePort user.upsert projection payload", () => {
       },
     });
 
-    expect(capture.projectionInserts).toHaveLength(1);
-    const ev = capture.projectionInserts[0]!;
-    expect(ev.eventType).toBe("user.upserted");
-    expect(ev.payload.integratorUserId).toBe("uid-max");
-    expect(ev.payload.channelCode).toBe("max");
-    expect(ev.payload.externalId).toBe("555123");
-    expect(ev.payload).toMatchObject({ firstName: "Max", lastName: "Admin", displayName: "Admin Max" });
+    expect(queries.some((q) => q.sql.includes("projection_outbox"))).toBe(false);
+
+    const lock = queries.find((q) => q.sql.includes("pg_advisory_xact_lock"));
+    expect(lock?.params[0]).toBe("uid-max");
+
+    const insert = queries.find((q) => q.sql.includes("INSERT INTO public.platform_users"));
+    expect(insert?.params).toEqual(["uid-max", null, "Admin Max", "Max", "Admin"]);
+
+    const binding = queries.find((q) => q.sql.includes("INSERT INTO public.user_channel_bindings"));
+    expect(binding?.params).toEqual(["pu-new", "max", "555123"]);
+
+    const seed = queries.find((q) => q.sql.includes("INSERT INTO public.user_channel_preferences"));
+    expect(seed?.params).toEqual(["pu-new", "max", expect.any(Date)]);
+  });
+
+  it("D1: user.upsert silently no-ops for a non-numeric telegram externalId (channel anchor unresolved)", async () => {
+    const { db, queries } = makeDirectWriteMockDb();
+    const writePort = createDbWritePort({ db });
+
+    await writePort.writeDb({
+      type: "user.upsert",
+      params: { resource: "telegram", externalId: "not-a-number" },
+    });
+
+    // No anchor resolved → the scaffold aborts before any public.* write (matches old silent-return).
+    expect(queries.some((q) => q.sql.includes("public.platform_users") || q.sql.includes("public.user_channel_bindings"))).toBe(false);
+  });
+
+  it("D1: user.upsert defers (no write, no throw) when candidate resolution is ambiguous", async () => {
+    // Two DISTINCT rows both singly matched by integrator_user_id is a data-integrity ambiguity the
+    // scaffold rejects before mergeCandidateIds is even called (mirrors webapp's acceptAfterMergeConflict:
+    // log + swallow, no write, no retry storm).
+    const { db, queries } = makeDirectWriteMockDb({ candidateRows: [{ id: "pu-a" }, { id: "pu-b" }] });
+    const writePort = createDbWritePort({ db });
+
+    await expect(
+      writePort.writeDb({
+        type: "user.upsert",
+        params: { resource: "telegram", externalId: "123", firstName: "Ivan" },
+      }),
+    ).resolves.toBeUndefined();
+
+    expect(queries.some((q) => q.sql.includes("INSERT INTO public.platform_users") || q.sql.includes("UPDATE public.platform_users"))).toBe(false);
   });
 
   it("user.phone.link updates public + integrator without contact.linked projection fanout", async () => {
@@ -418,5 +530,80 @@ describe("writePort user.upsert projection payload", () => {
       phoneLinkReason: "db_transient_failure",
     });
     expect(contactsAttempts).toBe(0);
+  });
+
+  it("D1: notifications.update writes public.user_notification_topics directly (no preferences.updated fanout)", async () => {
+    // Distinct id from the anchor-lookup default ("uid-tg"/"uid-max") — this is the SAME query shape
+    // (identities by resource+external_id) but a DIFFERENT call site (the removed readPort.readDb link
+    // lookup, now a direct query), so give it its own id to keep the assertion unambiguous.
+    const { db, queries } = makeDirectWriteMockDb({
+      onQuery: (sql) => {
+        if (sql.includes("SELECT user_id::text AS user_id FROM identities") && !sql.includes("FROM identities i")) {
+          return { rows: [{ user_id: "uid-notify" }] } as Awaited<ReturnType<DbPort["query"]>>;
+        }
+        return undefined;
+      },
+    });
+    const writePort = createDbWritePort({ db });
+
+    await writePort.writeDb({
+      type: "notifications.update",
+      params: { resource: "telegram", channelUserId: "123", notify_spb: true, notify_bookings: false },
+    });
+
+    expect(queries.some((q) => q.sql.includes("projection_outbox"))).toBe(false);
+
+    const lock = queries.find((q) => q.sql.includes("pg_advisory_xact_lock"));
+    expect(lock?.params[0]).toBe("uid-notify");
+
+    const insert = queries.find((q) => q.sql.includes("INSERT INTO public.platform_users"));
+    expect(insert).toBeDefined();
+    expect(insert?.params).toEqual(["uid-notify", null, "", null, null]);
+
+    // No channel binding written for notifications.update (parity: preferences.updated's
+    // upsertFromProjection({ integratorUserId }) call never touches user_channel_bindings either).
+    expect(queries.some((q) => q.sql.includes("INSERT INTO public.user_channel_bindings"))).toBe(false);
+
+    const topicInserts = queries.filter((q) => q.sql.includes("INSERT INTO public.user_notification_topics"));
+    expect(topicInserts).toHaveLength(2);
+    expect(topicInserts.map((q) => q.params)).toEqual(
+      expect.arrayContaining([
+        ["pu-new", "booking_spb", true],
+        ["pu-new", "bookings", false],
+      ]),
+    );
+  });
+
+  it("D1: notifications.update no-ops when no integrator identity is linked yet", async () => {
+    const { db, queries } = makeDirectWriteMockDb({
+      onQuery: (sql) => {
+        if (sql.includes("SELECT user_id::text AS user_id FROM identities") && !sql.includes("FROM identities i")) {
+          return { rows: [] } as Awaited<ReturnType<DbPort["query"]>>;
+        }
+        return undefined;
+      },
+    });
+    const writePort = createDbWritePort({ db });
+
+    await writePort.writeDb({
+      type: "notifications.update",
+      params: { resource: "telegram", channelUserId: "999", notify_spb: true },
+    });
+
+    expect(queries.some((q) => q.sql.includes("public.platform_users") || q.sql.includes("public.user_notification_topics"))).toBe(false);
+  });
+
+  it("D1: notifications.update defers (no write, no throw) when candidate resolution is ambiguous", async () => {
+    const { db, queries } = makeDirectWriteMockDb({ candidateRows: [{ id: "pu-a" }, { id: "pu-b" }] });
+    const writePort = createDbWritePort({ db });
+
+    await expect(
+      writePort.writeDb({
+        type: "notifications.update",
+        params: { resource: "telegram", channelUserId: "123", notify_spb: true },
+      }),
+    ).resolves.toBeUndefined();
+
+    expect(queries.some((q) => q.sql.includes("INSERT INTO public.platform_users") || q.sql.includes("INSERT INTO public.user_notification_topics"))).toBe(false);
   });
 });
