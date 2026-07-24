@@ -537,8 +537,10 @@ export function createDbWritePort(input: {
                 externalId,
                 firstName,
                 lastName,
-                // Messenger profile names are weak hints — same displayName the removed projection
-                // payload used to send (webapp never overwrites a non-empty display_name from them).
+                // Same displayName the removed projection payload used to send. The webapp enrich path
+                // (pgUserProjection.ts:276-289) DOES overwrite an existing display_name when
+                // displayName+firstName+lastName are all non-empty (structured triple wins); otherwise
+                // it only fills a currently-empty display_name — see enrichPlatformUser for the parity SQL.
                 displayName: [lastName, firstName].filter(Boolean).join(' ') || null,
               },
               {

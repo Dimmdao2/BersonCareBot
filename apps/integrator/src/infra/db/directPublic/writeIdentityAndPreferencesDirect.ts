@@ -213,11 +213,18 @@ export async function enrichPlatformUser(
   platformUserId: string,
   input: { integratorUserId: string; phoneNormalized: string | null; displayName: string | null; firstName: string | null; lastName: string | null; channelCode: string },
 ): Promise<void> {
-  // Enrich-only semantics mirror pgUserProjection: messenger names never overwrite existing names;
-  // integrator_user_id / phone are backfilled via COALESCE; phone sets trust anchor.
+  // Enrich semantics mirror pgUserProjection.upsertFromProjectionTx (pgUserProjection.ts:276-289)
+  // EXACTLY: display_name IS overwritten when displayName+firstName+lastName are ALL non-empty
+  // (structured triple takes priority over whatever is already stored); otherwise it only fills a
+  // currently-empty display_name. integrator_user_id / phone are backfilled via COALESCE; phone sets
+  // trust anchor.
   const upd = await txDb.query(
     `UPDATE public.platform_users SET
        display_name = CASE
+         WHEN $2::text IS NOT NULL AND trim($2::text) <> ''
+          AND $3::text IS NOT NULL AND trim($3::text) <> ''
+          AND $4::text IS NOT NULL AND trim($4::text) <> ''
+         THEN $2::text
          WHEN (display_name IS NULL OR trim(display_name) = '')
           AND $2::text IS NOT NULL AND trim($2::text) <> ''
          THEN $2::text
@@ -254,6 +261,37 @@ export async function enrichPlatformUser(
   }
 }
 
+/** Channels for which a fresh binding seeds default broadcast preferences (mirrors webapp's `LINK_CHANNELS`). */
+const CHANNEL_PREFERENCES_SEED_CHANNELS = new Set(['telegram', 'max', 'sms']);
+
+/**
+ * On a genuinely NEW `user_channel_bindings` row, seed `public.user_channel_preferences` opted-in —
+ * byte-parity with `apps/webapp/src/infra/upsertBroadcastDefaultsAfterChannelBind.ts`, which
+ * `pgUserProjection.upsertFromProjectionTx` calls (pgUserProjection.ts:329-331) right after its own
+ * `INSERT ... RETURNING user_id` on `user_channel_bindings` returns a row (i.e. the binding was newly
+ * inserted, not an existing `ON CONFLICT DO NOTHING` no-op). Same columns/values, same upsert policy.
+ */
+async function seedChannelPreferencesDefaults(
+  txDb: DbPort,
+  platformUserId: string,
+  channelCode: string,
+  now: Date = new Date(),
+): Promise<void> {
+  if (!CHANNEL_PREFERENCES_SEED_CHANNELS.has(channelCode)) return;
+  await txDb.query(
+    `INSERT INTO public.user_channel_preferences (
+       user_id, platform_user_id, channel_code, is_enabled_for_messages, is_enabled_for_notifications, updated_at
+     )
+     VALUES ($1::text, $1::uuid, $2, true, true, $3)
+     ON CONFLICT (user_id, channel_code) DO UPDATE SET
+       platform_user_id = COALESCE(public.user_channel_preferences.platform_user_id, EXCLUDED.platform_user_id),
+       is_enabled_for_messages = true,
+       is_enabled_for_notifications = true,
+       updated_at = EXCLUDED.updated_at`,
+    [platformUserId, channelCode, now],
+  );
+}
+
 async function upsertChannelBinding(
   txDb: DbPort,
   platformUserId: string,
@@ -267,7 +305,11 @@ async function upsertChannelBinding(
      RETURNING user_id::text AS user_id`,
     [platformUserId, channelCode, externalId],
   );
-  return res.rows.length > 0;
+  const inserted = res.rows.length > 0;
+  if (inserted) {
+    await seedChannelPreferencesDefaults(txDb, platformUserId, channelCode);
+  }
+  return inserted;
 }
 
 export async function upsertNotificationTopics(

@@ -19,6 +19,7 @@ function tagFor(sql: string): string {
   if (/UPDATE public\.platform_users/.test(sql)) return 'platform_users:update';
   if (/FROM public\.user_channel_bindings ucb/.test(sql)) return 'platform_users:candidate_by_channel';
   if (/INSERT INTO public\.user_channel_bindings/.test(sql)) return 'user_channel_bindings:insert';
+  if (/INSERT INTO public\.user_channel_preferences/.test(sql)) return 'user_channel_preferences:seed';
   if (/INSERT INTO public\.user_notification_topics/.test(sql)) return 'user_notification_topics:insert';
   if (/FROM public\.platform_users/.test(sql) && /integrator_user_id =/.test(sql)) return 'platform_users:candidate_by_int';
   if (/FROM public\.platform_users/.test(sql) && /phone_normalized =/.test(sql)) return 'platform_users:candidate_by_phone';
@@ -131,23 +132,33 @@ describe('writeIdentityAndPreferencesDirect (D1 direct public writes)', () => {
     expect(deps.writeChannelAnchor).toHaveBeenCalledTimes(1);
 
     const tags = state.queries.map((q) => q.tag);
-    // All three canonical tables written.
+    // All four canonical tables written (platform_users, binding, preferences seed, topics).
     expect(tags).toContain('platform_users:insert');
     expect(tags).toContain('user_channel_bindings:insert');
+    expect(tags).toContain('user_channel_preferences:seed');
     expect(tags).toContain('user_notification_topics:insert');
 
-    // Ordering: anchor first, then the A3 advisory lock, then platform_users, then binding, then topics.
+    // Ordering: anchor first, then the A3 advisory lock, then platform_users, then binding, then the
+    // broadcast-preferences seed (fires right after a NEW binding — parity with
+    // upsertBroadcastDefaultsAfterChannelBind), then topics.
     order.push(...state.order);
     const idxAnchor = order.indexOf('anchor');
     const idxLock = order.indexOf('query:advisory_lock');
     const idxPu = order.indexOf('query:platform_users:insert');
     const idxBinding = order.indexOf('query:user_channel_bindings:insert');
+    const idxSeed = order.indexOf('query:user_channel_preferences:seed');
     const idxTopic = order.indexOf('query:user_notification_topics:insert');
     expect(idxAnchor).toBeGreaterThanOrEqual(0);
     expect(idxAnchor).toBeLessThan(idxLock);
     expect(idxLock).toBeLessThan(idxPu);
     expect(idxPu).toBeLessThan(idxBinding);
-    expect(idxBinding).toBeLessThan(idxTopic);
+    expect(idxBinding).toBeLessThan(idxSeed);
+    expect(idxSeed).toBeLessThan(idxTopic);
+
+    // Seed row: user_id (text) + platform_user_id (uuid) both the new canonical id, channel_code, opted-in.
+    const seedCall = state.queries.find((q) => q.tag === 'user_channel_preferences:seed');
+    expect(seedCall?.params[0]).toBe('pu-new');
+    expect(seedCall?.params[1]).toBe('telegram');
 
     // Lock key is namespaced and carries the canonical integrator user id (concurrent-webhook idempotency).
     const lockCall = state.queries.find((q) => q.tag === 'advisory_lock');
@@ -207,8 +218,68 @@ describe('writeIdentityAndPreferencesDirect (D1 direct public writes)', () => {
     expect(tags).not.toContain('platform_users:insert');
     expect(res.platformUserId).toBe('pu-existing');
     expect(res.channelBindingInserted).toBe(false);
+    // No preferences seed on an EXISTING binding (ON CONFLICT DO NOTHING no-op, not a new row) — parity
+    // with upsertBroadcastDefaultsAfterChannelBind only being called when the binding INSERT ... RETURNING
+    // actually returned a row.
+    expect(tags).not.toContain('user_channel_preferences:seed');
     expect(res.topicsWritten).toBe(0);
     expect(state.committed).toBe(true);
+  });
+
+  it('enrich UPDATE overwrites display_name when displayName+firstName+lastName are ALL non-empty (parity with pgUserProjection.ts:276-283)', async () => {
+    const router: Router = (sql) => {
+      const tag = tagFor(sql);
+      if (tag === 'platform_users:candidate_by_int') return rows([{ id: 'pu-existing' }]);
+      if (tag === 'platform_users:update') return rows([], 1);
+      return rows([]);
+    };
+    const { db, state } = createDbMock(router);
+    const deps: WriteIdentityAndPreferencesDeps = {
+      writeChannelAnchor: vi.fn(async () => ({ integratorUserId: '9' })),
+      mergeCandidateIds: vi.fn(async (_txDb: DbPort, ids: string[]) => ids[0]!),
+    };
+
+    // baseInput has displayName='Ivanov Ivan', firstName='Ivan', lastName='Ivanov' — all non-empty.
+    await writeIdentityAndPreferencesDirect(db, { ...baseInput, topics: [] }, deps);
+
+    const updateCall = state.queries.find((q) => q.tag === 'platform_users:update');
+    expect(updateCall).toBeDefined();
+    // The "overwrite unconditionally" branch must be the FIRST WHEN in the CASE — same shape/precedence
+    // as pgUserProjection.ts's display_name CASE (not a "never overwrite" scaffold shortcut).
+    expect(updateCall!.sql).toMatch(
+      /display_name = CASE\s+WHEN \$2::text IS NOT NULL AND trim\(\$2::text\) <> ''\s+AND \$3::text IS NOT NULL AND trim\(\$3::text\) <> ''\s+AND \$4::text IS NOT NULL AND trim\(\$4::text\) <> ''\s+THEN \$2::text/,
+    );
+    // $2/$3/$4 are displayName/firstName/lastName — the all-non-empty overwrite condition is satisfied.
+    expect(updateCall!.params[1]).toBe('Ivanov Ivan');
+    expect(updateCall!.params[2]).toBe('Ivan');
+    expect(updateCall!.params[3]).toBe('Ivanov');
+  });
+
+  it('enrich UPDATE only fills an empty display_name when firstName/lastName are not BOTH present (fill-only branch)', async () => {
+    const router: Router = (sql) => {
+      const tag = tagFor(sql);
+      if (tag === 'platform_users:candidate_by_int') return rows([{ id: 'pu-existing' }]);
+      if (tag === 'platform_users:update') return rows([], 1);
+      return rows([]);
+    };
+    const { db, state } = createDbMock(router);
+    const deps: WriteIdentityAndPreferencesDeps = {
+      writeChannelAnchor: vi.fn(async () => ({ integratorUserId: '9' })),
+      mergeCandidateIds: vi.fn(async (_txDb: DbPort, ids: string[]) => ids[0]!),
+    };
+
+    // Only firstName present (no lastName) — displayName is still derived/non-empty, but the
+    // ALL-non-empty overwrite condition is false, so only the fill-if-empty branch can apply.
+    await writeIdentityAndPreferencesDirect(
+      db,
+      { ...baseInput, topics: [], displayName: 'Ivan', firstName: 'Ivan', lastName: null },
+      deps,
+    );
+
+    const updateCall = state.queries.find((q) => q.tag === 'platform_users:update');
+    expect(updateCall!.params[1]).toBe('Ivan');
+    expect(updateCall!.params[2]).toBe('Ivan');
+    expect(updateCall!.params[3]).toBeNull();
   });
 
   it('rolls back the whole transaction when a public write throws (nothing after it runs)', async () => {

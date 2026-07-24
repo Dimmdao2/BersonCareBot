@@ -254,6 +254,12 @@ describe("writePort user.upsert projection payload", () => {
     const binding = queries.find((q) => q.sql.includes("INSERT INTO public.user_channel_bindings"));
     expect(binding).toBeDefined();
     expect(binding?.params).toEqual(["pu-new", "telegram", "123"]);
+
+    // A NEW binding seeds default broadcast preferences (parity with
+    // upsertBroadcastDefaultsAfterChannelBind, called by pgUserProjection.ts on the same condition).
+    const seed = queries.find((q) => q.sql.includes("INSERT INTO public.user_channel_preferences"));
+    expect(seed).toBeDefined();
+    expect(seed?.params).toEqual(["pu-new", "telegram", expect.any(Date)]);
   });
 
   it("D1: user.upsert writes public.platform_users/user_channel_bindings directly for max (no projection fanout)", async () => {
@@ -280,6 +286,9 @@ describe("writePort user.upsert projection payload", () => {
 
     const binding = queries.find((q) => q.sql.includes("INSERT INTO public.user_channel_bindings"));
     expect(binding?.params).toEqual(["pu-new", "max", "555123"]);
+
+    const seed = queries.find((q) => q.sql.includes("INSERT INTO public.user_channel_preferences"));
+    expect(seed?.params).toEqual(["pu-new", "max", expect.any(Date)]);
   });
 
   it("D1: user.upsert silently no-ops for a non-numeric telegram externalId (channel anchor unresolved)", async () => {
