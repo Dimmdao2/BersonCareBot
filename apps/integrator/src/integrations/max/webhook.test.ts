@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import Fastify from 'fastify';
+import * as loggerMod from '../../infra/observability/logger.js';
 import {
   getCurrentIntegratorPrincipalUserId,
   getCurrentOrganizationPrincipalId,
@@ -32,6 +33,20 @@ describe('buildMaxFacts', () => {
     const facts = await buildMaxFacts(messageUpdate(777666), undefined, undefined, resolve);
     expect(facts.isAdmin).toBe(true);
     expect(resolve).toHaveBeenCalledWith('max', '777666');
+  });
+
+  it('fails open (isAdmin false) and logs a warning when the resolver throws', async () => {
+    const warnSpy = vi.spyOn(loggerMod.logger, 'warn').mockImplementation(() => undefined as never);
+    const resolve = vi.fn(async () => {
+      throw new Error('permission denied for function current_org_id');
+    });
+    const facts = await buildMaxFacts(messageUpdate(777666), undefined, undefined, resolve);
+    expect(facts.isAdmin).toBe(false);
+    expect(warnSpy).toHaveBeenCalledWith(
+      expect.objectContaining({ err: expect.any(Error) }),
+      expect.stringContaining('resolveMessengerStaffAdmin failed'),
+    );
+    warnSpy.mockRestore();
   });
 });
 

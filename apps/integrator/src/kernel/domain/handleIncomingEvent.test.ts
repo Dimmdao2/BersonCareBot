@@ -114,6 +114,51 @@ describe('handleIncomingEvent (v3)', () => {
     });
   });
 
+  it('fails open to unknown-user context (no crash, no dropped message) when a bootstrap-path read 42501s', async () => {
+    // Mirrors the bootstrap pre-routing/unresolved-org scenario: the bare login role has no EXECUTE on
+    // app.is_staff()/app.current_org_id() (deploy/postgres/integrator-login-public-identity-grants.sql),
+    // so user.byIdentity / draft.activeByIdentity / conversation.openByIdentity all reject with a
+    // permission-denied error. loadUserContext must degrade to safe defaults instead of propagating,
+    // which would otherwise drop the entire inbound message (kernel/eventGateway pipeline.run catch).
+    const event: IncomingEvent = {
+      type: 'message.received',
+      meta: {
+        eventId: 'evt-ctx-2',
+        occurredAt: '2026-03-05T12:00:00.000Z',
+        source: 'telegram',
+      },
+      payload: {
+        incoming: {
+          channelId: '999',
+        },
+      },
+    };
+
+    const readPort = {
+      readDb: vi.fn().mockRejectedValue(
+        Object.assign(new Error('permission denied for function is_staff'), { code: '42501' }),
+      ),
+    };
+
+    const buildPlan = vi.fn().mockResolvedValue([]);
+
+    const result = await handleIncomingEvent(event, {
+      readPort,
+      buildPlan,
+      executeAction: vi.fn().mockResolvedValue({ actionId: 'none', status: 'success' }),
+    });
+
+    expect(result).toBeDefined();
+    expect(readPort.readDb).toHaveBeenCalledTimes(3);
+    expect(buildPlan).toHaveBeenCalledWith({
+      event,
+      context: expect.objectContaining({
+        linkedPhone: false,
+        hasOpenConversation: false,
+      }),
+    });
+  });
+
   it('passes generic facts through base context without interpreting them', async () => {
     const event: IncomingEvent = {
       type: 'message.received',

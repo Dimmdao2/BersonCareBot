@@ -1,6 +1,6 @@
 import type { FastifyInstance } from 'fastify';
 import { runWithDbBootstrapPrincipal, runWithDbInfraPrincipal } from '@bersoncare/db-principal';
-import { getRequestLogger, newEventId } from '../../infra/observability/logger.js';
+import { getRequestLogger, logger, newEventId } from '../../infra/observability/logger.js';
 import {
   runWithIntegratorPrincipal,
   runWithOrganizationPrincipal,
@@ -175,7 +175,18 @@ export async function buildMaxFacts(
       adminChatId === chatId);
   let dbAdmin = false;
   if (actorId && resolveMessengerStaffAdmin) {
-    dbAdmin = await resolveMessengerStaffAdmin('max', actorId);
+    try {
+      dbAdmin = await resolveMessengerStaffAdmin('max', actorId);
+    } catch (err) {
+      // Fail open like every other pre-routing lookup in this file (all try/catch and default), and
+      // mirroring the telegram sibling (telegram/webhook.ts buildAdminFacts): a transient DB/privilege
+      // hiccup here (e.g. the bare bootstrap login role 42501-ing on public.system_settings /
+      // app.current_org_id()) must degrade admin-detection to "not admin", not crash the whole inbound
+      // MAX pipeline. See deploy/postgres/integrator-login-public-identity-grants.sql for why granting
+      // this access is the WRONG fix (it took TEST down) and fail-open in code is the correct one.
+      logger.warn({ err }, 'buildMaxFacts: resolveMessengerStaffAdmin failed, treating as non-admin');
+      dbAdmin = false;
+    }
   }
   const isAdmin = envAdmin || dbAdmin;
   return {
