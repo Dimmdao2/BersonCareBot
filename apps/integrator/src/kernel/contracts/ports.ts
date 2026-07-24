@@ -75,7 +75,11 @@ export type DbWriteMutationType =
   | 'event.log'
   | 'mailing.topic.upsert'
   | 'user.subscription.upsert'
-  | 'mailing.log.append';
+  | 'mailing.log.append'
+  | 'diary.symptom.tracking.create'
+  | 'diary.symptom.entry.create'
+  | 'diary.lfk.complex.create'
+  | 'diary.lfk.session.create';
 
 /** Универсальный read-запрос к БД. */
 export type DbReadQuery = {
