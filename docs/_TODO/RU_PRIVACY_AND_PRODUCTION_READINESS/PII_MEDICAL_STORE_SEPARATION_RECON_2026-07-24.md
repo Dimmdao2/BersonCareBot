@@ -1,0 +1,39 @@
+# Recon — storing ФИО / contacts / medical data separately (2026-07-24)
+
+> **RECON ONLY** (owner asked to scope complexity, not build). Feeds the decision in
+> `stages/CRYPTO-01_DATA_AND_KEY_ENCRYPTION.md` (which currently plans field-level encryption in-place, a
+> lighter control than store separation). Full worker detail: session scratchpad
+> `db-pii-medical-separation-recon.md`. Cross-link: CRYPTO-01 §C4.
+
+## Current state (PROVEN)
+- **No depersonalization boundary exists today.** `public.platform_users` (`apps/webapp/db/schema/schema.ts:53-114`)
+  co-locates ФИО (`display_name/first_name/last_name/patronymic`), DOB, gender **AND** `height_cm/weight_kg`
+  (arguably medical) in ONE row.
+- **Contacts are already mostly separated** into side-tables FK'd to `platform_users.id`:
+  `platform_user_contacts`, `user_phone_history`, `user_channel_bindings`.
+- **~12+ medical tables** (`clinical_visit`, `clinical_diagnosis*`, `patient_comorbidity`, `clinical_anamnesis_*`,
+  `patient_files`, `patient_diary_day_snapshots`, LFK/treatment-program tables) all key directly off the same
+  `platform_users.id`.
+
+## Coupling / blast radius (PROVEN + inferred floor)
+- Single linking key everywhere: `platform_users.id`. 46 backend files touch medical tables; 29 explicit joins to
+  `platform_users` across 17 files; the doctor patient-card API is a dozen+ sibling routes all keyed by `[userId]`.
+- Rough floor for pseudonymization: **~40–50 backend files** would need touching.
+- Track D's identity write (`writeIdentityAndPreferencesDirect.ts`) writes ФИО straight into `platform_users` from
+  the integrator — any separation design must decide where that write lands.
+
+## Options × complexity (described, not chosen)
+| Option | Effort | Defends against | Fit with current direction |
+|---|---|---|---|
+| (a) Same-DB **separate schema** + RLS/grant separation | **M** | schema-level access separation | Compatible with unified-Postgres |
+| (b) **Separate DB instance** + app-level join | **XL** | full physical store breach separation | **CONFLICTS** with the unified single-Postgres direction (which was a recent consolidation *away* from two DBs) |
+| (c) **Encryption-at-rest w/ separated key custody**, tables stay together | **M–L** | at-rest / key-holder breach | ≈ what CRYPTO-01 §C4 already plans |
+| (d) **Pseudonymization / tokenization** (medical keyed by opaque token, identity map in a separate guarded store) | **L–XL** | medical-store-only breach (strongest) | breaks search/join ergonomics; needs Track D identity-write updated |
+
+## Bottom line (recon)
+- First-order cleanup independent of any option: `height_cm/weight_kg` (measurements) sitting in the identity row
+  `platform_users` is the sharpest "identity+health co-located" smell.
+- (b) separate physical DB fights the unified-Postgres direction the owner just reaffirmed — likely off the table.
+- (a) separate schema and (c) key-separated encryption are the paths that fit the architecture; (c) largely overlaps
+  the existing CRYPTO-01 plan. (d) is the strongest legal-grade control but the most invasive.
+- **No decision taken here.** Owner picks the control level; then it folds into CRYPTO-01 / RU-privacy master plan.
