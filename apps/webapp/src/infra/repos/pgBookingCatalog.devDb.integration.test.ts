@@ -74,19 +74,6 @@ describe.skipIf(!enabled)("pgBookingCatalog (dev DB, opt-in read-only)", () => {
     expect(missing).toBeNull();
   });
 
-  it("resolveBranchService returns null for unknown id", async () => {
-    const client = await pool.connect();
-    try {
-      await assertDevDb(client);
-    } finally {
-      client.release();
-    }
-
-    const port = createPgBookingCatalogPort();
-    const missing = await port.resolveBranchService("00000000-0000-4000-8000-00000000ffff");
-    expect(missing).toBeNull();
-  });
-
   it("deactivateCity on unknown id is no-op (rowCount smoke)", async () => {
     const client = await pool.connect();
     try {

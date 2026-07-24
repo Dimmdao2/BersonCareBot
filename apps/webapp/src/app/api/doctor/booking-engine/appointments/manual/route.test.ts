@@ -22,7 +22,6 @@ const deleteAppointmentHardMock = vi.hoisted(() => vi.fn());
 const emitBookingEventMock = vi.hoisted(() => vi.fn());
 const createRecordMock = vi.hoisted(() => vi.fn());
 const resolveLegacyBranchServiceIdMock = vi.hoisted(() => vi.fn());
-const resolveBranchServiceMock = vi.hoisted(() => vi.fn());
 const assertSlotAvailableMock = vi.hoisted(() => vi.fn());
 const hasSchedulableClientRelationshipMock = vi.hoisted(() => vi.fn());
 const bridgeEnabledState = vi.hoisted(() => ({ value: true }));
@@ -53,9 +52,6 @@ vi.mock("@/app-layer/di/buildAppDeps", () => ({
     bookingScheduling: {
       assertSlotAvailable: assertSlotAvailableMock,
       resolveLegacyBranchServiceId: resolveLegacyBranchServiceIdMock,
-    },
-    bookingCatalog: {
-      resolveBranchService: resolveBranchServiceMock,
     },
     rubitimeCanonicalProjection: {
       isBridgeEnabled: async () => bridgeEnabledState.value,
@@ -130,7 +126,6 @@ describe("POST manual appointment", () => {
 
     expect(res.status).toBe(200);
     expect(resolveLegacyBranchServiceIdMock).not.toHaveBeenCalled();
-    expect(resolveBranchServiceMock).not.toHaveBeenCalled();
     expect(createRecordMock).not.toHaveBeenCalled();
     expect(createAppointmentMock).toHaveBeenCalledWith(
       expect.objectContaining({ platformUserId: "44444444-4444-4444-8444-444444444444" }),
@@ -256,11 +251,6 @@ describe("POST manual appointment", () => {
       };
     });
     resolveLegacyBranchServiceIdMock.mockResolvedValue("branch-service-id");
-    resolveBranchServiceMock.mockResolvedValue({
-      branch: { rubitimeBranchId: "123" },
-      specialist: { rubitimeCooperatorId: "456" },
-      branchService: { rubitimeServiceId: "789" },
-    });
     createRecordMock.mockResolvedValue({ rubitimeId: "rt-1", raw: {} });
 
     const res = await POST(

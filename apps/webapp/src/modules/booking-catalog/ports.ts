@@ -4,7 +4,6 @@ import type {
   BookingSpecialist,
   BookingService,
   BookingBranchService,
-  ResolvedBranchService,
 } from "./types";
 
 /** Read port — used by patient flow and admin UI. */
@@ -17,12 +16,6 @@ export type BookingCatalogReadPort = {
    * Returns fully joined records (branch + service + specialist).
    */
   listServicesByCity(cityCode: string): Promise<BookingBranchService[]>;
-
-  /**
-   * Resolve a single branch-service record by id with full join.
-   * Returns null if not found or inactive.
-   */
-  resolveBranchService(branchServiceId: string): Promise<ResolvedBranchService | null>;
 };
 
 /** Write port — used by seed script and admin CRUD (Stage 3). */

@@ -33,8 +33,6 @@ const syncPort = vi.hoisted(() => ({
   emitBookingEvent: vi.fn(),
 }));
 
-const resolveBranchServiceMock = vi.hoisted(() => vi.fn());
-
 function resolvedFixture(): ResolvedBranchService {
   return {
     branchService: {
@@ -99,7 +97,6 @@ function catalogWithResolve(): BookingCatalogService {
   return {
     listCitiesForPatient: vi.fn(),
     listServicesByCity: vi.fn(),
-    resolveBranchService: resolveBranchServiceMock,
   };
 }
 
@@ -1299,7 +1296,6 @@ describe("createPatientBookingService", () => {
       date: "2026-05-01",
       slotCount: undefined,
     });
-    expect(resolveBranchServiceMock).not.toHaveBeenCalled();
     expect(syncPort.fetchSlots).not.toHaveBeenCalled();
   });
 
@@ -1381,7 +1377,6 @@ describe("createPatientBookingService", () => {
 
   it("createBooking: in_person rejects cityCode that does not match catalog city", async () => {
     const r = resolvedFixture();
-    resolveBranchServiceMock.mockResolvedValue(r);
     const bookingEngine = {
       organization: { getDefaultOrganizationId: vi.fn().mockResolvedValue("org-1") },
       getAppointment: vi.fn().mockResolvedValue({ id: "appt-1", organizationId: "org-1" }),
