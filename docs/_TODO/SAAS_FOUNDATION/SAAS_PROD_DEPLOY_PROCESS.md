@@ -25,7 +25,11 @@ From INFRA-01 §I0 + RU-privacy MASTER_PLAN. Owner + external, not engineering c
 - [ ] PR-00/PR-01 scope-lock + processing register; Selectel response O-02; RKN notification reconciled (PR-04 ISPDn gate).
 - [ ] CRYPTO-01/C0 crypto ADR; SEC-02 host/secrets; DR-01/02 backup+restore drill proven (needs owner age-key).
 - [ ] Stable SaaS release SHA (green full CI); owner resources O-07 (new VPS); GO decision.
-- [ ] SMTP prod creds; session TTL decision (D1); paid-billing scope decision (gates store/C5B-D).
+- [x] **Owner decisions 2026-07-24:** **paid billing = OUT of first launch** (no online subscription payment day-one
+      → C5B/C/D + store deferred, dropped from cutover scope; base payment infra stays but no acquirer/store);
+      **session TTL = 7 days** for staff/global-admin (patient 90d unchanged; unblocks logout-everywhere / session-revoke);
+      **SMTP creds = already in the prod dump's `system_settings`** (no separate provisioning) — BUT they're mixed
+      in with everything, so a small task exists to LOCATE + document exactly which keys hold them (taskdb).
 
 ## 2. Database migration (SCRIPTED)
 Rehearse on a disposable prod-copy first (INFRA-01 §I2), then run on the new prod host in the cutover window.
