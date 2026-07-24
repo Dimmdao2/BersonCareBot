@@ -94,9 +94,19 @@ auditor:
   pre-existing TEST privilege gap (integrator login role bootstrap path) — overlay
   `deploy/postgres/integrator-login-public-identity-grants.sql` + webhook.ts fail-open fix (`207d4ce78`).
   Proof: `scratchpad/d1-a7-live-proof.md`. Follow-up: promote overlay to a real integrator migration (prod-correct).
-- [ ] **D2 — diary and LFK.** Resolve canonical platform user and exact organization/enrollment, validate ownership,
+- [x] **D2 — diary and LFK.** Resolve canonical platform user and exact organization/enrollment, validate ownership,
   write symptom tracking/entries and LFK complexes/sessions directly, and retire the four corresponding HTTP event
   types without a default-org fallback.
+  <br>**DONE 2026-07-24** (approach A, merge `79720d89d`). 4 event types (diary.symptom.tracking.created/entry.created,
+  diary.lfk.complex.created/session.created) → direct `public.symptom_trackings/symptom_entries/lfk_complexes/
+  lfk_sessions` via `directPublic/writeDiaryLfkDirect.ts` (reuses D1 candidate resolver). Exact org/enrollment,
+  **no default-org fallback** (0 or 2+ active → fail-closed); ownership validation on entry/session. Fixed a latent
+  ID-space bug in the retired path (userId was integrator bigint, not platform_users.id → silent no-op). Overlay
+  addendum grants (column-scoped). integrator vitest 1383/1385, typecheck/chokepoint/lint clean. **Live-verified on
+  TEST** (real HMAC org-principal; all 4 tables + ownership reads pass RLS; bare-role blocked). Detail:
+  `scratchpad/d2-diary-lfk-report.md`. Follow-up: same ID-space bug in GET reads `listSymptomTrackings`/
+  `listLfkComplexes` (not among the 4 event types) left for a separate fix; multi-org patient diary attribution
+  fails-closed (product edge — owner Q if multi-clinic diary needed).
 - [ ] **D3 — support conversations and messages.** Direct transactional open/message/status writes and qualified
   public reads; reconcile the two current organization-null conversation rows before tightening/removing legacy
   storage.
