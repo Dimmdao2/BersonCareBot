@@ -271,17 +271,21 @@ COMMENT ON FUNCTION app.provision_specialist_owner(uuid) IS
   'Signed identity-self specialist owner provisioning. Rejects a second active staff organization and defers be_specialists to a real staff principal.';
 
 -- Owner-exempt trusted seam: app_owner is NOLOGIN + BYPASSRLS with zero SET ROLE members (asserted
--- in the preflight above), so this is the ONLY function in this file reassigned off the migrator.
--- Its two sibling helpers stay on the migrator: current_provisioned_owner_organization() is read by
+-- in the preflight above). provision_specialist_owner AND current_provisioned_owner_organization()
+-- both move to app_owner: the latter SELECTs public.be_organizations (FORCE RLS, only
+-- app_platform_settings/app_staff-scoped policies -- the migrator matches none of them, so under
+-- its old ownership this SELECT silently returned zero rows and start_provisioned_organization_trial
+-- raised provisioned_owner_organization_required on every real call; proved read-only against TEST
+-- inside BEGIN;...;ROLLBACK, never committed). It stays called only from
 -- app.start_provisioned_organization_trial() (owned by app_platform_settings, already granted
--- EXECUTE on it directly in deploy/postgres/c5a-platform-operations-runtime.sql) against
--- public.be_organization_members, which has RLS disabled entirely; seed_reference_catalog_snapshot()
--- is re-owned dynamically by deploy/postgres/reference-catalog-rls.sql (its :"provisioning_owner"
--- resolves from THIS function's current owner and that overlay runs later in the same deploy pass),
+-- EXECUTE on it directly in deploy/postgres/c5a-platform-operations-runtime.sql) -- that grant is a
+-- plain GRANT, unaffected by this reassignment. seed_reference_catalog_snapshot() is re-owned
+-- dynamically by deploy/postgres/reference-catalog-rls.sql (its :"provisioning_owner" resolves from
+-- provision_specialist_owner's current owner and that overlay runs later in the same deploy pass),
 -- which also carries the matching reference_categories/reference_items table grants -- so it ends
 -- the deploy owned by app_owner too, without any edit in this file.
 ALTER FUNCTION app.provision_specialist_owner(uuid) OWNER TO app_owner;
-ALTER FUNCTION app.current_provisioned_owner_organization() OWNER TO :specialist_owner_provisioning_owner_ident;
+ALTER FUNCTION app.current_provisioned_owner_organization() OWNER TO app_owner;
 ALTER FUNCTION app.seed_reference_catalog_snapshot(uuid) OWNER TO :specialist_owner_provisioning_owner_ident;
 GRANT SELECT ON TABLE public.reference_catalog_baselines TO :specialist_owner_provisioning_owner_ident;
 
@@ -290,12 +294,15 @@ REVOKE ALL ON FUNCTION app.current_provisioned_owner_organization() FROM PUBLIC,
 REVOKE ALL ON FUNCTION app.seed_reference_catalog_snapshot(uuid) FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION app.provision_specialist_owner(uuid) TO app_patient;
 
--- app_owner now runs the function body. It needs EXECUTE on the one sibling helper it calls
--- directly (app.require_staff_security_self_user_id(); the other two direct calls --
--- start_provisioned_organization_trial() and seed_reference_catalog_snapshot() -- resolve their own
--- EXECUTE/ownership onto app_owner dynamically from the two sibling overlays noted above) and base
--- table ACL on the rows the function body writes directly (BYPASSRLS clears FORCE RLS itself, but
--- table-level GRANT is a separate, still-required gate).
+-- app_owner now runs both reassigned function bodies. It needs EXECUTE on the one sibling helper
+-- provision_specialist_owner calls directly (app.require_staff_security_self_user_id(); the other
+-- two direct calls -- start_provisioned_organization_trial() and seed_reference_catalog_snapshot()
+-- -- resolve their own EXECUTE/ownership onto app_owner dynamically from the two sibling overlays
+-- noted above) and base table ACL on the rows either function body reads/writes directly (BYPASSRLS
+-- clears FORCE RLS itself, but table-level GRANT is a separate, still-required gate -- confirmed:
+-- app_owner already has pre-existing SELECT on public.be_organizations and
+-- public.be_organization_members from unrelated features, sufficient for
+-- current_provisioned_owner_organization()'s read; only the three grants below were missing).
 GRANT EXECUTE ON FUNCTION app.require_staff_security_self_user_id() TO app_owner;
 GRANT INSERT ON TABLE public.be_organizations TO app_owner;
 GRANT SELECT, UPDATE ON TABLE public.specialist_signup_intents TO app_owner;
@@ -306,8 +313,15 @@ SELECT 1 / (
     WHERE p.oid = 'app.provision_specialist_owner(uuid)'::regprocedure
       AND pg_get_userbyid(p.proowner) = 'app_owner'
   )
+  AND EXISTS (
+    SELECT 1 FROM pg_proc p
+    WHERE p.oid = 'app.current_provisioned_owner_organization()'::regprocedure
+      AND pg_get_userbyid(p.proowner) = 'app_owner'
+  )
   AND has_function_privilege('app_owner', 'app.require_staff_security_self_user_id()', 'EXECUTE')
   AND has_table_privilege('app_owner', 'public.be_organizations', 'INSERT')
+  AND has_table_privilege('app_owner', 'public.be_organizations', 'SELECT')
+  AND has_table_privilege('app_owner', 'public.be_organization_members', 'SELECT')
   AND has_table_privilege('app_owner', 'public.specialist_signup_intents', 'SELECT')
   AND has_table_privilege('app_owner', 'public.specialist_signup_intents', 'UPDATE')
 )::int AS specialist_owner_provisioning_seam_ready;

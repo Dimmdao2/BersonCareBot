@@ -985,6 +985,14 @@ function assertStaticSourceGuards() {
       'its INSERT into FORCE-RLS public.be_organizations clears the wall that stalled self-signup',
   );
   assert(
+    source.ownerProvisioningOverlay.includes(
+      'ALTER FUNCTION app.current_provisioned_owner_organization() OWNER TO app_owner;',
+    ),
+    'this sibling helper must also stay owned by app_owner -- under the migrator it matches no ' +
+      'FORCE-RLS policy on public.be_organizations and silently returns no row, which used to make ' +
+      'every real provisioning call raise provisioned_owner_organization_required',
+  );
+  assert(
     source.provisioningRepo.includes('async ensureOwnBookableSpecialist') &&
       source.provisioningRepo.includes('specialist_self_binding_created'),
     'specialist binding must remain in the canonical provisioning repository',

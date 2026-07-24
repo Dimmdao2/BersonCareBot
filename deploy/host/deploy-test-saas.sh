@@ -909,6 +909,7 @@ SELECT (
       AND NOT (n.nspname = 'app' AND c.relname IN ('context_signing_secrets', 'principal_context', 'context_nonce_ledger'))
   )
   AND (SELECT pg_get_userbyid(p.proowner) FROM pg_proc p WHERE p.oid = 'app.provision_specialist_owner(uuid)'::regprocedure) = 'app_owner'
+  AND (SELECT pg_get_userbyid(p.proowner) FROM pg_proc p WHERE p.oid = 'app.current_provisioned_owner_organization()'::regprocedure) = 'app_owner'
   AND (SELECT c.relrowsecurity AND c.relforcerowsecurity FROM pg_class c WHERE c.oid = 'public.be_organizations'::regclass)
   AND NOT EXISTS (
     SELECT 1 FROM pg_policy pol
@@ -928,8 +929,9 @@ SELECT (
   [ "$ok" = "t" ] || {
     echo "FATAL: specialist-owner provisioning seam is not pinned as expected -- app_owner must stay" >&2
     echo "       NOLOGIN+BYPASSRLS with zero SET ROLE members, own only its three P2-B context tables," >&2
-    echo "       own app.provision_specialist_owner(uuid), and public.be_organizations must stay under" >&2
-    echo "       FORCE RLS with no app_staff/app_patient/PUBLIC INSERT-capable policy." >&2
+    echo "       own app.provision_specialist_owner(uuid) AND app.current_provisioned_owner_organization()," >&2
+    echo "       and public.be_organizations must stay under FORCE RLS with no app_staff/app_patient/PUBLIC" >&2
+    echo "       INSERT-capable policy." >&2
     exit 1
   }
   echo "   specialist-owner provisioning seam: OK (app_owner pinned, be_organizations FORCE RLS intact)"
