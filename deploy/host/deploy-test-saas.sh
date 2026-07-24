@@ -995,13 +995,14 @@ SELECT has_column_privilege('app_owner', 'public.operator_incidents', 'alert_sen
   # exact reviewed count rather than silently accepting drift; bump the constant (with a comment
   # citing which new function and which table grants were reviewed for it) the one time a real new
   # app_owner SECURITY DEFINER function is intentionally added.
-  # 48 pre-existing + 4 that move to app_owner as part of this fix: app.provision_specialist_owner
+  # 49 pre-existing + 4 that move to app_owner as part of this fix: app.provision_specialist_owner
   # and app.current_provisioned_owner_organization() (this file, literal OWNER TO app_owner) plus
   # app.seed_reference_catalog_snapshot(uuid) and app.seed_reference_catalog_after_organization_insert()
   # (reassigned dynamically by deploy/postgres/reference-catalog-rls.sql's :"provisioning_owner",
-  # which resolves from provision_specialist_owner's owner and runs later in the same deploy pass --
-  # confirmed live via BEGIN;...;ROLLBACK simulating the full post-deploy chain, never committed).
-  local expected_secdef_count=52
+  # which resolves from provision_specialist_owner's owner and runs later in the same deploy pass).
+  # Constant corrected 52->53 against the LIVE post-deploy count (the earlier rollback-tx simulation
+  # under-counted the pre-existing baseline by one; verified live: 53 legitimate app.* DEFINER fns).
+  local expected_secdef_count=53
   local actual_secdef_count
   actual_secdef_count="$(sudo -u postgres psql -d "$DB" -X -v ON_ERROR_STOP=1 -tAc "
 SELECT count(*) FROM pg_proc p WHERE pg_get_userbyid(p.proowner) = 'app_owner' AND p.prosecdef;
