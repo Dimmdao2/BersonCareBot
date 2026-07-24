@@ -271,6 +271,11 @@ REVOKE SELECT,
   UPDATE ("platform_user_id", "organization_id", "status", "last_message_at", "closed_at", "close_reason", "updated_at")
   ON TABLE public.support_conversations FROM :"integrator_login_public_identity_grants_role";
 
+-- D4 addendum (support questions + delivery-attempt audit) -- revoked with the D3 support tables above.
+REVOKE ALL ON TABLE public.support_questions FROM :"integrator_login_public_identity_grants_role";
+REVOKE ALL ON TABLE public.support_question_messages FROM :"integrator_login_public_identity_grants_role";
+REVOKE ALL ON TABLE public.support_delivery_events FROM :"integrator_login_public_identity_grants_role";
+
 -- D2 addendum (symptom diary + LFK) -- revoked next, independent of the D1 tables below.
 REVOKE INSERT ("user_id", "complex_id", "completed_at", "source", "recorded_at", "organization_id")
   ON TABLE public.lfk_sessions FROM :"integrator_login_public_identity_grants_role";
