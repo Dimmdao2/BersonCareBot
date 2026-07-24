@@ -54,5 +54,8 @@ restore+migrate proof. Then apply on TEST.
 - NOT done here: applying the migration to any DB (orchestrator's job on TEST after independent audit).
 
 ## Status
-R6 drain ✓ · R3C-11 done (merged) · R7 code cleanup + DROP migration authored ✓ · awaiting independent audit +
-owner GO to apply the migration on TEST.
+R6 drain ✓ · R3C-11 done (merged) · **R7 APPLIED on TEST 2026-07-24** — 7 rubitime raw tables DROPPED (archived first),
+deploy GREEN (p0-5b deploy-breaker fixed, no FATAL), smoke 22/22, KEEP tables intact (message_retry_jobs/
+appointment_records/patient_bookings/booking_*/be_external_entity_mappings/booking_calendar_map). Merge 50880c042.
+**Remaining Track C:** appointment_records drop (still has runtime refs, later), legacy booking_* catalog drop
+(unblocked by R3C-11, separate step), R6 connector/webhook code removal if any remains.
