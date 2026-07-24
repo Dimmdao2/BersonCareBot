@@ -22,6 +22,7 @@ describe('writePort communication projection events', () => {
   const D3_PLATFORM_USER_ID = 'pu-9001';
   const D3_ORG_ID = 'org-9001';
   const D3_CONVERSATION_ROW_ID = 'sc-conv-1';
+  const D4_QUESTION_ROW_ID = 'sq-question-1';
 
   type SqlOverride = { match: (sql: string) => boolean; respond: () => Awaited<ReturnType<DbPort['query']>> };
 
@@ -73,6 +74,27 @@ describe('writePort communication projection events', () => {
       }
       if (typeof sql === 'string' && sql.includes('UPDATE public.support_conversations')) {
         return { rows: [], rowCount: 1 } as Awaited<ReturnType<DbPort['query']>>;
+      }
+      // D4 direct-public-write plumbing (writeSupportQuestionsDirect.ts, reusing D3's already-resolved
+      // support_conversations row for organization_id).
+      if (typeof sql === 'string' && sql.includes('INSERT INTO public.support_questions')) {
+        return { rows: [{ id: D4_QUESTION_ROW_ID }] } as Awaited<ReturnType<DbPort['query']>>;
+      }
+      if (
+        typeof sql === 'string' &&
+        sql.includes('SELECT id::text AS id, organization_id') &&
+        sql.includes('FROM public.support_questions')
+      ) {
+        return { rows: [{ id: D4_QUESTION_ROW_ID, organization_id: D3_ORG_ID }] } as Awaited<ReturnType<DbPort['query']>>;
+      }
+      if (typeof sql === 'string' && sql.includes('UPDATE public.support_questions SET')) {
+        return { rows: [], rowCount: 1 } as Awaited<ReturnType<DbPort['query']>>;
+      }
+      if (typeof sql === 'string' && sql.includes('INSERT INTO public.support_question_messages')) {
+        return { rows: [{ id: 'sq-msg-1' }] } as Awaited<ReturnType<DbPort['query']>>;
+      }
+      if (typeof sql === 'string' && sql.includes('INSERT INTO public.support_delivery_events')) {
+        return { rows: [{ id: 'sq-delivery-1' }] } as Awaited<ReturnType<DbPort['query']>>;
       }
       return { rows: [] } as Awaited<ReturnType<DbPort['query']>>;
     });
@@ -337,9 +359,150 @@ describe('writePort communication projection events', () => {
     });
   });
 
-  it('question.create enqueues support.question.created', async () => {
+  // D4 (Track D): question.create / question.message.add / question.markAnswered / delivery.attempt.log
+  // no longer enqueue an HTTP projection (support.question.created / .message.appended / .answered /
+  // support.delivery.attempt.logged) — they write directly to public.support_questions /
+  // public.support_question_messages / public.support_delivery_events in a separate best-effort
+  // transaction. See writeSupportQuestionsDirect.ts + its own unit tests
+  // (writeSupportQuestionsDirect.test.ts) for the resolution/fail-closed coverage; these tests only
+  // assert the writePort wiring: no projection enqueued, direct-write SQL issued with the right params.
+
+  it('question.create writes public.support_questions directly, no projection enqueued', async () => {
     const capture = { projectionInserts: [] as { eventType: string; idempotencyKey: string; payload: unknown }[] };
     const db = makeMockDb(capture);
+    const writePort = createDbWritePort({ db });
+    await writePort.writeDb({
+      type: 'question.create',
+      params: {
+        id: 'q-1',
+        userIdentityId: '42',
+        conversationId: 'conv-1',
+        text: 'Help?',
+        createdAt: '2025-01-01T12:00:00.000Z',
+      },
+    });
+    expect(capture.projectionInserts.length).toBe(0);
+    const insertCall = (db.query as ReturnType<typeof vi.fn>).mock.calls.find(
+      (call: unknown[]) => typeof call[0] === 'string' && call[0].includes('INSERT INTO public.support_questions'),
+    );
+    expect(insertCall).toBeDefined();
+    expect(insertCall![1]).toEqual(['q-1', D3_CONVERSATION_ROW_ID, D3_ORG_ID, 'open', '2025-01-01T12:00:00.000Z', null]);
+  });
+
+  it('question.message.add writes public.support_question_messages directly, no projection enqueued', async () => {
+    const capture = { projectionInserts: [] as { eventType: string; idempotencyKey: string; payload: unknown }[] };
+    const db = makeMockDb(capture);
+    const writePort = createDbWritePort({ db });
+    await writePort.writeDb({
+      type: 'question.message.add',
+      params: {
+        id: 'qm-1',
+        questionId: 'q-1',
+        senderType: 'user',
+        messageText: 'Question text',
+        createdAt: '2025-01-01T12:00:00.000Z',
+      },
+    });
+    expect(capture.projectionInserts.length).toBe(0);
+    const insertCall = (db.query as ReturnType<typeof vi.fn>).mock.calls.find(
+      (call: unknown[]) =>
+        typeof call[0] === 'string' && call[0].includes('INSERT INTO public.support_question_messages'),
+    );
+    expect(insertCall).toBeDefined();
+    expect(insertCall![1]).toEqual(['qm-1', D4_QUESTION_ROW_ID, D3_ORG_ID, 'user', 'Question text', '2025-01-01T12:00:00.000Z']);
+  });
+
+  it('question.markAnswered updates public.support_questions status directly, no projection enqueued', async () => {
+    const capture = { projectionInserts: [] as { eventType: string; idempotencyKey: string; payload: unknown }[] };
+    const db = makeMockDb(capture);
+    const writePort = createDbWritePort({ db });
+    await writePort.writeDb({
+      type: 'question.markAnswered',
+      params: {
+        questionId: 'q-1',
+        answeredAt: '2025-01-01T12:05:00.000Z',
+      },
+    });
+    expect(capture.projectionInserts.length).toBe(0);
+    const updateCall = (db.query as ReturnType<typeof vi.fn>).mock.calls.find(
+      (call: unknown[]) => typeof call[0] === 'string' && call[0].includes('UPDATE public.support_questions SET'),
+    );
+    expect(updateCall).toBeDefined();
+    expect(updateCall![1]).toEqual(['q-1', '2025-01-01T12:05:00.000Z']);
+  });
+
+  it('delivery.attempt.log writes public.support_delivery_events directly, no projection enqueued', async () => {
+    const capture = { projectionInserts: [] as { eventType: string; idempotencyKey: string; payload: unknown }[] };
+    const db = makeMockDb(capture);
+    const writePort = createDbWritePort({ db });
+    await writePort.writeDb({
+      type: 'delivery.attempt.log',
+      params: {
+        intentEventId: 'evt-1',
+        correlationId: 'corr-1',
+        channel: 'telegram',
+        status: 'success',
+        attempt: 1,
+        organizationId: '11111111-1111-4111-8111-111111111111',
+        occurredAt: '2025-01-01T12:00:00.000Z',
+      },
+    });
+    expect(capture.projectionInserts.length).toBe(0);
+    const insertCall = (db.query as ReturnType<typeof vi.fn>).mock.calls.find(
+      (call: unknown[]) => typeof call[0] === 'string' && call[0].includes('INSERT INTO public.support_delivery_events'),
+    );
+    expect(insertCall).toBeDefined();
+    expect(insertCall![1]).toEqual([
+      '11111111-1111-4111-8111-111111111111',
+      null,
+      'evt-1',
+      'corr-1',
+      'telegram',
+      'success',
+      1,
+      null,
+      '{}',
+      '2025-01-01T12:00:00.000Z',
+    ]);
+  });
+
+  it('delivery.attempt.log: missing organizationId is legitimately fail-closed — no direct write, no outbox fallback, no incident', async () => {
+    const capture = { projectionInserts: [] as { eventType: string; idempotencyKey: string; payload: unknown }[] };
+    const db = makeMockDb(capture);
+    const writePort = createDbWritePort({ db });
+    await writePort.writeDb({
+      type: 'delivery.attempt.log',
+      params: {
+        intentEventId: 'evt-2',
+        channel: 'telegram',
+        status: 'failed',
+        attempt: 1,
+        organizationId: null,
+        occurredAt: '2025-01-01T12:00:00.000Z',
+      },
+    });
+    expect(capture.projectionInserts.length).toBe(0);
+    const insertCall = (db.query as ReturnType<typeof vi.fn>).mock.calls.find(
+      (call: unknown[]) => typeof call[0] === 'string' && call[0].includes('INSERT INTO public.support_delivery_events'),
+    );
+    expect(insertCall).toBeUndefined();
+    expect(openOrTouchOperatorIncidentMock).not.toHaveBeenCalled();
+  });
+
+  // Durability fix (same class as D3's post-merge audit fix): a direct-write failure must NOT silently
+  // drop the question/message/answer/delivery-event — it must fall back to the durable outbox and
+  // record an operator-visible incident. `conversation_id_required` (question.create with no parent
+  // conversation) is the ONE exception: no write, no fallback, no incident (see
+  // writeSupportQuestionsDirect.ts header "DURABILITY").
+
+  it('question.create: conversation_not_found falls back to the durable outbox + records an operator incident', async () => {
+    const capture = { projectionInserts: [] as { eventType: string; idempotencyKey: string; payload: unknown }[] };
+    const db = makeMockDb(capture, [
+      {
+        match: (sql) => sql.includes('SELECT id::text AS id, organization_id') && sql.includes('FROM public.support_conversations'),
+        respond: () => ({ rows: [] }) as Awaited<ReturnType<DbPort['query']>>,
+      },
+    ]);
     const writePort = createDbWritePort({ db });
     await writePort.writeDb({
       type: 'question.create',
@@ -356,11 +519,45 @@ describe('writePort communication projection events', () => {
     expect(ev.eventType).toBe('support.question.created');
     expect((ev.payload as Record<string, unknown>).integratorQuestionId).toBe('q-1');
     expect((ev.payload as Record<string, unknown>).integratorUserId).toBe('9001');
+    expect(openOrTouchOperatorIncidentMock).toHaveBeenCalledTimes(1);
+    expect(openOrTouchOperatorIncidentMock.mock.calls[0]![0]).toMatchObject({
+      direction: 'db_write',
+      integration: 'support_questions',
+      errorClass: 'question_create_direct_write_fallback',
+      errorDetail: 'conversation_not_found',
+    });
   });
 
-  it('question.message.add enqueues support.question.message.appended', async () => {
+  it('question.create: no conversation id at all is legitimately fail-closed — no outbox fallback, no incident', async () => {
     const capture = { projectionInserts: [] as { eventType: string; idempotencyKey: string; payload: unknown }[] };
     const db = makeMockDb(capture);
+    const writePort = createDbWritePort({ db });
+    await writePort.writeDb({
+      type: 'question.create',
+      params: {
+        id: 'q-1',
+        userIdentityId: '42',
+        conversationId: null,
+        text: 'Help?',
+        createdAt: '2025-01-01T12:00:00.000Z',
+      },
+    });
+    expect(capture.projectionInserts.length).toBe(0);
+    const insertCall = (db.query as ReturnType<typeof vi.fn>).mock.calls.find(
+      (call: unknown[]) => typeof call[0] === 'string' && call[0].includes('INSERT INTO public.support_questions'),
+    );
+    expect(insertCall).toBeUndefined();
+    expect(openOrTouchOperatorIncidentMock).not.toHaveBeenCalled();
+  });
+
+  it('question.message.add: question_not_found falls back to the durable outbox + records an operator incident', async () => {
+    const capture = { projectionInserts: [] as { eventType: string; idempotencyKey: string; payload: unknown }[] };
+    const db = makeMockDb(capture, [
+      {
+        match: (sql) => sql.includes('SELECT id::text AS id, organization_id') && sql.includes('FROM public.support_questions'),
+        respond: () => ({ rows: [] }) as Awaited<ReturnType<DbPort['query']>>,
+      },
+    ]);
     const writePort = createDbWritePort({ db });
     await writePort.writeDb({
       type: 'question.message.add',
@@ -376,11 +573,24 @@ describe('writePort communication projection events', () => {
     const ev = capture.projectionInserts[0]!;
     expect(ev.eventType).toBe('support.question.message.appended');
     expect((ev.payload as Record<string, unknown>).integratorQuestionMessageId).toBe('qm-1');
+    expect(openOrTouchOperatorIncidentMock).toHaveBeenCalledTimes(1);
+    expect(openOrTouchOperatorIncidentMock.mock.calls[0]![0]).toMatchObject({
+      direction: 'db_write',
+      integration: 'support_questions',
+      // eslint-disable-next-line no-secrets/no-secrets -- low-cardinality errorClass identifier, not a secret
+      errorClass: 'question_message_add_direct_write_fallback',
+      errorDetail: 'question_not_found',
+    });
   });
 
-  it('question.markAnswered enqueues support.question.answered', async () => {
+  it('question.markAnswered: question_not_found falls back to the durable outbox + records an operator incident', async () => {
     const capture = { projectionInserts: [] as { eventType: string; idempotencyKey: string; payload: unknown }[] };
-    const db = makeMockDb(capture);
+    const db = makeMockDb(capture, [
+      {
+        match: (sql) => sql.includes('UPDATE public.support_questions SET'),
+        respond: () => ({ rows: [], rowCount: 0 }) as Awaited<ReturnType<DbPort['query']>>,
+      },
+    ]);
     const writePort = createDbWritePort({ db });
     await writePort.writeDb({
       type: 'question.markAnswered',
@@ -393,11 +603,26 @@ describe('writePort communication projection events', () => {
     const ev = capture.projectionInserts[0]!;
     expect(ev.eventType).toBe('support.question.answered');
     expect((ev.payload as Record<string, unknown>).integratorQuestionId).toBe('q-1');
+    expect(openOrTouchOperatorIncidentMock).toHaveBeenCalledTimes(1);
+    expect(openOrTouchOperatorIncidentMock.mock.calls[0]![0]).toMatchObject({
+      direction: 'db_write',
+      integration: 'support_questions',
+      // eslint-disable-next-line no-secrets/no-secrets -- low-cardinality errorClass identifier, not a secret
+      errorClass: 'question_mark_answered_direct_write_fallback',
+      errorDetail: 'question_not_found',
+    });
   });
 
-  it('delivery.attempt.log enqueues support.delivery.attempt.logged', async () => {
+  it('delivery.attempt.log: unexpected direct-write error falls back to the durable outbox + records an operator incident', async () => {
     const capture = { projectionInserts: [] as { eventType: string; idempotencyKey: string; payload: unknown }[] };
-    const db = makeMockDb(capture);
+    const db = makeMockDb(capture, [
+      {
+        match: (sql) => sql.includes('INSERT INTO public.support_delivery_events'),
+        respond: () => {
+          throw new Error('simulated deadlock / connection blip');
+        },
+      },
+    ]);
     const writePort = createDbWritePort({ db });
     await writePort.writeDb({
       type: 'delivery.attempt.log',
@@ -417,5 +642,11 @@ describe('writePort communication projection events', () => {
     expect((ev.payload as Record<string, unknown>).intentEventId).toBe('evt-1');
     expect((ev.payload as Record<string, unknown>).channelCode).toBe('telegram');
     expect((ev.payload as Record<string, unknown>).organizationId).toBe('11111111-1111-4111-8111-111111111111');
+    expect(openOrTouchOperatorIncidentMock).toHaveBeenCalledTimes(1);
+    expect(openOrTouchOperatorIncidentMock.mock.calls[0]![0]).toMatchObject({
+      direction: 'db_write',
+      integration: 'support_delivery_events',
+      errorClass: 'delivery_attempt_log_direct_write_fallback',
+    });
   });
 });

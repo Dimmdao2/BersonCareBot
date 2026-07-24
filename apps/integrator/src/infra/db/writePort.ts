@@ -101,6 +101,13 @@ import {
   setSupportConversationStatusDirect,
   SupportConversationsDirectWriteError,
 } from './directPublic/writeSupportConversationsDirect.js';
+import {
+  appendSupportDeliveryEventDirect,
+  appendSupportQuestionMessageDirect,
+  createSupportQuestionDirect,
+  markSupportQuestionAnsweredDirect,
+  SupportQuestionsDirectWriteError,
+} from './directPublic/writeSupportQuestionsDirect.js';
 import { enqueueProjectionEvent } from './repos/projectionOutbox.js';
 import { recordOperatorFailureIncident } from '../operatorIncident/reportOperatorFailure.js';
 
@@ -1041,7 +1048,7 @@ export function createDbWritePort(input: {
           const text = asNonEmptyString(mutation.params.text);
           const createdAt = asNonEmptyString(mutation.params.createdAt);
           if (!id || !userIdentityId || !text || !createdAt) return;
-          const pendingQCreate: ProjectionFanoutInput[] = [];
+          let resolvedIntegratorUserId: string | null = null;
           await db.tx(async (txDb) => {
             await insertUserQuestion(txDb, {
               id,
@@ -1051,26 +1058,64 @@ export function createDbWritePort(input: {
               text,
               createdAt,
             });
-            const canonicalIntegratorUserId = await resolveCanonicalUserIdFromIdentityId(txDb, userIdentityId);
-            const payload: Record<string, unknown> = {
+            resolvedIntegratorUserId = await resolveCanonicalUserIdFromIdentityId(txDb, userIdentityId);
+          });
+          // D4: replaces the `support.question.created` HTTP projection fanout. Own transaction after
+          // the integrator-local `insertUserQuestion` write above; see writeSupportQuestionsDirect.ts
+          // header ("DURABILITY"). `conversation_id_required` (no parent conversation id supplied — the
+          // only current caller always supplies one) is a genuine fail-closed: no write, no fallback,
+          // no incident. `conversation_not_found` (parent conversation row not yet visible — e.g. its
+          // own `conversation.open` direct write is still mid-fallback) and any other unexpected error
+          // fall back to the durable outbox.
+          const questionCreateFallbackPayload: Record<string, unknown> = {
+            integratorQuestionId: id,
+            integratorConversationId: conversationId,
+            integratorUserId: resolvedIntegratorUserId,
+            status: 'open',
+            createdAt,
+          };
+          try {
+            await createSupportQuestionDirect(db, {
               integratorQuestionId: id,
               integratorConversationId: conversationId,
-              integratorUserId: canonicalIntegratorUserId,
               status: 'open',
               createdAt,
-            };
-            pendingQCreate.push({
-              eventType: 'support.question.created',
-              idempotencyKey: projectionIdempotencyKey(
-                'support.question.created',
-                id,
-                hashPayloadExcludingKeys(payload, ['integratorUserId']),
-              ),
-              occurredAt: createdAt,
-              payload,
             });
-          });
-          await fanoutProjectionsAfterTx(pendingQCreate);
+          } catch (err) {
+            if (err instanceof SupportQuestionsDirectWriteError && err.code === 'conversation_id_required') {
+              logger.warn(
+                { err, mutationType: mutation.type, id },
+                'question.create: direct public write fail-closed (no conversation id) — no write, no fallback',
+              );
+            } else {
+              await enqueueProjectionEvent(db, {
+                eventType: 'support.question.created',
+                idempotencyKey: projectionIdempotencyKey(
+                  'support.question.created',
+                  id,
+                  hashPayloadExcludingKeys(questionCreateFallbackPayload, ['integratorUserId']),
+                ),
+                occurredAt: createdAt,
+                payload: questionCreateFallbackPayload,
+              });
+              const reason = err instanceof SupportQuestionsDirectWriteError ? err.code : 'direct_write_unexpected_error';
+              logger.warn(
+                { err, mutationType: mutation.type, id, reason },
+                'question.create: direct public write failed, fell back to durable outbox',
+              );
+              await recordOperatorFailureIncident({
+                direction: 'db_write',
+                integration: 'support_questions',
+                errorClass: 'question_create_direct_write_fallback',
+                errorDetail: reason,
+              }).catch((incidentErr: unknown) => {
+                logger.error(
+                  { err: incidentErr, mutationType: mutation.type, id },
+                  'question.create: failed to record operator incident for direct-write fallback',
+                );
+              });
+            }
+          }
           return;
         }
         case 'question.message.add': {
@@ -1080,7 +1125,6 @@ export function createDbWritePort(input: {
           const messageText = asNonEmptyString(mutation.params.messageText);
           const createdAt = asNonEmptyString(mutation.params.createdAt);
           if (!id || !questionId || (senderType !== 'user' && senderType !== 'admin') || !messageText || !createdAt) return;
-          const pendingQM: ProjectionFanoutInput[] = [];
           await db.tx(async (txDb) => {
             await insertQuestionMessage(txDb, {
               id,
@@ -1089,42 +1133,96 @@ export function createDbWritePort(input: {
               messageText,
               createdAt,
             });
-            const payload: Record<string, unknown> = {
+          });
+          // D4: replaces the `support.question.message.appended` HTTP projection fanout. Own
+          // transaction after the integrator-local write above; see writeSupportQuestionsDirect.ts
+          // header ("DURABILITY"). `question_not_found` (parent row not yet visible) is NOT a
+          // legitimately-fail-closed condition here: the message text itself must not be lost, so it —
+          // like any other unexpected error — falls back to the durable outbox.
+          try {
+            await appendSupportQuestionMessageDirect(db, {
+              integratorQuestionMessageId: id,
+              integratorQuestionId: questionId,
+              senderRole: senderType,
+              text: messageText,
+              createdAt,
+            });
+          } catch (err) {
+            const fallbackPayload: Record<string, unknown> = {
               integratorQuestionMessageId: id,
               integratorQuestionId: questionId,
               senderRole: senderType,
               text: messageText,
               createdAt,
             };
-            pendingQM.push({
+            await enqueueProjectionEvent(db, {
               eventType: 'support.question.message.appended',
-              idempotencyKey: projectionIdempotencyKey('support.question.message.appended', id, hashPayload(payload)),
+              idempotencyKey: projectionIdempotencyKey('support.question.message.appended', id, hashPayload(fallbackPayload)),
               occurredAt: createdAt,
-              payload,
+              payload: fallbackPayload,
             });
-          });
-          await fanoutProjectionsAfterTx(pendingQM);
+            const reason = err instanceof SupportQuestionsDirectWriteError ? err.code : 'direct_write_unexpected_error';
+            logger.warn(
+              { err, mutationType: mutation.type, id, questionId, reason },
+              'question.message.add: direct public write failed, fell back to durable outbox',
+            );
+            await recordOperatorFailureIncident({
+              direction: 'db_write',
+              integration: 'support_questions',
+              // eslint-disable-next-line no-secrets/no-secrets -- low-cardinality errorClass identifier, not a secret
+              errorClass: 'question_message_add_direct_write_fallback',
+              errorDetail: reason,
+            }).catch((incidentErr: unknown) => {
+              logger.error(
+                { err: incidentErr, mutationType: mutation.type, id, questionId },
+                'question.message.add: failed to record operator incident for direct-write fallback',
+              );
+            });
+          }
           return;
         }
         case 'question.markAnswered': {
           const questionId = asNonEmptyString(mutation.params.questionId);
           const answeredAt = asNonEmptyString(mutation.params.answeredAt);
           if (!questionId || !answeredAt) return;
-          const pendingQA: ProjectionFanoutInput[] = [];
           await db.tx(async (txDb) => {
             await setQuestionAnswered(txDb, { questionId, answeredAt });
-            const payload: Record<string, unknown> = {
+          });
+          // D4: replaces the `support.question.answered` HTTP projection fanout. Own transaction after
+          // the integrator-local write above; see writeSupportQuestionsDirect.ts header ("DURABILITY").
+          // `question_not_found` and any other unexpected error both fall back to the durable outbox —
+          // an admin's answer must not be silently and permanently lost.
+          try {
+            await markSupportQuestionAnsweredDirect(db, { integratorQuestionId: questionId, answeredAt });
+          } catch (err) {
+            const fallbackPayload: Record<string, unknown> = {
               integratorQuestionId: questionId,
               answeredAt,
             };
-            pendingQA.push({
+            await enqueueProjectionEvent(db, {
               eventType: 'support.question.answered',
-              idempotencyKey: projectionIdempotencyKey('support.question.answered', questionId, hashPayload(payload)),
+              idempotencyKey: projectionIdempotencyKey('support.question.answered', questionId, hashPayload(fallbackPayload)),
               occurredAt: answeredAt,
-              payload,
+              payload: fallbackPayload,
             });
-          });
-          await fanoutProjectionsAfterTx(pendingQA);
+            const reason = err instanceof SupportQuestionsDirectWriteError ? err.code : 'direct_write_unexpected_error';
+            logger.warn(
+              { err, mutationType: mutation.type, questionId, reason },
+              'question.markAnswered: direct public write failed, fell back to durable outbox',
+            );
+            await recordOperatorFailureIncident({
+              direction: 'db_write',
+              integration: 'support_questions',
+              // eslint-disable-next-line no-secrets/no-secrets -- low-cardinality errorClass identifier, not a secret
+              errorClass: 'question_mark_answered_direct_write_fallback',
+              errorDetail: reason,
+            }).catch((incidentErr: unknown) => {
+              logger.error(
+                { err: incidentErr, mutationType: mutation.type, questionId },
+                'question.markAnswered: failed to record operator incident for direct-write fallback',
+              );
+            });
+          }
           return;
         }
         case 'notifications.update': {
@@ -1621,29 +1719,75 @@ export function createDbWritePort(input: {
           const payloadJson = typeof dalParams.payload === 'object' && dalParams.payload !== null
             ? (dalParams.payload as Record<string, unknown>) : {};
           const occurredAt = asNonEmptyString(dalParams.occurredAt) ?? new Date().toISOString();
-          const pendingDal: ProjectionFanoutInput[] = [];
           await db.tx(async (txDb) => {
             await insertDeliveryAttemptLog(txDb, dalParams);
-            const payload: Record<string, unknown> = {
-              intentEventId: intentEventId ?? null,
-              correlationId: correlationId ?? null,
+          });
+          // D4: replaces the `support.delivery.attempt.logged` HTTP projection fanout. Own transaction
+          // after the integrator-local audit-log write above; see writeSupportQuestionsDirect.ts header
+          // ("DURABILITY"). A missing `organizationId` is a genuine fail-closed (no write, no fallback,
+          // no incident) — the retired webapp consumer ALSO rejected this case non-retryably
+          // (`support.delivery.attempt.logged: organizationId required`, `retryable: false`), so skipping
+          // both the direct write and the outbox enqueue changes nothing about the eventual outcome.
+          // Anything else (row not written for an unexpected reason) falls back to the durable outbox.
+          const deliveryFallbackPayload: Record<string, unknown> = {
+            intentEventId: intentEventId ?? null,
+            correlationId: correlationId ?? null,
+            channelCode: channel ?? 'unknown',
+            status: status ?? 'failed',
+            attempt: attemptRaw ?? 1,
+            reason: reason ?? null,
+            organizationId,
+            payloadJson,
+            occurredAt,
+          };
+          if (!organizationId) {
+            logger.warn(
+              { mutationType: mutation.type, intentEventId, correlationId, channel },
+              'delivery.attempt.log: direct public write fail-closed (no organizationId) — no write, no fallback',
+            );
+            return;
+          }
+          try {
+            await appendSupportDeliveryEventDirect(db, {
+              organizationId,
+              conversationMessageId: null,
+              integratorIntentEventId: intentEventId,
+              correlationId,
               channelCode: channel ?? 'unknown',
               status: status ?? 'failed',
-              attempt: attemptRaw ?? 1,
-              reason: reason ?? null,
-              organizationId,
+              attempt: attemptRaw !== null && attemptRaw > 0 ? attemptRaw : 1,
+              reason,
               payloadJson,
               occurredAt,
-            };
-            const key = intentEventId ?? correlationId ?? `del-${hashPayload(payload)}`;
-            pendingDal.push({
-              eventType: 'support.delivery.attempt.logged',
-              idempotencyKey: projectionIdempotencyKey('support.delivery.attempt.logged', String(key), hashPayload(payload)),
-              occurredAt,
-              payload,
             });
-          });
-          await fanoutProjectionsAfterTx(pendingDal);
+          } catch (err) {
+            const key = intentEventId ?? correlationId ?? `del-${hashPayload(deliveryFallbackPayload)}`;
+            await enqueueProjectionEvent(db, {
+              eventType: 'support.delivery.attempt.logged',
+              idempotencyKey: projectionIdempotencyKey(
+                'support.delivery.attempt.logged',
+                String(key),
+                hashPayload(deliveryFallbackPayload),
+              ),
+              occurredAt,
+              payload: deliveryFallbackPayload,
+            });
+            logger.warn(
+              { err, mutationType: mutation.type, intentEventId, correlationId, channel },
+              'delivery.attempt.log: direct public write failed, fell back to durable outbox',
+            );
+            await recordOperatorFailureIncident({
+              direction: 'db_write',
+              integration: 'support_delivery_events',
+              errorClass: 'delivery_attempt_log_direct_write_fallback',
+              errorDetail: 'direct_write_unexpected_error',
+            }).catch((incidentErr: unknown) => {
+              logger.error(
+                { err: incidentErr, mutationType: mutation.type, intentEventId, correlationId },
+                'delivery.attempt.log: failed to record operator incident for direct-write fallback',
+              );
+            });
+          }
           return;
         }
         case 'mailing.topic.upsert': {

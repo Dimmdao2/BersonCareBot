@@ -487,5 +487,44 @@ GRANT INSERT ("integrator_message_id", "conversation_id", "organization_id", "se
   ON TABLE public.support_conversation_messages TO :"integrator_login_public_identity_grants_role";
 GRANT UPDATE ("conversation_id") ON TABLE public.support_conversation_messages TO :"integrator_login_public_identity_grants_role";
 
+-- D4 addendum: support questions/delivery-attempt-audit direct-public writes
+-- (writeSupportQuestionsDirect.ts). Reuses D3's already-granted public.support_conversations SELECT
+-- (parent-conversation lookup by integrator_conversation_id for createSupportQuestionDirect) and the
+-- same app.is_staff()/app.current_org_id() EXECUTE grants (A7 addendum #1 above) — no new app.* EXECUTE
+-- grant is required.
+--   public.support_questions         SELECT (createSupportQuestionDirect's ON CONFLICT DO UPDATE SET
+--                                     reads its own conversation_id/organization_id/answered_at by
+--                                     qualified name; appendSupportQuestionMessageDirect's parent-question
+--                                     lookup by integrator_question_id; markSupportQuestionAnsweredDirect's
+--                                     UPDATE ... WHERE integrator_question_id also needs SELECT on the
+--                                     WHERE-referenced column) + INSERT (integrator_question_id,
+--                                     conversation_id, organization_id, status, created_at, answered_at)
+--                                     + UPDATE (conversation_id, organization_id, status, answered_at,
+--                                     updated_at) -- union of the create upsert's SET clause and the
+--                                     mark-answered UPDATE.
+--   public.support_question_messages INSERT (integrator_question_message_id, question_id,
+--                                     organization_id, sender_role, text, created_at) -- no UPDATE: unlike
+--                                     support_conversation_messages, appendSupportQuestionMessageDirect's
+--                                     ON CONFLICT clause is DO NOTHING (no SET), so no UPDATE privilege is
+--                                     needed on this table.
+--   public.support_delivery_events   INSERT (organization_id, conversation_message_id,
+--                                     integrator_intent_event_id, correlation_id, channel_code, status,
+--                                     attempt, reason, payload_json, occurred_at) -- appendSupportDelivery
+--                                     EventDirect's ON CONFLICT clause is also DO NOTHING; no SELECT/UPDATE
+--                                     needed (matches the public.support_conversation_messages INSERT-only
+--                                     precedent's reasoning for its own ON CONFLICT DO NOTHING sibling
+--                                     insert path in D2/D1, e.g. public.lfk_sessions above).
+GRANT SELECT ON TABLE public.support_questions TO :"integrator_login_public_identity_grants_role";
+GRANT INSERT ("integrator_question_id", "conversation_id", "organization_id", "status", "created_at", "answered_at")
+  ON TABLE public.support_questions TO :"integrator_login_public_identity_grants_role";
+GRANT UPDATE ("conversation_id", "organization_id", "status", "answered_at", "updated_at")
+  ON TABLE public.support_questions TO :"integrator_login_public_identity_grants_role";
+
+GRANT INSERT ("integrator_question_message_id", "question_id", "organization_id", "sender_role", "text", "created_at")
+  ON TABLE public.support_question_messages TO :"integrator_login_public_identity_grants_role";
+
+GRANT INSERT ("organization_id", "conversation_message_id", "integrator_intent_event_id", "correlation_id", "channel_code", "status", "attempt", "reason", "payload_json", "occurred_at")
+  ON TABLE public.support_delivery_events TO :"integrator_login_public_identity_grants_role";
+
 \echo 'Integrator login public identity grants UP complete.'
 \endif
