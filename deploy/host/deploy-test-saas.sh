@@ -1168,9 +1168,10 @@ run_strict_post_migration_closure(){
   log "strict closure: C4 five-contour TEST env preflight + root provisioning"
   bootstrap_and_provision_c4_operational_runtime
 
-  log "strict closure: separate privileged fixture seed + cleanup"
-  run_deploy_repo_with_test_db_owner_bypass \
-    "export SAAS_TEST_FIXTURE_DOUBLE_RUN_PROOF=1 && export SAAS_TEST_FIXTURE_ENV_FILE='$SAAS_TEST_FIXTURE_ENV' && pnpm --dir apps/webapp run seed:saas-test-walkthrough"
+  # SaaS TEST walkthrough demo-fixture seed removed 2026-07-24 (owner: the Clinic A/B demo data was
+  # only needed to validate tenant walls during their setup; the walls are in place, and the
+  # verification smokes below do not depend on it). The elevation-cleanup guard stays as a standing
+  # safety assertion.
   assert_cleanup_elevation
 
   log "strict closure: locked patient identity capability gate"
@@ -1239,7 +1240,6 @@ assert_strict_closure_deploy_checkout_ready(){
     }
   fi
   assert_test_runtime_mode_ready
-  assert_saas_test_fixture_packet_ready
   assert_locked_product_smoke_fixture_ready
 }
 
@@ -1426,8 +1426,6 @@ if [ -e "$MEDIA_WORKER_ENV" ]; then
 fi
 log "TEST runtime mode preflight"
 assert_test_runtime_mode_ready
-log "SaaS TEST fixture operator packet preflight"
-assert_saas_test_fixture_packet_ready
 log "locked product-smoke fixture preflight"
 assert_locked_product_smoke_fixture_ready
 
