@@ -50,6 +50,7 @@
 | **Direct integrator→public (Track D)** | `WORK_ORDER.md` §Track D (D0 done; D1-D10 open) — **D1 approach decided (A over B), см. `SAAS_FOUNDATION/TRACK_D1_APPROACH_DECISION_2026-07-24.md`** |
 | **🚀 SaaS PROD deploy — единый процесс (скрипты+инструкции: миграция БД, чистка rubitime/legacy, гранты ролей, гейты, cutover)** | `docs/_TODO/SAAS_FOUNDATION/SAAS_PROD_DEPLOY_PROCESS.md` (единая точка входа; линкует INFRA-01, HARD_MIGRATION_PROTOCOL, rubitime R7 runbooks, ROLE_GRANTS_PROVENANCE_AND_PROD_MIGRATION_PLAN) |
 | **Role grants provenance + prod-migration (automate vs manual)** | `docs/_TODO/ROLE_GRANTS_PROVENANCE_AND_PROD_MIGRATION_PLAN.md` |
+| **🔴 Isolation/provisioning remediation (app_owner seam, grant-completeness, гейт, coverage, катовер) — ЕДИНЫЙ план+чек-лист** | `docs/_TODO/SAAS_FOUNDATION/ISOLATION_PROVISIONING_REMEDIATION_PLAN_2026-07-24.md` (линкует SAAS_PROD_DEPLOY_PROCESS, ROLE_GRANTS_PROVENANCE; собран из design-audit + живых инцидентов email-login/provisioning + карточки «Изоляция клиник») |
 
 ## Как поддерживать актуальность
 
