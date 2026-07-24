@@ -111,6 +111,7 @@ server {
     allow 10.9.0.0/24;
     allow 172.17.0.0/16;
     allow 151.241.228.122;
+    allow 178.157.164.190;    # owner amneziawg VPN exit (2026-07-24; wgeasy→amneziawg switch, test traffic not tunneled → arrives from this public IP)
     allow 127.0.0.1;
     deny all;
 
