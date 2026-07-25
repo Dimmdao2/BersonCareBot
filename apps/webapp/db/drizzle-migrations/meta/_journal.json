@@ -1695,6 +1695,13 @@
       "when": 1793539200037,
       "tag": "0241_platform_operations_audit_health_archive_global_view",
       "breakpoints": true
+    },
+    {
+      "idx": 242,
+      "version": "7",
+      "when": 1793539200038,
+      "tag": "0242_server_runtime_setting_2fa_allowlist",
+      "breakpoints": true
     }
   ]
 }
