@@ -109,6 +109,19 @@ sudo -u postgres pg_restore --no-owner --no-acl -d bcb_migrate_probe /tmp/bcb-pr
 Note `sudo -u postgres` cannot read files under `/home/dev` — always pipe SQL via stdin
 (`… | sudo -u postgres psql`), never `-f /home/dev/...`.
 
+**MANDATORY probe teardown.** Any elevation granted for diagnosis must be revoked before the next deploy:
+```bash
+sudo -u postgres psql -c "REVOKE app_owner FROM bersoncarebot_test;"
+sudo -u postgres psql -c "ALTER ROLE bersoncarebot_test NOBYPASSRLS;"
+sudo -u postgres psql -c "DROP DATABASE IF EXISTS bcb_migrate_probe;"
+sudo -u postgres psql -c "DROP ROLE IF EXISTS bcb_probe_login;"
+# verify BOTH are false:
+sudo -u postgres psql -tAc "SELECT pg_has_role('bersoncarebot_test','app_owner','member'), (SELECT rolbypassrls FROM pg_roles WHERE rolname='bersoncarebot_test');"
+```
+Proven live on 2026-07-25: leftover probe membership made the next deploy abort with
+`FATAL: role bersoncarebot_test already has membership in app_owner before deploy`. That is the guard
+working as designed (fail-closed on pre-existing elevation) — not a bug to work around.
+
 ## 2.5 Legacy / Rubitime table cleanup (SCRIPTED runbooks + owner-gated destructive step)
 The fresh-dump migration (§2) restores the OLD prod DB, so **Rubitime + legacy tables come along** and must be
 cleaned as an explicit, owner-gated, destructive step — NOT a blind `DROP`. **Authoritative runbooks (this process
