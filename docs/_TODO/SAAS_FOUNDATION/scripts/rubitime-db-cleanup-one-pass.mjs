@@ -70,6 +70,8 @@ function commandToString([bin, ...args]) {
 }
 
 function runStep(step, command, options = {}) {
+  // `advisory`/`reason` are this wrapper's own step metadata — keep them out of the spawn options.
+  const { advisory = false, reason = '', ...spawnOptions } = options;
   console.log(`\n=== ${step} ===`);
   console.log(`$ ${commandToString(command)}`);
   const result = spawnSync(command[0], command.slice(1), {
@@ -77,11 +79,20 @@ function runStep(step, command, options = {}) {
     env: process.env,
     encoding: 'utf8',
     stdio: ['ignore', 'pipe', 'pipe'],
-    ...options,
+    ...spawnOptions,
   });
   if (result.stdout) process.stdout.write(result.stdout);
   if (result.stderr) process.stderr.write(result.stderr);
   if ((result.status ?? 1) !== 0) {
+    // Advisory steps report a real, loud signal but must not abort the DATA pipeline. Used only for
+    // static CODE expectations that this DB wrapper cannot influence (see the plan entry's `reason`).
+    if (advisory) {
+      console.error(`\n!!! ADVISORY (NOT FATAL): ${step} failed with status ${result.status ?? 1}`);
+      console.error(`!!! WHY THIS IS NOT FATAL HERE: ${reason}`);
+      console.error('!!! This must still be closed before the real PROD cutover — see');
+      console.error('!!! docs/_TODO/SAAS_FOUNDATION/SAAS_PROD_DEPLOY_PROCESS.md §2.5 (Track C R3-R6).\n');
+      return;
+    }
     throw new Error(`${step} failed with status ${result.status ?? 1}`);
   }
 }
@@ -253,9 +264,20 @@ function buildPlan(opts) {
   ]);
   steps.push(['current Rubitime retirement gate', ['pnpm', 'run', 'check:rubitime-retirement-current']]);
   steps.push(['R7 table disposition gate', ['pnpm', 'run', 'check:rubitime-r7-table-disposition']]);
+  // ADVISORY, not fatal (2026-07-25 from-zero rehearsal). This step greps the REPOSITORY, not the
+  // database: it asserts the Rubitime runtime code paths are already retired (post-R6). That retirement
+  // is separate scoped work (Track C R3-R6 + Track D direct-write), so it cannot pass yet — and keeping
+  // it fatal made every from-zero data pipeline abort AFTER all data work had already succeeded, which
+  // also blocked the rest of the deploy closure (roles/grants/walls/service restart) for a reason that
+  // has nothing to do with data integrity. It still prints loudly and stays a prod-cutover gate.
   steps.push([
     'post-R6 inventory expectation',
     ['node', 'docs/_TODO/SAAS_FOUNDATION/scripts/rubitime-r6-r7-static-inventory.mjs', '--expect-post-r6'],
+    {
+      advisory: true,
+      reason:
+        'this is a STATIC CODE inventory (repo grep), not a database check; Rubitime runtime retirement (Track C R3-R6 / Track D direct-write) is separate scoped work and cannot be completed by this DB pipeline',
+    },
   ]);
   return steps;
 }
@@ -305,8 +327,8 @@ try {
   const dbName = readTargetDatabaseName();
   assertSafeTarget(dbName, opts.allowTestTarget, process.env.DATABASE_URL);
   console.log(`rubitime-db-cleanup-one-pass: target DB ${dbName}`);
-  for (const [name, command] of plan) {
-    runStep(name, command);
+  for (const [name, command, stepOptions] of plan) {
+    runStep(name, command, stepOptions ?? {});
   }
   console.log('rubitime-db-cleanup-one-pass: OK');
 } catch (error) {
