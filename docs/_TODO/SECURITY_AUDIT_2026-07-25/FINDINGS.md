@@ -136,8 +136,37 @@ column on `platform_users`, read in the single place the session identity is alr
 GET handlers), password reset (unconditionally — replacing the `if (security)` no-op), archiving a user, and any
 role change. Clinic-membership removal is deliberately excluded (graded LOW: only `account.self` survives).
 
-## S3 — per-route authorization
+## S3 — per-route authorization (worker output, AWAITING AUDIT)
 
-Worker running. Must establish, among the rest, the exact blast radius of the owner-deferred
-`/api/doctor/patients/*` IDOR **now that FORCE-RLS with a signed per-request principal is live**: is the hole
-masked by the DB wall, or still reachable because the stamped principal can see the row?
+**Headline claim: the owner-deferred `/api/doctor/patients/*` cross-clinic IDOR is CLOSED** — and not by the DB
+wall. The worker reports that all 25 route files under `app/api/doctor/patients/[userId]/**` (and the
+`doctor/clients/[userId]/**` family, minus the intentionally global admin merge tools) resolve the patient
+through `deps.doctorClientsPort.getClientIdentityForOrganization(userId, gate.ctx.organizationId)`, whose SQL
+(`infra/repos/pgDoctorClients.ts:1151-1170`) requires an `org_enrollments` row for the caller's own
+server-resolved organization, so a clinic-A doctor gets 404 for a clinic-B patient before the query ever reaches
+RLS. Sub-object ids (`comorbidityId`, `fileId`, `visitId`, `complaintId`, `diagnosisId`) are additionally scoped
+by `patientUserId` **and** `organizationId` in the same transaction. Attributed to the T0.3.35/T0.3.36 hardening
+pass of ~2026-07-09; 11/11 existing tests pass, including "maps principal mismatch errors to not_found".
+**This claim is under adversarial audit with an explicit coverage requirement** — a single unguarded handler
+refutes it, and this is exactly the kind of "the old bug is gone" claim that must not be accepted on a report.
+If it is confirmed, the standing memory note `idor-patient-routes-deferred-to-saas` and the docs listed below
+are STALE and must be corrected: `docs/PATIENT_FILES_ISOLATION_INITIATIVE/audit/code-audit-1-pfi-st-04.md`,
+`…-06.md`, and this file's own earlier framing.
+
+| # | Proposed | Claim | Where |
+|---|---|---|---|
+| 1 | INFO (structural) | **`platform_users` — the core PII table (name, phone, e-mail, birthdate, gender) — has RLS disabled entirely** (`relrowsecurity=f, relforcerowsecurity=f`, read live), while every child clinical table carries FORCE RLS. So clinical data has two independent walls and *identity* has exactly one: the app-level org check above. Correct today, but a future route reading `platform_users` directly has no DB backstop. Worker did not quantify the blast radius. | live `pg_class`/`pg_policy` |
+| 2 | MEDIUM (latent) | **Money routes are not entitlement-gated:** `patients/[userId]/payments` (record a payment) and `patients/[userId]/acquiring-charge` (charge a card) contain no `requireEntitlementForMutation`, unlike every clinical sibling in the same directory. The `payments` mechanic exists in the registry but is checked only for settings keys. Inert only because the mechanic defaults to enabled and enforcement is dormant — a real bypass the moment tariff enforcement ships. | `app/api/doctor/patients/[userId]/payments/route.ts`; `…/acquiring-charge/route.ts`; `modules/org-entitlements/types.ts:17` |
+| 3 | LOW | The global-admin predicate is hand-rolled in 8+ route files instead of using the shared `requireAdminModeSession()`, so tightening the canonical function (e.g. to demand verified 2FA) would not propagate. | `modules/auth/requireAdminMode.ts` + the `admin/mode`, `admin/smtp-test`, `admin/rubitime/*` copies |
+| 4 | LOW | One admin route family checks `role === "admin"` but omits `adminMode`. Harmless only because `adminMode` currently cannot be false for an admin (S2 INFO #5) — it becomes live if that is ever fixed. | `app/api/admin/google-calendar/calendars/route.ts:22-24` |
+
+Worker's "verified safe" (auditor must re-check): the whole `doctor/patients|clients/[userId]` tree; `doctor/courses`
+entitlement read+write; `admin/settings` per-key global-vs-per-org gating; the deliberately cross-tenant global
+merge/dedup tools (all gated to true global admin); `platform/settings` and `platform/error-tracking`;
+patient-side self-scoped routes (reminders, practice completion, media submission, diary purge) which resolve the
+object from the caller's own list rather than by naked id; `doctor/treatment-program-instances|online-intake|tasks|
+comments|messages` object-level org equality; `integrator/*` HMAC and `internal/*` `timingSafeEqual` bearer;
+`references/[categoryCode]` public baseline data only. Also: patient/clinical ids are UUIDs everywhere; the only
+integer path ids are Rubitime catalog rows behind global admin.
+
+Coverage the worker itself flagged: ~90 of ~500 route files read line-by-line; the rest keyword-scanned only.
