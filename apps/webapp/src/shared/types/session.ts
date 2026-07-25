@@ -27,14 +27,6 @@ export type SessionUser = {
   securityVersion?: number;
   /** A verified staff factor exists in DB; workspace access requires a factor-verified session. */
   securityFactorRequired?: boolean;
-  /**
-   * Unix seconds, `platform_users.sessions_valid_from` (S2 remedy, 2026-07-25). A session cookie
-   * whose `issuedAt` is earlier than this instant is dead — checked in
-   * `modules/auth/service.ts` beside `securityVersion`. `undefined` means either the read path
-   * didn't select the column (e.g. `findByPhone`/`createOrBind`, login-time resolution) or the DB
-   * row has no cutoff (`NULL`) — both cases mean "nothing to enforce", never "reject".
-   */
-  sessionsValidFrom?: number;
 };
 
 export type AppSession = {

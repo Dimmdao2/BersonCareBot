@@ -28,12 +28,4 @@ export type UserByPhonePort = {
   getVerifiedEmailForUser(userId: string): Promise<string | null>;
   /** Создаёт пользователя с номером и привязкой канала или обновляет привязку у существующего. */
   createOrBind(phone: string, context: ChannelContext, options?: CreateOrBindOptions): Promise<CreateOrBindResult>;
-  /**
-   * S2 remedy (2026-07-25, docs/_TODO/SECURITY_AUDIT_2026-07-25/FINDINGS.md): stamps
-   * `platform_users.sessions_valid_from = now()` for the CALLER's own row, killing every session
-   * whose cookie was issued before this call. Must be invoked under the identity-self principal
-   * (`enterStaffSecuritySelfPrincipal` / `runWithStaffSecuritySelfPrincipal`) for the target user —
-   * same convention as `findByUserId`. Used by logout and password reset.
-   */
-  invalidateSessionsForSelf(): Promise<void>;
 };

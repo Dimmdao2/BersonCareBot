@@ -62,9 +62,6 @@ export const platformUserSessionRowSchema = z.object({
   phone_normalized: z.string().nullable(),
   security_version: z.coerce.number().int().nonnegative().optional().default(0),
   security_factor_required: z.coerce.boolean().optional().default(false),
-  /** `platform_users.sessions_valid_from` (S2 remedy, 2026-07-25). Not selected by every query that
-   * uses this schema (e.g. `loadSessionIdentityUser`), so absent/NULL both mean "no cutoff". */
-  sessions_valid_from: z.union([z.string(), z.date()]).nullable().optional(),
 });
 
 export const platformUserProfileRowSchema = z.object({

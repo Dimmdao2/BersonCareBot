@@ -1279,14 +1279,8 @@ export function createPgDoctorClientsPort(): DoctorClientsPort {
     },
 
     async setUserArchived(userId: string, archived: boolean): Promise<void> {
-      // S2 remedy (2026-07-25, docs/_TODO/SECURITY_AUDIT_2026-07-25/FINDINGS.md): archiving a user
-      // must kill their existing sessions too, not just gate future access. Only stamped when
-      // actually archiving (archived = true) — un-archiving does not need to force a re-login.
       await runWebappPgText(
-        `UPDATE platform_users SET
-           is_archived = $2,
-           sessions_valid_from = CASE WHEN $2 THEN now() ELSE sessions_valid_from END,
-           updated_at = now()
+        `UPDATE platform_users SET is_archived = $2, updated_at = now()
          WHERE id = $1::uuid AND role = 'client'`,
         [userId, archived]
       );

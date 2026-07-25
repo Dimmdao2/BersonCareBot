@@ -20,14 +20,9 @@ function signPayload(payload: string): string {
 }
 
 describe("auth service", () => {
-  it("SESSION_SLIDING_TTL_SECONDS (idle TTL) is 30 days for client (non-staff) sessions (S2 remedy 2026-07-25)", () => {
+  it("SESSION_SLIDING_TTL_SECONDS is 90 days for client (non-doctor) sessions", () => {
     const src = readFileSync(sessionCookieSourcePath, "utf8");
-    expect(src).toMatch(/const\s+SESSION_SLIDING_TTL_SECONDS\s*=\s*60\s*\*\s*60\s*\*\s*24\s*\*\s*30/);
-  });
-
-  it("SESSION_ABSOLUTE_MAX_AGE_SECONDS (hard ceiling) is 90 days for client (non-staff) sessions — the pre-remedy TTL value, now the max age", () => {
-    const src = readFileSync(sessionCookieSourcePath, "utf8");
-    expect(src).toMatch(/const\s+SESSION_ABSOLUTE_MAX_AGE_SECONDS\s*=\s*60\s*\*\s*60\s*\*\s*24\s*\*\s*90/);
+    expect(src).toMatch(/const\s+SESSION_SLIDING_TTL_SECONDS\s*=\s*60\s*\*\s*60\s*\*\s*24\s*\*\s*90/);
   });
 
   it("returns null for malformed signed integrator token payload", async () => {

@@ -68,12 +68,6 @@ export async function POST(request: Request) {
     // Revoke first: if the credential write fails, existing staff sessions still
     // fail closed and the user can request a fresh reset challenge.
     if (security) await deps.staffSecurity.revokeSessions();
-    // S2 remedy (2026-07-25, docs/_TODO/SECURITY_AUDIT_2026-07-25/FINDINGS.md): the TOTP-gated
-    // revoke above only ever fires for an enrolled staff profile, and on TEST that was ZERO of the
-    // 281 current users — so "reset the password to kick the attacker out" silently revoked
-    // nothing. This call has no such precondition: it stamps
-    // `platform_users.sessions_valid_from` unconditionally, for staff and patients alike.
-    await deps.userByPhone.invalidateSessionsForSelf();
     await deps.userPasswordCredentials.updatePasswordHash(userId, passwordHash);
   } catch {
     return NextResponse.json({ ok: false, error: "reset_failed" }, { status: 500 });

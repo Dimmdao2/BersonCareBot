@@ -642,16 +642,8 @@ export const pgUserProjectionPort: UserProjectionPort = {
   },
 
   async updateRole(platformUserId, role) {
-    // S2 remedy (2026-07-25, docs/_TODO/SECURITY_AUDIT_2026-07-25/FINDINGS.md): a role change must
-    // kill existing sessions for that user, so a session minted under the OLD role cannot keep
-    // riding on stale claims. `sessions_valid_from` only bumps when the role actually changes
-    // (IS DISTINCT FROM), so a no-op call (role already correct) does not force a needless re-login.
     const result = await runWebappPgText(
-      `UPDATE platform_users SET
-         role = $1,
-         sessions_valid_from = CASE WHEN role IS DISTINCT FROM $1 THEN now() ELSE sessions_valid_from END,
-         updated_at = now()
-       WHERE id = $2`,
+      "UPDATE platform_users SET role = $1, updated_at = now() WHERE id = $2",
       [role, platformUserId],
     );
     if (result.rowCount === 0) {
