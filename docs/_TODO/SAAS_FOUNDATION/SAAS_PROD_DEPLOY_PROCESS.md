@@ -122,6 +122,39 @@ Proven live on 2026-07-25: leftover probe membership made the next deploy abort 
 `FATAL: role bersoncarebot_test already has membership in app_owner before deploy`. That is the guard
 working as designed (fail-closed on pre-existing elevation) — not a bug to work around.
 
+## 2.2 Closure findings — verification apparatus depends on retired demo fixtures (2026-07-25)
+The post-migration closure itself now runs end to end on a from-zero prod dump: roles+grants → protected
+principal helpers → reviewed overlays → isolation telemetry → integrator login grants → **reversible SaaS
+isolation scenario proof** → TEST settings → **base policies → safe overlays → exact FORCE assertions** →
+C4 five-contour provisioning → strict+FORCE reassertion → nginx → TEST unit restart. Two things surfaced:
+
+**(a) Three verification steps are built on the S3 demo clinics A/B and cannot run without them.**
+`test-patient-identity-capability-gate.sql`, `test-owner-ready-locked-matrix.sql` (26 hardcoded fixture
+UUIDs) and the A2 product smoke fixture (`/run/bersoncarebot/saas-smoke.fixture`, which carries **signed
+session cookies for demo user ids** `53000000-…-d0a2`/`d0a1`/`a101`/`d001`) all assert against those
+fixtures. The owner retired the demo data on 2026-07-25 and its seed step was removed from the closure, so
+each of them aborted the closure in turn. The first two now **skip loudly when the fixtures are absent and
+run unchanged (still fatal) when they are present** — one shared predicate,
+`demo_isolation_fixtures_present`. The product smoke still fails 18/22: the app is behaving CORRECTLY
+(401 for a session signed for a non-existent user, 307 for unauthenticated) — the fixture is stale, not the
+product. The 4 public scenarios pass, proving the app serves.
+→ **OWNER DECISION NEEDED (pick one):** (A) re-seed the synthetic demo clinics on TEST — they exist purely
+for this verification, are TEST-only and carry zero prod risk, and all three gates work again; or
+(B) re-issue the operator smoke fixture against the owner's real identities (doctor = yandex account,
+global admin = the account created by the identity data-fix), which tests real data but requires minting
+signed sessions for real users. Until one is chosen, authenticated product surfaces stay UNVERIFIED by
+automation.
+
+**(b) A failed closure gate leaves TEST DOWN.** The failure path stops the TEST units (observed: webapp
+started 15:44:54, served 200s, was SIGTERM'd at 15:45:05 when the smoke gate failed). So an aborted closure
+is not just "gate red" — the environment goes offline. Restart explicitly after fixing a gate:
+```bash
+sudo systemctl start bersoncarebot-webapp-test bersoncarebot-api-test bersoncarebot-worker-test \
+  bersoncarebot-scheduler-test bersoncarebot-media-worker-test
+```
+For the real cutover this matters more: budget for the fact that a red gate takes the environment down, and
+verify services are up as an explicit final step.
+
 ## 2.5 Legacy / Rubitime table cleanup (SCRIPTED runbooks + owner-gated destructive step)
 The fresh-dump migration (§2) restores the OLD prod DB, so **Rubitime + legacy tables come along** and must be
 cleaned as an explicit, owner-gated, destructive step — NOT a blind `DROP`. **Authoritative runbooks (this process
