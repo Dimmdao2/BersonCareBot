@@ -120,6 +120,50 @@ log(){ echo; echo "== [deploy-test-saas] $* =="; }
 revoke_bypass(){
   sudo -u postgres psql -v ON_ERROR_STOP=1 -c "ALTER ROLE \"$DBROLE\" NOBYPASSRLS;"
 }
+# ── Temporary app_owner membership for the migration step (added 2026-07-25) ──────────────────────
+# WHY: migration 0225_saas_tariff_quotas_trial (and siblings) run `ALTER FUNCTION ... OWNER TO
+# app_owner`, which PostgreSQL only permits if the executing role is a MEMBER of app_owner. The
+# migrate step runs as $DBROLE (the table owner), which is deliberately NOT a member: the canon keeps
+# app_owner at ZERO members because it owns ~45 runtime-reachable SECURITY DEFINER functions and is
+# the FORCE-RLS backstop. On the long-lived TEST database these ALTERs had already been applied in an
+# earlier era, so the chain looked healthy; a from-zero prod-dump restore aborts at 0225 with
+# sqlstate 42501 (permission_denied).
+#
+# Therefore: grant the membership ONLY for the duration of `pnpm migrate` and revoke it in
+# cleanup_elevation, exactly like the existing $DBROLE elevation. assert_cleanup_elevation then
+# re-asserts the zero-member invariant, so a failed revoke is FATAL rather than silent residue.
+grant_migrator_app_owner_membership(){
+  local role_exists membership_exists
+  role_exists="$(sudo -u postgres psql -X -v ON_ERROR_STOP=1 -tAc "SELECT EXISTS(SELECT 1 FROM pg_roles WHERE rolname = 'app_owner');")"
+  if [ "$role_exists" != "t" ]; then
+    # Virgin host: the role-provisioning overlays have not run yet. Migrations that GRANT to or
+    # transfer ownership to app_owner will fail with 42704 (undefined_object). Surface it loudly here
+    # rather than as a confusing mid-chain migration error.
+    echo "WARN: role app_owner does not exist yet — runtime roles must be provisioned BEFORE the" >&2
+    echo "      migration chain on a virgin host (see SAAS_PROD_DEPLOY_PROCESS.md step 9 ordering)." >&2
+    return 0
+  fi
+  membership_exists="$(sudo -u postgres psql -X -v ON_ERROR_STOP=1 -tAc "SELECT pg_has_role('$DBROLE', 'app_owner', 'member');")"
+  if [ "$membership_exists" = "t" ]; then
+    echo "FATAL: role $DBROLE already has membership in app_owner before deploy; app_owner must have ZERO" >&2
+    echo "       members (it backstops the SECURITY DEFINER seam). Clean up this residue before rerunning." >&2
+    exit 1
+  fi
+  sudo -u postgres psql -v ON_ERROR_STOP=1 -c "GRANT \"app_owner\" TO \"$DBROLE\";" >/dev/null
+  MIGRATOR_APP_OWNER_MEMBERSHIP_ADDED=1
+  MIGRATOR_APP_OWNER_MEMBERSHIP_GRANTED_THIS_RUN=1
+}
+
+revoke_migrator_app_owner_membership(){
+  if [ "${MIGRATOR_APP_OWNER_MEMBERSHIP_ADDED:-0}" = "1" ]; then
+    if sudo -u postgres psql -v ON_ERROR_STOP=1 -c "REVOKE \"app_owner\" FROM \"$DBROLE\";"; then
+      MIGRATOR_APP_OWNER_MEMBERSHIP_ADDED=0
+      return 0
+    fi
+    return 1
+  fi
+}
+
 revoke_migrator_membership(){
   if [ "${MIGRATOR_OWNER_MEMBERSHIP_ADDED:-0}" = "1" ] && [ -n "${MIGRATOR_ROLE:-}" ] && [ "$MIGRATOR_ROLE" != "$DBROLE" ]; then
     if sudo -u postgres psql -v ON_ERROR_STOP=1 -c "REVOKE \"$DBROLE\" FROM \"$MIGRATOR_ROLE\";"; then
@@ -137,10 +181,17 @@ assert_cleanup_elevation(){
     membership_exists="$(sudo -u postgres psql -X -v ON_ERROR_STOP=1 -tAc "SELECT pg_has_role('$MIGRATOR_ROLE', '$DBROLE', 'member');")"
     [ "$membership_exists" = "f" ] || { echo "FATAL: role $MIGRATOR_ROLE still has membership in $DBROLE after cleanup" >&2; return 1; }
   fi
+  # app_owner MUST return to zero members — it owns the SECURITY DEFINER seam and backstops FORCE RLS.
+  # Asserted unconditionally (not only when this run granted it), so pre-existing residue is caught too.
+  if [ "$(sudo -u postgres psql -X -v ON_ERROR_STOP=1 -tAc "SELECT EXISTS(SELECT 1 FROM pg_roles WHERE rolname = 'app_owner');")" = "t" ]; then
+    membership_exists="$(sudo -u postgres psql -X -v ON_ERROR_STOP=1 -tAc "SELECT pg_has_role('$DBROLE', 'app_owner', 'member');")"
+    [ "$membership_exists" = "f" ] || { echo "FATAL: role $DBROLE still has membership in app_owner after cleanup (the DEFINER seam must have ZERO members)" >&2; return 1; }
+  fi
 }
 cleanup_elevation(){
   local cleanup_status=0
   revoke_migrator_membership || cleanup_status=1
+  revoke_migrator_app_owner_membership || cleanup_status=1
   revoke_bypass || cleanup_status=1
   assert_cleanup_elevation || cleanup_status=1
   return "$cleanup_status"
@@ -1524,6 +1575,9 @@ run_test_db_owner_sql_file "$DEPLOY_REPO/$DATAFIX"
 log "migrate (temp BYPASSRLS)"
 MIGRATOR_ROLE="$(discover_webapp_migrator_role)"
 grant_migrator_owner_membership "$MIGRATOR_ROLE"
+# Migrations that transfer function ownership to app_owner (0225 and siblings) need membership in it;
+# granted for this step only and revoked + asserted back to zero members by cleanup_elevation.
+grant_migrator_app_owner_membership
 sudo -u postgres psql -v ON_ERROR_STOP=1 -c "ALTER ROLE $DBROLE BYPASSRLS;"
 sudo -u deploy bash -lc "cd '$DEPLOY_REPO' && \
   export PGOPTIONS='-c role=$DBROLE' && \
