@@ -62,6 +62,53 @@ Rehearse on a disposable prod-copy first (INFRA-01 §I2), then run on the new pr
 - The wrapper runs migrations → data cleanup → roles/grants → reviewed overlays → strict-RLS finalizer (base policies
   → safe overlays → FORCE with catalog/semantic assertions).
 
+## 2.1 From-zero rehearsal findings — HARD prerequisites and fixes (2026-07-25)
+**Owner ruling 2026-07-25:** if a migration or grant step genuinely cannot be scripted, doing it BY HAND
+once, at the cutover, is ALLOWED — do not burn hours automating an unsolvable step. The absolute
+requirement is that every such step is written HERE, in exact order, with the exact commands, so the whole
+sequence stays reproducible from this one document.
+
+**Why this section exists.** The migration chain had NEVER actually been run against a fresh prod dump.
+The long-lived TEST database carried leftovers from earlier deploys (schema `app`, its principal
+accessors, prior ownership transfers), which silently satisfied prerequisites that the chain itself does
+not create. A from-zero restore exposed a chain that **could not run on real prod data** — i.e. the
+documented cutover order (migrations → cleanup → roles/grants → overlays) was unrunnable as written.
+Eight rehearsal runs, each surfacing a distinct defect; all fixed:
+
+| # | Defect (from-zero only) | Fix |
+|---|---|---|
+| 1 | `/tmp/bcb-prod-fresh.dump` left from a previous run is chowned `postgres:0600`, so the next pull dies with `Permission denied` **mid-reset**, after TEST writers are stopped | `15fdac233` — remove the stale artifact before pulling |
+| 2 | identity data-fix asserted a live `dimmdao@gmail.com` row that does not exist on prod (steps 1+3 free that email) | `10b29f4ce` — CREATE the clean global-admin account when absent (owner instruction #3) |
+| 3 | migration `0218` spells `app.current_org_id()` into POLICY expressions; no migration creates it (only the post-chain overlay does) → whole batch aborts `P0001`/rolls back | `f1fe3e943` — fail-closed bootstrap stub in `0175` |
+| 4 | `0219` resolves `app.current_patient_user_id()` eagerly → `42883 undefined_function` | `9f95bdfab` — stubs for the other two accessors (16 migrations depend on them) |
+| 5 | `0225` runs `ALTER FUNCTION … OWNER TO app_owner`, which requires MEMBERSHIP in `app_owner` — deliberately zero-member | `4f8565647` — temporary membership for the migrate step only, revoked + **unconditionally re-asserted** back to zero members |
+| 6 | same `ALTER … OWNER TO app_owner` also requires the NEW owner to hold **CREATE on the schema**; `app_owner` had neither USAGE nor CREATE on `app` at migration time (USAGE is granted only by the post-chain `e1-webapp-runtime-config.sql:71`) → `42501 permission denied for schema app` | `15d9748be` — `GRANT USAGE, CREATE ON SCHEMA app TO app_owner` in `0175`, role-existence guarded |
+
+**HARD PREREQUISITE discovered — runtime roles must exist BEFORE the migration chain.** Migrations
+GRANT to / transfer ownership to `app_owner`, `app_staff`, `app_patient`. On this box those cluster-level
+roles already existed, which masked the dependency; on a **virgin prod host they will not**, and the chain
+will fail with `42704 undefined_object`. Therefore on a new host the role-creation part of §3 (the
+`p0-5b` role split + `app_owner`) must run BEFORE §2's migrate step — the rest of §3's grants still run
+after. The helpers added in 0175 and `deploy-test-saas.sh` warn loudly instead of failing obscurely when
+a role is missing. **This reorders the master checklist for a virgin host: 9(roles only) → 4 → 9(grants).**
+
+**Diagnostic recipe (the migrate runner redacts errors on purpose).**
+`apps/webapp/scripts/run-webapp-drizzle-migrate.mjs` prints only `reason=… sqlstate=…` and suppresses raw
+SQL/params so PII never reaches logs. To get the real message + failing statement without weakening that,
+replay on a scratch copy (≈2 min loop instead of a ≈10 min full reset):
+```bash
+# 1. scratch DB from the same dump, owned by the migrator role
+sudo -u postgres psql -c "DROP DATABASE IF EXISTS bcb_migrate_probe;"
+sudo -u postgres psql -c "CREATE DATABASE bcb_migrate_probe OWNER bersoncarebot_test;"
+sudo -u postgres psql -d bcb_migrate_probe -c "CREATE EXTENSION IF NOT EXISTS pgcrypto; CREATE EXTENSION IF NOT EXISTS btree_gist;"
+sudo -u postgres pg_restore --no-owner --no-acl -d bcb_migrate_probe /tmp/bcb-prod-fresh.dump
+# 2. reassign every object to the migrator role (the real restore does this via --role)
+#    then run the identity data-fix, then the integrator + webapp chains
+# 3. run drizzle migrate from a throwaway script that prints error.cause chain verbatim
+```
+Note `sudo -u postgres` cannot read files under `/home/dev` — always pipe SQL via stdin
+(`… | sudo -u postgres psql`), never `-f /home/dev/...`.
+
 ## 2.5 Legacy / Rubitime table cleanup (SCRIPTED runbooks + owner-gated destructive step)
 The fresh-dump migration (§2) restores the OLD prod DB, so **Rubitime + legacy tables come along** and must be
 cleaned as an explicit, owner-gated, destructive step — NOT a blind `DROP`. **Authoritative runbooks (this process
