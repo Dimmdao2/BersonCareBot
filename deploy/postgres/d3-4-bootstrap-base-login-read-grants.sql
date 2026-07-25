@@ -199,6 +199,10 @@ REVOKE EXECUTE ON FUNCTION app.is_staff() FROM :"d3_4_media_worker_runtime_role"
 \endif
 REVOKE EXECUTE ON FUNCTION app.is_staff() FROM :"d3_4_bootstrap_base_role";
 REVOKE EXECUTE ON FUNCTION app.get_public_config_bool(text) FROM :"d3_4_bootstrap_base_role";
+-- 0240: WHERE-guarded so an environment mid-rollback (function not yet migrated) is a no-op rather
+-- than an error; mirrors the same absent-function tolerance the ownership normalization uses.
+SELECT format('REVOKE EXECUTE ON FUNCTION app.is_smtp_outbound_configured() FROM %I', :'d3_4_bootstrap_base_role')
+WHERE to_regprocedure('app.is_smtp_outbound_configured()') IS NOT NULL \gexec
 REVOKE EXECUTE ON FUNCTION app.current_patient_has_password_credentials() FROM :"d3_4_bootstrap_base_role";
 REVOKE EXECUTE ON FUNCTION app.current_patient_has_web_oauth_binding() FROM :"d3_4_bootstrap_base_role";
 REVOKE EXECUTE ON FUNCTION app.email_password_register_pending(text, text, text, text, text, text) FROM :"d3_4_bootstrap_base_role";
@@ -412,6 +416,12 @@ GRANT SELECT ON TABLE public.app_runtime_settings TO :"d3_4_media_worker_runtime
 -- the bootstrap operations used by email auth, invite acceptance, and specialist signup. Direct
 -- table grants for their sensitive backing tables remain absent from the base login.
 GRANT EXECUTE ON FUNCTION app.get_public_config_bool(text) TO :"d3_4_bootstrap_base_role";
+-- 0240: boolean-only "is outbound SMTP configured?" accessor for the public login screen
+-- (authChannelPolicy.ts:isSmtpConfigured). Same class of grant as get_public_config_bool above —
+-- never exposes host/user/password/from, only their presence. WHERE-guarded: absent function
+-- (older DB, migration 0240 not yet applied) is a no-op rather than a FATAL here.
+SELECT format('GRANT EXECUTE ON FUNCTION app.is_smtp_outbound_configured() TO %I', :'d3_4_bootstrap_base_role')
+WHERE to_regprocedure('app.is_smtp_outbound_configured()') IS NOT NULL \gexec
 GRANT EXECUTE ON FUNCTION app.current_patient_has_password_credentials() TO :"d3_4_bootstrap_base_role";
 GRANT EXECUTE ON FUNCTION app.current_patient_has_web_oauth_binding() TO :"d3_4_bootstrap_base_role";
 GRANT EXECUTE ON FUNCTION app.email_password_register_pending(text, text, text, text, text, text) TO :"d3_4_bootstrap_base_role";

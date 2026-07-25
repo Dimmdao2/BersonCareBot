@@ -1,4 +1,8 @@
-import { getConfigValue, getPublicRuntimeBool } from "@/modules/system-settings/configAdapter";
+import {
+  getConfigValue,
+  getIsSmtpOutboundConfiguredOrNull,
+  getPublicRuntimeBool,
+} from "@/modules/system-settings/configAdapter";
 import {
   getGoogleClientId,
   getGoogleClientSecret,
@@ -28,7 +32,35 @@ const SETTING_BY_CHANNEL = {
   max: "auth_max_enabled",
 } as const;
 
+/**
+ * "Is outbound e-mail configured?" — read via the whitelisted boolean-only SECURITY DEFINER
+ * accessor `app.is_smtp_outbound_configured()` (migration 0240) FIRST. That accessor is reachable
+ * from every DB role the public login screen runs as, including the unauthenticated bootstrap pool
+ * this function is called from on every `GET /api/auth/login/alternatives-config` and
+ * `POST /api/auth/check-phone` — unlike `getConfigValue("smtp_outbound", "")`, which resolves to a
+ * direct `SELECT ... FROM system_settings` that role has no table privilege for (FORCE RLS denies
+ * it, 42501), silently swallowed by configAdapter.ts:fetchFromDb() into the env fallback `""`, so
+ * the login screen never offered "code to e-mail" even with SMTP fully configured (bug fixed here).
+ *
+ * `getIsSmtpOutboundConfiguredOrNull()` never throws; it returns `null` only when the accessor
+ * itself is unavailable (e.g. an older DB before migration 0240) or errors for any other reason. In
+ * that case this function falls back to the legacy direct-read path below, which stays correct for
+ * callers that DO hold table privilege (e.g. `app_staff` on the admin settings page) and — because
+ * `getConfigValue`'s own `fetchFromDb` already swallows every DB error into `null` — can itself
+ * never throw either. Net effect: this function can never crash the login screen into a 500.
+ *
+ * The outer try/catch is defense-in-depth: `getIsSmtpOutboundConfiguredOrNull()` already contracts
+ * to never throw, but this function must hold that guarantee even if that contract is ever broken.
+ */
 async function isSmtpConfigured(): Promise<boolean> {
+  let viaAccessor: boolean | null = null;
+  try {
+    viaAccessor = await getIsSmtpOutboundConfiguredOrNull();
+  } catch {
+    viaAccessor = null;
+  }
+  if (viaAccessor !== null) return viaAccessor;
+
   const raw = await getConfigValue("smtp_outbound", "");
   if (!raw.trim()) return false;
   try {

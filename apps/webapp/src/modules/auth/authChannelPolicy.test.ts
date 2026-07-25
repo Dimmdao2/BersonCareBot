@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const getPublicRuntimeBoolMock = vi.hoisted(() => vi.fn());
 const getConfigValueMock = vi.hoisted(() => vi.fn());
+const getIsSmtpOutboundConfiguredOrNullMock = vi.hoisted(() => vi.fn());
 const integrationRuntimeMocks = vi.hoisted(() => ({
   getTelegramBotToken: vi.fn(),
   getMaxBotApiKey: vi.fn(),
@@ -16,6 +17,7 @@ const integrationRuntimeMocks = vi.hoisted(() => ({
 vi.mock("@/modules/system-settings/configAdapter", () => ({
   getPublicRuntimeBool: getPublicRuntimeBoolMock,
   getConfigValue: getConfigValueMock,
+  getIsSmtpOutboundConfiguredOrNull: getIsSmtpOutboundConfiguredOrNullMock,
 }));
 
 vi.mock("@/modules/system-settings/integrationRuntime", () => integrationRuntimeMocks);
@@ -36,6 +38,9 @@ const SMTP_CONFIGURED_JSON = JSON.stringify({
 describe("auth channel policy", () => {
   beforeEach(() => {
     getPublicRuntimeBoolMock.mockReset().mockResolvedValue(true);
+    // Default: accessor unavailable (null) so existing legacy-path tests below are unaffected;
+    // the dedicated "app.is_smtp_outbound_configured()" describe block below overrides this.
+    getIsSmtpOutboundConfiguredOrNullMock.mockReset().mockResolvedValue(null);
     getConfigValueMock.mockReset().mockImplementation(async (key: string) => {
       if (key === "smtp_outbound") return SMTP_CONFIGURED_JSON;
       if (key === "smsc_api_key") return "sms-key";
@@ -125,6 +130,49 @@ describe("auth channel policy", () => {
     await expect(getOAuthProviderPolicyDetail()).resolves.toEqual({
       google: { enabled: true, configured: true },
       yandex: { enabled: false, configured: false },
+    });
+  });
+
+  describe("isSmtpConfigured — app.is_smtp_outbound_configured() accessor path", () => {
+    beforeEach(() => {
+      getPublicRuntimeBoolMock.mockResolvedValue(true);
+    });
+
+    it("reports configured when the boolean-only accessor resolves true, without consulting the legacy raw read", async () => {
+      getIsSmtpOutboundConfiguredOrNullMock.mockResolvedValue(true);
+      // Legacy path would say "unconfigured" here — proves the accessor takes priority.
+      getConfigValueMock.mockImplementation(async () => "");
+
+      await expect(getClientVisibleAuthChannelPolicy()).resolves.toMatchObject({ email: true });
+      expect(getConfigValueMock).not.toHaveBeenCalledWith("smtp_outbound", "");
+    });
+
+    it("reports not configured when the accessor resolves false, even if the legacy raw read would say configured", async () => {
+      getIsSmtpOutboundConfiguredOrNullMock.mockResolvedValue(false);
+      getConfigValueMock.mockImplementation(async (key: string) => (key === "smtp_outbound" ? SMTP_CONFIGURED_JSON : ""));
+
+      await expect(getClientVisibleAuthChannelPolicy()).resolves.toMatchObject({ email: false });
+    });
+
+    it("falls back to the legacy raw read when the accessor is unavailable (e.g. an older DB before migration 0240), and still reports configured", async () => {
+      getIsSmtpOutboundConfiguredOrNullMock.mockResolvedValue(null);
+      getConfigValueMock.mockImplementation(async (key: string) => (key === "smtp_outbound" ? SMTP_CONFIGURED_JSON : ""));
+
+      await expect(getClientVisibleAuthChannelPolicy()).resolves.toMatchObject({ email: true });
+    });
+
+    it("never throws — an accessor rejection degrades to the legacy fallback instead of crashing the login screen", async () => {
+      getIsSmtpOutboundConfiguredOrNullMock.mockRejectedValue(new Error("permission denied for function"));
+      getConfigValueMock.mockImplementation(async (key: string) => (key === "smtp_outbound" ? SMTP_CONFIGURED_JSON : ""));
+
+      await expect(getClientVisibleAuthChannelPolicy()).resolves.toMatchObject({ email: true });
+    });
+
+    it("degrades to false (never throws) when both the accessor rejects and the legacy read is unconfigured", async () => {
+      getIsSmtpOutboundConfiguredOrNullMock.mockRejectedValue(new Error("unexpected"));
+      getConfigValueMock.mockImplementation(async () => "");
+
+      await expect(getClientVisibleAuthChannelPolicy()).resolves.toMatchObject({ email: false });
     });
   });
 });

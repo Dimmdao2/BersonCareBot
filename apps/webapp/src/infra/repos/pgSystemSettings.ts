@@ -141,6 +141,19 @@ export async function readPublicConfigBoolean(key: string): Promise<boolean | nu
 }
 
 /**
+ * Boolean-only "is outbound SMTP configured?" read via `app.is_smtp_outbound_configured()`
+ * (migration 0240) — never returns host/user/password/from, only their presence. Available to the
+ * unauthenticated bootstrap login pool, unlike a direct `SELECT ... FROM system_settings`, which
+ * that pool has no table privilege for (see authChannelPolicy.ts:isSmtpConfigured header).
+ */
+export async function readIsSmtpOutboundConfigured(): Promise<boolean> {
+  const result = await runWebappPgText<{ configured: boolean | null }>(
+    "SELECT app.is_smtp_outbound_configured() AS configured",
+  );
+  return result.rows[0]?.configured === true;
+}
+
+/**
  * Single chokepoint for all system_settings writes.
  * Reads the current value, performs the upsert, and records an audit row —
  * all within the same executor (transaction-safe when `tx` is supplied).

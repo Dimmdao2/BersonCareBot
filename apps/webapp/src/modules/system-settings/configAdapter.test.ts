@@ -9,6 +9,7 @@ import {
   getConfigBool,
   getConfigPositiveInt,
   getFreshServerRuntimeTokenList,
+  getIsSmtpOutboundConfiguredOrNull,
   getServerRuntimeTokenList,
   invalidateConfigCache,
   invalidateConfigKey,
@@ -146,5 +147,34 @@ describe("configAdapter", () => {
     await expect(getFreshServerRuntimeTokenList("admin_emails")).resolves.toBe("");
     await expect(getFreshServerRuntimeTokenList("admin_emails")).rejects.toThrow("database unavailable");
     expect(runWebappPgText).toHaveBeenCalledTimes(3);
+  });
+
+  describe("getIsSmtpOutboundConfiguredOrNull — app.is_smtp_outbound_configured() accessor", () => {
+    it("returns true when the accessor reports SMTP configured", async () => {
+      vi.mocked(runWebappPgText).mockResolvedValue({ rows: [{ configured: true }] });
+      await expect(getIsSmtpOutboundConfiguredOrNull()).resolves.toBe(true);
+    });
+
+    it("returns false when the accessor reports SMTP not configured", async () => {
+      vi.mocked(runWebappPgText).mockResolvedValue({ rows: [{ configured: false }] });
+      await expect(getIsSmtpOutboundConfiguredOrNull()).resolves.toBe(false);
+    });
+
+    it("returns null (never throws) when the accessor is unavailable, e.g. permission denied or an older DB before migration 0240", async () => {
+      vi.mocked(runWebappPgText).mockRejectedValue(new Error('function app.is_smtp_outbound_configured() does not exist'));
+      await expect(getIsSmtpOutboundConfiguredOrNull()).resolves.toBeNull();
+    });
+
+    it("caches a resolved boolean within TTL, and invalidateConfigKey('smtp_outbound') clears it", async () => {
+      vi.mocked(runWebappPgText).mockResolvedValue({ rows: [{ configured: true }] });
+
+      await expect(getIsSmtpOutboundConfiguredOrNull()).resolves.toBe(true);
+      await expect(getIsSmtpOutboundConfiguredOrNull()).resolves.toBe(true);
+      expect(runWebappPgText).toHaveBeenCalledTimes(1);
+
+      invalidateConfigKey("smtp_outbound");
+      await getIsSmtpOutboundConfiguredOrNull();
+      expect(runWebappPgText).toHaveBeenCalledTimes(2);
+    });
   });
 });

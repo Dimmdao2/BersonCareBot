@@ -1681,6 +1681,13 @@
       "when": 1793539200035,
       "tag": "0239_platform_users_sessions_valid_from",
       "breakpoints": true
+    },
+    {
+      "idx": 240,
+      "version": "7",
+      "when": 1793539200036,
+      "tag": "0240_smtp_outbound_public_config_accessor",
+      "breakpoints": true
     }
   ]
 }

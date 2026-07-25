@@ -1140,7 +1140,16 @@ SELECT has_column_privilege('app_owner', 'public.operator_incidents', 'alert_sen
   # because the independent adversarial audit proved the equivalent inline reads are impossible for
   # app_patient (permission denied for table be_organizations, SQLSTATE 42501) and silently coupled
   # staff reads/writes to an unrelated table grant.
-  local expected_secdef_count=55
+  # 55 -> 56 (2026-07-25): migration 0240_smtp_outbound_public_config_accessor adds exactly one
+  # reviewed app_owner SECURITY DEFINER accessor — app.is_smtp_outbound_configured() (reads
+  # public.system_settings, SELECT already required above/granted by
+  # deploy/postgres/patient-web-push-vapid-public-key-accessor.sql, so no new required-grant row is
+  # needed). It exists because the public login screen's unauthenticated bootstrap role has no table
+  # SELECT on system_settings, so the pre-existing direct-SELECT SMTP-configured check silently
+  # resolved to "not configured" for every unauthenticated caller (permission denied, 42501,
+  # swallowed by configAdapter.ts:fetchFromDb into null) even with SMTP fully configured — the owner
+  # could not log in. The accessor returns ONLY a boolean (never host/user/password/from).
+  local expected_secdef_count=56
   local actual_secdef_count
   actual_secdef_count="$(sudo -u postgres psql -d "$DB" -X -v ON_ERROR_STOP=1 -tAc "
 SELECT count(*) FROM pg_proc p WHERE pg_get_userbyid(p.proowner) = 'app_owner' AND p.prosecdef;

@@ -7,6 +7,7 @@
 
 import {
   readAdminSystemSettingString,
+  readIsSmtpOutboundConfigured,
   readPublicConfigBoolean,
 } from "@/infra/repos/pgSystemSettings";
 import { createPgAppRuntimeSettingsPort } from "@/infra/repos/pgAppRuntimeSettings";
@@ -98,6 +99,9 @@ export function invalidateConfigCache(): void {
 export function invalidateConfigKey(key: string): void {
   cache.delete(key);
   cache.delete(`server-token-list:${key}`);
+  if (key === "smtp_outbound") {
+    cache.delete(SMTP_OUTBOUND_CONFIGURED_CACHE_KEY);
+  }
 }
 
 async function fetchFromDb(key: string): Promise<string | null> {
@@ -111,6 +115,14 @@ async function fetchFromDb(key: string): Promise<string | null> {
 async function fetchPublicConfigBoolFromDb(key: string): Promise<boolean | null> {
   try {
     return await readPublicConfigBoolean(key);
+  } catch {
+    return null;
+  }
+}
+
+async function fetchIsSmtpOutboundConfiguredFromDb(): Promise<boolean | null> {
+  try {
+    return await readIsSmtpOutboundConfigured();
   } catch {
     return null;
   }
@@ -169,6 +181,29 @@ export async function getPublicConfigBool(key: string, envFallback: boolean): Pr
     return dbValue;
   }
   return envFallback;
+}
+
+const SMTP_OUTBOUND_CONFIGURED_CACHE_KEY = "__smtp_outbound_configured_accessor__";
+
+/**
+ * Whether outbound SMTP is configured, via the whitelisted boolean-only SECURITY DEFINER accessor
+ * `app.is_smtp_outbound_configured()` (migration 0240) — never returns the credential itself.
+ * Available to every DB role the public login screen runs as, including the unauthenticated
+ * bootstrap pool that has no table SELECT on `system_settings`. Returns `null` (never throws) on any
+ * accessor error, including the function being absent on an older DB, so the caller
+ * (authChannelPolicy.ts:isSmtpConfigured) can degrade to its own fallback rather than 500.
+ */
+export async function getIsSmtpOutboundConfiguredOrNull(): Promise<boolean | null> {
+  const now = Date.now();
+  const cached = cache.get(SMTP_OUTBOUND_CONFIGURED_CACHE_KEY);
+  if (cached && now - cached.fetchedAt < TTL_MS) {
+    return cached.value === "true";
+  }
+  const dbValue = await fetchIsSmtpOutboundConfiguredFromDb();
+  if (dbValue !== null) {
+    cache.set(SMTP_OUTBOUND_CONFIGURED_CACHE_KEY, { value: dbValue ? "true" : "false", fetchedAt: now });
+  }
+  return dbValue;
 }
 
 /**
