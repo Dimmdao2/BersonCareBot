@@ -161,7 +161,16 @@ BEGIN
     -- is still rejected (NEW.logo_media_id would not be NULL), clearing the logo together with any
     -- other edit is still rejected, and updated_at is intentionally NOT re-stamped so exactly one
     -- column of an immutable row ever changes.
+    -- `pg_trigger_depth() > 1` restricts the tolerance to a CASCADED write: the referential-action
+    -- UPDATE runs inside the RI trigger of the public.media_files DELETE, so it always sees depth >= 2,
+    -- while a statement issued directly by app_staff sees depth = 1. Without it the branch was a direct
+    -- write hole: `UPDATE org_brand_revisions SET logo_media_id = NULL WHERE id = ...` succeeded on
+    -- published and archived rows, changing the live branded surface and rewriting the append-only audit
+    -- row with no trace (updated_at is deliberately not re-stamped) -- contradicting this file's own
+    -- "published -> archived and NOTHING else" / "archived -> immutable forever" contract and
+    -- BRANDING_DOMAIN_CONTRACT invariant 3.8.
     IF TG_OP = 'UPDATE'
+       AND pg_trigger_depth() > 1
        AND OLD.status IN ('published', 'archived')
        AND OLD.logo_media_id IS NOT NULL
        AND NEW.logo_media_id IS NULL

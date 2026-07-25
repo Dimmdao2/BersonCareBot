@@ -149,6 +149,44 @@ describe.skipIf(!enabled)("0238 app.guard_org_brand_revision (real DB, opt-in)",
     await pool.end();
   });
 
+  /**
+   * Re-audit M-1 (2026-07-25): the HIGH-2 tolerance originally accepted ANY single-column
+   * logo_media_id -> NULL write, so a plain `UPDATE … SET logo_media_id = NULL WHERE id = …` issued
+   * directly by app_staff silently blanked the LIVE branded surface and rewrote an ARCHIVED
+   * (append-only) row — with no trace at all, because the branch deliberately does not re-stamp
+   * updated_at. Only the referential action may take that path (it runs inside the RI trigger of the
+   * media_files DELETE, i.e. pg_trigger_depth() >= 2; a direct statement is depth 1).
+   * MUST run before the FK-purge cases below, which are what clear these logos.
+   */
+  it("rejects a DIRECT logo-clearing UPDATE on published and archived revisions (M-1)", async () => {
+    for (const [label, id, failure] of [
+      ["published", REV_PUBLISHED, /org_brand_revision_published_only_archives/],
+      ["archived", REV_ARCHIVED, /org_brand_revision_archived_is_immutable/],
+    ] as const) {
+      const before = await client.query<{ logo: string | null; updated_at: string }>(
+        "SELECT logo_media_id AS logo, updated_at FROM public.org_brand_revisions WHERE id = $1::uuid",
+        [id],
+      );
+      // Guards the premise: a NULL logo here would make the case vacuous.
+      expect(before.rows[0]?.logo, `${label}: fixture must still carry a logo`).not.toBeNull();
+
+      const error = await pgErrorCodeOf(() =>
+        client.query("UPDATE public.org_brand_revisions SET logo_media_id = NULL WHERE id = $1::uuid", [id]),
+      );
+      expect(error.code, label).toBe("P0001");
+      expect(error.message, label).toMatch(failure);
+
+      const after = await client.query<{ logo: string | null; updated_at: string }>(
+        "SELECT logo_media_id AS logo, updated_at FROM public.org_brand_revisions WHERE id = $1::uuid",
+        [id],
+      );
+      expect(after.rows[0]?.logo, `${label}: logo must survive`).toBe(before.rows[0]?.logo);
+      expect(after.rows[0]?.updated_at, `${label}: row must be untouched`).toEqual(
+        before.rows[0]?.updated_at,
+      );
+    }
+  });
+
   it("lets the media purge delete a logo referenced by a PUBLISHED revision (FK SET NULL)", async () => {
     const before = await client.query<{ updated_at: string; display_name: string }>(
       "SELECT updated_at::text, display_name FROM public.org_brand_revisions WHERE id = $1::uuid",

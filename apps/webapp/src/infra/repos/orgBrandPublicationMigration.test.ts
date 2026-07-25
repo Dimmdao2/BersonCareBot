@@ -202,6 +202,12 @@ describe("0238 organization brand publication", () => {
    */
   it("tolerates exactly the FK-driven logo-NULL degradation and nothing wider", () => {
     const guard = functionStatement(migration, "app.guard_org_brand_revision()");
+    // Re-audit M-1: without the depth check the tolerance was a DIRECT write hole -- app_staff could
+    // run `UPDATE org_brand_revisions SET logo_media_id = NULL` on a published row (changing the live
+    // branded surface) or an archived row (rewriting the append-only audit trail) with no trace,
+    // because updated_at is deliberately not re-stamped. The referential-action UPDATE always runs
+    // inside the RI trigger of the media_files DELETE (depth >= 2); a direct statement is depth 1.
+    expect(guard).toContain("AND pg_trigger_depth() > 1");
     expect(guard).toContain("AND OLD.status IN ('published', 'archived')");
     expect(guard).toContain("AND OLD.logo_media_id IS NOT NULL");
     expect(guard).toContain("AND NEW.logo_media_id IS NULL");
