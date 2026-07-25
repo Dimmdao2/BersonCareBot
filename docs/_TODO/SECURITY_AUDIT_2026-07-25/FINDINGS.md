@@ -170,6 +170,77 @@ required — separately for staff and for patients, since 90 days for a patient 
 choice; (b) whether deploying it may sign everybody out once (setting the new column to `now()` at migration
 time is the clean start, but it means every current user logs in again).
 
+### S3 — INDEPENDENT AUDIT VERDICT (the IDOR really is closed; identity is the real hole)
+
+**CLAIM 1 — CONFIRMED for the tree the finding was filed against, coverage stated.** The auditor enumerated
+**handlers, not files**: 38/38 per-patient handlers in the 25 files under `app/api/doctor/patients/[userId]/**`
+carry the org-scoped resolution, verified individually plus a mechanical check that **no handler calls a data port
+before resolving** (zero ordering bugs). The wall is slightly *stronger* than the worker described — it also
+requires `platform_users.role = 'client'`. `gate.ctx.organizationId` is server-derived with the session user id as
+its only input. **The old owner-deferred IDOR is genuinely closed. Do not re-litigate it.**
+Corrections to the worker's framing:
+- The claim does **not** extend cleanly to the `doctor/clients/**` family: 22/31 handlers there are walled. Of the
+  9 that are not, three are collection/create (org supplied from the gate), four are hard fail-closed stubs, and
+  **three are genuinely unscoped** — `clients/[userId]/merge-candidates` (platform-wide name/phone/e-mail of
+  candidates), `clients/name-match-hints` (global PII, up to 500 groups × 20 members) and
+  `clients/integrator-merge` (ids taken from the **body**, no org filter). All three gate on
+  `requireAdminModeSession()`, and a clinic doctor can never pass it (a global admin in admin mode holds only
+  `platform.operations`, never `clinical.workspace`, and vice versa — `workspaceCapabilities.ts:41-42`). Unscoped
+  **by design**, LOW.
+- **Forward landmine:** the wall accepts enrollment status `IN ('invited','active')`. `discharged`/`archived` exist
+  in the CHECK constraint but **nothing in the codebase writes them today**, so the wall is complete *now*; the
+  first code that writes `discharged` will silently 404 that patient's entire card for their own clinic, and the
+  tempting fix will be to loosen the wall.
+- **Nobody has runtime proof.** 17 test files mock the resolver to null; grep for `other-org|foreign|cross-org`
+  across both trees returns **zero**, and the live TEST DB has exactly **one** organization. The wall is
+  code-verified and mock-verified, **never runtime-verified against a second tenant**. This is the single biggest
+  hole in anyone's confidence — worker's or auditor's — and it is closable by seeding one second organization.
+
+**CLAIM 2 — CONFIRMED and raised to HIGH.** `platform_users` has `relrowsecurity = f, relforcerowsecurity = f`,
+and **two policies exist on it that are therefore entirely inert** — somebody wrote identity policies that never
+took effect. Quantified (pure SELECT, rolled back): `BEGIN; SET LOCAL row_security=on; SET LOCAL ROLE app_staff;`
+→ **281 of 281 identity rows visible with principal_org = NULL**, while the same unprincipled backend gets zero
+rows from every FORCE-RLS child table. `app_staff` is a login role, not BYPASSRLS, not the owner. So identity has
+**no** DB wall, not a weaker one. The table is **absent from the asserted 169-target FORCE list** in
+`deploy/postgres/phase4-force-rls-cutover.sql` while its satellites `platform_user_contacts`, `user_phone_history`
+and `org_enrollments` are present, and **no ruling documents the exclusion** — it reads as an oversight.
+Over-approximation disclosed by the auditor: the probe ran via `SET ROLE` inside a `postgres` backend, which is
+exactly the point (RLS is off table-wide, so no policy can filter it for any role, principal or not); a two-org
+HTTP demo is impossible while TEST has one org.
+
+**CLAIM 3 — CONFIRMED, MEDIUM latent, and "inert" holds for a different reason than the worker gave.** Neither
+money handler calls `requireEntitlementForMutation` (9 sibling files do), and there is no deeper gate —
+`pgPatientPayments.ts` and `registryAcquiringGateway.ts` contain zero mechanic/lifecycle references, and the
+gateway is real, not a stub. What actually makes it inert is the lifecycle half: `resolveAccess`
+(`pgOrgEntitlements.ts:81-118`) can only return `read_only`/`blocked` when a **trial row exists** past grace, and
+`saas_organization_trials` has **0 rows** while the single org is `commercial_access_state='compatibility'`. So no
+org can be blocked today — and it is **one data row from live**. The day the first trial expires with
+`post_trial_behavior='read_only'`, that org keeps full ability to charge cards while every clinical sibling
+correctly 403s. It is money; fix before tariff enforcement ships.
+
+**MISSED BY THE WORKER — the direct counterexample to "the organization is always server-derived":**
+**four `/api/integrator/*` routes take `organizationId` from the query string** and stamp it as the DB principal:
+`integrator/delivery-targets`, `integrator/reminders/rules`, `integrator/web-push/subscriptions`,
+`integrator/web-push/vapid`. Despite its name, `enterVerifiedIntegratorOrganizationPrincipal`
+(`app-layer/principal/integratorOrganizationPrincipal.ts:6-14`) verifies **only a UUID regex** — nothing binds the
+organization to the calling credential, and the HMAC is **one shared platform secret**. Any holder of that secret
+stamps any tenant's principal at will. Possibly intended for a multi-tenant bot, but undocumented as such, and it
+converts one leaked secret into full cross-tenant read. **MEDIUM/HIGH — needs an owner ruling on intent.**
+Also missed: `appointment_records` and `patient_bookings` carry `phone_normalized`, `contact_phone`,
+`contact_email`, `contact_name` with **no `organization_id` column at all** and no RLS — the same single-wall class
+as CLAIM 2, and they cannot be added to the FORCE list without a schema change. And two handlers
+(`clients/[userId]/supplementary-contacts` POST and `[contactId]` DELETE) pass the raw path `userId` instead of the
+canonical resolved id — alias divergence at worst, no cross-tenant reach, one-line fix.
+
+All four re-checked "verified safe" items hold (patient self-scoping resolves from the caller's own list;
+`admin/settings` rejects non-per-org keys on both the batch and single-key paths; `/api/internal/*` is
+`timingSafeEqual` on **13/13** routes and fails closed with 503 when the secret is unset; the only enumerable
+integer on the surface is `integrator_user_id`, exposed solely by the two global-admin merge tools).
+
+**Warning about local test signal:** migration `0234_current_patient_support_activity` fails `permission_denied`
+(42501) in the vitest globalSetup, so route tests here run against **in-memory repos**. No green route test in
+this repo should be read as DB-level evidence.
+
 ### OWNER DECISIONS (2026-07-25) — the remedy above is APPROVED and in build
 
 - **Session lifetime: staff 12 hours of activity, patient 30 days.** Owner: «сотрудник — 12 часов активности,
