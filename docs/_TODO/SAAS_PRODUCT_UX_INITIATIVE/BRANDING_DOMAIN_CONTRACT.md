@@ -583,11 +583,19 @@ The owner ruled, in their own words, after reading the first implementation:
   change the brand name, and edit their public page (public-page details to be specified later, together).
 - **A plain clinic specialist (staff, not admin): may NOT change the brand, the name, or the public page.**
 
-**This is NOT implemented.** The DB wall has exactly one staff role (`app_staff`) and any staff member of the
-organization passes both the RLS policy and `requireOrgBrandingManagementContext`; a non-admin doctor is
-currently indistinguishable from the clinic admin at every layer. This must ride on the existing decision
-"clinic management by membership capability (`clinic_admin`), not by the global `admin` role" — otherwise
-branding becomes a second, divergent role model.
+**CORRECTION (same day, after actually reading the guard chain — the first version of this paragraph claimed
+the rule was not implemented at all, which was wrong and was reported to the owner as such).** The rule IS
+already enforced at the app layer, on exactly the capability model the owner's earlier ruling asked for:
+`requireOrgBrandingManagementContext` → `requireOrganizationManagementContext`
+(`app-layer/guards/requireRole.ts:367-373`) demands the `organization.management` capability, and
+`resolveLaunchCapabilities` (`app-layer/guards/workspaceCapabilities.ts:50-55`) grants that capability only for
+membership role `owner` or `admin` — a plain `doctor` membership never receives it, and a global admin in admin
+mode gets `platform.operations` only. So a non-admin specialist is already refused the branding mutation
+context, and branding is already riding the clinic-admin capability rather than a second role model.
+
+What is genuinely coarse is only the **DB** layer: `org_brand_revisions`' staff policy accepts any `app_staff`
+principal of the organization, so the database alone would not distinguish clinic admin from plain doctor. Per
+the decision below that is deliberate — the DB enforces the tenant boundary, the app enforces the role.
 
 Also clarified for the record, because the first write-up read as "the logo cannot be deleted": **deleting the
 logo is allowed**. What is forbidden is silently rewriting an already-published revision. Removing a logo or
