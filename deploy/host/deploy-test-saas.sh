@@ -1494,6 +1494,14 @@ if [ -z "${DUMP:-}" ]; then
   DUMP=/tmp/bcb-prod-fresh.dump
   log "pull FRESH dump from live prod ($PROD_SSH:$PROD_DB) → $DUMP"
   umask 077
+  # Idempotency: the pull below chowns the dump to postgres:0600, so a leftover file from a PREVIOUS
+  # run is unwritable by this (deploy-operator) user and the redirect dies with "Permission denied"
+  # mid-reset — after TEST writers were already stopped. Clear the stale artifact first; it is always
+  # about to be overwritten anyway, and a stale dump must never be silently reused (see the comment
+  # above about the DEAD local copies).
+  if [ -e "$DUMP" ]; then
+    sudo rm -f -- "$DUMP"
+  fi
   ssh -o BatchMode=yes -o ConnectTimeout=10 "$PROD_SSH" "sudo -u postgres pg_dump -Fc --no-owner --no-acl $PROD_DB" > "$DUMP"
   sudo chown postgres:postgres "$DUMP"
   sudo chmod 0600 "$DUMP"
