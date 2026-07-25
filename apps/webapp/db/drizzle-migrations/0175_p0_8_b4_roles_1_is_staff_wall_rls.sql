@@ -132,6 +132,29 @@ COMMENT ON FUNCTION app.is_staff() IS
 
 GRANT EXECUTE ON FUNCTION app.is_staff() TO PUBLIC;
 
+-- ── app_owner schema privileges for the DEFINER seam (added 2026-07-25, from-zero rehearsal) ──────
+-- WHY: later migrations transfer ownership of SECURITY DEFINER helpers to app_owner, e.g.
+-- `ALTER FUNCTION app.read_current_patient_organization_entitlements() OWNER TO app_owner` in
+-- 0225_saas_tariff_quotas_trial. PostgreSQL requires the NEW owner to hold CREATE on the containing
+-- schema, so without this the chain aborts with sqlstate 42501 "permission denied for schema app".
+-- USAGE alone is already canon (deploy/postgres/e1-webapp-runtime-config.sql:71 grants it to
+-- app_owner + app_patient) but that overlay runs AFTER the whole migration chain, which is exactly
+-- why a from-zero prod-dump restore could never get past 0225.
+--
+-- SAFETY: app_owner is NOLOGIN with ZERO members (deploy asserts this, and cleanup_elevation now
+-- re-asserts it unconditionally), so nobody can act as app_owner to exercise CREATE. The grant merely
+-- matches reality: app_owner already owns ~45 runtime-reachable SECURITY DEFINER functions in this
+-- schema. Skipped with a notice when the role does not exist yet (virgin host, roles not provisioned).
+DO $app_owner_schema_grant$
+BEGIN
+  IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'app_owner') THEN
+    EXECUTE 'GRANT USAGE, CREATE ON SCHEMA app TO app_owner';
+  ELSE
+    RAISE NOTICE 'app_owner role absent — skipping schema app grant; runtime roles must be provisioned before this chain on a virgin host';
+  END IF;
+END
+$app_owner_schema_grant$;
+
 -- ── Bootstrap stub for app.current_org_id() (added 2026-07-25 after a from-zero prod-dump rehearsal) ──
 -- WHY: migration 0218_u6b_organization_slug_claims spells `app.current_org_id()` directly into POLICY
 -- expressions and hard-asserts its existence in its preflight, but NO migration ever created it — the
