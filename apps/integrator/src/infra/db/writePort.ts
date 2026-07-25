@@ -111,6 +111,37 @@ import {
 import { upsertReminderRuleDirect } from './directPublic/writeReminderRulesDirect.js';
 import { enqueueProjectionEvent } from './repos/projectionOutbox.js';
 import { recordOperatorFailureIncident } from '../operatorIncident/reportOperatorFailure.js';
+import { runWithOrganizationPrincipal } from '../principal/organizationPrincipal.js';
+
+/**
+ * Re-verified 2026-07-25 by independent audit against the REAL "integrator" principal shape
+ * (`runWithIntegratorPrincipal`, telegram/webhook.ts): every D2-D5 direct-public write below targets a
+ * `public.*` table whose FORCE RLS policy is `(is_staff() AND organization_id = current_org_id()) OR
+ * (current_patient_user_id() IS NOT NULL AND platform_user_id = current_patient_user_id())`
+ * (`saas_org_dormant_p0_8_3`). The "integrator" principal locks the `app_patient` runtime role with
+ * `organization_id` SET but `patient_user_id` NULL — `is_staff()` is false (app_patient is not a member
+ * of app_staff) and the patient branch is null, so BOTH branches fail: every direct write AND every
+ * internal org-resolution SELECT (e.g. `org_enrollments`) is RLS-denied for a normal telegram/max
+ * message from an already-known user — the common case, since `runWithIntegratorPrincipal` wraps the
+ * WHOLE event pipeline whenever webhook pre-routing already resolved both `organizationId` and
+ * `integratorUserId`. This silently degraded every one of these writes to "always falls back to the
+ * durable outbox + fires an operator incident" (D3/D4/D5) or, for D2 (which has no fallback branch —
+ * see writeDiaryLfkDirect.ts), an uncaught throw.
+ *
+ * Fix (mirrors `persistWritesByOrganization` in handlers/reminders.ts, the ALREADY-correct pattern used
+ * by `reminders.planDue`/`.dispatchDue`): re-install an EXPLICIT organization principal — `SET ROLE
+ * app_staff` + the SAME organization id already ambiently known — for the duration of the direct write,
+ * satisfying `is_staff() AND organization_id = current_org_id()`. No new organization is invented or
+ * guessed: this reuses whatever `organizationId` the CURRENT principal (integrator, organization, or
+ * staff) already carries — the same org webhook pre-routing already scoped this whole event to. When no
+ * organization id is ambiently known at all (bootstrap/unresolved-org paths), this is a no-op passthrough
+ * — `fn` runs under whatever principal is already active, and its own resolver fails closed / throws as
+ * before, routed by the caller to the existing fallback.
+ */
+function runDirectPublicWriteWithOrgPrincipal<T>(fn: () => Promise<T>): Promise<T> {
+  const organizationId = getCurrentDbPrincipalOrganizationId();
+  return organizationId ? runWithOrganizationPrincipal(organizationId, fn) : fn();
+}
 
 type BookingUpsertParams = {
   externalRecordId?: unknown;
@@ -870,11 +901,12 @@ export function createDbWritePort(input: {
             // integratorUserId); preserve that durability rather than silently dropping the open.
             await enqueueConversationOpenFallback('no_resolved_integrator_user_id');
           } else {
+            const resolvedIntegratorUserIdForWrite = resolvedIntegratorUserId;
             try {
-              await openSupportConversationDirect(
+              await runDirectPublicWriteWithOrgPrincipal(() => openSupportConversationDirect(
                 db,
                 {
-                  integratorUserId: resolvedIntegratorUserId,
+                  integratorUserId: resolvedIntegratorUserIdForWrite,
                   channelCode: resource,
                   externalId,
                   integratorConversationId: id,
@@ -885,7 +917,7 @@ export function createDbWritePort(input: {
                   lastMessageAt,
                 },
                 { mergeCandidateIds: mergeCandidateIdsViaPlatformMerge },
-              );
+              ));
             } catch (err) {
               if (isDiaryLfkFailClosedError(err) || isIdentityMergeAmbiguityError(err)) {
                 logger.warn(
@@ -931,7 +963,7 @@ export function createDbWritePort(input: {
           // mutation never resolves an actor itself (it reuses the already-resolved parent conversation),
           // so that bucket cannot occur here.
           try {
-            await appendSupportConversationMessageDirect(db, {
+            await runDirectPublicWriteWithOrgPrincipal(() => appendSupportConversationMessageDirect(db, {
               integratorConversationId: conversationId,
               integratorMessageId: id,
               senderRole,
@@ -941,7 +973,7 @@ export function createDbWritePort(input: {
               externalChatId,
               externalMessageId,
               createdAt,
-            });
+            }));
           } catch (err) {
             const fallbackPayload: Record<string, unknown> = {
               integratorMessageId: id,
@@ -1002,13 +1034,13 @@ export function createDbWritePort(input: {
           // unexpected error both fall back to the durable outbox — the status change (e.g. closing a
           // conversation) must not be silently and permanently lost.
           try {
-            await setSupportConversationStatusDirect(db, {
+            await runDirectPublicWriteWithOrgPrincipal(() => setSupportConversationStatusDirect(db, {
               integratorConversationId: id,
               status,
               lastMessageAt,
               closedAt,
               closeReason,
-            });
+            }));
           } catch (err) {
             const fallbackPayload: Record<string, unknown> = {
               integratorConversationId: id,
@@ -1076,12 +1108,12 @@ export function createDbWritePort(input: {
             createdAt,
           };
           try {
-            await createSupportQuestionDirect(db, {
+            await runDirectPublicWriteWithOrgPrincipal(() => createSupportQuestionDirect(db, {
               integratorQuestionId: id,
               integratorConversationId: conversationId,
               status: 'open',
               createdAt,
-            });
+            }));
           } catch (err) {
             if (err instanceof SupportQuestionsDirectWriteError && err.code === 'conversation_id_required') {
               logger.warn(
@@ -1141,13 +1173,13 @@ export function createDbWritePort(input: {
           // legitimately-fail-closed condition here: the message text itself must not be lost, so it —
           // like any other unexpected error — falls back to the durable outbox.
           try {
-            await appendSupportQuestionMessageDirect(db, {
+            await runDirectPublicWriteWithOrgPrincipal(() => appendSupportQuestionMessageDirect(db, {
               integratorQuestionMessageId: id,
               integratorQuestionId: questionId,
               senderRole: senderType,
               text: messageText,
               createdAt,
-            });
+            }));
           } catch (err) {
             const fallbackPayload: Record<string, unknown> = {
               integratorQuestionMessageId: id,
@@ -1194,7 +1226,7 @@ export function createDbWritePort(input: {
           // `question_not_found` and any other unexpected error both fall back to the durable outbox —
           // an admin's answer must not be silently and permanently lost.
           try {
-            await markSupportQuestionAnsweredDirect(db, { integratorQuestionId: questionId, answeredAt });
+            await runDirectPublicWriteWithOrgPrincipal(() => markSupportQuestionAnsweredDirect(db, { integratorQuestionId: questionId, answeredAt }));
           } catch (err) {
             const fallbackPayload: Record<string, unknown> = {
               integratorQuestionId: questionId,
@@ -1291,7 +1323,7 @@ export function createDbWritePort(input: {
           const symptomTitle = asNonEmptyString(mutation.params.symptomTitle);
           if (!resource || !externalId || !integratorUserId || !symptomTitle) return;
           try {
-            await createSymptomTrackingDirect(
+            await runDirectPublicWriteWithOrgPrincipal(() => createSymptomTrackingDirect(
               db,
               {
                 integratorUserId,
@@ -1301,7 +1333,7 @@ export function createDbWritePort(input: {
                 symptomTitle,
               },
               { mergeCandidateIds: mergeCandidateIdsViaPlatformMerge },
-            );
+            ));
           } catch (err) {
             if (isIdentityMergeAmbiguityError(err) || isDiaryLfkFailClosedError(err)) {
               logger.warn(
@@ -1331,7 +1363,7 @@ export function createDbWritePort(input: {
             return;
           }
           try {
-            await addSymptomEntryDirect(
+            await runDirectPublicWriteWithOrgPrincipal(() => addSymptomEntryDirect(
               db,
               {
                 integratorUserId,
@@ -1344,7 +1376,7 @@ export function createDbWritePort(input: {
                 notes: asNullableString(mutation.params.notes),
               },
               { mergeCandidateIds: mergeCandidateIdsViaPlatformMerge },
-            );
+            ));
           } catch (err) {
             if (isIdentityMergeAmbiguityError(err) || isDiaryLfkFailClosedError(err)) {
               logger.warn(
@@ -1365,7 +1397,7 @@ export function createDbWritePort(input: {
           const title = asNonEmptyString(mutation.params.title);
           if (!resource || !externalId || !integratorUserId || !title) return;
           try {
-            await createLfkComplexDirect(
+            await runDirectPublicWriteWithOrgPrincipal(() => createLfkComplexDirect(
               db,
               {
                 integratorUserId,
@@ -1375,7 +1407,7 @@ export function createDbWritePort(input: {
                 origin: mutation.params.origin === 'assigned_by_specialist' ? 'assigned_by_specialist' : 'manual',
               },
               { mergeCandidateIds: mergeCandidateIdsViaPlatformMerge },
-            );
+            ));
           } catch (err) {
             if (isIdentityMergeAmbiguityError(err) || isDiaryLfkFailClosedError(err)) {
               logger.warn(
@@ -1397,11 +1429,11 @@ export function createDbWritePort(input: {
           const completedAt = asNonEmptyString(mutation.params.completedAt);
           if (!resource || !externalId || !integratorUserId || !complexId || !completedAt) return;
           try {
-            await addLfkSessionDirect(
+            await runDirectPublicWriteWithOrgPrincipal(() => addLfkSessionDirect(
               db,
               { integratorUserId, channelCode: resource, externalId, complexId, completedAt },
               { mergeCandidateIds: mergeCandidateIdsViaPlatformMerge },
-            );
+            ));
           } catch (err) {
             if (isIdentityMergeAmbiguityError(err) || isDiaryLfkFailClosedError(err)) {
               logger.warn(
@@ -1502,7 +1534,7 @@ export function createDbWritePort(input: {
             contentMode,
           });
           try {
-            await upsertReminderRuleDirect(db, {
+            await runDirectPublicWriteWithOrgPrincipal(() => upsertReminderRuleDirect(db, {
               integratorUserId: canonicalUserId,
               integratorRuleId: id,
               category,
@@ -1523,7 +1555,7 @@ export function createDbWritePort(input: {
               quietHoursStartMinute,
               quietHoursEndMinute,
               notificationTopicCode: notificationTopicCodeRaw,
-            });
+            }));
           } catch (err) {
             const fallbackUpdatedAt = new Date().toISOString();
             await enqueueProjectionEvent(db, {
@@ -1818,7 +1850,10 @@ export function createDbWritePort(input: {
             return;
           }
           try {
-            await appendSupportDeliveryEventDirect(db, {
+            // organizationId is already a known, validated value here (guarded above) — wrap with it
+            // directly rather than relying on the ambient principal (this mutation can also be reached
+            // from delivery/retry paths without an ambient organization principal at all).
+            await runWithOrganizationPrincipal(organizationId, () => appendSupportDeliveryEventDirect(db, {
               organizationId,
               conversationMessageId: null,
               integratorIntentEventId: intentEventId,
@@ -1829,7 +1864,7 @@ export function createDbWritePort(input: {
               reason,
               payloadJson,
               occurredAt,
-            });
+            }));
           } catch (err) {
             const key = intentEventId ?? correlationId ?? `del-${hashPayload(deliveryFallbackPayload)}`;
             await enqueueProjectionEvent(db, {
