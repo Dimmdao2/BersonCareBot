@@ -1,11 +1,33 @@
 // @vitest-environment jsdom
 
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { createElement } from "react";
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { ReferenceSelect } from "./ReferenceSelect";
 
+vi.mock("@/modules/references/referenceCache", () => ({
+  loadReferenceItems: vi.fn(() => Promise.resolve([])),
+}));
+
 describe("ReferenceSelect", () => {
+  it("leaves the field enabled (not stuck on \"Загрузка…\") when the load rejects", async () => {
+    const { loadReferenceItems } = await import("@/modules/references/referenceCache");
+    vi.mocked(loadReferenceItems).mockRejectedValueOnce(new Error("net::ERR_CONNECTION_REFUSED"));
+    render(
+      createElement(ReferenceSelect, {
+        categoryCode: "load_type",
+        valueMatch: "code",
+        submitField: "code",
+        value: null,
+        onChange: () => {},
+      }),
+    );
+
+    await waitFor(() => {
+      expect(screen.getByRole("combobox")).not.toBeDisabled();
+    });
+  });
+
   it("exports a client component function", () => {
     expect(typeof ReferenceSelect).toBe("function");
   });

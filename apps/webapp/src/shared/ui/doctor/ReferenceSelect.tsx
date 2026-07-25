@@ -97,12 +97,18 @@ export function ReferenceSelect({
     queueMicrotask(() => {
       if (!cancelled) setLoadState("loading");
     });
-    void loadReferenceItems(categoryCode).then((list) => {
-      if (!cancelled) {
-        setRemoteItems(list);
-        setLoadState("done");
-      }
-    });
+    void loadReferenceItems(categoryCode)
+      .then((list) => {
+        if (!cancelled) {
+          setRemoteItems(list);
+          setLoadState("done");
+        }
+      })
+      .catch(() => {
+        // `loadReferenceItems` itself never rejects, but a stuck "loading" state (no error, no
+        // retry) is worse than surfacing an empty list — never leave the field disabled forever.
+        if (!cancelled) setLoadState("done");
+      });
     return () => {
       cancelled = true;
     };

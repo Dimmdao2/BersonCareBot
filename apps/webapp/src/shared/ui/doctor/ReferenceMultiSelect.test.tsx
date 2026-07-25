@@ -15,6 +15,17 @@ vi.mock("@/modules/references/referenceCache", () => ({
 }));
 
 describe("ReferenceMultiSelect", () => {
+  it("leaves the field enabled (not stuck on \"Загрузка…\") when the load rejects", async () => {
+    const { loadReferenceItems } = await import("@/modules/references/referenceCache");
+    vi.mocked(loadReferenceItems).mockRejectedValueOnce(new Error("net::ERR_CONNECTION_REFUSED"));
+    const onChange = vi.fn();
+    render(<ReferenceMultiSelect categoryCode="body_region" value={[]} onChange={onChange} />);
+
+    await waitFor(() => {
+      expect(screen.getByRole("combobox")).not.toBeDisabled();
+    });
+  });
+
   it("first click opens list without closing (focus then click toggle bug)", async () => {
     const onChange = vi.fn();
     render(

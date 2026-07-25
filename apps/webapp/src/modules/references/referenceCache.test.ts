@@ -37,4 +37,14 @@ describe("referenceCache", () => {
     expect(fetchMock).toHaveBeenCalledTimes(2);
     expect(mem).toEqual({});
   });
+
+  it("resolves to an empty list instead of rejecting when fetch itself throws (dropped connection)", async () => {
+    vi.stubGlobal("window", {});
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockRejectedValue(new Error("net::ERR_CONNECTION_REFUSED")),
+    );
+    const { loadReferenceItems } = await import("./referenceCache");
+    await expect(loadReferenceItems("body_region")).resolves.toEqual([]);
+  });
 });
