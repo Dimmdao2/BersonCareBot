@@ -20,14 +20,29 @@ export type OwnerReviewedFioManifestRow = {
   desiredAfter: FioNameState;
 };
 
+/**
+ * Owner ruling 2026-07-25 (B-8): the reviewed-ФИО apply must also be runnable during the SaaS
+ * cutover, not only against TEST. The environment is part of the HASHED payload, so a TEST-approved
+ * manifest can never be replayed against a cutover database and vice versa — the target gate
+ * (`assertFioApplyTarget`) requires the manifest environment and the database target to agree.
+ */
+export type FioReviewEnvironment = "TEST" | "PROD";
+
+const FIO_APPROVAL_DECISION_BY_ENVIRONMENT = {
+  TEST: "approved_for_test",
+  PROD: "approved_for_prod",
+} as const satisfies Record<FioReviewEnvironment, string>;
+
+export const TEST_FIO_TARGET_DATABASE = "bersoncarebot_test";
+
 export type OwnerReviewedFioManifestPayload = {
   schemaVersion: typeof OWNER_REVIEWED_FIO_SCHEMA;
-  environment: "TEST";
+  environment: FioReviewEnvironment;
   runId: string;
   createdAt: string;
   reviewSourceSha256: string;
   approval: {
-    decision: "approved_for_test";
+    decision: (typeof FIO_APPROVAL_DECISION_BY_ENVIRONMENT)[FioReviewEnvironment];
     approvedAt: string;
     reference: string;
   };
@@ -50,12 +65,13 @@ export type OwnerReviewedFioRollbackRow = {
 
 export type OwnerReviewedFioRollbackPayload = {
   schemaVersion: typeof OWNER_REVIEWED_FIO_ROLLBACK_SCHEMA;
-  environment: "TEST";
+  environment: FioReviewEnvironment;
   runId: string;
   createdAt: string;
   sourceManifestSha256: string;
   sourceReviewSha256: string;
-  targetDatabase: "bersoncarebot_test";
+  /** Exact `current_database()` the artifact was produced against; a rollback must match it. */
+  targetDatabase: string;
   rows: OwnerReviewedFioRollbackRow[];
 };
 
@@ -188,14 +204,22 @@ export function parseManifestPayload(value: unknown): OwnerReviewedFioManifestPa
     "manifest payload",
   );
   if (value.schemaVersion !== OWNER_REVIEWED_FIO_SCHEMA) throw new Error("unsupported manifest schemaVersion");
-  if (value.environment !== "TEST") throw new Error("manifest environment must be TEST");
+  if (value.environment !== "TEST" && value.environment !== "PROD") {
+    throw new Error("manifest environment must be TEST or PROD");
+  }
+  const environment: FioReviewEnvironment = value.environment;
   assertUuid(value.runId, "manifest.runId");
   assertIsoTimestamp(value.createdAt, "manifest.createdAt");
   assertSha256(value.reviewSourceSha256, "manifest.reviewSourceSha256");
 
   if (!isRecord(value.approval)) throw new Error("manifest.approval must be an object");
   assertExactKeys(value.approval, ["decision", "approvedAt", "reference"], "manifest.approval");
-  if (value.approval.decision !== "approved_for_test") throw new Error("manifest approval is not for TEST");
+  // The approval decision must match the declared environment exactly: a TEST-approved review can
+  // never be presented as a PROD approval (and vice versa), and both are inside the hashed payload.
+  const expectedDecision = FIO_APPROVAL_DECISION_BY_ENVIRONMENT[environment];
+  if (value.approval.decision !== expectedDecision) {
+    throw new Error(`manifest approval is not for ${environment}`);
+  }
   assertIsoTimestamp(value.approval.approvedAt, "manifest.approval.approvedAt");
   assertNonEmptyString(value.approval.reference, "manifest.approval.reference");
 
@@ -303,15 +327,19 @@ export function buildRollbackArtifact(
   manifest: OwnerReviewedFioManifest,
   updates: FioPlan["updates"],
   createdAt: string,
+  /** Exact `current_database()` this apply runs against; defaults to the historical TEST database. */
+  targetDatabase: string = TEST_FIO_TARGET_DATABASE,
 ): OwnerReviewedFioRollbackArtifact {
   const payload: OwnerReviewedFioRollbackPayload = {
     schemaVersion: OWNER_REVIEWED_FIO_ROLLBACK_SCHEMA,
-    environment: "TEST",
+    // Inherited from the (hashed) manifest, so a rollback artifact can never claim a different
+    // environment than the review it came from.
+    environment: manifest.environment,
     runId: manifest.runId,
     createdAt,
     sourceManifestSha256: manifest.manifestSha256,
     sourceReviewSha256: manifest.reviewSourceSha256,
-    targetDatabase: "bersoncarebot_test",
+    targetDatabase,
     rows: updates.map(({ manifest: row, current }) => ({
       id: row.id,
       restoreBefore: {
@@ -345,8 +373,14 @@ export function parseAndVerifyRollbackArtifact(value: unknown): OwnerReviewedFio
     "rollback artifact",
   );
   if (value.schemaVersion !== OWNER_REVIEWED_FIO_ROLLBACK_SCHEMA) throw new Error("unsupported rollback schema");
-  if (value.environment !== "TEST" || value.targetDatabase !== "bersoncarebot_test") {
-    throw new Error("rollback artifact is not for bersoncarebot_test");
+  if (value.environment !== "TEST" && value.environment !== "PROD") {
+    throw new Error("rollback artifact environment must be TEST or PROD");
+  }
+  assertNonEmptyString(value.targetDatabase, "rollback.targetDatabase");
+  // A TEST artifact is pinned to the TEST database by name; a cutover artifact carries whatever database
+  // it was produced against, and the rollback command re-checks it against live current_database().
+  if (value.environment === "TEST" && value.targetDatabase !== TEST_FIO_TARGET_DATABASE) {
+    throw new Error(`rollback artifact is not for ${TEST_FIO_TARGET_DATABASE}`);
   }
   assertUuid(value.runId, "rollback.runId");
   assertIsoTimestamp(value.createdAt, "rollback.createdAt");
@@ -370,12 +404,12 @@ export function parseAndVerifyRollbackArtifact(value: unknown): OwnerReviewedFio
   });
   const payload: OwnerReviewedFioRollbackPayload = {
     schemaVersion: OWNER_REVIEWED_FIO_ROLLBACK_SCHEMA,
-    environment: "TEST",
+    environment: value.environment,
     runId: value.runId,
     createdAt: value.createdAt,
     sourceManifestSha256: value.sourceManifestSha256,
     sourceReviewSha256: value.sourceReviewSha256,
-    targetDatabase: "bersoncarebot_test",
+    targetDatabase: value.targetDatabase,
     rows,
   };
   if (sha256Canonical(payload) !== value.artifactSha256) throw new Error("rollback artifact SHA-256 mismatch");
@@ -455,6 +489,72 @@ export function assertTestTarget(databaseUrl: string | undefined, databaseName: 
   const urlDatabase = decodeURIComponent(parsed.pathname.replace(/^\//, ""));
   if (urlDatabase !== "bersoncarebot_test") throw new Error("DATABASE_URL must target bersoncarebot_test");
   if (databaseName !== "bersoncarebot_test") throw new Error("current_database() must equal bersoncarebot_test");
+}
+
+export type FioApplyTargetOptions = {
+  /** Today's TEST path: the `--test` flag. Required for a TEST target, ignored for a cutover target. */
+  explicitTest: boolean;
+  /** Owner-gated cutover unlock. Absent/false ⇒ byte-for-byte the historical TEST-only behavior. */
+  allowAuthorizedProdTarget?: boolean;
+  /** Operator-supplied expected `current_database()` for the cutover target. Must match EXACTLY. */
+  authorizedProdDatabase?: string;
+};
+
+/**
+ * B-8 (owner 2026-07-25): resolves and enforces the apply target for the reviewed-ФИО operation.
+ *
+ * Mirrors the two-condition owner-gated unlock already used by
+ * `deploy/postgres/test-strict-rls-finalizer.sql` and
+ * `apps/webapp/scripts/purge-placeholder-bookings-safety.ts`: a non-TEST database is permitted ONLY when
+ * the explicit flag is set AND the running database name equals the operator-supplied expected name
+ * verbatim. Loopback is required in BOTH modes and is never bypassed by the flag.
+ *
+ * The manifest environment must agree with the resolved target, so a TEST-approved review can never be
+ * replayed against the cutover database (and vice versa). Returns the resolved environment.
+ */
+export function assertFioApplyTarget(
+  databaseUrl: string | undefined,
+  databaseName: string,
+  manifestEnvironment: FioReviewEnvironment,
+  options: FioApplyTargetOptions,
+): FioReviewEnvironment {
+  if (!databaseUrl) throw new Error("DATABASE_URL is required");
+  let parsed: URL;
+  try {
+    parsed = new URL(databaseUrl);
+  } catch {
+    throw new Error("DATABASE_URL is invalid");
+  }
+  if (parsed.protocol !== "postgres:" && parsed.protocol !== "postgresql:") {
+    throw new Error("DATABASE_URL must use PostgreSQL");
+  }
+  // Never relaxed by the cutover flag: the apply always runs against a loopback database.
+  if (parsed.hostname !== "127.0.0.1") throw new Error("FIO operation requires exact loopback host 127.0.0.1");
+  const urlDatabase = decodeURIComponent(parsed.pathname.replace(/^\//, ""));
+  if (urlDatabase !== databaseName) throw new Error("DATABASE_URL and current_database() must agree");
+
+  if (options.allowAuthorizedProdTarget === true) {
+    if (!options.authorizedProdDatabase) {
+      throw new Error("authorized cutover target requires the expected database name");
+    }
+    if (databaseName !== options.authorizedProdDatabase) {
+      throw new Error("authorized cutover target does not match current_database()");
+    }
+    if (manifestEnvironment !== "PROD") {
+      throw new Error("cutover target requires a PROD-approved manifest");
+    }
+    return "PROD";
+  }
+
+  // Default path — identical to the historical TEST-only gate.
+  if (!options.explicitTest) throw new Error("explicit --test flag is required");
+  if (databaseName !== TEST_FIO_TARGET_DATABASE) {
+    throw new Error(`current_database() must equal ${TEST_FIO_TARGET_DATABASE}`);
+  }
+  if (manifestEnvironment !== "TEST") {
+    throw new Error("TEST target requires a TEST-approved manifest");
+  }
+  return "TEST";
 }
 
 export function summarizePlan(plan: FioPlan): Record<string, number> {

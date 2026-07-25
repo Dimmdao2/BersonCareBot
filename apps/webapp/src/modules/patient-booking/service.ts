@@ -6,7 +6,6 @@ import type {
   LegacyBranchProjectionPort,
 } from "./ports";
 import type { CreatePatientBookingInput } from "./types";
-import type { BookingCatalogService } from "@/modules/booking-catalog/service";
 import type { createBookingEngineService } from "@/modules/booking-engine/service";
 import type { createBookingSchedulingService } from "@/modules/booking-scheduling/service";
 import type { createBookingFormService } from "@/modules/booking-form/service";
@@ -136,7 +135,6 @@ function cacheKey(query: BookingSlotsQuery): string {
 export function createPatientBookingService(input: {
   bookingsPort: PatientBookingsPort;
   syncPort: BookingSyncPort;
-  bookingCatalog: BookingCatalogService | null;
   bookingEngine?: BookingEngineService | null;
   bookingScheduling?: BookingSchedulingService | null;
   bookingForm?: BookingFormService | null;
@@ -177,7 +175,6 @@ export function createPatientBookingService(input: {
       ? {
           bookingsPort: input.bookingsPort,
           syncPort: input.syncPort,
-          bookingCatalog: input.bookingCatalog,
           bookingEngine: input.bookingEngine,
           bookingScheduling: input.bookingScheduling,
           bookingForm: input.bookingForm ?? null,

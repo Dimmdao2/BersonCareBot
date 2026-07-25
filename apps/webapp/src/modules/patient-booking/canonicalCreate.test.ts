@@ -67,7 +67,6 @@ function deps() {
   return {
     bookingsPort,
     syncPort: { emitBookingEvent: vi.fn() },
-    bookingCatalog: null,
     bookingEngine,
     bookingScheduling,
     bookingForm,

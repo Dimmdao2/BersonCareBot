@@ -220,144 +220,16 @@ async function runCatalogMutation<T>(fn: (db: WebappSqlExecutor) => Promise<T>):
 export function createPgBookingCatalogPort(): BookingCatalogPort {
   return {
     // -----------------------------------------------------------------------
-    // Read
-    // -----------------------------------------------------------------------
-
-    async listCitiesForPatient() {
-      const result = await runWebappPgText<CityRow>(
-        `SELECT id, code, title, is_active, sort_order, created_at, updated_at
-         FROM booking_cities
-         WHERE is_active = TRUE
-         ORDER BY sort_order ASC, title ASC`,
-      );
-      return result.rows.map(mapCity);
-    },
-
-    async listServicesByCity(cityCode) {
-      type JoinRow = BranchServiceRow & {
-        br_id: string;
-        br_city_id: string;
-        br_title: string;
-        br_address: string | null;
-        br_rubitime_branch_id: string;
-        br_timezone: string;
-        br_is_active: boolean;
-        br_sort_order: number;
-        br_created_at: Date;
-        br_updated_at: Date;
-        svc_id: string;
-        svc_title: string;
-        svc_description: string | null;
-        svc_duration_minutes: number;
-        svc_break_after_minutes: number;
-        svc_price_minor: number;
-        svc_is_active: boolean;
-        svc_sort_order: number;
-        svc_created_at: Date;
-        svc_updated_at: Date;
-        sp_id: string;
-        sp_branch_id: string;
-        sp_full_name: string;
-        sp_description: string | null;
-        sp_rubitime_cooperator_id: string;
-        sp_is_active: boolean;
-        sp_sort_order: number;
-        sp_created_at: Date;
-        sp_updated_at: Date;
-      };
-
-      const result = await runWebappPgText<JoinRow>(
-        `SELECT
-           bbs.id, bbs.branch_id, bbs.service_id, bbs.specialist_id,
-           bbs.rubitime_service_id, bbs.is_active, bbs.sort_order,
-           bbs.created_at, bbs.updated_at,
-           br.id AS br_id, br.city_id AS br_city_id, br.title AS br_title,
-           br.address AS br_address, br.rubitime_branch_id AS br_rubitime_branch_id,
-           br.timezone AS br_timezone,
-           br.is_active AS br_is_active, br.sort_order AS br_sort_order,
-           br.created_at AS br_created_at, br.updated_at AS br_updated_at,
-           svc.id AS svc_id, svc.title AS svc_title, svc.description AS svc_description,
-           svc.duration_minutes AS svc_duration_minutes,
-           svc.break_after_minutes AS svc_break_after_minutes,
-           svc.price_minor AS svc_price_minor,
-           svc.is_active AS svc_is_active, svc.sort_order AS svc_sort_order,
-           svc.created_at AS svc_created_at, svc.updated_at AS svc_updated_at,
-           sp.id AS sp_id, sp.branch_id AS sp_branch_id, sp.full_name AS sp_full_name,
-           sp.description AS sp_description,
-           sp.rubitime_cooperator_id AS sp_rubitime_cooperator_id,
-           sp.is_active AS sp_is_active, sp.sort_order AS sp_sort_order,
-           sp.created_at AS sp_created_at, sp.updated_at AS sp_updated_at
-         FROM booking_branch_services bbs
-         JOIN booking_branches br ON br.id = bbs.branch_id
-         JOIN booking_cities c ON c.id = br.city_id
-         JOIN booking_services svc ON svc.id = bbs.service_id
-         JOIN booking_specialists sp ON sp.id = bbs.specialist_id
-         WHERE c.code = $1
-           AND c.is_active = TRUE
-           AND br.is_active = TRUE
-           AND bbs.is_active = TRUE
-           AND svc.is_active = TRUE
-           AND sp.is_active = TRUE
-           AND EXISTS (
-             SELECT 1
-               FROM be_external_entity_mappings m
-               JOIN be_specialist_service_availability ssa ON ssa.id = m.canonical_id
-               JOIN be_clinic_services cs ON cs.id = ssa.service_id
-              WHERE m.entity_type = 'availability'
-                AND m.external_system = 'rubitime'
-                AND m.metadata->>'legacy_branch_service_id' = bbs.id::text
-                AND ssa.is_active = TRUE
-                AND cs.is_active = TRUE
-                AND cs.public_widget_visible = TRUE
-                AND cs.admin_manual_only = FALSE
-           )
-         ORDER BY bbs.sort_order ASC, svc.title ASC`,
-        [cityCode],
-      );
-
-      return result.rows.map((row) => ({
-        ...mapBranchService(row),
-        branch: mapBranch({
-          id: row.br_id,
-          city_id: row.br_city_id,
-          title: row.br_title,
-          address: row.br_address,
-          rubitime_branch_id: row.br_rubitime_branch_id,
-          timezone: row.br_timezone,
-          is_active: row.br_is_active,
-          sort_order: row.br_sort_order,
-          created_at: row.br_created_at,
-          updated_at: row.br_updated_at,
-        }),
-        service: mapService({
-          id: row.svc_id,
-          title: row.svc_title,
-          description: row.svc_description,
-          duration_minutes: row.svc_duration_minutes,
-          break_after_minutes: row.svc_break_after_minutes,
-          price_minor: row.svc_price_minor,
-          is_active: row.svc_is_active,
-          sort_order: row.svc_sort_order,
-          created_at: row.svc_created_at,
-          updated_at: row.svc_updated_at,
-        }),
-        specialist: mapSpecialist({
-          id: row.sp_id,
-          branch_id: row.sp_branch_id,
-          full_name: row.sp_full_name,
-          description: row.sp_description,
-          rubitime_cooperator_id: row.sp_rubitime_cooperator_id,
-          is_active: row.sp_is_active,
-          sort_order: row.sp_sort_order,
-          created_at: row.sp_created_at,
-          updated_at: row.sp_updated_at,
-        }),
-      }));
-    },
-
-    // -----------------------------------------------------------------------
     // Write (used by seed script and admin CRUD)
     // -----------------------------------------------------------------------
+    //
+    // Track C R3-CATALOG: `listCitiesForPatient` / `listServicesByCity` are gone.
+    // Both were dead — the patient/public flow resolves cities and services from
+    // the canonical booking engine (`inPersonServicesCatalog` → `be_branches` /
+    // `be_clinic_services` / `be_service_location_availability`), which is what
+    // `bookingCatalogRsc.ts` has called since the canonical cutover. Removing them
+    // deletes the last patient-facing read of `booking_branch_services` /
+    // `booking_branches` / `booking_cities`.
 
     async upsertCity({ code, title, isActive, sortOrder }) {
       return runCatalogMutation(async (tx) => {

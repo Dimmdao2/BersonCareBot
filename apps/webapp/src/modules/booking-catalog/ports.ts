@@ -6,17 +6,13 @@ import type {
   BookingBranchService,
 } from "./types";
 
-/** Read port — used by patient flow and admin UI. */
-export type BookingCatalogReadPort = {
-  /** Active cities sorted by sort_order. */
-  listCitiesForPatient(): Promise<BookingCity[]>;
-
-  /**
-   * Active branch-service links for the given city code.
-   * Returns fully joined records (branch + service + specialist).
-   */
-  listServicesByCity(cityCode: string): Promise<BookingBranchService[]>;
-};
+/**
+ * Track C R3-CATALOG: the patient-facing read port is gone. The patient/public
+ * booking flow reads the canonical booking engine
+ * (`@/modules/patient-booking/inPersonServicesCatalog` → `be_branches` /
+ * `be_clinic_services` / `be_service_location_availability`), so no runtime read
+ * of `booking_branch_services` / `booking_branches` remains on that path.
+ */
 
 /** Write port — used by seed script and admin CRUD (Stage 3). */
 export type BookingCatalogWritePort = {
@@ -138,6 +134,4 @@ export type BookingCatalogAdminPort = {
   deactivateBranchService(id: string): Promise<boolean>;
 };
 
-export type BookingCatalogPort = BookingCatalogReadPort &
-  BookingCatalogWritePort &
-  BookingCatalogAdminPort;
+export type BookingCatalogPort = BookingCatalogWritePort & BookingCatalogAdminPort;

@@ -83,7 +83,6 @@ function svc() {
   return createPatientBookingService({
     bookingsPort: bookingsPort as never,
     syncPort: syncPort as never,
-    bookingCatalog: null,
     isRubitimeBridgeEnabled: async () => true,
   });
 }

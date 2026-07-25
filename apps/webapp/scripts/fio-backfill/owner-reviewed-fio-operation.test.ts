@@ -3,6 +3,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
 import {
+  assertFioApplyTarget,
   assertTestTarget,
   buildRollbackArtifact,
   buildManifest,
@@ -146,6 +147,79 @@ describe("owner-reviewed FIO manifest contract", () => {
     expect(() =>
       assertTestTarget("postgres://u:p@127.0.0.1/bersoncarebot_test", "bersoncarebot_test", true),
     ).not.toThrow();
+  });
+
+  // B-8 (owner 2026-07-25): the cutover apply path. Default behavior must stay the TEST-only gate.
+  describe("assertFioApplyTarget cutover gate", () => {
+    const TEST_URL = "postgres://u:p@127.0.0.1/bersoncarebot_test";
+    const PROD_URL = "postgres://u:p@127.0.0.1/bcb_webapp_prod";
+
+    it("keeps the historical TEST-only behavior when the cutover flag is absent", () => {
+      expect(() => assertFioApplyTarget(TEST_URL, "bersoncarebot_test", "TEST", { explicitTest: false })).toThrow(
+        "--test",
+      );
+      expect(() => assertFioApplyTarget(PROD_URL, "bcb_webapp_prod", "TEST", { explicitTest: true })).toThrow(
+        "bersoncarebot_test",
+      );
+      expect(assertFioApplyTarget(TEST_URL, "bersoncarebot_test", "TEST", { explicitTest: true })).toBe("TEST");
+    });
+
+    it("permits the cutover target only on an exact expected-name match", () => {
+      expect(
+        assertFioApplyTarget(PROD_URL, "bcb_webapp_prod", "PROD", {
+          explicitTest: false,
+          allowAuthorizedProdTarget: true,
+          authorizedProdDatabase: "bcb_webapp_prod",
+        }),
+      ).toBe("PROD");
+
+      expect(() =>
+        assertFioApplyTarget(PROD_URL, "bcb_webapp_prod", "PROD", {
+          explicitTest: false,
+          allowAuthorizedProdTarget: true,
+          authorizedProdDatabase: "bcb_webapp_prod_TYPO",
+        }),
+      ).toThrow("does not match current_database()");
+
+      expect(() =>
+        assertFioApplyTarget(PROD_URL, "bcb_webapp_prod", "PROD", {
+          explicitTest: false,
+          allowAuthorizedProdTarget: true,
+        }),
+      ).toThrow("expected database name");
+    });
+
+    it("refuses an environment mismatch in either direction", () => {
+      expect(() =>
+        assertFioApplyTarget(PROD_URL, "bcb_webapp_prod", "TEST", {
+          explicitTest: false,
+          allowAuthorizedProdTarget: true,
+          authorizedProdDatabase: "bcb_webapp_prod",
+        }),
+      ).toThrow("PROD-approved manifest");
+
+      expect(() =>
+        assertFioApplyTarget(TEST_URL, "bersoncarebot_test", "PROD", { explicitTest: true }),
+      ).toThrow("TEST-approved manifest");
+    });
+
+    it("never lets the cutover flag bypass loopback or URL/database agreement", () => {
+      expect(() =>
+        assertFioApplyTarget("postgres://u:p@10.0.0.5/bcb_webapp_prod", "bcb_webapp_prod", "PROD", {
+          explicitTest: false,
+          allowAuthorizedProdTarget: true,
+          authorizedProdDatabase: "bcb_webapp_prod",
+        }),
+      ).toThrow("127.0.0.1");
+
+      expect(() =>
+        assertFioApplyTarget(PROD_URL, "some_other_db", "PROD", {
+          explicitTest: false,
+          allowAuthorizedProdTarget: true,
+          authorizedProdDatabase: "some_other_db",
+        }),
+      ).toThrow("must agree");
+    });
   });
 });
 

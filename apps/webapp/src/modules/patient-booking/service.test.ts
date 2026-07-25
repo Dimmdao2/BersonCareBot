@@ -1,6 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { ResolvedBranchService } from "@/modules/booking-catalog/types";
-import type { BookingCatalogService } from "@/modules/booking-catalog/service";
 import { createBookingSchedulingService } from "@/modules/booking-scheduling/service";
 import type { PatientBookingRecord } from "./types";
 import { createPatientBookingService } from "./service";
@@ -93,13 +92,6 @@ function resolvedFixture(): ResolvedBranchService {
   };
 }
 
-function catalogWithResolve(): BookingCatalogService {
-  return {
-    listCitiesForPatient: vi.fn(),
-    listServicesByCity: vi.fn(),
-  };
-}
-
 function sampleRow(over: Partial<PatientBookingRecord> = {}): PatientBookingRecord {
   return {
     id: "b1111111-1111-4111-8111-111111111111",
@@ -158,7 +150,6 @@ describe("createPatientBookingService", () => {
     const svc = createPatientBookingService({
       bookingsPort: bookingsPort as never,
       syncPort: syncPort as never,
-      bookingCatalog: null,
       isRubitimeBridgeEnabled: async () => true,
     });
     const result = await svc.cancelBooking({
@@ -187,7 +178,6 @@ describe("createPatientBookingService", () => {
     const svc = createPatientBookingService({
       bookingsPort: bookingsPort as never,
       syncPort: syncPort as never,
-      bookingCatalog: null,
       isRubitimeBridgeEnabled: async () => false,
     });
     const result = await svc.cancelBooking({
@@ -209,7 +199,6 @@ describe("createPatientBookingService", () => {
     const svc = createPatientBookingService({
       bookingsPort: bookingsPort as never,
       syncPort: syncPort as never,
-      bookingCatalog: null,
       isRubitimeBridgeEnabled: async () => true,
     });
     await expect(svc.createBooking({
@@ -236,7 +225,6 @@ describe("createPatientBookingService", () => {
     const svc = createPatientBookingService({
       bookingsPort: bookingsPort as never,
       syncPort: syncPort as never,
-      bookingCatalog: null,
       isRubitimeBridgeEnabled: async () => true,
     });
     const result = await svc.cancelBooking({ userId: row.userId!, bookingId: row.id });
@@ -267,7 +255,6 @@ describe("createPatientBookingService", () => {
     const svc = createPatientBookingService({
       bookingsPort: bookingsPort as never,
       syncPort: syncPort as never,
-      bookingCatalog: null,
       bookingEngine: bookingEngine as never,
       bookingScheduling: { getOnlineSlots } as never,
       slotsTtlMs: 60_000,
@@ -333,7 +320,6 @@ describe("createPatientBookingService", () => {
     const svc = createPatientBookingService({
       bookingsPort: bookingsPort as never,
       syncPort: syncPort as never,
-      bookingCatalog: null,
       bookingEngine: bookingEngine as never,
       appointmentLifecycle: appointmentLifecycle as never,
       appointmentProjection: appointmentProjection as never,
@@ -377,7 +363,6 @@ describe("createPatientBookingService", () => {
     const svc = createPatientBookingService({
       bookingsPort: bookingsPort as never,
       syncPort: syncPort as never,
-      bookingCatalog: null,
       bookingEngine: bookingEngine as never,
       appointmentLifecycle: appointmentLifecycle as never,
       bookingScheduling: { assertSlotAvailable: vi.fn() } as never,
@@ -439,7 +424,6 @@ describe("createPatientBookingService", () => {
     const svc = createPatientBookingService({
       bookingsPort: bookingsPort as never,
       syncPort: syncPort as never,
-      bookingCatalog: null,
       bookingEngine: bookingEngine as never,
       appointmentLifecycle: appointmentLifecycle as never,
       appointmentProjection: appointmentProjection as never,
@@ -503,7 +487,6 @@ describe("createPatientBookingService", () => {
     const svc = createPatientBookingService({
       bookingsPort: bookingsPort as never,
       syncPort: syncPort as never,
-      bookingCatalog: null,
       bookingEngine: bookingEngine as never,
       appointmentLifecycle: appointmentLifecycle as never,
       bookingScheduling,
@@ -548,7 +531,6 @@ describe("createPatientBookingService", () => {
     const svc = createPatientBookingService({
       bookingsPort: bookingsPort as never,
       syncPort: syncPort as never,
-      bookingCatalog: null,
       bookingEngine: bookingEngine as never,
       appointmentLifecycle: appointmentLifecycle as never,
       bookingScheduling: { assertSlotAvailable } as never,
@@ -610,7 +592,6 @@ describe("createPatientBookingService", () => {
     const svc = createPatientBookingService({
       bookingsPort: bookingsPort as never,
       syncPort: syncPort as never,
-      bookingCatalog: null,
       bookingEngine: bookingEngine as never,
       appointmentLifecycle: appointmentLifecycle as never,
       appointmentProjection: appointmentProjection as never,
@@ -680,7 +661,6 @@ describe("createPatientBookingService", () => {
     const svc = createPatientBookingService({
       bookingsPort: bookingsPort as never,
       syncPort: syncPort as never,
-      bookingCatalog: null,
       bookingEngine: bookingEngine as never,
       appointmentLifecycle: appointmentLifecycle as never,
       appointmentProjection: appointmentProjection as never,
@@ -741,7 +721,6 @@ describe("createPatientBookingService", () => {
     const svc = createPatientBookingService({
       bookingsPort: bookingsPort as never,
       syncPort: syncPort as never,
-      bookingCatalog: null,
       bookingEngine: bookingEngine as never,
       appointmentLifecycle: appointmentLifecycle as never,
       payments: payments as never,
@@ -790,7 +769,6 @@ describe("createPatientBookingService", () => {
     const svc = createPatientBookingService({
       bookingsPort: bookingsPort as never,
       syncPort: syncPort as never,
-      bookingCatalog: null,
       bookingEngine: bookingEngine as never,
       appointmentLifecycle: appointmentLifecycle as never,
     });
@@ -837,7 +815,6 @@ describe("createPatientBookingService", () => {
     const svc = createPatientBookingService({
       bookingsPort: bookingsPort as never,
       syncPort: syncPort as never,
-      bookingCatalog: null,
       bookingEngine: bookingEngine as never,
       appointmentLifecycle: appointmentLifecycle as never,
       memberships: memberships as never,
@@ -889,7 +866,6 @@ describe("createPatientBookingService", () => {
     const svc = createPatientBookingService({
       bookingsPort: bookingsPort as never,
       syncPort: syncPort as never,
-      bookingCatalog: null,
       bookingEngine: bookingEngine as never,
       appointmentLifecycle: appointmentLifecycle as never,
       products: products as never,
@@ -943,7 +919,6 @@ describe("createPatientBookingService", () => {
     const svc = createPatientBookingService({
       bookingsPort: bookingsPort as never,
       syncPort: syncPort as never,
-      bookingCatalog: null,
       bookingEngine: bookingEngine as never,
       appointmentLifecycle: appointmentLifecycle as never,
       bookingScheduling: { assertSlotAvailable: vi.fn() } as never,
@@ -999,7 +974,6 @@ describe("createPatientBookingService", () => {
     const svc = createPatientBookingService({
       bookingsPort: bookingsPort as never,
       syncPort: syncPort as never,
-      bookingCatalog: null,
       bookingEngine: bookingEngine as never,
       appointmentLifecycle: appointmentLifecycle as never,
       bookingScheduling: { assertSlotAvailable: vi.fn() } as never,
@@ -1061,7 +1035,6 @@ describe("createPatientBookingService", () => {
     const svc = createPatientBookingService({
       bookingsPort: bookingsPort as never,
       syncPort: syncPort as never,
-      bookingCatalog: null,
       bookingEngine: bookingEngine as never,
       appointmentLifecycle: appointmentLifecycle as never,
       bookingScheduling: { assertSlotAvailable: vi.fn() } as never,
@@ -1118,7 +1091,6 @@ describe("createPatientBookingService", () => {
     const svc = createPatientBookingService({
       bookingsPort: bookingsPort as never,
       syncPort: syncPort as never,
-      bookingCatalog: null,
       bookingEngine: bookingEngine as never,
       appointmentLifecycle: appointmentLifecycle as never,
       bookingScheduling: { assertSlotAvailable: vi.fn() } as never,
@@ -1166,7 +1138,6 @@ describe("createPatientBookingService", () => {
     const svc = createPatientBookingService({
       bookingsPort: bookingsPort as never,
       syncPort: syncPort as never,
-      bookingCatalog: null,
       bookingEngine: bookingEngine as never,
       appointmentLifecycle: appointmentLifecycle as never,
       isRubitimeBridgeEnabled: async () => true,
@@ -1222,7 +1193,6 @@ describe("createPatientBookingService", () => {
     const svc = createPatientBookingService({
       bookingsPort: bookingsPort as never,
       syncPort: syncPort as never,
-      bookingCatalog: null,
       bookingEngine: bookingEngine as never,
       appointmentLifecycle: appointmentLifecycle as never,
     });
@@ -1245,7 +1215,6 @@ describe("createPatientBookingService", () => {
     const svc = createPatientBookingService({
       bookingsPort: bookingsPort as never,
       syncPort: syncPort as never,
-      bookingCatalog: null,
     });
 
     const first = await svc.cancelBooking({ userId: row.userId!, bookingId: row.id });
@@ -1260,7 +1229,6 @@ describe("createPatientBookingService", () => {
     const svc = createPatientBookingService({
       bookingsPort: bookingsPort as never,
       syncPort: syncPort as never,
-      bookingCatalog: null,
     });
     const result = await svc.cancelBooking({ userId: row.userId!, bookingId: row.id });
     expect(result).toEqual({ ok: false, error: "already_cancelled" });
@@ -1278,7 +1246,6 @@ describe("createPatientBookingService", () => {
     const svc = createPatientBookingService({
       bookingsPort: bookingsPort as never,
       syncPort: syncPort as never,
-      bookingCatalog: catalogWithResolve(),
       bookingEngine: bookingEngine as never,
       bookingScheduling: { getInPersonSlots } as never,
     });
@@ -1318,7 +1285,6 @@ describe("createPatientBookingService", () => {
     const svc = createPatientBookingService({
       bookingsPort: bookingsPort as never,
       syncPort: syncPort as never,
-      bookingCatalog: null,
       bookingEngine: {
         getAppointment: vi.fn().mockResolvedValue({ organizationId: "org-1" }),
       } as never,
@@ -1355,7 +1321,6 @@ describe("createPatientBookingService", () => {
     const svc = createPatientBookingService({
       bookingsPort: bookingsPort as never,
       syncPort: syncPort as never,
-      bookingCatalog: catalogWithResolve(),
       bookingEngine: bookingEngine as never,
       bookingScheduling: bookingScheduling as never,
     });
@@ -1412,7 +1377,6 @@ describe("createPatientBookingService", () => {
     const svc = createPatientBookingService({
       bookingsPort: bookingsPort as never,
       syncPort: syncPort as never,
-      bookingCatalog: catalogWithResolve(),
       bookingEngine: bookingEngine as never,
       bookingScheduling: bookingScheduling as never,
     });
@@ -1442,7 +1406,6 @@ describe("createPatientBookingService", () => {
     const svc = createPatientBookingService({
       bookingsPort: bookingsPort as never,
       syncPort: syncPort as never,
-      bookingCatalog: null,
       bookingEngine: bookingEngine as never,
       bookingScheduling: { getOnlineSlots } as never,
       slotsTtlMs: 60_000,
@@ -1477,7 +1440,6 @@ describe("createPatientBookingService", () => {
     const svc = createPatientBookingService({
       bookingsPort: bookingsPort as never,
       syncPort: syncPort as never,
-      bookingCatalog: null,
       bookingEngine: bookingEngine as never,
       bookingScheduling: bookingScheduling as never,
       isRubitimeBridgeEnabled: async () => false,
@@ -1531,7 +1493,6 @@ describe("createPatientBookingService", () => {
     const svc = createPatientBookingService({
       bookingsPort: bookingsPort as never,
       syncPort: syncPort as never,
-      bookingCatalog: null,
       bookingEngine: bookingEngine as never,
       bookingScheduling: bookingScheduling as never,
       bookingForm: bookingForm as never,
@@ -1592,7 +1553,6 @@ describe("createPatientBookingService", () => {
     const svc = createPatientBookingService({
       bookingsPort: bookingsPort as never,
       syncPort: syncPort as never,
-      bookingCatalog: null,
       bookingEngine: bookingEngine as never,
       bookingScheduling: bookingScheduling as never,
       isRubitimeBridgeEnabled: async () => false,

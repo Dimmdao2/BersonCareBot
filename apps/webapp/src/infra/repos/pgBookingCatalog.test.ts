@@ -54,32 +54,14 @@ describe("createPgBookingCatalogPort", () => {
     );
   });
 
-  describe("listCitiesForPatient", () => {
-    it("queries active cities ordered by sort_order", async () => {
-      runWebappPgTextMock.mockResolvedValueOnce({ rows: [cityRow()] });
-      const port = createPgBookingCatalogPort();
-      const cities = await port.listCitiesForPatient();
-      expect(cities).toHaveLength(1);
-      expect(cities[0]!.code).toBe("moscow");
-      const sql = String(runWebappPgTextMock.mock.calls[0]?.[0] ?? "");
-      expect(sql).toContain("is_active = TRUE");
-      expect(sql).toContain("sort_order ASC");
-    });
-  });
-
-  describe("listServicesByCity", () => {
-    it("passes city code as parameter and joins required tables", async () => {
-      runWebappPgTextMock.mockResolvedValueOnce({ rows: [] });
-      const port = createPgBookingCatalogPort();
-      await port.listServicesByCity("spb");
-      const sql = String(runWebappPgTextMock.mock.calls[0]?.[0] ?? "");
-      expect(sql).toContain("booking_branch_services");
-      expect(sql).toContain("booking_cities");
-      expect(sql).toContain("booking_branches");
-      expect(sql).toContain("booking_specialists");
-      expect(sql).toContain("be_external_entity_mappings");
-      expect(sql).toContain("legacy_branch_service_id");
-      expect(runWebappPgTextMock.mock.calls[0]?.[1]).toEqual(["spb"]);
+  // Track C R3-CATALOG regression guard: the patient/public booking flow must never
+  // read the legacy catalog again. It resolves cities/services from the canonical
+  // booking engine (`inPersonServicesCatalog`), so this port exposes no patient reads.
+  describe("Track C R3-CATALOG — no patient-facing legacy reads", () => {
+    it("does not expose listCitiesForPatient / listServicesByCity", () => {
+      const port = createPgBookingCatalogPort() as Record<string, unknown>;
+      expect(port.listCitiesForPatient).toBeUndefined();
+      expect(port.listServicesByCity).toBeUndefined();
     });
   });
 

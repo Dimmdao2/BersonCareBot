@@ -349,7 +349,6 @@ import {
   stampBeAppointmentMirrorAttribution,
 } from "@/infra/repos/pgBookingRubitimeBridge";
 import { createAppointmentMirrorSyncService } from "@/modules/booking-appointment-sync/service";
-import { createBookingCatalogService } from "@/modules/booking-catalog/service";
 import { createBookingEngineService } from "@/modules/booking-engine/service";
 import { createPgBookingSchedulingPort } from "@/infra/repos/pgBookingScheduling";
 import { createBookingSchedulingService } from "@/modules/booking-scheduling/service";
@@ -558,9 +557,6 @@ const clinicSeatsService = createClinicSeatsService({
   orgEntitlementsPort,
 });
 const bookingCatalogPort = !inMemoryRepos ? createPgBookingCatalogPort() : null;
-const bookingCatalogService = bookingCatalogPort
-  ? createBookingCatalogService(bookingCatalogPort)
-  : null;
 const clinicDirectoryService = !inMemoryRepos
   ? createClinicDirectoryService(createPgClinicDirectoryPort())
   : null;
@@ -1087,7 +1083,6 @@ patientBookingService = createPatientBookingService({
   bookingsPort: patientBookingsPort,
   syncPort: createBookingSyncPort(),
   appointmentMirrorSync: appointmentMirrorSync ?? undefined,
-  bookingCatalog: bookingCatalogService,
   bookingEngine: bookingEngineService,
   bookingScheduling: bookingSchedulingService,
   bookingForm: bookingFormService,
@@ -1690,7 +1685,6 @@ function _buildAppDeps() {
     },
     lfkTemplates: lfkTemplatesService,
     lfkAssignments: lfkAssignmentsService,
-    bookingCatalog: bookingCatalogService,
     /** Raw PG port for admin booking-catalog API (null only in Vitest without DB). */
     bookingCatalogPort,
     /** `/book/{publicSlug}` bootstrap resolver (owner canon OWNER_RULINGS_2026-07-17.md §1). */

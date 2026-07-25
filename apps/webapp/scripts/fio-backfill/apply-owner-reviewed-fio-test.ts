@@ -3,13 +3,14 @@ import { and, eq, inArray, isNull, sql, type SQL, type SQLWrapper } from "drizzl
 import type { DrizzleDb } from "@/app-layer/db/drizzle";
 import { platformUsers } from "../../db/schema";
 import {
-  assertTestTarget,
+  assertFioApplyTarget,
   buildManifest,
   parseAndVerifyManifest,
   summarizePlan,
   type CurrentFioRow,
   type FioIdentityState,
   type FioNameState,
+  type FioReviewEnvironment,
 } from "./owner-reviewed-fio-contract";
 import {
   applyOwnerReviewedFio,
@@ -120,9 +121,36 @@ function buildDbPort(db: DrizzleDb): FioDatabasePort {
   };
 }
 
-async function verifyLiveTestTarget(db: DrizzleDb): Promise<void> {
+async function readLiveDatabaseName(db: DrizzleDb): Promise<string> {
   const result = await db.execute<{ database_name: string }>(sql`SELECT current_database()::text AS database_name`);
-  assertTestTarget(process.env.DATABASE_URL, result.rows[0]?.database_name ?? "", hasFlag("--test"));
+  return result.rows[0]?.database_name ?? "";
+}
+
+/**
+ * B-8 (owner 2026-07-25): resolves the apply target. Default = the historical TEST-only gate; the
+ * cutover target needs BOTH `--allow-authorized-prod-target` and an exact
+ * `--authorized-prod-database=<name>` match, and a manifest whose environment agrees.
+ */
+function targetOptions() {
+  return {
+    explicitTest: hasFlag("--test"),
+    allowAuthorizedProdTarget: hasFlag("--allow-authorized-prod-target"),
+    authorizedProdDatabase: option("--authorized-prod-database"),
+  };
+}
+
+async function verifyLiveApplyTarget(
+  db: DrizzleDb,
+  manifestEnvironment: FioReviewEnvironment,
+): Promise<{ environment: FioReviewEnvironment; databaseName: string }> {
+  const databaseName = await readLiveDatabaseName(db);
+  const environment = assertFioApplyTarget(
+    process.env.DATABASE_URL,
+    databaseName,
+    manifestEnvironment,
+    targetOptions(),
+  );
+  return { environment, databaseName };
 }
 
 function confirmExact(actual: string, optionName: string): void {
@@ -169,22 +197,29 @@ async function main(): Promise<void> {
 
   const { getDrizzle } = await import("@/app-layer/db/drizzle");
   const db = getDrizzle();
-  await verifyLiveTestTarget(db);
   const dbPort = buildDbPort(db);
 
   if (command === "rollback") {
     const artifact = await readRollbackArtifact(requiredOption("--artifact"));
     confirmExact(artifact.artifactSha256, "--confirm-artifact-sha256");
+    // Gate on the artifact's own (hashed) environment, then additionally require the live database to be
+    // the exact one the artifact was produced against — a rollback must never land on a different DB.
+    const { environment, databaseName } = await verifyLiveApplyTarget(db, artifact.environment);
+    if (artifact.targetDatabase !== databaseName) {
+      throw new Error("rollback artifact targetDatabase does not match current_database()");
+    }
     const rolledBack = await rollbackOwnerReviewedFio(artifact, dbPort);
-    console.log(JSON.stringify({ command, target: "TEST", rolledBack }));
+    console.log(JSON.stringify({ command, target: environment, rolledBack }));
     return;
   }
 
   const manifest = parseAndVerifyManifest(await readJson(requiredOption("--manifest")));
+  const { environment, databaseName } = await verifyLiveApplyTarget(db, manifest.environment);
+
   if (command === "preview") {
     const plan = await previewOwnerReviewedFio(manifest, dbPort);
     console.log(
-      JSON.stringify({ command, target: "TEST", manifestSha256: manifest.manifestSha256, ...summarizePlan(plan) }),
+      JSON.stringify({ command, target: environment, manifestSha256: manifest.manifestSha256, ...summarizePlan(plan) }),
     );
     return;
   }
@@ -195,11 +230,13 @@ async function main(): Promise<void> {
     manifest,
     dbPort,
     createDurableRollbackWriter(requiredOption("--rollback-dir")),
+    undefined,
+    databaseName,
   );
   console.log(
     JSON.stringify({
       command,
-      target: "TEST",
+      target: environment,
       ...summarizePlan(result.plan),
       artifactCreated: result.artifactPath !== null,
       artifactSha256: result.artifactSha256,

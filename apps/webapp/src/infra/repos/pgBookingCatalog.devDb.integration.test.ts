@@ -31,23 +31,6 @@ describe.skipIf(!enabled)("pgBookingCatalog (dev DB, opt-in read-only)", () => {
     await pool.end();
   });
 
-  it("listCitiesForPatient returns an array via runWebappPgText executor", async () => {
-    const client = await pool.connect();
-    try {
-      await assertDevDb(client);
-    } finally {
-      client.release();
-    }
-
-    const port = createPgBookingCatalogPort();
-    const cities = await port.listCitiesForPatient();
-    expect(Array.isArray(cities)).toBe(true);
-    for (const city of cities) {
-      expect(city.isActive).toBe(true);
-      expect(typeof city.code).toBe("string");
-    }
-  });
-
   it("listCitiesAdmin includes inactive rows when present", async () => {
     const client = await pool.connect();
     try {
@@ -85,27 +68,5 @@ describe.skipIf(!enabled)("pgBookingCatalog (dev DB, opt-in read-only)", () => {
     const port = createPgBookingCatalogPort();
     const ok = await port.deactivateCity("00000000-0000-4000-8000-00000000ffff");
     expect(ok).toBe(false);
-  });
-
-  it("listServicesByCity runs EXISTS filter for booking engine availability", async () => {
-    const client = await pool.connect();
-    let cityCode: string | undefined;
-    try {
-      await assertDevDb(client);
-      const pick = await client.query<{ code: string }>(
-        `SELECT code FROM booking_cities WHERE is_active = TRUE ORDER BY sort_order ASC LIMIT 1`,
-      );
-      cityCode = pick.rows[0]?.code;
-    } finally {
-      client.release();
-    }
-
-    if (!cityCode) {
-      return;
-    }
-
-    const port = createPgBookingCatalogPort();
-    const services = await port.listServicesByCity(cityCode);
-    expect(Array.isArray(services)).toBe(true);
   });
 });

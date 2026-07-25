@@ -146,13 +146,15 @@ export async function applyOwnerReviewedFio(
   db: FioDatabasePort,
   artifactWriter: DurableArtifactWriter,
   now: () => string = () => new Date().toISOString(),
+  /** Exact `current_database()` of this apply; stamped into the rollback artifact (B-8). */
+  targetDatabase?: string,
 ): Promise<{ plan: ReturnType<typeof planManifest>; artifactPath: string | null; artifactSha256: string | null }> {
   return db.transaction(async (tx) => {
     const plan = planManifest(manifest, await tx.lockRows(manifest.rows.map((row) => row.id)));
     enforceFailClosedPlan(plan);
     if (plan.updates.length === 0) return { plan, artifactPath: null, artifactSha256: null };
 
-    const artifact = buildRollbackArtifact(manifest, plan.updates, now());
+    const artifact = buildRollbackArtifact(manifest, plan.updates, now(), targetDatabase);
     const artifactPath = await artifactWriter.writeBeforeMutation(artifact);
     for (const update of plan.updates) {
       const changed = await tx.conditionalUpdate(update.manifest.id, update.current, update.manifest.desiredAfter);

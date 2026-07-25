@@ -1,4 +1,3 @@
-import type { BookingCatalogService } from "@/modules/booking-catalog/service";
 import { randomUUID } from "node:crypto";
 import type { createBookingEngineService } from "@/modules/booking-engine/service";
 import type { BeAppointment, BeBranch, BeClinicService, CreateAppointmentInput } from "@/modules/booking-engine/types";
@@ -55,7 +54,6 @@ async function persistBookingFormContacts(deps: CanonicalBookingDeps, createInpu
 export type CanonicalBookingDeps = {
   bookingsPort: PatientBookingsPort;
   syncPort: BookingSyncPort;
-  bookingCatalog: BookingCatalogService | null;
   bookingEngine: BookingEngineService | null;
   bookingScheduling: BookingSchedulingService | null;
   bookingForm: BookingFormService | null;
