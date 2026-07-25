@@ -70,4 +70,9 @@ export const inMemoryUserByPhonePort: UserByPhonePort = {
     usersByPhone.set(normalized, user);
     return { user, wasCreated: true };
   },
+
+  async invalidateSessionsForSelf(): Promise<void> {
+    // No-op: the in-memory port has no revocation-timestamp column to stamp. Real enforcement is
+    // covered by pgUserByPhone.invalidateSessionsForSelf + its dedicated tests.
+  },
 };

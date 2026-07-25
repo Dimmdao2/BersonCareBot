@@ -43,6 +43,10 @@ vi.mock("./sessionCookie", () => ({
   sessionTtlSecondsForRole: () => 3_600,
   shouldRenewSession: vi.fn(),
   writeFreshLoginMarkerCookie: vi.fn(),
+  // S2 remedy (2026-07-25): this file's fixtures use `issuedAt: 1` (1970) with a far-future
+  // `expiresAt`, which is exactly what the real absolute-max-age cap would reject — that concern
+  // is covered separately in service.sessionsValidFrom.test.ts, so it is neutralized here.
+  isSessionBeyondAbsoluteMaxAge: () => false,
 }));
 
 vi.mock("@/modules/system-settings/integrationRuntime", () => ({

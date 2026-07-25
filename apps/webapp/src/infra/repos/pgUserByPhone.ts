@@ -113,6 +113,7 @@ export const pgUserByPhonePort: UserByPhonePort = {
     }
     const userRow = await runIdentityPoolPgText(
       `SELECT pu.id, pu.display_name, pu.first_name, pu.last_name, pu.patronymic, pu.role, pu.phone_normalized,
+              pu.sessions_valid_from,
               COALESCE(sss.session_version, 0) AS security_version,
               COALESCE(sss.factor_required, false) AS security_factor_required
        FROM platform_users pu
@@ -130,6 +131,8 @@ export const pgUserByPhonePort: UserByPhonePort = {
       [canonicalId],
     );
     const bindings = bindingsFromRows(bindingsRows.rows);
+    const sessionsValidFromMs =
+      u.sessions_valid_from != null ? new Date(u.sessions_valid_from).getTime() : NaN;
     return {
       userId: u.id,
       role: parseUserRole(u.role, "find_by_user_id.role"),
@@ -141,7 +144,24 @@ export const pgUserByPhonePort: UserByPhonePort = {
       bindings,
       securityVersion: u.security_version,
       securityFactorRequired: u.security_factor_required,
+      ...(Number.isFinite(sessionsValidFromMs)
+        ? { sessionsValidFrom: Math.floor(sessionsValidFromMs / 1000) }
+        : {}),
     };
+  },
+
+  /**
+   * S2 remedy (2026-07-25): stamps `platform_users.sessions_valid_from = now()` for the caller's
+   * OWN row. Must run under the identity-self principal (see
+   * `app-layer/principal/staffSecuritySelfPrincipal.ts` — `enterStaffSecuritySelfPrincipal` /
+   * `runWithStaffSecuritySelfPrincipal`), exactly like `findByUserId` above; the DB function reads
+   * that same principal via `app.require_staff_security_self_user_id()` and raises if it is
+   * missing. Used by logout and password reset — both self-operations, both today unable to revoke
+   * anything (logout never touched the DB at all; password reset's staff-only revoke silently
+   * no-ops when no `staff_security_profiles` row exists, which is every current TEST user).
+   */
+  async invalidateSessionsForSelf(): Promise<void> {
+    await runIdentityPoolPgText("SELECT app.stamp_platform_user_sessions_valid_from_self()");
   },
 
   async findByPhone(normalizedPhone: string): Promise<SessionUser | null> {

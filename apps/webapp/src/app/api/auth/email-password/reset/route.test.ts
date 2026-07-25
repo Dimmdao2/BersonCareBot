@@ -4,6 +4,7 @@ const findVerified = vi.fn();
 const updatePasswordHash = vi.fn();
 const getSecurityStatus = vi.fn();
 const revokeSessions = vi.fn();
+const invalidateSessionsForSelf = vi.fn();
 
 vi.mock("@/app-layer/di/buildAppDeps", () => ({
   buildAppDeps: () => ({
@@ -14,6 +15,9 @@ vi.mock("@/app-layer/di/buildAppDeps", () => ({
     staffSecurity: {
       getStatus: getSecurityStatus,
       revokeSessions,
+    },
+    userByPhone: {
+      invalidateSessionsForSelf,
     },
   }),
 }));
@@ -45,7 +49,9 @@ describe("POST /api/auth/email-password/reset", () => {
     consumeLatest.mockReset();
     getSecurityStatus.mockReset();
     revokeSessions.mockReset();
+    invalidateSessionsForSelf.mockReset();
     getSecurityStatus.mockResolvedValue(null);
+    invalidateSessionsForSelf.mockResolvedValue(undefined);
   });
 
   it("rejects a disabled email channel before lookup, consumption, or password mutation", async () => {
@@ -96,6 +102,7 @@ describe("POST /api/auth/email-password/reset", () => {
 
     expect(revokeSessions).toHaveBeenCalledWith();
     expect(revokeSessions.mock.invocationCallOrder[0]).toBeLessThan(updatePasswordHash.mock.invocationCallOrder[0]!);
+    expect(invalidateSessionsForSelf).toHaveBeenCalledWith();
     expect(res.status).toBe(200);
   });
 
@@ -123,6 +130,35 @@ describe("POST /api/auth/email-password/reset", () => {
     expect(res.status).toBe(200);
     const body = (await res.json()) as { ok?: boolean };
     expect(body.ok).toBe(true);
+  });
+
+  it("S2 remedy 2026-07-25: stamps sessions_valid_from unconditionally, even with NO staff_security_profiles row (getStatus() -> null, the every-TEST-user case the audit found)", async () => {
+    const uid = "550e8400-e29b-41d4-a716-446655440000";
+    findVerified.mockResolvedValueOnce(uid);
+    consumeLatest.mockResolvedValueOnce({ ok: true });
+    getSecurityStatus.mockResolvedValueOnce(null);
+    updatePasswordHash.mockResolvedValueOnce(undefined);
+
+    const res = await POST(
+      new Request("http://localhost/api/auth/email-password/reset", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          email: "profileless@example.com",
+          code: "123456",
+          newPassword: "newsecret12",
+        }),
+      }),
+    );
+
+    expect(res.status).toBe(200);
+    // The old `if (security) revokeSessions()` was a no-op here (security === null) — this is the
+    // unconditional call that fixes it.
+    expect(revokeSessions).not.toHaveBeenCalled();
+    expect(invalidateSessionsForSelf).toHaveBeenCalledWith();
+    expect(invalidateSessionsForSelf.mock.invocationCallOrder[0]).toBeLessThan(
+      updatePasswordHash.mock.invocationCallOrder[0]!,
+    );
   });
 
   it("uses consumeEmailChallengeCode when challengeId is provided", async () => {
