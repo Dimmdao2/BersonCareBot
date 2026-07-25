@@ -2,18 +2,22 @@
 -- Pre-migration identity normalization for the owner's OWN accounts. Run ONCE per fresh prod copy,
 -- BEFORE the SaaS migrations (deploy-test-saas.sh / deploy-saas-667.sh step 2).
 --
--- Owner intent (2026-07-13), anchored on STABLE PHONES (emails historically moved between merged dups,
--- so ID/email fingerprints drift; the phone is the reliable anchor):
---   * DOCTOR  = phone +79643805480  → must be role 'doctor' and own email dimmdao@yandex.ru; its dups
---                consolidated into one canonical (non-merged) row.
---   * OWNER EMAIL = dimmdao@gmail.com → may elevate only through the fresh DB-backed
---                   `admin_emails` policy; it is never persisted as platform_users.role='admin'.
---   * CLIENT  = phone +79189000782 (a same-name 'Дмитрий Берсон' client) → must NOT hold the yandex email.
+-- Owner intent (2026-07-13, CORRECTED 2026-07-25), anchored on STABLE PHONES for the doctor (emails
+-- historically moved between merged dups, so ID/email fingerprints drift; the phone is the reliable
+-- anchor) and on the STABLE EMAIL for the global admin:
+--   * DOCTOR       = phone +79643805480  → role 'doctor', owns email dimmdao@yandex.ru; its dups
+--                    consolidated into one canonical (non-merged) row.
+--   * GLOBAL ADMIN = email dimmdao@gmail.com → a clean dedicated account, HARD-SET role='admin' in the
+--                    database (owner 2026-07-25). This is a real persisted global admin, NOT a
+--                    session-only `admin_emails` elevation. The app already reads role='admin' as
+--                    adminMode=true (apps/webapp/src/modules/auth/service.ts:102), so the hard role is
+--                    the single source of truth. `admin_emails` may stay as a harmless redundant belt.
+--   * CLIENT       = phone +79189000782 (a same-name 'Дмитрий Берсон' client) → must hold NO email
+--                    (neither yandex nor gmail).
 --
 -- Preserves ALL patient rows and appointments — this script NEVER deletes patient/appointment data.
--- IDEMPOTENT: every step is independently safe to re-run; nothing is gated behind a single fragile
--- precondition (the previous version silently skipped the role flip once the email had drifted). Fails
--- LOUDLY on an unexpected shape (un-merged doctor duplicates) instead of guessing.
+-- IDEMPOTENT: every step is independently safe to re-run. Fails LOUDLY on an unexpected shape
+-- (un-merged doctor duplicates, or more than one live row holding the gmail admin email) instead of guessing.
 --
 -- NOTE (owner, 2026-07-13): on prod NO new doctors/admins can legitimately appear — the owner only logs
 -- in with existing credentials (two desktop browsers + phone PWA). Un-merged duplicates ⇒ a real
@@ -26,8 +30,11 @@ DECLARE
   c_doctor_phone constant text := '+79643805480';
   c_client_phone constant text := '+79189000782';
   c_doctor_email constant text := 'dimmdao@yandex.ru';
+  c_admin_email  constant text := 'dimmdao@gmail.com';
   v_canonical_doctor uuid;
+  v_global_admin uuid;
   v_doctor_live int;
+  v_admin_live int;
   v_archived_empty_admins int;
 BEGIN
   -- 0. Exactly ONE live (non-merged) row must carry the doctor phone. If prod ever grows un-merged
@@ -51,6 +58,13 @@ BEGIN
     AND merged_into_id IS NULL
     AND email_normalized = c_doctor_email;
 
+  -- 1b. The same-name CLIENT must hold NO email at all — strip the gmail admin email too if it drifted there.
+  UPDATE platform_users
+  SET email = NULL, email_normalized = NULL, updated_at = now()
+  WHERE phone_normalized = c_client_phone
+    AND merged_into_id IS NULL
+    AND email_normalized = c_admin_email;
+
   -- 2. Free the yandex email from any OTHER LIVE row that is not the canonical doctor (defensive), so the
   --    canonical doctor can own it. Merged (dead) rows keep their historical email harmlessly.
   UPDATE platform_users
@@ -59,7 +73,7 @@ BEGIN
     AND merged_into_id IS NULL
     AND id <> v_canonical_doctor;
 
-  -- 3. THE fix: the canonical doctor must be role 'doctor' and own the yandex email. Unconditional + idempotent.
+  -- 3. THE doctor fix: the canonical doctor must be role 'doctor' and own the yandex email. Unconditional + idempotent.
   UPDATE platform_users
   SET role = 'doctor',
       email = c_doctor_email,
@@ -68,17 +82,45 @@ BEGIN
   WHERE id = v_canonical_doctor
     AND (role <> 'doctor' OR email_normalized IS DISTINCT FROM c_doctor_email);
 
-  -- 4. Do NOT create an admin row for the owner email. Its global-admin elevation is
-  -- session-only and re-evaluates the DB-backed `admin_emails` policy on every refresh.
+  -- 4. THE admin fix (owner 2026-07-25): the account holding the gmail email is the GLOBAL ADMIN and must
+  --    be HARD-SET role='admin' in the database — a real persisted global admin, not a session-only
+  --    `admin_emails` elevation. Exactly one live row may hold this email; STOP otherwise (a duplicate is a
+  --    real account-duplication bug to investigate, not something to guess through).
+  SELECT count(*) INTO v_admin_live
+  FROM platform_users
+  WHERE email_normalized = c_admin_email AND merged_into_id IS NULL;
+  IF v_admin_live <> 1 THEN
+    RAISE EXCEPTION 'doctor-admin data-fix: expected exactly 1 live row on admin email %, found % (merge/split duplicates first)',
+      c_admin_email, v_admin_live;
+  END IF;
+
+  SELECT id INTO v_global_admin
+  FROM platform_users
+  WHERE email_normalized = c_admin_email AND merged_into_id IS NULL;
+
+  -- The global admin must be a DEDICATED account, never the same row as the doctor.
+  IF v_global_admin = v_canonical_doctor THEN
+    RAISE EXCEPTION 'doctor-admin data-fix: gmail admin email % resolves to the doctor row % — they must be separate accounts',
+      c_admin_email, v_canonical_doctor;
+  END IF;
+
+  UPDATE platform_users
+  SET role = 'admin',
+      is_archived = FALSE,
+      updated_at = now()
+  WHERE id = v_global_admin
+    AND (role <> 'admin' OR is_archived IS DISTINCT FROM FALSE);
 
   -- 5. Archive identifier-less admin stubs before staff membership seeding. These rows have no login/channel
-  --    credential anchors and must not become active organization admins in 0143.
+  --    credential anchors and must not become active organization admins in 0143. (The real global admin
+  --    from step 4 carries an email, so it is never caught here.)
   UPDATE platform_users pu
   SET is_archived = TRUE,
       updated_at = now()
   WHERE pu.role = 'admin'
     AND pu.merged_into_id IS NULL
     AND pu.is_archived IS FALSE
+    AND pu.id <> v_global_admin
     AND pu.email_normalized IS NULL
     AND pu.phone_normalized IS NULL
     AND pu.integrator_user_id IS NULL
@@ -98,8 +140,16 @@ BEGIN
       v_canonical_doctor, c_doctor_email;
   END IF;
 
-  RAISE NOTICE 'doctor-admin data-fix OK: canonical doctor % = doctor/% ; owner email remains session-only ; archived empty admin stubs = %',
-    v_canonical_doctor, c_doctor_email, v_archived_empty_admins;
+  IF NOT EXISTS (
+    SELECT 1 FROM platform_users
+    WHERE id = v_global_admin AND role = 'admin' AND email_normalized = c_admin_email AND is_archived = FALSE
+  ) THEN
+    RAISE EXCEPTION 'doctor-admin data-fix: global admin % not normalized to admin/% (live)',
+      v_global_admin, c_admin_email;
+  END IF;
+
+  RAISE NOTICE 'doctor-admin data-fix OK: doctor % = doctor/% ; global admin % = admin/% (hard role) ; archived empty admin stubs = %',
+    v_canonical_doctor, c_doctor_email, v_global_admin, c_admin_email, v_archived_empty_admins;
 END $$;
 
 COMMIT;
