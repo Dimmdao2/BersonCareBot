@@ -132,9 +132,14 @@ export async function requireStaffPersonalInstallPage(): Promise<AppSession> {
   redirect(buildOwnHubUrlWithAccessDeniedToast(session.user.role));
 }
 
-function isMidEnrollmentOrRecoveryStaffSecuritySession(session: AppSession): boolean {
+// "recovery" / "recovery_confirmation" only ever follow an ACTUAL verified-factor event — a
+// backup-code login (login/factor route) or a freshly-verified TOTP code not yet confirmed with
+// its recovery codes (totp/verify route). Both mean the user has proven factor possession at
+// least once, so restricting here is real per-user opt-in behavior, independent of the platform
+// flag, and must not be weakened (owner constraint: never weaken real 2FA).
+function isMidRecoveryStaffSecuritySession(session: AppSession): boolean {
   const assurance = session.staffSecurity?.assurance;
-  return assurance === "pending_enrollment" || assurance === "recovery" || assurance === "recovery_confirmation";
+  return assurance === "recovery" || assurance === "recovery_confirmation";
 }
 
 /**
@@ -146,11 +151,22 @@ function isMidEnrollmentOrRecoveryStaffSecuritySession(session: AppSession): boo
  */
 export async function isRestrictedStaffSecuritySession(session: AppSession): Promise<boolean> {
   if (session.staffSecurity?.assurance === "factor_verified") return false;
-  if (isMidEnrollmentOrRecoveryStaffSecuritySession(session)) return true;
+  if (isMidRecoveryStaffSecuritySession(session)) return true;
   if (!canAccessDoctor(session.user.role)) return false;
   try {
-    // getServerRuntimeBool already treats a DB read failure as "flag off" internally; this
-    // catch only guards the (rare) case the call itself cannot be made. Same safe default.
+    // "pending_enrollment" (session set at login / signup-confirm whenever a
+    // staff_security_profiles row exists but no factor has ever been verified — see
+    // verifiedStaffPrimaryLogin.ts and specialist-signup/confirm/route.ts) used to restrict here
+    // unconditionally. That row is created merely by STARTING enrollment (totp/start route calls
+    // ensureProfile()), with no cancel action anywhere in the UI. An owner/staff account that
+    // already had full workspace access, then started and abandoned 2FA setup from
+    // Account → Security, got permanently walled off from every doctor-workspace page on every
+    // future login — even with `auth_2fa_enabled` OFF platform-wide — with no escape but a direct
+    // DB delete (incident reproduced 2026-07-25). A never-verified profile row must not reduce
+    // access the user already had unless the platform actually requires 2FA: fold
+    // "pending_enrollment" into the same flag-gated check as an unenrolled session with no row at
+    // all. getServerRuntimeBool already treats a DB read failure as "flag off" internally; the
+    // catch below only guards the (rare) case the call itself cannot be made. Same safe default.
     return await getServerRuntimeBool("auth_2fa_enabled");
   } catch {
     return false;

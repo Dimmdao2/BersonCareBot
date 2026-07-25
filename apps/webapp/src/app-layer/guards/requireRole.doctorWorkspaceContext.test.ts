@@ -123,7 +123,8 @@ describe("requireDoctorWorkspaceApiContext", () => {
     expect(gate.response.status).toBe(401);
   });
 
-  it("keeps a new specialist signup in account setup until the protected factor is complete", async () => {
+  it("global 2FA switch on: keeps a new specialist signup in account setup until the protected factor is complete", async () => {
+    getServerRuntimeBoolMock.mockResolvedValue(true);
     const pending = {
       ...session("doctor"),
       staffSecurity: { assurance: "pending_enrollment" as const },
@@ -136,6 +137,38 @@ describe("requireDoctorWorkspaceApiContext", () => {
     if (gate.ok) return;
     expect(gate.response.status).toBe(403);
     expect(resolveOrganizationForUserMock).not.toHaveBeenCalled();
+  });
+
+  it("global 2FA switch off: a never-verified security row alone does not wall off an already-accessible workspace", async () => {
+    // Regression for the 2026-07-25 lockout: starting (and abandoning) 2FA enrollment leaves a
+    // staff_security_profiles row with nothing verified. With auth_2fa_enabled off, that row must
+    // not restrict access the account already had — the gate must proceed to resolve membership
+    // exactly like a session with no security row at all.
+    const pending = {
+      ...session("doctor"),
+      staffSecurity: { assurance: "pending_enrollment" as const },
+    };
+    getCurrentSessionMock.mockResolvedValueOnce(pending);
+    resolveOrganizationForUserMock.mockResolvedValueOnce({
+      ok: true,
+      context: {
+        membershipId: "membership-1",
+        organizationId: ORG_1,
+        platformUserId: pending.user.userId,
+        role: "doctor",
+        specialistId: "specialist-1",
+        canManageOrganization: false,
+        canManageAllSpecialists: false,
+        canAccessClinicalWorkspace: true,
+      },
+    });
+
+    const gate = await requireDoctorWorkspaceApiContext();
+
+    expect(gate.ok).toBe(true);
+    expect(resolveOrganizationForUserMock).toHaveBeenCalledWith({
+      platformUserId: pending.user.userId,
+    });
   });
 
   it.each(["recovery", "recovery_confirmation"] as const)(
@@ -413,7 +446,7 @@ describe("requireDoctorApiSession", () => {
     expect(resolveOrganizationForUserMock).not.toHaveBeenCalled();
   });
 
-  it.each(["pending_enrollment", "recovery", "recovery_confirmation"] as const)(
+  it.each(["recovery", "recovery_confirmation"] as const)(
     "denies unrelated account and doctor APIs to a %s session",
     async (assurance) => {
       getCurrentSessionMock.mockResolvedValueOnce({
@@ -430,6 +463,35 @@ describe("requireDoctorApiSession", () => {
       expect(resolveOrganizationForUserMock).not.toHaveBeenCalled();
     },
   );
+
+  it("global 2FA switch on: denies a pending_enrollment session (never verified) from the doctor API", async () => {
+    getServerRuntimeBoolMock.mockResolvedValue(true);
+    getCurrentSessionMock.mockResolvedValueOnce({
+      ...session("doctor"),
+      staffSecurity: { assurance: "pending_enrollment" as const },
+    });
+
+    const gate = await requireDoctorApiSession();
+
+    expect(gate.ok).toBe(false);
+    if (gate.ok) return;
+    expect(gate.response.status).toBe(403);
+    await expect(gate.response.json()).resolves.toMatchObject({ error: "security_setup_required" });
+    expect(resolveOrganizationForUserMock).not.toHaveBeenCalled();
+  });
+
+  it("global 2FA switch off: a pending_enrollment session (never verified) is not blocked — abandoning enrollment must not lock out access already had", async () => {
+    const doctor = {
+      ...session("doctor"),
+      staffSecurity: { assurance: "pending_enrollment" as const },
+    };
+    getCurrentSessionMock.mockResolvedValueOnce(doctor);
+    resolveOrganizationForUserMock.mockResolvedValueOnce({ ok: false, reason: "no_active_membership" });
+
+    const gate = await requireDoctorApiSession();
+
+    expect(gate).toEqual({ ok: true, session: doctor });
+  });
 });
 
 describe("requireStaffSecurityApiSession", () => {
