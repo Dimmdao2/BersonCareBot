@@ -501,3 +501,46 @@ authorize rollout before readiness, and separate organization native apps remain
 - entitlement enabled + missing capability, and capability present + readiness failed, remain distinct;
 - legal/platform support remains reachable from public, join/auth, patient/staff and domain failure states.
 - BD-1/BD-4 and BD-3/BD-6 are ruled; BD-2/BD-5 are approved future custom-origin/generated-PWA capabilities, not launch gates.
+
+---
+
+## Implementation log — B1 backend foundation (2026-07-25)
+
+**Built:** `apps/webapp/db/drizzle-migrations/0238_org_brand_publication.sql` (single `org_brand_revisions` table
+with `status`+`published_at` on the revision, partial-unique "one published / one draft per org", DB-enforced state
+machine via `app.guard_org_brand_revision()`, FORCE RLS), module `apps/webapp/src/modules/org-branding/*`, repo
+`apps/webapp/src/infra/repos/pgOrgBranding.ts`, guard `requireOrgBrandingManagementContext`. Commit `361a1920c`.
+Scope: name + logo only. No colour/theme, no route/UI, no public/anonymous read path, and NOTHING from tier `F`
+(custom domain, per-origin PWA, org sender) — those stay absent per §2.
+
+**Independent adversarial audit (live, real signed principals on a from-dump disposable DB): SHIP-BLOCKED, 2 HIGH.**
+Proven SAFE live: staff of org A cannot read or write org B's brand (16 probes); a patient enrolled only in A cannot
+read B's published brand even when forced into a B context; drafts/archived invisible to patients; unprincipled
+session reads zero rows; patients hold no write privilege; no DELETE/TRUNCATE anywhere. The
+enrollment-vs-`current_org_id` predicate was judged CORRECT and kept — a patient's read set is exactly the union of
+their active enrollments, which §5.1/§5.5 require for multi-org patient shells, and it cannot reach a non-enrolled org.
+
+HIGH defects found (being fixed):
+1. **Patient read was feature-dead.** RLS policy expressions evaluate with the CALLER's privileges, and `app_patient`
+   holds no privilege on `public.be_organizations` (nor a read policy under its FORCE RLS), so every patient SELECT
+   raised `42501 permission denied for table be_organizations`. Fails closed, but the promised patient read is
+   undeliverable and the canonical-name degradation required by §3 would throw instead of degrading. Same blocker in
+   `getCoreContext()`. Secondary: because a SELECT policy also gates `UPDATE … WHERE`, staff access silently depended
+   on `app_staff` holding SELECT on `org_enrollments`.
+   → Fix direction: encapsulate the enrollment check and the canonical-name lookup in `SECURITY DEFINER` helpers
+   owned by the principal-helper owner role (the `app.current_*` pattern), so no policy depends on caller table
+   privileges. New `app.*` functions must be added to the closure's ownership-normalization preflight in
+   `deploy/host/deploy-test-saas.sh`, or the overlay later fails with "must be owner of function".
+2. **`ON DELETE SET NULL` on `logo_media_id` is dead and breaks media purge.** The FK's internal
+   `UPDATE … SET logo_media_id = NULL` trips the published/archived immutability guard (`P0001`), so the documented
+   "purging the asset degrades the brand" never happens; worse, `s3MediaStorage.purgePendingMediaDeleteBatch` deletes
+   the S3 objects FIRST and only tolerates SQLSTATE class `23`, so a whole purge batch dies with the assets already
+   gone (`strictPlatformUserPurge` shares the exposure). → Guard must tolerate exactly the FK-driven
+   non-NULL→NULL logo transition on published/archived rows, nothing wider.
+
+LOW / INFO to keep on the record: `org_brand_revisions` is absent from the enumerated `deploy/postgres/p0-5b-grants.sql`
+runtime-DML allowlist (its grants live only inside the migration); deleting a `be_organizations` row cascades brand
+history away (the one path that destroys the audit trail); a `draft` can never be discarded (no `draft→archived`, no
+DELETE grant); `org_brand_revision_published_content_is_immutable` is nearly unreachable; `REJECTED_MUTATION_KEYS` in
+the service is inert. Unverifiable in this slice: any HTTP/route behaviour and entitlement resolution against a real
+`org_entitlements` row (no consumer exists yet).
