@@ -1167,9 +1167,30 @@ run_owner_ready_locked_db_matrix(){
 }
 
 run_test_patient_identity_capability_gate(){
-  local runtime_login_role
+  local runtime_login_role fixtures_present
   runtime_login_role="$(discover_webapp_bootstrap_base_role)"
   validate_pg_identifier "patient identity runtime login role" "$runtime_login_role"
+
+  # This gate exercises the locked patient principal against the S3 demo clinics A/B, whose UUIDs it
+  # hardcodes (53000000-…-0000000000a1/b1 + their patients). Owner ruling 2026-07-25: those demo fixtures
+  # are retired ("они были нужны для проверки стен когда их ставили") and their seed step was removed from
+  # this closure, so on a from-zero run the gate has nothing to assert against and failed with
+  # 'locked patient identity capability rejected representative patient A'. Run it whenever the fixtures
+  # ARE present (then it must pass, unchanged strictness); skip loudly when they are not.
+  fixtures_present="$(sudo -u postgres psql -d "$DB" -X -v ON_ERROR_STOP=1 -tAc "
+    SELECT (
+      EXISTS (SELECT 1 FROM public.be_organizations WHERE id = '53000000-0000-4000-8000-0000000000a1')
+      AND EXISTS (SELECT 1 FROM public.be_organizations WHERE id = '53000000-0000-4000-8000-0000000000b1')
+      AND EXISTS (SELECT 1 FROM public.platform_users WHERE id = '53000000-0000-4000-8000-00000000a101')
+      AND EXISTS (SELECT 1 FROM public.platform_users WHERE id = '53000000-0000-4000-8000-00000000a201')
+    )::text")"
+  if [ "$fixtures_present" != "true" ]; then
+    echo "   SKIPPED: locked patient identity capability gate — S3 demo clinic fixtures are retired (owner 2026-07-25)."
+    echo "            Patient-wall enforcement itself is still asserted by the strict+FORCE finalizer and the"
+    echo "            reversible SaaS isolation scenario proof earlier in this closure."
+    return 0
+  fi
+
   sudo -u postgres psql -d "$DB" -X -v ON_ERROR_STOP=1 \
     -v patient_identity_runtime_login_role="$runtime_login_role" \
     -f "$DEPLOY_REPO/$TEST_PATIENT_IDENTITY_CAPABILITY_GATE"
