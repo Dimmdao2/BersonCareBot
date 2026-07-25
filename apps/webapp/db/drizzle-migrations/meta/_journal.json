@@ -1688,6 +1688,13 @@
       "when": 1793539200036,
       "tag": "0240_smtp_outbound_public_config_accessor",
       "breakpoints": true
+    },
+    {
+      "idx": 241,
+      "version": "7",
+      "when": 1793539200037,
+      "tag": "0241_platform_operations_audit_health_archive_global_view",
+      "breakpoints": true
     }
   ]
 }

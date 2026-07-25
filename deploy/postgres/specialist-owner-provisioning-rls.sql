@@ -67,6 +67,7 @@ SELECT (
   AND to_regclass('public.platform_users') IS NOT NULL
   AND to_regclass('public.be_organizations') IS NOT NULL
   AND to_regclass('public.be_organization_members') IS NOT NULL
+  AND to_regclass('public.be_specialists') IS NOT NULL
   AND to_regclass('public.saas_tariffs') IS NOT NULL
   AND to_regclass('public.saas_trial_policy') IS NOT NULL
   AND to_regclass('public.saas_organization_trials') IS NOT NULL
@@ -135,6 +136,7 @@ DECLARE
   v_platform_user_id uuid;
   v_organization_id uuid;
   v_membership_id uuid;
+  v_specialist_id uuid;
 BEGIN
   v_platform_user_id := app.require_staff_security_self_user_id();
 
@@ -157,118 +159,151 @@ BEGIN
     LIMIT 1
     FOR UPDATE;
 
-    IF FOUND
-      AND v_intent.provisioned_organization_id IS NOT NULL
-      AND v_intent.provisioned_membership_id IS NOT NULL THEN
-      RETURN QUERY SELECT
-        true,
-        NULL::text,
-        v_intent.provisioned_organization_id,
-        v_intent.provisioned_specialist_id,
-        v_intent.provisioned_membership_id;
+    IF NOT FOUND
+      OR v_intent.provisioned_organization_id IS NULL
+      OR v_intent.provisioned_membership_id IS NULL THEN
+      RETURN QUERY SELECT false, 'specialist_signup_intent_not_found'::text, NULL::uuid, NULL::uuid, NULL::uuid;
       RETURN;
     END IF;
 
-    RETURN QUERY SELECT false, 'specialist_signup_intent_not_found'::text, NULL::uuid, NULL::uuid, NULL::uuid;
-    RETURN;
+    -- Already provisioned: re-running stays idempotent. A pre-fix intent can still carry a NULL
+    -- provisioned_specialist_id (the exact dead-workspace defect this function now closes) --
+    -- fall through to the shared specialist-backfill block below instead of returning it bare.
+    v_organization_id := v_intent.provisioned_organization_id;
+    v_membership_id := v_intent.provisioned_membership_id;
+    v_specialist_id := v_intent.provisioned_specialist_id;
   END IF;
 
-  SELECT u.id
-  INTO v_user
-  FROM public.platform_users AS u
-  WHERE u.id = v_platform_user_id
-    AND u.merged_into_id IS NULL
-    AND u.email_verified_at IS NOT NULL
-  LIMIT 1
-  FOR UPDATE;
+  IF v_organization_id IS NULL THEN
+    SELECT u.id
+    INTO v_user
+    FROM public.platform_users AS u
+    WHERE u.id = v_platform_user_id
+      AND u.merged_into_id IS NULL
+      AND u.email_verified_at IS NOT NULL
+    LIMIT 1
+    FOR UPDATE;
 
-  IF NOT FOUND THEN
-    RETURN QUERY SELECT false, 'specialist_signup_user_not_verified'::text, NULL::uuid, NULL::uuid, NULL::uuid;
-    RETURN;
+    IF NOT FOUND THEN
+      RETURN QUERY SELECT false, 'specialist_signup_user_not_verified'::text, NULL::uuid, NULL::uuid, NULL::uuid;
+      RETURN;
+    END IF;
+
+    -- Lock the canonical identity before checking memberships so concurrent self-provision attempts
+    -- cannot both observe an empty membership set and create two owner organizations.
+    PERFORM 1
+    FROM public.be_organization_members AS m
+    WHERE m.platform_user_id = v_user.id
+      AND m.status = 'active'
+    LIMIT 1
+    FOR UPDATE;
+
+    IF FOUND THEN
+      RETURN QUERY SELECT false, 'specialist_signup_active_membership_exists'::text, NULL::uuid, NULL::uuid, NULL::uuid;
+      RETURN;
+    END IF;
+
+    UPDATE public.platform_users AS u
+    SET role = 'doctor',
+        display_name = v_intent.specialist_full_name,
+        updated_at = now()
+    WHERE u.id = v_user.id;
+
+    v_organization_id := gen_random_uuid();
+
+    INSERT INTO public.be_organizations (
+      id,
+      title,
+      is_active,
+      sort_order,
+      created_at,
+      updated_at
+    )
+    VALUES (
+      v_organization_id,
+      v_intent.organization_title,
+      true,
+      0,
+      now(),
+      now()
+    );
+
+    INSERT INTO public.be_organization_members (
+      organization_id,
+      platform_user_id,
+      role,
+      specialist_id,
+      status,
+      created_at,
+      updated_at
+    )
+    VALUES (
+      v_organization_id,
+      v_user.id,
+      'owner',
+      NULL,
+      'active',
+      now(),
+      now()
+    )
+    RETURNING id INTO v_membership_id;
+
+    -- Narrow platform-owned capability derives this exact organization from the signed principal
+    -- and fresh owner membership. It updates commercial state and creates the trial in this same
+    -- transaction; any failure rolls the complete provisioning command back.
+    PERFORM app.start_provisioned_organization_trial();
+
+    -- Same SECURITY DEFINER transaction: the new organization is not observable without its own
+    -- independent catalog snapshot. The helper only inserts the current repo-managed baseline.
+    PERFORM app.seed_reference_catalog_snapshot(v_organization_id);
   END IF;
 
-  -- Lock the canonical identity before checking memberships so concurrent self-provision attempts
-  -- cannot both observe an empty membership set and create two owner organizations.
-  PERFORM 1
-  FROM public.be_organization_members AS m
-  WHERE m.platform_user_id = v_user.id
-    AND m.status = 'active'
-  LIMIT 1
-  FOR UPDATE;
+  -- Bind the registering person's own bookable specialist in the SAME transaction as the
+  -- organization/membership: a membership left with specialist_id NULL makes
+  -- resolveLaunchCapabilities() withhold clinical.workspace forever (owner-reported dead
+  -- workspace). Column set mirrors ensureOwnBookableSpecialist()'s identical invited-staff
+  -- backfill (pgOrganizationProvisioning.ts). Guarded on v_specialist_id IS NULL so re-running
+  -- provisioning for an already-provisioned intent never creates a second specialist.
+  IF v_specialist_id IS NULL THEN
+    INSERT INTO public.be_specialists (
+      organization_id,
+      full_name,
+      is_active,
+      sort_order,
+      created_at,
+      updated_at
+    )
+    VALUES (
+      v_organization_id,
+      v_intent.specialist_full_name,
+      true,
+      0,
+      now(),
+      now()
+    )
+    RETURNING id INTO v_specialist_id;
 
-  IF FOUND THEN
-    RETURN QUERY SELECT false, 'specialist_signup_active_membership_exists'::text, NULL::uuid, NULL::uuid, NULL::uuid;
-    RETURN;
+    UPDATE public.be_organization_members
+    SET specialist_id = v_specialist_id,
+        updated_at = now()
+    WHERE id = v_membership_id
+      AND specialist_id IS NULL;
   END IF;
-
-  UPDATE public.platform_users AS u
-  SET role = 'doctor',
-      display_name = v_intent.specialist_full_name,
-      updated_at = now()
-  WHERE u.id = v_user.id;
-
-  v_organization_id := gen_random_uuid();
-
-  INSERT INTO public.be_organizations (
-    id,
-    title,
-    is_active,
-    sort_order,
-    created_at,
-    updated_at
-  )
-  VALUES (
-    v_organization_id,
-    v_intent.organization_title,
-    true,
-    0,
-    now(),
-    now()
-  );
-
-  INSERT INTO public.be_organization_members (
-    organization_id,
-    platform_user_id,
-    role,
-    specialist_id,
-    status,
-    created_at,
-    updated_at
-  )
-  VALUES (
-    v_organization_id,
-    v_user.id,
-    'owner',
-    NULL,
-    'active',
-    now(),
-    now()
-  )
-  RETURNING id INTO v_membership_id;
-
-  -- Narrow platform-owned capability derives this exact organization from the signed principal
-  -- and fresh owner membership. It updates commercial state and creates the trial in this same
-  -- transaction; any failure rolls the complete provisioning command back.
-  PERFORM app.start_provisioned_organization_trial();
-
-  -- Same SECURITY DEFINER transaction: the new organization is not observable without its own
-  -- independent catalog snapshot. The helper only inserts the current repo-managed baseline.
-  PERFORM app.seed_reference_catalog_snapshot(v_organization_id);
 
   UPDATE public.specialist_signup_intents AS i
   SET status = 'provisioned',
       provisioned_organization_id = v_organization_id,
       provisioned_membership_id = v_membership_id,
-      provisioned_specialist_id = NULL,
+      provisioned_specialist_id = v_specialist_id,
       provisioned_at = now()
   WHERE i.id = v_intent.id;
 
-  RETURN QUERY SELECT true, NULL::text, v_organization_id, NULL::uuid, v_membership_id;
+  RETURN QUERY SELECT true, NULL::text, v_organization_id, v_specialist_id, v_membership_id;
 END
 $$;
 
 COMMENT ON FUNCTION app.provision_specialist_owner(uuid) IS
-  'Signed identity-self specialist owner provisioning. Rejects a second active staff organization and defers be_specialists to a real staff principal.';
+  'Signed identity-self specialist owner provisioning. Rejects a second active staff organization and binds the registering person''s own be_specialists row to the fresh owner membership in the same transaction (idempotent: a re-run backfills a pre-existing intent missing provisioned_specialist_id but never creates a second specialist).';
 
 -- Owner-exempt trusted seam: app_owner is NOLOGIN + BYPASSRLS with zero SET ROLE members (asserted
 -- in the preflight above). provision_specialist_owner AND current_provisioned_owner_organization()
@@ -302,10 +337,14 @@ GRANT EXECUTE ON FUNCTION app.provision_specialist_owner(uuid) TO app_patient;
 -- clears FORCE RLS itself, but table-level GRANT is a separate, still-required gate -- confirmed:
 -- app_owner already has pre-existing SELECT on public.be_organizations and
 -- public.be_organization_members from unrelated features, sufficient for
--- current_provisioned_owner_organization()'s read; only the three grants below were missing).
+-- current_provisioned_owner_organization()'s read; only the four grants below were missing).
+-- be_specialists is FORCE-RLS with a staff+org policy (see organization-member-invites-rls.sql);
+-- app_owner clears it via BYPASSRLS (asserted in the preflight above), so only the table-level
+-- INSERT grant is needed for the same-transaction specialist bind above.
 GRANT EXECUTE ON FUNCTION app.require_staff_security_self_user_id() TO app_owner;
 GRANT INSERT ON TABLE public.be_organizations TO app_owner;
 GRANT SELECT, UPDATE ON TABLE public.specialist_signup_intents TO app_owner;
+GRANT INSERT ON TABLE public.be_specialists TO app_owner;
 
 SELECT 1 / (
   EXISTS (
@@ -324,6 +363,7 @@ SELECT 1 / (
   AND has_table_privilege('app_owner', 'public.be_organization_members', 'SELECT')
   AND has_table_privilege('app_owner', 'public.specialist_signup_intents', 'SELECT')
   AND has_table_privilege('app_owner', 'public.specialist_signup_intents', 'UPDATE')
+  AND has_table_privilege('app_owner', 'public.be_specialists', 'INSERT')
 )::int AS specialist_owner_provisioning_seam_ready;
 \endif
 

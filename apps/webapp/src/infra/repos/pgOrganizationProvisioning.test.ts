@@ -89,7 +89,7 @@ describe("createPgOrganizationProvisioningPort", () => {
     );
     expect(provisioning).not.toContain("p_platform_user_id uuid");
     expect(provisioning).toContain("specialist_signup_active_membership_exists");
-    expect(provisioning.indexOf("PERFORM 1\n  FROM public.be_organization_members")).toBeLessThan(
+    expect(provisioning.indexOf("PERFORM 1\n    FROM public.be_organization_members")).toBeLessThan(
       provisioning.indexOf("v_organization_id := gen_random_uuid()"),
     );
     expect(baseGrants).toContain("app.create_specialist_signup_intent(uuid, text, text, text)");

@@ -1,18 +1,22 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const { requireAdminModeSessionMock, buildAppDepsMock, listForAdminMock } = vi.hoisted(() => {
-  const requireAdminModeSessionMock = vi.fn();
+const { guardMock, buildAppDepsMock, listForAdminMock } = vi.hoisted(() => {
+  const guardMock = vi.fn();
   const listForAdminMock = vi.fn();
   const buildAppDepsMock = vi.fn(() => ({
     healthFailureArchive: {
       listForAdmin: listForAdminMock,
     },
   }));
-  return { requireAdminModeSessionMock, buildAppDepsMock, listForAdminMock };
+  return { guardMock, buildAppDepsMock, listForAdminMock };
 });
 
-vi.mock("@/modules/auth/requireAdminMode", () => ({
-  requireAdminModeSession: requireAdminModeSessionMock,
+// This route is a global-admin-only platform surface: it now guards with
+// requirePlatformOperationsApiContext() (which also stamps the "platform" DB principal), not
+// requireAdminModeSession() — see route.ts for why (the old guard checked role+adminMode but never
+// stamped a DB principal, so operator_health_failure_archive reads 42501'd for a real session).
+vi.mock("@/app-layer/guards/requireRole", () => ({
+  requirePlatformOperationsApiContext: guardMock,
 }));
 
 vi.mock("@/app-layer/di/buildAppDeps", () => ({
@@ -23,17 +27,17 @@ import { GET } from "./route";
 
 describe("GET /api/admin/health-failure-archive", () => {
   beforeEach(() => {
-    requireAdminModeSessionMock.mockReset();
+    guardMock.mockReset();
     listForAdminMock.mockReset();
     buildAppDepsMock.mockClear();
-    requireAdminModeSessionMock.mockResolvedValue({
+    guardMock.mockResolvedValue({
       ok: true,
-      session: { user: { userId: "a1", role: "admin" } },
+      session: { user: { userId: "a1", role: "admin" }, adminMode: true },
     });
   });
 
   it("returns 403 when gate fails", async () => {
-    requireAdminModeSessionMock.mockResolvedValueOnce({
+    guardMock.mockResolvedValueOnce({
       ok: false,
       response: new Response(JSON.stringify({ ok: false }), { status: 403 }),
     });

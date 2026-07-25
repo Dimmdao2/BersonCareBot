@@ -3,12 +3,14 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const {
   requireAdminModeSessionMock,
   requireDoctorWorkspaceApiContextMock,
+  requirePlatformOperationsApiContextMock,
   withDoctorWorkspacePrincipalMock,
   listAdminAuditLogMock,
   countOpenAutoMergeConflictsMock,
 } = vi.hoisted(() => ({
   requireAdminModeSessionMock: vi.fn(),
   requireDoctorWorkspaceApiContextMock: vi.fn(),
+  requirePlatformOperationsApiContextMock: vi.fn(),
   withDoctorWorkspacePrincipalMock: vi.fn((_ctx: unknown, fn: () => unknown) => fn()),
   listAdminAuditLogMock: vi.fn(),
   countOpenAutoMergeConflictsMock: vi.fn(),
@@ -20,6 +22,7 @@ vi.mock("@/modules/auth/requireAdminMode", () => ({
 
 vi.mock("@/app-layer/guards/requireRole", () => ({
   requireDoctorWorkspaceApiContext: requireDoctorWorkspaceApiContextMock,
+  requirePlatformOperationsApiContext: requirePlatformOperationsApiContextMock,
 }));
 
 vi.mock("@/app-layer/guards/doctorWorkspacePrincipal", () => ({
@@ -49,6 +52,7 @@ describe("GET /api/admin/audit-log", () => {
   beforeEach(() => {
     requireAdminModeSessionMock.mockReset();
     requireDoctorWorkspaceApiContextMock.mockReset();
+    requirePlatformOperationsApiContextMock.mockReset();
     withDoctorWorkspacePrincipalMock.mockClear();
     listAdminAuditLogMock.mockReset();
     countOpenAutoMergeConflictsMock.mockReset();
@@ -56,6 +60,10 @@ describe("GET /api/admin/audit-log", () => {
     requireDoctorWorkspaceApiContextMock.mockResolvedValue({
       ok: true,
       ctx: { organizationId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa" },
+    });
+    requirePlatformOperationsApiContextMock.mockResolvedValue({
+      ok: true,
+      session: { user: { userId: "a1", role: "admin" }, adminMode: true },
     });
   });
 
@@ -198,5 +206,35 @@ describe("GET /api/admin/audit-log", () => {
       expect.anything(),
       expect.objectContaining({ involvesPlatformUserId: uid }),
     );
+  });
+
+  describe("global admin (platform.operations)", () => {
+    it("uses requirePlatformOperationsApiContext, never requireDoctorWorkspaceApiContext, and skips org scoping", async () => {
+      requireAdminModeSessionMock.mockResolvedValue({
+        ok: true,
+        session: { user: { userId: "a1", role: "admin" }, adminMode: true },
+      });
+      listAdminAuditLogMock.mockResolvedValue({ items: [], total: 0, page: 1, limit: 50 });
+      const res = await GET(new Request("http://localhost/api/admin/audit-log?page=1"));
+      expect(res.status).toBe(200);
+      expect(requirePlatformOperationsApiContextMock).toHaveBeenCalled();
+      expect(requireDoctorWorkspaceApiContextMock).not.toHaveBeenCalled();
+      expect(withDoctorWorkspacePrincipalMock).not.toHaveBeenCalled();
+      expect(listAdminAuditLogMock).toHaveBeenCalled();
+    });
+
+    it("returns the platform gate's response when the global admin is restricted (e.g. 2FA)", async () => {
+      requireAdminModeSessionMock.mockResolvedValue({
+        ok: true,
+        session: { user: { userId: "a1", role: "admin" }, adminMode: true },
+      });
+      requirePlatformOperationsApiContextMock.mockResolvedValueOnce({
+        ok: false,
+        response: new Response(JSON.stringify({ ok: false, error: "forbidden" }), { status: 403 }),
+      });
+      const res = await GET(new Request("http://localhost/api/admin/audit-log?page=1"));
+      expect(res.status).toBe(403);
+      expect(listAdminAuditLogMock).not.toHaveBeenCalled();
+    });
   });
 });

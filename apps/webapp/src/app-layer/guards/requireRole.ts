@@ -157,7 +157,23 @@ export async function isRestrictedStaffSecuritySession(session: AppSession): Pro
   }
 }
 
-/** Platform-only RSC entry. It intentionally does not resolve an organization membership. */
+/**
+ * Platform-only RSC entry. It intentionally does not resolve an organization membership.
+ *
+ * Stamps the dedicated "platform" DB principal (SET ROLE app_platform_settings) best-effort, the
+ * same way `requirePlatformOperationsApiContext` already does for the API boundary. Without this,
+ * every RSC page under `(global-admin)/doctor/**` (app-settings, technical, auth, integrations,
+ * booking, commercial, usage, analytics) rendered with no DB principal beyond the ambient
+ * "bootstrap" one, which routes the webapp DB pool to "nonstaff" (webappPoolProvider.ts's
+ * choosePoolKindForPrincipal only routes "organization" | "staff" | "platform" to "staff"). The
+ * nonstaff login role has no table-level SELECT on system_settings, so every direct
+ * `readAdminSystemSettingString`/`listSettingsByScope` read 42501'd with "permission denied for
+ * table system_settings" (reproduced live on TEST 2026-07-25, 9 occurrences across these pages in
+ * one session) and Next.js surfaced the generic Server Components error page. Stamping "platform"
+ * here routes those same reads through the staff pool with SET ROLE app_platform_settings, which
+ * already holds SELECT/INSERT/UPDATE on system_settings and app_runtime_settings
+ * (deploy/postgres/u9a-platform-settings-role.sql) — no new table grant needed for this page.
+ */
 export async function requirePlatformOperationsPage(): Promise<AppSession> {
   ensureDbPrincipalContext({ source: "requirePlatformOperationsPage:pending" });
   const session = await requireSession();
@@ -170,6 +186,18 @@ export async function requirePlatformOperationsPage(): Promise<AppSession> {
   }
   if (await isRestrictedStaffSecuritySession(session)) {
     redirect("/app");
+  }
+  if (isPlatformUserUuid(session.user.userId)) {
+    try {
+      enterWithDbPlatformPrincipal({
+        platformUserId: session.user.userId,
+        source: PLATFORM_OPERATIONS_DB_SOURCE,
+      });
+    } catch {
+      // Best-effort, same contract as stampStaffPrincipal: a malformed/dev session id skips
+      // stamping rather than 500ing the page. Reads then stay on today's (broken) nonstaff pool
+      // instead of getting worse.
+    }
   }
   return session;
 }

@@ -9,7 +9,7 @@ vi.mock("@/modules/system-settings/configAdapter", () => ({
 }));
 
 import { getCurrentDbPrincipal, runWithDbBootstrapPrincipal } from "@bersoncare/db-principal";
-import { requirePlatformOperationsApiContext } from "./requireRole";
+import { requirePlatformOperationsApiContext, requirePlatformOperationsPage } from "./requireRole";
 
 const platform = {
   user: { userId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa", role: "admin" as const, bindings: {} },
@@ -85,6 +85,38 @@ describe("requirePlatformOperationsApiContext", () => {
     await runWithDbBootstrapPrincipal({ source: "test" }, async () => {
       const result = await requirePlatformOperationsApiContext();
       expect(result.ok).toBe(true);
+    });
+  });
+});
+
+// requirePlatformOperationsPage: the RSC-page counterpart. Regression coverage for the 2026-07-25
+// fix — the page guard used to gate access without ever stamping a DB principal, so every RSC page
+// under (global-admin)/doctor/** rendered under "bootstrap", routing the webapp DB pool to
+// "nonstaff" and 42501'ing on any direct system_settings/admin_audit_log/... read.
+describe("requirePlatformOperationsPage", () => {
+  beforeEach(() => {
+    getCurrentSessionMock.mockReset();
+    getServerRuntimeBoolMock.mockReset().mockResolvedValue(false);
+  });
+
+  it("stamps the platform DB principal for a global admin", async () => {
+    getCurrentSessionMock.mockResolvedValue(platform);
+    await runWithDbBootstrapPrincipal({ source: "test" }, async () => {
+      const session = await requirePlatformOperationsPage();
+      expect(session).toBe(platform);
+      expect(getCurrentDbPrincipal()).toMatchObject({ kind: "platform", platformUserId: platform.user.userId });
+    });
+  });
+
+  it("does not stamp a platform principal (and does not throw) for a non-UUID dev/legacy session id", async () => {
+    getCurrentSessionMock.mockResolvedValue({
+      user: { userId: "admin-1", role: "admin" as const, bindings: {} },
+      adminMode: true,
+    });
+    await runWithDbBootstrapPrincipal({ source: "test" }, async () => {
+      const session = await requirePlatformOperationsPage();
+      expect(session.user.userId).toBe("admin-1");
+      expect(getCurrentDbPrincipal()).toMatchObject({ kind: "bootstrap" });
     });
   });
 });
