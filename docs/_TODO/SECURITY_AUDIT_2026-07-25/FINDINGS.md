@@ -36,6 +36,62 @@ genuinely atomic (`FOR UPDATE` inside one transaction) and re-checks `merged_int
 chain is walked at both create and redeem so a code cannot redeem into a dead identity; per-IP 10/min plus
 per-address 60s cooldown; `X-Real-Ip` only (not `X-Forwarded-For`) and fail-closed in production.
 
+### S1 — INDEPENDENT AUDIT VERDICT (both HIGH knocked down; a worse thing found underneath)
+
+| # | Verdict | Correction |
+|---|---|---|
+| 1 | **PARTLY CONFIRMED → LOW/MEDIUM, not HIGH** | The missing purpose binding is real and confirmed on the live DB (no discriminator in the table, none encoded in `code_hash`, one single insert site with 9 callers, consume selects by e-mail only `ORDER BY created_at DESC LIMIT 1`). But the worker's **actor claim is false**: `app/api/doctor/patients/[userId]/email-change/route.ts:42` requires `session.user.role === "admin"` — the **global platform admin**, not a clinic admin (clinic admins are membership-capability, never session role `admin`). In 8 of the 9 flows the challenge's `user_id` IS the party receiving the code, so cross-redemption gains nothing; only the admin-initiated patient e-mail change is real, and there the delta over the intended flow is exactly one removed requirement — the patient's own session. The account e-mail is rewritten to the admin-chosen address by BOTH paths, so "hand the account to an outside mailbox" is already inherent in the shipped feature; what redemption adds is that the mailbox holder alone finishes it and gets a patient session. **Impersonation, not extra read, by the platform's most privileged principal — who can already mint elevated access directly.** No 2FA gate is skipped because none is armed (`auth_2fa_enabled=false`, zero `staff_security_profiles` rows). Fix it because it arms the moment the roadmap opens that route to clinic admins by capability, not for today's blast radius. |
+| 2 | **PARTLY CONFIRMED → MEDIUM, not HIGH; "cap defeated" REFUTED** | The read-then-write shape is confirmed in live `prosrc` (`STABLE` finders, no `FOR UPDATE`, absolute `SET attempts = p_attempts`, each statement its own autocommit) and the absolute set can even **rewind** the counter. But the amplification is architecturally bounded at **N ≤ 2**: an unauthenticated auth route stamps a `bootstrap` principal, which routes to the nonstaff pool with `max: 2` (`webappPoolProvider.ts:209-216,384`), and there is a single webapp process. Arithmetic with 900 000 codes and cap 4: baseline 240 guesses/h → 50 % at ~108 days; with the race ≤480/h → **~54 days**, while emitting ≥60 unexpected OTP e-mails per hour to the victim for weeks. So it is a **~2× weakening, not a defeat** — but the bound is incidental and scales straight back if pool `max` or the instance count is raised. Worker error: `/specialist-signup/confirm` is not a real surface (the `challengeId` is an unguessable UUID from the attacker's own signup). |
+| 3-6 | as reported | Timing/enumeration and the constant drift stand; the drift resolves as cap **4** on the JS paths and **5** inside the atomic function. |
+
+**The bigger half of claim 2, which the worker buried: there is NO verification rate limiting at all on six auth
+routes.** `isEmailOtpStartRateLimitedByKey` (10/min per IP) is imported by exactly two routes —
+`email-otp/start` and `email-otp/register`. Nothing limits `/email-password/reset`, `/email-password/forgot`,
+`/email-password/setup-code/complete`, `/email/confirm`, `/specialist-signup/confirm` **or `/email-otp/confirm`**;
+`proxy.ts` does CSRF and redirects only; and there is **no `limit_req`/`limit_conn` in any live nginx vhost or in
+`deploy/nginx/*.conf`**. An unauthenticated attacker grinds guesses indefinitely with no IP block and no signal.
+
+**MISSED BY BOTH — the escalation payload, and it points at our own new global admin.**
+`getCurrentSession` (`modules/auth/service.ts:990-998`) elevates **any** session to `role: "admin"` on every
+request if the account's *verified* e-mail appears in the `admin_emails` setting. Chain: authenticated patient →
+`POST /api/auth/email/start` with an allowlisted address (caller-chosen, `email/start/route.ts:41`) → brute-force
+the code at `POST /api/auth/email/confirm`, which uses the **non-atomic** counter and has **no per-IP limit** →
+`claimVerifiedEmail` stamps `email_verified_at` on the attacker's own row → the next request is a global-admin
+session. **Dormant today** (`admin_emails` has no row; `runtimeConfig.ts:134` defaults it to `""`), and it arms
+the moment that field is filled in the platform-settings UI. **MEDIUM now, HIGH when armed.** This is a concrete
+reason never to populate `admin_emails` — the standing note `auth-role-by-allowlist-is-stopgap` should be read as
+"do not arm it", and the hard `role='admin'` in the DB (owner ruling, migration 0233) is what makes the allowlist
+unnecessary.
+
+**And the highest-value brute-force target today is the freshly created global admin.** TEST holds one
+`role='admin'` row in `needs_email_setup` state (e-mail set, `email_verified_at` NULL, no password credential).
+`POST /api/auth/email-password/forgot` returns the `challengeId` **openly to an unauthenticated caller** for that
+state (`forgot/route.ts:54-62`), and `/email-password/setup-code/complete` then **sets a password and issues a
+session** on a correct code — on an unlimited, non-atomic counter, with no TOTP profile to stop it. Prod values
+for `admin_emails` and `auth_2fa_enabled` were NOT read and may differ.
+
+Every one of the worker's seven "verified safe" items was independently re-verified and **holds**, with two INFO
+caveats it missed: `emailCodePepper()` (`emailAuth.ts:42-44`) falls back to the hardcoded literal
+`"test-email-pepper"` when both secrets are absent, with no production assert at that site; and the pepper reuses
+the integrator webhook secret cross-purpose. Single-round SHA-256 over a 6-digit code is safe only while that
+pepper is secret. `X-Real-Ip` handling is genuinely safe — nginx overwrites any client value and the route answers
+503 in production when it is missing.
+
+Not verified: the race was never executed (no writes to TEST, no endpoint exercise) — the interleave is proven
+from live `prosrc` plus the autocommit transport, and the ≤2 bound is derived from pool config and a
+single-process `systemctl` state, not measured.
+
+### Remedy queued for S1 (unambiguous parts, no owner decision needed)
+
+1. Make the attempt counter atomic on every consume path — `FOR UPDATE` + `SET attempts = attempts + 1`, exactly
+   the pattern migration 0232 already proved on the login path. Also settles the 4-vs-5 drift.
+2. Add the existing per-IP limiter to the six unprotected confirm/reset routes, reusing the 10/min shape rather
+   than inventing a second mechanism.
+3. Bind a challenge to its purpose (a `purpose` column, checked at redemption) so a code minted by one flow cannot
+   be redeemed by another. Latent today, mandatory before clinic admins get the patient e-mail-change route.
+4. Never populate `admin_emails`; treat the DB `role` as the only admin source. Removing the session-elevation
+   path entirely is an owner decision, not a defect fix.
+
 ## S2 — session cookie and revocation (worker output, AWAITING AUDIT)
 
 | # | Proposed | Claim | Where |
