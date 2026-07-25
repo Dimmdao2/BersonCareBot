@@ -34,6 +34,24 @@ export const postPhase4StrictPolicyExceptions = new Map([
     },
   ],
   [
+    "public.org_brand_revisions",
+    {
+      reason:
+        "Post-Phase-4 UX-05 B1 organization brand publication is created with exact-org FORCE RLS plus a published-only enrolled-patient read policy in its own migration.",
+      policyPath: "apps/webapp/db/drizzle-migrations/0238_org_brand_publication.sql",
+      policyTokens: [
+        "ALTER TABLE public.org_brand_revisions ENABLE ROW LEVEL SECURITY;",
+        "ALTER TABLE public.org_brand_revisions FORCE ROW LEVEL SECURITY;",
+        "CREATE POLICY org_brand_revisions_exact_org_staff ON public.org_brand_revisions",
+        "app.is_staff() AND app.current_org_id() IS NOT NULL AND organization_id = app.current_org_id()",
+        "CREATE POLICY org_brand_revisions_enrolled_patient_published_read ON public.org_brand_revisions",
+        "AND app.current_patient_user_id() IS NOT NULL",
+        "GRANT SELECT, INSERT, UPDATE ON TABLE public.org_brand_revisions TO app_staff;",
+        "GRANT SELECT ON TABLE public.org_brand_revisions TO app_patient;",
+      ],
+    },
+  ],
+  [
     "public.manual_patient_commands",
     {
       reason:

@@ -1667,6 +1667,13 @@
       "when": 1793539200033,
       "tag": "0237_r7_drop_public_rubitime_mirror_tables",
       "breakpoints": true
+    },
+    {
+      "idx": 238,
+      "version": "7",
+      "when": 1793539200034,
+      "tag": "0238_org_brand_publication",
+      "breakpoints": true
     }
   ]
 }

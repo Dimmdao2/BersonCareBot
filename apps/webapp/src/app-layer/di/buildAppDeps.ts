@@ -324,6 +324,9 @@ import { createInMemoryOrgEntitlementsPort } from "@/infra/repos/inMemoryOrgEnti
 import { createPgPlatformEntitlementsPort } from "@/infra/repos/pgPlatformEntitlements";
 import { createInMemoryPlatformEntitlementsPort } from "@/infra/repos/inMemoryPlatformEntitlements";
 import { createPlatformEntitlementsService, isMechanicEnabled } from "@/modules/org-entitlements/service";
+import { createPgOrgBrandingPort } from "@/infra/repos/pgOrgBranding";
+import { createInMemoryOrgBrandingPort } from "@/infra/repos/inMemoryOrgBranding";
+import { createOrgBrandingService } from "@/modules/org-branding/service";
 import { createPgPatientOrganizationPort } from "@/infra/repos/pgPatientOrganization";
 import { createPatientOrganizationService } from "@/modules/patient-organization/service";
 import { createPgOrganizationProvisioningPort } from "@/infra/repos/pgOrganizationProvisioning";
@@ -522,6 +525,15 @@ const organizationMembershipService = createOrganizationMembershipService({
 const orgEntitlementsPort = !inMemoryRepos
   ? createPgOrgEntitlementsPort()
   : createInMemoryOrgEntitlementsPort();
+/**
+ * UX-05 B1: organization brand publication. Paid additions resolve through the SAME entitlement
+ * resolver as every other mechanic; core organization context is never gated by it.
+ */
+const orgBrandingService = createOrgBrandingService({
+  port: !inMemoryRepos ? createPgOrgBrandingPort() : createInMemoryOrgBrandingPort(),
+  isBrandingMechanicEnabled: (organizationId: string) =>
+    isMechanicEnabled(orgEntitlementsPort, organizationId, "branding"),
+});
 const platformEntitlementsService = createPlatformEntitlementsService(
   !inMemoryRepos ? createPgPlatformEntitlementsPort() : createInMemoryPlatformEntitlementsPort(),
 );
@@ -1659,6 +1671,8 @@ function _buildAppDeps() {
     patientDailyWarmupVideoViews: patientDailyWarmupVideoViewsPort,
     organizationMembership: organizationMembershipService,
     orgEntitlements: orgEntitlementsPort,
+    /** Effective organization brand (core context always, paid additions only when entitled+published). */
+    orgBranding: orgBrandingService,
     platformEntitlements: platformEntitlementsService,
     patientOrganization: patientOrganizationService,
     organizationProvisioning: organizationProvisioningService,
