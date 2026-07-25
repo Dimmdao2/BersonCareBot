@@ -517,7 +517,7 @@ WHERE to_regprocedure('app.current_patient_user_id()') IS NOT NULL \gexec
 SELECT format('ALTER FUNCTION app.current_integrator_user_id() OWNER TO %I', :'p2_b_owner_role')
 WHERE to_regprocedure('app.current_integrator_user_id()') IS NOT NULL \gexec
 
-SELECT NOT EXISTS (
+SELECT (NOT EXISTS (
   SELECT 1
   FROM pg_proc p
   JOIN pg_namespace n ON n.oid = p.pronamespace
@@ -526,7 +526,7 @@ SELECT NOT EXISTS (
     AND p.proname IN ('current_org_id', 'current_patient_user_id', 'current_integrator_user_id')
     AND p.pronargs = 0
     AND r.rolname <> :'p2_b_owner_role'
-)::int AS p2_b_principal_accessor_owners_normalized \gset
+))::int AS p2_b_principal_accessor_owners_normalized \gset
 \if :p2_b_principal_accessor_owners_normalized
 \else
 \echo 'FATAL: p2_b_principal_accessor_owner_not_normalized.'
