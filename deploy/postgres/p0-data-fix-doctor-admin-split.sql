@@ -7,11 +7,14 @@
 -- anchor) and on the STABLE EMAIL for the global admin:
 --   * DOCTOR       = phone +79643805480  → role 'doctor', owns email dimmdao@yandex.ru; its dups
 --                    consolidated into one canonical (non-merged) row.
---   * GLOBAL ADMIN = email dimmdao@gmail.com → a clean dedicated account, HARD-SET role='admin' in the
---                    database (owner 2026-07-25). This is a real persisted global admin, NOT a
---                    session-only `admin_emails` elevation. The app already reads role='admin' as
---                    adminMode=true (apps/webapp/src/modules/auth/service.ts:102), so the hard role is
---                    the single source of truth. `admin_emails` may stay as a harmless redundant belt.
+--   * GLOBAL ADMIN = email dimmdao@gmail.com → a clean DEDICATED account, CREATED here if absent, with
+--                    HARD-SET role='admin' in the database (owner 2026-07-25). A real persisted global
+--                    admin, NOT a session-only `admin_emails` elevation. The app already reads
+--                    role='admin' as adminMode=true (apps/webapp/src/modules/auth/service.ts:102), so the
+--                    hard role is the single source of truth. `admin_emails` stays a redundant belt.
+--                    NB on a fresh prod dump the gmail email starts out on the owner's MAIN row (the one
+--                    carrying the doctor phone) and yandex starts out on the same-name CLIENT; steps 1+3
+--                    move yandex onto the canonical doctor, which frees gmail for this new admin row.
 --   * CLIENT       = phone +79189000782 (a same-name 'Дмитрий Берсон' client) → must hold NO email
 --                    (neither yandex nor gmail).
 --
@@ -31,6 +34,9 @@ DECLARE
   c_client_phone constant text := '+79189000782';
   c_doctor_email constant text := 'dimmdao@yandex.ru';
   c_admin_email  constant text := 'dimmdao@gmail.com';
+  -- Distinct from the doctor's 'Дмитрий Берсон' on purpose: two identically-named rows are exactly the
+  -- same-name confusion this script exists to clean up. Cosmetic only — nothing keys off it.
+  c_admin_display_name constant text := 'Дмитрий Берсон (глобальный администратор)';
   v_canonical_doctor uuid;
   v_global_admin uuid;
   v_doctor_live int;
@@ -82,34 +88,51 @@ BEGIN
   WHERE id = v_canonical_doctor
     AND (role <> 'doctor' OR email_normalized IS DISTINCT FROM c_doctor_email);
 
-  -- 4. THE admin fix (owner 2026-07-25): the account holding the gmail email is the GLOBAL ADMIN and must
-  --    be HARD-SET role='admin' in the database — a real persisted global admin, not a session-only
-  --    `admin_emails` elevation. Exactly one live row may hold this email; STOP otherwise (a duplicate is a
-  --    real account-duplication bug to investigate, not something to guess through).
+  -- 4. THE admin fix (owner 2026-07-25): a DEDICATED, clean GLOBAL ADMIN account holds the gmail email
+  --    with a HARD-SET role='admin' in the database — a real persisted global admin, not a session-only
+  --    `admin_emails` elevation.
+  --
+  --    REALITY (verified against a fresh prod dump 2026-07-25): on prod the gmail email sits on the
+  --    OWNER'S MAIN row — the same row that carries the doctor phone — while the yandex email sits on the
+  --    same-name CLIENT. Step 1 frees yandex from that client and step 3 moves yandex onto the canonical
+  --    doctor, which FREES the gmail email. So at this point NO row holds gmail and the global admin must
+  --    be CREATED (owner instruction: "создать чистого глобал админа и дать ему мэйл gmail").
+  --    Idempotent: a second run finds the created row and just re-asserts the hard role.
   SELECT count(*) INTO v_admin_live
   FROM platform_users
   WHERE email_normalized = c_admin_email AND merged_into_id IS NULL;
-  IF v_admin_live <> 1 THEN
-    RAISE EXCEPTION 'doctor-admin data-fix: expected exactly 1 live row on admin email %, found % (merge/split duplicates first)',
+
+  IF v_admin_live > 1 THEN
+    RAISE EXCEPTION 'doctor-admin data-fix: expected at most 1 live row on admin email %, found % (merge/split duplicates first)',
       c_admin_email, v_admin_live;
   END IF;
 
-  SELECT id INTO v_global_admin
-  FROM platform_users
-  WHERE email_normalized = c_admin_email AND merged_into_id IS NULL;
+  IF v_admin_live = 0 THEN
+    -- Clean, credential-less dedicated admin account. The owner signs in to it by email OTP on the gmail
+    -- address; it deliberately carries no phone and no organization membership (0143 seeds doctors only),
+    -- so it is a pure platform operator and never a clinic member.
+    INSERT INTO platform_users (display_name, role, email, email_normalized)
+    VALUES (c_admin_display_name, 'admin', c_admin_email, c_admin_email)
+    RETURNING id INTO v_global_admin;
+    RAISE NOTICE 'doctor-admin data-fix: created clean global admin % for %', v_global_admin, c_admin_email;
+  ELSE
+    SELECT id INTO v_global_admin
+    FROM platform_users
+    WHERE email_normalized = c_admin_email AND merged_into_id IS NULL;
 
-  -- The global admin must be a DEDICATED account, never the same row as the doctor.
-  IF v_global_admin = v_canonical_doctor THEN
-    RAISE EXCEPTION 'doctor-admin data-fix: gmail admin email % resolves to the doctor row % — they must be separate accounts',
-      c_admin_email, v_canonical_doctor;
+    -- The global admin must be a DEDICATED account, never the same row as the doctor.
+    IF v_global_admin = v_canonical_doctor THEN
+      RAISE EXCEPTION 'doctor-admin data-fix: gmail admin email % resolves to the doctor row % — they must be separate accounts',
+        c_admin_email, v_canonical_doctor;
+    END IF;
+
+    UPDATE platform_users
+    SET role = 'admin',
+        is_archived = FALSE,
+        updated_at = now()
+    WHERE id = v_global_admin
+      AND (role <> 'admin' OR is_archived IS DISTINCT FROM FALSE);
   END IF;
-
-  UPDATE platform_users
-  SET role = 'admin',
-      is_archived = FALSE,
-      updated_at = now()
-  WHERE id = v_global_admin
-    AND (role <> 'admin' OR is_archived IS DISTINCT FROM FALSE);
 
   -- 5. Archive identifier-less admin stubs before staff membership seeding. These rows have no login/channel
   --    credential anchors and must not become active organization admins in 0143. (The real global admin
