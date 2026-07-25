@@ -544,3 +544,58 @@ history away (the one path that destroys the audit trail); a `draft` can never b
 DELETE grant); `org_brand_revision_published_content_is_immutable` is nearly unreachable; `REJECTED_MUTATION_KEYS` in
 the service is inert. Unverifiable in this slice: any HTTP/route behaviour and entitlement resolution against a real
 `org_entitlements` row (no consumer exists yet).
+
+### Re-audit of the fix — M-1, and what it did NOT cover (2026-07-25)
+
+A second independent adversarial audit targeted the new `SECURITY DEFINER` seam itself (the fix widened the
+definer surface, and inside a definer body RLS no longer protects anything — the predicate is the only wall).
+It reproduced **both** pre-fix HIGH failures and then failed to break the fixed versions: with a real patient
+principal, a foreign organization, a deactivated enrolled organization, a random uuid and `NULL` are
+**indistinguishable** (`false` / 0 rows / `NULL` name), so the seam is no existence-, name- or active-flag
+oracle; privilege independence was proved by *revoking* `SELECT` on `org_enrollments`/`be_organizations` and
+watching both reads still work. Definer hygiene held (`search_path` pinned, `EXECUTE` only for `app_staff` /
+`app_patient`, `PUBLIC` denied, `app_owner` still NOLOGIN/BYPASSRLS with **0 members**).
+
+It also found that the HIGH-2 fix had opened **M-1 (MEDIUM), now closed**: the tolerance accepted *any*
+single-column `logo_media_id → NULL` write, so `UPDATE org_brand_revisions SET logo_media_id = NULL WHERE id = …`
+issued directly by `app_staff` succeeded on **published and archived** rows — blanking the live branded surface
+and rewriting the append-only audit row **with no trace**, because the branch deliberately does not re-stamp
+`updated_at`. Closed with `AND pg_trigger_depth() > 1`: the referential action always runs inside the RI trigger
+of the `media_files` DELETE (depth ≥ 2), a hand-written statement is depth 1. Proven live on a disposable schema
+mirror of TEST — direct clear → `P0001` with the row byte-identical; `DELETE` of the media row → succeeds and
+degrades the logo on both published and archived revisions.
+
+Two audit findings were deliberately **not** built, because they are owner scope rather than defects:
+- there is no deploy-time global FORCE-RLS gate at all (the closure's "exact FORCE assertions" is the 190-line
+  specialized finalizer), so a regression to `NO FORCE` on any tenant table is silent. `org_brand_revisions` was
+  added to the one-command FORCE cutover/rollback artifact (`deploy/postgres/phase4-force-rls-cutover.sql`, count
+  assertion made conditional on the table existing so the emergency rollback stays runnable on a pre-0238
+  database), but building a new global gate is a decision, not a fix;
+- the patient `FOR SELECT` policy is evaluated for **staff** reads too, so revoking `EXECUTE` on
+  `app.current_patient_has_active_org_enrollment` would break staff reads; that coupling is asserted only by a
+  text-shape unit test, never by a deploy gate.
+
+## Owner direction on WHO may change branding (2026-07-25) — supersedes the role assumption above
+
+The owner ruled, in their own words, after reading the first implementation:
+
+- **Clinic admin** (the specialist who owns/administers the clinic): may **set, change and delete** the logo,
+  change the brand name, and edit their public page (public-page details to be specified later, together).
+- **A plain clinic specialist (staff, not admin): may NOT change the brand, the name, or the public page.**
+
+**This is NOT implemented.** The DB wall has exactly one staff role (`app_staff`) and any staff member of the
+organization passes both the RLS policy and `requireOrgBrandingManagementContext`; a non-admin doctor is
+currently indistinguishable from the clinic admin at every layer. This must ride on the existing decision
+"clinic management by membership capability (`clinic_admin`), not by the global `admin` role" — otherwise
+branding becomes a second, divergent role model.
+
+Also clarified for the record, because the first write-up read as "the logo cannot be deleted": **deleting the
+logo is allowed**. What is forbidden is silently rewriting an already-published revision. Removing a logo or
+renaming happens by **publishing a new revision** (the previous one is archived), which is what keeps a record of
+who changed the clinic's identity and when — and the archive is append-only for the same reason. Product-wise
+this must surface as a single "remove logo" action; revisions are an implementation detail the user never sees.
+
+**Open owner choice (asked, not yet answered):** enforce "clinic admin only" in **both** the app and the DB, or
+in the **app only**. Recommendation given: app-only, as a single chokepoint (the owner's standing "one chokepoint,
+no defensive duplication" rule), with the DB continuing to enforce the own-clinic/foreign-clinic boundary — so a
+coding mistake can still never cross tenants. Awaiting the answer before B2 (UI) is built.
