@@ -634,3 +634,30 @@ coding mistake can still never cross tenants. Awaiting the answer before B2 (UI)
 This narrows B2 to: the clinic-admin editing surface (Установить / Очистить + name), the effective-branding
 resolution in the staff and patient cabinet shells, and the clinic name in outbound mail. It does NOT include
 logo-in-email or the public page.
+
+## Owner spec for the public clinic page — first version (2026-07-26)
+
+The owner asked for the public page to stop being a stub. Verbatim scope, "для начала":
+
+- **Name** — the clinic's name, or a person's name for a solo specialist.
+- **Description** — free text about the clinic/specialist.
+- **Addresses** — listed from the LOCATIONS already configured in the booking settings, not re-entered.
+- **Contacts** — how to reach them.
+- **Services with prices and durations** — again from the booking catalogue, not re-entered.
+- **Avatar or logo** — the published brand logo, or a personal avatar for a solo specialist.
+
+**Where the data comes from is the important half of this spec:** *«всё это частично берётся из настроек записи,
+частично из настроек публичной страницы»*. So the page is a PROJECTION of data the clinic already maintains —
+locations, services, prices, durations all come from the booking configuration and must never become a second
+copy that can drift — plus a small set of fields that exist only for the public page (description, contacts,
+whatever presentation choices we add later).
+
+**Therefore a "public page settings" screen is required** («надо сделать клиникам такую страницу настроек»):
+one place where the clinic edits the public-page-only fields and controls what is shown, sitting beside the
+brand and public-address sections in the Клиника tab.
+
+Open questions NOT answered by this spec, to raise before guessing: whether individual services/locations can
+be hidden from the public page; whether prices may be shown as "from X"; whether the page is visible before the
+clinic explicitly publishes it; and what a solo specialist sees instead of clinic-shaped wording. Defaults must
+be conservative — show only what the clinic already made public through booking, never expose a location or a
+price that the booking flow itself does not expose.
