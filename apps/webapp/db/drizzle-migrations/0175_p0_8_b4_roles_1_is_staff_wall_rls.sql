@@ -166,6 +166,43 @@ COMMENT ON FUNCTION app.current_org_id() IS
   'deploy/postgres/p2-b-protected-principal-context.sql during the deploy closure, which CREATE OR '
   'REPLACEs this body with the signed-principal-context read. Never rely on this stub at runtime.';
 
+-- Same bootstrap, same reasoning, for the other two principal accessors the overlay owns. Later
+-- migrations reference these EAGERLY too (e.g. 0219_current_patient_organization_entitlements resolves
+-- app.current_patient_user_id() at creation time and aborted the chain with sqlstate 42883
+-- undefined_function on the from-zero rehearsal). Both stubs are fail-closed: NULL makes every
+-- `... IS NOT NULL` principal guard false and every `= app.current_*()` predicate UNKNOWN → zero rows.
+CREATE OR REPLACE FUNCTION app.current_patient_user_id()
+RETURNS uuid
+LANGUAGE sql
+STABLE
+SECURITY INVOKER
+SET search_path = pg_catalog
+AS $$
+  SELECT NULL::uuid;
+$$;
+
+ALTER FUNCTION app.current_patient_user_id() OWNER TO CURRENT_USER;
+
+COMMENT ON FUNCTION app.current_patient_user_id() IS
+  'BOOTSTRAP STUB (returns NULL, fail-closed) — authoritative definition installed by '
+  'deploy/postgres/p2-b-protected-principal-context.sql during the deploy closure.';
+
+CREATE OR REPLACE FUNCTION app.current_integrator_user_id()
+RETURNS bigint
+LANGUAGE sql
+STABLE
+SECURITY INVOKER
+SET search_path = pg_catalog
+AS $$
+  SELECT NULL::bigint;
+$$;
+
+ALTER FUNCTION app.current_integrator_user_id() OWNER TO CURRENT_USER;
+
+COMMENT ON FUNCTION app.current_integrator_user_id() IS
+  'BOOTSTRAP STUB (returns NULL, fail-closed) — authoritative definition installed by '
+  'deploy/postgres/p2-b-protected-principal-context.sql during the deploy closure.';
+
 ALTER TABLE "public"."be_appointment_cancellations" ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "saas_org_dormant_p0_8_3" ON "public"."be_appointment_cancellations";
 CREATE POLICY "saas_org_dormant_p0_8_3" ON "public"."be_appointment_cancellations" FOR ALL USING (((NULLIF(current_setting('app.org', true), '') IS NULL OR "organization_id" = NULLIF(current_setting('app.org', true), '')::uuid) AND (app.is_staff() OR (NULLIF(current_setting('app.patient_user_id', true), '') IS NOT NULL AND EXISTS ( SELECT 1 FROM "public"."be_appointments" AS "b4f_appt" WHERE "b4f_appt"."id" = "appointment_id" AND "b4f_appt"."platform_user_id" = NULLIF(current_setting('app.patient_user_id', true), '')::uuid ))))) WITH CHECK (((NULLIF(current_setting('app.org', true), '') IS NULL OR "organization_id" = NULLIF(current_setting('app.org', true), '')::uuid) AND (app.is_staff() OR (NULLIF(current_setting('app.patient_user_id', true), '') IS NOT NULL AND EXISTS ( SELECT 1 FROM "public"."be_appointments" AS "b4f_appt" WHERE "b4f_appt"."id" = "appointment_id" AND "b4f_appt"."platform_user_id" = NULLIF(current_setting('app.patient_user_id', true), '')::uuid )))));
