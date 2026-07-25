@@ -123,6 +123,50 @@ live TEST (`bersoncarebot_test`) on 2026-07-24 by this worker:
 - R7 archive+code-removal+migration-authoring+TEST-apply is done for the 7 raw tables. Remaining Track C work is
   `public.appointment_records` (blocked) and the `public.booking_*` legacy catalog (blocked) -- see below.
 
+## B-7(b) archive-then-drop tooling now EXISTS (2026-07-25)
+
+The archive step is no longer prose. `deploy/host/archive-rubitime-retirement-tables.sh` implements the
+runbook §3 archive in one idempotent, fail-closed script (explicit `--execute` + exact
+`--expected-database` gate, loopback-only, owner-gated `--allow-authorized-prod-target`, archive →
+SHA256SUMS → verify-before-anything-destructive → drop hand-off through the normal migration chain). The
+drop half is the repo migration
+`apps/webapp/db/drizzle-migrations/0237_r7_drop_public_rubitime_mirror_tables.sql`.
+
+Archive target list = exactly the five archive-before-drop tables named in this doc and in
+`RUBITIME_RETIREMENT_DB_CLEANUP_SEQUENCE.md` §Step 2. `pnpm run check:rubitime-r7-table-disposition` now
+parses the script and the migration and FAILS if either diverges from the docs, names a KEEP-list table,
+or drops `public.appointment_records`.
+
+**Scope boundary the tooling encodes (drop ⊂ archive):**
+
+- Archived (5): `public.appointment_records`, `integrator.rubitime_records`,
+  `integrator.rubitime_events`, `public.rubitime_records` (if present), `public.rubitime_events` (if
+  present). Archiving is non-destructive, so it covers everything the docs list.
+- Dropped by migration 0237 (2): `public.rubitime_records`, `public.rubitime_events` only.
+- **`public.appointment_records` drop remains UNAUTHORED and blocked** — see the Track C section below.
+  Its archive is scripted; its drop is not, and this doc is the reason.
+- The seven `integrator.rubitime_*` tables keep their existing landed drop migration
+  (`20260724_0002_drop_r7_raw_tables.sql`); 0237 does not duplicate it. They are still *archive* targets
+  because a fresh pre-SaaS prod dump brings them back before that migration runs — confirmed live on
+  2026-07-25, when the TEST rebuild restored `integrator.rubitime_records` (91 rows) and
+  `integrator.rubitime_events` (418 rows) and the script archived both.
+- The five `integrator.rubitime_*` **drop candidates** are deliberately NOT archive targets: they appear
+  only under "Drop candidates"/"Drop/defer candidates", never under any "Archive candidates" list in the
+  three R7 docs. Adding them would expand the doc-approved archive set.
+
+**Recorded ambiguity (not guessed, not resolved by the worker):** `public.rubitime_records` /
+`public.rubitime_events` are classified `archive_if_present` under the *Archive-before-drop* heading in
+`RUBITIME_RETIREMENT_DB_CLEANUP_SEQUENCE.md`:209 and appear under "## Archive Before Drop" here, but they
+are absent from the runbook's explicit "Drop candidates" bullet list. The reading taken is that
+"archive-before-drop" is itself the drop authorization, conditional on existence — which is why the
+migration is `IF EXISTS`/no-op-safe. `to_regclass('public.rubitime_records')` and
+`to_regclass('public.rubitime_events')` were both NULL on `bersoncarebot_test` on 2026-07-25 *after* the
+TEST rebuild had restored the fresh prod dump (proved by `integrator.rubitime_records` reappearing in the
+same check), so on current evidence the pair is absent from the prod dump too and the migration is a no-op
+everywhere today. It exists to close the docs' "if they exist" branch deterministically instead of
+leaving an operator judgement call in the cutover. If the owner reads that differently, migration 0237 is
+the single file to revert.
+
 ## Track C — `public.appointment_records` disposition: BLOCKED by runtime references (worker verification, 2026-07-24)
 
 Not archived, not dropped, no migration authored. This table has heavy, active, bidirectional runtime references

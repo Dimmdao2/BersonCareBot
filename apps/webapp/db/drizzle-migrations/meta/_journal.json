@@ -1660,6 +1660,13 @@
       "when": 1793539200032,
       "tag": "0236_global_admin_channel_auth_toggles",
       "breakpoints": true
+    },
+    {
+      "idx": 237,
+      "version": "7",
+      "when": 1793539200033,
+      "tag": "0237_r7_drop_public_rubitime_mirror_tables",
+      "breakpoints": true
     }
   ]
 }

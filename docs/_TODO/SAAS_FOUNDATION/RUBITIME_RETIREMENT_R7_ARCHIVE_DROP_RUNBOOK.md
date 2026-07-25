@@ -19,6 +19,14 @@ R7 must not start until R1-R6 are complete, including a completed `RUBITIME_RETI
 > explicitly authorized the selected TEST/disposable destructive batch. This includes commands that are otherwise
 > read-only prerequisites. Until then, every command below is final-reference material only; R7 remains open.
 
+> **Owner authorization 2026-07-25 (TEST only), and what has actually run.** The owner authorized the
+> destructive batch **on the local TEST database `bersoncarebot_test` only**; PROD (135.x) remains
+> untouchable. Under that authorization the archive step of §3 is now a script and has been executed
+> against `bersoncarebot_test` (3 tables archived + verified, 2 recorded missing), and the drop migration
+> of §4 has been applied and re-applied on a disposable scratch database. That does **not** make R7 green
+> on prod: §2.5 of `SAAS_PROD_DEPLOY_PROCESS.md` still needs its own prod rehearsal + owner GO, and
+> `RUBITIME_RETIREMENT_R7_DROP_RESTORE_PROOF.md` is still unwritten.
+
 Table disposition manifest: `RUBITIME_RETIREMENT_R7_TABLE_DISPOSITION.md`.
 Prepared non-final static reference audit: `RUBITIME_RETIREMENT_R7_STATIC_REFERENCE_AUDIT.md`.
 
@@ -99,29 +107,67 @@ Pass criteria:
 - Remaining references are only docs, archives, old migrations, or the R7 proof itself.
 - `booking_calendar_map` remains referenced only as the active provider-neutral GCal map or has a tested replacement.
 
-## 3. Archive Export
+## 3. Archive Export — SCRIPTED (B-7(b), 2026-07-25)
 
-Run only after owner approval for the selected TEST/disposable DB. Use a timestamped directory outside the repo.
+**This section is no longer prose-only.** The archive-then-drop step is now one reusable, idempotent,
+fail-closed script: `deploy/host/archive-rubitime-retirement-tables.sh`. Run only after owner approval
+for the selected TEST/disposable DB (the script itself refuses everything else).
 
 ```bash
-set -a && source <env-for-the-selected-test-or-disposable-db> && set +a
-ARCHIVE_DIR="<local-or-test-archive-dir>/rubitime-retirement-$(date -u +%Y%m%dT%H%M%SZ)"
-mkdir -p "$ARCHIVE_DIR"
-
-pg_dump "$DATABASE_URL" --data-only --table=public.appointment_records --file="$ARCHIVE_DIR/public.appointment_records.sql"
-pg_dump "$DATABASE_URL" --data-only --table=integrator.rubitime_records --file="$ARCHIVE_DIR/integrator.rubitime_records.sql"
-pg_dump "$DATABASE_URL" --data-only --table=integrator.rubitime_events --file="$ARCHIVE_DIR/integrator.rubitime_events.sql"
-
-sha256sum "$ARCHIVE_DIR"/*.sql > "$ARCHIVE_DIR/SHA256SUMS"
-ls -lh "$ARCHIVE_DIR"
-cat "$ARCHIVE_DIR/SHA256SUMS"
+bash deploy/host/archive-rubitime-retirement-tables.sh \
+  --execute \
+  --via-sudo-postgres \
+  --database-url='postgresql:///bersoncarebot_test?host=/var/run/postgresql' \
+  --expected-database=bersoncarebot_test \
+  --archive-dir=<local-or-test-archive-dir-OUTSIDE-the-repo>
 ```
 
-If any table is missing, record `to_regclass(...)` output in the proof instead of treating the archive as successful by silence.
+Prod cutover (owner-authorized operator only; same explicit-flag shape as §3.5 of
+`SAAS_PROD_DEPLOY_PROCESS.md` / `deploy/postgres/test-strict-rls-finalizer.sql`) adds:
+
+```bash
+  --allow-authorized-prod-target --authorized-prod-database="$PROD_DB"
+```
+
+What it does, in this fixed order:
+
+1. **GATE.** Refuses without `--execute` (default = refuse). Refuses unless `current_database()` equals
+   the operator-supplied `--expected-database` **exactly**. Always refuses a non-loopback /
+   non-local-socket DB host — the prod flag never relaxes that, so PROD is only ever reachable *from the
+   prod host itself*. Refuses a `prod`/`production`/`live`-named database unless BOTH
+   `--allow-authorized-prod-target` and a verbatim-matching `--authorized-prod-database` are given.
+   Refuses an archive directory inside the repository.
+2. **ARCHIVE.** `pg_dump --data-only` per target table into
+   `<archive-dir>/rubitime-retirement-<UTC>/`. Targets are exactly this runbook's archive candidates
+   (§"Archive Candidates" above / `RUBITIME_RETIREMENT_DB_CLEANUP_SEQUENCE.md` §Step 2):
+   `public.appointment_records`, `integrator.rubitime_records`, `integrator.rubitime_events`,
+   `public.rubitime_records`, `public.rubitime_events`. A missing table is recorded as
+   `<table>.MISSING.txt` with its `to_regclass(...)` evidence — never treated as archived by silence.
+3. **SHA256SUMS** over every produced artifact.
+4. **VERIFY, before anything destructive:** `sha256sum -c --strict`, every archive file readable and
+   non-empty, and the row count inside each `COPY` block equal to the live table's `count(*)`. Any
+   failure aborts and nothing destructive is reachable. On success it writes `ARCHIVE_MANIFEST.json`
+   and an `ARCHIVE_VERIFIED` marker.
+5. **DROP hand-off.** Never an ad-hoc `DROP TABLE` (see §4). With `--then-drop` the script runs the
+   normal repo migration chain (`pnpm run migrate`) and re-checks `to_regclass` afterwards; without it
+   the archive simply ends verified and prints the exact migration command.
+
+The target list is machine-verified against these docs by
+`pnpm run check:rubitime-r7-table-disposition`, which fails if the script's list, the docs' list, or the
+drop migration's table set ever diverge.
 
 ## 4. Migration Rules
 
 - Generate a normal repo migration; do not run ad hoc `DROP TABLE`.
+- The authored drop migration is
+  `apps/webapp/db/drizzle-migrations/0237_r7_drop_public_rubitime_mirror_tables.sql`
+  (journal entry `idx 237`). It drops **only** `public.rubitime_records` and `public.rubitime_events`
+  (`IF EXISTS ... CASCADE`, idempotent). The seven `integrator.rubitime_*` raw tables are already
+  covered by the landed
+  `apps/integrator/src/integrations/rubitime/db/migrations/20260724_0002_drop_r7_raw_tables.sql`.
+  **No drop migration exists — or may be authored — for `public.appointment_records`** while it still
+  has runtime readers/writers (see the rule below and `RUBITIME_RETIREMENT_R7_TABLE_DISPOSITION.md`
+  "Track C — `public.appointment_records` disposition"). Its *archive* is scripted; its *drop* is not.
 - Drop only owner-approved candidates.
 - Keep rollback backup/archive available through the approved horizon.
 - Do not drop `booking_calendar_map` unless GCal replacement is implemented and tested.
