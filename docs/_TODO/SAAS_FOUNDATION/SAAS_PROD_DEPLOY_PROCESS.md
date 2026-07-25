@@ -29,7 +29,7 @@
 > - [ ] **5. Test-record cleanup + dedup** (remove test bookings, merge clone clients) — §2.5 + §8. ⛔BLOCKED (safety module refuses prod-named DB; needs reviewed guard-unlock like §3.5's flag)
 > - [ ] **6. Rubitime CSV → canonical `be_*` backfill** (history import, no dup integrator/rubitime tables) — §2.5 + §8. ✅SCRIPT (`backfill-canonical-from-legacy-appointments.ts`) but needs real CSV+hashes + the #5 guard
 > - [ ] **7. Legacy / Rubitime archive-then-drop** (R7 archive → drop; `booking_*` after R3-CATALOG) — §2.5 + §8. ✅SCRIPT for the archive+mirror-drop (`deploy/host/archive-rubitime-retirement-tables.sh` + migration `0237_r7_drop_public_rubitime_mirror_tables.sql`, proven on TEST 2026-07-25) · ⛔ still BLOCKED for the rest: `appointment_records` **drop** (live runtime refs), `booking_*` catalog (Track C R3-CATALOG), and the prod-side rehearsal + `R7_DROP_RESTORE_PROOF.md`
-> - [ ] **8. Fix ФИО by reviewed table** (after history normalization) — §8. ⛔BLOCKED for prod (`fio-backfill/*` is TEST-only by design; prod "Phase 9" unimplemented)
+> - [ ] **8. Fix ФИО by reviewed table** (after history normalization) — §8. ✅SCRIPT (B-8 done 2026-07-25, `818f51570`): gated cutover apply — `--allow-authorized-prod-target` + exact `--authorized-prod-database` + environment-matching manifest
 > - [ ] **9. Runtime roles + grants** (create TEST-style split login roles; run overlays in order) — §3. ✍️MANUAL (overlays are scripts; no `deploy-prod-saas.sh` yet = taskdb #994)
 > - [ ] **10. Install walls** (strict RLS + FORCE, owner-gated flag) — §3.5. ✍️MANUAL (`test-strict-rls-finalizer.sql -v allow_authorized_prod_target=1`)
 > - [ ] **11. Service deploy + assert gates + product smoke** (fail-closed BEFORE traffic) — §4. ✅SCRIPT
@@ -239,11 +239,40 @@ independent audit. Until they land, a clean run covers only steps 2→3→4→9�
     `publicAppointmentRecordSync.ts`, the admin soft-delete route), and both the runbook ("Do not drop
     `public.appointment_records` until every runtime reference is gone") and the disposition doc ("KEEP for now,
     ARCHIVE+DROP deferred") forbid authoring the drop. Removing those readers/writers is its own build task.
-  - **(c) STILL BLOCKED.** `booking_*` catalog drop is blocked on Track C R3-CATALOG (`branchServiceId` removal not
-    done; live admin booking-catalog CRUD still reads those tables) — that removal is its own build task.
-- **B-8 (step 8) — Prod ФИО apply.** `fio-backfill/*` hardcodes `targetDatabase="bersoncarebot_test"` and throws off
-  TEST by design. **Build:** the prod "Phase 9" apply path (`.cursor/plans/fio_identity_cleanup.plan.md`, taskdb #857)
-  — env-gated like the other prod steps, after history normalization (steps 5/6).
+  - **(c) STILL BLOCKED — and this doc's earlier premise was WRONG (corrected 2026-07-25).**
+    Track C R3-CATALOG landed its *dead-code* half (see below) but **cannot** reach zero runtime references on its own.
+    - **DONE (verified):** the dead legacy-catalog reads are gone — `pgBookingCatalog.listServicesByCity`
+      / `listCitiesForPatient`, `modules/booking-catalog/service.ts`, and `apps/integrator/.../branchTimezone.ts`
+      (the last integrator read of `booking_branches` + `branches`). Independently re-checked: zero live callers,
+      `tsc --noEmit` exit 0 in webapp AND integrator. The patient/public flow uses the canonical engine
+      (`be_branches`/`be_clinic_services`/`be_service_location_availability`).
+    - **`branches` does NOT belong to this blocker.** The earlier wording implied R3-CATALOG would free
+      `public.branches`; it will not. `branches` is joined by the **live doctor-appointments feature**
+      (`pgDoctorAppointments.ts` ×8 joins, `pgBranches.ts`, `pgBookingCalendarLegacy.ts`) via `appointment_records`,
+      so it belongs to the `appointment_records` cluster (itself drop-blocked). Only
+      `booking_branches` / `booking_branch_services` are in R3-CATALOG's scope.
+    - **4 OWNER DECISIONS now block the rest** (product calls, not engineering — do NOT guess these):
+      1. **Legacy admin catalog `/api/admin/booking-catalog/*` — 10 live endpoints.** Evidence it is de-facto
+         retired: its only UI (`settings/RubitimeSection.tsx`) is **orphaned** (imported nowhere but its own test),
+         `api.md:53` labels the tree "Legacy каталог", and the canonical `/api/admin/booking-engine/*` is live and
+         UI-backed at `/app/doctor/admin/booking`. **Retire (delete) the 10 endpoints, or migrate them onto `be_*`?**
+      2. **`pgRubitimeMapping.ts` admin mapping view + link path** (writes `booking_branch_services`). Its UI
+         (`BookingRubitimeMappingSection.tsx`) is **also orphaned**; `schedule.md:129` records "Rubitime tab
+         отсутствует … C0 already retired", yet `/api/admin/booking-engine/rubitime-mapping` is still live. Same call.
+      3. **Integrator `booking.upsert` webhook path** (`lookupBranchServiceByRubitimeIds`) is genuinely reachable and
+         fills `patient_bookings` compat snapshots + derives `slot_end` from catalog duration. **Is Rubitime webhook
+         ingestion still expected to run at all?** If yes, dropping the catalog silently degrades every ingested
+         booking to the +60min `computeFallbackSlotEnd` — a behavior change that needs an explicit ruling.
+      4. Confirm `patient_bookings.branch_service_id` stays a **historical trace-only** column (its FK goes with the
+         drop's CASCADE), per the disposition doc.
+- **B-8 (step 8) — Prod ФИО apply. DONE 2026-07-25 (commit `818f51570`).** Was TEST-only by construction
+  (`targetDatabase="bersoncarebot_test"` hardcoded). Now: manifest `environment` widened to `TEST | PROD` with a strict
+  environment↔approval-decision pairing **inside the hashed payload**, and a new `assertFioApplyTarget()` gate mirroring
+  §3.5 — a non-TEST database is permitted ONLY with `--allow-authorized-prod-target` AND an exact
+  `--authorized-prod-database=<name>` match, AND a manifest whose environment agrees (no cross-environment replay).
+  Loopback + URL/`current_database()` agreement enforced in BOTH modes; `assertTestTarget()` left byte-for-byte intact;
+  rollback artifacts record their target DB and are re-checked against live `current_database()`. Default (no flag) =
+  today's exact TEST behavior. Evidence: `pnpm run fio:owner-reviewed-test:test` → 16 passed; `tsc --noEmit` exit 0.
 - **B-9 (supports steps 9) — `deploy-prod-saas.sh`** (taskdb #994): the §3 overlays are currently a MANUAL ordered list.
   Optional to script, but until then step 9 is hand-run.
 
