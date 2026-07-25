@@ -59,12 +59,6 @@ Incidental, unrelated to security but in this area: the CSRF frozen-route-census
 a route count (517 expected vs 518 actual) — a merge-gate test that must be reconciled before landing anything
 nearby.
 
-## S3 — per-route authorization
-
-Worker running. Must establish, among the rest, the exact blast radius of the owner-deferred
-`/api/doctor/patients/*` IDOR **now that FORCE-RLS with a signed per-request principal is live**: is the hole
-masked by the DB wall, or still reachable because the stamped principal can see the row?
-
 ### S2 — INDEPENDENT AUDIT VERDICT (all four claims survive; two got WORSE)
 
 Auditor mandate was to refute. Result: citations exact, all four claims **CONFIRMED**, with corrections that
@@ -119,3 +113,9 @@ its life. Two contained changes fix all of it at one chokepoint, rather than per
 required — separately for staff and for patients, since 90 days for a patient was a deliberate convenience
 choice; (b) whether deploying it may sign everybody out once (setting the new column to `now()` at migration
 time is the clean start, but it means every current user logs in again).
+
+## S3 — per-route authorization
+
+Worker running. Must establish, among the rest, the exact blast radius of the owner-deferred
+`/api/doctor/patients/*` IDOR **now that FORCE-RLS with a signed per-request principal is live**: is the hole
+masked by the DB wall, or still reachable because the stamped principal can see the row?
