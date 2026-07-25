@@ -612,3 +612,17 @@ coding mistake can still never cross tenants. Awaiting the answer before B2 (UI)
 - Enforcement of "clinic admin only" (the open choice) is taken as **app-layer single chokepoint**, per the
   owner's standing "one chokepoint, no defensive duplication" rule; the DB keeps enforcing only the
   own-clinic/foreign-clinic boundary, so a coding mistake still cannot cross tenants.
+
+### Owner decision on WHERE branding is visible (2026-07-25)
+
+- **Logo:** inside the cabinet **and** on the clinic's public page. Nowhere else for now.
+- **Outbound mail/notifications: clinic NAME only, no logo.** Explicitly deferred: branded e-mail templates
+  ("шаблоны писем для брендированных клиник"), which the clinic will configure itself later. Until then the
+  platform template stays, carrying the clinic's canonical name.
+- The **public page itself is owner-designed work, to be specified together, soon** — so B2 covers the cabinet
+  surface and the name in outbound mail; the public-page rendering of the brand waits for that session and must
+  read the same published revision rather than growing its own source of truth.
+
+This narrows B2 to: the clinic-admin editing surface (Установить / Очистить + name), the effective-branding
+resolution in the staff and patient cabinet shells, and the clinic name in outbound mail. It does NOT include
+logo-in-email or the public page.
