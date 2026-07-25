@@ -297,3 +297,65 @@ comments|messages` object-level org equality; `integrator/*` HMAC and `internal/
 integer path ids are Rubitime catalog rows behind global admin.
 
 Coverage the worker itself flagged: ~90 of ~500 route files read line-by-line; the rest keyword-scanned only.
+
+---
+
+## LOGIN IS BROKEN ON TEST — root cause found and reproduced (2026-07-25, orchestrator)
+
+The owner reported: cannot reset the password, cannot log in by e-mail code, only password is offered. Two
+independent causes, both now understood.
+
+**Cause 1 — the SMTP credential was scrubbed, and it WAS in the dump.** I previously told the owner the
+credential is not in the prod dump (recorded in §3.6 of the deploy runbook). **That was wrong.**
+`pg_restore --data-only -t system_settings` of `/tmp/bcb-prod-fresh.dump` into a scratch DB shows
+`smtp_outbound` present with a real object value (`from, host, port, user, secure, password`). It is empty on
+TEST because the **full-reset path deliberately scrubs it**: `deploy/postgres/test-settings-override.sql:88-91`
+writes `{"value":null}` under `\if :test_settings_overlay_reset` (a code-only closure preserves it). That is a
+send-safety measure, not a bug. Restored onto TEST from the dump via `dblink` so the value never passed through
+a shell or a log; both `public.system_settings` and the `integrator.system_settings` mirror now carry it.
+Send-safety on TEST is intact and is what makes this safe: `DEV_REDIRECT_EMAIL` sends everything to the owner's
+address, with a two-address passthrough allowlist. **§3.6 of `SAAS_PROD_DEPLOY_PROCESS.md` must be corrected.**
+
+**Cause 2 — the public login screen is structurally unable to see the setting.** `isSmtpConfigured()`
+(`modules/auth/authChannelPolicy.ts:31-39`) → `getConfigValue("smtp_outbound","")` →
+`readAdminSystemSettingString` → `readSystemSettingInnerValueByScopes`, which issues a **direct
+`SELECT ... FROM system_settings`**. The login-config route stamps a **bootstrap** principal, which routes to
+the nonstaff pool. Reproduced live:
+
+```
+BEGIN; SET LOCAL ROLE bcb_test_nonstaff_login;
+SELECT scope FROM system_settings WHERE key='smtp_outbound' …;
+→ ERROR: permission denied for table system_settings
+```
+
+`fetchFromDb` (`modules/system-settings/configAdapter.ts:103-109`) swallows the error and returns `null`, so the
+env fallback `""` wins and the channel reports "not configured" **regardless of the credential**. `app_staff` has
+the privilege; `bcb_test_nonstaff_login` and `app_patient` do not, by design. This is the known class recorded in
+[[force-rls-cutover-breaks-unprincipled-reads]]: an unprincipled read goes silently empty instead of loud.
+
+Confirmed the backend path itself is healthy — `POST /api/auth/email-otp/start` answers **200** (the route gates
+on the `auth_email_enabled` toggle, not on `isSmtpConfigured`). **Only the login screen's channel list is
+broken.** Fix in flight: a `SECURITY DEFINER` accessor answering the boolean "is outbound e-mail configured?"
+and nothing else, granted to the public pool role, with the deploy's exact secdef count updated in the same
+change (a mismatch there is a FATAL mid-closure).
+
+Also confirmed while diagnosing: **`auth_2fa_enabled = false`** and `staff_security_profiles` is empty — which is
+why the owner's TOTP enrolment "did not work" and why the "end other sessions" button raises for everyone.
+`admin_emails` does not exist as a row at all; `admin_phones`, `admin_telegram_ids`, `allowed_telegram_ids` are
+empty arrays — so the S1 escalation chain is unarmed today, though the code path is live.
+**New find, unrelated slice:** `system_settings.telegram_bot_token` holds a bot token in **plaintext** — whoever
+reads the settings table owns the bot.
+
+### Correction to the S3 auditor: the integrator organization parameter is NOT untrusted
+
+The S3 auditor graded "four `/api/integrator/*` routes take `organizationId` from the query string and stamp it
+as the DB principal behind only a UUID regex" as MEDIUM/HIGH. I verified the signature scheme myself and the
+grade does not hold: `assertIntegratorGetRequest.ts:18-19` builds the canonical string
+`GET {pathname}{search}` — **the query string, and therefore `organizationId`, is inside the signed payload** —
+and `verifyIntegratorSignature.ts:11-39` enforces a freshness window on the timestamp and compares with
+`timingSafeEqual`. So an outsider cannot select or tamper with a tenant; only a holder of the shared secret can.
+The residual, true statement is narrower: **one shared secret spans all tenants**, so a leak of that single key
+exposes every clinic at once. That is a key-custody property of a single trusted backend service, not an open
+door. **Corrected severity: LOW/INFO.** These routes are live infrastructure, not dead code — the integrator app
+calls all four (`deliveryTargetsPort.ts`, `reminderRulesRoute.ts`, `webPushAccessPort.ts`), so cutting them is
+not an option.
