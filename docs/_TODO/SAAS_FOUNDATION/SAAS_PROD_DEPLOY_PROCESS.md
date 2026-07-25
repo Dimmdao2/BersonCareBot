@@ -51,8 +51,13 @@ From INFRA-01 §I0 + RU-privacy MASTER_PLAN. Owner + external, not engineering c
 - [x] **Owner decisions 2026-07-24:** **paid billing = OUT of first launch** (no online subscription payment day-one
       → C5B/C/D + store deferred, dropped from cutover scope; base payment infra stays but no acquirer/store);
       **session TTL = 7 days** for staff/global-admin (patient 90d unchanged; unblocks logout-everywhere / session-revoke);
-      **SMTP creds = already in the prod dump's `system_settings`** (no separate provisioning) — BUT they're mixed
-      in with everything, so a small task exists to LOCATE + document exactly which keys hold them (taskdb).
+      ~~**SMTP creds = already in the prod dump's `system_settings`** (no separate provisioning)~~
+      **SUPERSEDED 2026-07-25 — VERIFIED FALSE against a fresh prod dump.** `system_settings.smtp_outbound` is
+      `{"value": null}` (both `public` and the `integrator` view), there is NO other SMTP/mail/sender key in
+      `system_settings`, and the TEST env files carry only `DEV_REDIRECT_EMAIL` / `DEV_REDIRECT_PASSTHROUGH_EMAILS`
+      (send-safety), no SMTP. Conclusion: prod's mail configuration lives in the **prod host ENV**, which does NOT
+      travel with a `pg_dump`. **Therefore SMTP MUST be provisioned explicitly on the new host** — see §3.6.
+      This closes taskdb #995 (the keys do not exist in the dump; nothing to "locate").
 
 ## 2. Database migration (SCRIPTED)
 Rehearse on a disposable prod-copy first (INFRA-01 §I2), then run on the new prod host in the cutover window.
@@ -254,6 +259,29 @@ sudo -u postgres psql -d "$PROD_DB" -X -v ON_ERROR_STOP=1 \
 - The flag changes ONLY the DB-name refusal. No FORCE/policy strictness is lowered; the same exact-163-target FORCE
   assertion and specialized-policy assertions run identically to TEST.
 - Full guard text + the owner-gated header block: `deploy/postgres/test-strict-rls-finalizer.sql` (top of file).
+
+## 3.6 Outbound email (SMTP) — MUST be provisioned on the new host (added 2026-07-25)
+**Why this is its own step:** email is the PRIMARY login mechanism (owner ruling: password-less login, always a
+code to the email), so if SMTP is missing after cutover, **nobody can log in** — including the owner's own
+global-admin account, which is a clean credential-less row whose only entry path is an email code. The 2026-07-24
+assumption that the dump carries SMTP is verified false (see §1).
+
+**Evidence of the gap on a fresh dump (re-run these to confirm on any restored copy):**
+```bash
+sudo -u postgres psql -d "$DB" -c "SELECT key, value_json FROM system_settings WHERE key = 'smtp_outbound';"
+# -> {"value": null}
+sudo -u postgres psql -d "$DB" -c "SELECT key FROM system_settings WHERE key ~* 'mail|smtp|sender|relay';"
+# -> no SMTP keys
+```
+
+**Cutover step:** provision the outbound SMTP settings on the new host BEFORE the first login attempt, and verify a
+real code arrives. The accessor the runtime uses is `app.read_integrator_smtp_outbound_setting` (see
+`apps/webapp/db/drizzle-migrations/0235_integrator_smtp_restricted_accessor.sql` and §3 step 4's EXECUTE grant), so
+the value must be present in `system_settings.smtp_outbound` for the restricted accessor to return it.
+**Owner input required:** the actual SMTP host/port/user/password (the previous provider's tariff had expired —
+see the delivery-alerting incident of 2026-07-20/21, taskdb #950). Until they are supplied, TEST cannot deliver
+login codes either, so any click-through on TEST must use an account that already has a working channel binding
+(the doctor account does; the new global-admin account does not).
 
 ## 4. Service deploy + gates (SCRIPTED)
 - Build+release services (mirror `deploy-prod.sh` code path).
