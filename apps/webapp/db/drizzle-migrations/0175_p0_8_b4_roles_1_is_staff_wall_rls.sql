@@ -132,6 +132,40 @@ COMMENT ON FUNCTION app.is_staff() IS
 
 GRANT EXECUTE ON FUNCTION app.is_staff() TO PUBLIC;
 
+-- ── Bootstrap stub for app.current_org_id() (added 2026-07-25 after a from-zero prod-dump rehearsal) ──
+-- WHY: migration 0218_u6b_organization_slug_claims spells `app.current_org_id()` directly into POLICY
+-- expressions and hard-asserts its existence in its preflight, but NO migration ever created it — the
+-- authoritative definition lives in deploy/postgres/p2-b-protected-principal-context.sql, which the
+-- deploy closure runs AFTER the whole migration chain. On the long-lived TEST database the function
+-- survived from earlier deploys, so the chain always appeared healthy; on a genuine fresh restore of the
+-- (pre-SaaS) prod dump it does not exist and the ENTIRE webapp migration batch aborts at 0218
+-- (`U6B.0218 prerequisites are missing`, sqlstate P0001) and rolls back. That made the documented
+-- cutover order (migrations → roles/grants → overlays) unrunnable on real prod data.
+--
+-- FAIL-CLOSED by construction: this stub returns NULL, so every `organization_id = app.current_org_id()`
+-- predicate is UNKNOWN → no rows. If the closure's overlay never ran, the database is CLOSED, never open.
+-- p2-b later CREATE OR REPLACEs this with the real principal_context-reading body (it cannot be inlined
+-- here: app.principal_context is itself created by that overlay). Same idempotent bootstrap pattern this
+-- migration already uses for app.is_staff() above; deploy assert_* gates verify the real bodies later.
+CREATE OR REPLACE FUNCTION app.current_org_id()
+RETURNS uuid
+LANGUAGE sql
+STABLE
+SECURITY INVOKER
+SET search_path = pg_catalog
+AS $$
+  SELECT NULL::uuid;
+$$;
+
+-- Same ownership-reclaim reasoning as app.is_staff() above.
+ALTER FUNCTION app.current_org_id() OWNER TO CURRENT_USER;
+
+COMMENT ON FUNCTION app.current_org_id() IS
+  'BOOTSTRAP STUB (returns NULL, fail-closed) so the migration chain can create policies that '
+  'reference it on a from-zero database. The AUTHORITATIVE definition is installed by '
+  'deploy/postgres/p2-b-protected-principal-context.sql during the deploy closure, which CREATE OR '
+  'REPLACEs this body with the signed-principal-context read. Never rely on this stub at runtime.';
+
 ALTER TABLE "public"."be_appointment_cancellations" ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "saas_org_dormant_p0_8_3" ON "public"."be_appointment_cancellations";
 CREATE POLICY "saas_org_dormant_p0_8_3" ON "public"."be_appointment_cancellations" FOR ALL USING (((NULLIF(current_setting('app.org', true), '') IS NULL OR "organization_id" = NULLIF(current_setting('app.org', true), '')::uuid) AND (app.is_staff() OR (NULLIF(current_setting('app.patient_user_id', true), '') IS NOT NULL AND EXISTS ( SELECT 1 FROM "public"."be_appointments" AS "b4f_appt" WHERE "b4f_appt"."id" = "appointment_id" AND "b4f_appt"."platform_user_id" = NULLIF(current_setting('app.patient_user_id', true), '')::uuid ))))) WITH CHECK (((NULLIF(current_setting('app.org', true), '') IS NULL OR "organization_id" = NULLIF(current_setting('app.org', true), '')::uuid) AND (app.is_staff() OR (NULLIF(current_setting('app.patient_user_id', true), '') IS NOT NULL AND EXISTS ( SELECT 1 FROM "public"."be_appointments" AS "b4f_appt" WHERE "b4f_appt"."id" = "appointment_id" AND "b4f_appt"."platform_user_id" = NULLIF(current_setting('app.patient_user_id', true), '')::uuid )))));
