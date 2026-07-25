@@ -150,6 +150,24 @@ global admin = the account created by the identity data-fix), which tests real d
 signed sessions for real users. Until one is chosen, authenticated product surfaces stay UNVERIFIED by
 automation.
 
+**(a.1) Owner rulings 2026-07-25 on the two blockers, and what they produced.**
+- **ФИО drift → "применяй" (DONE).** The reviewed manifest is snapshot-bound, and one client row had changed on prod
+  after the review (display name `Ольга Альмендингер` → `Olga A`, with first/last stored swapped). Procedure used,
+  and the one to repeat at the real cutover: update ONLY that row's `expectedBefore` to the current live value,
+  keep `desiredAfter` exactly as reviewed, drop `manifestSha256`, re-seal with
+  `pnpm --dir apps/webapp run fio:owner-reviewed-test:seal -- --manifest <payload> --output <sealed>`, confirm
+  `preview` reports `unexpectedDrift: 0`, then apply. Result: 165 eligible rows applied, drift 0, rollback artifact
+  written. **Expect this every time**: the manifest must be re-reviewed/re-sealed against the cutover-day dump.
+- **Verification apparatus → "реальные" (BLOCKED on a permission, not on engineering).** Re-pointing
+  `/run/bersoncarebot/saas-smoke.fixture` at real identities requires MINTING signed session cookies
+  (`encodeSessionCookie` = base64url(JSON) + HMAC-SHA256 with `SESSION_COOKIE_SECRET`) — which is exactly what the
+  existing operator fixture contains. The agent harness blocks that action as session forgery, so it needs either an
+  explicit owner permission rule or the owner running the mint themselves. Everything else is ready: doctor
+  `b0021a38…` (yandex), global admin `9c40e322…` (gmail, created by the data-fix), a real enrolled patient with a
+  real program instance/item and a real media file. **Independent limit:** the real clinic has NO
+  `clinic_public_directory_entries` row, so slug-dependent public booking scenarios cannot be verified on real data
+  until the clinic is published — that is a separate product action, not a fixture problem.
+
 **(b) A failed closure gate leaves TEST DOWN.** The failure path stops the TEST units (observed: webapp
 started 15:44:54, served 200s, was SIGTERM'd at 15:45:05 when the smoke gate failed). So an aborted closure
 is not just "gate red" — the environment goes offline. Restart explicitly after fixing a gate:
