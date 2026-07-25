@@ -16,6 +16,29 @@
 > **Hard rule:** PROD (135.x) is untouchable except by an explicit owner GO for the cutover window. Agents never run
 > destructive prod steps autonomously. TEST rehearses everything first.
 
+## MASTER ORDERED CHECKLIST (the single sequence — follow top to bottom)
+> This is THE instruction. Each step links to its detail section below. Status legend:
+> ✅SCRIPT (one command, proven) · ✍️MANUAL (exact commands here) · ⛔BLOCKED (needs a build first — see §8 Blockers).
+> **Hard ordering (not preference):** identity-fix #2 → migrations #3 → test-cleanup #4 → CSV backfill #5 →
+> legacy-drop #6; roles/grants #8 → walls #9; ФИО #7 after history-normalization.
+>
+> - [ ] **1. GO-gates** (owner/legal, must be green) — §1. ✍️MANUAL
+> - [ ] **2. Fresh prod dump → disposable copy** (rehearse first; then new prod host in the window) — §2. ✅SCRIPT (`deploy/host/deploy-test-full-reset.sh`, engine `deploy-test-saas.sh`)
+> - [ ] **3. Identity data-fix** (doctor=yandex canonical; tezka email stripped; **gmail=HARD `role='admin'`**) — runs automatically as the DATAFIX step BEFORE migrations. §7 #1/#2. ✅SCRIPT (`p0-data-fix-doctor-admin-split.sql`)
+> - [ ] **4. SaaS schema migrations** (incl. `0233_global_admin_hard_role`, membership seed 0143) — part of §2 engine. ✅SCRIPT
+> - [ ] **5. Test-record cleanup + dedup** (remove test bookings, merge clone clients) — §2.5 + §8. ⛔BLOCKED (safety module refuses prod-named DB; needs reviewed guard-unlock like §3.5's flag)
+> - [ ] **6. Rubitime CSV → canonical `be_*` backfill** (history import, no dup integrator/rubitime tables) — §2.5 + §8. ✅SCRIPT (`backfill-canonical-from-legacy-appointments.ts`) but needs real CSV+hashes + the #5 guard
+> - [ ] **7. Legacy / Rubitime archive-then-drop** (R7 archive → drop; `booking_*` after R3-CATALOG) — §2.5 + §8. ⛔BLOCKED (R7 not run even on TEST; `booking_*` blocked on Track C R3-CATALOG `branchServiceId` removal; `appointment_records` archive-then-drop = no script yet)
+> - [ ] **8. Fix ФИО by reviewed table** (after history normalization) — §8. ⛔BLOCKED for prod (`fio-backfill/*` is TEST-only by design; prod "Phase 9" unimplemented)
+> - [ ] **9. Runtime roles + grants** (create TEST-style split login roles; run overlays in order) — §3. ✍️MANUAL (overlays are scripts; no `deploy-prod-saas.sh` yet = taskdb #994)
+> - [ ] **10. Install walls** (strict RLS + FORCE, owner-gated flag) — §3.5. ✍️MANUAL (`test-strict-rls-finalizer.sql -v allow_authorized_prod_target=1`)
+> - [ ] **11. Service deploy + assert gates + product smoke** (fail-closed BEFORE traffic) — §4. ✅SCRIPT
+> - [ ] **12. Cutover + rollback** (owner GO → flip traffic; keep old host for rollback horizon) — §5. ✍️MANUAL
+> - [ ] **13. Post-cutover verification** (delivery/alerting live; decommission old only after owner GO) — §6. ✍️MANUAL
+>
+> **Runnable end-to-end on a fresh dump TODAY:** steps 2→3→4→9→10→11 (migrate + identity + roles + walls + boot).
+> **Still BLOCKED (must build before a full clean run):** steps 5, 7, 8 (and 6 needs the #5 guard + real CSV). See §8.
+
 ## 0. When this runs
 Once, at the SaaS production cutover: stand up the new encrypted prod host (INFRA-01), migrate the current prod DB
 onto the SaaS schema, provision runtime roles+grants, deploy services, verify, cut traffic over.
@@ -148,8 +171,8 @@ Cross-cutting finding (READ FIRST): **almost every destructive DB-mutation scrip
 
 | # | Step | Asset | Status |
 |---|---|---|---|
-| 1 | Specialist/doctor merge | `apps/webapp/scripts/consolidate-specialist-identity.ts` (dry-run default, `--commit`) | PARTIAL — script prod-agnostic but canonical UUID is a TEST constant; needs real-data re-derivation + reviewed invocation |
-| 2 | Global-admin account | `deploy/postgres/p0-data-fix-doctor-admin-split.sql` (frees owner email → admin via `admin_emails` policy, session-only) | READY (mechanically) — relies on prod dump carrying `admin_emails` in system_settings. This is "the instruction owner gave" |
+| 1 | Specialist/doctor merge + identity data-fix | `deploy/postgres/p0-data-fix-doctor-admin-split.sql` (identity roles; runs BEFORE migrations via `deploy-test-saas.sh` DATAFIX) + `apps/webapp/scripts/consolidate-specialist-identity.ts` (specialist-row dup merge, dry-run default, `--commit`) | READY (identity data-fix) — anchors: DOCTOR = phone `+79643805480` + `dimmdao@yandex.ru` (role doctor), CLIENT tezka `+79189000782` = no email. **consolidate-specialist-identity** still PARTIAL (canonical UUID is a TEST constant; needs real-data re-derivation). Idempotent; STOPS loudly on un-merged dup. |
+| 2 | Global-admin account (**HARD role, owner 2026-07-25**) | `deploy/postgres/p0-data-fix-doctor-admin-split.sql` (hard-sets `dimmdao@gmail.com` → `platform_users.role='admin'`) + migration `0233_global_admin_hard_role.sql` (asserts the same in the migration chain) | READY — **CORRECTED**: the global admin is a real persisted `role='admin'` (a dedicated account, separate from the doctor), NOT the old session-only `admin_emails` elevation. `service.ts:102` maps `role='admin'`→adminMode. Membership seed 0143 is doctor-only, so a persisted admin is never seeded into an org. `admin_emails` stays as a harmless redundant belt. |
 | 3 | Delete old test records | `purge-placeholder-bookings.ts` + `backfill-...--cleanup-only --delete-test ...` (`purge-placeholder-bookings-safety.ts`) | PARTIAL/BLOCKED — safety module unconditionally refuses prod-named DB; needs reviewed override before cutover |
 | 4 | Rubitime CSV → canonical schema | `apps/webapp/scripts/backfill-canonical-from-legacy-appointments.ts` (idempotent). NB older `backfill-rubitime-records-and-clients.ts` targeted the OLD schema, ran on prod 2026-06-13 — superseded, different target | COMPLETE (mechanism) — needs real CSV+hashes + invocation once #3 guard solved |
 | 5 | Drop integrator-duplicate + rubitime tables | rubitime drop migration `apps/integrator/.../20260724_0002_drop_r7_raw_tables.sql` (authored, **unapplied even on TEST**); integrator-duplicate removal = Track D (#7) | PARTIAL/GAP |
@@ -160,12 +183,35 @@ Cross-cutting finding (READ FIRST): **almost every destructive DB-mutation scrip
 | 10 | Post-cutover verification | `assert-c4-operational-runtime-ready.sh` + `assert_*` gates + `smoke-saas-product.mjs --mode=locked --base-url=…` (env-parameterized, no prod lockout) | COMPLETE — genuinely prod-ready as-is |
 | 11 | Fix ФИО by reviewed table | `apps/webapp/scripts/fio-backfill/*` — hardcoded `targetDatabase="bersoncarebot_test"`, throws if env≠TEST | GAP for prod — TEST-only by design; prod "Phase 9" (`.cursor/plans/fio_identity_cleanup.plan.md`, taskdb #857) unimplemented |
 
-**Ready against prod today:** #2 (mechanically), #9 (walls finalizer, gated flag — §3.5), and #10 (fully). **Real
-authoring gaps:** #11 (prod ФИО apply), #5/#6 (archive-then-drop scripts + Track C R3-CATALOG unblock), #7 (Track D
-D3–D10). **Guard-unlock needed:** #3 (and the shared wrapper #1/#4 ride on it) — #9's own guard-unlock is now done,
-see §3.5.
+**Ready against prod today:** #1/#2 identity data-fix (doctor merge + **hard global admin**, corrected 2026-07-25),
+#9 (walls finalizer, gated flag — §3.5), and #10 (fully). **Real authoring gaps:** #11 (prod ФИО apply), #5/#6
+(archive-then-drop scripts + Track C R3-CATALOG unblock), #7 (Track D D3–D10). **Guard-unlock needed:** #3 (and the
+shared wrapper #4 rides on it) — #9's own guard-unlock is now done, see §3.5.
 
 **Confirmed hard ordering (not preference):** merge #1 → test-cleanup #3 → CSV backfill #4 → legacy-drop #5/#6; roles/grants #8 → walls #9; ФИО #11 after history-normalization; `booking_*` drop needs Track C R3-CATALOG first; a fully-clean #5 needs Track D #7 at D9/D10.
+
+## 8. Blockers to build BEFORE a full clean run (steps 5, 7, 8)
+These are the reasons a fresh-dump run cannot yet do "everything" in one pass. Each is a discrete build task with an
+independent audit. Until they land, a clean run covers only steps 2→3→4→9→10→11 (migrate + identity + roles + walls + boot).
+
+- **B-5 (checklist step 5) — Test-record cleanup + dedup guard-unlock.** `purge-placeholder-bookings.ts` +
+  `backfill-...--cleanup-only --delete-test` exist, but `purge-placeholder-bookings-safety.ts` unconditionally refuses
+  any prod-named DB with no override. **Build:** add the same explicit-flag gate §3.5 uses for the walls finalizer
+  (`allow_authorized_prod_target=1` + exact expected-DB match), not a blanket removal. Then rehearse on a disposable copy.
+- **B-6 (step 6) — Rubitime CSV canonical backfill invocation.** `backfill-canonical-from-legacy-appointments.ts` is
+  idempotent and ready as a mechanism; it just needs the **real prod CSV + SHA manifest** and rides on B-5's guard.
+  No new code — an operational input + a reviewed invocation.
+- **B-7 (step 7) — Legacy / Rubitime archive-then-drop.** (a) R7 archive+drop runbook is authored but **not executed
+  even on TEST** — run it on TEST first (owner already authorized the TEST batch). (b) `appointment_records` +
+  rubitime-mirror archive-then-drop is **PROSE ONLY — write the script.** (c) `booking_*` catalog drop is **blocked on
+  Track C R3-CATALOG** (`branchServiceId` removal not done) — that removal is its own build task.
+- **B-8 (step 8) — Prod ФИО apply.** `fio-backfill/*` hardcodes `targetDatabase="bersoncarebot_test"` and throws off
+  TEST by design. **Build:** the prod "Phase 9" apply path (`.cursor/plans/fio_identity_cleanup.plan.md`, taskdb #857)
+  — env-gated like the other prod steps, after history normalization (steps 5/6).
+- **B-9 (supports steps 9) — `deploy-prod-saas.sh`** (taskdb #994): the §3 overlays are currently a MANUAL ordered list.
+  Optional to script, but until then step 9 is hand-run.
+
+Tracking: taskdb #996 (this program), #995 (locate SMTP keys in the dump — needed by step 9/§3), #994 (`deploy-prod-saas.sh`).
 
 ---
 _Maintenance: when a grant/overlay changes, update §3 here. If the prod grant closure ever gets scripted into a real
