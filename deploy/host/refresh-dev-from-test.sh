@@ -134,4 +134,26 @@ bash "$DEV_MIGRATE" --execute
 echo "[refresh-dev] removing copied TEST-only settings locks from DEV"
 bash "$DEV_POST_REFRESH_UNLOCK" --execute
 
+# Post-P0.5b tables own their runtime GRANTs inside their OWN migration (see the header of
+# deploy/postgres/p0-5b-grants.sql — they are deliberately excluded from the generated allowlist).
+# That is fine on TEST, where those migrations run for the first time against a restored prod dump.
+# It breaks DEV: the restore above is `--no-acl`, and the migration is ALREADY in the journal copied
+# from TEST, so it never re-runs and its grants are simply lost. Symptom is silent and confusing —
+# the table exists, the app 500s on every query, and nothing says "missing grant" until you check
+# has_table_privilege by hand (this cost a full debugging cycle on 2026-07-25 with branding).
+# Re-assert them idempotently here, mirroring TEST's ACL exactly. Add a line when a new post-P0.5b
+# table grants runtime roles in its migration.
+echo "[refresh-dev] re-asserting post-P0.5b table grants lost by the --no-acl restore"
+"${POSTGRES[@]}" psql -X -v ON_ERROR_STOP=1 -d "$TARGET_DB" >/dev/null <<'SQL'
+DO $dev_post_p05b_grants$
+BEGIN
+  IF to_regclass('public.org_brand_revisions') IS NOT NULL THEN
+    -- TEST ACL: app_staff=arw, app_patient=r. No DELETE for either (0238 keeps the trail append-only).
+    EXECUTE 'GRANT SELECT, INSERT, UPDATE ON public.org_brand_revisions TO app_staff';
+    EXECUTE 'GRANT SELECT ON public.org_brand_revisions TO app_patient';
+  END IF;
+END
+$dev_post_p05b_grants$;
+SQL
+
 echo "[refresh-dev] PASS: DEV now mirrors TEST data plus current branch migrations"
