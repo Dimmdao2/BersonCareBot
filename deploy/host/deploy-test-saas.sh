@@ -502,6 +502,36 @@ SELECT EXISTS (
 \echo 'FATAL: p2_b_app_is_staff_owner_not_normalized.'
 SELECT 1 / 0 AS p2_b_app_is_staff_owner_not_normalized;
 \endif
+
+-- Same normalization for the three principal accessors (added 2026-07-25). Migration 0175 now bootstraps
+-- fail-closed stubs for app.current_org_id()/current_patient_user_id()/current_integrator_user_id() so the
+-- migration chain can create policies referencing them on a from-zero database. Those stubs are owned by
+-- the migrator role, but p2-b installs the authoritative bodies while running AS :p2_b_owner_role via
+-- SET ROLE, and CREATE OR REPLACE FUNCTION requires ownership -> 'must be owner of function current_org_id'.
+-- Hand ownership over first, exactly like app.is_staff() above. WHERE-guarded so an absent function is a
+-- no-op rather than an error.
+SELECT format('ALTER FUNCTION app.current_org_id() OWNER TO %I', :'p2_b_owner_role')
+WHERE to_regprocedure('app.current_org_id()') IS NOT NULL \gexec
+SELECT format('ALTER FUNCTION app.current_patient_user_id() OWNER TO %I', :'p2_b_owner_role')
+WHERE to_regprocedure('app.current_patient_user_id()') IS NOT NULL \gexec
+SELECT format('ALTER FUNCTION app.current_integrator_user_id() OWNER TO %I', :'p2_b_owner_role')
+WHERE to_regprocedure('app.current_integrator_user_id()') IS NOT NULL \gexec
+
+SELECT NOT EXISTS (
+  SELECT 1
+  FROM pg_proc p
+  JOIN pg_namespace n ON n.oid = p.pronamespace
+  JOIN pg_roles r ON r.oid = p.proowner
+  WHERE n.nspname = 'app'
+    AND p.proname IN ('current_org_id', 'current_patient_user_id', 'current_integrator_user_id')
+    AND p.pronargs = 0
+    AND r.rolname <> :'p2_b_owner_role'
+)::int AS p2_b_principal_accessor_owners_normalized \gset
+\if :p2_b_principal_accessor_owners_normalized
+\else
+\echo 'FATAL: p2_b_principal_accessor_owner_not_normalized.'
+SELECT 1 / 0 AS p2_b_principal_accessor_owner_not_normalized;
+\endif
 SQL
 
   {
