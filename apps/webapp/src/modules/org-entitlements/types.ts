@@ -144,6 +144,13 @@ export type EffectiveOrgCommercialAccess = {
   lifecycle: OrgCommercialLifecycleState;
   tariffId: string | null;
   source: "compatibility" | "assignment" | "trial" | "post_trial_tariff" | "no_trial";
+  /**
+   * Present only when this access derives from an active organization trial (`source === "trial"`,
+   * or a lifecycle of `grace`/`blocked`/`read_only` reached via a trial). Owner-facing displays
+   * (settings billing tab) need the real date, not just the enum — see Defect #2 2026-07-25.
+   */
+  trialEndsAt?: string;
+  trialGraceEndsAt?: string;
 };
 
 export type OrgEntitlementSnapshot = {
@@ -151,6 +158,9 @@ export type OrgEntitlementSnapshot = {
     mechanics: Record<string, boolean>;
     quotas: TariffQuotaMap;
     includedSeats: number | null;
+    /** Optional display fields — populated by the staff (non-patient) resolution path only. */
+    id?: string;
+    name?: string;
   } | null;
   overrides: Array<{
     mechanic: string;

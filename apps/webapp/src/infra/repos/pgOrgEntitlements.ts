@@ -103,19 +103,26 @@ function resolveAccess(input: {
             : "assignment",
     };
   }
+  const trialDates = { trialEndsAt: trial.endsAt, trialGraceEndsAt: trial.graceEndsAt };
   if (input.now <= new Date(trial.endsAt).getTime()) {
-    return { lifecycle: "active", tariffId: trial.tariffId, source: "trial" };
+    return { lifecycle: "active", tariffId: trial.tariffId, source: "trial", ...trialDates };
   }
   if (input.now <= new Date(trial.graceEndsAt).getTime()) {
-    return { lifecycle: "grace", tariffId: trial.tariffId, source: "trial" };
+    return { lifecycle: "grace", tariffId: trial.tariffId, source: "trial", ...trialDates };
   }
   if (trial.postTrialBehavior === "tariff") {
-    return { lifecycle: "active", tariffId: trial.postTrialTariffId, source: "post_trial_tariff" };
+    return {
+      lifecycle: "active",
+      tariffId: trial.postTrialTariffId,
+      source: "post_trial_tariff",
+      ...trialDates,
+    };
   }
   return {
     lifecycle: trial.postTrialBehavior === "blocked" ? "blocked" : "read_only",
     tariffId: trial.tariffId,
     source: "trial",
+    ...trialDates,
   };
 }
 
@@ -160,6 +167,8 @@ async function readStaffSnapshot(organizationId: string): Promise<OrgEntitlement
     const [tariff] = access.tariffId
       ? await tx
           .select({
+            id: saasTariffs.id,
+            name: saasTariffs.name,
             mechanics: saasTariffs.mechanics,
             quotas: saasTariffs.quotas,
             includedSeats: saasTariffs.includedSeats,
@@ -181,6 +190,8 @@ async function readStaffSnapshot(organizationId: string): Promise<OrgEntitlement
     return {
       tariff: tariff
         ? {
+            id: tariff.id,
+            name: tariff.name,
             mechanics: tariff.mechanics,
             quotas: tariff.quotas as TariffQuotaMap,
             includedSeats: tariff.includedSeats,

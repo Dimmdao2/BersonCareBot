@@ -4,13 +4,18 @@ import { requireEntitlementForReadAction } from "@/app-layer/guards/requireEntit
 import { requireOrganizationWorkspaceContext } from "@/app-layer/guards/requireRole";
 import { routePaths } from "@/app-layer/routes/paths";
 import { isSeatConsumingMember } from "@/modules/clinic-seats/service";
+import { entitlementsFromSnapshot } from "@/modules/org-entitlements/service";
+import { MECHANIC_REGISTRY, MECHANICS } from "@/modules/org-entitlements/types";
 import { DoctorAppShell } from "@/shared/ui/doctor/DoctorAppShell";
-import { DoctorSection, DoctorSectionHeader, DoctorSectionTitle } from "@/shared/ui/doctor/DoctorSection";
 import { DoctorPageHeader } from "@/shared/ui/doctor/shell/DoctorPageHeader";
 import { ADMIN_TAB_REDIRECTS, parseHealthArchiveProbeParam } from "./adminSettingsData";
 import { AppointmentReminderSettingsSection } from "./AppointmentReminderSettingsSection";
+import { BillingSection, type BillingMechanicRow } from "./BillingSection";
+import { describeCommercialAccessState } from "./billingCommercialState";
 import { DoctorTodayPreferencesSection } from "./DoctorTodayPreferencesSection";
 import { SettingsForm } from "./SettingsForm";
+import { SettingsTabsNav } from "./SettingsTabsNav";
+import type { SettingsTabId } from "./settingsTabs";
 import { TeamSection } from "./TeamSection";
 import { parseDoctorTodayPreferences } from "@/modules/system-settings/doctorTodayPreferences";
 
@@ -52,6 +57,21 @@ export default async function SettingsPage({
   const canManageOrganization = workspace.canManageOrganization || isGlobalAdmin;
   if (!canManageOrganization) redirect(routePaths.account);
 
+  // Resolved once up front (not just inside the "team"/"billing" branches) so every rendered tab
+  // can show the same nav with only the sections this viewer may actually open — Defect #1
+  // 2026-07-25: the page had no nav at all, so `?tab=team`/`?tab=billing` were reachable only by
+  // typing the URL.
+  const teamEntitlement = await requireEntitlementForReadAction(
+    { organizationId: workspace.organizationId },
+    "clinic_team",
+  );
+  const canAccessBilling = workspace.membershipRole === "owner" || isGlobalAdmin;
+  const visibleTabs: SettingsTabId[] = [
+    "organization",
+    ...(teamEntitlement.ok ? (["team"] as const) : []),
+    ...(canAccessBilling ? (["billing"] as const) : []),
+  ];
+
   if (tab === null || tab === "organization") {
     const doctorSettings = await buildAppDeps().systemSettings.listSettingsByScope("doctor", {
       organizationId: workspace.organizationId,
@@ -74,6 +94,7 @@ export default async function SettingsPage({
     return (
       <DoctorAppShell title="Настройки" user={workspace.session.user}>
         <DoctorPageHeader title="Настройки" />
+        <SettingsTabsNav activeTab="organization" visibleTabs={visibleTabs} />
         <SettingsForm
           patientLabel={String(patientLabel)}
           smsFallbackEnabled={false}
@@ -103,11 +124,7 @@ export default async function SettingsPage({
   }
 
   if (tab === "team") {
-    const entitlement = await requireEntitlementForReadAction(
-      { organizationId: workspace.organizationId },
-      "clinic_team",
-    );
-    if (!entitlement.ok) redirect(`${routePaths.settings}?tab=organization`);
+    if (!teamEntitlement.ok) redirect(`${routePaths.settings}?tab=organization`);
 
     const deps = buildAppDeps();
     const [members, invites, seats] = await Promise.all([
@@ -118,6 +135,7 @@ export default async function SettingsPage({
     return (
       <DoctorAppShell title="Команда" user={workspace.session.user}>
         <DoctorPageHeader title="Команда" />
+        <SettingsTabsNav activeTab="team" visibleTabs={visibleTabs} />
         <TeamSection
           members={members.map((member) => ({
             id: member.id,
@@ -138,19 +156,25 @@ export default async function SettingsPage({
     );
   }
 
-  const canAccessBilling = workspace.membershipRole === "owner" || isGlobalAdmin;
   if (!canAccessBilling) redirect(routePaths.account);
+
+  const snapshot = await buildAppDeps().orgEntitlements.getSnapshot(workspace.organizationId);
+  const entitlements = entitlementsFromSnapshot(snapshot);
+  const mechanicRows: BillingMechanicRow[] = MECHANICS.map((mechanic) => ({
+    mechanic,
+    label: MECHANIC_REGISTRY[mechanic].label,
+    enabled: entitlements[mechanic],
+  }));
+
   return (
     <DoctorAppShell title="Тариф и биллинг" user={workspace.session.user}>
       <DoctorPageHeader title="Тариф и биллинг" />
-      <DoctorSection>
-        <DoctorSectionHeader>
-          <DoctorSectionTitle>Тариф и биллинг</DoctorSectionTitle>
-        </DoctorSectionHeader>
-        <p className="text-sm text-muted-foreground">
-          Коммерческие настройки станут доступны после подключения тарифа.
-        </p>
-      </DoctorSection>
+      <SettingsTabsNav activeTab="billing" visibleTabs={visibleTabs} />
+      <BillingSection
+        tariffName={snapshot.tariff?.name ?? null}
+        commercialStateLabel={describeCommercialAccessState(snapshot.access)}
+        mechanics={mechanicRows}
+      />
     </DoctorAppShell>
   );
 }

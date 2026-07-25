@@ -97,7 +97,13 @@ function isOverrideActive(expiresAt: string | null | undefined): boolean {
   return !expiresAt || new Date(expiresAt).getTime() > Date.now();
 }
 
-function entitlementsFromSnapshot(
+/**
+ * Exported so read-only surfaces (owner-facing billing tab) can derive the same effective
+ * mechanic map from a single already-fetched `getSnapshot()` result, instead of re-querying via
+ * `resolveOrgEntitlements` or reading tariff JSON directly. Same override > tariff > default
+ * precedence as the rest of this module — this is not a second resolver.
+ */
+export function entitlementsFromSnapshot(
   snapshot: Pick<OrgEntitlementSnapshot, "tariff" | "overrides" | "access">,
 ): OrgEntitlements {
   const overrideByMechanic = new Map(

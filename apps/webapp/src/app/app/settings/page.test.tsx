@@ -13,9 +13,12 @@ const {
   listInvitesMock,
   seatStatusMock,
   listSettingsMock,
+  getOrgEntitlementsSnapshotMock,
   settingsFormMock,
   appointmentReminderMock,
   teamSectionMock,
+  billingSectionMock,
+  settingsTabsNavMock,
 } = vi.hoisted(() => ({
   redirectMock: vi.fn((url: string) => { throw new Error(`redirect:${url}`); }),
   requireWorkspaceMock: vi.fn(),
@@ -25,9 +28,16 @@ const {
   listInvitesMock: vi.fn(),
   seatStatusMock: vi.fn(),
   listSettingsMock: vi.fn(),
+  getOrgEntitlementsSnapshotMock: vi.fn(),
   settingsFormMock: vi.fn(() => <section data-testid="organization-settings" />),
   appointmentReminderMock: vi.fn(() => <section data-testid="appointment-reminders" />),
   teamSectionMock: vi.fn(() => <section data-testid="team" />),
+  billingSectionMock: vi.fn(() => <section data-testid="billing" />),
+  settingsTabsNavMock: vi.fn(
+    ({ activeTab, visibleTabs }: { activeTab: string; visibleTabs: string[] }) => (
+      <nav data-testid="settings-tabs-nav" data-active={activeTab} data-visible={visibleTabs.join(",")} />
+    ),
+  ),
 }));
 
 vi.mock("next/navigation", () => ({ redirect: redirectMock }));
@@ -47,6 +57,7 @@ vi.mock("@/app-layer/di/buildAppDeps", () => ({
     organizationInvites: { listPending: listInvitesMock },
     clinicSeats: { getSeatStatus: seatStatusMock },
     systemSettings: { listSettingsByScope: listSettingsMock },
+    orgEntitlements: { getSnapshot: getOrgEntitlementsSnapshotMock },
   }),
 }));
 vi.mock("./TeamSection", () => ({ TeamSection: teamSectionMock }));
@@ -54,6 +65,8 @@ vi.mock("./SettingsForm", () => ({ SettingsForm: settingsFormMock }));
 vi.mock("./AppointmentReminderSettingsSection", () => ({
   AppointmentReminderSettingsSection: appointmentReminderMock,
 }));
+vi.mock("./BillingSection", () => ({ BillingSection: billingSectionMock }));
+vi.mock("./SettingsTabsNav", () => ({ SettingsTabsNav: settingsTabsNavMock }));
 vi.mock("@/shared/ui/doctor/DoctorAppShell", () => ({
   DoctorAppShell: ({ children }: { children: ReactNode }) => <main>{children}</main>,
 }));
@@ -91,6 +104,11 @@ describe("legacy settings compatibility", () => {
       { key: "doctor_appointment_reminder_enabled", valueJson: { value: true } },
       { key: "doctor_appointment_reminder_offsets_minutes", valueJson: { value: [1440, 120] } },
     ]);
+    getOrgEntitlementsSnapshotMock.mockResolvedValue({
+      tariff: null,
+      overrides: [],
+      access: { lifecycle: "active", tariffId: null, source: "compatibility" },
+    });
   });
 
   it("routes the explicit old personal and install entries to the one account area", async () => {
@@ -152,6 +170,32 @@ describe("legacy settings compatibility", () => {
     );
   });
 
+  it("builds the section nav from only the sections this viewer may reach (Defect #1)", async () => {
+    // Baseline: clinic_team off (default mock), owner → billing visible, team hidden.
+    render(await SettingsPage({ searchParams: Promise.resolve({}) }));
+    expect(settingsTabsNavMock).toHaveBeenCalledWith(
+      expect.objectContaining({ activeTab: "organization", visibleTabs: ["organization", "billing"] }),
+      undefined,
+    );
+
+    settingsTabsNavMock.mockClear();
+    entitlementMock.mockResolvedValue({ ok: true });
+    render(await SettingsPage({ searchParams: Promise.resolve({}) }));
+    expect(settingsTabsNavMock).toHaveBeenCalledWith(
+      expect.objectContaining({ activeTab: "organization", visibleTabs: ["organization", "team", "billing"] }),
+      undefined,
+    );
+
+    settingsTabsNavMock.mockClear();
+    entitlementMock.mockResolvedValue({ ok: false, mechanic: "clinic_team" });
+    requireWorkspaceMock.mockResolvedValue({ ...ownerWorkspace, membershipRole: "doctor" });
+    render(await SettingsPage({ searchParams: Promise.resolve({}) }));
+    expect(settingsTabsNavMock).toHaveBeenCalledWith(
+      expect.objectContaining({ activeTab: "organization", visibleTabs: ["organization"] }),
+      undefined,
+    );
+  });
+
   it("keeps Team fail-closed when clinic_team is unavailable without redirecting to itself", async () => {
     await expect(SettingsPage({ searchParams: Promise.resolve({ tab: "team" }) })).rejects.toThrow(
       "redirect:/app/settings?tab=organization",
@@ -173,6 +217,10 @@ describe("legacy settings compatibility", () => {
     render(await SettingsPage({ searchParams: Promise.resolve({ tab: "team" }) }));
 
     expect(screen.getByTestId("team")).toBeInTheDocument();
+    expect(settingsTabsNavMock).toHaveBeenCalledWith(
+      expect.objectContaining({ activeTab: "team", visibleTabs: ["organization", "team", "billing"] }),
+      undefined,
+    );
     expect(teamSectionMock).toHaveBeenCalledWith(
       expect.objectContaining({
         members: [expect.objectContaining({ id: "m1", seatConsuming: true })],
@@ -183,9 +231,28 @@ describe("legacy settings compatibility", () => {
     );
   });
 
-  it("preserves the owner-only billing placeholder and denies it to a specialist", async () => {
+  it("resolves the real tariff/entitlement snapshot for the owner-only billing tab and denies it to a specialist", async () => {
+    getOrgEntitlementsSnapshotMock.mockResolvedValue({
+      tariff: { id: "tariff-1", name: "ПОЛНЫЙ ДОСТУП - РАЗРАБОТЧИК", mechanics: { payments: true, courses: false }, quotas: {}, includedSeats: null },
+      overrides: [],
+      access: { lifecycle: "active", tariffId: "tariff-1", source: "assignment" },
+    });
+
     render(await SettingsPage({ searchParams: Promise.resolve({ tab: "billing" }) }));
-    expect(screen.getByText("Коммерческие настройки станут доступны после подключения тарифа.")).toBeInTheDocument();
+
+    expect(screen.getByTestId("billing")).toBeInTheDocument();
+    expect(getOrgEntitlementsSnapshotMock).toHaveBeenCalledWith("org-1");
+    expect(billingSectionMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        tariffName: "ПОЛНЫЙ ДОСТУП - РАЗРАБОТЧИК",
+        commercialStateLabel: "Тариф активен.",
+        mechanics: expect.arrayContaining([
+          expect.objectContaining({ mechanic: "payments", label: "Оплата записи", enabled: true }),
+          expect.objectContaining({ mechanic: "courses", label: "Курсы", enabled: false }),
+        ]),
+      }),
+      undefined,
+    );
 
     requireWorkspaceMock.mockResolvedValue({
       ...ownerWorkspace,
@@ -194,6 +261,25 @@ describe("legacy settings compatibility", () => {
     });
     await expect(SettingsPage({ searchParams: Promise.resolve({ tab: "billing" }) })).rejects.toThrow(
       "redirect:/app/account",
+    );
+  });
+
+  it("shows the honest empty state (no tariff) instead of a lie", async () => {
+    getOrgEntitlementsSnapshotMock.mockResolvedValue({
+      tariff: null,
+      overrides: [],
+      access: { lifecycle: "active", tariffId: null, source: "no_trial" },
+    });
+
+    render(await SettingsPage({ searchParams: Promise.resolve({ tab: "billing" }) }));
+
+    expect(billingSectionMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        tariffName: null,
+        commercialStateLabel:
+          "Пробный период не активирован и тариф не назначен — доступ к платным механикам ограничен.",
+      }),
+      undefined,
     );
   });
 
