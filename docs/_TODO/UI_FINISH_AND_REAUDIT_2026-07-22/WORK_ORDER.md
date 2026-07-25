@@ -142,6 +142,24 @@ auditor:
   <br>**Note found, not fixed here (pre-existing, unrelated to D5):** this WORK_ORDER's D3/D4 checkboxes above
   are still `[ ]` even though both are merged+audited (`fc5493c91`/`3022816da` D3, `e2590d050`/`c376b6b74` D4,
   confirmed via `git log`) — left as-is since fixing that is outside this D5 push's scope.
+  <br>**AUDIT ROUND 2 FIX 2026-07-25 (commit `c7aac2aea`):** independent audit live-reproduced a real defect —
+  `upsertReminderRuleDirect` was RLS-denied under the REAL "integrator" principal
+  (`runWithIntegratorPrincipal`, the exact shape `reminders.rule.toggle`/`.cyclePreset` run under for an
+  already-known telegram/max user: org set, patient NULL, `SET ROLE app_patient`), so every normal toggle
+  silently degraded to the durable-outbox fallback + fired an operator incident on every call. Class-check
+  found the SAME defect in D2 (`createSymptomTrackingDirect`, worse — no fallback branch, so an uncaught
+  throw) and D3/D4 (`openSupportConversationDirect`/`createSupportQuestionDirect`); live-reproduced
+  before/after for all three. Fixed uniformly via a new `runDirectPublicWriteWithOrgPrincipal` wrap in
+  `writePort.ts` (12 call sites across D2-D5) that re-installs an explicit org principal using the
+  ALREADY-ambient organization id. Added an opt-in real-Postgres RLS regression test. Full detail: commit
+  `c7aac2aea` message.
+  <br>**NEW finding, spawned as a SEPARATE task (`task_53b67199`), NOT fixed here — out of D5 scope:** the
+  `app_patient` role `runWithIntegratorPrincipal` locks lacks INSERT/UPDATE (and mostly SELECT) on
+  `integrator.*` schema tables entirely (confirmed live: `has_table_privilege('app_patient',
+  'integrator.users','SELECT')` = false, same for `user_reminder_rules` INSERT/UPDATE). This means the
+  INTEGRATOR-LOCAL write inside `reminders.rule.upsert` (and likely many other handlers' local writes)
+  still fails end-to-end under a real locked integrator principal — a broader, pre-existing, likely-live
+  defect independent of and in addition to the RLS bug just fixed. Needs its own investigation.
 - [ ] **D6 — reminder lifecycle, delivery and content grants.** Reconcile/backfill the currently missing failed
   occurrence history before retiring duplicate delivery/content projections; keep only proven technical scheduler
   state.
