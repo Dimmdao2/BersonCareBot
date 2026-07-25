@@ -41,29 +41,31 @@
 -- (missing integrator.rubitime_records.{record_at,rubitime_record_id,status}, integrator.rubitime_events.id).
 --
 -- The binding runbook order is: R1-R6 import → R7 archive → R7 DROP (drop is LAST, owner-gated). So this
--- migration now self-defers instead of running out of order: it drops only when the canonical projection
--- already exists (history imported) or when there is no raw history left to lose. On a from-zero run it
--- no-ops with a notice, and the drop is completed at the END of the pipeline by the gated archive
--- tooling (`deploy/host/archive-rubitime-retirement-tables.sh`, which archives + verifies first) —
+-- migration now self-defers instead of running out of order: it drops ONLY when the raw tables are empty
+-- or absent, i.e. when there is no history left to lose. On a from-zero run it no-ops with a notice, and
+-- the drop is completed at the END of the pipeline by the gated archive tooling
+-- (`deploy/host/archive-rubitime-retirement-tables.sh`, which archives + verifies first) —
 -- see SAAS_PROD_DEPLOY_PROCESS.md §2.5/§2.1.
+-- Guard predicate = "is there still raw history to lose?", NOT "does a projection exist". A partially
+-- populated `be_appointments.source='rubitime_projection'` is NOT proof the import ran: PROD already
+-- projects Rubitime into canonical rows continuously, so a fresh prod dump arrives WITH projection rows
+-- AND with the un-imported raw source. Keying on the projection therefore let the drop through on
+-- rehearsal run 10 and destroyed the source again. Only emptiness/absence of the raw tables is safe.
 DO $r7_order_guard$
 DECLARE
-  v_projection bigint := 0;
   v_raw_records bigint := 0;
+  v_raw_events bigint := 0;
 BEGIN
-  IF to_regclass('public.be_appointments') IS NOT NULL THEN
-    SELECT count(*) INTO v_projection
-    FROM public.be_appointments
-    WHERE source = 'rubitime_projection';
-  END IF;
-
   IF to_regclass('integrator.rubitime_records') IS NOT NULL THEN
     SELECT count(*) INTO v_raw_records FROM integrator.rubitime_records;
   END IF;
+  IF to_regclass('integrator.rubitime_events') IS NOT NULL THEN
+    SELECT count(*) INTO v_raw_events FROM integrator.rubitime_events;
+  END IF;
 
-  IF v_projection = 0 AND v_raw_records > 0 THEN
-    RAISE NOTICE 'R7 raw-table DROP DEFERRED: % raw rubitime_records rows are still the un-imported history source (canonical rubitime_projection rows = 0). Import history first (R1-R6), then archive + drop via deploy/host/archive-rubitime-retirement-tables.sh.',
-      v_raw_records;
+  IF v_raw_records > 0 OR v_raw_events > 0 THEN
+    RAISE NOTICE 'R7 raw-table DROP DEFERRED: raw history still present (rubitime_records=%, rubitime_events=%). Import it first (R1-R6 chain), then archive + drop via deploy/host/archive-rubitime-retirement-tables.sh.',
+      v_raw_records, v_raw_events;
     RETURN;
   END IF;
 
@@ -74,6 +76,6 @@ BEGIN
   DROP TABLE IF EXISTS rubitime_branches CASCADE;
   DROP TABLE IF EXISTS rubitime_services CASCADE;
   DROP TABLE IF EXISTS rubitime_cooperators CASCADE;
-  RAISE NOTICE 'R7 raw-table DROP applied (projection rows = %, raw records = %).', v_projection, v_raw_records;
+  RAISE NOTICE 'R7 raw-table DROP applied (raw tables were empty or absent).';
 END
 $r7_order_guard$;
