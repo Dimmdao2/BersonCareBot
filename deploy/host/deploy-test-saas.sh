@@ -97,6 +97,7 @@ P2_B_SIGNING_SECRET_VALUE=""
 P2_B_CONTEXT_INSTALLED=0
 WRITERS_STOPPED=0
 SERVICES_RELEASED=0
+PRODUCT_SMOKE_GATE_FAILED=0
 FIXTURE_VALIDATOR_ROOT="$SRC_REPO"
 LOCKED_PRODUCT_SMOKE_FIXTURE_CANONICAL=""
 E1_RUNTIME_COVERAGE_STARTED_AT=""
@@ -946,6 +947,21 @@ apply_test_nginx_webapp_config(){
   bash deploy/host/apply-test-nginx-webapp.sh --apply
 }
 
+compute_locked_smoke_scenario_ids(){
+  # Derives the read-only scenario id allow-list from the DEPLOYED contract (the same file the
+  # smoke script itself loads), minus the known-skip set. Keeping this computed (not hardcoded)
+  # means new contract scenarios are included automatically and only the documented known-skip
+  # ids are ever dropped from the gate.
+  local exclude_csv="$1"
+  node -e '
+    const fs = require("node:fs");
+    const contract = JSON.parse(fs.readFileSync(process.argv[1], "utf8"));
+    const exclude = new Set((process.argv[2] || "").split(",").map((s) => s.trim()).filter(Boolean));
+    const ids = contract.readOnlyScenarios.map((s) => s.id).filter((id) => !exclude.has(id));
+    process.stdout.write(ids.join(","));
+  ' "$DEPLOY_REPO/docs/_TODO/SAAS_FOUNDATION/saas-product-smoke-contract.json" "$exclude_csv"
+}
+
 run_locked_product_smoke(){
   local fixture_path
   assert_locked_product_smoke_fixture_ready
@@ -959,23 +975,57 @@ run_locked_product_smoke(){
   fi
   if [ -n "${SAAS_PRODUCT_SMOKE_SCENARIO_IDS:-}" ]; then
     smoke_args+=("--scenario-ids=$SAAS_PRODUCT_SMOKE_SCENARIO_IDS")
+  else
+    # Known limitation (2026-07-25): the real TEST clinic ("Точка Здоровья") has no
+    # clinic_public_directory_entries row, and no in-app publish flow is wired yet to create one
+    # (modules/clinic-directory reserveSlug/claimReservedSlug have zero route callers today) — so
+    # public.booking.slots cannot legitimately pass without fabricating a slug, which is out of
+    # bounds. It is excluded from the pass/fail gate and reported as SKIPPED below, never as passed.
+    local known_skip_ids="${SAAS_PRODUCT_SMOKE_KNOWN_SKIP_IDS:-public.booking.slots}"
+    if [ -n "$known_skip_ids" ]; then
+      echo "   ⚠️  SKIPPED (known limitation, excluded from pass/fail gate): $known_skip_ids"
+      echo "       reason: no clinic_public_directory_entries row for the real org and no in-app publish flow yet;"
+      echo "       fabricating a slug via raw SQL would be a fake pass, not a real one. Revisit once publish is wired."
+      smoke_args+=("--scenario-ids=$(compute_locked_smoke_scenario_ids "$known_skip_ids")")
+    fi
   fi
-  sudo -u deploy node "$DEPLOY_REPO/docs/_TODO/SAAS_FOUNDATION/scripts/smoke-saas-product.mjs" \
+
+  # Mandatory but warn-not-fatal on failure (owner 2026-07-25): a stale/broken smoke fixture must
+  # never SIGTERM live TEST units. Precedent: the E1 isolation post-runtime gate was made
+  # warn-not-fatal the same way (d55d0ac8d) for the identical reason — this is a correctness gate,
+  # not a services-availability gate. The gate stays RED and loud (PRODUCT_SMOKE_GATE_FAILED flips
+  # the overall deploy exit code to non-zero at the very end, once SERVICES_RELEASED=1 is already
+  # set — see the end of run_strict_closure) instead of exiting mid-closure while WRITERS_STOPPED=1,
+  # which is exactly the condition that made cleanup_exit stop every unit.
+  if sudo -u deploy node "$DEPLOY_REPO/docs/_TODO/SAAS_FOUNDATION/scripts/smoke-saas-product.mjs" \
     --mode=locked \
     --base-url="${SAAS_PRODUCT_SMOKE_BASE_URL:-https://test.bersoncare.ru}" \
     --fixture-file="$fixture_path" \
     --json-output="$smoke_dir/saas-product-smoke.json" \
     --junit-output="$smoke_dir/saas-product-smoke.junit.xml" \
-    "${smoke_args[@]}"
+    "${smoke_args[@]}"; then
+    echo "   A2 product smoke gate: OK"
+  else
+    PRODUCT_SMOKE_GATE_FAILED=1
+    echo "   ⚠️  FAIL [TEST]: A2 product smoke gate did NOT pass — TEST units stay UP (see cleanup precedent above)." >&2
+    echo "   ⚠️  This deploy WILL still exit non-zero once the strict closure finishes; it is not silenced." >&2
+    echo "   ⚠️  Triage:  cat $smoke_dir/saas-product-smoke.json" >&2
+  fi
 
-  sudo -u deploy node "$DEPLOY_REPO/docs/_TODO/SAAS_FOUNDATION/scripts/smoke-saas-product.mjs" \
+  if sudo -u deploy node "$DEPLOY_REPO/docs/_TODO/SAAS_FOUNDATION/scripts/smoke-saas-product.mjs" \
     --mode=locked \
     --base-url="${SAAS_PRODUCT_SMOKE_BASE_URL:-https://test.bersoncare.ru}" \
     --fixture-file="$fixture_path" \
     --include-mutations \
     --scenario-ids=global-admin.clinical-write.denied \
     --json-output="$smoke_dir/saas-product-smoke-global-admin-denial.json" \
-    --junit-output="$smoke_dir/saas-product-smoke-global-admin-denial.junit.xml"
+    --junit-output="$smoke_dir/saas-product-smoke-global-admin-denial.junit.xml"; then
+    echo "   A2 global-admin clinical-write denial smoke: OK"
+  else
+    PRODUCT_SMOKE_GATE_FAILED=1
+    echo "   ⚠️  FAIL [TEST]: A2 global-admin clinical-write denial smoke did NOT pass — TEST units stay UP." >&2
+    echo "   ⚠️  Triage:  cat $smoke_dir/saas-product-smoke-global-admin-denial.json" >&2
+  fi
 }
 
 run_specialist_signup_provisioning_smoke(){
@@ -1393,6 +1443,14 @@ run_strict_post_migration_closure(){
   run_e1_post_runtime_coverage_gate
   assert_awg_relay_active
   SERVICES_RELEASED=1
+
+  # Fail the deploy LOUDLY for a red product-smoke gate, but only after SERVICES_RELEASED=1 —
+  # cleanup_exit's unit-stop branch is gated on SERVICES_RELEASED!=1, so raising the failure here
+  # keeps TEST units running while still turning the whole closure red (non-zero exit, FATAL line).
+  if [ "$PRODUCT_SMOKE_GATE_FAILED" = "1" ]; then
+    echo "FATAL: A2 product smoke gate failed (see WARN lines above for per-scenario triage). TEST units are left running; this is a gate failure, not an outage." >&2
+    exit 1
+  fi
 }
 
 assert_strict_closure_deploy_checkout_ready(){
