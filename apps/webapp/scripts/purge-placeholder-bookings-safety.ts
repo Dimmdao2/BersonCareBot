@@ -7,6 +7,13 @@ export function assertAllowedPurgeDatabaseTarget(input: {
   databaseUrl: string;
   currentDatabase: string;
   allowTestTarget: boolean;
+  // Owner-gated PROD cutover unlock. Mirrors deploy/postgres/test-strict-rls-finalizer.sql:
+  // the live-like-name refusal is relaxed ONLY when both the explicit flag is set AND the
+  // running database name matches the operator-supplied expected name verbatim. No other gate
+  // (loopback host, URL validity, name/URL agreement) is loosened. Absent/false => byte-for-byte
+  // unchanged behavior. A typo/mismatch still aborts (fail-closed).
+  allowAuthorizedProdTarget?: boolean;
+  authorizedProdDatabase?: string;
 }): void {
   let parsed: URL;
   try {
@@ -18,6 +25,7 @@ export function assertAllowedPurgeDatabaseTarget(input: {
     throw new Error("refusing_non_postgres_database_url");
   }
   if (!LOOPBACK_HOSTS.has(parsed.hostname.toLowerCase())) {
+    // The flag NEVER bypasses this: authorized prod cutover is still loopback-only.
     throw new Error("refusing_non_loopback_database_host");
   }
   const urlDatabase = decodeURIComponent(parsed.pathname.replace(/^\/+/, ""));
@@ -25,6 +33,17 @@ export function assertAllowedPurgeDatabaseTarget(input: {
     throw new Error("refusing_database_name_mismatch");
   }
   if (UNSAFE_DATABASE_TOKEN.test(input.currentDatabase)) {
+    // Reaching here means the host is already asserted loopback and the URL/current DB names agree.
+    // Owner-gated unlock: permit a live-like prod name only when BOTH conditions hold together.
+    if (input.allowAuthorizedProdTarget === true) {
+      if (!input.authorizedProdDatabase) {
+        throw new Error("refusing_authorized_prod_target_without_expected_database");
+      }
+      if (input.currentDatabase !== input.authorizedProdDatabase) {
+        throw new Error("refusing_authorized_prod_target_mismatch");
+      }
+      return;
+    }
     throw new Error("refusing_live_like_database");
   }
   if (TEST_DATABASE.test(input.currentDatabase)) {

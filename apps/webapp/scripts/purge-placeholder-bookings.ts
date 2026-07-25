@@ -66,6 +66,16 @@ const args = new Set(process.argv.slice(2));
 const COMMIT = args.has('--commit');
 const SUMMARY_ONLY = args.has('--summary-only');
 const ALLOW_TEST_TARGET = args.has('--allow-test-target');
+// Owner-gated PROD cutover unlock (defaults OFF). Both are required together to relax the
+// live-like-name refusal in the safety guard; see purge-placeholder-bookings-safety.ts.
+const ALLOW_AUTHORIZED_PROD_TARGET = args.has('--allow-authorized-prod-target');
+const AUTHORIZED_PROD_DATABASE = (() => {
+  const prefix = '--authorized-prod-database=';
+  for (const arg of process.argv.slice(2)) {
+    if (arg.startsWith(prefix)) return arg.slice(prefix.length);
+  }
+  return undefined;
+})();
 const PHONES = ['+70000000000', '+79189000782'];
 
 type CleanupStats = {
@@ -169,6 +179,8 @@ async function main() {
       databaseUrl: DATABASE_URL,
       currentDatabase: urlDatabase,
       allowTestTarget: ALLOW_TEST_TARGET,
+      allowAuthorizedProdTarget: ALLOW_AUTHORIZED_PROD_TARGET,
+      authorizedProdDatabase: AUTHORIZED_PROD_DATABASE,
     });
     const { getDrizzle } = await import('@/app-layer/db/drizzle');
     const db = getDrizzle();
@@ -179,6 +191,8 @@ async function main() {
       databaseUrl: DATABASE_URL,
       currentDatabase: databaseResult.rows[0]?.database_name ?? '',
       allowTestTarget: ALLOW_TEST_TARGET,
+      allowAuthorizedProdTarget: ALLOW_AUTHORIZED_PROD_TARGET,
+      authorizedProdDatabase: AUTHORIZED_PROD_DATABASE,
     });
 
     // Explicitly reject the target phones when any of them belongs to an admin principal.

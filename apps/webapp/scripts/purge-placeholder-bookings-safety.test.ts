@@ -59,4 +59,71 @@ describe("placeholder purge database target guard", () => {
       }),
     ).toThrow("refusing_database_name_mismatch");
   });
+
+  describe("owner-gated authorized-prod-target unlock", () => {
+    it("(a) refuses a live-like prod name when the flag is absent", () => {
+      expect(() =>
+        assertAllowedPurgeDatabaseTarget({
+          databaseUrl: "postgresql://user:secret@127.0.0.1/bcb_webapp_prod",
+          currentDatabase: "bcb_webapp_prod",
+          allowTestTarget: false,
+        }),
+      ).toThrow("refusing_live_like_database");
+      // Explicitly false flag behaves identically to absent.
+      expect(() =>
+        assertAllowedPurgeDatabaseTarget({
+          databaseUrl: "postgresql://user:secret@127.0.0.1/bcb_webapp_prod",
+          currentDatabase: "bcb_webapp_prod",
+          allowTestTarget: false,
+          allowAuthorizedProdTarget: false,
+          authorizedProdDatabase: "bcb_webapp_prod",
+        }),
+      ).toThrow("refusing_live_like_database");
+    });
+
+    it("(b) allows a live-like prod name when the flag is set and the expected name matches exactly on loopback", () => {
+      expect(() =>
+        assertAllowedPurgeDatabaseTarget({
+          databaseUrl: "postgresql://user:secret@127.0.0.1:5432/bcb_webapp_prod",
+          currentDatabase: "bcb_webapp_prod",
+          allowTestTarget: false,
+          allowAuthorizedProdTarget: true,
+          authorizedProdDatabase: "bcb_webapp_prod",
+        }),
+      ).not.toThrow();
+    });
+
+    it("(c) refuses when the flag is set but the expected name mismatches (typo)", () => {
+      expect(() =>
+        assertAllowedPurgeDatabaseTarget({
+          databaseUrl: "postgresql://user:secret@127.0.0.1/bcb_webapp_prod",
+          currentDatabase: "bcb_webapp_prod",
+          allowTestTarget: false,
+          allowAuthorizedProdTarget: true,
+          authorizedProdDatabase: "bcb_webapp_prd",
+        }),
+      ).toThrow("refusing_authorized_prod_target_mismatch");
+      // Flag set but no expected name supplied at all — fail closed with a distinct reason.
+      expect(() =>
+        assertAllowedPurgeDatabaseTarget({
+          databaseUrl: "postgresql://user:secret@127.0.0.1/bcb_webapp_prod",
+          currentDatabase: "bcb_webapp_prod",
+          allowTestTarget: false,
+          allowAuthorizedProdTarget: true,
+        }),
+      ).toThrow("refusing_authorized_prod_target_without_expected_database");
+    });
+
+    it("(d) never bypasses the loopback host check even with the flag set and an exact name match", () => {
+      expect(() =>
+        assertAllowedPurgeDatabaseTarget({
+          databaseUrl: "postgresql://user:secret@db.example/bcb_webapp_prod",
+          currentDatabase: "bcb_webapp_prod",
+          allowTestTarget: false,
+          allowAuthorizedProdTarget: true,
+          authorizedProdDatabase: "bcb_webapp_prod",
+        }),
+      ).toThrow("refusing_non_loopback_database_host");
+    });
+  });
 });
