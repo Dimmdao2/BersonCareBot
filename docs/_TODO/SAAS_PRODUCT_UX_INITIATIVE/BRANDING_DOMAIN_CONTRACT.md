@@ -599,3 +599,16 @@ this must surface as a single "remove logo" action; revisions are an implementat
 in the **app only**. Recommendation given: app-only, as a single chokepoint (the owner's standing "one chokepoint,
 no defensive duplication" rule), with the DB continuing to enforce the own-clinic/foreign-clinic boundary — so a
 coding mistake can still never cross tenants. Awaiting the answer before B2 (UI) is built.
+
+### Owner decisions on the brand editing UI (2026-07-25)
+
+- The two actions are named **«Установить»** and **«Очистить»** (not «Заменить»/«Убрать»). «Установить» also
+  covers replacing an existing logo — there is no separate replace action.
+- **«Очистить» only unlinks the logo from the brand; the image file STAYS in the clinic's file library.** It is
+  never queued for deletion as a side effect of clearing the brand. Consequence for 0238: the FK
+  `ON DELETE SET NULL` degradation path is reached only when the clinic deletes the file from the library
+  itself — clearing the brand is an ordinary new published revision with `logo_media_id = NULL`, and the
+  previously used file remains reusable.
+- Enforcement of "clinic admin only" (the open choice) is taken as **app-layer single chokepoint**, per the
+  owner's standing "one chokepoint, no defensive duplication" rule; the DB keeps enforcing only the
+  own-clinic/foreign-clinic boundary, so a coding mistake still cannot cross tenants.
