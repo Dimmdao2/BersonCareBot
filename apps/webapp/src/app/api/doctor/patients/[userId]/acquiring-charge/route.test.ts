@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 
 const buildAppDepsMock = vi.hoisted(() => vi.fn());
 const requireDoctorWorkspaceApiContextMock = vi.hoisted(() => vi.fn());
+const requireEntitlementMock = vi.hoisted(() => vi.fn());
 const withDoctorWorkspacePrincipalMock = vi.hoisted(() => vi.fn((_: unknown, sourceOrFn: string | (() => unknown), maybeFn?: () => unknown) => {
   const fn = typeof sourceOrFn === "function" ? sourceOrFn : maybeFn;
   if (!fn) throw new Error("principal_callback_required");
@@ -11,6 +12,10 @@ const withDoctorWorkspacePrincipalMock = vi.hoisted(() => vi.fn((_: unknown, sou
 
 vi.mock("@/app-layer/guards/requireRole", () => ({
   requireDoctorWorkspaceApiContext: () => requireDoctorWorkspaceApiContextMock(),
+}));
+
+vi.mock("@/app-layer/guards/requireEntitlement", () => ({
+  requireEntitlementForMutation: (...args: unknown[]) => requireEntitlementMock(...args),
 }));
 
 vi.mock("@/app-layer/guards/doctorWorkspacePrincipal", () => ({
@@ -39,6 +44,7 @@ const CANONICAL_PATIENT_ID = "00000000-0000-4000-8000-000000000002";
 describe("doctor patient acquiring charge route", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    requireEntitlementMock.mockResolvedValue({ ok: true });
     requireDoctorWorkspaceApiContextMock.mockResolvedValue({
       ok: true,
       ctx: {
@@ -125,6 +131,10 @@ describe("doctor patient acquiring charge route", () => {
     );
 
     expect(res.status).toBe(201);
+    expect(requireEntitlementMock).toHaveBeenCalledWith(
+      expect.objectContaining({ organizationId: ORG_ID }),
+      "payments",
+    );
     expect(createCharge).toHaveBeenCalledWith(
       expect.objectContaining({
         patientUserId: CANONICAL_PATIENT_ID,
@@ -146,5 +156,43 @@ describe("doctor patient acquiring charge route", () => {
       expect.objectContaining({ organizationId: ORG_ID }),
       expect.any(Function),
     );
+  });
+
+  it("denies acquiring charge when the payments mechanic is disabled, after identity resolution, without calling the gateway", async () => {
+    const order: string[] = [];
+    const getClientIdentityForOrganization = vi.fn().mockImplementation(async () => {
+      order.push("identity");
+      return { userId: CANONICAL_PATIENT_ID };
+    });
+    const createCharge = vi.fn();
+    const recordAcquiringCharge = vi.fn();
+    requireEntitlementMock.mockImplementation(async () => {
+      order.push("entitlement");
+      return { ok: false, response: new Response(null, { status: 403 }) };
+    });
+    buildAppDepsMock.mockReturnValue({
+      doctorClientsPort: { getClientIdentityForOrganization },
+      acquiringGateway: { createCharge },
+      patientPayments: { recordAcquiringCharge },
+    });
+
+    const res = await POST(
+      new Request("http://localhost", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ amountMinor: 1000 }),
+      }),
+      { params: Promise.resolve({ userId: PATIENT_ID }) },
+    );
+
+    expect(res.status).toBe(403);
+    expect(order).toEqual(["identity", "entitlement"]);
+    expect(requireEntitlementMock).toHaveBeenCalledWith(
+      expect.objectContaining({ organizationId: ORG_ID }),
+      "payments",
+    );
+    expect(createCharge).not.toHaveBeenCalled();
+    expect(recordAcquiringCharge).not.toHaveBeenCalled();
+    expect(withDoctorWorkspacePrincipalMock).not.toHaveBeenCalled();
   });
 });

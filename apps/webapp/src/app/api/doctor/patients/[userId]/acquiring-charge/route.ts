@@ -22,6 +22,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { requireDoctorWorkspaceApiContext } from "@/app-layer/guards/requireRole";
+import { requireEntitlementForMutation } from "@/app-layer/guards/requireEntitlement";
 import { withDoctorWorkspacePrincipal } from "@/app-layer/guards/doctorWorkspacePrincipal";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 
@@ -67,6 +68,8 @@ export async function POST(
   if (!identity) {
     return NextResponse.json({ ok: false, error: "not_found" }, { status: 404 });
   }
+  const entitlement = await requireEntitlementForMutation(gate.ctx, "payments");
+  if (!entitlement.ok) return entitlement.response;
 
   // Initiate the charge via the acquiring gateway.
   const chargeResult = await deps.acquiringGateway.createCharge({
