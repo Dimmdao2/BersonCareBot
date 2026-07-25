@@ -51,13 +51,12 @@ From INFRA-01 §I0 + RU-privacy MASTER_PLAN. Owner + external, not engineering c
 - [x] **Owner decisions 2026-07-24:** **paid billing = OUT of first launch** (no online subscription payment day-one
       → C5B/C/D + store deferred, dropped from cutover scope; base payment infra stays but no acquirer/store);
       **session TTL = 7 days** for staff/global-admin (patient 90d unchanged; unblocks logout-everywhere / session-revoke);
-      ~~**SMTP creds = already in the prod dump's `system_settings`** (no separate provisioning)~~
-      **SUPERSEDED 2026-07-25 — VERIFIED FALSE against a fresh prod dump.** `system_settings.smtp_outbound` is
-      `{"value": null}` (both `public` and the `integrator` view), there is NO other SMTP/mail/sender key in
-      `system_settings`, and the TEST env files carry only `DEV_REDIRECT_EMAIL` / `DEV_REDIRECT_PASSTHROUGH_EMAILS`
-      (send-safety), no SMTP. Conclusion: prod's mail configuration lives in the **prod host ENV**, which does NOT
-      travel with a `pg_dump`. **Therefore SMTP MUST be provisioned explicitly on the new host** — see §3.6.
-      This closes taskdb #995 (the keys do not exist in the dump; nothing to "locate").
+      **SMTP creds = already in the prod dump's `system_settings`** (no separate provisioning) — **CORRECT.
+      The owner was right.** My 2026-07-25 "VERIFIED FALSE" reversal was itself wrong and is withdrawn; see the
+      corrected §3.6. `system_settings.smtp_outbound` carries a real object (`from, host, port, user, secure,
+      password`) in the dump. I had queried the **restored TEST database**, where the reset overlay had already
+      nulled it, instead of querying the dump — so I measured our own scrub and called it prod's state.
+      taskdb #995 stays CLOSED, but for the opposite reason: the keys exist and have been located.
 
 ## 2. Database migration (SCRIPTED)
 Rehearse on a disposable prod-copy first (INFRA-01 §I2), then run on the new prod host in the cutover window.
@@ -278,28 +277,49 @@ sudo -u postgres psql -d "$PROD_DB" -X -v ON_ERROR_STOP=1 \
   assertion and specialized-policy assertions run identically to TEST.
 - Full guard text + the owner-gated header block: `deploy/postgres/test-strict-rls-finalizer.sql` (top of file).
 
-## 3.6 Outbound email (SMTP) — MUST be provisioned on the new host (added 2026-07-25)
+## 3.6 Outbound email (SMTP) — travels WITH the dump, but the reset scrubs it (corrected 2026-07-25)
+
 **Why this is its own step:** email is the PRIMARY login mechanism (owner ruling: password-less login, always a
 code to the email), so if SMTP is missing after cutover, **nobody can log in** — including the owner's own
-global-admin account, which is a clean credential-less row whose only entry path is an email code. The 2026-07-24
-assumption that the dump carries SMTP is verified false (see §1).
+global-admin account, which is a clean credential-less row whose only entry path is an email code.
 
-**Evidence of the gap on a fresh dump (re-run these to confirm on any restored copy):**
+**The credential IS in the prod dump.** Proven by restoring the dump's `system_settings` into a scratch database
+and inspecting it there — never by querying a restored TEST DB:
 ```bash
-sudo -u postgres psql -d "$DB" -c "SELECT key, value_json FROM system_settings WHERE key = 'smtp_outbound';"
-# -> {"value": null}
-sudo -u postgres psql -d "$DB" -c "SELECT key FROM system_settings WHERE key ~* 'mail|smtp|sender|relay';"
-# -> no SMTP keys
+sudo -u postgres psql -c "CREATE DATABASE bcb_smtp_probe_scratch"
+sudo -u postgres pg_restore --schema-only -t system_settings -d bcb_smtp_probe_scratch "$DUMP"
+sudo -u postgres pg_restore --data-only  -t system_settings -d bcb_smtp_probe_scratch "$DUMP"
+sudo -u postgres psql -tAd bcb_smtp_probe_scratch -c \
+  "SELECT key, jsonb_object_keys(value_json->'value') FROM system_settings WHERE key='smtp_outbound'"
+# -> from / host / port / user / secure / password
+sudo -u postgres psql -c "DROP DATABASE bcb_smtp_probe_scratch"   # teardown is mandatory
 ```
 
-**Cutover step:** provision the outbound SMTP settings on the new host BEFORE the first login attempt, and verify a
-real code arrives. The accessor the runtime uses is `app.read_integrator_smtp_outbound_setting` (see
-`apps/webapp/db/drizzle-migrations/0235_integrator_smtp_restricted_accessor.sql` and §3 step 4's EXECUTE grant), so
-the value must be present in `system_settings.smtp_outbound` for the restricted accessor to return it.
-**Owner input required:** the actual SMTP host/port/user/password (the previous provider's tariff had expired —
-see the delivery-alerting incident of 2026-07-20/21, taskdb #950). Until they are supplied, TEST cannot deliver
-login codes either, so any click-through on TEST must use an account that already has a working channel binding
-(the doctor account does; the new global-admin account does not).
+**Why TEST looks empty:** `deploy/postgres/test-settings-override.sql:88-91` deliberately writes
+`{"value":null}` over `smtp_outbound` on the **reset** path only (`\if :test_settings_overlay_reset`); a
+code-only closure preserves it. That is a send-safety measure, not a defect — a freshly reset TEST must not
+inherit a live mail sender by accident.
+
+**METHOD LESSON — do not repeat this one.** "What does prod have?" must be answered **against the dump**, never
+against a restored TEST database. Every reset overlay in `test-settings-override.sql` (SMTP, OAuth redirect URIs,
+base URLs, feature toggles) rewrites prod values by design, so a restored TEST DB reports OUR overrides back to
+us. I burned a whole owner cycle asserting the opposite and wrote it into this runbook as fact.
+
+**Cutover step (prod):** nothing to provision from outside — the value arrives with the restore, and the prod
+cutover does NOT run the TEST reset overlay. Verify after restore that `smtp_outbound` is a non-null object and
+send one real code to the owner's address before declaring login healthy. The runtime reads it through
+`app.read_integrator_smtp_outbound_setting` (`0235_integrator_smtp_restricted_accessor.sql`, plus §3 step 4's
+EXECUTE grant).
+
+**Restoring it on TEST after a reset** (what was done 2026-07-25): copy the value from a scratch restore of the
+dump straight into `public.system_settings` **and** the `integrator.system_settings` mirror using `dblink`, so
+the credential never passes through a shell argument, a file, or a log. TEST send-safety stays in force
+(`DEV_REDIRECT_EMAIL` plus the passthrough allowlist), which is what makes this safe to do at all.
+
+**Separate blocker, do not confuse the two:** with the credential present the login screen STILL hid the
+email-code option, because the public login path runs under a bootstrap principal that has no `SELECT` on
+`system_settings`, so the "is SMTP configured?" read raised, was swallowed, and reported false. See
+`docs/_TODO/SECURITY_AUDIT_2026-07-25/FINDINGS.md`, section "LOGIN IS BROKEN ON TEST".
 
 ## 4. Service deploy + gates (SCRIPTED)
 - Build+release services (mirror `deploy-prod.sh` code path).
