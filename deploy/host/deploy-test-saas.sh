@@ -1159,6 +1159,11 @@ run_e1_post_runtime_coverage_gate(){
 }
 
 run_owner_ready_locked_db_matrix(){
+  # Same retired-fixture dependency as the patient capability gate — see demo_isolation_fixtures_present.
+  if ! demo_isolation_fixtures_present; then
+    skip_because_demo_fixtures_retired "owner-ready locked DB matrix"
+    return 0
+  fi
   sudo -u postgres psql -d "$DB" -X -v ON_ERROR_STOP=1 \
     -v test_expected_database="$DB" \
     -v matrix_staff_role="$P2_B_STAFF_ROLE" \
@@ -1166,28 +1171,40 @@ run_owner_ready_locked_db_matrix(){
     -f "$DEPLOY_REPO/$OWNER_READY_LOCKED_MATRIX"
 }
 
-run_test_patient_identity_capability_gate(){
-  local runtime_login_role fixtures_present
-  runtime_login_role="$(discover_webapp_bootstrap_base_role)"
-  validate_pg_identifier "patient identity runtime login role" "$runtime_login_role"
-
-  # This gate exercises the locked patient principal against the S3 demo clinics A/B, whose UUIDs it
-  # hardcodes (53000000-…-0000000000a1/b1 + their patients). Owner ruling 2026-07-25: those demo fixtures
-  # are retired ("они были нужны для проверки стен когда их ставили") and their seed step was removed from
-  # this closure, so on a from-zero run the gate has nothing to assert against and failed with
-  # 'locked patient identity capability rejected representative patient A'. Run it whenever the fixtures
-  # ARE present (then it must pass, unchanged strictness); skip loudly when they are not.
-  fixtures_present="$(sudo -u postgres psql -d "$DB" -X -v ON_ERROR_STOP=1 -tAc "
+# ── Retired S3 demo-fixture dependency (single chokepoint, added 2026-07-25) ──────────────────────
+# Two closure steps (the locked patient identity capability gate and the owner-ready locked DB matrix)
+# assert tenant isolation against the S3 demo clinics A/B, whose UUIDs they hardcode. Owner ruling
+# 2026-07-25 retired those demo fixtures ("они были нужны для проверки стен когда их ставили") and their
+# seed step was removed from this closure, so on a from-zero run both steps have nothing to assert against
+# and abort the closure with a fail-closed division-by-zero. Both now consult this one predicate: run
+# UNCHANGED (same strictness, still fatal) whenever the fixtures are present, skip loudly when they are not.
+# The tenant walls themselves remain asserted by the strict+FORCE finalizer and the reversible SaaS
+# isolation scenario proof, which do not depend on these fixtures.
+demo_isolation_fixtures_present(){
+  local present
+  present="$(sudo -u postgres psql -d "$DB" -X -v ON_ERROR_STOP=1 -tAc "
     SELECT (
       EXISTS (SELECT 1 FROM public.be_organizations WHERE id = '53000000-0000-4000-8000-0000000000a1')
       AND EXISTS (SELECT 1 FROM public.be_organizations WHERE id = '53000000-0000-4000-8000-0000000000b1')
       AND EXISTS (SELECT 1 FROM public.platform_users WHERE id = '53000000-0000-4000-8000-00000000a101')
       AND EXISTS (SELECT 1 FROM public.platform_users WHERE id = '53000000-0000-4000-8000-00000000a201')
     )::text")"
-  if [ "$fixtures_present" != "true" ]; then
-    echo "   SKIPPED: locked patient identity capability gate — S3 demo clinic fixtures are retired (owner 2026-07-25)."
-    echo "            Patient-wall enforcement itself is still asserted by the strict+FORCE finalizer and the"
-    echo "            reversible SaaS isolation scenario proof earlier in this closure."
+  [ "$present" = "true" ]
+}
+
+skip_because_demo_fixtures_retired(){
+  echo "   SKIPPED: $1 — S3 demo clinic fixtures are retired (owner ruling 2026-07-25)."
+  echo "            Tenant/patient wall enforcement is still asserted by the strict+FORCE finalizer and the"
+  echo "            reversible SaaS isolation scenario proof in this same closure."
+}
+
+run_test_patient_identity_capability_gate(){
+  local runtime_login_role
+  runtime_login_role="$(discover_webapp_bootstrap_base_role)"
+  validate_pg_identifier "patient identity runtime login role" "$runtime_login_role"
+
+  if ! demo_isolation_fixtures_present; then
+    skip_because_demo_fixtures_retired "locked patient identity capability gate"
     return 0
   fi
 
