@@ -24,6 +24,11 @@ type DoctorAdminSidebarProps = {
   patientLabel?: string;
   enableBadgePolling?: boolean;
   homeHref?: string;
+  /**
+   * UX-05 B2: server-resolved effective organization brand. Degrades to the platform "Berson Care"
+   * mark when absent (account/global-admin/manage shells never pass it).
+   */
+  brand?: { displayName: string; logoUrl: string | null };
 };
 
 /**
@@ -36,6 +41,7 @@ export function DoctorAdminSidebar({
   patientLabel,
   enableBadgePolling,
   homeHref = routePaths.doctor,
+  brand,
 }: DoctorAdminSidebarProps) {
   const pathname = usePathname() ?? "/app/doctor";
 
@@ -63,14 +69,21 @@ export function DoctorAdminSidebar({
         )}
       >
         <span
-          className="inline-flex size-7 shrink-0 items-center justify-center rounded-md bg-foreground/5 text-foreground"
+          className="inline-flex size-7 shrink-0 items-center justify-center overflow-hidden rounded-md bg-foreground/5 text-foreground"
           aria-hidden
         >
-          <Stethoscope className="size-[18px]" strokeWidth={NAV_STRIP_ICON_STROKE} />
+          {brand?.logoUrl ? (
+            // eslint-disable-next-line @next/next/no-img-element -- small chrome mark, server-validated /api/media URL
+            <img src={brand.logoUrl} alt="" className="h-full w-full object-cover" />
+          ) : (
+            <Stethoscope className="size-[18px]" strokeWidth={NAV_STRIP_ICON_STROKE} />
+          )}
         </span>
         <span className="flex min-w-0 flex-col leading-tight">
-          <span className="truncate text-sm font-semibold tracking-tight text-foreground">Berson Care</span>
-          <span className="truncate text-xs text-muted-foreground">Doctor</span>
+          <span className="truncate text-sm font-semibold tracking-tight text-foreground">
+            {brand?.displayName ?? "Berson Care"}
+          </span>
+          <span className="truncate text-xs text-muted-foreground">BersonCare</span>
         </span>
       </Link>
       <p className="mb-2 px-3 text-xs font-semibold uppercase tracking-wide text-muted-foreground">Разделы</p>

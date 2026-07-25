@@ -27,6 +27,12 @@ type DoctorWorkspaceShellProps = {
   coursesEnabled?: boolean;
   /** Disable tenant-only background badge requests on global operator surfaces. */
   enableTenantRuntime?: boolean;
+  /**
+   * Server-resolved effective organization brand (UX-05 B2) for the sidebar brand mark. Never
+   * computed client-side — see `app/doctor/layout.tsx`. Omitted on non-clinical shells (account,
+   * global-admin, manage), which keep the platform-default mark.
+   */
+  brand?: { displayName: string; logoUrl: string | null };
   children: ReactNode;
 };
 
@@ -47,6 +53,7 @@ export function DoctorWorkspaceShell({
   workspaceContext,
   coursesEnabled = false,
   enableTenantRuntime = true,
+  brand,
   children,
 }: DoctorWorkspaceShellProps) {
   const capabilities = Array.from(
@@ -97,6 +104,7 @@ export function DoctorWorkspaceShell({
               patientLabel={patientLabel}
               enableBadgePolling={enableTenantRuntime}
               homeHref={homeHref}
+              brand={brand}
             />
           ) : null}
           <div className="flex min-w-0 flex-1 flex-col">{children}</div>

@@ -6,6 +6,7 @@ import { routePaths } from "@/app-layer/routes/paths";
 import { isSeatConsumingMember } from "@/modules/clinic-seats/service";
 import { entitlementsFromSnapshot } from "@/modules/org-entitlements/service";
 import { MECHANIC_REGISTRY, MECHANICS } from "@/modules/org-entitlements/types";
+import { orgBrandLogoUrl, type OrgBrandingManagementContext } from "@/modules/org-branding/service";
 import { DoctorAppShell } from "@/shared/ui/doctor/DoctorAppShell";
 import { DoctorPageHeader } from "@/shared/ui/doctor/shell/DoctorPageHeader";
 import { ADMIN_TAB_REDIRECTS, parseHealthArchiveProbeParam } from "./adminSettingsData";
@@ -13,6 +14,7 @@ import { AppointmentReminderSettingsSection } from "./AppointmentReminderSetting
 import { BillingSection, type BillingMechanicRow } from "./BillingSection";
 import { describeCommercialAccessState } from "./billingCommercialState";
 import { DoctorTodayPreferencesSection } from "./DoctorTodayPreferencesSection";
+import { OrgBrandingSection } from "./OrgBrandingSection";
 import { SettingsForm } from "./SettingsForm";
 import { SettingsTabsNav } from "./SettingsTabsNav";
 import type { SettingsTabId } from "./settingsTabs";
@@ -73,9 +75,25 @@ export default async function SettingsPage({
   ];
 
   if (tab === null || tab === "organization") {
-    const doctorSettings = await buildAppDeps().systemSettings.listSettingsByScope("doctor", {
+    const deps = buildAppDeps();
+    // The RSC render already gated this whole tab on `canManageOrganization` above, so this context
+    // is built directly from the resolved workspace rather than re-running the guard a second time.
+    // `requireOrgBrandingManagementContext()` remains the ONLY way to obtain this context for a
+    // mutation (see brandingActions.ts) — it is never trusted from a client payload.
+    const brandingCtx: OrgBrandingManagementContext = {
       organizationId: workspace.organizationId,
-    });
+      actorPlatformUserId: workspace.session.user.userId,
+      hasOrganizationManagementCapability: true,
+    };
+    const [doctorSettings, brandingState] = await Promise.all([
+      deps.systemSettings.listSettingsByScope("doctor", { organizationId: workspace.organizationId }),
+      deps.orgBranding.getManagementState(brandingCtx),
+    ]);
+    const publishedBrand = brandingState.published;
+    const publishedLogoUrl =
+      publishedBrand?.logoMediaReady && publishedBrand.logoMediaId
+        ? orgBrandLogoUrl(publishedBrand.logoMediaId)
+        : null;
     const patientLabel = valueOf(
       doctorSettings.find((setting) => setting.key === "patient_label")?.valueJson,
       "пациент",
@@ -95,6 +113,14 @@ export default async function SettingsPage({
       <DoctorAppShell title="Настройки" user={workspace.session.user}>
         <DoctorPageHeader title="Настройки" />
         <SettingsTabsNav activeTab="organization" visibleTabs={visibleTabs} />
+        <OrgBrandingSection
+          key={`${brandingState.brandingMechanicEnabled}:${publishedBrand?.displayName ?? ""}:${publishedBrand?.logoMediaId ?? ""}`}
+          brandingMechanicEnabled={brandingState.brandingMechanicEnabled}
+          coreDisplayName={brandingState.effective.core.displayName}
+          publishedDisplayName={publishedBrand?.displayName ?? null}
+          publishedLogoMediaId={publishedBrand?.logoMediaId ?? null}
+          publishedLogoUrl={publishedLogoUrl}
+        />
         <SettingsForm
           patientLabel={String(patientLabel)}
           smsFallbackEnabled={false}

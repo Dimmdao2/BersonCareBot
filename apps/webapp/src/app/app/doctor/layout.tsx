@@ -48,15 +48,23 @@ export default async function DoctorSectionLayout({ children }: { children: Reac
     redirect(`${routePaths.settings}?tab=organization`);
   }
   const deps = buildAppDeps();
-  const [organization, doctorSettings] = await Promise.all([
+  const [organization, doctorSettings, effectiveBranding] = await Promise.all([
     deps.bookingEngine
       ? deps.bookingEngine.organization.getOrganization(workspaceAccess.organizationId)
       : Promise.resolve(null),
     deps.systemSettings.listSettingsByScope("doctor", {
       organizationId: workspaceAccess.organizationId,
     }),
+    // UX-05 B2: the staff shell brand mark is resolved server-side only — the client never
+    // supplies the effective logo URL or organization name (BRANDING_DOMAIN_CONTRACT.md §3.6).
+    // A resolution failure degrades to platform visuals below rather than 500ing the whole shell.
+    deps.orgBranding.resolveEffectiveOrgBranding(workspaceAccess.organizationId).catch(() => null),
   ]);
   const coursesEnabled = (await requireEntitlementForReadAction(workspaceAccess, "courses")).ok;
+  const shellBrand = {
+    displayName: effectiveBranding?.effectiveDisplayName ?? organization?.title ?? "BersonCare",
+    logoUrl: effectiveBranding?.paid.logoUrl ?? null,
+  };
   const workspaceContext: DoctorWorkspaceContext = {
     organizationId: workspaceAccess.organizationId,
     organizationName: organization?.title ?? null,
@@ -78,6 +86,7 @@ export default async function DoctorSectionLayout({ children }: { children: Reac
       patientLabel={String(patientLabel)}
       workspaceContext={workspaceContext}
       coursesEnabled={coursesEnabled}
+      brand={shellBrand}
     >
       {children}
     </DoctorWorkspaceShell>

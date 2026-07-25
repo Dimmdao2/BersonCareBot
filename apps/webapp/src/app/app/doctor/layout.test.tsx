@@ -10,6 +10,7 @@ const mocks = vi.hoisted(() => ({
   getTariffForOrg: vi.fn(),
   listOverrides: vi.fn(),
   getSnapshot: vi.fn(),
+  resolveEffectiveOrgBranding: vi.fn(),
   redirect: vi.fn((href: string) => {
     throw new Error(`redirect:${href}`);
   }),
@@ -30,6 +31,7 @@ vi.mock("@/app-layer/di/buildAppDeps", () => ({
       getTariffForOrg: mocks.getTariffForOrg,
       listOverrides: mocks.listOverrides,
     },
+    orgBranding: { resolveEffectiveOrgBranding: mocks.resolveEffectiveOrgBranding },
   }),
 }));
 vi.mock("@/shared/ui/doctor/shell/DoctorWorkspaceShell", () => ({
@@ -74,6 +76,13 @@ describe("DoctorSectionLayout", () => {
       tariff: { mechanics: { courses: true }, quotas: {}, includedSeats: null },
       overrides: [],
       access: { lifecycle: "active", tariffId: null, source: "compatibility" },
+    });
+    mocks.resolveEffectiveOrgBranding.mockResolvedValue({
+      organizationId: "00000000-0000-4000-8000-000000000002",
+      core: { displayName: "Клиника", isActive: true },
+      paid: { displayName: null, logoUrl: null },
+      effectiveDisplayName: "Клиника",
+      resolution: "no_published_revision",
     });
   });
 

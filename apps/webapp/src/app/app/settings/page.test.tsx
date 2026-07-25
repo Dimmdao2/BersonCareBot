@@ -14,11 +14,13 @@ const {
   seatStatusMock,
   listSettingsMock,
   getOrgEntitlementsSnapshotMock,
+  getOrgBrandingManagementStateMock,
   settingsFormMock,
   appointmentReminderMock,
   teamSectionMock,
   billingSectionMock,
   settingsTabsNavMock,
+  orgBrandingSectionMock,
 } = vi.hoisted(() => ({
   redirectMock: vi.fn((url: string) => { throw new Error(`redirect:${url}`); }),
   requireWorkspaceMock: vi.fn(),
@@ -29,6 +31,7 @@ const {
   seatStatusMock: vi.fn(),
   listSettingsMock: vi.fn(),
   getOrgEntitlementsSnapshotMock: vi.fn(),
+  getOrgBrandingManagementStateMock: vi.fn(),
   settingsFormMock: vi.fn(() => <section data-testid="organization-settings" />),
   appointmentReminderMock: vi.fn(() => <section data-testid="appointment-reminders" />),
   teamSectionMock: vi.fn(() => <section data-testid="team" />),
@@ -38,6 +41,7 @@ const {
       <nav data-testid="settings-tabs-nav" data-active={activeTab} data-visible={visibleTabs.join(",")} />
     ),
   ),
+  orgBrandingSectionMock: vi.fn(() => <section data-testid="org-branding" />),
 }));
 
 vi.mock("next/navigation", () => ({ redirect: redirectMock }));
@@ -58,7 +62,11 @@ vi.mock("@/app-layer/di/buildAppDeps", () => ({
     clinicSeats: { getSeatStatus: seatStatusMock },
     systemSettings: { listSettingsByScope: listSettingsMock },
     orgEntitlements: { getSnapshot: getOrgEntitlementsSnapshotMock },
+    orgBranding: { getManagementState: getOrgBrandingManagementStateMock },
   }),
+}));
+vi.mock("@/modules/org-branding/service", () => ({
+  orgBrandLogoUrl: (mediaId: string) => `/api/media/${mediaId}`,
 }));
 vi.mock("./TeamSection", () => ({ TeamSection: teamSectionMock }));
 vi.mock("./SettingsForm", () => ({ SettingsForm: settingsFormMock }));
@@ -67,6 +75,7 @@ vi.mock("./AppointmentReminderSettingsSection", () => ({
 }));
 vi.mock("./BillingSection", () => ({ BillingSection: billingSectionMock }));
 vi.mock("./SettingsTabsNav", () => ({ SettingsTabsNav: settingsTabsNavMock }));
+vi.mock("./OrgBrandingSection", () => ({ OrgBrandingSection: orgBrandingSectionMock }));
 vi.mock("@/shared/ui/doctor/DoctorAppShell", () => ({
   DoctorAppShell: ({ children }: { children: ReactNode }) => <main>{children}</main>,
 }));
@@ -108,6 +117,18 @@ describe("legacy settings compatibility", () => {
       tariff: null,
       overrides: [],
       access: { lifecycle: "active", tariffId: null, source: "compatibility" },
+    });
+    getOrgBrandingManagementStateMock.mockResolvedValue({
+      effective: {
+        organizationId: "org-1",
+        core: { displayName: "Клиника", isActive: true },
+        paid: { displayName: null, logoUrl: null },
+        effectiveDisplayName: "Клиника",
+        resolution: "no_published_revision",
+      },
+      brandingMechanicEnabled: true,
+      draft: null,
+      published: null,
     });
   });
 
