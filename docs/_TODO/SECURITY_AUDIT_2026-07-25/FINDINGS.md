@@ -114,6 +114,28 @@ required — separately for staff and for patients, since 90 days for a patient 
 choice; (b) whether deploying it may sign everybody out once (setting the new column to `now()` at migration
 time is the clean start, but it means every current user logs in again).
 
+### OWNER DECISIONS (2026-07-25) — the remedy above is APPROVED and in build
+
+- **Session lifetime: staff 12 hours of activity, patient 30 days.** Owner: «сотрудник — 12 часов активности,
+  пациент — 30 дней - принимаю».
+- **Signing everybody out on deploy is allowed.** Owner: «выкатке разлогинить всех можно - на проде там будет
+  много нового в том числе юридические согласия, так что логично. Это еще доделаем до выкатки». So the migration
+  backfills `sessions_valid_from = now()` for every row, and the legal-consent work due before the prod cutover
+  will land in the same forced re-login.
+
+Interpretation taken (stated to the owner, not re-asked): the approved numbers are the **idle** bounds — a
+session unused for 12 h (staff) / 30 days (patient) is dead. Because the audit proved the sliding renewal is the
+actual defect, an **absolute** ceiling is also needed, and it is taken from the CURRENT constants so that no
+value anywhere grows: **staff 7 days, patient 90 days** maximum age from `issuedAt`, after which a fresh login is
+required regardless of activity. Every number in the change either shrinks or stays the same.
+
+Build shape (one chokepoint, per the owner's standing no-duplication rule): a `sessions_valid_from timestamptz`
+column on `platform_users`, read in the single place the session identity is already re-derived from the DB
+(`infra/repos/pgUserByPhone.ts` `findByUserId`) and enforced in the single place every request already passes
+(`modules/auth/service.ts` beside the existing `securityVersion` comparison). Writers: logout (both the POST and
+GET handlers), password reset (unconditionally — replacing the `if (security)` no-op), archiving a user, and any
+role change. Clinic-membership removal is deliberately excluded (graded LOW: only `account.self` survives).
+
 ## S3 — per-route authorization
 
 Worker running. Must establish, among the rest, the exact blast radius of the owner-deferred
