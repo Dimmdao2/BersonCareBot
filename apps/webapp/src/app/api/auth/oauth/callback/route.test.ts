@@ -47,6 +47,11 @@ vi.mock("@/modules/system-settings/integrationRuntime", () => ({
   getYandexOauthRedirectUri: vi.fn().mockResolvedValue("http://localhost/api/auth/oauth/callback/yandex"),
 }));
 
+const isOAuthProviderEnabledMock = vi.hoisted(() => vi.fn().mockResolvedValue(true));
+vi.mock("@/modules/auth/authChannelPolicy", () => ({
+  isOAuthProviderEnabled: isOAuthProviderEnabledMock,
+}));
+
 vi.mock("@/config/env", () => ({
   env: {
     DATABASE_URL: "",
@@ -73,6 +78,10 @@ function makeRequest(params: Record<string, string>): Request {
 function validYandexState(): string {
   return createSignedOAuthState("yandex", 600);
 }
+
+beforeEach(() => {
+  isOAuthProviderEnabledMock.mockReset().mockResolvedValue(true);
+});
 
 describe("GET /api/auth/oauth/callback/yandex — signed state (legacy /callback delegates here)", () => {
   beforeEach(() => {
@@ -109,6 +118,17 @@ describe("GET /api/auth/oauth/callback/yandex — post-CSRF flow", () => {
     setSessionMock.mockReset();
     findUserMock.mockReset();
     findByUserIdMock.mockReset();
+  });
+
+  it("redirects oauth=disabled when the admin toggle is off, even with credentials present", async () => {
+    isOAuthProviderEnabledMock.mockResolvedValue(false);
+    const res = await GET(makeRequest({ code: "abc", state: validYandexState() }));
+    expect(res.status).toBeGreaterThanOrEqual(300);
+    expect(res.status).toBeLessThan(400);
+    const loc = res.headers.get("location") ?? "";
+    expect(loc).toContain("oauth=disabled");
+    expect(loc).toContain("not_configured");
+    expect(exchangeYandexCodeMock).not.toHaveBeenCalled();
   });
 
   it("redirects oauth=error when no code provided", async () => {

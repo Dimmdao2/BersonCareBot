@@ -1,14 +1,20 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const { guardMock, listMock, updateMock } = vi.hoisted(() => ({
+const { guardMock, listMock, updateMock, channelPolicyMock, oauthProviderPolicyMock } = vi.hoisted(() => ({
   guardMock: vi.fn(),
   listMock: vi.fn(),
   updateMock: vi.fn(),
+  channelPolicyMock: vi.fn(),
+  oauthProviderPolicyMock: vi.fn(),
 }));
 
 vi.mock("@/app-layer/guards/requireRole", () => ({ requirePlatformOperationsApiContext: guardMock }));
 vi.mock("@/app-layer/di/buildAppDeps", () => ({
   buildAppDeps: () => ({ systemSettings: { listSettingsByScope: listMock, updateSetting: updateMock } }),
+}));
+vi.mock("@/modules/auth/authChannelPolicy", () => ({
+  getAuthChannelPolicyDetail: channelPolicyMock,
+  getOAuthProviderPolicyDetail: oauthProviderPolicyMock,
 }));
 
 import { GET, PATCH } from "./route";
@@ -25,6 +31,16 @@ describe("/api/platform/settings", () => {
     updateMock.mockReset().mockImplementation(async (key: string, scope: string, valueJson: unknown, updatedBy: string) => ({
       key, scope, organizationId: null, valueJson, updatedAt: "", updatedBy,
     }));
+    channelPolicyMock.mockReset().mockResolvedValue({
+      email: { enabled: true, configured: true },
+      sms: { enabled: false, configured: false },
+      telegram: { enabled: true, configured: true },
+      max: { enabled: true, configured: true },
+    });
+    oauthProviderPolicyMock.mockReset().mockResolvedValue({
+      google: { enabled: true, configured: false },
+      yandex: { enabled: true, configured: true },
+    });
   });
 
   it("keeps global reads on the platform surface with no organization context", async () => {
@@ -43,11 +59,28 @@ describe("/api/platform/settings", () => {
     );
   });
 
+  it("returns the computed channel and OAuth-provider configuration status alongside settings", async () => {
+    const body = await (await GET()).json();
+    expect(body.channelPolicy).toEqual({
+      email: { enabled: true, configured: true },
+      sms: { enabled: false, configured: false },
+      telegram: { enabled: true, configured: true },
+      max: { enabled: true, configured: true },
+    });
+    expect(body.oauthProviderPolicy).toEqual({
+      google: { enabled: true, configured: false },
+      yandex: { enabled: true, configured: true },
+    });
+  });
+
   it.each([
     "auth_email_enabled",
     "auth_sms_enabled",
     "auth_telegram_enabled",
     "auth_max_enabled",
+    "auth_oauth_google_enabled",
+    "auth_oauth_yandex_enabled",
+    "auth_2fa_enabled",
   ])("writes the %s policy only as a global admin boolean", async (key) => {
     const response = await PATCH(new Request("http://localhost/api/platform/settings", {
       method: "PATCH", headers: { "Content-Type": "application/json" },

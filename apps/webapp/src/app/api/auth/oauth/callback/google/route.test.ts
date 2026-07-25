@@ -42,6 +42,11 @@ vi.mock("@/modules/system-settings/integrationRuntime", () => ({
   getGoogleOauthLoginRedirectUri: vi.fn().mockResolvedValue("http://localhost/cb/google"),
 }));
 
+const isOAuthProviderEnabledMock = vi.hoisted(() => vi.fn().mockResolvedValue(true));
+vi.mock("@/modules/auth/authChannelPolicy", () => ({
+  isOAuthProviderEnabled: isOAuthProviderEnabledMock,
+}));
+
 import { GET } from "./route";
 
 describe("GET /api/auth/oauth/callback/google", () => {
@@ -50,6 +55,7 @@ describe("GET /api/auth/oauth/callback/google", () => {
     profileMock.mockReset();
     resolveMock.mockReset();
     completeMock.mockReset();
+    isOAuthProviderEnabledMock.mockReset().mockResolvedValue(true);
   });
 
   it("returns 403 when state invalid", async () => {
@@ -74,5 +80,19 @@ describe("GET /api/auth/oauth/callback/google", () => {
     expect([302, 307]).toContain(res.status);
     expect(res.headers.get("location")).toBe("http://localhost/app/patient");
     expect(exchangeMock).toHaveBeenCalled();
+  });
+
+  it("redirects to not_configured when the admin toggle is off, even with credentials present", async () => {
+    isOAuthProviderEnabledMock.mockResolvedValue(false);
+    const state = createSignedOAuthState("google_login", 600);
+
+    const url = new URL("http://localhost/api/auth/oauth/callback/google");
+    url.searchParams.set("state", state);
+    url.searchParams.set("code", "code1");
+    const res = await GET(new Request(url.toString()));
+    expect([302, 307]).toContain(res.status);
+    expect(res.headers.get("location")).toContain("oauth=error");
+    expect(res.headers.get("location")).toContain("not_configured");
+    expect(exchangeMock).not.toHaveBeenCalled();
   });
 });

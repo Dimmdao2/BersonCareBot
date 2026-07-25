@@ -28,6 +28,11 @@ vi.mock("next/navigation", () => ({
   redirect: (url: string) => redirectMock(url),
 }));
 
+const getServerRuntimeBoolMock = vi.hoisted(() => vi.fn().mockResolvedValue(false));
+vi.mock("@/modules/system-settings/configAdapter", () => ({
+  getServerRuntimeBool: getServerRuntimeBoolMock,
+}));
+
 import {
   requireAdminWorkspaceApiContext,
   requireClinicManagementApiContext,
@@ -58,6 +63,7 @@ beforeEach(() => {
   getCurrentSessionMock.mockReset();
   resolveOrganizationForUserMock.mockReset();
   redirectMock.mockReset();
+  getServerRuntimeBoolMock.mockReset().mockResolvedValue(false);
 });
 
 describe("U1 launch capability mapping", () => {
@@ -293,6 +299,40 @@ describe("requireDoctorWorkspaceApiContext", () => {
     resolveOrganizationForUserMock.mockRejectedValueOnce(new Error("multiple_active_staff_memberships"));
 
     await expect(requireDoctorWorkspaceApiContext()).rejects.toThrow("multiple_active_staff_memberships");
+  });
+
+  it("global 2FA switch on: a doctor session with no TOTP factor at all is denied, not 500'd", async () => {
+    getServerRuntimeBoolMock.mockResolvedValue(true);
+    getCurrentSessionMock.mockResolvedValueOnce(session("doctor"));
+
+    const gate = await requireDoctorWorkspaceApiContext();
+
+    expect(gate.ok).toBe(false);
+    if (gate.ok) return;
+    expect(gate.response.status).toBe(403);
+    expect(resolveOrganizationForUserMock).not.toHaveBeenCalled();
+  });
+
+  it("global 2FA switch on: a doctor session that verified TOTP this login still resolves normally", async () => {
+    getServerRuntimeBoolMock.mockResolvedValue(true);
+    const doctor = { ...session("doctor"), staffSecurity: { assurance: "factor_verified" as const } };
+    getCurrentSessionMock.mockResolvedValueOnce(doctor);
+    resolveOrganizationForUserMock.mockResolvedValueOnce({
+      ok: true,
+      context: {
+        membershipId: "membership-1",
+        organizationId: ORG_1,
+        platformUserId: doctor.user.userId,
+        role: "doctor",
+        specialistId: "specialist-1",
+        canManageOrganization: false,
+        canManageAllSpecialists: false,
+        canAccessClinicalWorkspace: true,
+      },
+    });
+
+    const gate = await requireDoctorWorkspaceApiContext();
+    expect(gate.ok).toBe(true);
   });
 });
 

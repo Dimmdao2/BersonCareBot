@@ -1,7 +1,7 @@
 import { isSafeExternalHref } from "@/lib/url/isSafeExternalHref";
 import { getPublicRuntimeBool, getPublicRuntimeValue } from "@/modules/system-settings/configAdapter";
 import { normalizeMaxBotNicknameInput } from "@/modules/system-settings/maxLoginBotNickname";
-import { getAuthChannelPolicy, type AuthChannelPolicy } from "@/modules/auth/authChannelPolicy";
+import { getClientVisibleAuthChannelPolicy, type AuthChannelPolicy } from "@/modules/auth/authChannelPolicy";
 
 export type LoginAlternativesPublicConfig = {
   telegramBotUsername: string | null;
@@ -23,7 +23,8 @@ export async function getLoginAlternativesPublicConfig(): Promise<LoginAlternati
     getPublicRuntimeValue("max_login_bot_nickname"),
     getPublicRuntimeValue("vk_web_login_url"),
     getPublicRuntimeBool("public_sms_fallback_enabled"),
-    getAuthChannelPolicy(),
+    // Owner ruling 2026-07-24: a channel that is ON but unconfigured must not appear here.
+    getClientVisibleAuthChannelPolicy(),
   ]);
   const nick = normalizeMaxBotNicknameInput(maxNickname);
   const maxBotOpenUrl =

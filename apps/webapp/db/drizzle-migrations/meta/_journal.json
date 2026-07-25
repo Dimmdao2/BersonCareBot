@@ -1653,6 +1653,13 @@
       "when": 1793539200031,
       "tag": "0235_integrator_smtp_restricted_accessor",
       "breakpoints": true
+    },
+    {
+      "idx": 236,
+      "version": "7",
+      "when": 1793539200032,
+      "tag": "0236_global_admin_channel_auth_toggles",
+      "breakpoints": true
     }
   ]
 }

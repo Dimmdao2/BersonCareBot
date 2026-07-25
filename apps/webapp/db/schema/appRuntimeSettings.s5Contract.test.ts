@@ -30,6 +30,10 @@ const doctorTodayPreferencesMigration = readFileSync(
   new URL("../drizzle-migrations/0228_doctor_today_preferences.sql", import.meta.url),
   "utf8",
 );
+const globalAdminChannelAuthTogglesMigration = readFileSync(
+  new URL("../drizzle-migrations/0236_global_admin_channel_auth_toggles.sql", import.meta.url),
+  "utf8",
+);
 
 function normalRuntimeDefinitionKeys(sql: string): string[] {
   const definitionBlock = sql.match(
@@ -107,12 +111,21 @@ describe("S5-1 app runtime settings schema/data contract", () => {
         `public.app_runtime_settings.${column} IS DISTINCT FROM EXCLUDED.${column}`,
       );
     }
+    const globalAdminChannelAuthToggleKeys = [
+      "auth_oauth_google_enabled",
+      "auth_oauth_yandex_enabled",
+      "auth_2fa_enabled",
+    ];
+    for (const key of globalAdminChannelAuthToggleKeys) {
+      expect(globalAdminChannelAuthTogglesMigration).toContain(`'${key}'`);
+    }
     const migrationKeys = [
       ...normalRuntimeDefinitionKeys(migration),
       ...authChannelKeys,
       "patient_unsupported_client_fallback_enabled",
       "booking_location_default_palette",
       "doctor_today_preferences",
+      ...globalAdminChannelAuthToggleKeys,
     ];
     expect(new Set(migrationKeys).size).toBe(migrationKeys.length);
     expect([...migrationKeys].sort()).toEqual([...RUNTIME_SYSTEM_SETTING_KEYS].sort());

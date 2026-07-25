@@ -10,9 +10,21 @@ import type { AuthChannelUiPolicy } from "@/modules/auth/otpChannelUi";
 
 type PolicyKey = keyof AuthChannelUiPolicy;
 type SettingKey = `auth_${PolicyKey}_enabled`;
+type OAuthProviderKey = "google" | "yandex";
+type OAuthSettingKey = `auth_oauth_${OAuthProviderKey}_enabled`;
+const TWO_FACTOR_KEY = "auth_2fa_enabled" as const;
 const UNSUPPORTED_CLIENT_FALLBACK_KEY = "patient_unsupported_client_fallback_enabled" as const;
 const ADMIN_EMAILS_KEY = "admin_emails" as const;
-type SavingKey = PolicyKey | typeof UNSUPPORTED_CLIENT_FALLBACK_KEY | typeof ADMIN_EMAILS_KEY;
+type SavingKey =
+  | PolicyKey
+  | OAuthProviderKey
+  | typeof TWO_FACTOR_KEY
+  | typeof UNSUPPORTED_CLIENT_FALLBACK_KEY
+  | typeof ADMIN_EMAILS_KEY;
+
+type ConfigurationStatus = Readonly<{ enabled: boolean; configured: boolean }>;
+type ChannelConfigurationStatus = Readonly<Record<PolicyKey, ConfigurationStatus>>;
+type OAuthConfigurationStatus = Readonly<Record<OAuthProviderKey, ConfigurationStatus>>;
 
 const CHANNELS: ReadonlyArray<{ channel: PolicyKey; label: string; hint: string }> = [
   { channel: "email", label: "Email-коды", hint: "Разрешить вход и регистрацию по одноразовому коду из письма." },
@@ -21,7 +33,28 @@ const CHANNELS: ReadonlyArray<{ channel: PolicyKey; label: string; hint: string 
   { channel: "max", label: "MAX", hint: "Разрешить вход и привязку через MAX." },
 ];
 
+const OAUTH_PROVIDERS: ReadonlyArray<{ provider: OAuthProviderKey; label: string; hint: string }> = [
+  { provider: "google", label: "Google", hint: "Разрешить вход через Google OAuth." },
+  { provider: "yandex", label: "Яндекс", hint: "Разрешить вход через Яндекс OAuth." },
+];
+
 const EMPTY_POLICY: AuthChannelUiPolicy = { email: false, sms: false, telegram: false, max: false };
+const EMPTY_CHANNEL_STATUS: ChannelConfigurationStatus = {
+  email: { enabled: false, configured: false },
+  sms: { enabled: false, configured: false },
+  telegram: { enabled: false, configured: false },
+  max: { enabled: false, configured: false },
+};
+const EMPTY_OAUTH_POLICY: Record<OAuthProviderKey, boolean> = { google: false, yandex: false };
+const EMPTY_OAUTH_STATUS: OAuthConfigurationStatus = {
+  google: { enabled: false, configured: false },
+  yandex: { enabled: false, configured: false },
+};
+
+/** Owner ruling 2026-07-24: ON but unconfigured → hidden from the client + this warning next to the toggle. */
+function NotConfiguredWarning() {
+  return <p className="text-xs text-destructive">Включено, но параметры не настроены — скрыто от клиента.</p>;
+}
 
 function readBoolean(valueJson: unknown): boolean {
   if (typeof valueJson === "boolean") return valueJson;
@@ -39,6 +72,10 @@ function readFirstEmail(valueJson: unknown): string {
 
 export function PlatformAuthChannelPolicySection() {
   const [policy, setPolicy] = useState<AuthChannelUiPolicy>(EMPTY_POLICY);
+  const [channelStatus, setChannelStatus] = useState<ChannelConfigurationStatus>(EMPTY_CHANNEL_STATUS);
+  const [oauthPolicy, setOauthPolicy] = useState<Record<OAuthProviderKey, boolean>>(EMPTY_OAUTH_POLICY);
+  const [oauthStatus, setOauthStatus] = useState<OAuthConfigurationStatus>(EMPTY_OAUTH_STATUS);
+  const [twoFactorEnabled, setTwoFactorEnabled] = useState(false);
   const [unsupportedClientFallbackEnabled, setUnsupportedClientFallbackEnabled] = useState(false);
   const [adminEmail, setAdminEmail] = useState("");
   const [adminEmailDraft, setAdminEmailDraft] = useState("");
@@ -52,6 +89,8 @@ export function PlatformAuthChannelPolicySection() {
         const data = (await response.json().catch(() => ({}))) as {
           ok?: boolean;
           settings?: Array<{ key?: string; valueJson?: unknown }>;
+          channelPolicy?: ChannelConfigurationStatus;
+          oauthProviderPolicy?: OAuthConfigurationStatus;
         };
         if (!active || !response.ok || !data.ok || !Array.isArray(data.settings)) {
           throw new Error("settings_unavailable");
@@ -62,6 +101,19 @@ export function PlatformAuthChannelPolicySection() {
           next[channel.channel] = readBoolean(setting?.valueJson);
         }
         setPolicy(next);
+        setChannelStatus(data.channelPolicy ?? EMPTY_CHANNEL_STATUS);
+
+        const nextOauth = { ...EMPTY_OAUTH_POLICY };
+        for (const { provider } of OAUTH_PROVIDERS) {
+          const setting = data.settings.find((item) => item.key === `auth_oauth_${provider}_enabled`);
+          nextOauth[provider] = readBoolean(setting?.valueJson);
+        }
+        setOauthPolicy(nextOauth);
+        setOauthStatus(data.oauthProviderPolicy ?? EMPTY_OAUTH_STATUS);
+
+        setTwoFactorEnabled(readBoolean(
+          data.settings.find((item) => item.key === TWO_FACTOR_KEY)?.valueJson,
+        ));
         setUnsupportedClientFallbackEnabled(readBoolean(
           data.settings.find((item) => item.key === UNSUPPORTED_CLIENT_FALLBACK_KEY)?.valueJson,
         ));
@@ -95,6 +147,47 @@ export function PlatformAuthChannelPolicySection() {
       if (!response.ok || !data.ok) throw new Error("save_failed");
     } catch {
       setPolicy((current) => ({ ...current, [channel]: previous }));
+      toast.error("Не удалось сохранить настройку");
+    } finally {
+      setSaving(null);
+    }
+  }
+
+  async function updateOAuthProvider(provider: OAuthProviderKey, enabled: boolean): Promise<void> {
+    const previous = oauthPolicy[provider];
+    setOauthPolicy((current) => ({ ...current, [provider]: enabled }));
+    setSaving(provider);
+    try {
+      const key: OAuthSettingKey = `auth_oauth_${provider}_enabled`;
+      const response = await fetch("/api/platform/settings", {
+        method: "PATCH",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ key, value: enabled }),
+      });
+      const data = (await response.json().catch(() => ({}))) as { ok?: boolean };
+      if (!response.ok || !data.ok) throw new Error("save_failed");
+    } catch {
+      setOauthPolicy((current) => ({ ...current, [provider]: previous }));
+      toast.error("Не удалось сохранить настройку");
+    } finally {
+      setSaving(null);
+    }
+  }
+
+  async function updateTwoFactorEnabled(enabled: boolean): Promise<void> {
+    const previous = twoFactorEnabled;
+    setTwoFactorEnabled(enabled);
+    setSaving(TWO_FACTOR_KEY);
+    try {
+      const response = await fetch("/api/platform/settings", {
+        method: "PATCH",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ key: TWO_FACTOR_KEY, value: enabled }),
+      });
+      const data = (await response.json().catch(() => ({}))) as { ok?: boolean };
+      if (!response.ok || !data.ok) throw new Error("save_failed");
+    } catch {
+      setTwoFactorEnabled(previous);
       toast.error("Не удалось сохранить настройку");
     } finally {
       setSaving(null);
@@ -154,19 +247,55 @@ export function PlatformAuthChannelPolicySection() {
         </DoctorSectionHeader>
         <div className="grid gap-4 md:grid-cols-2">
           {CHANNELS.map(({ channel, label, hint }) => (
-            <LabeledSwitch
-              key={channel}
-              label={label}
-              hint={hint}
-              checked={policy[channel]}
-              disabled={!loaded || saving !== null}
-              onCheckedChange={(enabled) => void updateChannel(channel, enabled)}
-            />
+            <div key={channel} className="flex flex-col gap-1">
+              <LabeledSwitch
+                label={label}
+                hint={hint}
+                checked={policy[channel]}
+                disabled={!loaded || saving !== null}
+                onCheckedChange={(enabled) => void updateChannel(channel, enabled)}
+              />
+              {policy[channel] && !channelStatus[channel].configured ? <NotConfiguredWarning /> : null}
+            </div>
           ))}
         </div>
         <p className="text-xs text-muted-foreground">
           Парольный вход по email остаётся доступен независимо от переключателя email-кодов.
         </p>
+      </DoctorSection>
+      <DoctorSection>
+        <DoctorSectionHeader>
+          <DoctorSectionTitle>Вход через OAuth</DoctorSectionTitle>
+        </DoctorSectionHeader>
+        <div className="grid gap-4 md:grid-cols-2">
+          {OAUTH_PROVIDERS.map(({ provider, label, hint }) => (
+            <div key={provider} className="flex flex-col gap-1">
+              <LabeledSwitch
+                label={label}
+                hint={hint}
+                checked={oauthPolicy[provider]}
+                disabled={!loaded || saving !== null}
+                onCheckedChange={(enabled) => void updateOAuthProvider(provider, enabled)}
+              />
+              {oauthPolicy[provider] && !oauthStatus[provider].configured ? <NotConfiguredWarning /> : null}
+            </div>
+          ))}
+        </div>
+        <p className="text-xs text-muted-foreground">
+          Apple OAuth в списке переключателей не участвует (решение владельца).
+        </p>
+      </DoctorSection>
+      <DoctorSection>
+        <DoctorSectionHeader>
+          <DoctorSectionTitle>Двухфакторная аутентификация</DoctorSectionTitle>
+        </DoctorSectionHeader>
+        <LabeledSwitch
+          label="Обязательная 2FA (TOTP) для персонала"
+          hint="Требовать подтверждённый TOTP-фактор для глобального администратора и специалистов. Без подтверждённого фактора сотрудник видит только настройку безопасности в своём аккаунте — сессия не обрывается резко."
+          checked={twoFactorEnabled}
+          disabled={!loaded || saving !== null}
+          onCheckedChange={(enabled) => void updateTwoFactorEnabled(enabled)}
+        />
       </DoctorSection>
       <DoctorSection>
         <DoctorSectionHeader>

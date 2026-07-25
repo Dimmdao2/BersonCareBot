@@ -11,6 +11,10 @@ import {
   bookingLocationPaletteEnvelope,
   normalizeBookingLocationPalette,
 } from "@/modules/booking-engine/locationPalette";
+import {
+  getAuthChannelPolicyDetail,
+  getOAuthProviderPolicyDetail,
+} from "@/modules/auth/authChannelPolicy";
 
 /**
  * The platform API is deliberately not a mirror of `/api/admin/settings`.
@@ -27,6 +31,9 @@ export const PLATFORM_GLOBAL_SETTINGS_API_KEYS = [
   "auth_sms_enabled",
   "auth_telegram_enabled",
   "auth_max_enabled",
+  "auth_oauth_google_enabled",
+  "auth_oauth_yandex_enabled",
+  "auth_2fa_enabled",
   "admin_emails",
   "booking_location_default_palette",
 ] as const satisfies readonly SystemSettingKey[];
@@ -70,9 +77,16 @@ export async function GET() {
   const gate = await requirePlatformOperationsApiContext();
   if (!gate.ok) return gate.response;
 
-  const settings = (await buildAppDeps().systemSettings.listSettingsByScope("admin", { organizationId: null }))
-    .filter(isPlatformGlobalSetting);
-  return NextResponse.json({ ok: true, settings });
+  const [settings, channelPolicy, oauthProviderPolicy] = await Promise.all([
+    buildAppDeps()
+      .systemSettings.listSettingsByScope("admin", { organizationId: null })
+      .then((rows) => rows.filter(isPlatformGlobalSetting)),
+    getAuthChannelPolicyDetail(),
+    getOAuthProviderPolicyDetail(),
+  ]);
+  // Read-only, computed status for the admin warning UI ("toggle is ON but not configured").
+  // Never gates anything here — enforcement lives in authChannelPolicy.ts / the OAuth routes.
+  return NextResponse.json({ ok: true, settings, channelPolicy, oauthProviderPolicy });
 }
 
 export async function PATCH(request: Request) {

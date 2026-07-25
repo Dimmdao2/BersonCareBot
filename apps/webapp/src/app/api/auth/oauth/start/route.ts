@@ -33,6 +33,7 @@ import {
   resolveOAuthStartRateLimitClientKey,
 } from "@/modules/auth/oauthStartRateLimit";
 import { jsonError, jsonOk } from "@/shared/http/apiResponse";
+import { isOAuthProviderEnabled } from "@/modules/auth/authChannelPolicy";
 
 const OAUTH_STATE_TTL_SECONDS = 600;
 
@@ -126,10 +127,16 @@ export async function POST(request: Request) {
   const tzOpt = { browserCalendarIana: browserCalendarIana?.trim() || null };
 
   if (provider === "yandex") {
-    const clientId = (await getYandexOauthClientId()).trim();
-    const redirectUri = (await getYandexOauthRedirectUri()).trim();
-    const secret = (await getYandexOauthClientSecret()).trim();
-    if (!clientId || !redirectUri || !secret) {
+    const [yandexOAuthEnabled, clientId, redirectUri, secret] = await Promise.all([
+      isOAuthProviderEnabled("yandex"),
+      getYandexOauthClientId().then((v) => v.trim()),
+      getYandexOauthRedirectUri().then((v) => v.trim()),
+      getYandexOauthClientSecret().then((v) => v.trim()),
+    ]);
+    // Reuses the same enabled+configured gate the public providers list applies; not just an
+    // extra credential re-check — a disabled admin toggle must refuse the request even if
+    // credentials happen to be present (owner ruling 2026-07-24, R2 fail-closed).
+    if (!yandexOAuthEnabled || !clientId || !redirectUri || !secret) {
       await logOAuthStartFailure(provider, "oauth_disabled");
       return jsonError(
         "oauth_disabled",
@@ -149,10 +156,13 @@ export async function POST(request: Request) {
   }
 
   if (provider === "google") {
-    const clientId = (await getGoogleClientId()).trim();
-    const clientSecret = (await getGoogleClientSecret()).trim();
-    const redirectUri = (await getGoogleOauthLoginRedirectUri()).trim();
-    if (!clientId || !clientSecret || !redirectUri) {
+    const [googleOAuthEnabled, clientId, clientSecret, redirectUri] = await Promise.all([
+      isOAuthProviderEnabled("google"),
+      getGoogleClientId().then((v) => v.trim()),
+      getGoogleClientSecret().then((v) => v.trim()),
+      getGoogleOauthLoginRedirectUri().then((v) => v.trim()),
+    ]);
+    if (!googleOAuthEnabled || !clientId || !clientSecret || !redirectUri) {
       await logOAuthStartFailure(provider, "oauth_disabled");
       return jsonError(
         "oauth_disabled",

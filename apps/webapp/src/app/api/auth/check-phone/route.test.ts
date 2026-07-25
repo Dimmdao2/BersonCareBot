@@ -7,6 +7,33 @@ vi.mock("@/modules/system-settings/telegramLoginBotUsername", () => ({
   getTelegramLoginBotUsername: () => Promise.resolve(""),
 }));
 
+// Client-visible channel policy = admin toggle AND configured (owner ruling 2026-07-24). These
+// route tests exercise phone/OTP-method resolution, not channel configuration, so keep every
+// channel "configured" here and let the (unmocked) admin toggle default resolve as before.
+vi.mock("@/modules/system-settings/configAdapter", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/modules/system-settings/configAdapter")>();
+  return {
+    ...actual,
+    getConfigValue: async (key: string, envFallback: string) => {
+      if (key === "smtp_outbound") {
+        return JSON.stringify({
+          value: { host: "smtp.example.com", port: 587, secure: false, user: "u", from: "a@b.co" },
+        });
+      }
+      if (key === "smsc_api_key") return "sms-key";
+      return actual.getConfigValue(key, envFallback);
+    },
+  };
+});
+vi.mock("@/modules/system-settings/integrationRuntime", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/modules/system-settings/integrationRuntime")>();
+  return {
+    ...actual,
+    getTelegramBotToken: async () => "bot-token",
+    getMaxBotApiKey: async () => "max-key",
+  };
+});
+
 import { POST } from "./route";
 
 describe("POST /api/auth/check-phone", () => {

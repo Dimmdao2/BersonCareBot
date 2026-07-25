@@ -9,7 +9,7 @@ import { isCheckPhoneRateLimited } from "@/modules/auth/checkPhoneRateLimit";
 import { normalizePhone } from "@/modules/auth/phoneNormalize";
 import { isValidPhoneE164 } from "@/modules/auth/phoneValidation";
 import { getTelegramLoginBotUsername } from "@/modules/system-settings/telegramLoginBotUsername";
-import { getAuthChannelPolicy } from "@/modules/auth/authChannelPolicy";
+import { getClientVisibleAuthChannelPolicy } from "@/modules/auth/authChannelPolicy";
 
 const bodySchema = z.object({
   phone: z.string().min(1).max(32),
@@ -43,7 +43,8 @@ export async function POST(request: Request) {
     );
   }
 
-  const channelPolicy = await getAuthChannelPolicy();
+  // Owner ruling 2026-07-24: a channel toggled on but unconfigured must not appear to the client.
+  const channelPolicy = await getClientVisibleAuthChannelPolicy();
   const deps = buildAppDeps();
   const botUsername = channelPolicy.telegram ? (await getTelegramLoginBotUsername()).trim() : "";
   const telegramLoginAvailable = channelPolicy.telegram && botUsername.length > 0;

@@ -36,6 +36,12 @@ vi.mock("@/config/env", () => ({
   env: { SESSION_COOKIE_SECRET: "test-session-secret-16chars" },
 }));
 
+const isOAuthProviderEnabledMock = vi.hoisted(() => vi.fn().mockResolvedValue(true));
+
+vi.mock("@/modules/auth/authChannelPolicy", () => ({
+  isOAuthProviderEnabled: isOAuthProviderEnabledMock,
+}));
+
 const recordAuthRegistrationAttemptMock = vi.fn(async (_params: unknown) => undefined);
 
 vi.mock("@/app-layer/product-analytics/recordAuthRegistration", () => ({
@@ -61,6 +67,7 @@ describe("POST /api/auth/oauth/start", () => {
     oauthMocks.getAppleOauthKeyId.mockResolvedValue("");
     oauthMocks.getAppleOauthPrivateKey.mockResolvedValue("");
     recordAuthRegistrationAttemptMock.mockReset();
+    isOAuthProviderEnabledMock.mockReset().mockResolvedValue(true);
   });
 
   it("returns 400 for missing body", async () => {
@@ -157,6 +164,44 @@ describe("POST /api/auth/oauth/start", () => {
     expect(data.authUrl).toContain("https://accounts.google.com/o/oauth2/v2/auth");
     expect(data.authUrl).toContain("client_id=g-id");
     expect(data.authUrl).toContain("openid");
+  });
+
+  it("returns 501 for google when the admin toggle is off, even with credentials present", async () => {
+    oauthMocks.getGoogleClientId.mockResolvedValue("g-id");
+    oauthMocks.getGoogleClientSecret.mockResolvedValue("g-sec");
+    oauthMocks.getGoogleOauthLoginRedirectUri.mockResolvedValue("http://localhost/api/auth/oauth/callback/google");
+    isOAuthProviderEnabledMock.mockResolvedValue(false);
+
+    const res = await POST(
+      new Request("http://localhost/api/auth/oauth/start", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ provider: "google" }),
+      }),
+    );
+    expect(res.status).toBe(501);
+    const data = (await res.json()) as { ok: boolean; error: string };
+    expect(data.ok).toBe(false);
+    expect(data.error).toBe("oauth_disabled");
+  });
+
+  it("returns 501 for yandex when the admin toggle is off, even with credentials present", async () => {
+    oauthMocks.getYandexOauthClientId.mockResolvedValue("test-client-id");
+    oauthMocks.getYandexOauthClientSecret.mockResolvedValue("test-secret");
+    oauthMocks.getYandexOauthRedirectUri.mockResolvedValue("http://localhost/api/auth/oauth/callback/yandex");
+    isOAuthProviderEnabledMock.mockResolvedValue(false);
+
+    const res = await POST(
+      new Request("http://localhost/api/auth/oauth/start", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ provider: "yandex" }),
+      }),
+    );
+    expect(res.status).toBe(501);
+    const data = (await res.json()) as { ok: boolean; error: string };
+    expect(data.ok).toBe(false);
+    expect(data.error).toBe("oauth_disabled");
   });
 
   it("returns 200 with Apple authorize URL when configured", async () => {

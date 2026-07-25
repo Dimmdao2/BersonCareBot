@@ -103,6 +103,22 @@ export const SYSTEM_SETTING_REGISTRY = {
   auth_sms_enabled: runtime("admin", "global", "public", "boolean", "false"),
   auth_telegram_enabled: runtime("admin", "global", "public", "boolean", "true"),
   auth_max_enabled: runtime("admin", "global", "public", "boolean", "true"),
+  /**
+   * Independent admin toggles for OAuth login providers — decoupled from credential presence.
+   * `oauth_google_enabled` / `oauth_yandex_enabled` (below, restricted-derived) remain the
+   * "configured" signal (all required credentials present); the effective client-visible /
+   * server-enforced state is `auth_oauth_*_enabled AND oauth_*_enabled`. No Apple toggle
+   * (owner ruling 2026-07-24) — Apple OAuth stays purely credential-derived.
+   */
+  auth_oauth_google_enabled: runtime("admin", "global", "public", "boolean", "true"),
+  auth_oauth_yandex_enabled: runtime("admin", "global", "public", "boolean", "true"),
+  /**
+   * Global admin switch: when true, staff (global-admin + specialists) must complete TOTP
+   * enrollment/verification to keep using protected staff surfaces (owner ruling 2026-07-24).
+   * Server-only audience — enforcement reads happen in `app-layer/guards/requireRole.ts`, never
+   * the browser. Default false preserves today's per-user opt-in behavior until an admin opts in.
+   */
+  auth_2fa_enabled: runtime("admin", "global", "server", "boolean", "false"),
   patient_program_discussion_doctor_reply_from_log_enabled: runtime("admin", "global", "authenticated_client", "boolean", "false"),
   patient_program_discussion_ui_enabled: runtime("admin", "global", "authenticated_client", "boolean", "false"),
   patient_program_discussion_media_submission_enabled: runtime("admin", "global", "authenticated_client", "boolean", "false"),

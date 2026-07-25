@@ -2,9 +2,12 @@ import { stampBootstrapPrincipal } from "@/app-layer/principal/bootstrapPrincipa
 import { NextResponse } from "next/server";
 import { logAuthRouteTiming } from "@/modules/auth/authRouteObservability";
 import { getPublicRuntimeBool } from "@/modules/system-settings/configAdapter";
+import { isOAuthProviderEnabled } from "@/modules/auth/authChannelPolicy";
 
 /**
  * GET /api/auth/oauth/providers — какие провайдеры настроены (без секретов).
+ * Google / Yandex: independent admin toggle AND credentials configured (owner ruling 2026-07-24).
+ * Apple: no toggle (owner ruling) — stays purely credential-derived.
  */
 const ROUTE = "auth/oauth/providers";
 
@@ -12,8 +15,8 @@ export async function GET(request: Request) {
   stampBootstrapPrincipal("api/auth/oauth/providers:GET", request);
   const startedAt = Date.now();
   const [yandex, google, apple] = await Promise.all([
-    getPublicRuntimeBool("oauth_yandex_enabled"),
-    getPublicRuntimeBool("oauth_google_enabled"),
+    isOAuthProviderEnabled("yandex"),
+    isOAuthProviderEnabled("google"),
     getPublicRuntimeBool("oauth_apple_enabled"),
   ]);
 

@@ -12,6 +12,7 @@ import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import { getCurrentSession, getCurrentSessionForIdentitySelf } from "@/modules/auth/service";
 import { patientClientBusinessGate, resolvePlatformAccessContext } from "@/app-layer/platform-access";
 import { canAccessDoctor, canAccessPatient } from "@/modules/roles/service";
+import { getServerRuntimeBool } from "@/modules/system-settings/configAdapter";
 import { routePaths } from "@/app-layer/routes/paths";
 import { buildOwnHubUrlWithAccessDeniedToast } from "@/shared/lib/appAccessDeniedToast";
 import { isPlatformUserUuid } from "@/shared/platform-user/isPlatformUserUuid";
@@ -122,9 +123,29 @@ export async function requireStaffPersonalInstallPage(): Promise<AppSession> {
   redirect(buildOwnHubUrlWithAccessDeniedToast(session.user.role));
 }
 
-export function isRestrictedStaffSecuritySession(session: AppSession): boolean {
+function isMidEnrollmentOrRecoveryStaffSecuritySession(session: AppSession): boolean {
   const assurance = session.staffSecurity?.assurance;
   return assurance === "pending_enrollment" || assurance === "recovery" || assurance === "recovery_confirmation";
+}
+
+/**
+ * Global admin switch (`auth_2fa_enabled`, owner ruling 2026-07-24): when on, staff
+ * (global-admin + specialists) who have not completed TOTP verification this session are
+ * treated the same as a mid-enrollment session — same gentle redirect to `/app/account`
+ * (security tab), never a hard session kill or 500. "Surface enrollment, don't hard-break."
+ * Default false keeps today's per-user opt-in behavior until an admin turns this on.
+ */
+export async function isRestrictedStaffSecuritySession(session: AppSession): Promise<boolean> {
+  if (session.staffSecurity?.assurance === "factor_verified") return false;
+  if (isMidEnrollmentOrRecoveryStaffSecuritySession(session)) return true;
+  if (!canAccessDoctor(session.user.role)) return false;
+  try {
+    // getServerRuntimeBool already treats a DB read failure as "flag off" internally; this
+    // catch only guards the (rare) case the call itself cannot be made. Same safe default.
+    return await getServerRuntimeBool("auth_2fa_enabled");
+  } catch {
+    return false;
+  }
 }
 
 /** Platform-only RSC entry. It intentionally does not resolve an organization membership. */
@@ -138,7 +159,7 @@ export async function requirePlatformOperationsPage(): Promise<AppSession> {
   if (!hasLaunchCapability(capabilities, "platform.operations")) {
     redirect("/app");
   }
-  if (isRestrictedStaffSecuritySession(session)) {
+  if (await isRestrictedStaffSecuritySession(session)) {
     redirect("/app");
   }
   return session;
@@ -157,7 +178,7 @@ export async function requirePlatformOperationsApiContext(): Promise<
     sessionRole: session.user.role,
     adminMode: session.adminMode,
   });
-  if (!hasLaunchCapability(capabilities, "platform.operations") || isRestrictedStaffSecuritySession(session)) {
+  if (!hasLaunchCapability(capabilities, "platform.operations") || (await isRestrictedStaffSecuritySession(session))) {
     return { ok: false, response: NextResponse.json({ ok: false, error: "forbidden" }, { status: 403 }) };
   }
   if (!isPlatformUserUuid(session.user.userId)) {
@@ -254,9 +275,7 @@ async function resolveDoctorWorkspaceAccessContext(
   | { ok: false; reason: "doctor_workspace_membership_required" | "forbidden" }
 > {
   if (
-    session.staffSecurity?.assurance === "pending_enrollment" ||
-    session.staffSecurity?.assurance === "recovery" ||
-    session.staffSecurity?.assurance === "recovery_confirmation" ||
+    (await isRestrictedStaffSecuritySession(session)) ||
     (session.user.securityFactorRequired === true &&
       session.staffSecurity?.assurance !== "factor_verified")
   ) {
@@ -310,7 +329,7 @@ export async function requireOrganizationWorkspaceContext(): Promise<DoctorWorks
   if (!canAccessDoctor(session.user.role)) {
     redirect(buildOwnHubUrlWithAccessDeniedToast(session.user.role));
   }
-  if (isRestrictedStaffSecuritySession(session)) {
+  if (await isRestrictedStaffSecuritySession(session)) {
     redirect(routePaths.account);
   }
   const accountCapabilities = resolveLaunchCapabilities({
@@ -376,7 +395,7 @@ export async function requireDoctorApiSession(): Promise<
   if (!hasLaunchCapability(accountCapabilities, "account.self")) {
     return { ok: false, response: NextResponse.json({ ok: false, error: "forbidden" }, { status: 403 }) };
   }
-  if (isRestrictedStaffSecuritySession(session)) {
+  if (await isRestrictedStaffSecuritySession(session)) {
     return {
       ok: false,
       response: NextResponse.json({ ok: false, error: "security_setup_required" }, { status: 403 }),
@@ -408,7 +427,7 @@ export async function requireStaffWebPushSelfApiSession(): Promise<
   });
   if (
     (!hasLaunchCapability(capabilities, "account.self") && !hasLaunchCapability(capabilities, "platform.operations")) ||
-    isRestrictedStaffSecuritySession(session) ||
+    (await isRestrictedStaffSecuritySession(session)) ||
     !isPlatformUserUuid(session.user.userId)
   ) {
     return { ok: false, response: NextResponse.json({ ok: false, error: "forbidden" }, { status: 403 }) };

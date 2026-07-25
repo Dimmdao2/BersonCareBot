@@ -93,6 +93,8 @@ export const PUBLIC_RUNTIME_BOOLEAN_DEFAULTS = {
   auth_sms_enabled: false,
   auth_telegram_enabled: true,
   auth_max_enabled: true,
+  auth_oauth_google_enabled: true,
+  auth_oauth_yandex_enabled: true,
   oauth_yandex_enabled: false,
   oauth_google_enabled: false,
   oauth_apple_enabled: false,
@@ -122,6 +124,7 @@ export const AUTHENTICATED_RUNTIME_STRING_DEFAULTS = {
 
 export const SERVER_RUNTIME_BOOLEAN_DEFAULTS = {
   debug_forward_to_admin: false,
+  auth_2fa_enabled: false,
 } as const;
 
 export const SERVER_RUNTIME_TOKEN_LIST_DEFAULTS = {
