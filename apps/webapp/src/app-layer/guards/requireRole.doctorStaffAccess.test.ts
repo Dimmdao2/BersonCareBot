@@ -24,6 +24,11 @@ vi.mock("next/navigation", () => ({
   redirect: (url: string) => redirectMock(url),
 }));
 
+const getServerRuntimeBoolMock = vi.hoisted(() => vi.fn().mockResolvedValue(false));
+vi.mock("@/modules/system-settings/configAdapter", () => ({
+  getServerRuntimeBool: getServerRuntimeBoolMock,
+}));
+
 import { buildOwnHubUrlWithAccessDeniedToast } from "@/shared/lib/appAccessDeniedToast";
 import {
   getOptionalPatientSession,
@@ -54,6 +59,7 @@ beforeEach(() => {
   resolveOrganizationForUserMock.mockReset();
   resolveOrganizationForUserMock.mockResolvedValue({ ok: false, reason: "no_active_membership" });
   redirectMock.mockReset();
+  getServerRuntimeBoolMock.mockReset().mockResolvedValue(false);
 });
 
 describe("requireStaffAccountPage", () => {
@@ -65,12 +71,39 @@ describe("requireStaffAccountPage", () => {
     expect(resolveOrganizationForUserMock).not.toHaveBeenCalled();
   });
 
-  it("keeps an explicit platform operator in the platform shell", async () => {
+  it("keeps an explicit platform operator in the platform shell (2FA off / already verified)", async () => {
+    getServerRuntimeBoolMock.mockResolvedValue(false);
     const admin = { ...session("admin"), adminMode: true };
     getCurrentSessionMock.mockResolvedValueOnce(admin);
 
     await expect(requireStaffAccountPage()).rejects.toThrow("redirect:/app/doctor/system-health");
     expect(resolveOrganizationForUserMock).not.toHaveBeenCalled();
+  });
+
+  it("still routes to system-health once a global admin has completed TOTP enrollment (factor_verified)", async () => {
+    getServerRuntimeBoolMock.mockResolvedValue(true);
+    const admin = {
+      ...session("admin"),
+      adminMode: true,
+      staffSecurity: { assurance: "factor_verified" as const },
+    };
+    getCurrentSessionMock.mockResolvedValueOnce(admin);
+
+    await expect(requireStaffAccountPage()).rejects.toThrow("redirect:/app/doctor/system-health");
+  });
+
+  it("lets a 2FA-restricted global admin reach the account/security tab instead of looping to system-health", async () => {
+    // Regression for the audited redirect loop (2026-07-25): a global admin is permanently
+    // adminMode:true (capabilities = exactly {platform.operations}, no account.self). Before the
+    // fix, requireStaffAccountPage unconditionally bounced platform.operations holders to
+    // system-health, which itself bounces a restricted session back to /app — an infinite loop
+    // with no way to ever reach TOTP enrollment.
+    getServerRuntimeBoolMock.mockResolvedValue(true);
+    const admin = { ...session("admin"), adminMode: true };
+    getCurrentSessionMock.mockResolvedValueOnce(admin);
+
+    await expect(requireStaffAccountPage()).resolves.toBe(admin);
+    expect(redirectMock).not.toHaveBeenCalled();
   });
 
   it("denies a patient account", async () => {

@@ -92,10 +92,19 @@ export async function requireStaffAccountPage(): Promise<AppSession> {
     sessionRole: session.user.role,
     adminMode: session.adminMode,
   });
+  const restricted = await isRestrictedStaffSecuritySession(session);
   if (hasLaunchCapability(capabilities, "platform.operations")) {
+    // A global admin has EXACTLY {platform.operations} — never account.self — and adminMode is
+    // permanently forced on, so this is otherwise the ONLY branch a global admin ever hits here.
+    // A 2FA-restricted admin (auth_2fa_enabled on, not yet factor_verified) has no other reachable
+    // surface to enroll TOTP: bouncing them to system-health, which itself bounces restricted
+    // sessions back to /app, is an infinite redirect loop with no way to ever enroll (owner
+    // ruling 2026-07-24 fix, audited 2026-07-25). Let the account/security tab render instead;
+    // once enrollment completes (factor_verified), restricted is false and normal routing resumes.
+    if (restricted) return session;
     redirect("/app/doctor/system-health");
   }
-  if (!hasLaunchCapability(capabilities, "account.self")) {
+  if (!restricted && !hasLaunchCapability(capabilities, "account.self")) {
     redirect(buildOwnHubUrlWithAccessDeniedToast(session.user.role));
   }
   return session;
@@ -441,7 +450,16 @@ export async function requireStaffWebPushSelfApiSession(): Promise<
   return { ok: true, session };
 }
 
-/** Identity-self security routes only; never grants organization-wide staff DB context. */
+/**
+ * Identity-self security routes only; never grants organization-wide staff DB context.
+ *
+ * Deliberately does NOT require `session.staffSecurity` to already be populated on the cookie:
+ * a global admin's email-OTP login (`api/auth/email-otp/confirm`) never sets it — there is no
+ * `staff_security_profiles` row yet to derive an assurance from — so requiring it here would make
+ * TOTP enrollment permanently unreachable for a first-time global admin (audited 2026-07-25).
+ * Authorization is principal-based (`enterStaffSecuritySelfPrincipal`, scoped to `session.user.userId`
+ * at the DB/RLS layer), not derived from this cookie field, so relaxing it does not widen access.
+ */
 export async function requireStaffSecurityApiSession(): Promise<
   { ok: true; session: AppSession } | { ok: false; response: NextResponse }
 > {
@@ -450,7 +468,7 @@ export async function requireStaffSecurityApiSession(): Promise<
   if (!session) {
     return { ok: false, response: NextResponse.json({ ok: false, error: "unauthorized" }, { status: 401 }) };
   }
-  if (!canAccessDoctor(session.user.role) || !session.staffSecurity) {
+  if (!canAccessDoctor(session.user.role)) {
     return { ok: false, response: NextResponse.json({ ok: false, error: "forbidden" }, { status: 403 }) };
   }
   enterStaffSecuritySelfPrincipal(session.user.userId, "requireStaffSecurityApiSession:self");
