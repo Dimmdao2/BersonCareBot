@@ -55,7 +55,9 @@ describe("createPgLfkTemplatesPort", () => {
     const sql = String(runWebappPgTextMock.mock.calls[0]?.[0] ?? "");
     expect(sql).toContain("exercise_count");
     expect(sql).toContain("lfk_complex_template_exercises");
-    expect(sql).toContain("t.organization_id = NULLIF(current_setting('app.org', true), '')::uuid");
+    expect(sql).toContain(
+      "t.organization_id = COALESCE(app.current_org_id(), NULLIF(current_setting('app.org', true), '')::uuid)",
+    );
   });
 
   it("keeps platform templates hidden OFF and exposes tagged platform rows ON", async () => {
@@ -255,7 +257,9 @@ describe("createPgLfkTemplatesPort", () => {
       .map((c) => String(c[0]));
     expect(txSql[0]).toContain("DELETE FROM lfk_complex_template_exercises");
     expect(txSql.filter((s) => s.includes("INSERT INTO lfk_complex_template_exercises"))).toHaveLength(2);
-    expect(txSql.join("\n")).toContain("e.organization_id = NULLIF(current_setting('app.org', true), '')::uuid");
+    expect(txSql.join("\n")).toContain(
+      "e.organization_id = COALESCE(app.current_org_id(), NULLIF(current_setting('app.org', true), '')::uuid)",
+    );
     expect(txSql.join("\n")).toContain("e.catalog_scope = 'catalog'");
     expect(txSql.at(-1)).toContain("UPDATE lfk_complex_templates SET updated_at");
     const insertParams = runWebappPgTextMock.mock.calls

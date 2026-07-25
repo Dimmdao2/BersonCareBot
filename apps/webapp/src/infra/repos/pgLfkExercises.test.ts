@@ -61,7 +61,9 @@ describe("createPgLfkExercisesPort", () => {
     expect(sql).toContain("load_type");
     expect(sql).toContain("is_archived = false");
     expect(sql).toContain("e.catalog_scope = 'catalog'");
-    expect(sql).toContain("e.organization_id = NULLIF(current_setting('app.org', true), '')::uuid");
+    expect(sql).toContain(
+      "e.organization_id = COALESCE(app.current_org_id(), NULLIF(current_setting('app.org', true), '')::uuid)",
+    );
   });
 
   it("list with archiveListScope archived filters archived only", async () => {
@@ -220,7 +222,9 @@ describe("createPgLfkExercisesPort", () => {
     ]);
     expect(out.get(exerciseId)).toBe("Присед");
     const sql = String(runWebappPgTextMock.mock.calls[0]?.[0] ?? "");
-    expect(sql).toContain("organization_id = NULLIF(current_setting('app.org', true), '')::uuid");
+    expect(sql).toContain(
+      "organization_id = COALESCE(app.current_org_id(), NULLIF(current_setting('app.org', true), '')::uuid)",
+    );
     expect(sql).toContain("catalog_scope = 'catalog'");
     const params = runWebappPgTextMock.mock.calls[0]?.[1] as unknown[] | undefined;
     expect(Array.isArray(params)).toBe(true);
