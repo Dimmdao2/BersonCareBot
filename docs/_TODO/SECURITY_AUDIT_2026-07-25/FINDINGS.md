@@ -64,3 +64,58 @@ nearby.
 Worker running. Must establish, among the rest, the exact blast radius of the owner-deferred
 `/api/doctor/patients/*` IDOR **now that FORCE-RLS with a signed per-request principal is live**: is the hole
 masked by the DB wall, or still reachable because the stamped principal can see the row?
+
+### S2 — INDEPENDENT AUDIT VERDICT (all four claims survive; two got WORSE)
+
+Auditor mandate was to refute. Result: citations exact, all four claims **CONFIRMED**, with corrections that
+make the top two more severe, plus four things the worker missed.
+
+| # | Verdict | Correction |
+|---|---|---|
+| 1 | **CONFIRMED, blast radius worse** | The window is **not** capped at 7d/90d. `proxy.ts:70` runs `applySessionRenewalToResponse` on every `/app` and `/api` request, and `sessionCookie.ts:138-155` does **no DB and no version check** — so the *attacker's own replay* slides `expiresAt` forward. A cookie copied once and used at least once per TTL stays valid **indefinitely** after the victim logs out. There is no server-side session identity anywhere to revoke: `rg "jti\|sessionId\|denylist\|revoked_at\|cookieHash"` over `modules/auth/` → zero hits. |
+| 2 | **CONFIRMED, and it is not patient-only** | Renewal applies identically to staff, so **staff** sessions are also effectively permanent under replay. Real numbers: staff TTL 7d, patient TTL 90d, renew when remaining < TTL/2 **or** `now - issuedAt >= 86400`; since `renewSessionIfActive` deliberately preserves `issuedAt` (pinned by `sessionCookie.test.ts:56`), that second condition is permanently true after 24h — the "24h minimum interval" **throttles nothing**, every request renews. `issuedAt` is an available absolute-age anchor that nothing reads. |
+| 3 | **PARTLY → downgrade to LOW** | Nothing anywhere bumps `session_version` except `app.revoke_staff_sessions()` and the TOTP functions — verified independently — but what a removed doctor's cookie still reaches is thin: `account.self` surfaces, `/api/account/security/*`, `/api/me`, own identity fields. Membership is re-resolved per request and fails closed; demoting the row to `client` kills even that on the next request. |
+| 4 | **CONFIRMED, LOW is right** | Fails open for `client`, closed for staff, and the fail-open branch returns the same object so the version comparison trivially passes. Inert today. Notable detail: that branch keys off the **cookie's** role — the one place a role is read from the cookie — but it is HMAC-signed and a client cookie only ever gets client fail-open. |
+
+**Missed by the worker, found by the auditor — the important part:**
+
+1. **The single revocation mechanism does not function for ANYONE on TEST.** `SELECT count(*) FROM
+   staff_security_profiles` → **0** (4 admins, 1 doctor, 276 clients, zero profiles).
+   `app.revoke_staff_sessions()` raises `staff_security_profile_missing` without a row, and the route is
+   additionally unreachable because it demands `staffSecurity.assurance === "factor_verified"`, obtainable only
+   from a TOTP-enrolled profile. So "Завершить другие сеансы" throws for every current user.
+2. **Password reset silently revokes nothing** for profile-less accounts:
+   `api/auth/email-password/reset/route.ts:67-70` calls `revokeSessions()` only `if (security)`, and `getStatus()`
+   returns `null` for all 281 TEST users. "Reset the password to kick the attacker out" fails silently.
+3. **`platform_users.is_archived` is not a session kill switch** — `pgUserByPhone.findByUserId:114-122` has no
+   `is_archived` predicate and no guard checks it. Two archived `admin` rows exist on TEST.
+4. **LOW: `GET /api/auth/logout` is cross-site triggerable** (`csrfOrigin.ts:91` classifies only
+   POST/PUT/PATCH/DELETE), so an `<img>` tag logs a user out. Denial-of-session only.
+
+Every "verified safe" item was re-checked and **all six hold** (MAC-before-parse with constant-time compare,
+server-side absolute expiry, DB-derived role with only dev-bypass/missing-DATABASE_URL/non-UUID exceptions that
+are each gated and cannot ship to production, version compared on every guarded path, no cookie `domain`
+anywhere, CSRF fail-closed when both headers are missing).
+
+Not verified: no cookie was minted, forged or replayed (by instruction) — the acceptance-after-logout and the
+unbounded renewal are proven by exhaustive path reading plus the DB state that makes the version comparison a
+no-op. **All DB facts are TEST only; prod may differ and is out of reach by rule.**
+
+### Proposed remedy for owner triage (NOT built)
+
+The root cause is that a session has **no server-side identity**, so nothing can be revoked and nothing bounds
+its life. Two contained changes fix all of it at one chokepoint, rather than per-flow patches:
+
+1. **One timestamp column on `platform_users`** (e.g. `sessions_valid_from`), compared against the cookie's
+   existing `issuedAt` in the one place every request already passes through (`service.ts:912`, beside the
+   current `securityVersion` check). Setting it to `now()` invalidates every existing session of that user.
+   Logout, password reset, archive, role change and membership removal all become one-line writers. This covers
+   **patients too**, which the staff-only `staff_security_profiles` mechanism structurally cannot.
+2. **An absolute age cap on renewal** — `issuedAt` is already carried and deliberately preserved, so refusing to
+   renew past a fixed maximum age is a few lines in `sessionCookie.ts` and removes the "permanent under replay"
+   property even for a cookie whose owner never logs out.
+
+**Owner decisions this needs before it is built:** (a) the maximum life of a session before a fresh login is
+required — separately for staff and for patients, since 90 days for a patient was a deliberate convenience
+choice; (b) whether deploying it may sign everybody out once (setting the new column to `now()` at migration
+time is the clean start, but it means every current user logs in again).
