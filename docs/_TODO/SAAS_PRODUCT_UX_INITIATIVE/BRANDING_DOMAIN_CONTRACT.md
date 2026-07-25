@@ -661,3 +661,39 @@ be hidden from the public page; whether prices may be shown as "from X"; whether
 clinic explicitly publishes it; and what a solo specialist sees instead of clinic-shaped wording. Defaults must
 be conservative — show only what the clinic already made public through booking, never expose a location or a
 price that the booking flow itself does not expose.
+
+### Owner rulings I initially MISSED, recorded late (sent 2026-07-25, read 2026-07-26)
+
+I was polling the wrong message channel and did not see these for hours. Both change the design.
+
+**1. Branding is fully PUBLIC.** «Я думаю лого и брендирование должно быть публичным полностью, как и публичная
+страница клиники/специалиста.» So the published brand — name and logo — is not patient-only data. This directly
+contradicts what 0238 currently implements: its patient `FOR SELECT` policy requires
+`app.current_patient_user_id() IS NOT NULL` plus an active enrollment, which means an anonymous visitor cannot
+read a published brand at all. The public clinic page and the public booking funnel are both anonymous surfaces
+and need the published name/logo, so a public read path is required.
+Do NOT solve this by loosening the table policy for `PUBLIC` — follow the pattern this codebase already uses for
+anonymous reads: a narrow `SECURITY DEFINER` accessor exposing ONLY the published projection (name, logo) for an
+organization that is active and published, granted to the unauthenticated pool role, exactly like
+`app.is_smtp_outbound_configured()` (0240) and `app.read_org_brand_core_context()` (0238). Draft and archived
+revisions must stay invisible; only the published one is public. Any new definer function must bump
+`expected_secdef_count` in `deploy/host/deploy-test-saas.sh` in the same change.
+
+**2. SMTP provider, given directly:** `mail.hosting.reg.ru`, port 465, TLS, sender `no-reply@bersoncare.ru`.
+Verified 2026-07-26 that the credential restored from the prod dump onto TEST matches exactly this provider,
+port, TLS flag and sender — so nothing had to be configured by hand after all.
+
+**3. Demo data is never to be seeded again.** «Демо данные НЕ ЗАВОДИТЬ ВООБЩЕ — мы их вырезали уже из миграции,
+было нужно только для разработки.» This is why the product smoke gate must be repointed at real clinics rather
+than re-seeded synthetic ones, and why two closure gates skip instead of recreating fixtures.
+
+### Owner answers on the public page (2026-07-26)
+
+- **Visibility: an explicit «Опубликовать» action.** Setting the address does NOT put the page in front of the
+  world; the clinic prepares it privately and publishes deliberately.
+- **Content selection: everything that is enabled in the booking settings, no second switch.** «Чтобы спрятать
+  услугу надо просто выключить её в настройках записи.» So the public page is a pure projection — there is no
+  per-service "show publicly" flag to maintain and nothing can drift. Hiding something from the public page and
+  hiding it from booking are deliberately the same act.
+- **Solo specialist and clinic share ONE page, with the wording adapting** — first-person wording and an avatar
+  for a solo specialist instead of clinic-shaped copy and a logo.
