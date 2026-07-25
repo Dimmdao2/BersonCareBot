@@ -11,6 +11,31 @@ const exceptionsPath = join(
   repoDir,
   "../../../../../docs/_TODO/SAAS_FOUNDATION/scripts/post-phase4-strict-policy-exceptions.mjs",
 );
+const repoImplPath = join(repoDir, "pgOrgBranding.ts");
+const saasDeployPath = join(repoDir, "../../../../../deploy/host/deploy-test-saas.sh");
+
+/**
+ * Extracts a single `CREATE POLICY <name> …;` statement from the migration text so a test can assert
+ * what the POLICY PREDICATE itself does — the shipped 361a1920c version passed every string match in
+ * this file while being feature-dead, because the assertions never looked at the predicate as a unit.
+ */
+function policyStatement(migration: string, policyName: string): string {
+  const start = migration.indexOf(`CREATE POLICY ${policyName} ON public.org_brand_revisions`);
+  expect(start).toBeGreaterThan(-1);
+  const end = migration.indexOf(";", start);
+  expect(end).toBeGreaterThan(start);
+  return migration.slice(start, end + 1);
+}
+
+/** Extracts a `CREATE OR REPLACE FUNCTION app.<name>… $function$ … $function$;` body. */
+function functionStatement(migration: string, signature: string): string {
+  const start = migration.indexOf(`CREATE OR REPLACE FUNCTION ${signature}`);
+  expect(start).toBeGreaterThan(-1);
+  const bodyStart = migration.indexOf("$function$", start);
+  const bodyEnd = migration.indexOf("$function$", bodyStart + 1);
+  expect(bodyEnd).toBeGreaterThan(bodyStart);
+  return migration.slice(start, bodyEnd + "$function$".length);
+}
 
 describe("0238 organization brand publication", () => {
   const migration = readFileSync(migrationPath, "utf8");
@@ -77,17 +102,120 @@ describe("0238 organization brand publication", () => {
   });
 
   it("lets an enrolled patient read only the published revision of its own organization", () => {
-    expect(migration).toContain(
-      "CREATE POLICY org_brand_revisions_enrolled_patient_published_read ON public.org_brand_revisions",
+    const policy = policyStatement(migration, "org_brand_revisions_enrolled_patient_published_read");
+    expect(policy).toContain("FOR SELECT");
+    expect(policy).toContain("status = 'published'");
+    expect(policy).toContain("AND app.current_patient_user_id() IS NOT NULL");
+    // The enrollment predicate itself (unchanged semantics) lives in the accessor.
+    expect(policy).toContain("app.current_patient_has_active_org_enrollment(organization_id)");
+    const accessor = functionStatement(
+      migration,
+      "app.current_patient_has_active_org_enrollment(p_organization_id uuid)",
     );
-    expect(migration).toContain("FOR SELECT");
-    expect(migration).toContain("status = 'published'");
-    expect(migration).toContain("AND app.current_patient_user_id() IS NOT NULL");
-    expect(migration).toContain("FROM public.org_enrollments AS enrollment");
-    expect(migration).toContain("WHERE enrollment.organization_id = org_brand_revisions.organization_id");
-    expect(migration).toContain("AND enrollment.platform_user_id = app.current_patient_user_id()");
-    expect(migration).toContain("AND enrollment.status = 'active'");
-    expect(migration).toContain("AND organization.is_active = true");
+    expect(accessor).toContain("FROM public.org_enrollments AS enrollment");
+    expect(accessor).toContain("AND enrollment.organization_id = p_organization_id");
+    expect(accessor).toContain("AND enrollment.platform_user_id = app.current_patient_user_id()");
+    expect(accessor).toContain("AND enrollment.status = 'active'");
+    expect(accessor).toContain("AND organization.is_active = true");
+    // Fail-closed for an unprincipled session: no patient principal -> false, never "open".
+    expect(accessor).toContain("AND app.current_patient_user_id() IS NOT NULL");
+  });
+
+  /**
+   * Independent adversarial audit, 2026-07-25 (HIGH 1): an RLS predicate is evaluated with the
+   * CALLER's privileges, so the original inline `JOIN public.be_organizations` made EVERY patient
+   * SELECT fail with `permission denied for table be_organizations` (42501) — app_patient holds no
+   * privileges there — and it silently coupled STAFF reads/writes to app_staff keeping SELECT on
+   * public.org_enrollments (a SELECT policy is also evaluated for `UPDATE … WHERE`). These assertions
+   * exist so that regression cannot come back through either policy or the repository SQL.
+   */
+  it("never makes a read of this table depend on caller privileges on another table", () => {
+    for (const policyName of [
+      "org_brand_revisions_exact_org_staff",
+      "org_brand_revisions_enrolled_patient_published_read",
+    ]) {
+      const policy = policyStatement(migration, policyName);
+      expect(policy).not.toMatch(/public\.(org_enrollments|be_organizations|media_files|platform_users)/);
+      // No sub-SELECT of any kind in the predicate: a table read there runs as the CALLER.
+      expect(policy).not.toMatch(/EXISTS\s*\(/);
+      expect(policy).not.toMatch(/\bFROM\b/);
+    }
+    // The repository must not read be_organizations as the caller either — that was the second half
+    // of the same defect (resolveEffectiveOrgBranding would have thrown instead of degrading).
+    const repoImpl = readFileSync(repoImplPath, "utf8");
+    expect(repoImpl).not.toContain("FROM public.be_organizations");
+    expect(repoImpl).toContain("FROM app.read_org_brand_core_context($1::uuid) AS core");
+  });
+
+  it("builds both read accessors as protected app_owner SECURITY DEFINER functions", () => {
+    for (const signature of [
+      "app.current_patient_has_active_org_enrollment(p_organization_id uuid)",
+      "app.read_org_brand_core_context(p_organization_id uuid)",
+    ]) {
+      const fn = functionStatement(migration, signature);
+      expect(fn).toContain("SECURITY DEFINER");
+      expect(fn).toContain("SET search_path = pg_catalog");
+      expect(fn).toContain("STABLE");
+    }
+    for (const call of [
+      "ALTER FUNCTION app.current_patient_has_active_org_enrollment(uuid) OWNER TO app_owner;",
+      "ALTER FUNCTION app.read_org_brand_core_context(uuid) OWNER TO app_owner;",
+      "REVOKE ALL ON FUNCTION app.current_patient_has_active_org_enrollment(uuid) FROM PUBLIC;",
+      "REVOKE ALL ON FUNCTION app.read_org_brand_core_context(uuid) FROM PUBLIC;",
+      "GRANT EXECUTE ON FUNCTION app.current_patient_has_active_org_enrollment(uuid) TO app_staff;",
+      "GRANT EXECUTE ON FUNCTION app.current_patient_has_active_org_enrollment(uuid) TO app_patient;",
+      "GRANT EXECUTE ON FUNCTION app.read_org_brand_core_context(uuid) TO app_staff;",
+      "GRANT EXECUTE ON FUNCTION app.read_org_brand_core_context(uuid) TO app_patient;",
+      // BYPASSRLS is not a table privilege: the definer identity needs the base GRANTs it reads with.
+      "GRANT SELECT ON TABLE public.org_enrollments, public.be_organizations TO app_owner;",
+    ]) {
+      expect(migration).toContain(call);
+    }
+    // app.is_staff() is role-derived (current_user), so it is ALWAYS false inside a SECURITY DEFINER
+    // body — it must stay in the policy, never in the accessor.
+    expect(functionStatement(migration, "app.read_org_brand_core_context(p_organization_id uuid)"))
+      .not.toContain("app.is_staff()");
+    expect(policyStatement(migration, "org_brand_revisions_exact_org_staff")).toContain("app.is_staff()");
+  });
+
+  it("registers both accessors in the TEST deploy ownership + app_owner definer gates", () => {
+    const deploy = readFileSync(saasDeployPath, "utf8");
+    expect(deploy).toContain(
+      "ALTER FUNCTION app.current_patient_has_active_org_enrollment(uuid) OWNER TO %I",
+    );
+    expect(deploy).toContain("ALTER FUNCTION app.read_org_brand_core_context(uuid) OWNER TO %I");
+    expect(deploy).toContain(
+      "p.proname IN ('current_patient_has_active_org_enrollment', 'read_org_brand_core_context')",
+    );
+    // The app_owner SECURITY DEFINER inventory is pinned by count and by required table grants.
+    expect(deploy).toContain("local expected_secdef_count=55");
+    expect(deploy).toContain("('public.org_enrollments', 'SELECT')");
+  });
+
+  /**
+   * Audit HIGH 2: `ON DELETE SET NULL` fires this trigger via
+   * `UPDATE ONLY public.org_brand_revisions SET logo_media_id = NULL`, which raised P0001 on
+   * published/archived rows and killed the media purge batch after the S3 objects were already gone
+   * (s3MediaStorage.purgePendingMediaDeleteBatch only tolerates SQLSTATE class 23).
+   * The executable proof of the runtime behaviour is
+   * orgBrandRevisionGuard.devDb.integration.test.ts; this asserts the tolerance stays narrow.
+   */
+  it("tolerates exactly the FK-driven logo-NULL degradation and nothing wider", () => {
+    const guard = functionStatement(migration, "app.guard_org_brand_revision()");
+    expect(guard).toContain("AND OLD.status IN ('published', 'archived')");
+    expect(guard).toContain("AND OLD.logo_media_id IS NOT NULL");
+    expect(guard).toContain("AND NEW.logo_media_id IS NULL");
+    // Whole-row comparison of EVERY other column, so a later column addition cannot widen it.
+    expect(guard).toContain("AND to_jsonb(NEW) - 'logo_media_id' = to_jsonb(OLD) - 'logo_media_id'");
+    // The immutability rules themselves are untouched.
+    for (const failure of [
+      "org_brand_revision_archived_is_immutable",
+      "org_brand_revision_published_only_archives",
+      "org_brand_revision_published_content_is_immutable",
+      "org_brand_revision_organization_is_immutable",
+    ]) {
+      expect(guard).toContain(failure);
+    }
   });
 
   it("keeps brand history append-only for staff and read-only for patients", () => {

@@ -48,6 +48,22 @@ export function seedInMemoryOrgBrandingMedia(input: SeedMedia): void {
   });
 }
 
+/**
+ * Mirrors what PostgreSQL does when the media purge deletes a referenced asset:
+ * `logo_media_id … ON DELETE SET NULL` clears the reference on EVERY revision — including published
+ * and archived ones — and deletes nothing else (migration 0238; the trigger's FK tolerance was added
+ * after the independent audit proved the delete previously failed with SQLSTATE P0001).
+ */
+export function purgeInMemoryOrgBrandingMedia(mediaId: string): void {
+  media.delete(mediaId);
+  for (const revision of revisions) {
+    if (revision.logoMediaId === mediaId) {
+      revision.logoMediaId = null;
+      revision.logoMediaReady = false;
+    }
+  }
+}
+
 /** Read-only view for assertions about the retained audit trail. */
 export function listInMemoryOrgBrandRevisions(organizationId: string): OrgBrandRevision[] {
   return revisions

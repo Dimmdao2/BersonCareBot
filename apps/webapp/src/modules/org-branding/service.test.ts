@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it } from "vitest";
 import {
   createInMemoryOrgBrandingPort,
   listInMemoryOrgBrandRevisions,
+  purgeInMemoryOrgBrandingMedia,
   resetInMemoryOrgBrandingForTests,
   seedInMemoryOrgBrandingMedia,
   seedInMemoryOrgBrandingOrganization,
@@ -97,6 +98,49 @@ describe("resolveEffectiveOrgBranding — core context is never gated", () => {
     await expect(service.resolveEffectiveOrgBranding(ORG_B.replace("2", "9"))).rejects.toThrow(
       CORE_CONTEXT_UNAVAILABLE_ERROR,
     );
+  });
+
+  /**
+   * The PATIENT read path (independent adversarial audit 2026-07-25, HIGH 1). A patient surface calls
+   * the SAME resolver with the organization of its trusted enrollment; the port's reads are the ones
+   * migration 0238 routes through `app.read_org_brand_core_context()` /
+   * `app.current_patient_has_active_org_enrollment()` so they need no caller privileges on
+   * be_organizations / org_enrollments. Contract-wise the resolver must behave identically for a
+   * patient: canonical name always, paid additions only from the PUBLISHED revision, and a hard
+   * failure — never an anonymous surface — when the core context is not readable at all.
+   */
+  it("resolves the patient-visible presentation from the published revision only", async () => {
+    const service = serviceFor();
+    seedInMemoryOrgBrandingOrganization({ organizationId: ORG_A, displayName: "Клиника А" });
+    seedInMemoryOrgBrandingMedia({ mediaId: LOGO_A, organizationId: ORG_A });
+    await service.saveDraft(ctxA, { displayName: "Брендовое имя", logoMediaId: LOGO_A });
+    await service.publishDraft(ctxA);
+    // A later draft (staff working state) must never reach the patient-visible resolution.
+    await service.saveDraft(ctxA, { displayName: "Черновик, ещё не опубликован", logoMediaId: null });
+
+    const effective = await service.resolveEffectiveOrgBranding(ORG_A);
+    expect(effective.resolution).toBe("applied");
+    expect(effective.core.displayName).toBe("Клиника А");
+    expect(effective.effectiveDisplayName).toBe("Брендовое имя");
+    expect(effective.paid.logoUrl).toBe(`/api/media/${LOGO_A}`);
+  });
+
+  it("degrades to the canonical name when the brand logo media was purged", async () => {
+    const service = serviceFor();
+    seedInMemoryOrgBrandingOrganization({ organizationId: ORG_A, displayName: "Клиника А" });
+    seedInMemoryOrgBrandingMedia({ mediaId: LOGO_A, organizationId: ORG_A });
+    await service.saveDraft(ctxA, { displayName: null, logoMediaId: LOGO_A });
+    await service.publishDraft(ctxA);
+
+    // Models the FK-driven `ON DELETE SET NULL` degradation that migration 0238's guard now permits
+    // on a published revision (audit HIGH 2): the asset disappears, the revision does not.
+    purgeInMemoryOrgBrandingMedia(LOGO_A);
+
+    const effective = await service.resolveEffectiveOrgBranding(ORG_A);
+    expect(effective.resolution).toBe("applied");
+    expect(effective.paid.logoUrl).toBeNull();
+    expect(effective.effectiveDisplayName).toBe("Клиника А");
+    expect(listInMemoryOrgBrandRevisions(ORG_A).some((r) => r.status === "published")).toBe(true);
   });
 });
 

@@ -517,14 +517,31 @@ WHERE to_regprocedure('app.current_patient_user_id()') IS NOT NULL \gexec
 SELECT format('ALTER FUNCTION app.current_integrator_user_id() OWNER TO %I', :'p2_b_owner_role')
 WHERE to_regprocedure('app.current_integrator_user_id()') IS NOT NULL \gexec
 
+-- Migration 0238 (organization brand publication) adds two SECURITY DEFINER accessors that MUST end up
+-- owned by the same definer identity: app.current_patient_has_active_org_enrollment(uuid) backs the
+-- enrolled-patient RLS policy and app.read_org_brand_core_context(uuid) backs the canonical
+-- organization-name read (added after the independent audit found the inline reads unusable for
+-- app_patient — permission denied for table be_organizations). 0238 already hands them to app_owner
+-- itself; normalizing here too keeps the invariant true even if the migration ran on a host where the
+-- role did not exist yet, so a later CREATE OR REPLACE from the overlay cannot hit
+-- 'must be owner of function'. WHERE-guarded: absent function = no-op.
+SELECT format('ALTER FUNCTION app.current_patient_has_active_org_enrollment(uuid) OWNER TO %I', :'p2_b_owner_role')
+WHERE to_regprocedure('app.current_patient_has_active_org_enrollment(uuid)') IS NOT NULL \gexec
+SELECT format('ALTER FUNCTION app.read_org_brand_core_context(uuid) OWNER TO %I', :'p2_b_owner_role')
+WHERE to_regprocedure('app.read_org_brand_core_context(uuid)') IS NOT NULL \gexec
+
 SELECT (NOT EXISTS (
   SELECT 1
   FROM pg_proc p
   JOIN pg_namespace n ON n.oid = p.pronamespace
   JOIN pg_roles r ON r.oid = p.proowner
   WHERE n.nspname = 'app'
-    AND p.proname IN ('current_org_id', 'current_patient_user_id', 'current_integrator_user_id')
-    AND p.pronargs = 0
+    AND (
+      (p.proname IN ('current_org_id', 'current_patient_user_id', 'current_integrator_user_id')
+        AND p.pronargs = 0)
+      OR (p.proname IN ('current_patient_has_active_org_enrollment', 'read_org_brand_core_context')
+        AND p.pronargs = 1)
+    )
     AND r.rolname <> :'p2_b_owner_role'
 ))::int AS p2_b_principal_accessor_owners_normalized \gset
 \if :p2_b_principal_accessor_owners_normalized
@@ -1078,7 +1095,12 @@ WITH required(tbl, priv) AS (
     ('public.reference_items', 'SELECT'),
     ('public.reference_catalog_snapshot_receipts', 'INSERT'),
     ('public.reference_catalog_snapshot_receipts', 'SELECT'),
-    ('public.courses', 'SELECT')
+    ('public.courses', 'SELECT'),
+    -- 0238 organization brand publication: app.current_patient_has_active_org_enrollment(uuid) and
+    -- app.read_org_brand_core_context(uuid) read these two as app_owner (be_organizations SELECT is
+    -- already required above for the invite/slug definers; org_enrollments SELECT comes canonically
+    -- from deploy/postgres/patient-invites-rls.sql).
+    ('public.org_enrollments', 'SELECT')
 )
 SELECT coalesce(string_agg(tbl || ' ' || priv, ', ' ORDER BY tbl, priv), '')
 FROM required
@@ -1111,7 +1133,14 @@ SELECT has_column_privilege('app_owner', 'public.operator_incidents', 'alert_sen
   # which resolves from provision_specialist_owner's owner and runs later in the same deploy pass).
   # Constant corrected 52->53 against the LIVE post-deploy count (the earlier rollback-tx simulation
   # under-counted the pre-existing baseline by one; verified live: 53 legitimate app.* DEFINER fns).
-  local expected_secdef_count=53
+  # 53 -> 55 (2026-07-25): migration 0238_org_brand_publication adds exactly two reviewed app_owner
+  # SECURITY DEFINER accessors — app.current_patient_has_active_org_enrollment(uuid) (reads
+  # public.org_enrollments + public.be_organizations; app_owner SELECT on both is required above) and
+  # app.read_org_brand_core_context(uuid) (reads public.be_organizations; same grant). They exist
+  # because the independent adversarial audit proved the equivalent inline reads are impossible for
+  # app_patient (permission denied for table be_organizations, SQLSTATE 42501) and silently coupled
+  # staff reads/writes to an unrelated table grant.
+  local expected_secdef_count=55
   local actual_secdef_count
   actual_secdef_count="$(sudo -u postgres psql -d "$DB" -X -v ON_ERROR_STOP=1 -tAc "
 SELECT count(*) FROM pg_proc p WHERE pg_get_userbyid(p.proowner) = 'app_owner' AND p.prosecdef;
@@ -1124,7 +1153,7 @@ SELECT count(*) FROM pg_proc p WHERE pg_get_userbyid(p.proowner) = 'app_owner' A
     exit 1
   }
 
-  echo "   app_owner SECURITY DEFINER table-grant completeness: OK (18 required table grants + 1 column grant present, $actual_secdef_count/$expected_secdef_count secdef functions pinned)"
+  echo "   app_owner SECURITY DEFINER table-grant completeness: OK (19 required table grants + 1 column grant present, $actual_secdef_count/$expected_secdef_count secdef functions pinned)"
 }
 
 mark_e1_runtime_coverage_start(){

@@ -7,6 +7,10 @@
  * reads and writes, so a wrong organization id cannot be written even if it reached this layer.
  * The `/api/media/<uuid>` logo readiness is computed here in SQL from `public.media_files` — the
  * same media infrastructure `lfk_exercise_media` uses — and never from client input.
+ *
+ * No statement here reads a table the calling role is not supposed to hold privileges on: the core
+ * organization context goes through `app.read_org_brand_core_context()` (0238), not through
+ * `public.be_organizations`. See the audit note on getCoreContext below.
  */
 import { runWebappPgText, runWebappTransaction, type WebappSqlExecutor } from "@/infra/db/runWebappSql";
 import type {
@@ -20,7 +24,7 @@ import { ORG_BRAND_REVISION_STATUSES } from "@/modules/org-branding/ports";
 
 type CoreRow = {
   organization_id: string;
-  title: string;
+  display_name: string;
   is_active: boolean;
 };
 
@@ -111,11 +115,22 @@ async function selectRevision(
 
 export function createPgOrgBrandingPort(): OrgBrandingPort {
   return {
+    /**
+     * Core organization context comes from the SECURITY DEFINER accessor added by 0238, NEVER from a
+     * direct read of `public.be_organizations` here. The independent audit (2026-07-25, HIGH 1)
+     * proved the direct read is undeliverable for the patient path: app_patient holds no privileges on
+     * that table (SQLSTATE 42501), and even with a grant its FORCE-RLS read policies are
+     * {app_staff} / {app_platform_settings} only, so the resolver would have thrown
+     * `org_branding_core_context_unavailable` and violated §3.3 (degrade to platform visuals + the
+     * canonical organization name, never an anonymous surface). The accessor evaluates the same
+     * visibility rules as app_owner: staff of exactly that organization, or a patient with an ACTIVE
+     * enrollment in it — anything else (including an unprincipled session) returns zero rows, so the
+     * fail-closed behaviour is unchanged.
+     */
     async getCoreContext(organizationId: string): Promise<CoreOrganizationContext | null> {
       const { rows } = await runWebappPgText<CoreRow>(
-        `SELECT organization.id::text AS organization_id, organization.title, organization.is_active
-         FROM public.be_organizations AS organization
-         WHERE organization.id = $1::uuid
+        `SELECT core.organization_id::text AS organization_id, core.display_name, core.is_active
+         FROM app.read_org_brand_core_context($1::uuid) AS core
          LIMIT 1`,
         [organizationId],
       );
@@ -123,7 +138,7 @@ export function createPgOrgBrandingPort(): OrgBrandingPort {
       if (!row) return null;
       return {
         organizationId: row.organization_id,
-        displayName: row.title,
+        displayName: row.display_name,
         isActive: row.is_active === true,
       };
     },
