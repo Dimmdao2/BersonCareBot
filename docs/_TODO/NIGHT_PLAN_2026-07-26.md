@@ -176,6 +176,12 @@ finding that has no line here is a QUESTION for the owner, never work (see `docs
       delivered to e-mail proves control of the E-MAIL — it must never stamp phone trust.
 - [ ] **C-4 (D5) Admin allowlists → roles.** Remove the DB-resident allowlists that also confer admin;
       recipients derived from roles at send time; owner identity pinned in env.
+      **Разведка сделана 26.07 → `docs/_TODO/C4_ADMIN_ALLOWLISTS_2026-07-26.md`.** Главное оттуда:
+      списков СЕМЬ, а не один; те же ключи служат адресатами оповещений, поэтому «снять права» и
+      «переселить адресатов» делаются ОДНОЙ правкой — иначе молча гаснет всё оповещение (уже прожито
+      в июле); поле `admin_emails` сейчас ПУСТОЕ (спит, не заряжено); вход владельца от списков НЕ
+      зависит (роль прописана в его строке миграцией `0233`) — это и делает порядок безопасным.
+      Две мои формулировки владельцу были неверны и исправлены в том файле.
 - [ ] **C-5** Password change screen — exists nowhere today (#1000).
 
 ## D. Notifications
