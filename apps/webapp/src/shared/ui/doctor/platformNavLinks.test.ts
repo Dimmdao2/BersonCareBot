@@ -48,7 +48,7 @@ describe("platform menu structure — flat by owner ruling 2026-07-26", () => {
     expect(new Set(labels).size).toBe(labels.length);
   });
 
-  it("system-health points at the new platform URL; the rest are unmoved (slices 2-7)", () => {
+  it("system-health, health-archive and audit-log point at platform URLs; the rest are unmoved (slices 3-7)", () => {
     const byId = new Map(PLATFORM_MENU_LINKS.map((i) => [i.id, i]));
     expect(byId.get("system-health")).toMatchObject({ href: "/app/platform/system-health" });
     expect(byId.get("analytics")).toMatchObject({ href: "/app/doctor/analytics" });
@@ -58,8 +58,8 @@ describe("platform menu structure — flat by owner ruling 2026-07-26", () => {
     expect(byId.get("admin-booking")).toMatchObject({ href: "/app/doctor/admin/booking" });
     expect(byId.get("admin-integrations")).toMatchObject({ href: "/app/doctor/admin/integrations" });
     expect(byId.get("admin-technical")).toMatchObject({ href: "/app/doctor/admin/technical" });
-    expect(byId.get("health-archive")).toMatchObject({ href: "/app/doctor/health-archive" });
-    expect(byId.get("audit-log")).toMatchObject({ href: "/app/doctor/audit-log" });
+    expect(byId.get("health-archive")).toMatchObject({ href: "/app/platform/health-archive" });
+    expect(byId.get("audit-log")).toMatchObject({ href: "/app/platform/audit-log" });
   });
 
   it("audit-log keeps its registrationSystemFailures badge", () => {

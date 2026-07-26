@@ -42,6 +42,10 @@ export function doctorRouteRedirectResponse(
     // swallowed a live global-admin-only page for months). Slices 2-7 add sibling entries here
     // as each remaining `(global-admin)/doctor/**` page physically moves to `/app/platform/*`.
     "/app/doctor/system-health": "/app/platform/system-health",
+    // PLAT-01…09 slice 2 (2026-07-26): health-archive and audit-log moved the same way. Same
+    // reasoning — exact-path entries, not prefixes.
+    "/app/doctor/health-archive": "/app/platform/health-archive",
+    "/app/doctor/audit-log": "/app/platform/audit-log",
     // Old /clients/ client-card list → new /patients/ card list (old client card removed).
     "/app/doctor/clients": "/app/doctor/patients",
     "/app/doctor/messages": "/app/doctor/communications?tab=chats",

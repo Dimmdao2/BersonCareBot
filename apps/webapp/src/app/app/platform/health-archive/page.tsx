@@ -1,6 +1,6 @@
 import { requireAdminDoctorPage } from "@/app/app/settings/requireAdminDoctorPage";
 import { parseHealthArchiveProbeParam } from "@/app/app/settings/adminSettingsData";
-import { HealthFailureArchiveSection } from "@/app/app/settings/HealthFailureArchiveSection";
+import { HealthFailureArchiveSection } from "./HealthFailureArchiveSection";
 import { DoctorAppShell } from "@/shared/ui/doctor/DoctorAppShell";
 import { DoctorPageHeader } from "@/shared/ui/doctor/shell/DoctorPageHeader";
 

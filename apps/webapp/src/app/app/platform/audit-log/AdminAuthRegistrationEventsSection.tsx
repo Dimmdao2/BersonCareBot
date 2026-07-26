@@ -203,7 +203,7 @@ export function AdminAuthRegistrationEventsSection() {
               {total === 1 ? "1 системный сбой" : `${total} системных сбоев`} {presetLabel}.{" "}
             </span>
             <Link
-              href="/app/doctor/audit-log?action=auth_register_failure#admin-audit-log"
+              href="/app/platform/audit-log?action=auth_register_failure#admin-audit-log"
               className="text-primary underline underline-offset-2"
             >
               Смотреть в журнале операций

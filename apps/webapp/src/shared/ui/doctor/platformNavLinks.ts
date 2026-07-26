@@ -19,10 +19,10 @@ import type { DoctorMenuAccess, DoctorMenuLinkItem } from "@/shared/ui/doctor/do
 import { isDoctorMenuLinkVisible } from "@/shared/ui/doctor/doctorNavLinks";
 
 /**
- * Slice 1 (PLAT-01…09) moves only `system-health` to `/app/platform/system-health`. The
- * remaining entries still live at their historical `/app/doctor/*` locations — slices 2-7 move
- * the pages and update these hrefs then. No label collided once un-nested; every entry below
- * kept its original label.
+ * Slice 1 (PLAT-01…09) moved `system-health` to `/app/platform/system-health`. Slice 2 moves
+ * `health-archive` and `audit-log` alongside it. The remaining entries still live at their
+ * historical `/app/doctor/*` locations — slices 3-7 move the pages and update these hrefs then.
+ * No label collided once un-nested; every entry below kept its original label.
  */
 const RAW_PLATFORM_MENU_ITEMS: DoctorMenuLinkItem[] = [
   { id: "analytics", label: "Аналитика", href: "/app/doctor/analytics", accessTier: "global_admin" },
@@ -47,13 +47,14 @@ const RAW_PLATFORM_MENU_ITEMS: DoctorMenuLinkItem[] = [
     href: "/app/doctor/admin/technical",
     accessTier: "global_admin",
   },
-  // Moved in this slice.
+  // Moved in slice 1.
   { id: "system-health", label: "Здоровье системы", href: "/app/platform/system-health", accessTier: "global_admin" },
-  { id: "health-archive", label: "Архив сбоев", href: "/app/doctor/health-archive", accessTier: "global_admin" },
+  // Moved in this slice.
+  { id: "health-archive", label: "Архив сбоев", href: "/app/platform/health-archive", accessTier: "global_admin" },
   {
     id: "audit-log",
     label: "Журнал операций",
-    href: "/app/doctor/audit-log",
+    href: "/app/platform/audit-log",
     badgeKey: "registrationSystemFailures",
     accessTier: "global_admin",
   },

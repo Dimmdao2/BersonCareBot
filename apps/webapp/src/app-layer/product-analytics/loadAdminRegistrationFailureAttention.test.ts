@@ -42,7 +42,7 @@ describe("loadAdminRegistrationFailureAttention", () => {
     listRegistrationEventsMock.mockResolvedValueOnce({ total: 3, items: [], page: 1, limit: 1 });
     await expect(loadAdminRegistrationFailureAttention()).resolves.toEqual({
       show: true,
-      href: "/app/doctor/audit-log",
+      href: "/app/platform/audit-log",
       title: "Сбои регистрации за неделю: 3 сбоя",
       count: 3,
     });

@@ -612,6 +612,9 @@ describe("RSC page DB-principal census (night plan A-5, bug class of 19f52fed2)"
     // `(global-admin)/doctor/` to `app/platform/` (net 0: one entry removed, one added), plus the
     // new `app/platform/layout.tsx` sibling of the pre-existing `(global-admin)/doctor/layout.tsx`
     // (net +1 — both call `requirePlatformOperationsPage()`, neither is itself a DB read).
+    // PLAT-01…09 slice 2 (2026-07-26): net 0. `health-archive/page.tsx` and `audit-log/page.tsx`
+    // moved the same way (one entry removed, one added, each) — no new layout.tsx this time, since
+    // `app/platform/layout.tsx` already exists from slice 1.
     expect(pageEntries).toHaveLength(174);
     expect(readers).toHaveLength(12);
   });

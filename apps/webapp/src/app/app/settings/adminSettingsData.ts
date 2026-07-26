@@ -33,8 +33,8 @@ import {
 
 export const ADMIN_TAB_REDIRECTS: Record<string, string> = {
   "system-health": "/app/platform/system-health",
-  "health-archive": "/app/doctor/health-archive",
-  "audit-log": "/app/doctor/audit-log",
+  "health-archive": "/app/platform/health-archive",
+  "audit-log": "/app/platform/audit-log",
   "product-analytics": "/app/doctor/analytics?tab=app",
   "reminder-stats": "/app/doctor/analytics?tab=notifications",
   "app-params": "/app/doctor/admin/app-settings",

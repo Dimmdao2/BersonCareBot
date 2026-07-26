@@ -2,7 +2,7 @@ import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import { resolveAdminStatsLocalRange } from "@/modules/admin-platform-stats/registrationTimeRange";
 import { getAppDisplayTimeZone } from "@/modules/system-settings/appDisplayTimezone";
 
-const AUDIT_LOG_HREF = "/app/doctor/audit-log";
+const AUDIT_LOG_HREF = "/app/platform/audit-log";
 
 export type AdminRegistrationFailureAttention =
   | { show: true; href: string; title: string; count: number }

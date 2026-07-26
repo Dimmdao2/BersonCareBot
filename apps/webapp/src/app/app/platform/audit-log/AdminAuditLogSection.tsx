@@ -10,7 +10,7 @@ import { Badge } from "@/shared/ui/doctor/primitives/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/shared/ui/doctor/primitives/select";
 import { AuditLogMergeTarget } from "@/components/admin/AuditLogMergeTarget";
 import { auditActorShortLabel } from "@/infra/adminAuditLogPresentation";
-import { CopyForAiButton } from "./CopyForAiButton";
+import { CopyForAiButton } from "@/app/app/settings/CopyForAiButton";
 import { apiJson } from "@/shared/lib/apiJson";
 
 type AuditItem = {
