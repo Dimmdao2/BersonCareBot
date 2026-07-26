@@ -71,10 +71,10 @@ describe('webapp startup session-revocation schema guard (D1, C-1)', () => {
     probeSessionRevocationColumnMock.mockReset();
   });
 
-  it('rejects startup, naming migration 0244, when the probe reports the column missing', async () => {
+  it('rejects startup, naming migration 0243, when the probe reports the column missing', async () => {
     probeSessionRevocationColumnMock.mockResolvedValue(false);
 
-    await expect(register()).rejects.toThrow(/platform_users\.session_epoch is missing[\s\S]*0244/);
+    await expect(register()).rejects.toThrow(/platform_users\.session_epoch is missing[\s\S]*0243/);
   });
 
   it('allows startup when the probe reports the column present', async () => {

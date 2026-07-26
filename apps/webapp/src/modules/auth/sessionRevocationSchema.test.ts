@@ -16,7 +16,7 @@ describe("assertSessionRevocationSchema", () => {
 
   it("names the migration in the error, so the operator is not left guessing", async () => {
     await expect(assertSessionRevocationSchema(async () => false, () => {})).rejects.toThrow(
-      /platform_users\.session_epoch is missing[\s\S]*0244/,
+      /platform_users\.session_epoch is missing[\s\S]*0243/,
     );
   });
 

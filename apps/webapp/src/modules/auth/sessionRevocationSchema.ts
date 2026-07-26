@@ -4,7 +4,7 @@
  *
  * WHY THIS EXISTS. The revocation check is fail-closed by design: a session whose epoch cannot be
  * read is rejected. That is correct per request and catastrophic per deploy — with the code live and
- * migration 0244 not applied, EVERY session is rejected, including brand-new logins, and the only
+ * migration 0243 not applied, EVERY session is rejected, including brand-new logins, and the only
  * symptom is a uniform 401 that looks like an auth bug rather than a schema bug. An independent
  * audit reproduced exactly that: patient 401, doctor 401, fresh login 401. This repo has also
  * shipped migrations being SKIPPED on production through the drizzle journal watermark, so "the
@@ -44,7 +44,7 @@ export class SessionRevocationSchemaError extends Error {
     super(
       `Database schema is behind this build: ${SESSION_REVOCATION_COLUMN} is missing. ` +
         "Session revocation compares that column on every request, so starting now would reject " +
-        "every session including new logins. Run the webapp migrations (0244) and start again.",
+        "every session including new logins. Run the webapp migrations (0243) and start again.",
     );
     this.name = "SessionRevocationSchemaError";
   }
