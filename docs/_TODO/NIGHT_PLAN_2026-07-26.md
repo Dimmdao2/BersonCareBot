@@ -198,9 +198,22 @@ finding that has no line here is a QUESTION for the owner, never work (see `docs
       So a normal `deploy-test.sh` never applies it and mark-read answers 500 / 42501 on TEST.
       **"Proven on DEV after hand-applied SQL" is not proven** — the same class as the repo's own trap «a grant
       written in a drizzle migration does not survive; runtime grants belong in the closure that owns the role».
-      In flight: wire it into the closure the way sibling patient grants are wired, and extend the `assert_*`
-      allowlist in the SAME change — the deploy pins an exact privilege set per login role and is FATAL mid-run
-      on an extra grant (that is what took TEST down on 2026-07-24).
+      Wired in `715867dfb`, applied by the deploy, verified present on TEST.
+      **PROVEN LIVE 2026-07-26 over HTTP as the owner's own client record: mark-read returns 200.**
+      That is the 500→200 transition, so `patient-support-mark-read-grant.sql` genuinely works. F-4's
+      privilege half is closed.
+      **🔴 The reminder half does NOT work, and the grant was necessary but not sufficient.** All three
+      actions (done / snooze / skip) answer HTTP 404 `not_found`. Root cause is one level deeper: RLS policy
+      `saas_org_dormant_p0_8_4` on `reminder_occurrence_history` has **no patient branch at all** —
+      `(is_staff AND org) OR (integrator_user_id = current_integrator_user_id())`. Under a patient session the
+      ownership `SELECT` in `pgReminderJournal.ts:145-151` is silently filtered to zero rows — not a 42501,
+      an empty result — so the code returns `not_found` and never reaches the `reminder_journal` INSERT the
+      grant protects. **Correction to the repo's own documentation:** the grant file describes this gap as
+      affecting snooze/skip only; it also breaks `done`. Recorded as taskdb **#1018**, owner-gated because the
+      grant file itself declares the policy change out of its scope.
+      **Not separately proven:** the `treatment_program_instance_stages`/`_stage_items` UPDATE grants — this
+      patient's active program has no `available` stage containing items, so the guarded write path is
+      unreachable. A data state, not a defect; needs another patient/instance or a doctor unlocking a stage.
 - [x] **F-5** — closed conversation renders read-only `ad70a0da9`: opens 200 with history and `readOnly`, the composer is not rendered, posting answers 409 `conversation_closed` instead of the rejected 404. Closed support conversation renders read-only — never "not found".
 - [ ] **F-6** Clinic slug, public page and the booking screens (worker was stopped mid-flight; migration 0243
       and its `expected_secdef_count` 56→57 sit uncommitted).
