@@ -212,6 +212,10 @@ export function AdminSettingsSection({
           <p className="text-xs text-muted-foreground">
             Один телефон и один ID на канал (сохраняется как первый элемент списка в БД; остальные слоты не трогаем).
           </p>
+          <p className="text-xs font-medium text-destructive">
+            C-4 (26.07.2026): эти поля больше не дают доступ администратора — роль определяется только
+            строкой в БД и переменной окружения владельца. Сохранённое здесь ни на что не влияет.
+          </p>
           <label className="flex flex-col gap-1">
             <span className="text-xs font-medium">Телефон (E.164)</span>
             <Input
