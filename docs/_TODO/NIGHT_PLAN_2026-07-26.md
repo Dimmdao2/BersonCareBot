@@ -240,6 +240,34 @@ finding that has no line here is a QUESTION for the owner, never work (see `docs
       chain passes; the `audit` step is red on this one advisory alone.
 
 - [ ] **G-4** Full deploy to TEST + the 114-page × 5-role walk, redirects NOT followed, plus DEV screenshots.
+      **STATUS 2026-07-26 afternoon: TEST is UP and the walk RAN. Blocked on ONE thing — session cookies.**
+      Deploy took three attempts; each failure was a defect in the TOOLING, never in the product:
+      1. the closure replayed a superseded constraint and choked on a legitimate telemetry row — fixed
+         `2ea3cfef2`, proven by reproduction on a throwaway DB;
+      2. the boot guard read `information_schema.columns`, which is PRIVILEGE-FILTERED, so it mistook
+         "the probe's role has no grant" for "the column is missing" and refused to start a healthy app —
+         fixed `f132af20c`, proven with the exact role that produced the false alarm;
+      3. last night's 0244 registered `app_base_url` for audience `public` and thereby OVERWROTE the
+         `server`-audience row (the unique index is `(key, scope)`, audience is not part of it), blinding
+         the integrator accessor — fixed `522e7976f`, with both directions of the widening pinned.
+      Deploy also **lied**: it printed "TEST units are left RUNNING and healthy" while all five were down.
+      That is worse than the outage, because an operator believes it. Recorded as taskdb **#1016**.
+      **Verified landed on TEST:** patient mark-read (`read_at` UPDATE), reminder done/snooze/skip
+      (`reminder_journal` INSERT on 5 columns), treatment-program item writes (UPDATE on 3 tables).
+      Those are the two grant mines found this morning — both now genuinely applied by a normal deploy.
+      **Walk result (570 probes): 15 OK, 540 REDIRECT, 15 LOGIN-PAGE-AS-200 → 552 non-OK.** Every role
+      behaves as anonymous. This is NOT page breakage: the deploy switched session revocation to a
+      monotonic epoch, so every cookie in `/run/bersoncarebot/saas-smoke.fixture` (minted 2026-07-25 22:16)
+      is now invalid. **The harness earns its keep here** — the same 570 probes the night walk called
+      "570/570 fine" are correctly reported as failures.
+      **Same single cause makes the deploy's own mandatory product smoke red (17/21): every failure is a
+      307 or a 401.** Do NOT hunt product bugs in that smoke until the fixture is refreshed — they are
+      session failures wearing a product-failure costume.
+      **Blocker:** refreshing the fixture means minting sessions, and the only tool for it
+      (`regenerate-saas-smoke-fixture.mjs`) sets password hashes on real accounts. Owner authorised his own
+      three accounts (global admin, the Точка Здоровья doctor, and his client record) and the client was
+      given e-mail `kinesiospace@gmail.com`; config written outside the repo, existing hashes backed up
+      for rollback. Details and the standing danger of that script: taskdb **#1017**.
       Harness built and proven on DEV: `docs/_TODO/SAAS_FOUNDATION/scripts/walk-app-pages-no-redirect.mjs`
       (`redirect: "manual"`, GET-only, cookies never written to disk). Redirect trap reproduced:
       `/app/doctor/schedule` as `public` → **307 → /app**, recorded as REDIRECT, not OK. 26 dynamic-segment
