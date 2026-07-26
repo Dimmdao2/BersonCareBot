@@ -2,6 +2,7 @@ import { createHash, createHmac } from "node:crypto";
 import { describe, expect, it, vi, beforeEach } from "vitest";
 
 const exchangeMock = vi.fn();
+const isAuthChannelEnabledMock = vi.hoisted(() => vi.fn());
 
 vi.mock("@/app-layer/di/buildAppDeps", () => ({
   buildAppDeps: () => ({
@@ -13,6 +14,10 @@ vi.mock("@/app-layer/di/buildAppDeps", () => ({
 
 vi.mock("@/modules/system-settings/integrationRuntime", () => ({
   getTelegramBotToken: vi.fn(() => Promise.resolve("test-bot-token-for-route")),
+}));
+
+vi.mock("@/modules/auth/authChannelPolicy", () => ({
+  isAuthChannelEnabled: (...args: unknown[]) => isAuthChannelEnabledMock(...args),
 }));
 
 import { POST } from "./route";
@@ -29,6 +34,27 @@ function widgetHash(botToken: string, fields: Record<string, string>): string {
 describe("POST /api/auth/telegram-login", () => {
   beforeEach(() => {
     exchangeMock.mockReset();
+    isAuthChannelEnabledMock.mockReset();
+    isAuthChannelEnabledMock.mockResolvedValue(true);
+  });
+
+  it("rejects a disabled telegram channel before the widget signature is checked", async () => {
+    isAuthChannelEnabledMock.mockResolvedValue(false);
+    const res = await POST(
+      new Request("http://localhost/api/auth/telegram-login", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          auth_date: String(Math.floor(Date.now() / 1000)),
+          id: "999",
+          hash: "ab".repeat(32),
+        }),
+      }),
+    );
+    expect(res.status).toBe(403);
+    await expect(res.json()).resolves.toEqual({ ok: false, error: "auth_channel_disabled" });
+    expect(exchangeMock).not.toHaveBeenCalled();
+    expect(isAuthChannelEnabledMock).toHaveBeenCalledWith("telegram");
   });
 
   it("returns 200 when exchange succeeds", async () => {

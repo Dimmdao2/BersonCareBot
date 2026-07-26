@@ -1,6 +1,7 @@
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it, vi, beforeEach } from "vitest";
 
 const exchangeMaxInitDataMock = vi.fn();
+const isAuthChannelEnabledMock = vi.hoisted(() => vi.fn());
 
 vi.mock("@/app-layer/logging/logger", () => ({
   logger: {
@@ -21,10 +22,34 @@ vi.mock("@/app-layer/di/buildAppDeps", () => ({
   }),
 }));
 
+vi.mock("@/modules/auth/authChannelPolicy", () => ({
+  isAuthChannelEnabled: (...args: unknown[]) => isAuthChannelEnabledMock(...args),
+}));
+
 import { logger } from "@/app-layer/logging/logger";
 import { POST } from "./route";
 
 describe("POST /api/auth/max-init", () => {
+  beforeEach(() => {
+    isAuthChannelEnabledMock.mockReset();
+    isAuthChannelEnabledMock.mockResolvedValue(true);
+  });
+
+  it("rejects a disabled max channel before initData is exchanged", async () => {
+    isAuthChannelEnabledMock.mockResolvedValue(false);
+    const res = await POST(
+      new Request("http://localhost/api/auth/max-init", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ initData: "ok-init-data" }),
+      })
+    );
+    expect(res.status).toBe(403);
+    await expect(res.json()).resolves.toEqual({ ok: false, error: "auth_channel_disabled" });
+    expect(exchangeMaxInitDataMock).not.toHaveBeenCalled();
+    expect(isAuthChannelEnabledMock).toHaveBeenCalledWith("max");
+  });
+
   it("returns 400 for invalid payload", async () => {
     const res = await POST(
       new Request("http://localhost/api/auth/max-init", {

@@ -1,7 +1,8 @@
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it, vi, beforeEach } from "vitest";
 import { PLATFORM_COOKIE_NAME } from "@/shared/lib/platform";
 
 const exchangeTelegramInitDataMock = vi.fn();
+const isAuthChannelEnabledMock = vi.hoisted(() => vi.fn());
 
 vi.mock("@/app-layer/logging/logger", () => ({
   logger: {
@@ -22,10 +23,34 @@ vi.mock("@/app-layer/di/buildAppDeps", () => ({
   }),
 }));
 
+vi.mock("@/modules/auth/authChannelPolicy", () => ({
+  isAuthChannelEnabled: (...args: unknown[]) => isAuthChannelEnabledMock(...args),
+}));
+
 import { logger } from "@/app-layer/logging/logger";
 import { POST } from "./route";
 
 describe("POST /api/auth/telegram-init", () => {
+  beforeEach(() => {
+    isAuthChannelEnabledMock.mockReset();
+    isAuthChannelEnabledMock.mockResolvedValue(true);
+  });
+
+  it("rejects a disabled telegram channel before initData is exchanged", async () => {
+    isAuthChannelEnabledMock.mockResolvedValue(false);
+    const res = await POST(
+      new Request("http://localhost/api/auth/telegram-init", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ initData: "ok-init-data" }),
+      })
+    );
+    expect(res.status).toBe(403);
+    await expect(res.json()).resolves.toEqual({ ok: false, error: "auth_channel_disabled" });
+    expect(exchangeTelegramInitDataMock).not.toHaveBeenCalled();
+    expect(isAuthChannelEnabledMock).toHaveBeenCalledWith("telegram");
+  });
+
   it("returns 400 for invalid payload", async () => {
     const res = await POST(
       new Request("http://localhost/api/auth/telegram-init", {
