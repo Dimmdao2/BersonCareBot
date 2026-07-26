@@ -1723,6 +1723,13 @@
       "when": 1793539200042,
       "tag": "0245_public_booking_phone_otp_accessors",
       "breakpoints": true
+    },
+    {
+      "idx": 246,
+      "version": "7",
+      "when": 1793539200043,
+      "tag": "0246_drop_be_ssa_duration_minutes_override",
+      "breakpoints": true
     }
   ]
 }

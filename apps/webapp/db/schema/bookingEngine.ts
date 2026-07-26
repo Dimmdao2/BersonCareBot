@@ -351,7 +351,6 @@ export const beSpecialistServiceAvailability = pgTable(
     branchId: uuid("branch_id"),
     roomId: uuid("room_id"),
     cityCode: text("city_code"),
-    durationMinutesOverride: integer("duration_minutes_override"),
     priceMinorOverride: integer("price_minor_override"),
     isActive: boolean("is_active").default(true).notNull(),
     sortOrder: integer("sort_order").default(0).notNull(),
