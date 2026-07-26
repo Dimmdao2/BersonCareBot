@@ -1704,6 +1704,13 @@
       "breakpoints": true
     },
     {
+      "idx": 244,
+      "version": "7",
+      "when": 1793539200040,
+      "tag": "0244_platform_users_session_epoch",
+      "breakpoints": true
+    },
+    {
       "idx": 245,
       "version": "7",
       "when": 1793539200041,
