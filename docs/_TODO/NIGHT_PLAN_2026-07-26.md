@@ -428,7 +428,23 @@ part of their own text is provably not done. Detail is inline on each item below
       Consequence to carry forward: `pnpm run ci` cannot be fully green until then. Everything else in the
       chain passes; the `audit` step is red on this one advisory alone.
 
-- [ ] **G-4** Full deploy to TEST + the 114-page × 5-role walk, redirects NOT followed, plus DEV screenshots.
+- [x] **G-4 DONE 2026-07-27 (`976c59bbf`) — 570 probes, 114 routes × 5 roles, zero breaks.**
+      Redirects were not followed, and this was not a status-code count: every one of the 134 `200 OK`
+      bodies was re-fetched and scanned for error-boundary markers, because a 200 that renders a crash is
+      exactly the failure this walk exists to catch. **No credential was created, changed or reset** — the
+      existing operator smoke fixture's cookies were read, nothing was written, and every artifact was
+      grepped for the session cookie name before being committed.
+      Proven live: the patient wall refuses doctor pages; the C-4 admin gate admits only `global_admin` to
+      `/app/admin/*`; all 26 legacy `/app/doctor/admin/*` and `/app/platform/*` paths redirect in exactly
+      **one** hop.
+      **Left open, honestly:** 26 dynamic-id routes were not rendered (minting ids risks probing another
+      tenant's row), server actions are out of reach for a GET-only walk, and client-side failures are
+      invisible to it. `/app/patient/diary/lfk/journal` (#1032) therefore stays **unverified, not cleared** —
+      it returned 200 only because the owner's test patient has zero LFK complexes, so execution returns
+      early and never reaches the failing join, which lives in a server action.
+      **For the owner:** `clinic_admin` and `doctor` came back byte-identical on all 114 routes. That may be
+      the intended capability model, but he has said a clinic admin needs a clinic-wide schedule of his own
+      (#1028), so it is flagged rather than assumed correct.
       **STATUS 2026-07-26 afternoon: TEST is UP and the walk RAN. Blocked on ONE thing — session cookies.**
       Deploy took three attempts; each failure was a defect in the TOOLING, never in the product:
       1. the closure replayed a superseded constraint and choked on a legitimate telemetry row — fixed
