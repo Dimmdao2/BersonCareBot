@@ -1,0 +1,128 @@
+# Night plan 2026-07-26 — every owner instruction from this evening, as a checklist
+
+**This file is the single source of "todo" and "done".** Not the chat, not any audit report. An auditor
+finding that has no line here is a QUESTION for the owner, never work (see `docs/ORCHESTRATION_BINDINGS.md`).
+
+## Standing rules the owner restated tonight
+
+- **Не изобретать.** Every design decision must come from established practice with a named source
+  (standard, primary documentation, shipped system, published incident). Inventing a mechanism is a defect
+  even if it works.
+- **Automation over human queues.** «я один админ пока и специалисты тоже не сидят на поддержке 24 часа (то
+  есть например решение мержить все записи руками было бы нерационально)». Any option whose safety depends
+  on staff reviewing a queue promptly is disqualified unless it degrades safely when nobody looks. This
+  retires the "staff merge queue" option for booking identity and keeps OTP-always.
+- **Everything that must later happen on PROD gets written down** — `docs/_TODO/PRE_PRODUCTION_TODO.md`.
+- **Do not stop after reporting.** Keep work in flight; a message to the owner is not the end of a turn.
+- **Loop until clean:** fix → re-run auditors → fix → screenshots on DEV → curl on TEST → repeat until every
+  auditor passes AND the live pages prove themselves. One auditor is not enough; use several with different
+  angles (correctness / security / try-to-reproduce).
+- Answer in Russian, work internally in English. No flattery openers. No trailing offers.
+
+## A. Security — database privilege model
+
+- [ ] **A-1 (C1) Split the definer owner + policies instead of bypass + a gate.** Owner: «думаю надо делать
+      все 1+2+3». Corrected facts: 46 anon-reachable definers, of which only **17** are owned by the
+      BYPASSRLS `app_owner`; 28 belong to the DB owner (no BYPASSRLS, 162/209 tables are FORCE RLS); 2 with
+      dynamic SQL are inert constant literals. All 115 definers already pin `search_path` and none is granted
+      to PUBLIC. The existing deploy gate pins only `app_owner`'s count — 29 anon-executable definers owned
+      by other roles are pinned by nothing.
+- [ ] **A-2 (C2) Public read surface.** Owner: study which actions genuinely need it; do not serve public
+      data under system roles. External research says a policy over a mixed table is NOT enough (RLS is
+      row-granular; covert channels are documented by PostgreSQL itself) — the shape is a **separate public
+      projection** plus a dedicated read-only role. Material already in repo: `app_config_reader` (written,
+      never applied to TEST), publication flags (`is_published`, `is_active`, `public_widget_visible`),
+      `app.resolve_public_organization_slug`, `c4d_platform_library_read`.
+- [ ] **A-3 (C2/#1004) Anonymous booking — ALWAYS prove contact ownership.** Owner ruling: «всегда просить
+      код или вход». Today: match by phone only, global across clinics, no proof, mints
+      `patient_phone_trust_at`, leaks existence three ways (returned user id, confirmed-vs-awaiting-payment
+      divergence, 403 for blocked clients) and consumes the victim's package. Uniform response + timing
+      required (ASVS 6.3.8, CWE-204). No staff merge queue (see standing rules).
+- [ ] **A-4 (C3) `platform_users` rebuild.** Owner: «ну значит переделывать». Practice says do NOT bolt RLS
+      onto it — move identity out of the RLS surface (private schema + dedicated role, Supabase `auth` shape)
+      or expose 2-3 accessors returning scalars not rows (PostgREST `basic_auth` shape); split PII satellite
+      (GDPR Art. 4(5)). Must keep ~40 pre-auth read sites and ~8 pre-auth write sites working. Same class:
+      `appointment_records`, `patient_bookings` (no `organization_id` at all).
+- [ ] **A-5 (#1006) Bootstrap-principal reads — the whole class.** 15 800 denials in the retained window.
+      Two pages fixed (`19f52fed2`); the rest is open. Needs a full sweep plus a MECHANICAL gate so it fails
+      in tests, not in production.
+- [ ] **A-6 (#1007) Cross-tenant writes to shared dictionaries.** Any clinic's doctor can mutate a global
+      dictionary for every tenant. Check the same class on all platform-owned catalogues.
+
+## B. Security — host, secrets, database access
+
+- [ ] **B-1 (A1) Split OS identities.** Owner authorised configuring users on THIS box under deploy rights.
+      Runtime account with no sudo and **no `docker` group** (docker membership is root by itself and
+      survives any sudo trim); deploy stays separate; delete the dormant old deploy path. Also: create a
+      root-capable account for me with **no external access** (no SSH, no password login).
+- [ ] **B-2 (A2) Postgres host trust.** Narrow `local all all peer`; superuser only via an audited
+      break-glass path. Moving the DB to its own host is the fuller answer — private network + TLS with
+      certificate verification, never an SSH tunnel.
+- [ ] **B-3 (B1) Split the five secrets by consumer** now; a secret store when there is more than one host —
+      the owner tied this to B-2 himself.
+- [ ] **B-4 (B2) Key ids so signing keys can rotate** without a forced global logout.
+
+## C. Authentication
+
+- [ ] **C-1 (D1) Session revocation.** Owner confirmed: idle 12 h staff / 30 d patient, absolute ceiling 7 d
+      / 90 d. Parked code restored and finished (`12e263e63`), NOT yet proven against a database, NOT yet
+      adversarially audited. Conflicting older record #970 must be marked superseded.
+- [ ] **C-2 (D2/D3/D4) OTP hardening.** Rate limiting on six routes (per-IP and per-account, separate
+      thresholds, decaying lockout — a limit that locks out a real clinic is a defect); atomic attempt
+      counter; purpose binding. NIST SP 800-63B, OWASP ASVS V6.
+- [ ] **C-3 (#1005) Delivery-channel fallback.** Phone entered → SMS if enabled → web-push if subscribed →
+      e-mail if bound. NIST 800-63B treats SMS as restricted and expects an alternative. Two hard edges:
+      uniform response/timing so it cannot be used to test whether a phone has an e-mail; and a code
+      delivered to e-mail proves control of the E-MAIL — it must never stamp phone trust.
+- [ ] **C-4 (D5) Admin allowlists → roles.** Remove the DB-resident allowlists that also confer admin;
+      recipients derived from roles at send time; owner identity pinned in env.
+- [ ] **C-5** Password change screen — exists nowhere today (#1000).
+
+## D. Notifications
+
+- [ ] **D-1 (D5) Routing by role + an owner-facing matrix**: per notification/error type choose push /
+      e-mail / SMS. SMS is mechanism-only for now. Operational alerts get their own channel (the July
+      SMTP-quota outage went unnoticed for a day because alerts shared a channel).
+- [ ] **D-2** Support forms (patient + guest) currently send to Telegram ONLY and 503 without it — move to
+      the configured channels **before** the messenger removal.
+- [ ] **D-3** PWA + push for the global admin (pre-production list).
+
+## E. Messengers
+
+- [ ] **E-1** Cut Telegram from the RU build (legal) — and MAX too («MAX тоже нахер пока»). Order matters:
+      support forms first, then the reversible runtime kill-switch, then code, then data. `telegram_state`
+      is shared with MAX — with both going, it retires wholesale.
+- [ ] **E-2** Bot-token plaintext in `system_settings` retires with the bot.
+- [ ] **E-3** Pre-production: message the messenger-only accounts while the bots still work.
+
+## F. Product / UI
+
+- [ ] **F-1 (#1002) Dropdowns show the KEY instead of the label** — everywhere, since the beginning of the
+      project. Must be solved once, in a shared primitive, with a gate so it cannot come back.
+- [ ] **F-2 (#1003) Tariffs**: drop the mandatory "reason" on edit; make the quota settings human-readable.
+- [ ] **F-3 (#964) Scheduled messages** — unblocked. Alarm icon + time replaces the first delivery tick;
+      click to reschedule or cancel; pending messages last in the thread under a divider; collapsing later.
+      ~3000 lines exist on `agent/ui964-20260722`; migration must be renumbered, `DoctorCommentsTab` was
+      rewritten in feat.
+- [ ] **F-4 (#988)** Opening one chat marks EVERY conversation read. Land the scoping half only.
+- [ ] **F-5** Closed support conversation renders read-only — never "not found".
+- [ ] **F-6** Clinic slug, public page and the booking screens (worker was stopped mid-flight; migration 0243
+      and its `expected_secdef_count` 56→57 sit uncommitted).
+
+## G. Process
+
+- [ ] **G-1** Deploy writes a log to a file — tonight's outage had none.
+- [ ] **G-2** Land the docs-only branches so the audit trail stops living on side branches; delete the
+      remote branches already merged.
+- [ ] **G-3** Mark #970 superseded by the owner's confirmed session numbers.
+- [ ] **G-4** Full deploy to TEST + the 114-page × 5-role walk, redirects NOT followed, plus DEV screenshots.
+
+## Done tonight (evidence)
+
+- [x] TEST restored after the deploy left all five units down — root cause and fix `aae0b3a4c`.
+- [x] Global-admin settings page — grant moved into the closure where it survives deploys, `80cc09abe`.
+- [x] Two 500s were a missing PRINCIPAL, not a missing grant — `19f52fed2` (my diagnosis was wrong; the
+      worker refuted it with PostgreSQL's own logs).
+- [x] Session-revocation code restored and finished — `12e263e63` (unproven against a DB).
+- [x] Unmerged branches reconciled — no side branch explains any broken page.
+- [x] Pre-production list opened — `docs/_TODO/PRE_PRODUCTION_TODO.md`.
