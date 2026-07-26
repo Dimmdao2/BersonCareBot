@@ -58,8 +58,6 @@ export function NotificationsAnalyticsClient({ isActive = true }: { isActive?: b
     if (isActive) void load(windowHours);
   }, [isActive, load, windowHours]);
 
-  const presetLabel = PRESETS.find((p) => p.hours === windowHours)?.label ?? String(windowHours);
-
   const remindersSentTotal = useMemo(
     () => (data?.occurrenceHistoryDaily ?? []).reduce((acc, row) => acc + row.sent, 0),
     [data?.occurrenceHistoryDaily],
@@ -84,7 +82,7 @@ export function NotificationsAnalyticsClient({ isActive = true }: { isActive?: b
             if (Number.isFinite(n)) setWindowHours(n);
           }}
         >
-          <SelectTrigger className="w-[140px]" displayLabel={presetLabel}>
+          <SelectTrigger className="w-[140px]">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>

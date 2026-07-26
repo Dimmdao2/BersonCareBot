@@ -196,8 +196,6 @@ export function BookingPoliciesSection({ defaultKind = "cancellation", lockKind 
     });
   }
 
-  const scopeLabel = SCOPE_LEVELS.find((s) => s.value === scopeLevel)?.label ?? scopeLevel;
-  const kindLabel = kind === "cancellation" ? "Отмена" : "Перенос";
 
   return (
     <Card>
@@ -210,7 +208,9 @@ export function BookingPoliciesSection({ defaultKind = "cancellation", lockKind 
           <div className="space-y-2">
             <Label>Уровень</Label>
             <Select value={scopeLevel} onValueChange={(v) => v && setScopeLevel(v as PolicyScopeLevel)}>
-              <SelectTrigger displayLabel={scopeLabel} className="w-full" />
+              <SelectTrigger className="w-full">
+                <SelectValue />
+              </SelectTrigger>
               <SelectContent>
                 {SCOPE_LEVELS.map((s) => (
                   <SelectItem key={s.value} value={s.value} label={s.label}>
@@ -224,10 +224,9 @@ export function BookingPoliciesSection({ defaultKind = "cancellation", lockKind 
             <div className="space-y-2">
               <Label>Специалист</Label>
               <Select value={scopeEntityId} onValueChange={(v) => v && setScopeEntityId(v)}>
-                <SelectTrigger
-                  displayLabel={specialists.find((s) => s.id === scopeEntityId)?.fullName}
-                  className="w-full max-w-md"
-                />
+                <SelectTrigger className="w-full max-w-md">
+                  <SelectValue />
+                </SelectTrigger>
                 <SelectContent>
                   {specialists.map((s) => (
                     <SelectItem key={s.id} value={s.id} label={s.fullName}>
@@ -242,10 +241,9 @@ export function BookingPoliciesSection({ defaultKind = "cancellation", lockKind 
             <div className="space-y-2">
               <Label>Услуга</Label>
               <Select value={scopeEntityId} onValueChange={(v) => v && setScopeEntityId(v)}>
-                <SelectTrigger
-                  displayLabel={services.find((s) => s.id === scopeEntityId)?.title}
-                  className="w-full max-w-md"
-                />
+                <SelectTrigger className="w-full max-w-md">
+                  <SelectValue />
+                </SelectTrigger>
                 <SelectContent>
                   {services.map((s) => (
                     <SelectItem key={s.id} value={s.id} label={s.title}>
@@ -260,10 +258,9 @@ export function BookingPoliciesSection({ defaultKind = "cancellation", lockKind 
             <div className="space-y-2">
               <Label>Продукт</Label>
               <Select value={scopeEntityId} onValueChange={(v) => v && setScopeEntityId(v)}>
-                <SelectTrigger
-                  displayLabel={products.find((p) => p.id === scopeEntityId)?.title}
-                  className="w-full max-w-md"
-                />
+                <SelectTrigger className="w-full max-w-md">
+                  <SelectValue />
+                </SelectTrigger>
                 <SelectContent>
                   {products.map((p) => (
                     <SelectItem key={p.id} value={p.id} label={p.title}>
@@ -278,7 +275,9 @@ export function BookingPoliciesSection({ defaultKind = "cancellation", lockKind 
             <div className="space-y-2">
               <Label>Тип политики</Label>
               <Select value={kind} onValueChange={(v) => v && setKind(v as PolicyKind)}>
-                <SelectTrigger displayLabel={kindLabel} className="w-full max-w-md" />
+                <SelectTrigger className="w-full max-w-md">
+                  <SelectValue />
+                </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="cancellation" label="Отмена">
                     Отмена
@@ -326,12 +325,9 @@ export function BookingPoliciesSection({ defaultKind = "cancellation", lockKind 
                   )
                 }
               >
-                <SelectTrigger
-                  displayLabel={
-                    LATE_CANCEL_OPTIONS.find((o) => o.value === cancelPolicy.lateCancellationBehavior)?.label
-                  }
-                  className="w-full"
-                />
+                <SelectTrigger className="w-full">
+                  <SelectValue />
+                </SelectTrigger>
                 <SelectContent>
                   {LATE_CANCEL_OPTIONS.map((o) => (
                     <SelectItem key={o.value} value={o.value} label={o.label}>
@@ -431,12 +427,9 @@ export function BookingPoliciesSection({ defaultKind = "cancellation", lockKind 
                   )
                 }
               >
-                <SelectTrigger
-                  displayLabel={
-                    LIMIT_OPTIONS.find((o) => o.value === reschedulePolicy.limitExceededBehavior)?.label
-                  }
-                  className="w-full"
-                />
+                <SelectTrigger className="w-full">
+                  <SelectValue />
+                </SelectTrigger>
                 <SelectContent>
                   {LIMIT_OPTIONS.map((o) => (
                     <SelectItem key={o.value} value={o.value} label={o.label}>

@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState, useTransition } from "react";
+import { useCallback, useEffect, useState, useTransition } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/shared/ui/doctor/primitives/card";
 import { Button } from "@/shared/ui/doctor/primitives/button";
 import { Input } from "@/shared/ui/doctor/primitives/input";
@@ -72,16 +72,6 @@ export function BookingScheduleBlocksSection({ soloUx = false }: { soloUx?: bool
   const [filterSpecialistId, setFilterSpecialistId] = useState("");
   const [filterBranchId, setFilterBranchId] = useState("");
   const [filterRoomId, setFilterRoomId] = useState("");
-
-  const specialistLabel = useMemo(
-    () => catalog?.specialists.find((s) => s.id === specialistId)?.fullName,
-    [catalog, specialistId],
-  );
-  const branchLabel = useMemo(
-    () => catalog?.branches.find((b) => b.id === branchId)?.title,
-    [catalog, branchId],
-  );
-  const roomLabel = useMemo(() => catalog?.rooms.find((r) => r.id === roomId)?.title, [catalog, roomId]);
 
   const loadCatalog = useCallback(async () => {
     try {
@@ -195,13 +185,7 @@ export function BookingScheduleBlocksSection({ soloUx = false }: { soloUx?: bool
               value={filterSpecialistId || "__all__"}
               onValueChange={(v) => setFilterSpecialistId(!v || v === "__all__" ? "" : v)}
             >
-              <SelectTrigger
-                displayLabel={
-                  filterSpecialistId
-                    ? catalog?.specialists.find((s) => s.id === filterSpecialistId)?.fullName
-                    : "Все"
-                }
-              >
+              <SelectTrigger>
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -220,11 +204,7 @@ export function BookingScheduleBlocksSection({ soloUx = false }: { soloUx?: bool
           <div className="flex flex-col gap-1">
             <Label>{soloUx ? "Локация" : "Фильтр: филиал"}</Label>
             <Select value={filterBranchId || "__all__"} onValueChange={(v) => setFilterBranchId(!v || v === "__all__" ? "" : v)}>
-              <SelectTrigger
-                displayLabel={
-                  filterBranchId ? catalog?.branches.find((b) => b.id === filterBranchId)?.title : "Все"
-                }
-              >
+              <SelectTrigger>
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -243,9 +223,7 @@ export function BookingScheduleBlocksSection({ soloUx = false }: { soloUx?: bool
           <div className="flex flex-col gap-1">
             <Label>Фильтр: кабинет</Label>
             <Select value={filterRoomId || "__all__"} onValueChange={(v) => setFilterRoomId(!v || v === "__all__" ? "" : v)}>
-              <SelectTrigger
-                displayLabel={filterRoomId ? catalog?.rooms.find((r) => r.id === filterRoomId)?.title : "Все"}
-              >
+              <SelectTrigger>
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -274,7 +252,7 @@ export function BookingScheduleBlocksSection({ soloUx = false }: { soloUx?: bool
           <label className="flex flex-col gap-1">
             <Label>Тип</Label>
             <Select value={blockType} onValueChange={(v) => setBlockType(v as "block" | "absence")}>
-              <SelectTrigger displayLabel={blockTypeLabel(blockType, soloUx)}>
+              <SelectTrigger>
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -295,7 +273,7 @@ export function BookingScheduleBlocksSection({ soloUx = false }: { soloUx?: bool
           <div className="flex flex-col gap-1">
             <Label>Специалист</Label>
             <Select value={specialistId || "__none__"} onValueChange={(v) => setSpecialistId(!v || v === "__none__" ? "" : v)}>
-              <SelectTrigger displayLabel={specialistId ? specialistLabel : "Вся клиника"}>
+              <SelectTrigger>
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -314,7 +292,7 @@ export function BookingScheduleBlocksSection({ soloUx = false }: { soloUx?: bool
           <div className="flex flex-col gap-1">
             <Label>{soloUx ? "Локация" : "Филиал"}</Label>
             <Select value={branchId || "__none__"} onValueChange={(v) => setBranchId(!v || v === "__none__" ? "" : v)}>
-              <SelectTrigger displayLabel={branchId ? branchLabel : "Все"}>
+              <SelectTrigger>
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -333,7 +311,7 @@ export function BookingScheduleBlocksSection({ soloUx = false }: { soloUx?: bool
           <div className="flex flex-col gap-1">
             <Label>Кабинет</Label>
             <Select value={roomId || "__none__"} onValueChange={(v) => setRoomId(!v || v === "__none__" ? "" : v)}>
-              <SelectTrigger displayLabel={roomId ? roomLabel : "Все"}>
+              <SelectTrigger>
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
