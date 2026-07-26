@@ -772,6 +772,99 @@ describe("AuthFlowV2 — browser", () => {
     await waitFor(() => expect(replace).toHaveBeenCalledWith("/app/account?tab=security"));
   });
 
+  it("lets a staff password holder reset a forgotten password via the login form's forgot-password link", async () => {
+    const user = userEvent.setup();
+    const fetchMock = vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
+      const url = typeof input === "string" ? input : input.toString();
+      if (url.includes("/api/auth/email-password/forgot")) {
+        expect(JSON.parse(String(init?.body))).toEqual({ email: "owner@example.com" });
+        // Neutral response: no challengeId/setupRequired for an account that already has a password.
+        return jsonRes({ ok: true, retryAfterSeconds: 60 });
+      }
+      if (url.includes("/api/auth/email-password/reset")) {
+        expect(JSON.parse(String(init?.body))).toEqual({
+          email: "owner@example.com",
+          code: "123456",
+          newPassword: "newpassword1",
+        });
+        return jsonRes({ ok: true, redirectTo: "/app/doctor", role: "doctor" });
+      }
+      return jsonRes({});
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(
+      <AuthFlowV2
+        nextParam={null}
+        prefetchedAuthConfig={{
+          oauthProviders: { yandex: false, google: false, apple: false },
+          telegramBotUsername: null,
+          maxBotOpenUrl: null,
+          specialistSignupEnabled: false,
+          fetchedAt: Date.now(),
+        }}
+      />,
+    );
+
+    await user.click(await screen.findByRole("button", { name: "Войти по паролю" }));
+    await user.type(screen.getByLabelText("Email"), "owner@example.com");
+    await user.click(screen.getByRole("button", { name: "Забыли пароль?" }));
+
+    expect(await screen.findByText("Код отправлен на owner@example.com")).toBeInTheDocument();
+    await user.type(screen.getByLabelText("Код из письма"), "123456");
+    await user.type(screen.getByLabelText("Новый пароль"), "newpassword1");
+    await user.click(screen.getByRole("button", { name: "Сохранить пароль" }));
+
+    await waitFor(() => expect(replace).toHaveBeenCalledWith("/app/doctor"));
+  });
+
+  it("routes a code-only account (no password credential) through forgot-password into first-time setup", async () => {
+    const user = userEvent.setup();
+    const fetchMock = vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
+      const url = typeof input === "string" ? input : input.toString();
+      if (url.includes("/api/auth/email-password/forgot")) {
+        expect(JSON.parse(String(init?.body))).toEqual({ email: "codeonly@example.com" });
+        // `needs_email_setup`: account exists but has no password credential yet.
+        return jsonRes({ ok: true, challengeId: "setup-ch-1", retryAfterSeconds: 60, setupRequired: true });
+      }
+      if (url.includes("/api/auth/email-password/setup-code/complete")) {
+        expect(JSON.parse(String(init?.body))).toEqual({
+          email: "codeonly@example.com",
+          challengeId: "setup-ch-1",
+          code: "654321",
+          password: "brandnewpw1",
+        });
+        return jsonRes({ ok: true, redirectTo: "/app/doctor", role: "doctor" });
+      }
+      return jsonRes({});
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(
+      <AuthFlowV2
+        nextParam={null}
+        prefetchedAuthConfig={{
+          oauthProviders: { yandex: false, google: false, apple: false },
+          telegramBotUsername: null,
+          maxBotOpenUrl: null,
+          specialistSignupEnabled: false,
+          fetchedAt: Date.now(),
+        }}
+      />,
+    );
+
+    await user.click(await screen.findByRole("button", { name: "Войти по паролю" }));
+    await user.type(screen.getByLabelText("Email"), "codeonly@example.com");
+    await user.click(screen.getByRole("button", { name: "Забыли пароль?" }));
+
+    expect(await screen.findByText("Код отправлен на codeonly@example.com")).toBeInTheDocument();
+    await user.type(screen.getByLabelText("Код из письма"), "654321");
+    await user.type(screen.getByLabelText("Новый пароль"), "brandnewpw1");
+    await user.click(screen.getByRole("button", { name: "Сохранить пароль" }));
+
+    await waitFor(() => expect(replace).toHaveBeenCalledWith("/app/doctor"));
+  });
+
   it("specialist signup starts verification and confirms into doctor redirect", async () => {
     const user = userEvent.setup();
     const fetchMock = vi.fn((input: RequestInfo | URL, init?: RequestInit) => {

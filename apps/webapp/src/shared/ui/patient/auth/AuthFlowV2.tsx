@@ -617,6 +617,56 @@ export function AuthFlowV2({
     setEmailLoginPassword("");
   };
 
+  /**
+   * Forgot/set password entry point (email+password login screen).
+   * `/forgot` is uniform-response by design (OWASP ASVS 2.5 / CWE-204: never discloses whether the
+   * account exists) — it also transparently classifies a code-only account (owner's case: OTP login,
+   * no `user_password_credentials` row) as `setupRequired`, so this one entry point covers both
+   * "reset my forgotten password" and "set a password for the first time" without asking which one.
+   */
+  const submitForgotPassword = async () => {
+    const email = emailLoginEmail.trim();
+    if (!email) {
+      toast.error("Введите email");
+      return;
+    }
+    engageInteractive();
+    setLoading(true);
+    try {
+      const result = await fetchJsonSafe<{
+        ok?: boolean;
+        challengeId?: string;
+        retryAfterSeconds?: number;
+        setupRequired?: boolean;
+        error?: string;
+      }>("/api/auth/email-password/forgot", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ email }),
+      });
+      if (!result.ok) {
+        toast.error(AUTH_NETWORK_ERROR_MESSAGE);
+        return;
+      }
+      const { response: res, data } = result;
+      if (res.status === 503 || data.error === "auth_channel_disabled") {
+        toast.error("Восстановление пароля по email временно недоступно.");
+        return;
+      }
+      setEmailLoginPassword("");
+      setPwResetEmail(email);
+      setPwRecoveryPurpose(data.setupRequired ? "setup" : "reset");
+      setPwResetChallengeId(data.challengeId ?? null);
+      setPwResetCode("");
+      setPwNewPassword("");
+      setPwRecoveryPhase("reset_code");
+      // Neutral wording on purpose: the endpoint never confirms or denies account existence.
+      toast.success("Если аккаунт с этой почтой существует, мы отправили код.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const openStaffFactorMode = () => {
     setEmailLoginPassword("");
     setStaffFactorCode("");
@@ -1237,6 +1287,15 @@ export function AuthFlowV2({
                   disabled={loading}
                 >
                   Войти
+                </Button>
+                <Button
+                  type="button"
+                  variant="link"
+                  className={authLinkButtonClass}
+                  disabled={loading}
+                  onClick={() => void submitForgotPassword()}
+                >
+                  Забыли пароль?
                 </Button>
                 {emailOtpEnabled ? <Button
                   type="button"
