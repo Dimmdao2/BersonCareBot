@@ -1256,6 +1256,121 @@ SELECT count(*) FROM pg_proc p WHERE pg_get_userbyid(p.proowner) = 'app_owner' A
   echo "   app_owner SECURITY DEFINER table-grant completeness: OK (27 required table grants + 1 column grant present, $actual_secdef_count/$expected_secdef_count secdef functions pinned)"
 }
 
+assert_db_owner_and_telemetry_owner_secdef_anon_surface_pinned(){
+  # A-1 stage 1 (night plan 2026-07-26, taskdb): additive-only whole-class gate, sibling to
+  # assert_app_owner_secdef_table_grants_complete right above -- same idiom, same closure position,
+  # different owners. That gate pins ONLY app_owner's SECURITY DEFINER surface. But app_owner is not
+  # the only role that owns a SECURITY DEFINER function the anonymous/bootstrap login role
+  # (DATABASE_URL_NONSTAFF) can execute -- two more roles do, and until this gate neither was pinned
+  # by anything: $DB itself (the DB-owner role, which also owns every ordinary application table) and
+  # saas_telemetry_owner (one accessor). Read-only, runs after every mutating overlay/restart above
+  # (identical position to the app_owner gate), so a FATAL here never leaves TEST half-configured.
+  # This is stage 1 of 3 -- additive count + grant pin only. Stage 2 (owner split) and stage 3
+  # (structural allowlist gate) are separate, later, not this change.
+  #
+  # Numbers re-measured live against bersoncarebot_test 2026-07-26, not inherited from the plan --
+  # the plan's own numbers had already been corrected once. Two of the inherited figures did not
+  # reproduce and are recorded here rather than silently used: 118 total SECURITY DEFINER functions
+  # (not 115), 48 anon-reachable by the bootstrap role or PUBLIC (not 46) -- 19 owned by app_owner
+  # (a different count from its sibling gate's 58-total pin, which counts ALL of app_owner's secdef
+  # functions, not just the anon-reachable subset; that gap is the sibling gate's business, not this
+  # one's), 28 owned by $DB, 1 by saas_telemetry_owner. 19+28+1 = 48. The two figures that DID
+  # reproduce exactly, unprompted, are the ones this gate pins: 28 and 1.
+  local nonstaff_role
+  nonstaff_role="$(discover_webapp_bootstrap_base_role)"
+  validate_pg_identifier "webapp.test bootstrap DATABASE_URL_NONSTAFF/DATABASE_URL role" "$nonstaff_role"
+
+  # (a) explicit required-privilege set for the 7 tables the 28 $DB-owned functions read/write, read
+  # out of each function body (not guessed), mirroring the app_owner VALUES-list shape above.
+  # INSERT ... ON CONFLICT DO UPDATE counts as needing UPDATE too (email_send_cooldowns).
+  # $DB owns these 7 tables outright, so has_table_privilege is true today by ownership alone -- but
+  # ownership does not stop an explicit REVOKE from taking a privilege away from its own owner, and a
+  # silent REVOKE-without-a-committed-file is exactly the class the sibling gate above exists to
+  # catch for app_owner. This is the same class for $DB.
+  # Settle-with-retry: same closure-transient class recorded against the sibling app_owner-secdef
+  # gate directly above (taskdb open, cause unattributed, no code bug found -- a genuinely-granted
+  # privilege read back missing once, seconds before it read back present with no GRANT applied in
+  # between). This gate runs at the identical point in the sequence, so is equally exposed. The retry
+  # only absorbs a one-off blip; it does not run longer than 3 attempts, and a PERSISTENT gap still
+  # FATALs below -- see the throwaway-DB proof for this change, which reproduces a real, non-transient
+  # violation and confirms it survives the retry.
+  local missing="" _db_owner_secdef_attempt
+  for _db_owner_secdef_attempt in 1 2 3; do
+    missing="$(sudo -u postgres psql -d "$DB" -X -v ON_ERROR_STOP=1 -tAc "
+WITH required(tbl, priv) AS (
+  VALUES
+    ('public.platform_users', 'SELECT'),
+    ('public.platform_users', 'INSERT'),
+    ('public.platform_users', 'UPDATE'),
+    ('public.platform_users', 'DELETE'),
+    ('public.email_challenges', 'SELECT'),
+    ('public.email_challenges', 'INSERT'),
+    ('public.email_challenges', 'UPDATE'),
+    ('public.email_challenges', 'DELETE'),
+    ('public.email_send_cooldowns', 'SELECT'),
+    ('public.email_send_cooldowns', 'INSERT'),
+    ('public.email_send_cooldowns', 'UPDATE'),
+    ('public.specialist_signup_intents', 'SELECT'),
+    ('public.specialist_signup_intents', 'INSERT'),
+    ('public.user_password_credentials', 'SELECT'),
+    ('public.user_password_credentials', 'INSERT'),
+    ('public.user_oauth_bindings', 'SELECT'),
+    ('public.system_settings', 'SELECT')
+)
+SELECT coalesce(string_agg(tbl || ' ' || priv, ', ' ORDER BY tbl, priv), '')
+FROM required
+WHERE NOT has_table_privilege('$DB', tbl, priv);
+")"
+    [ -z "$missing" ] && break
+    sleep 2
+  done
+  [ -z "$missing" ] || {
+    echo "FATAL: $DB is missing required table privilege(s) on tables it owns: $missing" >&2
+    echo "       $DB owns these 7 tables -- a missing privilege here means an explicit REVOKE" >&2
+    echo "       against its own owner, not a missing GRANT. Find and remove whatever REVOKE'd it." >&2
+    exit 1
+  }
+
+  # (b) pin the anon-reachable SECURITY DEFINER count owned by $DB and by saas_telemetry_owner.
+  # Anti-drift, same idiom as expected_secdef_count above: a new anon-reachable SECURITY DEFINER
+  # function owned by either role must be reviewed for its own table grants (added to (a) above)
+  # before this constant is bumped.
+  local expected_db_owner_anon_secdef=28
+  local expected_telemetry_owner_anon_secdef=1
+  local actual_db_owner_anon_secdef actual_telemetry_owner_anon_secdef
+  for _db_owner_secdef_attempt in 1 2 3; do
+    actual_db_owner_anon_secdef="$(sudo -u postgres psql -d "$DB" -X -v ON_ERROR_STOP=1 -tAc "
+SELECT count(*) FROM pg_proc p
+WHERE p.prosecdef AND pg_get_userbyid(p.proowner) = '$DB'
+  AND (has_function_privilege('$nonstaff_role', p.oid, 'EXECUTE')
+       OR has_function_privilege('public', p.oid, 'EXECUTE'));
+")"
+    actual_telemetry_owner_anon_secdef="$(sudo -u postgres psql -d "$DB" -X -v ON_ERROR_STOP=1 -tAc "
+SELECT count(*) FROM pg_proc p
+WHERE p.prosecdef AND pg_get_userbyid(p.proowner) = 'saas_telemetry_owner'
+  AND (has_function_privilege('$nonstaff_role', p.oid, 'EXECUTE')
+       OR has_function_privilege('public', p.oid, 'EXECUTE'));
+")"
+    [ "$actual_db_owner_anon_secdef" = "$expected_db_owner_anon_secdef" ] \
+      && [ "$actual_telemetry_owner_anon_secdef" = "$expected_telemetry_owner_anon_secdef" ] \
+      && break
+    sleep 2
+  done
+  [ "$actual_db_owner_anon_secdef" = "$expected_db_owner_anon_secdef" ] || {
+    echo "FATAL: $DB now owns $actual_db_owner_anon_secdef anon-reachable SECURITY DEFINER functions, expected exactly $expected_db_owner_anon_secdef." >&2
+    echo "       A new anon-reachable $DB-owned SECURITY DEFINER function was added (or one was removed" >&2
+    echo "       or reassigned) without review -- check its body for every table it reads/writes, extend" >&2
+    echo "       the required-privilege set above, and only then bump this constant." >&2
+    exit 1
+  }
+  [ "$actual_telemetry_owner_anon_secdef" = "$expected_telemetry_owner_anon_secdef" ] || {
+    echo "FATAL: saas_telemetry_owner now owns $actual_telemetry_owner_anon_secdef anon-reachable SECURITY DEFINER functions, expected exactly $expected_telemetry_owner_anon_secdef." >&2
+    exit 1
+  }
+
+  echo "   $DB + saas_telemetry_owner SECURITY DEFINER anon-reachable surface: OK (17 required table privileges present, $actual_db_owner_anon_secdef/$expected_db_owner_anon_secdef $DB + $actual_telemetry_owner_anon_secdef/$expected_telemetry_owner_anon_secdef saas_telemetry_owner, bootstrap role $nonstaff_role)"
+}
+
 mark_e1_runtime_coverage_start(){
   E1_RUNTIME_COVERAGE_STARTED_AT="$(node -e 'process.stdout.write(new Date().toISOString())')"
 }
@@ -1510,6 +1625,8 @@ run_strict_post_migration_closure(){
   run_closure_gate "specialist-owner provisioning seam pin" assert_specialist_owner_provisioning_seam_pinned
   log "app_owner SECURITY DEFINER table-grant completeness (whole-class gate)"
   run_closure_gate "app_owner SECURITY DEFINER table-grant completeness" assert_app_owner_secdef_table_grants_complete
+  log "DB-owner + telemetry-owner SECURITY DEFINER anon-reachable surface (A-1 stage 1, whole-class gate)"
+  run_closure_gate "DB-owner + telemetry-owner SECURITY DEFINER anon-reachable surface" assert_db_owner_and_telemetry_owner_secdef_anon_surface_pinned
   log "E1 post-runtime coverage/read gate"
   run_closure_gate "E1 post-runtime coverage/read gate" run_e1_post_runtime_coverage_gate
   run_closure_gate "awg relay active" assert_awg_relay_active
