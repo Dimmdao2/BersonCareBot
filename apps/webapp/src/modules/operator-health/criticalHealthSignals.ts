@@ -8,6 +8,18 @@ import type {
 } from "./ports";
 import { isWebhookBurstCritical, WEBHOOK_BURST_MIN_COUNT } from "./webhookBurst";
 import type { TenantIsolationCriticalHealthSignal } from "./tenantIsolationCriticalHealth";
+import {
+  OLDEST_UNSENT_ALERT_SECONDS,
+  formatAgeRu,
+  isOldestUnsentOverThreshold,
+  type DeliveryEvidence,
+} from "./deliveryEvidence";
+import { formatHeartbeatAge, isHeartbeatFailing, type OperatorHeartbeatVerdict } from "./heartbeat";
+import type { EmptyAudienceSignal } from "@/modules/operator-alerts/emptyAudience";
+import {
+  describeOutboundProviderErrorClass,
+  isPageOnFirstOccurrenceProviderErrorClass,
+} from "@bersoncare/operator-db-schema";
 
 export const PROBE_CRITICAL_CONSECUTIVE_FAIL_RUNS = 3;
 export const OUTBOUND_PROVIDER_FAILURE_DIRECTION = "outbound_delivery_provider";
@@ -47,6 +59,16 @@ export type CriticalHealthSignalsInput = {
   webhookBursts?: WebhookBurstRow[];
   /** A3: low-cardinality tenant-isolation detector, collected only by the five-minute health tick. */
   tenantIsolation?: TenantIsolationCriticalHealthSignal;
+  /**
+   * D-d/D-f: позитивное доказательство доставки. Возраст самой старой неотправленной
+   * позиции — самостоятельный сигнал: он один покрывает и исчерпание квоты, и смерть
+   * воркера, и застрявшего потребителя.
+   */
+  deliveryEvidence?: DeliveryEvidence;
+  /** D-d: вердикты dead man's switch. Алертом является ОТСУТСТВИЕ пульса. */
+  heartbeats?: OperatorHeartbeatVerdict[];
+  /** D-b: счётчик пустой аудитории; сам счётчик обязан звенеть. */
+  emptyAudience?: EmptyAudienceSignal;
 };
 
 export type OperatorHealthBannerInput = CriticalHealthSignalsInput & {
@@ -87,7 +109,97 @@ export function classifyOperatorHealthBannerSignals(input: OperatorHealthBannerI
   if (od.deadTotal > 0 || od.dueBacklog >= ADMIN_DELIVERY_DUE_BACKLOG_WARNING) return true;
   if (classifyIntegratorPushOutboxSystemHealthStatus(input.integratorPushOutbox) !== "ok") return true;
   if (classifyTenantIsolationSignals(input.tenantIsolation).length > 0) return true;
+  if (classifyProviderQuotaSignals(input.outboundDeliveryProvider?.openIncidents).length > 0) return true;
+  if (input.deliveryEvidence && isOldestUnsentOverThreshold(input.deliveryEvidence)) return true;
+  if ((input.heartbeats ?? []).some(isHeartbeatFailing)) return true;
+  if (input.emptyAudience?.active) return true;
   return false;
+}
+
+/**
+ * D-f: отказ провайдера по квоте/кредитам/учётным данным пейджится с ПЕРВОГО появления.
+ *
+ * Отдельно от общего `outbound_delivery_provider` намеренно: у того порог и общая
+ * dedup-строка, а здесь одно событие обязано разбудить сразу и своим текстом сказать,
+ * что именно кончилось. `454` иначе молча ретраится сутками, а `401` тонет в «учётка».
+ */
+export function classifyProviderQuotaSignals(
+  incidents: OperatorIncidentOpenRow[] | undefined,
+): CriticalAlertCandidate[] {
+  const seen = new Set<string>();
+  const out: CriticalAlertCandidate[] = [];
+  for (const incident of incidents ?? []) {
+    if (incident.direction !== OUTBOUND_PROVIDER_FAILURE_DIRECTION) continue;
+    if (!isPageOnFirstOccurrenceProviderErrorClass(incident.errorClass)) continue;
+    if (seen.has(incident.errorClass)) continue;
+    seen.add(incident.errorClass);
+    out.push({
+      topic: "outbound_provider_quota",
+      dedupKey: `critical:outbound_provider_quota:${incident.integration}:${incident.errorClass}`,
+      pushTitle: `${OUTBOUND_PROVIDER_STOP_PREFIX} Провайдер доставки отверг отправку`,
+      lines: [
+        `${OUTBOUND_PROVIDER_STOP_PREFIX} ${incident.integration}: ${describeOutboundProviderErrorClass(incident.errorClass)}`,
+        `Класс: ${incident.errorClass}, срабатываний: ${incident.occurrenceCount}`,
+        "Пейджится с первого раза: 4xx-квота ретраится молча, а 401 неотличим от кончившихся кредитов.",
+      ],
+    });
+  }
+  return out;
+}
+
+/** D-f: возраст самой старой неотправленной позиции, а не глубина очереди. */
+export function classifyOldestUnsentSignals(
+  evidence: DeliveryEvidence | undefined,
+): CriticalAlertCandidate[] {
+  if (!evidence || !isOldestUnsentOverThreshold(evidence)) return [];
+  const age = evidence.oldestUnsentAgeSeconds ?? 0;
+  return [
+    {
+      topic: "outbound_oldest_unsent",
+      dedupKey: "critical:outbound_oldest_unsent:over_threshold",
+      pushTitle: "Критичный сбой: очередь доставки стоит",
+      lines: [
+        `Самая старая неотправленная позиция: ${formatAgeRu(age)} (порог ${formatAgeRu(OLDEST_UNSENT_ALERT_SECONDS)})`,
+        evidence.lastConfirmedDeliveryAt
+          ? `Последняя подтверждённая доставка: ${evidence.lastConfirmedDeliveryAt}`
+          : "Последняя подтверждённая доставка: НИКОГДА",
+      ],
+    },
+  ];
+}
+
+/** D-d: алертом является ОТСУТСТВИЕ пульса. */
+export function classifyHeartbeatSignals(
+  heartbeats: OperatorHeartbeatVerdict[] | undefined,
+): CriticalAlertCandidate[] {
+  return (heartbeats ?? []).filter(isHeartbeatFailing).map((verdict) => ({
+    topic: "heartbeat_absent",
+    dedupKey: `critical:heartbeat_absent:${verdict.name}:${verdict.status}`,
+    pushTitle: "Критичный сбой: пропал пульс",
+    lines: [
+      `${verdict.label}: пульс не приходит`,
+      `Последний пульс: ${formatHeartbeatAge(verdict)} (порог ${formatAgeRu(verdict.staleAfterSec)})`,
+    ],
+  }));
+}
+
+/** D-b: сам счётчик пустой аудитории обязан алертить. */
+export function classifyEmptyAudienceSignals(
+  signal: EmptyAudienceSignal | undefined,
+): CriticalAlertCandidate[] {
+  if (!signal?.active) return [];
+  return [
+    {
+      topic: "notification_audience_empty",
+      dedupKey: "critical:notification_audience_empty:active",
+      pushTitle: "Критичный сбой: уведомлению некому уйти",
+      lines: [
+        `Уведомления с пустой аудиторией: всего ${signal.total}`,
+        `Последнее место: ${signal.lastTopic ?? "неизвестно"} (${signal.lastAt ?? "—"})`,
+        ...signal.topTopics.map((t) => `${t.topic}: ${t.count}`),
+      ],
+    },
+  ];
 }
 
 /**
@@ -278,6 +390,10 @@ export function classifyCriticalHealthSignals(input: CriticalHealthSignalsInput)
   }
 
   out.push(...classifyTenantIsolationSignals(input.tenantIsolation));
+  out.push(...classifyProviderQuotaSignals(input.outboundDeliveryProvider?.openIncidents));
+  out.push(...classifyOldestUnsentSignals(input.deliveryEvidence));
+  out.push(...classifyHeartbeatSignals(input.heartbeats));
+  out.push(...classifyEmptyAudienceSignals(input.emptyAudience));
 
   return out;
 }

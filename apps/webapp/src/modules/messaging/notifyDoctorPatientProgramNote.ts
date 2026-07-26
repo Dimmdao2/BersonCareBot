@@ -10,6 +10,7 @@ import {
 import { resolvePatientTelegramUsernameMention } from "@/app-layer/messaging/resolvePatientTelegramUsernameMention";
 import { buildPatientNotifyFromLine } from "@/modules/messaging/patientTelegramUsernameMention";
 import { logger, serializeError } from "@/infra/logging/logger";
+import { reportEmptyAudience } from "@/modules/operator-alerts/emptyAudienceRuntime";
 
 export function buildDoctorPatientProgramOpenPath(input: {
   patientUserId: string;
@@ -107,7 +108,16 @@ export async function notifyDoctorPatientProgramNote(
   }
 
   const targets = await loadDoctorNotifyTargets();
-  if (targets.telegram.length === 0 && targets.max.length === 0) return;
+  if (targets.telegram.length === 0 && targets.max.length === 0) {
+    // D-b: раньше здесь стоял голый `return` — ровно июльский баг. Пустая аудитория
+    // неотличима от успеха, поэтому теперь она считается, логируется и уходит в fallback.
+    await reportEmptyAudience({
+      topic: "notify_doctor_program_note",
+      severity: "operational",
+      channels: ["telegram", "max"],
+    });
+    return;
+  }
 
   await relayTextToDoctorTargets(
     messageId,

@@ -27,6 +27,11 @@ export const INTERNAL_BEARER_CSRF_EXEMPT_PATHS = [
   "/api/internal/media-preview/process",
   "/api/internal/media-transcode/enqueue",
   "/api/internal/media-transcode/reconcile",
+  // Приёмник dead man's switch (design D-d). Имена — закрытый набор из
+  // `modules/operator-health/heartbeat.ts`, поэтому перечислены явно, а не паттерном:
+  // список должен оставаться читаемым при аудите.
+  "/api/internal/heartbeat/pipeline_delivery",
+  "/api/internal/heartbeat/digest",
   "/api/internal/operator-health-critical/tick",
   "/api/internal/operator-health-digest/tick",
   "/api/internal/product-analytics/retention",

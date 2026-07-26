@@ -2,6 +2,10 @@ import { randomUUID } from "node:crypto";
 import { collectCriticalHealthSignals } from "@/app-layer/health/collectCriticalHealthSignals";
 import { classifyCriticalHealthSignals } from "@/modules/operator-health/criticalHealthSignals";
 import { dispatchOperatorAlert } from "@/modules/operator-alerts/dispatchOperatorAlert";
+import {
+  pingPipelineHeartbeatOnConfirmedDelivery,
+  readOperatorHeartbeatVerdicts,
+} from "@/app-layer/health/deliveryHeartbeatObserver";
 
 const ALERT_CLAIM_LEASE_MS = 10 * 60 * 1_000;
 
@@ -10,8 +14,22 @@ const ALERT_CLAIM_LEASE_MS = 10 * 60 * 1_000;
  */
 export async function runOperatorHealthCriticalTick(now = new Date()): Promise<{ alerted: number; keys: string[] }> {
   const input = await collectCriticalHealthSignals();
-  const candidates = classifyCriticalHealthSignals(input);
-  const outboundProviderIncidents = input.outboundDeliveryProvider?.openIncidents ?? [];
+
+  // D-d, пульс 1: бьётся ТОЛЬКО когда ватермарка подтверждённых доставок сдвинулась вперёд.
+  // Пульс «просто потому, что тик отработал» доказывал бы работу планировщика, а не доставки,
+  // и в июле светился бы зелёным.
+  const pingResult = await pingPipelineHeartbeatOnConfirmedDelivery(
+    input.deliveryEvidence?.lastConfirmedDeliveryAt ?? null,
+  );
+  // Вердикты собраны ДО пульса; если пульс только что прошёл, перечитываем — иначе свежая
+  // подтверждённая доставка всё равно подняла бы алерт об отсутствии пульса.
+  const signals =
+    pingResult === "pinged"
+      ? { ...input, heartbeats: await readOperatorHeartbeatVerdicts().catch(() => input.heartbeats ?? []) }
+      : input;
+
+  const candidates = classifyCriticalHealthSignals(signals);
+  const outboundProviderIncidents = signals.outboundDeliveryProvider?.openIncidents ?? [];
   const keys: string[] = [];
   let alerted = 0;
 

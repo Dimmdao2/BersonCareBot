@@ -25,6 +25,7 @@ import { defaultDoctorTopicFallbackChannels } from "./doctorTopicChannelDefaults
 import type { DoctorNotificationTopicCode } from "./doctorNotificationTopics";
 import { resolveDoctorNotificationChannels } from "./resolveDoctorNotificationChannels";
 import type { StaffUsersPort } from "./staffUsersPort";
+import { reportEmptyAudience } from "@/modules/operator-alerts/emptyAudienceRuntime";
 
 export type NotifyDoctorPatientMessageToStaffDeps = {
   staffUsers: StaffUsersPort;
@@ -68,6 +69,15 @@ export async function notifyDoctorPatientMessageToStaff(
   let pushDelivered = 0;
 
   if (staffIds.length === 0) {
+    // D-b: это сток для обоих notify* выше, когда staffDeps подключены. Каждая ветка
+    // ниже логирует `doctor_staff_notify.channels`, а случай «персонала нет» не логировал
+    // ничего — организация без активных сотрудников давала нули, неотличимые от
+    // «все отписались».
+    await reportEmptyAudience({
+      topic: `doctor_staff_notify:${input.topicCode}`,
+      severity: "operational",
+      channels: ["telegram", "max", "web_push"],
+    });
     return { telegramDelivered, maxDelivered, pushDelivered };
   }
 

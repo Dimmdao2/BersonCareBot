@@ -16,6 +16,7 @@ import type { DbPort, DispatchPort } from '../../kernel/contracts/index.js';
 import { registerBersoncareSendEmailRoute } from './sendEmailRoute.js';
 import * as smtpOutbound from '../../config/smtpOutbound.js';
 import { OutboundMessagePolicyError } from '../../infra/adapters/outboundMessagePolicy.js';
+import type { OutboundProviderErrorClass } from '@bersoncare/operator-db-schema';
 
 /** Assembled from parts to avoid eslint-plugin-no-secrets flagging the literal. */
 const resolveSmtpOutboundCfg = ('resolveSmtp' + 'OutboundConfig') as keyof typeof smtpOutbound;
@@ -52,7 +53,7 @@ async function buildTestApp(
   secret = TEST_SECRET,
   dispatchPort?: DispatchPort,
   isAuthChannelEnabled: (channel: 'email') => Promise<boolean> = vi.fn().mockResolvedValue(true),
-  recordProviderFailure: (reason: 'provider_not_configured' | 'provider_send_failed') => Promise<void> = vi
+  recordProviderFailure: (reason: OutboundProviderErrorClass) => Promise<void> = vi
     .fn()
     .mockResolvedValue(undefined),
 ) {
@@ -275,7 +276,57 @@ describe('POST /api/bersoncare/send-email', () => {
     expect(JSON.parse(response.body)).toEqual({ ok: false, error: 'email_failed' });
     expect(response.body).not.toContain('user@example.com');
     expect(response.body).not.toContain('provider-response-body');
-    expect(recordProviderFailure).toHaveBeenCalledWith('provider_send_failed');
+    // `535 EAUTH` — отказ по учётным данным, а не безымянный сбой отправки (design D-f).
+    expect(recordProviderFailure).toHaveBeenCalledWith('provider_auth_rejected');
+  });
+
+  it('classifies the SES-style daily quota rejection as its own paging class', async () => {
+    vi.spyOn(smtpOutbound, resolveSmtpOutboundCfg).mockResolvedValue(MOCK_RESOLVED_CONFIGURED);
+    const dispatchOutgoing = vi
+      .fn()
+      .mockRejectedValue(new Error('454 Throttling failure: Daily message quota exceeded'));
+    const recordProviderFailure = vi.fn().mockResolvedValue(undefined);
+    const { app } = await buildTestApp(
+      TEST_SECRET,
+      { dispatchOutgoing },
+      vi.fn().mockResolvedValue(true),
+      recordProviderFailure,
+    );
+    const body = JSON.stringify({ to: 'user@example.com', code: '123456' });
+
+    const response = await app.inject({
+      method: 'POST',
+      url: '/api/bersoncare/send-email',
+      headers: makeHeaders(body),
+      body,
+    });
+
+    expect(response.statusCode).toBe(500);
+    // Это 4xx: без собственного класса конформный клиент ретраил бы его сутками молча.
+    expect(recordProviderFailure).toHaveBeenCalledWith('provider_quota_exhausted');
+  });
+
+  it('classifies SendGrid-style credit exhaustion arriving as HTTP 401', async () => {
+    vi.spyOn(smtpOutbound, resolveSmtpOutboundCfg).mockResolvedValue(MOCK_RESOLVED_CONFIGURED);
+    const dispatchOutgoing = vi.fn().mockRejectedValue(new Error('HTTP 401 Maximum credits exceeded'));
+    const recordProviderFailure = vi.fn().mockResolvedValue(undefined);
+    const { app } = await buildTestApp(
+      TEST_SECRET,
+      { dispatchOutgoing },
+      vi.fn().mockResolvedValue(true),
+      recordProviderFailure,
+    );
+    const body = JSON.stringify({ to: 'user@example.com', code: '123456' });
+
+    const response = await app.inject({
+      method: 'POST',
+      url: '/api/bersoncare/send-email',
+      headers: makeHeaders(body),
+      body,
+    });
+
+    expect(response.statusCode).toBe(500);
+    expect(recordProviderFailure).toHaveBeenCalledWith('provider_credit_exhausted');
   });
 
   it('does not let incident persistence failure mask the original provider failure', async () => {

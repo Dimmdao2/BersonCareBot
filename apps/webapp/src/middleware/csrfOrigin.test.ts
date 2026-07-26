@@ -156,7 +156,7 @@ describe("CSRF origin policy", () => {
 
   it("has only the exact typed runtime exemptions and rejects lookalikes", () => {
     expect(INTEGRATOR_HMAC_CSRF_EXEMPT_PATHS).toHaveLength(18);
-    expect(INTERNAL_BEARER_CSRF_EXEMPT_PATHS).toHaveLength(13);
+    expect(INTERNAL_BEARER_CSRF_EXEMPT_PATHS).toHaveLength(15);
     expect(PAYMENT_WEBHOOK_CSRF_EXEMPT_PATTERNS).toHaveLength(2);
     for (const pathname of INTEGRATOR_HMAC_CSRF_EXEMPT_PATHS) {
       expect(decide({ pathname, origin: null, referer: null, secFetchSite: null }))
@@ -226,22 +226,26 @@ describe("frozen webapp mutation census", () => {
   it("freezes every API route, unsafe route, and unsafe handler", () => {
     // 517 -> 518: 1561246d8 added `api/doctor/proactive-insights/by-patient/route.ts` (GET only,
     // so the unsafe-handler census below is unchanged) and left this frozen census red.
-    expect(routeFiles).toHaveLength(518);
-    expect(sha256Lines(routeInventory)).toBe("ab4f1a73123590408f9fbd2da8ee0724197acbaf7f881dcc21f776b19adf706e");
-    expect(unsafeInventory).toHaveLength(353);
-    expect(unsafeInventory.reduce((count, entry) => count + entry.methods.length, 0)).toBe(392);
-    expect(sha256Lines(unsafeInventoryLines)).toBe("b7149b57c96564d44642018a52d822a9b000034887c2b300c73388ba835f531d");
+    // 518 -> 520: the dead man's switch receiver (design D-d) added
+    // `api/internal/heartbeat/pipeline_delivery/route.ts` and `api/internal/heartbeat/digest/route.ts`.
+    // Both are POST+GET behind constant-time INTERNAL_JOB_SECRET, so the internal-bearer
+    // exemption count below moves 13 -> 15 and the unsafe census 353 -> 355 / 392 -> 394.
+    expect(routeFiles).toHaveLength(520);
+    expect(sha256Lines(routeInventory)).toBe("3edd380b37eb48aef0783a7647567726054a7863996b89f22d19f291fae2cdf9");
+    expect(unsafeInventory).toHaveLength(355);
+    expect(unsafeInventory.reduce((count, entry) => count + entry.methods.length, 0)).toBe(394);
+    expect(sha256Lines(unsafeInventoryLines)).toBe("e0f432c637950d19c9d9af43f4d9eb3f79bda39bd8b71f8ca6a2e46daf3fa55e");
   });
 
   it("exhaustively classifies unsafe files as browser, integrator, internal, webhook, or Apple", () => {
     const actualUnsafeFiles = new Set(unsafeInventory.map((entry) => entry.file));
     for (const file of specialFiles) expect(actualUnsafeFiles.has(file), file).toBe(true);
-    expect(specialFiles.size).toBe(34);
+    expect(specialFiles.size).toBe(36);
     const browser = unsafeInventory.filter((entry) => !specialFiles.has(entry.file));
     expect(browser).toHaveLength(319);
     expect(browser.reduce((count, entry) => count + entry.methods.length, 0)).toBe(358);
     expect([...integratorFiles]).toHaveLength(18);
-    expect([...internalFiles]).toHaveLength(13);
+    expect([...internalFiles]).toHaveLength(15);
     expect([...paymentFiles]).toHaveLength(2);
     expect([...appleFiles]).toHaveLength(1);
   });

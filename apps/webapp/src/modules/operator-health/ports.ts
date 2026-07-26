@@ -51,6 +51,13 @@ export type OutgoingDeliveryQueueHealthSnapshot = {
   deadByKind: Record<string, number>;
   processingCount: number;
   lastSentAt: string | null;
+  /**
+   * Подтверждённых доставок (`status = 'sent'`) за последние 24 ч.
+   *
+   * D-d: сводка обязана нести ПОЗИТИВНОЕ доказательство доставки, а не только отсутствие
+   * записей об ошибках — иначе «зелёное» снова начинает означать «никто ничего не записал».
+   */
+  confirmedSentLast24h: number;
   lastQueueActivityAt: string | null;
 };
 

@@ -212,6 +212,7 @@ export const pgOperatorHealthReadPort: OperatorHealthReadPort = {
       processingRows,
       activityRows,
       sentRows,
+      confirmedSentRows,
     ] = await Promise.all([
       db.select({ c: count() }).from(outgoingDeliveryQueue).where(dueWh),
       db.select({ c: count() }).from(outgoingDeliveryQueue).where(operatorDeadWh),
@@ -243,6 +244,16 @@ export const pgOperatorHealthReadPort: OperatorHealthReadPort = {
         .where(eq(outgoingDeliveryQueue.status, "processing")),
       db.select({ mx: max(outgoingDeliveryQueue.updatedAt) }).from(outgoingDeliveryQueue),
       db.select({ mx: max(outgoingDeliveryQueue.sentAt) }).from(outgoingDeliveryQueue),
+      // D-d: позитивное доказательство доставки за окно сводки.
+      db
+        .select({ c: count() })
+        .from(outgoingDeliveryQueue)
+        .where(
+          and(
+            eq(outgoingDeliveryQueue.status, "sent"),
+            gte(outgoingDeliveryQueue.sentAt, sql`now() - interval '24 hours'`),
+          ),
+        ),
     ]);
     const dueRow = dueRows[0];
     const deadRow = deadRows[0];
@@ -277,6 +288,7 @@ export const pgOperatorHealthReadPort: OperatorHealthReadPort = {
       deadByKind,
       processingCount: Number(processingRows[0]?.c ?? 0),
       lastSentAt: sentRows[0]?.mx ?? null,
+      confirmedSentLast24h: Number(confirmedSentRows[0]?.c ?? 0),
       lastQueueActivityAt: activityRows[0]?.mx ?? null,
     };
   },

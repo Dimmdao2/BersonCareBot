@@ -10,6 +10,7 @@ import type { SystemSettingsService } from "@/modules/system-settings/service";
 import { getWebPushVapidKeyPair } from "@/modules/system-settings/webPushVapidRuntime";
 import type { WebPushSubscriptionsPort } from "@/modules/web-push/ports";
 import type { BroadcastCategory } from "./ports";
+import { reportEmptyAudienceBestEffort } from "@/modules/operator-alerts/emptyAudienceRuntime";
 
 export type ResolveBroadcastWebPushEligibleUserIdsDeps = {
   webPushSubscriptions: WebPushSubscriptionsPort;
@@ -26,7 +27,18 @@ export async function resolveBroadcastWebPushEligibleUserIds(
 ): Promise<Set<string>> {
   const eligible = new Set<string>();
   const vapidKeys = await getWebPushVapidKeyPair(deps.systemSettings);
-  if (!vapidKeys) return eligible;
+  if (!vapidKeys) {
+    // D-b: пропавшая конфигурация VAPID отдавала ПУСТОЕ множество без единой записи, и
+    // `fanOutBroadcastWebPush` ниже рапортовал `attempted: 0, delivered: 0, errors: 0,
+    // skipped: 0` — полный тихий no-op. Аудитория пользовательская, поэтому в оператора
+    // она не переадресуется, но считается и видна наравне с остальными.
+    reportEmptyAudienceBestEffort({
+      topic: "broadcast_web_push_no_vapid",
+      severity: "user_facing",
+      channels: ["web_push"],
+    });
+    return eligible;
+  }
 
   const topicCode = broadcastNotificationTopicCode(broadcastCategory);
 

@@ -13,6 +13,7 @@ import {
   OPERATOR_HEALTH_PROJECTION_DIGEST_DEBOUNCE_JOB_KEY,
 } from "@/modules/operator-health/reconcileJobKeys";
 import { getConfigValue } from "@/modules/system-settings/configAdapter";
+import { readOperatorHeartbeatVerdicts } from "@/app-layer/health/deliveryHeartbeatObserver";
 
 export async function collectOperatorHealthDigestInput(params: {
   windowStartIso: string;
@@ -37,6 +38,12 @@ export async function collectOperatorHealthDigestInput(params: {
       ),
       deps.operatorHealthRead.listOpenIncidents(100),
     ]);
+
+  // D-d: сводка обязана нести доказательство, а не отсутствие ошибок.
+  const [deliveryQueue, heartbeats] = await Promise.all([
+    deps.operatorHealthRead.getOutgoingDeliveryQueueHealth().catch(() => null),
+    readOperatorHeartbeatVerdicts(nowMs).catch(() => []),
+  ]);
 
   const projectionSnapshot = health.projection.snapshot;
   const projection = {
@@ -99,6 +106,18 @@ export async function collectOperatorHealthDigestInput(params: {
     hasStopIssue:
       health.outgoingDelivery.deadTotal > 0 ||
       openIncidents.some((incident) => incident.direction === "outbound_delivery_provider"),
+    // Снимок не прочитался → поле не выставляем: сводка тогда честно печатает
+    // «Доказательство доставки: НЕ СОБРАНО» и не имеет права быть зелёной.
+    ...(deliveryQueue
+      ? {
+          deliveryEvidence: {
+            confirmedDeliveries: deliveryQueue.confirmedSentLast24h,
+            lastConfirmedDeliveryAt: deliveryQueue.lastSentAt,
+            oldestUnsentAgeSeconds: deliveryQueue.oldestDueAgeSeconds,
+          },
+        }
+      : {}),
+    heartbeats,
     suppressRecovery: params.suppressRecovery,
   };
 }

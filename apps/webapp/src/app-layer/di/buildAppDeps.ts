@@ -188,6 +188,8 @@ import { notifyDoctorPatientMessage } from "@/modules/messaging/notifyDoctorPati
 import { notifyDoctorPatientProgramNote } from "@/modules/messaging/notifyDoctorPatientProgramNote";
 import { registerAdminIncidentStaffPushDeps } from "@/modules/admin-incidents/adminIncidentStaffPushRuntime";
 import { registerOperatorAlertDedupPort } from "@/modules/operator-alerts/operatorAlertRuntime";
+import { registerEmptyAudienceReporter } from "@/modules/operator-alerts/emptyAudienceRuntime";
+import { emptyAudienceReporter } from "@/app-layer/operator-alerts/reportEmptyNotificationAudience";
 import { pgOperatorHealthAlertSentPort } from "@/infra/repos/pgOperatorHealthAlertSent";
 import { inMemoryOperatorHealthAlertSentPort } from "@/infra/repos/inMemoryOperatorHealthAlertSent";
 import { createIntegratorSupportBridge } from "@/modules/messaging/integratorSupportBridge";
@@ -946,6 +948,8 @@ registerAdminIncidentStaffPushDeps({
 registerOperatorAlertDedupPort(
   !inMemoryRepos ? pgOperatorHealthAlertSentPort : inMemoryOperatorHealthAlertSentPort,
 );
+// D-b: счётчик пустой аудитории и env-fallback подключаются на краю, домен их не импортирует.
+registerEmptyAudienceReporter(emptyAudienceReporter);
 const resolvePatientLabelForDoctorNotify = async (platformUserId: string): Promise<string> => {
   const identity = await doctorClientsPort.getClientIdentity(platformUserId);
   return identity?.displayName?.trim() || identity?.phone?.trim() || "Пациент";

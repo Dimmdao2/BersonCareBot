@@ -4,6 +4,7 @@ import { getConfigValue } from "@/modules/system-settings/configAdapter";
 import { parseIdTokens } from "@/shared/parsers/parseIdTokens";
 import type { IntakeNotificationPort } from "./ports";
 import type { IntakeType } from "./types";
+import { reportEmptyAudience } from "@/modules/operator-alerts/emptyAudienceRuntime";
 
 function dedupe(ids: string[]): string[] {
   return [...new Set(ids)];
@@ -95,6 +96,18 @@ export function createIntakeNotificationRelay(): IntakeNotificationPort {
         summary: input.summary,
         deepLink,
       });
+      if (targets.telegram.length === 0 && targets.max.length === 0) {
+        // D-b: явного guard здесь не было вовсе — оба цикла в `sendToTargets` просто
+        // не выполнялись ни разу, `Promise.allSettled([])` резолвился, и пустая
+        // конфигурация была байт-в-байт неотличима от успешной рассылки в логах.
+        await reportEmptyAudience({
+          topic: "intake_new_request",
+          severity: "operational",
+          channels: ["telegram", "max"],
+          context: { intakeType: input.type },
+        });
+        return;
+      }
       await sendToTargets(input.requestId, targets, text);
     },
   };

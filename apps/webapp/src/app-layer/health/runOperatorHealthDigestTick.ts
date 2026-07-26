@@ -18,6 +18,8 @@ import {
 import { ADMIN_INCIDENT_ALERT_CONFIG_KEY } from "@/modules/admin-incidents/adminIncidentAlertConfig";
 import { getAppDisplayTimeZone } from "@/modules/system-settings/appDisplayTimezone";
 import { getConfigValue } from "@/modules/system-settings/configAdapter";
+import { pingOperatorHeartbeatBestEffort } from "@/app-layer/operator-health/pingOperatorHeartbeat";
+import { reportEmptyNotificationAudience } from "@/app-layer/operator-alerts/reportEmptyNotificationAudience";
 
 export type RunOperatorHealthDigestTickResult = {
   sent: boolean;
@@ -107,8 +109,22 @@ export async function runOperatorHealthDigestTick(
         : result.reason === "disabled"
           ? "disabled"
           : "no_recipients";
+    if (reason === "no_recipients") {
+      // D-b: сводка — последняя страховка, и её собственная пустая аудитория не имеет
+      // права быть тихим `return`. Считаем, логируем и уводим в fallback из окружения.
+      await reportEmptyNotificationAudience({
+        topic: "operator_health_digest",
+        severity: "operational",
+        channels: ["digest"],
+        context: { dedupKey },
+      });
+    }
     return { sent: false, reason, dedupKey };
   }
+
+  // D-d, пульс 2: сводка, которая не запустилась, выглядит ровно как тихий день.
+  // Поэтому у неё собственный пульс, и алертом является его отсутствие.
+  await pingOperatorHeartbeatBestEffort("digest", "digest_tick", { dedupKey });
 
   return { sent: true, dedupKey };
 }

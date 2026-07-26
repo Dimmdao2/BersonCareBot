@@ -14,6 +14,7 @@ import {
   webappPlatformConversationId,
 } from "@/modules/messaging/supportConversationIds";
 import { logger, serializeError } from "@/infra/logging/logger";
+import { reportEmptyAudience } from "@/modules/operator-alerts/emptyAudienceRuntime";
 
 export function buildDoctorMessagesOpenPath(platformUserId: string): string {
   const convKey = encodeURIComponent(webappPlatformConversationId(platformUserId));
@@ -110,15 +111,24 @@ export async function notifyDoctorPatientMessage(
   }
 
   const targets = await loadDoctorNotifyTargets();
-  if (targets.telegram.length > 0 || targets.max.length > 0) {
-    await relayTextToDoctorTargets(
-      `patient-msg-notify:${input.messageId}`,
-      targets,
-      text,
-      "patient-msg-notify",
-      replyMarkup,
-    );
+  if (targets.telegram.length === 0 && targets.max.length === 0) {
+    // D-b: та же форма, только вывернутая — блок под `if` без `else`. Молчание при
+    // пустых `admin_*_ids`/`doctor_*_ids` выглядело как успешная доставка.
+    await reportEmptyAudience({
+      topic: "notify_doctor_patient_message",
+      severity: "operational",
+      channels: ["telegram", "max"],
+    });
+    return;
   }
+
+  await relayTextToDoctorTargets(
+    `patient-msg-notify:${input.messageId}`,
+    targets,
+    text,
+    "patient-msg-notify",
+    replyMarkup,
+  );
 }
 
 export { isWebappPlatformConversationId };

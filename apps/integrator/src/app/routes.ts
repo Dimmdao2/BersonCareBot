@@ -23,6 +23,7 @@ import { integratorWebhookSecret } from '../config/env.js';
 import { telegramConfig } from '../integrations/telegram/config.js';
 import { startTelegramLongPolling } from '../integrations/telegram/longPolling.js';
 import type { AppDeps, ProjectionHealthSnapshot } from './di.js';
+import type { OutboundProviderErrorClass } from '@bersoncare/operator-db-schema';
 import { runWithBootstrapPrincipal } from '../infra/principal/organizationPrincipal.js';
 import { reportIntegratorIsolationFailure } from '../infra/observability/saasIsolationTelemetry.js';
 import { isAuthChannelEnabled } from '../infra/db/authChannelPolicy.js';
@@ -127,7 +128,7 @@ export async function registerRoutes(app: FastifyInstance, deps: AppDeps): Promi
     isAuthChannelEnabled(authChannelPolicyDb, channel);
   const recordOutboundProviderFailure = async (
     integration: 'email' | 'smsc',
-    errorClass: 'provider_not_configured' | 'provider_send_failed',
+    errorClass: OutboundProviderErrorClass,
   ): Promise<void> => {
     await recordOperatorFailureIncident({
       direction: 'outbound_delivery_provider',

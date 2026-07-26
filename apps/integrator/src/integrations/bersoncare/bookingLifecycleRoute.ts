@@ -206,7 +206,15 @@ async function sendLinkedChannelMessage(input: {
   });
   const fetched = await deliveryTargets.getTargetsByPhone(input.phoneNormalized);
   const bindings = fetched?.channelBindings;
-  if (!bindings) return;
+  if (!bindings) {
+    // D-b: пустая аудитория не бывает тихим успехом. Счётчик живёт в webapp и отсюда
+    // недостижим, поэтому здесь оставлен структурированный след с тем же именем события.
+    logger.warn(
+      { scope: 'notification_delivery', event: 'notification_audience_empty', topic: 'booking_linked_channel_message', severity: 'user_facing' },
+      'booking confirmation had no delivery target',
+    );
+    return;
+  }
 
   if (typeof bindings.telegramId === 'string' && bindings.telegramId.trim()) {
     await input.dispatchPort.dispatchOutgoing({
@@ -303,7 +311,13 @@ async function scheduleBookingReminders(input: {
       })
     : null;
   const bindings = fetched?.channelBindings;
-  if (!bindings) return;
+  if (!bindings) {
+    logger.warn(
+      { scope: 'notification_delivery', event: 'notification_audience_empty', topic: 'booking_reminder_scheduling', severity: 'user_facing', reason: 'no_bindings' },
+      'appointment reminders not scheduled: no delivery target',
+    );
+    return;
+  }
 
   const targets: Array<{ resource: string; address: Record<string, unknown> }> = [];
   if (typeof bindings.telegramId === 'string' && bindings.telegramId.trim()) {
@@ -312,7 +326,13 @@ async function scheduleBookingReminders(input: {
   if (typeof bindings.maxId === 'string' && bindings.maxId.trim()) {
     targets.push({ resource: 'max', address: maxUserRecipient(bindings.maxId.trim()) });
   }
-  if (targets.length === 0) return;
+  if (targets.length === 0) {
+    logger.warn(
+      { scope: 'notification_delivery', event: 'notification_audience_empty', topic: 'booking_reminder_scheduling', severity: 'user_facing', reason: 'no_messenger_binding' },
+      'appointment reminders not scheduled: resolvable phone but no messenger binding',
+    );
+    return;
+  }
 
   const startMs = Date.parse(input.slotStartIso);
   if (!Number.isFinite(startMs)) return;

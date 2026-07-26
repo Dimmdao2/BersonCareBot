@@ -29,6 +29,10 @@ import {
   observeTenantIsolationDiagnostics,
   observeTenantIsolationRuntimeCounters,
 } from "@/modules/operator-health/tenantIsolationCriticalHealth";
+import {
+  readEmptyAudienceSignal,
+  readOperatorHeartbeatVerdicts,
+} from "@/app-layer/health/deliveryHeartbeatObserver";
 
 const INTEGRATOR_TIMEOUT_MS = 8_000;
 
@@ -166,6 +170,12 @@ async function collectCriticalHealthSignalsBase(
     read.listWebhookBurstSignals(WEBHOOK_BURST_WINDOW_MINUTES, WEBHOOK_BURST_MIN_COUNT),
     read.listOpenIncidents(100),
   ]);
+  // D-d/D-b: пульс и счётчик пустой аудитории собираются best-effort — их собственный сбой
+  // не имеет права ослепить остальную часть тика.
+  const [heartbeats, emptyAudience] = await Promise.all([
+    readOperatorHeartbeatVerdicts().catch(() => []),
+    readEmptyAudienceSignal().catch(() => undefined),
+  ]);
   const outboundProviderIncidents = operatorIncidents.filter(
     (incident) => incident.direction === "outbound_delivery_provider",
   );
@@ -178,6 +188,13 @@ async function collectCriticalHealthSignalsBase(
       deadTotal: outgoingDelivery.deadTotal,
       dueBacklog: outgoingDelivery.dueBacklog,
     },
+    deliveryEvidence: {
+      confirmedDeliveries: outgoingDelivery.confirmedSentLast24h,
+      lastConfirmedDeliveryAt: outgoingDelivery.lastSentAt,
+      oldestUnsentAgeSeconds: outgoingDelivery.oldestDueAgeSeconds,
+    },
+    heartbeats,
+    ...(emptyAudience ? { emptyAudience } : {}),
     outboundDeliveryProvider: {
       recentIncidentCount: countRecentOutboundProviderFailureIncidents(operatorIncidents),
       openIncidentCount: outboundProviderIncidents.length,

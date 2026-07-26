@@ -6,6 +6,7 @@ import {
 } from "./adminIncidentAlertConfig";
 import { dispatchOperatorAlert } from "@/modules/operator-alerts/dispatchOperatorAlert";
 import { adminIncidentTopicToAlertBlock } from "@/modules/operator-alerts/operatorHealthAlertConfig";
+import { reportEmptyAudience } from "@/modules/operator-alerts/emptyAudienceRuntime";
 
 /**
  * Best-effort relay to admin Telegram/Max lists and staff web push per `operator_health_alert_config`.
@@ -17,7 +18,16 @@ export async function sendAdminIncidentRelayAlert(input: {
   lines: string[];
 }): Promise<void> {
   const block = adminIncidentTopicToAlertBlock(input.topic);
-  if (!block) return;
+  if (!block) {
+    // D-b, та же форма на уровень выше: тема инцидента без сопоставленного блока
+    // роняла ВЕСЬ админский алерт до того, как будет опрошен хоть один канал.
+    await reportEmptyAudience({
+      topic: `admin_incident_unmapped:${input.topic}`,
+      severity: "operational",
+      channels: [],
+    });
+    return;
+  }
 
   await dispatchOperatorAlert({
     block,

@@ -14,6 +14,7 @@ import {
   type OperatorHealthAlertConfig,
 } from "./operatorHealthAlertConfig";
 import { getOperatorAlertDedupPort } from "./operatorAlertRuntime";
+import { reportEmptyAudience } from "./emptyAudienceRuntime";
 
 const MAX_LINE = 500;
 const DEDUP_HOURS = 24;
@@ -242,6 +243,21 @@ export async function dispatchOperatorAlert(input: DispatchOperatorAlertInput): 
 
   if (dedupPort && usesFlatDedup && anyChannelAttempted) {
     await dedupPort.recordSent({ dedupKey: dk, severity: input.block });
+  }
+
+  if (!anyChannelAttempted) {
+    // D-b: сам диспетчер алертов не имеет права молча вернуть «некому». Это корневой
+    // маршрут (mandatory top-level route у Alertmanager, «Default Policy can't be deleted»
+    // у Grafana): пусто → считаем, логируем и уводим в env-fallback, который из админки
+    // не отключается. Рекурсии нет: репортер не зовёт `dispatchOperatorAlert`.
+    await reportEmptyAudience({
+      topic: `operator_alert:${input.topic}`,
+      severity: "operational",
+      channels: Object.entries(channels)
+        .filter(([, enabled]) => enabled)
+        .map(([name]) => name),
+      context: { block: input.block },
+    });
   }
 
   return { dispatched: anyChannelAttempted, reason: anyChannelAttempted ? undefined : "no_recipients" };

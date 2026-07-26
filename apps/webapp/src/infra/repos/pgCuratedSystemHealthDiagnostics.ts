@@ -57,6 +57,7 @@ const queueSchema = z
     reminderProcessingCount: nonNegativeNumber.optional(),
     oldestProcessingAgeSeconds: nonNegativeNumber.nullable().optional(),
     lastSentAt: nullableIso.optional(),
+    confirmedSentLast24h: nonNegativeNumber.optional(),
     lastQueueActivityAt: nullableIso,
   })
   .strict();
