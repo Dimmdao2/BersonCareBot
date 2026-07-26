@@ -6,6 +6,29 @@
 SELECT 1 / 0 AS e1_webapp_runtime_role_missing;
 \endif
 
+-- Non-destructive quarantine for a replay against an already-populated saas_isolation_events
+-- (post-restore/rehydration; the fresh-migration case starts with an empty table and this is a
+-- no-op). 0193/0194/0201/0202 below each re-run their OWN
+-- ALTER TABLE ... ADD CONSTRAINT saas_isolation_events_source_operation_check, and each list is a
+-- strict subset of the next (0193 subset 0194 subset 0201 subset 0202 = the final vocabulary that
+-- deploy/postgres/saas-isolation-telemetry.sql re-asserts after this whole chain). A row reported
+-- under an operation family that only a LATER file in this chain allows (for example
+-- ('webapp','auth_role_config'), first allowed at 0201) already legitimately exists in a
+-- rehydrated table and makes 0193's own narrower ADD CONSTRAINT fail outright before the chain
+-- ever reaches the file that would have accepted it. Move every current row aside for the
+-- duration of the replay and restore it once the chain reaches its final, widest state: every row
+-- already in this table was written by app.report_saas_isolation_event under whatever constraint
+-- was active at the time, so it is guaranteed to satisfy the (monotonically wider) final
+-- constraint again.
+CREATE TEMP TABLE saas_isolation_events_e1_quarantine AS
+  TABLE public.saas_isolation_events WITH NO DATA;
+CREATE TEMP TABLE saas_isolation_event_hourly_e1_quarantine AS
+  TABLE public.saas_isolation_event_hourly WITH NO DATA;
+INSERT INTO saas_isolation_events_e1_quarantine SELECT * FROM public.saas_isolation_events;
+INSERT INTO saas_isolation_event_hourly_e1_quarantine SELECT * FROM public.saas_isolation_event_hourly;
+-- ON DELETE CASCADE already empties saas_isolation_event_hourly; the hourly rows were copied above.
+DELETE FROM public.saas_isolation_events;
+
 \ir ../../apps/webapp/db/drizzle-migrations/0193_e1_safe_runtime_config.sql
 \ir ../../apps/webapp/db/drizzle-migrations/0194_e1_patient_identity_exception.sql
 \ir ../../apps/webapp/db/drizzle-migrations/0195_e1_patient_maintenance_history.sql
@@ -20,6 +43,13 @@ SELECT 1 / 0 AS e1_webapp_runtime_role_missing;
 \ir ../../apps/webapp/db/drizzle-migrations/0231_admin_email_role_runtime_config.sql
 \ir ../../apps/webapp/db/drizzle-migrations/0234_current_patient_support_activity.sql
 \ir e1-current-patient-organization-entitlements.sql
+
+-- Restore the quarantined rows now that the final (widest) allowed-pair vocabulary from the chain
+-- above is active; every restored row already satisfies it (see quarantine comment above).
+INSERT INTO public.saas_isolation_events SELECT * FROM saas_isolation_events_e1_quarantine;
+INSERT INTO public.saas_isolation_event_hourly SELECT * FROM saas_isolation_event_hourly_e1_quarantine;
+DROP TABLE saas_isolation_events_e1_quarantine;
+DROP TABLE saas_isolation_event_hourly_e1_quarantine;
 
 GRANT SELECT ON TABLE
   public.app_runtime_settings,
