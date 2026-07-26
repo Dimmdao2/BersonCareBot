@@ -183,8 +183,24 @@ finding that has no line here is a QUESTION for the owner, never work (see `docs
 - [ ] **D-1 (D5) Routing by role + an owner-facing matrix**: per notification/error type choose push /
       e-mail / SMS. SMS is mechanism-only for now. Operational alerts get their own channel (the July
       SMTP-quota outage went unnoticed for a day because alerts shared a channel).
-- [ ] **D-2** Support forms (patient + guest) currently send to Telegram ONLY and 503 without it — move to
-      the configured channels **before** the messenger removal.
+- [x] **D-2 DONE 2026-07-26 (`eb62b6544`) — and the defect was worse than this line said.**
+      Both routes (`api/patient/support`, `api/public/support`) hardcoded `ADMIN_TELEGRAM_ID` and relayed
+      to Telegram only: unset id → 503 before anything was attempted, relay failure → 502. **Neither route
+      persisted the submission anywhere** — so a patient's message was not merely undelivered, it was
+      LOST, with only a `reason`/`route` line in the log and no trace of the address or the text.
+      Now: delivery goes through `dispatchOperatorAlert` — the existing config-driven multi-channel
+      mechanism built for operator alerts in `f5ecb6e78`, with a new `"support"` block. Channels are a
+      matter of configuration, so removing Telegram later changes nothing here. When no channel confirms
+      delivery the submission is **persisted** (bounded ring buffer in `operator_job_status`, a table the
+      runtime role already has grants for — deliberately no new table, because the deploy asserts exact
+      per-role privileges and a new grant surface in a shared worktree is how TEST went down on 07-24),
+      and the empty-audience alert fires on its own, so the gap is visible without anyone polling a queue.
+      The user now always sees «Сообщение получено», never a 5xx.
+      **This unblocks E-1** — cutting Telegram and MAX no longer kills support.
+      Worker's own flagged compromise, recorded rather than hidden: persisting into
+      `operator_job_status.meta_json` is the smallest safe addition, not the proper dedicated table the
+      full support design (`ADMIN_BASELINE_AND_SUPPORT_CHAT_DESIGN.md`) describes. No operator-facing
+      list screen exists — that is the natural next increment if wanted.
 - [ ] **D-3** PWA + push for the global admin (pre-production list).
 
 ## E. Messengers
