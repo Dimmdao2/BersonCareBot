@@ -9,6 +9,7 @@ import {
   readSaasTestFixturePacket,
   resolveDeployGroupId,
 } from '../../../deploy/host/saas-test-fixture-packet.mjs';
+import { logServerRuntimeError } from '@/infra/logging/serverRuntimeLog';
 import * as schema from '../db/schema';
 
 const REQUIRED_DATABASE = 'bersoncarebot_test';
@@ -2251,8 +2252,13 @@ export async function runSaasTestFixtureCli(options: {
     await run(options.env);
     return 0;
   } catch (error) {
-    const detail = error instanceof Error ? (error.stack ?? error.message) : String(error);
-    writeError(`[saas-test-fixture] FAILED: ${detail}\n`);
+    // Never write the raw thrown error to stderr: it can carry SQL text and bound
+    // parameters (e.g. a failing query naming password_hash). Log a safe, value-free
+    // summary plus a correlation digest via the shared runtime-error logger (OWASP
+    // ASVS V7 / CWE-209), and keep the CLI's own stderr contract to a bare, stable
+    // failure line so operators get a diagnosable digest without a secret-leak vector.
+    logServerRuntimeError('saas-test-fixture-cli', error);
+    writeError(`[saas-test-fixture] FAILED\n`);
     return 1;
   }
 }
