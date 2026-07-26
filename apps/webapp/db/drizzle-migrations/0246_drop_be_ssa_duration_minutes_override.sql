@@ -21,11 +21,20 @@
 -- (db/schema/bookingEngine.ts), the zod input schema and write path
 -- (src/app/api/admin/booking-engine/availability/route.ts), the port/type contracts
 -- (src/modules/booking-engine/{ports,types}.ts) and every write site in
--- src/infra/repos/pgBookingEngine.ts are updated in the same commit set. After this migration,
--- `grep -rn "durationMinutesOverride|duration_minutes_override" apps/webapp/src apps/webapp/db`
--- is empty except this file and the original creation migration
+-- src/infra/repos/pgBookingEngine.ts are updated in the same commit set.
+--
+-- THIRD READER, outside src/ and db/ -- do not miss it on a re-audit: a raw-SQL CTE in
+-- apps/webapp/scripts/seed-saas-test-walkthrough-fixtures.ts (~:1980-2001) computed slot ends as
+-- `wh.end_minute - COALESCE(ssa.duration_minutes_override, svc.duration_minutes)`. It is updated to
+-- `svc.duration_minutes` in the same commit set. Recorded explicitly because a reviewer who greps
+-- only apps/webapp/src + apps/webapp/db will not see it and will wrongly conclude the sweep was
+-- complete. Grep the WHOLE repo, not those two directories.
+--
+-- After this migration, `grep -rn "durationMinutesOverride|duration_minutes_override"` over the
+-- whole repository is empty except this file, the original creation migration
 -- (0086_booking_engine_canonical.sql, left as historical record per this repo's "do not hand-edit
--- existing migrations" convention).
+-- existing migrations" convention), and the archived pg_dump snapshots under
+-- docs/ARCHITECTURE/DB_DUMPS/ (generated historical artifacts, not live schema sources).
 --
 -- NO INDEX TO DROP: the column was never indexed (see db-migrations-hot-column-indexes.mdc --
 -- this rule is about adding indexes on hot columns, not relevant to a drop) and carried no CHECK
