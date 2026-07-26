@@ -205,21 +205,30 @@ finding that has no line here is a QUESTION for the owner, never work (see `docs
 
 ## E. Messengers
 
-- [ ] **E-1** Cut Telegram from the RU build (legal) — and MAX too («MAX тоже нахер пока»). Order matters:
-      support forms first, then the reversible runtime kill-switch, then code, then data. `telegram_state`
-      is shared with MAX — with both going, it retires wholesale.
-      **🔴 AMENDED 2026-07-26 — do NOT retire MAX wholesale.** Owner: «возможно вернем еще макс как способ
-      входа». Cutting a messenger as a **delivery channel** is not the same decision as cutting it as an
-      **identification method**; the legal reason for the first does not automatically carry to the second.
-      So the «retires wholesale» line above is superseded: the MAX **binding/auth** surface must survive
-      even if MAX message delivery is switched off. Deleting it and rebuilding later is pure waste.
-      Whether MAX is actually a permitted identification route is part of the live legal question
-      (taskdb #1034, research in flight): MAX is tied to Russian phone numbers by construction, so if the
-      law does require a Russian number / ЕСИА / another qualified means, MAX login may satisfy it
-      transitively. **Do not start E-1's code or data phases until that returns** — the kill-switch and
-      the support-form migration (D-2, done) are safe to keep, the deletion is not.
-      Support forms no longer depend on Telegram (`eb62b6544`), so the prerequisite is met and only the
-      irreversible half is blocked.
+- [x] **E-1 — CANCELLED 2026-07-26 by the owner. Nothing is cut; both stay, switchable.**
+      Owner, verbatim: «тг мы не вырезаем тогда, оставляем просто отключаемым в настройках» — and earlier,
+      that MAX may come back as a login method. So the original instruction («MAX тоже нахер пока») is
+      **superseded**: no kill-switch to build, no code to delete, no `telegram_state` retirement, no data
+      migration. Everything this item asked for already exists and was verified working today.
+      **Verified live 2026-07-26** (`90cd8cf22`): the four «Доступные способы входа» toggles
+      (`auth_email_enabled`, `auth_sms_enabled`, `auth_telegram_enabled`, `auth_max_enabled`) each block
+      the **server-side** login path before any send or session creation — not merely hide a button, so
+      they cannot be bypassed by posting straight to the endpoint. Disabled channels are also absent from
+      the login UI, fail-closed if the policy fetch is missing.
+      **Login and delivery are genuinely separate axes in the code**, which is what makes the owner's
+      position workable: the login gate is the `system_settings` toggle; the delivery gate is the env
+      (`MAX_ENABLED`, `TELEGRAM_BOT_TOKEN`, `SMSC_ENABLED`) consumed only when building dispatch adapters.
+      `max-init` never touches the dispatch layer. So messenger delivery can be off while messenger login
+      stays on, with nothing to change.
+      Gap found and closed: three login routes had **no test** proving the disabled-channel gate — the code
+      was right but the protection rested on a fail-open default. Now asserted.
+      Market context that also removes the urgency (research 2026-07-26): Russian clinics have **not** left
+      Telegram — a Naumen study of 23 major chains, Apr–Jun 2026, found half still use it despite fines, with
+      MAX growing fastest but not dominant. Cutting both would have been **stricter than the market**, not
+      catching up to it.
+      Remaining, and unchanged: the legal restriction is about **what content** travels over a foreign
+      messenger, not about having the channel at all — see D-1/#913 for the field-level matrix.
+
 - [ ] **E-2** Bot-token plaintext in `system_settings` retires with the bot.
 - [ ] **E-3** Pre-production: message the messenger-only accounts while the bots still work.
 
