@@ -5,7 +5,6 @@
  */
 import { createHmac } from 'node:crypto';
 import { integratorWebappEntrySecret } from '../config/env.js';
-import { telegramConfig } from './telegram/config.js';
 
 type WebappEntryTokenPayload = {
   sub: string;
@@ -35,17 +34,30 @@ function sign(value: string, secret: string): string {
   return createHmac('sha256', secret).update(value).digest('base64url');
 }
 
+/**
+ * C-4 (docs/ARCHITECTURE/ADMIN_ACCESS_MODEL.md): this token's `role` is the only input to
+ * `INSERT INTO platform_users(..., role)` for a channel binding that does not resolve to an
+ * existing account yet (webapp's `pgIdentityResolution.ts:findOrCreateByChannelBinding`, called
+ * from `exchangeIntegratorToken`) — so whatever this function returns for a brand-new person
+ * becomes their persisted role. It used to return 'admin' when the Telegram chat id matched
+ * `TELEGRAM_ADMIN_ID` (an env-resident single-id admin list, same shape/risk as the seven
+ * DB-resident allowlists closed by C-4's main change): a stranger whose chat id happened to sit
+ * in that env value could self-register into admin. Always 'client' now, for both channels — an
+ * existing DB-persisted staff role is untouched either way, because `exchangeIntegratorToken`
+ * composes the result through `reconcileDbRoleWithEnvRole` (webapp/envRole.ts), which can only
+ * ever preserve or promote-from-nothing, never demote. `TELEGRAM_ADMIN_ID` is still legitimately
+ * read elsewhere (bot behavior: which admin chat to notify, which content/audience a script picks —
+ * see buildAdminFacts in telegram/webhook.ts) — this function is the one privilege-granting use, and
+ * only this use is removed.
+ */
 function resolveRoleAndBindings(params: WebappEntrySource): {
   role: WebappEntryTokenPayload['role'];
   sub: string;
   bindings: NonNullable<WebappEntryTokenPayload['bindings']>;
 } {
   if (params.source === 'telegram') {
-    const isAdmin =
-      typeof telegramConfig.adminTelegramId === 'number' &&
-      params.chatId === telegramConfig.adminTelegramId;
     return {
-      role: isAdmin ? 'admin' : 'client',
+      role: 'client',
       sub: `tg:${params.chatId}`,
       bindings: { telegramId: String(params.chatId) },
     };

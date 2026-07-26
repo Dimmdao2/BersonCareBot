@@ -58,8 +58,14 @@ function buildWebappEntryToken(params: {
   return `${payload}.${sig}`;
 }
 
-describe("exchangeIntegratorToken — роли по telegramId (I.4)", () => {
-  it("ADMIN_TELEGRAM_ID → session.user.role === admin", async () => {
+// C-4 (2026-07-26, docs/ARCHITECTURE/ADMIN_ACCESS_MODEL.md): these three cases used to prove the
+// opposite — that ADMIN_TELEGRAM_ID/DOCTOR_TELEGRAM_IDS env allowlists promoted a brand-new session
+// to admin/doctor. That promotion is exactly the hole C-4 closed (resolveRoleAsync/resolveRoleFromEnv
+// in envRole.ts now unconditionally return "client"); these ids are asserted here to prove they no
+// longer do anything, not that they still work. Left in the mocked env (rather than deleted) so a
+// future regression that makes envRole read them again is caught by this same file.
+describe("exchangeIntegratorToken — роли по telegramId (C-4: env id lists never promote)", () => {
+  it("ADMIN_TELEGRAM_ID no longer promotes a new session to admin", async () => {
     cookieSet.mockClear();
     const token = buildWebappEntryToken({
       sub: "platform-user-admin-tg",
@@ -68,13 +74,13 @@ describe("exchangeIntegratorToken — роли по telegramId (I.4)", () => {
     });
     const result = await exchangeIntegratorToken(token);
     expect(result).not.toBeNull();
-    expect(result!.session.user.role).toBe("admin");
-    expect(result!.redirectTo).toBe(getRedirectPathForRole("admin"));
+    expect(result!.session.user.role).toBe("client");
+    expect(result!.redirectTo).toBe(getRedirectPathForRole("client"));
     expect(result!.setMessengerPlatformCookie).toBe(true);
     expect(cookieSet).toHaveBeenCalled();
   });
 
-  it("DOCTOR_TELEGRAM_IDS → session.user.role === doctor (токен с role client)", async () => {
+  it("DOCTOR_TELEGRAM_IDS no longer promotes a new session to doctor", async () => {
     cookieSet.mockClear();
     const token = buildWebappEntryToken({
       sub: "platform-user-doc-tg",
@@ -83,8 +89,8 @@ describe("exchangeIntegratorToken — роли по telegramId (I.4)", () => {
     });
     const result = await exchangeIntegratorToken(token);
     expect(result).not.toBeNull();
-    expect(result!.session.user.role).toBe("doctor");
-    expect(result!.redirectTo).toBe(getRedirectPathForRole("doctor"));
+    expect(result!.session.user.role).toBe("client");
+    expect(result!.redirectTo).toBe(getRedirectPathForRole("client"));
     expect(result!.setMessengerPlatformCookie).toBe(true);
     expect(cookieSet).toHaveBeenCalled();
   });
