@@ -1,5 +1,23 @@
 # Execution log
 
+## 2026-07-27 — owner ruling: split media storage first, encryption only afterwards and only for patient data
+
+- Owner asked directly whether 152-ФЗ requires encrypting exercise videos and patient appointment videos, and
+  whether consent is sufficient instead. Two independent research passes against primary sources answered:
+  encryption at rest is **not** a legal requirement at either level (Приказ ФСТЭК №21 п.1 excludes cryptography
+  from its scope; СКЗИ under Приказ ФСБ №378 apply only when the operator's own threat model requires them;
+  the level here is УЗ-3 under ПП №1119 and its baseline is met by access control, logging and media accounting).
+  Exercise demo video is ordinary PD of the person in frame, not a special category. Patient clinical video is a
+  special category (ст. 10) plus medical secrecy (ФЗ-323 ст. 13), but is **not** biometric data while the operator
+  does not use it to establish identity (Роскомнадзор letters 08-78032 of 2022-08-29 and 62450-02-11/77 of
+  2024-08-01). Consent is the legal basis (ст. 10) and does **not** substitute for the security duty (ст. 19) —
+  but that duty does not itself demand encryption.
+- Owner ruling, verbatim: «разделить хранилища, а не шифровать всё - вот это уже дело». Recorded into
+  `stages/CRYPTO-01_DATA_AND_KEY_ENCRYPTION.md` §C2 in was→now→why form. C2 now leads with a storage split
+  (content library vs patient clinical files, leaning on the existing `media_files` / `patient_files` table
+  split) and treats encryption as a risk decision applied only to the patient store.
+- Not changed: no code, no bucket, no DB, no deploy, no TEST/PROD action. Documentation only.
+
 ## 2026-07-22 — current owner/legal action register reconciled
 
 - `OWNER_ACTIONS.md` §0 now separates inputs needed now, inputs needed only before their stage, lawyer/PDn decisions,
