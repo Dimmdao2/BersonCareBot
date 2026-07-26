@@ -43,9 +43,22 @@ finding that has no line here is a QUESTION for the owner, never work (see `docs
       or expose 2-3 accessors returning scalars not rows (PostgREST `basic_auth` shape); split PII satellite
       (GDPR Art. 4(5)). Must keep ~40 pre-auth read sites and ~8 pre-auth write sites working. Same class:
       `appointment_records`, `patient_bookings` (no `organization_id` at all).
-- [ ] **A-5 (#1006) Bootstrap-principal reads — the whole class.** 15 800 denials in the retained window.
-      Two pages fixed (`19f52fed2`); the rest is open. Needs a full sweep plus a MECHANICAL gate so it fails
-      in tests, not in production.
+- [x] **A-5 (#1006) Bootstrap-principal reads — swept, gated** (`bf7e951f7`), pending independent audit.
+      **The class was far smaller than the denial count implied, and the count was misleading.** Census: 173
+      page/layout entries, 88 read the DB in their own scope, **87 already stamped a principal, exactly 1 did
+      not** — now fixed. Server actions swept too: 0 unstamped. Route handlers are outside the class by
+      construction (a route is the root of its own async context; nothing above it to fail to inherit from).
+      The 15 800 `system_settings` denials come from **5 genuinely public pages** whose config read
+      (`modules/system-settings/configAdapter.ts::getConfigValue`) catches the denial and falls back to env —
+      they never 500; they log once per anonymous request. Fixing that noise properly IS item A-2, not this
+      one. Gate: `app-layer/principal/pagePrincipalCensus.test.ts`, copied from the repo's existing
+      source-scanning census tests, proven to FAIL when either fix is reverted. Three stale frozen-count
+      gates repaired in passing (my attribution of the breakage was wrong — it was `1561246d8`, not
+      `ad9db8266`, and `ad9db8266` broke two different assertions).
+      Escalated, not fixed: **#1009** — `/app/doctor/admin/booking` is 308-redirected for every request with
+      no role check, so it is unreachable while still counted as a live surface, AND neither sanctioned
+      principal shape fits its booking-engine read. **#1008** — 26 `api/integrator/*` handlers read the DB
+      expressing no principal at all.
 - [ ] **A-6 (#1007) Cross-tenant writes to shared dictionaries.** Any clinic's doctor can mutate a global
       dictionary for every tenant. Check the same class on all platform-owned catalogues.
 
