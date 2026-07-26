@@ -47,11 +47,32 @@ export type SaveOrgBrandDraftInput = {
   logoMediaId: string | null;
 };
 
+/** Raw fields behind the anonymous-safe public projection (see `getPublicProjection` below). */
+export type PublicOrgBrandProjection = {
+  organizationId: string;
+  /** `be_organizations.title` — always present when the projection resolves at all. */
+  coreDisplayName: string;
+  /** Paid override from the PUBLISHED revision only; `null` when none is published. */
+  brandDisplayName: string | null;
+  logoMediaId: string | null;
+  logoMediaReady: boolean;
+};
+
 export type OrgBrandingPort = {
   /** Core organization context; `null` only when the organization row is not readable/does not exist. */
   getCoreContext(organizationId: string): Promise<CoreOrganizationContext | null>;
   getPublishedRevision(organizationId: string): Promise<OrgBrandRevision | null>;
   getDraftRevision(organizationId: string): Promise<OrgBrandRevision | null>;
+  /**
+   * Anonymous public-page read (owner ruling 2026-07-26: branding must be as public as the clinic's
+   * public page itself). Backed by the narrow SECURITY DEFINER accessor
+   * `app.read_public_org_brand_projection` (migration 0243) — NOT by `getCoreContext` /
+   * `getPublishedRevision`, whose RLS policies require a staff or enrolled-patient principal and
+   * return nothing for an anonymous visitor. Returns `null` when the organization is inactive or
+   * has not published a `clinic_public_directory_entries` row — the identical predicate
+   * `/book/{slug}` itself requires. Draft and archived revisions are never visible through this path.
+   */
+  getPublicProjection(organizationId: string): Promise<PublicOrgBrandProjection | null>;
   /**
    * Creates or updates the single draft revision of this organization. Rejects a logo that is not
    * owned by the same organization with `org_brand_logo_media_must_be_owned_by_organization`

@@ -1702,6 +1702,13 @@
       "when": 1793539200038,
       "tag": "0242_server_runtime_setting_2fa_allowlist",
       "breakpoints": true
+    },
+    {
+      "idx": 243,
+      "version": "7",
+      "when": 1793539200039,
+      "tag": "0243_public_clinic_page_brand_accessor",
+      "breakpoints": true
     }
   ]
 }

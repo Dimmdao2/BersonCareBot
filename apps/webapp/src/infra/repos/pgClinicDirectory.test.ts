@@ -355,4 +355,45 @@ describe('pgClinicDirectory public slug resolver', () => {
     );
     expect(events).toEqual(['organization-lock', 'row-lock', 'row-lock']);
   });
+
+  it('publishes the organization at its current claimed slug, never a caller-supplied one', async () => {
+    const events: string[] = [];
+    const { select } = selectSequence([[{ slug: 'clinic-a' }]], events);
+    const onConflictDoUpdate = vi.fn(async () => undefined);
+    const values = vi.fn(() => ({ onConflictDoUpdate }));
+    const tx = { select, insert: vi.fn(() => ({ values })) };
+    mutationTransactionWithLock(tx, events);
+    const port = createPgClinicDirectoryPort();
+
+    await expect(
+      port.publishOrganization({ organizationId: ORG, displayName: 'Клиника А' }),
+    ).resolves.toEqual({ ok: true, slug: 'clinic-a' });
+    expect(values).toHaveBeenCalledWith(
+      expect.objectContaining({
+        organizationId: ORG,
+        slug: 'clinic-a',
+        displayName: 'Клиника А',
+        isPublished: true,
+      }),
+    );
+    expect(onConflictDoUpdate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        set: expect.objectContaining({ slug: 'clinic-a', displayName: 'Клиника А', isPublished: true }),
+      }),
+    );
+    expect(events).toEqual(['organization-lock', 'plain-read']);
+  });
+
+  it('fails closed when the organization has not claimed an address yet', async () => {
+    const events: string[] = [];
+    const { select } = selectSequence([[]], events);
+    const insert = vi.fn();
+    mutationTransactionWithLock({ select, insert }, events);
+    const port = createPgClinicDirectoryPort();
+
+    await expect(
+      port.publishOrganization({ organizationId: ORG, displayName: 'Клиника А' }),
+    ).resolves.toEqual({ ok: false, code: 'current_slug_not_found' });
+    expect(insert).not.toHaveBeenCalled();
+  });
 });

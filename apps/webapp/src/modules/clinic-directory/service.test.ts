@@ -6,10 +6,13 @@ function buildPort(resolved: string | null): ClinicDirectoryPort {
   return {
     resolveOrganizationIdBySlug: vi.fn(async () => resolved),
     getPublishedSlugForOrganization: vi.fn(async () => null),
+    getCurrentSlugForOrganization: vi.fn(async () => null),
     resolveCanonicalSlug: vi.fn(async () => null),
     reserveSlug: vi.fn(async (input) => ({ ok: true as const, slug: input.slug })),
     claimReservedSlug: vi.fn(async (input) => ({ ok: true as const, slug: input.slug })),
     renameSlug: vi.fn(async (input) => ({ ok: true as const, slug: input.reservedSlug })),
+    publishOrganization: vi.fn(async (input) => ({ ok: true as const, slug: input.organizationId })),
+    unpublishOrganization: vi.fn(async () => ({ ok: true as const })),
   };
 }
 
@@ -117,5 +120,28 @@ describe('clinicDirectoryService', () => {
     await expect(service.resolveCanonicalSlug('../private')).resolves.toBeNull();
     expect(port.resolveCanonicalSlug).toHaveBeenCalledOnce();
     expect(port.resolveCanonicalSlug).toHaveBeenCalledWith('old-clinic');
+  });
+
+  it('trims the display name before publishing, and passes through the current-claim slug', async () => {
+    const port = buildPort(null);
+    const service = createClinicDirectoryService(port);
+    const organizationId = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
+
+    await service.publishOrganization({ organizationId, displayName: '  Клиника А  ' });
+
+    expect(port.publishOrganization).toHaveBeenCalledWith({
+      organizationId,
+      displayName: 'Клиника А',
+    });
+  });
+
+  it('passes unpublish straight through to the port', async () => {
+    const port = buildPort(null);
+    const service = createClinicDirectoryService(port);
+
+    await expect(service.unpublishOrganization('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa')).resolves.toEqual({
+      ok: true,
+    });
+    expect(port.unpublishOrganization).toHaveBeenCalledWith('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa');
   });
 });
