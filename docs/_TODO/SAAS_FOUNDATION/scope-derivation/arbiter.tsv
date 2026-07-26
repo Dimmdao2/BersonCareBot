@@ -35,6 +35,7 @@ content_pages	OTHER	0
 content_section_slug_history	OTHER	0
 content_sections	OTHER	0
 courses	OTHER	0
+email_otp_locks	OTHER	0
 integration_webhook_error_events	OTHER	0
 integration_webhook_last_status	OTHER	0
 lfk_complex_template_exercises	OTHER	0

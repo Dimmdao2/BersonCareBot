@@ -8,7 +8,7 @@
 -- table got SELECT-only vs a write grant, and which BOOTSTRAP tables were deliberately excluded).
 --
 -- Purpose:
---   - app_staff: the reviewed P0.5b runtime DML surface -- 213 tables (SCOPED +
+--   - app_staff: the reviewed P0.5b runtime DML surface -- 214 tables (SCOPED +
 --     BOOTSTRAP + INFRA + LEGACY + TELEMETRY, excluding migration bookkeeping and post-P0.5b tables
 --     whose dedicated overlays own their grants).
 --   - app_patient: ONLY the patient-facing surface -- 109 tables (the patient-owned
@@ -160,6 +160,7 @@ VALUES
   ('public', 'doctor_notes'),
   ('public', 'doctor_patient_support'),
   ('public', 'email_challenges'),
+  ('public', 'email_otp_locks'),
   ('public', 'email_send_cooldowns'),
   ('public', 'idempotency_keys'),
   ('public', 'integration_webhook_error_events'),
@@ -585,5 +586,5 @@ SELECT (NOT pg_has_role('app_patient', 'app_staff', 'MEMBER'))::int AS p0_5b_gra
 SELECT 1 / 0 AS p0_5b_grants_abort;
 \endif
 
-\echo 'P0.5b grants UP complete: app_staff 213 tables, app_patient 109 tables.'
+\echo 'P0.5b grants UP complete: app_staff 214 tables, app_patient 109 tables.'
 \endif

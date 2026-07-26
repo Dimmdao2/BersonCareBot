@@ -109,6 +109,7 @@ public\tcourses\t\t0
 public\tdoctor_notes\tauthor_id,user_id\t0
 public\tdoctor_patient_support\tpatient_user_id\t0
 public\temail_challenges\tuser_id\t0
+public\temail_otp_locks\t\t0
 public\temail_send_cooldowns\tuser_id\t0
 public\tidempotency_keys\t\t0
 public\tintegration_webhook_error_events\t\t0

@@ -38,6 +38,7 @@ INFRA|integrator.projection_outbox
 INFRA|integrator.schema_migrations
 INFRA|public.auth_rate_limit_events
 INFRA|public.clinical_test_measure_kinds
+INFRA|public.email_otp_locks
 INFRA|public.idempotency_keys
 INFRA|public.integration_webhook_error_events
 INFRA|public.integration_webhook_last_status

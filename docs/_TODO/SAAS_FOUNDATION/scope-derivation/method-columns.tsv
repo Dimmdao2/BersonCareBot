@@ -75,6 +75,7 @@ courses		0	0
 doctor_notes	user_id	0	0
 doctor_patient_support	patient_user_id	0	0
 email_challenges	user_id	0	0
+email_otp_locks		0	0
 email_send_cooldowns	user_id	0	0
 idempotency_keys		0	0
 integration_webhook_error_events		0	0

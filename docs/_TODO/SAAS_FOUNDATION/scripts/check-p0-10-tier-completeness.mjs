@@ -14,7 +14,7 @@ const paths = {
 
 const expectedTierCounts = Object.freeze({
   BOOTSTRAP: 30,
-  INFRA: 26,
+  INFRA: 27,
   LEGACY: 9,
   SCOPED: 162,
   TELEMETRY: 5,
