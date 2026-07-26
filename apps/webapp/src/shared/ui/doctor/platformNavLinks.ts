@@ -20,32 +20,34 @@ import { isDoctorMenuLinkVisible } from "@/shared/ui/doctor/doctorNavLinks";
 
 /**
  * Slice 1 (PLAT-01…09) moved `system-health` to `/app/platform/system-health`. Slice 2 moved
- * `health-archive` and `audit-log` alongside it. Slice 3 moves `commercial`. The remaining entries
- * still live at their historical `/app/doctor/*` locations — slices 4-7 move the pages and update
- * these hrefs then. No label collided once un-nested; every entry below kept its original label.
+ * `health-archive` and `audit-log` alongside it. Slice 3 moved `commercial`. Slice 4 moves the
+ * whole `admin/*` subtree (app-settings, auth, booking, integrations, technical). Slices 5-7 move
+ * the rest and update these hrefs then. No label collided once un-nested; every entry below kept
+ * its original label.
  */
 const RAW_PLATFORM_MENU_ITEMS: DoctorMenuLinkItem[] = [
   { id: "analytics", label: "Аналитика", href: "/app/doctor/analytics", accessTier: "global_admin" },
   // Moved in slice 3.
   { id: "commercial", label: "Тарифы и триал", href: "/app/platform/commercial", accessTier: "global_admin" },
+  // Moved in slice 4.
   {
     id: "admin-app-settings",
     label: "Настройки приложения",
-    href: "/app/doctor/admin/app-settings",
+    href: "/app/platform/admin/app-settings",
     accessTier: "global_admin",
   },
-  { id: "admin-auth", label: "Авторизация", href: "/app/doctor/admin/auth", accessTier: "global_admin" },
-  { id: "admin-booking", label: "Бронирование", href: "/app/doctor/admin/booking", accessTier: "global_admin" },
+  { id: "admin-auth", label: "Авторизация", href: "/app/platform/admin/auth", accessTier: "global_admin" },
+  { id: "admin-booking", label: "Бронирование", href: "/app/platform/admin/booking", accessTier: "global_admin" },
   {
     id: "admin-integrations",
     label: "Интеграции",
-    href: "/app/doctor/admin/integrations",
+    href: "/app/platform/admin/integrations",
     accessTier: "global_admin",
   },
   {
     id: "admin-technical",
     label: "Технические режимы",
-    href: "/app/doctor/admin/technical",
+    href: "/app/platform/admin/technical",
     accessTier: "global_admin",
   },
   // Moved in slice 1.

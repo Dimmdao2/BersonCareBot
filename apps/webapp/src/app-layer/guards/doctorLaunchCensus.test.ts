@@ -45,7 +45,22 @@ const launchManifest: readonly LaunchManifestEntry[] = [
   { route: "analytics/clients/page.tsx", launchClass: "platform", capability: "platform-operations", objectPolicy: "platform-config" },
   { route: "analytics/notifications/page.tsx", launchClass: "platform", capability: "platform-operations", objectPolicy: "platform-config" },
   // audit-log and health-archive moved to app/platform/ in slice 2 (PLAT-01…09); system-health
-  // moved in slice 1, commercial in slice 3 — see newPlatformLaunchManifest.
+  // moved in slice 1, commercial in slice 3, the whole admin/* subtree in slice 4 — see
+  // newPlatformLaunchManifest.
+];
+
+/**
+ * PLAT-01…09: the platform shell's own route tree, disjoint from `(global-admin)/doctor/`.
+ * Slice 1 (2026-07-26) moved `system-health` here; slice 2 (2026-07-26) adds `health-archive`
+ * and `audit-log`; slice 3 (2026-07-26) adds `commercial`; slice 4 (2026-07-26) adds the whole
+ * `admin/*` subtree (app-settings, auth, booking + its 4 sub-pages, integrations, technical).
+ * Slices 5-7 add the rest of `launchManifest` above as each page physically moves.
+ */
+const newPlatformLaunchManifest: readonly LaunchManifestEntry[] = [
+  { route: "system-health/page.tsx", launchClass: "platform", capability: "platform-operations", objectPolicy: "platform-config" },
+  { route: "health-archive/page.tsx", launchClass: "platform", capability: "platform-operations", objectPolicy: "platform-config" },
+  { route: "audit-log/page.tsx", launchClass: "platform", capability: "platform-operations", objectPolicy: "platform-config" },
+  { route: "commercial/page.tsx", launchClass: "platform", capability: "platform-operations", objectPolicy: "platform-config" },
   { route: "admin/app-settings/page.tsx", launchClass: "platform", capability: "platform-operations", objectPolicy: "platform-config" },
   { route: "admin/auth/page.tsx", launchClass: "platform", capability: "platform-operations", objectPolicy: "platform-config" },
   { route: "admin/booking/catalog/page.tsx", launchClass: "platform", capability: "platform-operations", objectPolicy: "platform-config" },
@@ -55,19 +70,6 @@ const launchManifest: readonly LaunchManifestEntry[] = [
   { route: "admin/booking/payments/page.tsx", launchClass: "platform", capability: "platform-operations", objectPolicy: "platform-config" },
   { route: "admin/integrations/page.tsx", launchClass: "platform", capability: "platform-operations", objectPolicy: "platform-config" },
   { route: "admin/technical/page.tsx", launchClass: "platform", capability: "platform-operations", objectPolicy: "platform-config" },
-];
-
-/**
- * PLAT-01…09: the platform shell's own route tree, disjoint from `(global-admin)/doctor/`.
- * Slice 1 (2026-07-26) moved `system-health` here; slice 2 (2026-07-26) adds `health-archive`
- * and `audit-log`; slice 3 (2026-07-26) adds `commercial`. Slices 4-7 add the rest of
- * `launchManifest` above as each page physically moves.
- */
-const newPlatformLaunchManifest: readonly LaunchManifestEntry[] = [
-  { route: "system-health/page.tsx", launchClass: "platform", capability: "platform-operations", objectPolicy: "platform-config" },
-  { route: "health-archive/page.tsx", launchClass: "platform", capability: "platform-operations", objectPolicy: "platform-config" },
-  { route: "audit-log/page.tsx", launchClass: "platform", capability: "platform-operations", objectPolicy: "platform-config" },
-  { route: "commercial/page.tsx", launchClass: "platform", capability: "platform-operations", objectPolicy: "platform-config" },
 ];
 
 const mutableMediaManifest: readonly LaunchManifestEntry[] = [

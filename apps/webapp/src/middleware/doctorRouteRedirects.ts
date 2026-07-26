@@ -48,6 +48,25 @@ export function doctorRouteRedirectResponse(
     "/app/doctor/audit-log": "/app/platform/audit-log",
     // PLAT-01…09 slice 3 (2026-07-26): commercial (tariffs and trial) moved the same way.
     "/app/doctor/commercial": "/app/platform/commercial",
+    // PLAT-01…09 slice 4 (2026-07-26): the whole admin/* subtree moved the same way — exact-path
+    // entries, not prefixes. Two of these (form-public, payments) now render null; their removal
+    // is an open owner question (OWNER_QUESTIONS_2026-07-26.md #6), not decided here.
+    "/app/doctor/admin/app-settings": "/app/platform/admin/app-settings",
+    "/app/doctor/admin/auth": "/app/platform/admin/auth",
+    // Unlike the OLD "/app/doctor/admin/booking" note above (dated: this map had no entry for it
+    // because a blanket redirect there would have swallowed the page while it still lived at this
+    // URL via the (global-admin) route group), the page has now physically moved to
+    // `/app/platform/admin/booking` and NOTHING serves this literal path any more — there is no
+    // separate specialist-facing page.tsx here (grep-verified: zero page.tsx/layout.tsx anywhere
+    // under `app/doctor/admin/`, only shared components consumed by the platform page above and
+    // by unrelated specialist screens). The role-conflict that blocked a redirect no longer exists.
+    "/app/doctor/admin/booking": "/app/platform/admin/booking",
+    "/app/doctor/admin/booking/catalog": "/app/platform/admin/booking/catalog",
+    "/app/doctor/admin/booking/form-public": "/app/platform/admin/booking/form-public",
+    "/app/doctor/admin/booking/integrations": "/app/platform/admin/booking/integrations",
+    "/app/doctor/admin/booking/payments": "/app/platform/admin/booking/payments",
+    "/app/doctor/admin/integrations": "/app/platform/admin/integrations",
+    "/app/doctor/admin/technical": "/app/platform/admin/technical",
     // Old /clients/ client-card list → new /patients/ card list (old client card removed).
     "/app/doctor/clients": "/app/doctor/patients",
     "/app/doctor/messages": "/app/doctor/communications?tab=chats",
@@ -58,18 +77,12 @@ export function doctorRouteRedirectResponse(
     // Schedule legacy → real page-shell (e12). Tab values align with scheduleTabFromQuery: cal/work/setup.
     "/app/doctor/calendar": "/app/doctor/schedule?tab=cal",
     "/app/doctor/appointments": "/app/doctor/schedule?tab=cal",
-    // NOT redirected: "/app/doctor/admin/booking". It was here, and it swallowed a global-admin
-    // surface (2026-07-26). This map runs in middleware, which has no role information, so the
-    // redirect applied to EVERY caller — including the global admin, for whom that URL is a real
-    // platform page. Its siblings (catalog, form-public, integrations, payments) were never in this
-    // map and stayed reachable; only the index collided. The page carries BookingOverviewPanel and
-    // PlatformLocationPaletteSection, which exist NOWHERE else in the codebase — so nobody could
-    // reach them at all, and the page was silently broken for months without anyone noticing (it is
-    // how the missing-principal bug in it survived).
-    // The role decision belongs in the guard, which has the session: the page calls
-    // requireAdminDoctorPage() -> requirePlatformOperationsPage(), so a caller without
-    // platform.operations is redirected there instead. A specialist following an old bookmark is
-    // still sent somewhere sensible; the global admin now gets the page.
+    // SUPERSEDED by PLAT-01…09 slice 4 (2026-07-26): "/app/doctor/admin/booking" used to be
+    // deliberately NOT redirected here, because this map runs in middleware (no role information)
+    // and the page still lived at that exact URL via the (global-admin) route group — a blanket
+    // redirect would have swallowed it for the one caller (the global admin) it was real for. The
+    // page has now physically moved to /app/platform/admin/booking (see the entry above), so the
+    // old URL has no live handler for anyone and the redirect is safe and present above.
     // Analytics legacy subpages → aggregate page-shell. Tabs align with analyticsTabFromQuery.
     // (material-ratings остаётся отдельным маршрутом — подробная таблица оценок, ссылка из вкладки «Контент».)
     "/app/doctor/analytics/clients": "/app/doctor/analytics?tab=clients",

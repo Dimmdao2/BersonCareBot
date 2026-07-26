@@ -9,13 +9,13 @@ vi.mock("next/navigation", () => ({
   },
 }));
 
-import DoctorAdminBookingIntegrationsPage from "@/app/app/(global-admin)/doctor/admin/booking/integrations/page";
+import DoctorAdminBookingIntegrationsPage from "@/app/app/platform/admin/booking/integrations/page";
 
 describe("DoctorAdminBookingIntegrationsPage", () => {
   beforeEach(() => vi.clearAllMocks());
 
   it("redirects the retired Rubitime settings URL to canonical booking settings", () => {
     expect(() => DoctorAdminBookingIntegrationsPage()).toThrow("NEXT_REDIRECT");
-    expect(redirectMock).toHaveBeenCalledWith("/app/doctor/admin/booking");
+    expect(redirectMock).toHaveBeenCalledWith("/app/platform/admin/booking");
   });
 });

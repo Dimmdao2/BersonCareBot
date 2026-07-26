@@ -68,14 +68,35 @@ describe("doctorRouteRedirectResponse — 308 redirects (old → new URLs)", () 
     );
   });
 
-  it("does NOT redirect /app/doctor/admin/booking — it is a global-admin page, and middleware has no role", () => {
-    // Regression guard. This path used to be in the legacy map, which runs before any session is
-    // resolved, so the 308 applied to the global admin too. That made BookingOverviewPanel and
-    // PlatformLocationPaletteSection — which exist nowhere else — unreachable for everyone, and hid
-    // the fact that the page itself was broken. The role decision now lives in the page's guard
-    // (requireAdminDoctorPage -> requirePlatformOperationsPage), which can actually see the session.
+  it("redirects the whole admin/* subtree to /app/platform/admin/* (PLAT-01…09 slice 4)", () => {
+    const cases: ReadonlyArray<[string, string]> = [
+      ["/app/doctor/admin/app-settings", "/app/platform/admin/app-settings"],
+      ["/app/doctor/admin/auth", "/app/platform/admin/auth"],
+      ["/app/doctor/admin/booking", "/app/platform/admin/booking"],
+      ["/app/doctor/admin/booking/catalog", "/app/platform/admin/booking/catalog"],
+      ["/app/doctor/admin/booking/form-public", "/app/platform/admin/booking/form-public"],
+      ["/app/doctor/admin/booking/integrations", "/app/platform/admin/booking/integrations"],
+      ["/app/doctor/admin/booking/payments", "/app/platform/admin/booking/payments"],
+      ["/app/doctor/admin/integrations", "/app/platform/admin/integrations"],
+      ["/app/doctor/admin/technical", "/app/platform/admin/technical"],
+    ];
+    for (const [from, to] of cases) {
+      const res = doctorRouteRedirectResponse(req(from));
+      expect(res?.status, from).toBe(308);
+      expect(res?.headers.get("location"), from).toBe(`http://localhost${to}`);
+    }
+  });
+
+  it("used to deliberately NOT redirect /app/doctor/admin/booking — now safe, since the page moved (see comment above the entry in doctorRouteRedirects.ts)", () => {
+    // Historical regression guard, updated for PLAT-01…09 slice 4. The base path used to be
+    // excluded from this legacy map, which runs before any session is resolved, because the
+    // global-admin page still lived at this exact URL (via the (global-admin) route group) and a
+    // blanket 308 would have swallowed it for the one caller it was real for. The page has now
+    // physically moved to /app/platform/admin/booking, so nothing serves the old URL for anyone
+    // and the redirect above is correct, not a regression of the original incident.
     const res = doctorRouteRedirectResponse(req("/app/doctor/admin/booking"));
-    expect(res).toBeNull();
+    expect(res?.status).toBe(308);
+    expect(res?.headers.get("location")).toBe("http://localhost/app/platform/admin/booking");
   });
 
   // ── Communications legacy ─────────────────────────────────────────────────

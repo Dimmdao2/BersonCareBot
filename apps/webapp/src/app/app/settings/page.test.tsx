@@ -306,7 +306,8 @@ describe("legacy settings compatibility", () => {
 
   it("keeps historical platform admin-tab redirects", async () => {
     // system-health, health-archive and audit-log moved to /app/platform/* in PLAT-01…09 slices
-    // 1-2 (2026-07-26); the rest of ADMIN_TAB_REDIRECTS still target /app/doctor/* (unmoved so far).
+    // 1-2 (2026-07-26); app-params/auth/integrations/catalog/diagnostics moved the same way in
+    // slice 4. Only product-analytics/reminder-stats still target /app/doctor/analytics (unmoved).
     await expect(SettingsPage({ searchParams: Promise.resolve({ adminTab: "system-health" }) })).rejects.toThrow(
       "redirect:/app/platform/system-health",
     );

@@ -37,11 +37,12 @@ export const ADMIN_TAB_REDIRECTS: Record<string, string> = {
   "audit-log": "/app/platform/audit-log",
   "product-analytics": "/app/doctor/analytics?tab=app",
   "reminder-stats": "/app/doctor/analytics?tab=notifications",
-  "app-params": "/app/doctor/admin/app-settings",
-  auth: "/app/doctor/admin/auth",
-  integrations: "/app/doctor/admin/integrations",
-  catalog: "/app/doctor/admin/booking",
-  diagnostics: "/app/doctor/admin/technical",
+  // PLAT-01…09 slice 4 (2026-07-26): admin/* pages moved to /app/platform/admin/*.
+  "app-params": "/app/platform/admin/app-settings",
+  auth: "/app/platform/admin/auth",
+  integrations: "/app/platform/admin/integrations",
+  catalog: "/app/platform/admin/booking",
+  diagnostics: "/app/platform/admin/technical",
 };
 
 function getValueJson<T>(valueJson: unknown, fallback: T): T {
