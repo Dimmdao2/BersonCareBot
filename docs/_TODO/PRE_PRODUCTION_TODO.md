@@ -51,7 +51,43 @@ The owner approved a one-time global sign-out when the session-revocation work l
 patient 30 d idle; the absolute ceiling numbers are still an open owner question — 7 d/90 d is what the
 2026-07-25 ruling records, and the implementation follows the ruling). On PROD this logs everyone out once.
 
-## 5. Re-count every "affected users" figure against PROD
+## 5. Separate OS users for runtime, deploy and the database host — OWNER-ORDERED
+
+**Owner, 2026-07-26:** «делай. Ты можешь настроить юзеров сам под правами деплоя (на сервере разработки для
+этого ему права и давались)» — authorisation applies to THIS box only. Everything below must be repeated on
+PROD deliberately, and PROD is not touched by any agent.
+
+What has to be reproduced on the production host, in this order:
+1. **A runtime service account with no sudo and no `docker` group** for all five units
+   (`bersoncarebot-{webapp,api,worker,scheduler,media-worker}-prod`, whose unit files today all carry
+   `User=deploy`). On the dev box `deploy` reaches root by four independent paths — three sudo entries plus
+   `docker` group membership with a live daemon — and the `docker` path survives any sudo change.
+2. **A separate deploy identity**, as is already the de-facto case here (the deploy script runs as `dev`).
+   Remove the runtime account's sudo residue once nothing invokes it, and delete the dormant old deploy path
+   rather than leaving it in place.
+3. **Re-own `/opt/env/bersoncarebot/*` and the release trees** to the right accounts, so the runtime account
+   cannot read deploy-only secrets and vice versa. Today one group-readable file holds five secrets.
+4. **The database's own account separation.** PROD `pg_hba` must not carry blanket `local all all peer`, and
+   the postgres superuser must be reachable only through an audited break-glass path.
+5. If the database moves to its own host (the A2 option), the connection becomes private-network + TLS with
+   certificate verification, not `127.0.0.1` and not an SSH tunnel. At that point splitting secrets across
+   files stops being enough and a secret store becomes load-bearing — the owner already noted the link.
+
+Restarts must not come back as unrestricted `sudo systemctl`; use a polkit rule for the named units or a
+fixed-command wrapper.
+
+## 6. Anonymous booking: contact ownership must be proven — OWNER-ORDERED
+
+**Owner ruling, 2026-07-26:** «давай возьмем "всегда просить код или вход"». Every anonymous booking proves
+ownership of the phone/e-mail by one-time code, or comes from a logged-in session, BEFORE the booking is
+confirmed. This is the Zocdoc/Doctolib shape, chosen over the weaker verify-on-collision variant.
+
+Prod-specific consequences: the current code links a booking to an existing person on a bare phone match,
+globally across all clinics, with no possession proof — so the fix changes behaviour for real patients. Plan a
+cutover note and re-count how many production bookings currently arrive by the anonymous path before changing
+it. Tracked as taskdb #1004.
+
+## 7. Re-count every "affected users" figure against PROD
 
 Standing rule rather than a task: every number in the security and Telegram-removal work was measured on a
 DEV/TEST copy. Before any cutover step that touches people, re-run the same query against PROD and record
