@@ -31,12 +31,36 @@ tgcarebot, and holds every database and every secret.
 This subsumes almost everything else in this document: the DB role model, RLS, tenant walls and definer seams
 all assume the attacker does NOT have root.
 
+### A1 addendum, 2026-07-26 — a fourth root path that needs no sudo at all, and a much cheaper fix than expected
+
+**VERIFIED** on the box:
+
+- `id deploy` → `groups=1000(deploy),100(users),990(docker),105(tgcarebot),987(storylama)`, and
+  `systemctl is-active docker` → **active**. Membership of `docker` with a live daemon is root by design
+  (`docker run -v /:/host`), requiring **no sudo entry whatsoever**. Reducing the sudo list therefore does not
+  close A1 on its own — this path survives it. The `tgcarebot` and `storylama` group memberships additionally
+  give the webapp read access to two unrelated projects' files.
+- **All five BCB TEST units run `User=deploy` / `Group=deploy`** — verified with `systemctl cat` on
+  `bersoncarebot-{webapp,api,worker,scheduler,media-worker}-test`. The prod unit files carry the same
+  `User=deploy`.
+- **The deploy actor is NOT `deploy`.** `deploy/host/deploy-test-saas.sh:15` states "Run as user `dev` (uses
+  sudo for postgres/deploy/systemctl)", and `id dev` → `groups=1001(dev),27(sudo),990(docker)`. So releases are
+  already performed by a different identity, and `deploy`'s own sudo entries look like residue of the old,
+  now-unused deploy path.
+
+That last point makes option 1 much cheaper than it appeared: the runtime/deploy split the owner proposed is
+**already half-done in practice**. What remains is (a) a dedicated service account for the units that is in no
+privileged group and has no sudo, (b) re-owning `/opt/env/bersoncarebot/*` and the release trees to it,
+(c) removing `deploy`'s sudo residue once nothing invokes it. Owner note (2026-07-26): the old deploy path is
+not in use and should be deleted rather than left dormant.
+
 **Options.**
-1. Split the identity: a runtime user with **no sudo at all** for the app; a separate deploy user for releases.
-   Service restarts move to a narrowly scoped mechanism (polkit rule for the specific units, or a fixed-command
-   wrapper), never `sudo systemctl` unrestricted.
+1. Split the identity: a runtime user with **no sudo at all and no `docker` group** for the app; a separate
+   deploy user for releases. Service restarts move to a narrowly scoped mechanism (polkit rule for the specific
+   units, or a fixed-command wrapper), never `sudo systemctl` unrestricted.
 2. Keep one user but reduce the sudo list to exact argv (no `sed`, no `apt-get`, systemctl only for named
-   units). Cheaper, still leaves a shell-shaped surface via nginx/systemctl edge cases.
+   units). Cheaper, still leaves a shell-shaped surface via nginx/systemctl edge cases — **and does not close
+   the `docker` group path at all**, so on its own it is not a remedy.
 3. Containerise the app so the host user is irrelevant; larger change, addresses the class rather than the case.
 
 Relevant standards to check against: CIS Benchmarks (sudo/least privilege), OWASP ASVS V14 (configuration),
