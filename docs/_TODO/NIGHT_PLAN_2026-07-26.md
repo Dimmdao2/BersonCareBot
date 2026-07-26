@@ -3,6 +3,15 @@
 **This file is the single source of "todo" and "done".** Not the chat, not any audit report. An auditor
 finding that has no line here is a QUESTION for the owner, never work (see `docs/ORCHESTRATION_BINDINGS.md`).
 
+**Reconciliation pass 2026-07-26 late night.** The open count was inflated — work had landed and was never
+ticked. Every open item was re-checked against the repo (commits, re-run tests) and TEST (live curl/psql
+SELECT/systemctl, read-only). Result: **23 closed / 25 open** (was 13/35). Of the 25 still open, **9 have
+real landed work** (commits, some with passing tests) that does not yet satisfy the item's full text —
+`A-1, A-2, B-1, C-2, C-4, F-3, F-4, G-4, H-3` — and **16 have no work done at all** —
+`A-4, B-3, B-4, C-3, C-5, D-1, D-3, E-2, E-3, F-6, G-2, H-2, H-4, H-5, H-6, H-7`. Nothing was ticked to make
+the number smaller; two items with substantial live-verified work (B-1, C-4) stayed open because a named
+part of their own text is provably not done. Detail is inline on each item below.
+
 ## Standing rules the owner restated tonight
 
 - **Не изобретать.** Every design decision must come from established practice with a named source
@@ -76,11 +85,31 @@ finding that has no line here is a QUESTION for the owner, never work (see `docs
       projection** plus a dedicated read-only role. Material already in repo: `app_config_reader` (written,
       never applied to TEST), publication flags (`is_published`, `is_active`, `public_widget_visible`),
       `app.resolve_public_organization_slug`, `c4d_platform_library_read`.
-- [ ] **A-3 (C2/#1004) Anonymous booking — ALWAYS prove contact ownership.** Owner ruling: «всегда просить
-      код или вход». Today: match by phone only, global across clinics, no proof, mints
-      `patient_phone_trust_at`, leaks existence three ways (returned user id, confirmed-vs-awaiting-payment
-      divergence, 403 for blocked clients) and consumes the victim's package. Uniform response + timing
-      required (ASVS 6.3.8, CWE-204). No staff merge queue (see standing rules).
+      **Reconciled 2026-07-26 (audit pass): one narrow instance closed, the item itself is not.**
+      `881ca0950` scoped the `c4d_platform_library_read` policy `TO app_staff` and fronted the one
+      legitimate anonymous read through a new SECURITY DEFINER accessor
+      (`app.read_platform_media_row`) — `app_patient` could ambiently `SELECT` any
+      `owner_kind='platform'` row via `media_files` before this; live platform-row count was 0, so the
+      hole was armed, not firing. That closes one of several listed exposures. `app_config_reader` is
+      still unapplied to TEST, no separate public projection exists, and the other three named surfaces
+      were not touched. Stays open.
+- [x] **A-3 (C2/#1004) Anonymous booking — ALWAYS prove contact ownership** — PROVEN, not just landed.
+      Owner ruling: «всегда просить код или вход». Three commits close it: `124d7d074` splits the public
+      route into `create` (validates + tenant-binds, pins the intent to a phone-OTP challenge, no
+      contact-keyed lookup at all — uniform by construction, not padding) and `confirm` (takes only
+      `challengeId`+`code`; nothing about the booking is re-derived from the caller's input); `73cfaf547`
+      drops the `retryAfterSeconds` echo that let a caller learn whether a phone had a recent code
+      request; `53b93c41e` moves the OTP-table reads off a runtime-role grant onto two `app_owner`
+      SECURITY DEFINER accessors (migration 0246) after finding the DEV-only version depended on a
+      worker's hand grant. All three of the plan's named oracles close: no identifier returned on either
+      step, status divergence and package consumption now happen behind proof, and `booking_blocked` is
+      unreachable anonymously because nothing looks the contact up before proof. 53 tests pass
+      (`route.test.ts` ×2, `publicBookingVerification.test.ts`, `pgPublicBookingUserResolve.trust.test.ts`,
+      re-run live during this reconciliation). Live on TEST: `phone_otp_public_booking_issue_challenge`
+      and `..._consume_challenge` both present in `pg_proc` — migration 0246 is applied, not just
+      committed. The commit's own live proof (challenge/confirm round trip, lockout, replay-refused) was
+      run on DEV only — the anonymous end-to-end click-through **on TEST** is H-5's job, not re-done here,
+      and stays open there.
 - [ ] **A-4 (C3) `platform_users` rebuild.** Owner: «ну значит переделывать». Practice says do NOT bolt RLS
       onto it — move identity out of the RLS surface (private schema + dedicated role, Supabase `auth` shape)
       or expose 2-3 accessors returning scalars not rows (PostgREST `basic_auth` shape); split PII satellite
@@ -146,8 +175,13 @@ finding that has no line here is a QUESTION for the owner, never work (see `docs
       no role check, so it is unreachable while still counted as a live surface, AND neither sanctioned
       principal shape fits its booking-engine read. **#1008** — 26 `api/integrator/*` handlers read the DB
       expressing no principal at all.
-- [ ] **A-6 (#1007) Cross-tenant writes to shared dictionaries.** Any clinic's doctor can mutate a global
-      dictionary for every tenant. Check the same class on all platform-owned catalogues.
+- [x] **A-6 (#1007) Cross-tenant writes to shared dictionaries** — CLOSED and proven, `7705cd8f5` +
+      `f5e7c2d2b`. `clinical_test_measure_kinds` (no `organization_id` by design, pre-SaaS-pivot table)
+      let any clinic's doctor mutate the platform-wide catalog; the guard now enforces ownership on write.
+      Swept the same class across `reference_categories/items`, `courses`, `content_pages`, `tests/
+      test_sets`, `lfk_exercises` + `owner_kind='platform'` siblings — this table was the sole outlier.
+      `f5e7c2d2b` hardens the deploy SQL so an absent table warns instead of aborting the whole closure.
+      Proof: `route.test.ts` (146 new lines) re-run during this reconciliation — 4/4 pass.
 
 ## B. Security — host, secrets, database access
 
@@ -155,21 +189,69 @@ finding that has no line here is a QUESTION for the owner, never work (see `docs
       Runtime account with no sudo and **no `docker` group** (docker membership is root by itself and
       survives any sudo trim); deploy stays separate; delete the dormant old deploy path. Also: create a
       root-capable account for me with **no external access** (no SSH, no password login).
-- [ ] **B-2 (A2) Postgres host trust.** Narrow `local all all peer`; superuser only via an audited
-      break-glass path. Moving the DB to its own host is the fuller answer — private network + TLS with
-      certificate verification, never an SSH tunnel.
+      **Re-verified live 2026-07-26 (`cd2ce0a0a` + execution) — the core split landed and is provably
+      working, two named sub-asks are not.** `bersoncarebot-webapp-test.service` runs as `bcb-web-test`,
+      `bersoncarebot-api-test`/`worker-test`/`scheduler-test` run as `bcb-api-test` (`systemctl show
+      -p User -p Group` on all four, live), `bersoncarebot-media-worker-test` intentionally stays on
+      `deploy` (hard-pinned by `assert-media-worker-test-unit-properties.sh`, out of this runbook's
+      scope). Both new accounts: `id` shows no `sudo`, no `docker`, only their own primary group.
+      Cross-read provably blocked: `sudo -u bcb-web-test cat /opt/env/bersoncarebot/api.test` →
+      `Permission denied`, and the reverse. `/api/health` → `200 {"ok":true,"db":"up"}`.
+      **Not done, explicitly deferred to the owner by the runbook itself, not guessed:** "delete the
+      dormant old deploy path" (two candidate SSH keys found under `deploy/.ssh/`, ambiguous which one
+      is meant) and "root-capable account for me with no external access" (`dev` already matches that
+      shape — unclear if a second identity is wanted). Both need an owner answer before they can close.
+- [x] **B-2 (A2) Postgres host trust** — narrowing done and verified live; break-glass requirement was
+      already met, not newly built. `pg_hba.conf` today: `local all postgres peer`, `local tgcarebot
+      tgcarebot peer`, then straight to `host ... scram-sha-256` — the catch-all `local all all peer` line
+      is gone (re-checked directly against `/etc/postgresql/16/main/pg_hba.conf` during this
+      reconciliation). Discovery before the cut confirmed nothing depends on it: every app `DATABASE_URL`
+      and every `psql`/`pg_dump` call in `deploy/host/*.sh` and the backup scripts use TCP +
+      scram-sha-256, never the socket. "Superuser only via an audited break-glass path": becoming
+      `postgres` already requires `sudo -u postgres`, and every `sudo` invocation is captured in the
+      persistent journal (actor + full command) — confirmed as the existing audited path rather than
+      inventing a new one. Moving the DB to its own host is explicitly the item's own "fuller answer",
+      not a requirement of this line.
 - [ ] **B-3 (B1) Split the five secrets by consumer** now; a secret store when there is more than one host —
       the owner tied this to B-2 himself.
 - [ ] **B-4 (B2) Key ids so signing keys can rotate** without a forced global logout.
 
 ## C. Authentication
 
-- [ ] **C-1 (D1) Session revocation.** Owner confirmed: idle 12 h staff / 30 d patient, absolute ceiling 7 d
-      / 90 d. Parked code restored and finished (`12e263e63`), NOT yet proven against a database, NOT yet
-      adversarially audited. Conflicting older record #970 must be marked superseded.
+- [x] **C-1 (D1) Session revocation** — `12e263e63` was superseded, not finished; the replacement is
+      proven. Owner confirmed: idle 12 h staff / 30 d patient, absolute ceiling 7 d / 90 d. An independent
+      adversarial audit broke `12e263e63` against a live database and found six defects; `988f0decd`
+      replaces the timestamp-based mechanism entirely with a single per-user monotonic epoch compared
+      for equality (migration 0244, `platform_users.session_epoch`) and closes all six.
+      `sessionCookie.ts` names the numbers exactly as ruled:
+      `SESSION_SLIDING_TTL_STAFF_SECONDS` = 12h, `SESSION_SLIDING_TTL_SECONDS` (patient) = 30d,
+      `SESSION_ABSOLUTE_MAX_AGE_STAFF_SECONDS` = 7d, `SESSION_ABSOLUTE_MAX_AGE_SECONDS` = 90d. Proven
+      against a database, not just in memory: `f132af20c` fixed a boot-guard false positive
+      (`information_schema.columns` is privilege-filtered, so the probe's role mistook "no grant" for
+      "no column"), and tonight's TEST deploy exercised the epoch for real — it invalidated every stale
+      cookie in the smoke fixture, which is the mechanism doing exactly its job under load, not a defect.
+      38/38 tests re-run clean during this reconciliation (`service.sessionRevocation.test.ts`,
+      `sessionRevocationSchema.test.ts`, `service.sessionConcurrency.test.ts`). Live: `/api/health` →
+      200 on the running TEST webapp. #970 superseded — see G-3.
 - [ ] **C-2 (D2/D3/D4) OTP hardening.** Rate limiting on six routes (per-IP and per-account, separate
       thresholds, decaying lockout — a limit that locks out a real clinic is a defect); atomic attempt
       counter; purpose binding. NIST SP 800-63B, OWASP ASVS V6.
+      **Reconciled 2026-07-26: three of four steps landed and proven, one determination made, one gap
+      confirmed live.** `fefa3bbad` — atomic attempt counters (real lost-update bug: both OTP engines
+      read-then-wrote attempts non-atomically; now DB-computed `attempts + 1` under a row lock) plus
+      per-IP limiting on 8 confirm routes that had none. `ed7ab130b` — decaying lockout (2/4/8/16 min,
+      capped 30 min, NIST §5.2.2), keyed per phone/email identifier via `phone_otp_locks`/
+      `email_otp_locks`. `913e140a6` — purpose binding on `email_challenges`. All three proven with real
+      two-connection Postgres concurrency tests (`pg_blocking_pids` barrier), not sleeps.
+      **Per-IP vs per-account determination:** the per-IP sliding window (`auth.confirm`, 30/10min) and
+      the decaying lockout (keyed per-identifier, i.e. per-account) ARE two separate mechanisms with
+      separate thresholds — this satisfies the plan's "per-IP and per-account, separate thresholds"
+      textually, even though neither commit message calls the identifier-keyed lockout "per-account" by
+      name.
+      **Confirmed live gap, not yet closed:** `/api/auth/email-password/login/factor/route.ts` has no
+      per-IP rate limiter at all — read the file during this reconciliation, no `rateLimit`/limiter call
+      anywhere in it, only an account-level `factor_locked` from `staffSecurity.completeLogin`. Stays
+      open on this gap alone.
 - [ ] **C-3 (#1005) Delivery-channel fallback.** Phone entered → SMS if enabled → web-push if subscribed →
       e-mail if bound. NIST 800-63B treats SMS as restricted and expects an alternative. Two hard edges:
       uniform response/timing so it cannot be used to test whether a phone has an e-mail; and a code
@@ -182,6 +264,18 @@ finding that has no line here is a QUESTION for the owner, never work (see `docs
       в июле); поле `admin_emails` сейчас ПУСТОЕ (спит, не заряжено); вход владельца от списков НЕ
       зависит (роль прописана в его строке миграцией `0233`) — это и делает порядок безопасным.
       Две мои формулировки владельцу были неверны и исправлены в том файле.
+      **Implemented after the recon, `5f81febc4` + `c28267883` — but proven incomplete, stays open.**
+      The seven allowlists (`admin_emails/admin_phones/admin_telegram_ids/admin_max_ids/doctor_phones/
+      doctor_telegram_ids/doctor_max_ids`) stop conferring role; alert recipients now derive from role
+      at send time; the technical-settings UI fields are marked inert. **Confirmed live during this
+      reconciliation: the integrator reads the same seven lists independently and is untouched by
+      either commit** — `apps/integrator/src/infra/db/messengerStaffIds.ts` still keys off
+      `admin_telegram_ids`/`doctor_telegram_ids`/`admin_max_ids`/`doctor_max_ids` to decide who is
+      staff, and `apps/integrator/src/infra/db/adminIncidentAlertRelay.ts` still loads
+      `admin_telegram_ids`/`admin_max_ids` directly. Neither file was touched by `5f81febc4`. This is
+      C-4's own line ("Remove the DB-resident allowlists that also confer admin") — a brand-new
+      `platform_users` row can still be stamped `role:'admin'` through this path. That is the remainder,
+      not a new item.
 - [ ] **C-5** Password change screen — exists nowhere today (#1000).
 
 ## D. Notifications
@@ -240,9 +334,24 @@ finding that has no line here is a QUESTION for the owner, never work (see `docs
 
 ## F. Product / UI
 
-- [ ] **F-1 (#1002) Dropdowns show the KEY instead of the label** — everywhere, since the beginning of the
-      project. Must be solved once, in a shared primitive, with a gate so it cannot come back.
-- [ ] **F-2 (#1003) Tariffs**: drop the mandatory "reason" on edit; make the quota settings human-readable.
+- [x] **F-1 (#1002) Dropdowns show the KEY instead of the label** — closed at the root, not patched.
+      `9caef151e` fixed it once in the shared primitive: `select.tsx`'s wrapper now auto-collects labels
+      from its own `<SelectItem>` children instead of relying on 105 call sites to opt in a
+      `displayLabel` (the old pattern, which is why it kept coming back). Also converged a byte-identical
+      duplicate `components/ui/select.tsx` into a re-export and killed two hand-rolled raw-key fallbacks.
+      `55b10b3d5` fixed four `SelectTrigger` sites that hand-computed a label independently of their own
+      `SelectContent` list and had drifted. Gate: `selectValueLabelCensus.test.ts` (source census with a
+      self-test) + `select.selectedLabel.test.tsx` (behavioural), both proven to fail on deliberate
+      reintroduction. 14/14 tests re-run clean during this reconciliation. Live screenshot exists:
+      `runs/screenshots/f1-select-labels/`.
+- [x] **F-2 (#1003) Tariffs** — both parts done and proven, `6f923c920`. (1) The mandatory reason on edit
+      is gone — `reasonSchema.min(1)` and the disabled-save gate removed; audit trail still writes
+      unconditionally. (2) Quota units are human-readable — `QUOTA_UNIT_LABELS` replaces raw keys
+      (`appointments`→«Записи», `bytes`→«Байты», etc.) in the select + snapshot caption. 31/31 tests
+      re-run clean (`route.test.ts`, `service.test.ts`) during this reconciliation. Verified live on DEV:
+      blank-reason `POST update_tariff` → 200, persisted, reverted; screenshot
+      `host-orch/shots/20260726-1708/i0_app_doctor_commercial_2026-07-26T14-08-13Z.png` shows the label
+      live. Not yet reviewed by the owner — that review, not more engineering, is what remains.
 - [ ] **F-3 (#964) Scheduled messages** — unblocked. Alarm icon + time replaces the first delivery tick;
       click to reschedule or cancel; pending messages last in the thread under a divider; collapsing later.
       ~3000 lines exist on `agent/ui964-20260722`; migration must be renumbered, `DoctorCommentsTab` was
@@ -278,10 +387,19 @@ finding that has no line here is a QUESTION for the owner, never work (see `docs
 
 ## G. Process
 
-- [ ] **G-1** Deploy writes a log to a file — tonight's outage had none.
+- [x] **G-1** Deploy writes a log to a file — done and live, not just wired. `DEPLOY_LOG_DIR` in
+      `deploy/host/deploy-test.sh` points at `~/.local/state/bersoncarebot/deploy-logs/`; confirmed live
+      during this reconciliation — 11 real log files there, 91KB–166KB each, timestamps spanning
+      tonight's deploy attempts through 23:23.
 - [ ] **G-2** Land the docs-only branches so the audit trail stops living on side branches; delete the
-      remote branches already merged.
-- [ ] **G-3** Mark #970 superseded by the owner's confirmed session numbers.
+      remote branches already merged. **Checked, unchanged:** 7 `docs/*` branches still on `origin`
+      (`docs/dna-reconcile-20260723`, `docs/dna-settings-live-20260723`, `docs/ui1-appointment-live-20260723`,
+      `docs/ui2-reconcile-20260723`, `docs/ui6-settings-live-20260723`, `docs/uip-messages-blocker-20260723`,
+      `docs/uip-mobile-menu-live-20260723`), none merged into `main`. No work done on this tonight.
+- [x] **G-3** Mark #970 superseded by the owner's confirmed session numbers — done, in taskdb.
+      `node taskdb.mjs get 970` shows status `done`, note `SUPERSEDED 26.07 решением владельца по срокам
+      сессий (пункт C-1 плана...)`, pointing at commit `988f0decd` (the C-1 epoch mechanism). This is the
+      correct target — see C-1 above.
 - [x] **G-5 Dependency advisories** — owner instruction 2026-07-26 «обновляй зависимости». Done as far as it
       goes, with one item deliberately left open and the reason recorded so nobody retries it blindly.
       Of the 12 advisories `registry-prod-audit` reported, **10 were already closed** by `bc41c566d` and
@@ -385,17 +503,39 @@ finding that has no line here is a QUESTION for the owner, never work (see `docs
 Владелец закрыл висевшие развилки. Каждая строка ниже — задача к исполнению; вопрос по ней **закрыт**,
 повторно не поднимать. Правила целиком: [`OWNER_PRODUCT_RULES.md`](../ARCHITECTURE/OWNER_PRODUCT_RULES.md).
 
-- [ ] **H-1 (#848 SCH-G5) Слоты по правилу владельца.** Недельный график = дневной с автоповтором и только
-      там, где настроен; дневной переопределяет недельный; нет ни одного — **записи нет** (никаких умолчаний).
-      Сейчас клиенту показываются слоты по расписанию по умолчанию — это и есть дефект.
+- [x] **H-1 (#848 SCH-G5) Слоты по правилу владельца** — audited and pinned, no fix was needed. Недельный
+      график = дневной с автоповтором и только там, где настроен; дневной переопределяет недельный; нет
+      ни одного — **записи нет** (никаких умолчаний). `c71eab636` audited the actual production
+      entrypoint (`buildSlotsForContext`/`computeSlotsInternal` in `service.ts`) against exactly this
+      rule and found the engine already implements it — weekday fallback dates to the original engine
+      (`23e11e5eb`, 2026-05-29), per-date-override-wins to `d5c246bc6d` (2026-06-12), both pre-dating
+      tonight's ruling. No "default schedule" fallback path exists anywhere in
+      `modules/booking-scheduling/` (checked directly). Added 3 tests at the service level pinning all
+      three branches of the rule, including the no-schedule-at-all → zero-slots case. 10/10 tests re-run
+      clean during this reconciliation.
 - [ ] **H-2 (#913) Что видно в уведомлении.** Запись и напоминания о занятиях — **открыто, как было**;
       личный чат — только «новое сообщение от <имя>»; рассылка — тема открыто, содержание при переходе.
       Принцип: логистика записи открыта, содержание переписки о здоровье закрыто.
+      **Проверено 26.07: только решение, кода нет.** Строка «новое сообщение от» нигде не встречается в
+      `apps/webapp/src`/`apps/integrator/src` (прямой grep). taskdb #913 подтверждает: статус `blocked`,
+      решение записано в заметке, но реализации нет.
 - [ ] **H-3 (#1018) «Отложить» и «пропустить» у пациента** — через узкую служебную процедуру
       (`SECURITY DEFINER`), НЕ грантом на таблицу. Владелец подтвердил, что это стандартная практика.
+      **Наполовину сделано.** `699604a8e` дал `reminder_occurrence_history` пациентскую RLS-ветку — это
+      чинит ТОЛЬКО «выполнено» (`recordDone`), которое до этого 404-ило вместе с двумя другими. «Отложить»
+      и «пропустить» (`recordSnooze`/`recordSkip`) по-прежнему нужен либо `UPDATE`-грант, либо (per
+      владельца) отдельная `SECURITY DEFINER`-процедура — taskdb #1018 держит статус `doing` именно с
+      этим открытым вопросом. Не закрыто.
 - [ ] **H-4 (#818) Убрать пять mock-подтверждений оплаты** вне dev/test. Владелец: «да».
+      **Проверено — работы не было.** Все пять `*/payments/mock-complete/route.ts` (`booking/memberships`,
+      `booking`, `booking/products`, `booking/public`, `booking/public/products`) не содержат ни одной
+      проверки `NODE_ENV`/`isProduction` (прямой grep по каждому файлу). Решение владельца есть, кода нет.
 - [ ] **H-5 (#805) Публичная запись без входа** — открыть ссылку на TEST как посторонний, создать записи
       (владелец: «конечно, можно и не одну»), проверить правильную клинику и отсутствие чужих данных.
+      **Проверено — разрешение получено, само действие не выполнено.** taskdb #805 остаётся в статусе
+      `blocked`; никаких новых артефактов (скриншотов, логов запроса) с сегодняшней датой не найдено.
+      Замечу отдельно: этот пункт технически НЕ зависит от блокера G-4 (протухшие session-куки) — он про
+      анонимный поток, сессия не нужна вообще.
 - [ ] **H-6 (#1038) Критические тревоги глохнут на 24 часа** посреди аварии: каденция владельца
       (сразу → +1 ч → каждое утро красным) сделана только для двух тем; «база лежит» и «пробой изоляции
       клиник» пишут один раз и молчат. Это доделка уже принятого решения (#950 P3), не новый скоуп.
@@ -403,8 +543,13 @@ finding that has no line here is a QUESTION for the owner, never work (see `docs
       пропуск закрытия прав сейчас виден только в консоли, ничем не проверяется, деплой выходит 0.
       Там же: гейт `assert_app_owner_secdef_table_grants_complete` пинит **количество**, а не состав —
       два компенсирующих сбоя переноса владельца проходят незамеченными.
-- [ ] **H-8 Способы входа — гибко настраиваемые, ничего не вырезать.** Владелец 26.07: «пока делаем гибко
-      настраиваемыми через глобал админку все механизмы. ничего не вырезаем из кода. С юристом решаю.»
+- [x] **H-8 Способы входа — гибко настраиваемые, ничего не вырезать** — то же требование, что и E-1, и
+      закрыто той же живой проверкой. Владелец 26.07: «пока делаем гибко настраиваемыми через глобал
+      админку все механизмы. ничего не вырезаем из кода. С юристом решаю.» `PlatformAuthChannelPolicySection.tsx`
+      (`/app/admin/auth`) даёт переключатели для email/SMS/Telegram/MAX плюс отдельно Google/Yandex OAuth
+      (Google сейчас выключен — ждёт юриста, #1035). Ничего не удалено из кода. `90cd8cf22` (E-1) уже
+      доказал живьём, что эти тумблеры блокируют вход на сервере ДО отправки/сессии, не просто прячут
+      кнопку. Отдельной новой работы под H-8 не требуется.
 
 **Осталось за владельцем, не наша работа:** #881 (отзыв старых ключей — он отзовёт сам, живём с этим),
 #899 (ответственный за ПДн и юрист), #1035 (юрист по 149-ФЗ), #1039 (остаток абонемента уходит в минус —
