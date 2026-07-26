@@ -211,6 +211,34 @@ finding that has no line here is a QUESTION for the owner, never work (see `docs
 - [ ] **G-2** Land the docs-only branches so the audit trail stops living on side branches; delete the
       remote branches already merged.
 - [ ] **G-3** Mark #970 superseded by the owner's confirmed session numbers.
+- [x] **G-5 Dependency advisories** — owner instruction 2026-07-26 «обновляй зависимости». Done as far as it
+      goes, with one item deliberately left open and the reason recorded so nobody retries it blindly.
+      Of the 12 advisories `registry-prod-audit` reported, **10 were already closed** by `bc41c566d` and
+      `d60cb1222` (2026-07-23). Of the 3 live ones — all dev/build tooling, none in a production runtime
+      dependency — **2 are fixed** in `6a793fb8c` by moving override floors that had gone stale by two days
+      (both advisories were published 2026-07-24, after the last override bump): `postcss >=8.5.10 → >=8.5.18`,
+      `minimatch@10>brace-expansion 5.0.7 → 5.0.8`.
+      **The third cannot be fixed and the CI `audit` step stays red on it.** GHSA-mh99-v99m-4gvg,
+      `brace-expansion@1.1.16`: the 1.x line is end-of-life (1.1.16 is its last release ever and carries the
+      advisory) and the only consumer left is `eslint@9.39.4` itself, which depends on `minimatch@3` directly.
+      **Three routes were tried and all failed — do not repeat them:**
+      1. force 5.x into the `minimatch@3` slot → lint dies outright, `TypeError: expand is not a function`
+         (5.x is not the CommonJS callable that 3.x requires);
+      2. override `@eslint/config-array` / `@eslint/eslintrc` onto `minimatch@10` → the path moves, the
+         package stays in the tree, advisory unchanged;
+      3. **upgrade ESLint 9 → 10** (which drops the eslintrc machinery and minimatch@3) → blocked UPSTREAM,
+         not by us. Our own side is ready: the repo is already on flat config, the root config lints clean
+         under ESLint 10, and all four plugins' peer ranges allow it. But `eslint-plugin-react@7.37.5` — the
+         latest published version, pulled in by `eslint-config-next` — calls `context.getFilename()`, an API
+         **removed** in ESLint 10, and crashes on plugin load. Open upstream issue, no fix released:
+         https://github.com/vercel/next.js/issues/89764 (same stack: Next 16.1.6+, ESLint 10, React 19).
+      **Decision (lead):** stay on ESLint 9; do NOT apply the `@eslint/compat` `fixupPluginRules` shim — that
+      is a wrapper around a broken third-party plugin, not a fix, and not worth taking on for a DoS in a
+      lint-time glob expander that no request path reaches. **Revisit when `eslint-config-next` ships an
+      ESLint-10-compatible `eslint-plugin-react`** — watch the issue above.
+      Consequence to carry forward: `pnpm run ci` cannot be fully green until then. Everything else in the
+      chain passes; the `audit` step is red on this one advisory alone.
+
 - [ ] **G-4** Full deploy to TEST + the 114-page × 5-role walk, redirects NOT followed, plus DEV screenshots.
       Harness built and proven on DEV: `docs/_TODO/SAAS_FOUNDATION/scripts/walk-app-pages-no-redirect.mjs`
       (`redirect: "manual"`, GET-only, cookies never written to disk). Redirect trap reproduced:
