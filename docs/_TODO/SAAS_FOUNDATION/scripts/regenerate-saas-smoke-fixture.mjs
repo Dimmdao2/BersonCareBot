@@ -19,9 +19,14 @@
  * !! On 2026-07-25 a worker ran an earlier, unguarded copy of this file    !!
  * !! and overwrote two real patients' password hashes by accident. That    !!
  * !! incident is prohibition #1 in docs/_TODO/HANDOFF_2026-07-26.md.       !!
- * !! DO NOT weaken or bypass these guards. DO NOT run this against         !!
- * !! bersoncarebot_test or PROD without the owner's explicit, per-run,     !!
- * !! per-user-id authorization.                                            !!
+ * !! DO NOT weaken or bypass these guards.                                 !!
+ * !!                                                                        !!
+ * !! Owner ruling 2026-07-26 (taskdb #1017): TEST ONLY. --db is checked    !!
+ * !! against the exact hardcoded string "bersoncarebot_test" (see          !!
+ * !! ALLOWED_TEST_DB_NAME below) before any connection or write -- there   !!
+ * !! is no override flag. Running against PROD is refused by code, not    !!
+ * !! just by convention. This file is deliberately UNTRACKED by git (see   !!
+ * !! .gitignore) -- it stays on disk, on this box only, never in the repo. !!
  * !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
  *
  * Regenerates /run/bersoncarebot/saas-smoke.fixture (the operator fixture consumed by
@@ -35,7 +40,9 @@
  * dump. Every authenticated smoke scenario failed (307/401) against users who no longer exist, and
  * because the smoke gate is mandatory, deploy-test-saas.sh aborted mid-closure and stopped every
  * TEST systemd unit. This script repoints the fixture at REAL accounts on whatever clinic is
- * actually live on TEST (or, at prod cutover, at a real prod clinic) instead of re-seeding demo data.
+ * actually live on TEST instead of re-seeding demo data. Per owner ruling 2026-07-26 (taskdb
+ * #1017) this script runs against TEST only -- --db is hardcoded-checked, see
+ * ALLOWED_TEST_DB_NAME below; there is no prod-cutover use of this file.
  *
  * Usage (run as a user that can both reach --base-url over HTTP and write to Postgres as a role
  * that owns user_password_credentials, e.g. the `dev` box user via `sudo -u postgres psql`):
@@ -102,6 +109,14 @@ import { fileURLToPath } from "node:url";
 
 const CONFIRM_FLAG = "--i-understand-this-rewrites-real-passwords";
 
+// Owner ruling 2026-07-26 (taskdb #1017): this script may be run ONLY against TEST, checked by
+// exact database name -- not "starts with", not "contains". Canonical TEST database name per
+// docs/ARCHITECTURE/SERVER CONVENTIONS.md ("Тест-БД `bersoncarebot_test` на том же PG16
+// (`:5432`)"). Deliberately NO override flag: the owner's ruling is "TEST only", full stop, and
+// an escape hatch here would just be a backdoor around that -- if a future run truly needs a
+// different target, that is a new owner ruling, not a flag in this file.
+const ALLOWED_TEST_DB_NAME = "bersoncarebot_test";
+
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const repoRoot = resolve(__dirname, "..", "..", "..", "..");
 const require = createRequire(resolve(repoRoot, "apps/webapp/package.json"));
@@ -131,6 +146,49 @@ order by action_log_count desc;
 
 function fail(message) {
   throw new Error(message);
+}
+
+// Guard 0: hard-coded TEST-only database name check. Runs BEFORE any network call, any DB
+// connection, any config/file read -- the first thing main() does with a parsed --db. Strict
+// equality (never `includes`/`startsWith`) so an unknown name, an empty string, or a name that
+// merely contains "bersoncarebot_test" (e.g. a typo'd "bersoncarebot_test_old" or the prod name
+// "bersoncarebot") are all refused the same way. Fail closed: any falsy/non-string value refuses.
+function assertTestDatabaseOrDie(db) {
+  if (typeof db !== "string" || db.length === 0 || db !== ALLOWED_TEST_DB_NAME) {
+    fail(
+      `refusing to run: --db must be exactly "${ALLOWED_TEST_DB_NAME}" (the TEST database; see ` +
+        `docs/ARCHITECTURE/SERVER CONVENTIONS.md). Got: ${JSON.stringify(db)}. This script rewrites ` +
+        `REAL password hashes (TEST is rebuilt from a production dump) and per owner ruling ` +
+        `2026-07-26 (taskdb #1017) may run against TEST only. No connection was attempted, no ` +
+        `write was performed.`,
+    );
+  }
+}
+
+// Defense in depth: --db is a plain string handed straight to `psql -d <db>` with no env var or
+// URL indirection in this script, so in the current code path assertTestDatabaseOrDie above is
+// already exact. This second check asks Postgres itself which database the connection actually
+// landed on (`current_database()`) and re-confirms it matches, so a future refactor that adds a
+// DATABASE_URL/service-alias layer -- or a psql service file mapping the name elsewhere -- cannot
+// silently point a "bersoncarebot_test"-looking run at something else. Read-only, no write; runs
+// before backupExistingHashes/upsertPasswordHashes.
+function assertConnectionTargetsTestDb(db) {
+  let actual;
+  try {
+    actual = execFileSync(
+      "sudo",
+      ["-u", "postgres", "psql", "-d", db, "-X", "-A", "-t", "-c", "SELECT current_database();"],
+      { encoding: "utf8" },
+    ).trim();
+  } catch (error) {
+    fail(`could not verify the connection actually targets ${ALLOWED_TEST_DB_NAME}: ${error.message}. No write was performed.`);
+  }
+  if (actual !== ALLOWED_TEST_DB_NAME) {
+    fail(
+      `refusing to run: connected database reports current_database()=${JSON.stringify(actual)}, ` +
+        `expected exactly "${ALLOWED_TEST_DB_NAME}". No write was performed.`,
+    );
+  }
 }
 
 function parseArgs(argv) {
@@ -321,6 +379,9 @@ async function main() {
     );
   }
 
+  // Guard 0: TEST-only database name, checked before any connection/read/write of any kind.
+  assertTestDatabaseOrDie(options.db);
+
   const config = JSON.parse(readFileSync(options.config, "utf8"));
   const profiles = ["doctor", "global_admin", "patient"];
   const targetIds = [];
@@ -357,7 +418,11 @@ async function main() {
     }
   }
 
-  // Guard 3: automatic backup of the pre-run state, before any overwrite.
+  // Guard 3: re-confirm the live connection actually landed on the TEST database (defense in
+  // depth on top of Guard 0's --db string check; see assertConnectionTargetsTestDb above).
+  assertConnectionTargetsTestDb(options.db);
+
+  // Guard 4: automatic backup of the pre-run state, before any overwrite.
   const { backupPath, restoreCommand } = backupExistingHashes(
     options.db,
     targetIds.map((t) => t.userId),

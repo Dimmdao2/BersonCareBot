@@ -59,3 +59,9 @@ _old/logs/
 .git/
 /.r3-heartbeat
 .shots/
+
+# Owner ruling 2026-07-26 (taskdb #1017): rewrites REAL people's password hashes to mint smoke-test
+# session cookies (TEST is a production dump). TEST-only, guarded (see the DANGER header in the
+# file itself) -- stays on this box, never in the repo. Do NOT "helpfully" re-add it; see
+# docs/_TODO/SAAS_FOUNDATION/LOG.md for the pointer/rationale.
+docs/_TODO/SAAS_FOUNDATION/scripts/regenerate-saas-smoke-fixture.mjs

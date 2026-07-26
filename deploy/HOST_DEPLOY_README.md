@@ -795,6 +795,15 @@ Product-smoke fixture по умолчанию хранится в canonical exte
 `/run/bersoncarebot/saas-smoke.fixture`: строго `root:deploy 0640`, без symlink-файла или symlink-родителя и вне
 source/deploy repositories. Одна и та же проверка выполняется до restore и повторно непосредственно перед smoke.
 
+**Как переиздать fixture, если сессии протухли:** инструмент
+`docs/_TODO/SAAS_FOUNDATION/scripts/regenerate-saas-smoke-fixture.mjs` логинится как реальные аккаунты
+на целевом `--base-url` и записывает результат в этот fixture-файл. Он **перезаписывает пароли реальным
+людям** (TEST — прод-дамп), поэтому по решению владельца 2026-07-26 (taskdb `#1017`) **намеренно не
+закоммичен** (`.gitignore`) — лежит только на боксе по этому пути, с гардами (обязательный флаг
+`--i-understand-this-rewrites-real-passwords`, `allowlist` конкретных `user_id`, автобэкап 0600 перед
+записью, жёсткая проверка `--db` на точное совпадение с именем тестовой БД, без обхода). Подробности и
+проверки — `docs/_TODO/SAAS_FOUNDATION/LOG.md`, запись «Owner ruling on regenerate-saas-smoke-fixture.mjs».
+
 Packet создаётся один раз уполномоченным оператором **из root-сессии** (не от `deploy`), без значений в shell
 history. Значения вводятся интерактивным редактором; в repo и docs остаются только имена ключей:
 
