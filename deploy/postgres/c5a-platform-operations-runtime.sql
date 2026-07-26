@@ -215,6 +215,36 @@ ALTER FUNCTION app.start_provisioned_organization_trial() OWNER TO app_platform_
 REVOKE ALL ON FUNCTION app.start_provisioned_organization_trial() FROM PUBLIC, app_staff, app_patient;
 GRANT EXECUTE ON FUNCTION app.current_patient_user_id() TO app_platform_settings;
 GRANT EXECUTE ON FUNCTION app.current_provisioned_owner_organization() TO app_platform_settings;
+
+-- app.current_org_id() / app.is_staff() for app_platform_settings — and why the grant has to live
+-- HERE and not in a migration.
+--
+-- Symptom (owner, 2026-07-26, second time): every global-admin settings page 500s with
+-- `permission denied for function current_org_id`, AFTER I had already "fixed" it once.
+--
+-- Mechanism. public.system_settings carries TWO permissive policies:
+--   u9a_platform_settings_global_only  TO app_platform_settings  USING (organization_id IS NULL)
+--   saas_bootstrap_hybrid_p0_8_6       TO **ALL ROLES**          USING (organization_id IS NULL
+--                                        OR (app.current_org_id() IS NOT NULL AND organization_id = app.current_org_id()))
+-- Permissive policies are ORed, so Postgres must EVALUATE both for every reader — including the
+-- platform role, which therefore needs EXECUTE on a tenant-scoped function it can never benefit
+-- from (a platform principal has no org context; current_org_id() returns NULL and that branch is
+-- always false, so the rows it sees come solely from the global-only policy).
+--
+-- Why the migration lost. 0241 granted exactly this, but p2-b-protected-principal-context.sql
+-- REVOKES EXECUTE on these two functions from every grantee except the owner/staff/patient trio,
+-- and it runs on EVERY closure. A migration runs once; the revoke runs every deploy — so the grant
+-- survived until the next deploy and then vanished. app_worker and the app_operational_* roles are
+-- already re-granted after that scrub by their own overlays (phase4-app-worker-narrow-rls.sql,
+-- c4-operational-runtime.sql); this is the same pattern for the role THIS file owns.
+--
+-- Proper fix, deliberately NOT done here: scope saas_bootstrap_hybrid_p0_8_6 to the tenant roles
+-- that actually need it instead of ALL, after auditing every reader of the table (today: app_staff,
+-- saas_system_health_owner, plus the BYPASSRLS owner). Then the platform role is served by its own
+-- policy alone and needs neither of these grants. Tracked with the security work — a platform-scope
+-- read should not be filtered by a tenant predicate.
+GRANT EXECUTE ON FUNCTION app.current_org_id() TO app_platform_settings;
+GRANT EXECUTE ON FUNCTION app.is_staff() TO app_platform_settings;
 SELECT format(
   'GRANT EXECUTE ON FUNCTION app.start_provisioned_organization_trial() TO %I',
   pg_get_userbyid(procedure.proowner)
