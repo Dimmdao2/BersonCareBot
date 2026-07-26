@@ -271,6 +271,24 @@ SELECT format(
   :'d3_4_bootstrap_base_role'
 )
 WHERE to_regprocedure('app.email_auth_find_email_otp_lock(uuid)') IS NOT NULL \gexec
+-- 0248 (C-2 decaying OTP lockout), same reasoning as the read-only find above but for its two
+-- write siblings: verifyChallengeCodeRow (emailAuth.ts) calls resetEmailOtpLockoutForUser() on a
+-- correct code and registerEmailOtpLockoutForUser() on the attempt that exhausts the max-attempts
+-- counter -- both from inside consumeEmailChallengeCode/consumeLatestEmailChallengeCodeForUser,
+-- which api/auth/email-password/reset:POST calls under a bootstrap-stamped principal that never
+-- SET ROLEs. Without this, a correct password-reset code hits "permission denied for function
+-- email_auth_reset_email_otp_lockout" on its own success path. WHERE-guarded like their find_*
+-- sibling, so a DB that predates 0248 is a no-op rather than a FATAL.
+SELECT format(
+  'REVOKE EXECUTE ON FUNCTION app.email_auth_register_email_otp_lockout(uuid) FROM %I',
+  :'d3_4_bootstrap_base_role'
+)
+WHERE to_regprocedure('app.email_auth_register_email_otp_lockout(uuid)') IS NOT NULL \gexec
+SELECT format(
+  'REVOKE EXECUTE ON FUNCTION app.email_auth_reset_email_otp_lockout(uuid) FROM %I',
+  :'d3_4_bootstrap_base_role'
+)
+WHERE to_regprocedure('app.email_auth_reset_email_otp_lockout(uuid)') IS NOT NULL \gexec
 REVOKE EXECUTE ON FUNCTION app.resolve_public_booking_organization(uuid, uuid, uuid) FROM :"d3_4_bootstrap_base_role";
 REVOKE EXECUTE ON FUNCTION app.resolve_public_organization_slug(text) FROM :"d3_4_bootstrap_base_role";
 REVOKE EXECUTE ON FUNCTION app.resolve_public_organization_by_slug(text) FROM :"d3_4_bootstrap_base_role";
@@ -530,6 +548,19 @@ SELECT format(
   :'d3_4_bootstrap_base_role'
 )
 WHERE to_regprocedure('app.email_auth_find_email_otp_lock(uuid)') IS NOT NULL \gexec
+-- 0248 (C-2 decaying OTP lockout), write pair: see the matching REVOKE above for why
+-- resetEmailOtpLockoutForUser()/registerEmailOtpLockoutForUser() need the same bootstrap
+-- reachability as email_auth_find_email_otp_lock immediately above.
+SELECT format(
+  'GRANT EXECUTE ON FUNCTION app.email_auth_register_email_otp_lockout(uuid) TO %I',
+  :'d3_4_bootstrap_base_role'
+)
+WHERE to_regprocedure('app.email_auth_register_email_otp_lockout(uuid)') IS NOT NULL \gexec
+SELECT format(
+  'GRANT EXECUTE ON FUNCTION app.email_auth_reset_email_otp_lockout(uuid) TO %I',
+  :'d3_4_bootstrap_base_role'
+)
+WHERE to_regprocedure('app.email_auth_reset_email_otp_lockout(uuid)') IS NOT NULL \gexec
 
 -- Proven locked TEST bootstrap read surface, 2026-07-14 D3.4:
 -- session identity, first staff membership lookup, and public booking tenant resolution only.
