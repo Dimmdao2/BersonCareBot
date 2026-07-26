@@ -31,6 +31,7 @@ import {
   clearFreshLoginMarkerCookie,
   decodeSessionCookie,
   encodeSessionCookie,
+  isSessionBeyondAbsoluteMaxAge,
   renewSessionIfActive,
   sessionTtlSecondsForRole,
   shouldRenewSession,
@@ -139,9 +140,35 @@ function persistNewAuthSession(
  * Подтягивает актуальные ФИО/телефон/bindings из БД и отсекает сессии после удаления строки в `platform_users`
  * (например ops `reset-user`), когда cookie ещё валиден по подписи.
  */
+/**
+ * `sessions_valid_from` is written by Postgres (`now()`), while a cookie's `issuedAt` is written by
+ * the Node process. Every writer stamps the column and then immediately re-mints the cookie
+ * (role change → `setSessionFromUser`, password reset → fresh login), so without a small allowance
+ * a DB clock even one second ahead of the app clock would reject the brand-new cookie and present
+ * as "login is broken". The allowance only ever forgives a cookie minted within a few seconds of
+ * the revocation itself; it cannot keep a genuinely old session alive.
+ */
+const SESSIONS_VALID_FROM_CLOCK_SKEW_SECONDS = 5;
+
+/**
+ * True when this identity is expected to be re-derived from `platform_users` on every request —
+ * i.e. exactly the condition under which {@link resolveSessionUserAgainstDb} performs its DB read.
+ * The S2 chokepoint below uses it to decide whether a MISSING `sessionsValidFrom` is "there is no
+ * DB row behind this session" (accept) or "the revocation cutoff could not be read" (reject).
+ */
+function sessionIdentityIsDbBacked(user: SessionUser): boolean {
+  return Boolean(env.DATABASE_URL?.trim()) && isPlatformUserUuid(user.userId);
+}
+
 async function resolveSessionUserAgainstDb(user: SessionUser): Promise<SessionUser | null> {
-  if (!env.DATABASE_URL?.trim()) return user;
-  if (!isPlatformUserUuid(user.userId)) return user;
+  // `sessionsValidFrom` may only ever come from the DB read below. Every path that returns the
+  // COOKIE's user instead strips it, so a stale value can never be mistaken for a fresh read.
+  const withoutCutoff = (u: SessionUser): SessionUser => {
+    const { sessionsValidFrom: _fromCookie, ...rest } = u;
+    return rest;
+  };
+  if (!env.DATABASE_URL?.trim()) return withoutCutoff(user);
+  if (!isPlatformUserUuid(user.userId)) return withoutCutoff(user);
   try {
     // `getCurrentSession()` can run more than once during one RSC render. Its outer principal
     // cell is deliberately mutable so the completed session can promote the request to staff,
@@ -162,7 +189,10 @@ async function resolveSessionUserAgainstDb(user: SessionUser): Promise<SessionUs
     // Staff security and revocation are fail-closed: a transient identity-state
     // lookup failure must not turn a protected staff cookie into an accepted one.
     if (user.role === "doctor" || user.role === "admin") return null;
-    return user;
+    // Patients previously fell back to the cookie user here. That fallback survives, but WITHOUT a
+    // revocation cutoff — so the chokepoint in getCurrentSessionWithPrincipalMode() sees "cutoff
+    // could not be read" for a DB-backed user and rejects, instead of silently accepting.
+    return withoutCutoff(user);
   }
 }
 
@@ -910,6 +940,31 @@ async function getCurrentSessionWithPrincipalMode(
   const resolvedUser = await resolveSessionUserAgainstDb(decoded.user);
   if (resolvedUser === null) return null;
   if ((decoded.user.securityVersion ?? 0) !== (resolvedUser.securityVersion ?? 0)) return null;
+  // S2 remedy (2026-07-25, docs/_TODO/SECURITY_AUDIT_2026-07-25/FINDINGS.md): the ONE chokepoint
+  // for both new invariants, right beside the securityVersion check above. No handler repeats it.
+  // `sessionsValidFrom` is `platform_users.sessions_valid_from`, freshly read from the DB on every
+  // request and never trusted from the cookie (encodeSessionCookie strips it). Tri-state, FAIL
+  // CLOSED on the unknown case:
+  //   * undefined + DB-backed identity → the cutoff could not be read (identity lookup failed, or
+  //     the row shape drifted). Reject: an unreadable revocation state is not an accepted session.
+  //   * undefined + non-DB identity (integrator/dev token with a non-platform id, or no
+  //     DATABASE_URL) → there is no row that could ever carry a cutoff. Accept.
+  //   * null → the row was read and holds SQL NULL, i.e. nothing has ever revoked this user. Accept.
+  //   * number → a session issued before that instant is dead.
+  if (resolvedUser.sessionsValidFrom === undefined) {
+    if (sessionIdentityIsDbBacked(decoded.user)) return null;
+  } else if (
+    resolvedUser.sessionsValidFrom !== null &&
+    decoded.issuedAt < resolvedUser.sessionsValidFrom - SESSIONS_VALID_FROM_CLOCK_SKEW_SECONDS
+  ) {
+    return null;
+  }
+  // Absolute age cap, enforced here so the proxy's renewal path cannot bypass it (renewal itself
+  // also refuses past this point — see sessionCookie.ts — but a cookie renewed right up to the
+  // boundary and then merely replayed without ever asking to renew again must still die here).
+  if (isSessionBeyondAbsoluteMaxAge({ issuedAt: decoded.issuedAt, user: resolvedUser, operatorSession: decoded.operatorSession })) {
+    return null;
+  }
 
   // Normalize doctor session shape without writing cookie here — cookies().set()
   // is only allowed in Server Actions / Route Handlers, not in Server Component render.
@@ -1020,8 +1075,33 @@ export async function getCurrentSessionForIdentitySelf(): Promise<AppSession | n
   return getCurrentSessionWithPrincipalMode({ stampDbPrincipal: false });
 }
 
+/**
+ * Выход. Clears the client cookie AND — S2 remedy (2026-07-25,
+ * docs/_TODO/SECURITY_AUDIT_2026-07-25/FINDINGS.md) — stamps `platform_users.sessions_valid_from`
+ * for the signed-out user, so a cookie copied before this call stops being accepted the next time
+ * it is resolved against the DB (see the chokepoint in `getCurrentSessionWithPrincipalMode` above).
+ * Previously this function ONLY cleared the cookie; a copied session kept working after logout for
+ * up to its full TTL. The DB stamp is best-effort: a transient DB failure must not stop the user
+ * from clearing their own browser cookie.
+ */
 export async function clearSession(): Promise<void> {
   const cookieStore = await cookies();
+  const raw = cookieStore.get(SESSION_COOKIE_NAME)?.value;
+  const decoded = raw ? decodeSessionCookie(raw) : null;
+  if (decoded?.user && isPlatformUserUuid(decoded.user.userId) && env.DATABASE_URL?.trim()) {
+    try {
+      await runWithStaffSecuritySelfPrincipal(
+        decoded.user.userId,
+        "auth/clearSession:self",
+        async () => {
+          const { pgUserByPhonePort } = await import("@/infra/repos/pgUserByPhone");
+          await pgUserByPhonePort.invalidateSessionsForSelf();
+        },
+      );
+    } catch {
+      /* Best-effort revocation stamp: logout must still clear the cookie even if the DB write fails. */
+    }
+  }
   cookieStore.set(SESSION_COOKIE_NAME, "", {
     httpOnly: true,
     sameSite: "lax",

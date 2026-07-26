@@ -113,6 +113,7 @@ export const pgUserByPhonePort: UserByPhonePort = {
     }
     const userRow = await runIdentityPoolPgText(
       `SELECT pu.id, pu.display_name, pu.first_name, pu.last_name, pu.patronymic, pu.role, pu.phone_normalized,
+              pu.sessions_valid_from,
               COALESCE(sss.session_version, 0) AS security_version,
               COALESCE(sss.factor_required, false) AS security_factor_required
        FROM platform_users pu
@@ -122,6 +123,24 @@ export const pgUserByPhonePort: UserByPhonePort = {
     );
     if (userRow.rows.length === 0) return null;
     const u = parseIdentityRow(platformUserSessionRowSchema, userRow.rows[0], "find_by_user_id");
+    // S2 remedy (2026-07-25): this is the ONE read of `platform_users.sessions_valid_from`. It is
+    // always selected above, so the tri-state is unambiguous here: a genuine SQL NULL becomes
+    // `null` (= no cutoff), a real timestamp becomes unix seconds. A present-but-unparseable value
+    // is NOT downgraded to "no cutoff" — it throws, and the caller
+    // (`modules/auth/service.ts` resolveSessionUserAgainstDb) turns that into a rejected session.
+    let sessionsValidFrom: number | null = null;
+    if (u.sessions_valid_from === undefined) {
+      // The SELECT above always lists the column, so `undefined` (key absent from the row) can only
+      // mean the query drifted away from it. Fail closed rather than silently returning "no cutoff".
+      throw new Error("session_user_sessions_valid_from_not_selected");
+    }
+    if (u.sessions_valid_from !== null) {
+      const ms = new Date(u.sessions_valid_from).getTime();
+      if (!Number.isFinite(ms)) {
+        throw new Error("session_user_sessions_valid_from_unparseable");
+      }
+      sessionsValidFrom = Math.floor(ms / 1000);
+    }
     const firstName = u.first_name?.trim() || undefined;
     const lastName = u.last_name?.trim() || undefined;
     const patronymic = u.patronymic?.trim() || undefined;
@@ -141,7 +160,22 @@ export const pgUserByPhonePort: UserByPhonePort = {
       bindings,
       securityVersion: u.security_version,
       securityFactorRequired: u.security_factor_required,
+      sessionsValidFrom,
     };
+  },
+
+  /**
+   * S2 remedy (2026-07-25): stamps `platform_users.sessions_valid_from = now()` for the caller's
+   * OWN row. Must run under the identity-self principal (see
+   * `app-layer/principal/staffSecuritySelfPrincipal.ts` — `enterStaffSecuritySelfPrincipal` /
+   * `runWithStaffSecuritySelfPrincipal`), exactly like `findByUserId` above; the DB function reads
+   * that same principal via `app.require_staff_security_self_user_id()` and raises if it is
+   * missing. Used by logout and password reset — both self-operations, both today unable to revoke
+   * anything (logout never touched the DB at all; password reset's staff-only revoke silently
+   * no-ops when no `staff_security_profiles` row exists, which is every current TEST user).
+   */
+  async invalidateSessionsForSelf(): Promise<void> {
+    await runIdentityPoolPgText("SELECT app.stamp_platform_user_sessions_valid_from_self()");
   },
 
   async findByPhone(normalizedPhone: string): Promise<SessionUser | null> {

@@ -43,6 +43,10 @@ vi.mock("./sessionCookie", () => ({
   sessionTtlSecondsForRole: () => 3_600,
   shouldRenewSession: vi.fn(),
   writeFreshLoginMarkerCookie: vi.fn(),
+  // S2 remedy (2026-07-25): this file's fixtures use `issuedAt: 1` (1970) with a far-future
+  // `expiresAt`, which is exactly what the real absolute-max-age cap would reject — that concern
+  // is covered separately in service.sessionsValidFrom.test.ts, so it is neutralized here.
+  isSessionBeyondAbsoluteMaxAge: () => false,
 }));
 
 vi.mock("@/modules/system-settings/integrationRuntime", () => ({
@@ -58,7 +62,15 @@ vi.mock("@/app-layer/principal/sessionPrincipal", () => ({
 
 vi.mock("@/infra/repos/pgUserByPhone", () => ({
   pgUserByPhonePort: {
-    findByUserId: (...args: unknown[]) => mocks.findByUserId(...args),
+    // S2 remedy (2026-07-25): the real port ALWAYS returns `sessionsValidFrom` — `null` when the
+    // row holds SQL NULL (no revocation cutoff). Its absence now means "the cutoff could not be
+    // read" and fails closed at the chokepoint (asserted in service.sessionsValidFrom.test.ts).
+    // This file's fixtures predate the column, so default them to the "read fine, no cutoff" shape
+    // rather than restating it at ~10 call sites.
+    findByUserId: async (...args: unknown[]) => {
+      const fresh = (await mocks.findByUserId(...args)) as { sessionsValidFrom?: number | null } | null;
+      return fresh && fresh.sessionsValidFrom === undefined ? { ...fresh, sessionsValidFrom: null } : fresh;
+    },
     getVerifiedEmailForUser: (...args: unknown[]) => mocks.getVerifiedEmailForUser(...args),
   },
 }));

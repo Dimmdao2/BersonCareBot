@@ -27,6 +27,22 @@ export type SessionUser = {
   securityVersion?: number;
   /** A verified staff factor exists in DB; workspace access requires a factor-verified session. */
   securityFactorRequired?: boolean;
+  /**
+   * Unix seconds, `platform_users.sessions_valid_from` (S2 remedy, 2026-07-25). A session cookie
+   * whose `issuedAt` is earlier than this instant is dead — checked in ONE place,
+   * `modules/auth/service.ts` beside `securityVersion`.
+   *
+   * TRI-STATE, and the difference is the fail-closed contract:
+   *   * `number`    — a real cutoff read from the DB row. Compare against `issuedAt`.
+   *   * `null`      — the DB row was read and the column is genuinely `NULL` → no cutoff. Accept.
+   *   * `undefined` — the value was NOT obtained (the identity is not DB-backed at all, or the
+   *                   identity read failed/returned an unusable value). For a DB-backed platform
+   *                   user this is treated as REJECT, never as "nothing to enforce".
+   *
+   * It is deliberately NEVER persisted into the session cookie (`encodeSessionCookie` strips it),
+   * so a stale cookie-carried value can never satisfy the presence check above.
+   */
+  sessionsValidFrom?: number | null;
 };
 
 export type AppSession = {

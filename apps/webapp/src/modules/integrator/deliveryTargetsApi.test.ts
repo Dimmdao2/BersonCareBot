@@ -17,6 +17,7 @@ describe("deliveryTargetsApi", () => {
       getPhoneByUserId: vi.fn().mockResolvedValue(null),
       getVerifiedEmailForUser: vi.fn().mockResolvedValue(null),
       createOrBind: vi.fn().mockResolvedValue(mockUser),
+      invalidateSessionsForSelf: vi.fn().mockResolvedValue(undefined),
     },
     identityResolutionPort: {
       findOrCreateByChannelBinding: vi.fn(),
