@@ -1617,7 +1617,6 @@ run_strict_post_migration_closure(){
   log "grant + verify integrator migration ledger runtime read"
   grant_api_runtime_migration_ledger_read
   assert_api_runtime_can_read_migration_ledger
-  grant_webapp_bootstrap_base_login_d3_4
 
   log "strict closure: TEST settings override"
   sudo -u postgres psql -d "$DB" -X -v ON_ERROR_STOP=1 \
@@ -1643,6 +1642,22 @@ run_strict_post_migration_closure(){
   log "strict closure: post-matrix exact strict + FORCE reassertion"
   apply_test_strict_rls_finalizer
   reapply_c4_operational_runtime_overlays
+
+  # D3.4 must be the LAST writer of the bootstrap/nonstaff login's ACLs before anything reads them.
+  # Moved here 2026-07-26 (was right after the migration-ledger grant above, before the TEST settings
+  # override): apply_test_strict_rls_finalizer runs twice in this closure (once above, once again
+  # here) and \ir's deploy/postgres/organization-member-invites-rls.sql, which DROP+CREATEs four of
+  # the app.email_auth_find_* functions D3.4 grants -- a DROP+CREATE resets the OID and therefore the
+  # ACL, silently wiping D3.4's grant on every deploy. Running D3.4 once, early, meant those four
+  # functions were unreachable by the login role after every closure; the DB-owner/telemetry-owner
+  # SECURITY DEFINER anon-surface gate below caught the resulting missing-grant count. re-entrant by
+  # design (see the file header: `-v d3_4_bootstrap_grants_down=1` rollback), so re-running it here
+  # (instead of only here) is safe -- nothing between the old and new position reads or requires these
+  # grants: the finalizer/matrix/capability-gate steps run as postgres superuser via direct psql, and
+  # every HTTP-facing smoke that exercises the login role's email-auth surface runs later, after the
+  # TEST units are restarted below.
+  grant_webapp_bootstrap_base_login_d3_4
+
   assert_c4_operational_runtime_ready
   assert_integrator_server_runtime_config_ready
 

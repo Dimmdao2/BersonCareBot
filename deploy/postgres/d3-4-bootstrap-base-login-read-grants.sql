@@ -261,6 +261,16 @@ REVOKE EXECUTE ON FUNCTION app.email_auth_verify_user_email(uuid, text) FROM :"d
 REVOKE EXECUTE ON FUNCTION app.email_auth_find_email_challenge_for_consume(uuid, uuid) FROM :"d3_4_bootstrap_base_role";
 REVOKE EXECUTE ON FUNCTION app.email_auth_find_latest_email_challenge_for_user(uuid, bigint) FROM :"d3_4_bootstrap_base_role";
 REVOKE EXECUTE ON FUNCTION app.email_auth_find_latest_pending_email_challenge_for_user(uuid, bigint) FROM :"d3_4_bootstrap_base_role";
+-- 0248 (C-2 decaying OTP lockout): same bootstrap-reachability requirement as its email_auth_find_*
+-- siblings above -- checkEmailOtpLock() is the first DB call inside startEmailChallenge(), which the
+-- forgot-password flow (api/auth/email-password/forgot) calls under a bootstrap-stamped principal
+-- that never SET ROLEs. WHERE-guarded like the other post-D3.4-vintage additions in this file, so a
+-- DB that predates 0248 is a no-op rather than a FATAL.
+SELECT format(
+  'REVOKE EXECUTE ON FUNCTION app.email_auth_find_email_otp_lock(uuid) FROM %I',
+  :'d3_4_bootstrap_base_role'
+)
+WHERE to_regprocedure('app.email_auth_find_email_otp_lock(uuid)') IS NOT NULL \gexec
 REVOKE EXECUTE ON FUNCTION app.resolve_public_booking_organization(uuid, uuid, uuid) FROM :"d3_4_bootstrap_base_role";
 REVOKE EXECUTE ON FUNCTION app.resolve_public_organization_slug(text) FROM :"d3_4_bootstrap_base_role";
 REVOKE EXECUTE ON FUNCTION app.resolve_public_organization_by_slug(text) FROM :"d3_4_bootstrap_base_role";
@@ -513,6 +523,13 @@ GRANT EXECUTE ON FUNCTION app.email_auth_verify_user_email(uuid, text) TO :"d3_4
 GRANT EXECUTE ON FUNCTION app.email_auth_find_email_challenge_for_consume(uuid, uuid) TO :"d3_4_bootstrap_base_role";
 GRANT EXECUTE ON FUNCTION app.email_auth_find_latest_email_challenge_for_user(uuid, bigint) TO :"d3_4_bootstrap_base_role";
 GRANT EXECUTE ON FUNCTION app.email_auth_find_latest_pending_email_challenge_for_user(uuid, bigint) TO :"d3_4_bootstrap_base_role";
+-- 0248 (C-2 decaying OTP lockout): see the matching REVOKE above for why this needs the same
+-- bootstrap reachability as its email_auth_find_* siblings immediately above it.
+SELECT format(
+  'GRANT EXECUTE ON FUNCTION app.email_auth_find_email_otp_lock(uuid) TO %I',
+  :'d3_4_bootstrap_base_role'
+)
+WHERE to_regprocedure('app.email_auth_find_email_otp_lock(uuid)') IS NOT NULL \gexec
 
 -- Proven locked TEST bootstrap read surface, 2026-07-14 D3.4:
 -- session identity, first staff membership lookup, and public booking tenant resolution only.
