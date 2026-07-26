@@ -9,9 +9,8 @@ const resolveCanonicalInPersonContextMock = vi.hoisted(() => vi.fn());
 const resolveOrganizationIdBySlugMock = vi.hoisted(() => vi.fn());
 const getBranchMock = vi.hoisted(() => vi.fn());
 const getServiceMock = vi.hoisted(() => vi.fn());
-const sendCodeMock = vi.hoisted(() => vi.fn());
-const challengeGetMock = vi.hoisted(() => vi.fn());
-const challengeSetMock = vi.hoisted(() => vi.fn());
+const issueChallengeMock = vi.hoisted(() => vi.fn());
+const deliverCodeMock = vi.hoisted(() => vi.fn());
 const getCurrentSessionMock = vi.hoisted(() => vi.fn());
 const isBookingBlockedMock = vi.hoisted(() => vi.fn());
 const ORG_ID = "11111111-1111-4111-8111-111111111111";
@@ -37,8 +36,8 @@ vi.mock("@/app-layer/di/buildAppDeps", () => ({
     bookingScheduling: { resolvePublicBookingOrganization: resolvePublicBookingOrganizationMock, resolveCanonicalInPersonContext: resolveCanonicalInPersonContextMock },
     clientHistory: { assertSelfServiceBookingAllowed: isBookingBlockedMock },
     publicBookingVerification: {
-      smsPort: { sendCode: sendCodeMock, verifyCode: vi.fn() },
-      challengeStore: { get: challengeGetMock, set: challengeSetMock, delete: vi.fn() },
+      otp: { issueChallenge: issueChallengeMock, consumeChallenge: vi.fn() },
+      deliverCode: deliverCodeMock,
     },
   }),
 }));
@@ -86,9 +85,8 @@ describe("POST /api/booking/public/create", () => {
     getServiceMock.mockResolvedValue({ id: SERVICE_ID, organizationId: ORG_ID });
     getCurrentSessionMock.mockResolvedValue(null);
     isBookingBlockedMock.mockResolvedValue(undefined);
-    sendCodeMock.mockResolvedValue({ ok: true, challengeId: "chal-1", retryAfterSeconds: 60 });
-    challengeGetMock.mockResolvedValue({ phone: EXISTING_PHONE, expiresAt: 9e9, code: "123456", deliveryChannel: "sms" });
-    challengeSetMock.mockResolvedValue(undefined);
+    issueChallengeMock.mockResolvedValue(true);
+    deliverCodeMock.mockResolvedValue({ ok: true });
   });
 
   it("asks for a code instead of creating the booking, and does not touch the person", async () => {
@@ -96,7 +94,9 @@ describe("POST /api/booking/public/create", () => {
 
     expect(response.status).toBe(200);
     const json = await response.json();
-    expect(json.verification.challengeId).toBe("chal-1");
+    // The id is minted server-side per request; the caller only has to be handed one.
+    expect(typeof json.verification.challengeId).toBe("string");
+    expect(json.verification.challengeId.length).toBeGreaterThan(0);
     expect(json.booking).toBeUndefined();
     // The whole hole in one assertion: nothing resolved a person from the submitted phone.
     expect(resolveUserMock).not.toHaveBeenCalled();
@@ -106,10 +106,9 @@ describe("POST /api/booking/public/create", () => {
   it("pins the tenant-resolved booking to the challenge, not to anything the caller can restate", async () => {
     await POST(request(inPersonBody()));
 
-    expect(challengeSetMock).toHaveBeenCalledWith(
-      "chal-1",
+    expect(issueChallengeMock).toHaveBeenCalledWith(
       expect.objectContaining({
-        publicBookingIntent: expect.objectContaining({
+        intent: expect.objectContaining({
           organizationId: ORG_ID,
           branchId: BRANCH_ID,
           serviceId: SERVICE_ID,
@@ -166,12 +165,14 @@ describe("POST /api/booking/public/create", () => {
     });
 
     it("collapses every delivery and per-phone-limit failure into one code", async () => {
-      for (const failure of [
-        { ok: false, code: "rate_limited", retryAfterSeconds: 60 },
-        { ok: false, code: "too_many_attempts", retryAfterSeconds: 900 },
-        { ok: false, code: "delivery_failed" },
-      ]) {
-        sendCodeMock.mockResolvedValueOnce(failure);
+      // Two distinguishable causes upstream — the per-phone gate refusing (lockout or resend
+      // cooldown, both facts about the NUMBER) and delivery failing — and one body downstream.
+      const failures: (() => void)[] = [
+        () => issueChallengeMock.mockResolvedValueOnce(false),
+        () => deliverCodeMock.mockResolvedValueOnce({ ok: false }),
+      ];
+      for (const arrange of failures) {
+        arrange();
         const response = await POST(request(inPersonBody()));
         expect(response.status).toBe(503);
         // Identical body every time — no retry countdown, which would leak that a code was
@@ -189,7 +190,7 @@ describe("POST /api/booking/public/create", () => {
 
       expect(response.status).toBe(200);
       expect(createBookingMock).toHaveBeenCalledTimes(1);
-      expect(sendCodeMock).not.toHaveBeenCalled();
+      expect(issueChallengeMock).not.toHaveBeenCalled();
       // Session-proved phone: trust may be stamped.
       expect(resolveUserMock).toHaveBeenCalledWith(EXISTING_PHONE, "Иван", true);
     });
@@ -199,7 +200,7 @@ describe("POST /api/booking/public/create", () => {
 
       const response = await POST(request(inPersonBody({ contactPhone: EXISTING_PHONE })));
 
-      expect((await response.json()).verification.challengeId).toBe("chal-1");
+      expect(typeof (await response.json()).verification.challengeId).toBe("string");
       expect(createBookingMock).not.toHaveBeenCalled();
     });
 
@@ -208,7 +209,7 @@ describe("POST /api/booking/public/create", () => {
 
       const response = await POST(request(inPersonBody()));
 
-      expect((await response.json()).verification.challengeId).toBe("chal-1");
+      expect(typeof (await response.json()).verification.challengeId).toBe("string");
       expect(createBookingMock).not.toHaveBeenCalled();
     });
   });
@@ -224,7 +225,7 @@ describe("POST /api/booking/public/create", () => {
     const response = await POST(request(inPersonBody({ contactName: "Test" })));
     expect(response.status).toBe(429);
     expect(createBookingMock).not.toHaveBeenCalled();
-    expect(sendCodeMock).not.toHaveBeenCalled();
+    expect(issueChallengeMock).not.toHaveBeenCalled();
   });
 
   it("denies clinic-A confirmation carrying valid clinic-B booking ids before user creation", async () => {
@@ -238,7 +239,7 @@ describe("POST /api/booking/public/create", () => {
     expect(resolveUserMock).not.toHaveBeenCalled();
     expect(createBookingMock).not.toHaveBeenCalled();
     // and no code was sent, so the tenant check still runs BEFORE anything reaches the contact
-    expect(sendCodeMock).not.toHaveBeenCalled();
+    expect(issueChallengeMock).not.toHaveBeenCalled();
   });
 
   it("denies a mismatch the slug pre-check missed, caught by the second independent check", async () => {
@@ -252,7 +253,7 @@ describe("POST /api/booking/public/create", () => {
 
     expect(response.status).toBe(400);
     expect(await response.json()).toMatchObject({ ok: false, error: "ambiguous_booking_tenant" });
-    expect(sendCodeMock).not.toHaveBeenCalled();
+    expect(issueChallengeMock).not.toHaveBeenCalled();
   });
 
   it("redacts an unknown public booking exception behind fixed create_failed", async () => {

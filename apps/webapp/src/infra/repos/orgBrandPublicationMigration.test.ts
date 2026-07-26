@@ -194,8 +194,14 @@ describe("0238 organization brand publication", () => {
     // failing ever since. A frozen-count gate that is permanently red teaches everyone to ignore it,
     // which is exactly how a genuinely new definer function would slip through unnoticed — so the
     // number is corrected here rather than the gate being relaxed.
-    expect(deploy).toContain("local expected_secdef_count=56");
+    // 56 -> 58 (2026-07-26): migration 0246_public_booking_phone_otp_accessors added the two A-3
+    // anonymous-booking phone OTP accessors, together with the eight phone_challenges /
+    // phone_otp_locks required-grant rows they need. This expectation and the deploy constant move
+    // in the same commit, on purpose — they are two independent copies of one frozen number.
+    expect(deploy).toContain("local expected_secdef_count=58");
     expect(deploy).toContain("('public.org_enrollments', 'SELECT')");
+    expect(deploy).toContain("('public.phone_challenges', 'INSERT')");
+    expect(deploy).toContain("('public.phone_otp_locks', 'UPDATE')");
   });
 
   /**

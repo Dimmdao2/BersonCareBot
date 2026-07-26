@@ -19,12 +19,20 @@
  * constraint — so a lost race fails cleanly as `slot_overlap`, exactly as two simultaneous
  * confirmed bookings already do today.
  */
-import type { PhoneChallengePayload, PhoneChallengeStore } from "@/modules/auth/phoneChallengeStore";
-import type { PhoneOtpDelivery, SmsPort } from "@/modules/auth/smsPort";
+import { randomBytes } from "node:crypto";
+import type { PhoneChallengePayload } from "@/modules/auth/phoneChallengeStore";
+import {
+  OTP_LOCK_DURATION_SEC,
+  OTP_MAX_VERIFY_ATTEMPTS,
+  OTP_RESEND_COOLDOWN_SEC,
+} from "@/modules/auth/otpConstants";
+import { generateSmsCode } from "@/modules/auth/smsCode";
 import { normalizeRuPhoneE164 } from "@/shared/phone/normalizeRuPhoneE164";
 import { isValidPhoneE164 } from "@/modules/auth/phoneValidation";
+import type { PublicBookingOtpPort } from "./publicBookingOtpPort";
 import {
   channelProvesPhoneControl,
+  parsePublicBookingIntent,
   PUBLIC_BOOKING_INTENT_VERSION,
   type PublicBookingIntent,
 } from "./publicBookingIntent";
@@ -32,20 +40,46 @@ import {
 /** Code lifetime; the same TTL the rest of the phone-OTP flow uses. */
 export const PUBLIC_BOOKING_CHALLENGE_TTL_SEC = 600;
 
+/** Delivery-only seam: "send this code to this number". Owns no storage. */
+export type PublicBookingCodeDelivery = (
+  phone: string,
+  code: string,
+) => Promise<{ ok: boolean }>;
+
+/**
+ * Storage is the SECURITY DEFINER accessor port, delivery is a plain function.
+ *
+ * They used to be one thing — `SmsPort.sendCode`, which gates, stores and sends. That bundle is
+ * why this path could not run outside DEV: storing meant `INSERT INTO phone_challenges` from the
+ * request's own role, and `deploy/postgres/p0-5b-grants.sql` gives that table to app_staff only,
+ * while both booking handlers run as app_patient (bootstrap principal → nonstaff pool). Splitting
+ * storage out lets it go through `app.phone_otp_public_booking_*`, which needs no table grant at
+ * all. The per-phone cooldown and lockout did not move — they are enforced inside those accessors,
+ * against the same two tables, with the same constants passed in from `otpConstants.ts`.
+ */
 export type PublicBookingVerificationDeps = {
-  smsPort: SmsPort;
-  challengeStore: PhoneChallengeStore;
+  otp: PublicBookingOtpPort;
+  deliverCode: PublicBookingCodeDelivery;
 };
 
 export type IssueVerificationResult =
   | { ok: true; challengeId: string; expiresInSeconds: number; retryAfterSeconds?: number }
   | { ok: false; code: "invalid_phone" | "verification_unavailable"; retryAfterSeconds?: number };
 
+function generateChallengeId(): string {
+  return randomBytes(16).toString("base64url");
+}
+
 /**
  * Issues the one-time code and pins `intent` to the resulting challenge.
  *
- * Delivery goes through `SmsPort.sendCode`, which is what inherits the per-phone resend cooldown
- * and lockout (`phoneOtpLimits`) instead of growing a second one-time-code system.
+ * Order note: the challenge is written BEFORE delivery is attempted, which is the reverse of
+ * `integratorSmsAdapter`. Deliberate. Gate-then-write has to be one atomic step or two concurrent
+ * requests for the same number both pass the resend-cooldown check before either writes a row, and
+ * the accessor cannot hold that transaction open across an outbound HTTP call. The cost is that a
+ * failed send still consumes the 60-second cooldown for that number. That is invisible to the
+ * caller — success and failure return the same constant body either way — and it errs towards
+ * fewer codes, not more.
  */
 export async function issuePublicBookingVerification(
   deps: PublicBookingVerificationDeps,
@@ -56,31 +90,31 @@ export async function issuePublicBookingVerification(
   const phone = normalizeRuPhoneE164(intent.contactPhone);
   if (!isValidPhoneE164(phone)) return { ok: false, code: "invalid_phone" };
 
-  const delivery: PhoneOtpDelivery = { channel: "sms" };
-  const sent = await deps.smsPort.sendCode(phone, PUBLIC_BOOKING_CHALLENGE_TTL_SEC, delivery);
-  if (!sent.ok) {
-    // Every delivery/limit failure collapses into ONE code. `rate_limited` vs `delivery_failed` vs
-    // `too_many_attempts` are all observable functions of the phone number, so distinguishing them
-    // would rebuild the enumeration oracle one layer down.
-    return {
-      ok: false,
-      code: "verification_unavailable",
-      retryAfterSeconds: sent.retryAfterSeconds,
-    };
-  }
+  const challengeId = generateChallengeId();
+  const code = generateSmsCode();
 
-  const stored = await deps.challengeStore.get(sent.challengeId);
-  if (!stored) return { ok: false, code: "verification_unavailable" };
-  await deps.challengeStore.set(sent.challengeId, {
-    ...stored,
-    publicBookingIntent: { ...intent, v: PUBLIC_BOOKING_INTENT_VERSION },
+  const issued = await deps.otp.issueChallenge({
+    phone,
+    challengeId,
+    code,
+    ttlSec: PUBLIC_BOOKING_CHALLENGE_TTL_SEC,
+    resendCooldownSec: OTP_RESEND_COOLDOWN_SEC,
+    deliveryChannel: "sms",
+    intent: { ...intent, v: PUBLIC_BOOKING_INTENT_VERSION },
   });
+  // Every limit failure collapses into ONE code. Lockout vs resend cooldown are both observable
+  // functions of the phone number, so distinguishing them would rebuild the enumeration oracle one
+  // layer down — which is why `issueChallenge` returns a bare boolean and not a reason.
+  if (!issued) return { ok: false, code: "verification_unavailable" };
+
+  const sent = await deps.deliverCode(phone, code);
+  if (!sent.ok) return { ok: false, code: "verification_unavailable" };
 
   return {
     ok: true,
-    challengeId: sent.challengeId,
+    challengeId,
     expiresInSeconds: PUBLIC_BOOKING_CHALLENGE_TTL_SEC,
-    retryAfterSeconds: sent.retryAfterSeconds,
+    retryAfterSeconds: OTP_RESEND_COOLDOWN_SEC,
   };
 }
 
@@ -107,30 +141,35 @@ export async function consumePublicBookingVerification(
   challengeId: string,
   code: string,
 ): Promise<ConsumeVerificationResult> {
-  const stored = await deps.challengeStore.get(challengeId);
-  if (!stored?.publicBookingIntent) {
-    return { ok: false, code: "verification_failed" };
-  }
-
-  const verified = await deps.smsPort.verifyCode(challengeId, code);
-  if (!verified.ok) {
+  // One call. The code is compared inside the accessor and the challenge is deleted in the same
+  // transaction that accepts it — single use is a database property here, not a sequence of app
+  // steps that a concurrent confirm could interleave with. The code is never read back out.
+  const consumed = await deps.otp.consumeChallenge(
+    challengeId,
+    code,
+    OTP_MAX_VERIFY_ATTEMPTS,
+    OTP_LOCK_DURATION_SEC,
+  );
+  if (!consumed.ok) {
     return {
       ok: false,
       code: "verification_failed",
-      retryAfterSeconds: verified.retryAfterSeconds,
+      ...(consumed.retryAfterSeconds == null ? {} : { retryAfterSeconds: consumed.retryAfterSeconds }),
     };
   }
 
-  // Single use: the code is spent whether or not the booking below succeeds. A challenge that
-  // survived a successful verify would let one code be replayed into many bookings.
-  await deps.challengeStore.delete(challengeId);
+  // The intent is re-validated on the way out, exactly as it was when it came back through
+  // `channelContextFromRow`: an intent of an unknown shape or version is "no intent", not a
+  // half-trusted booking.
+  const intent = parsePublicBookingIntent(consumed.intent);
+  if (!intent) return { ok: false, code: "verification_failed" };
 
   return {
     ok: true,
     verified: {
-      intent: stored.publicBookingIntent,
-      deliveryChannel: stored.deliveryChannel,
-      phoneProven: channelProvesPhoneControl(stored.deliveryChannel),
+      intent,
+      deliveryChannel: consumed.deliveryChannel,
+      phoneProven: channelProvesPhoneControl(consumed.deliveryChannel),
     },
   };
 }

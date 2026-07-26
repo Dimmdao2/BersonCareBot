@@ -7,9 +7,7 @@ const recordMergeMock = vi.hoisted(() => vi.fn());
 const resolveCanonicalInPersonContextMock = vi.hoisted(() => vi.fn());
 const getBranchMock = vi.hoisted(() => vi.fn());
 const getServiceMock = vi.hoisted(() => vi.fn());
-const verifyCodeMock = vi.hoisted(() => vi.fn());
-const challengeGetMock = vi.hoisted(() => vi.fn());
-const challengeDeleteMock = vi.hoisted(() => vi.fn());
+const consumeChallengeMock = vi.hoisted(() => vi.fn());
 
 const ORG_ID = "11111111-1111-4111-8111-111111111111";
 const OTHER_ORG_ID = "11111111-1111-4111-8111-111111111112";
@@ -33,8 +31,8 @@ vi.mock("@/app-layer/di/buildAppDeps", () => ({
     bookingEngine: { catalog: { getBranch: getBranchMock }, services: { getService: getServiceMock } },
     bookingScheduling: { resolveCanonicalInPersonContext: resolveCanonicalInPersonContextMock },
     publicBookingVerification: {
-      smsPort: { sendCode: vi.fn(), verifyCode: verifyCodeMock },
-      challengeStore: { get: challengeGetMock, set: vi.fn(), delete: challengeDeleteMock },
+      otp: { issueChallenge: vi.fn(), consumeChallenge: consumeChallengeMock },
+      deliverCode: vi.fn(),
     },
   }),
 }));
@@ -75,14 +73,9 @@ describe("POST /api/booking/public/create/confirm", () => {
     resolveCanonicalInPersonContextMock.mockResolvedValue({ organizationId: ORG_ID, branchId: BRANCH_ID, serviceId: SERVICE_ID });
     getBranchMock.mockResolvedValue({ id: BRANCH_ID, organizationId: ORG_ID, cityCode: "moscow" });
     getServiceMock.mockResolvedValue({ id: SERVICE_ID, organizationId: ORG_ID });
-    verifyCodeMock.mockResolvedValue({ ok: true });
-    challengeGetMock.mockResolvedValue({
-      phone: EXISTING_PHONE,
-      expiresAt: 9e9,
-      deliveryChannel: "sms",
-      publicBookingIntent: intent(),
-    });
-    challengeDeleteMock.mockResolvedValue(undefined);
+    // The accessor verifies the code, spends the challenge and hands back only the pinned intent
+    // and the delivery channel — never the code, never a row.
+    consumeChallengeMock.mockResolvedValue({ ok: true, intent: intent(), deliveryChannel: "sms" });
   });
 
   it("creates the booking from the pinned intent once the code verifies", async () => {
@@ -111,11 +104,10 @@ describe("POST /api/booking/public/create/confirm", () => {
     it.each(["email", "telegram", "max", undefined] as const)(
       "does NOT stamp phone trust when the code came by %s",
       async (channel) => {
-        challengeGetMock.mockResolvedValue({
-          phone: EXISTING_PHONE,
-          expiresAt: 9e9,
+        consumeChallengeMock.mockResolvedValue({
+          ok: true,
+          intent: intent(),
           deliveryChannel: channel,
-          publicBookingIntent: intent(),
         });
 
         await POST(request({ challengeId: "chal-1", code: "123456" }));
@@ -127,7 +119,7 @@ describe("POST /api/booking/public/create/confirm", () => {
 
   describe("the code is the gate, and it is single use", () => {
     it("creates nothing when the code does not verify", async () => {
-      verifyCodeMock.mockResolvedValue({ ok: false, code: "invalid_code" });
+      consumeChallengeMock.mockResolvedValue({ ok: false });
 
       const response = await POST(request({ challengeId: "chal-1", code: "000000" }));
 
@@ -140,11 +132,15 @@ describe("POST /api/booking/public/create/confirm", () => {
     it("gives one answer for wrong, expired, unknown and exhausted alike", async () => {
       const answers: string[] = [];
       for (const setup of [
-        () => verifyCodeMock.mockResolvedValueOnce({ ok: false, code: "invalid_code" }),
-        () => verifyCodeMock.mockResolvedValueOnce({ ok: false, code: "expired_code" }),
-        () => verifyCodeMock.mockResolvedValueOnce({ ok: false, code: "too_many_attempts" }),
-        () => challengeGetMock.mockResolvedValueOnce(null),
-        () => challengeGetMock.mockResolvedValueOnce({ phone: EXISTING_PHONE, expiresAt: 9e9 }),
+        // Wrong code, expired, unknown id, exhausted attempts and "challenge carries no booking
+        // intent" are ONE `ok: false` at the accessor boundary by construction — the only extra
+        // field the lockout branch can add is the caller's own retry countdown.
+        () => consumeChallengeMock.mockResolvedValueOnce({ ok: false }),
+        () => consumeChallengeMock.mockResolvedValueOnce({ ok: false, retryAfterSeconds: 600 }),
+        // An intent the accessor returned but that no longer parses (version bump / tampering)
+        // must land on the same answer, not a distinguishable one.
+        () => consumeChallengeMock.mockResolvedValueOnce({ ok: true, intent: { v: 99 }, deliveryChannel: "sms" }),
+        () => consumeChallengeMock.mockResolvedValueOnce({ ok: true, intent: null, deliveryChannel: "sms" }),
       ]) {
         setup();
         const response = await POST(request({ challengeId: "chal-1", code: "000000" }));
@@ -157,7 +153,9 @@ describe("POST /api/booking/public/create/confirm", () => {
 
     it("spends the challenge so one code cannot be redeemed twice", async () => {
       await POST(request({ challengeId: "chal-1", code: "123456" }));
-      expect(challengeDeleteMock).toHaveBeenCalledWith("chal-1");
+      // Consuming IS the verification: the accessor deletes the row in the same transaction that
+      // accepts the code, so there is no second app-level step that could be skipped or lost.
+      expect(consumeChallengeMock).toHaveBeenCalledWith("chal-1", "123456", expect.any(Number), expect.any(Number));
     });
 
     it("does not consult the challenge store at all once the confirm limit is hit", async () => {
@@ -166,7 +164,7 @@ describe("POST /api/booking/public/create/confirm", () => {
       const response = await POST(request({ challengeId: "chal-1", code: "123456" }));
 
       expect(response.status).toBe(429);
-      expect(verifyCodeMock).not.toHaveBeenCalled();
+      expect(consumeChallengeMock).not.toHaveBeenCalled();
       expect(createBookingMock).not.toHaveBeenCalled();
     });
   });

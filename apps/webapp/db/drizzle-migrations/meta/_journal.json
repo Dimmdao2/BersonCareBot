@@ -1716,6 +1716,13 @@
       "when": 1793539200041,
       "tag": "0245_public_app_base_url_runtime_setting",
       "breakpoints": true
+    },
+    {
+      "idx": 246,
+      "version": "7",
+      "when": 1793539200042,
+      "tag": "0246_public_booking_phone_otp_accessors",
+      "breakpoints": true
     }
   ]
 }

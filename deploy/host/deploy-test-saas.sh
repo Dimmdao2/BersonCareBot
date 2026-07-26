@@ -1155,7 +1155,20 @@ WITH required(tbl, priv) AS (
     -- app.read_org_brand_core_context(uuid) read these two as app_owner (be_organizations SELECT is
     -- already required above for the invite/slug definers; org_enrollments SELECT comes canonically
     -- from deploy/postgres/patient-invites-rls.sql).
-    ('public.org_enrollments', 'SELECT')
+    ('public.org_enrollments', 'SELECT'),
+    -- 0246 public booking phone OTP: app.phone_otp_public_booking_issue_challenge() and
+    -- app.phone_otp_public_booking_consume_challenge() read AND write both phone-OTP tables
+    -- (insert/expire the challenge, count attempts, set/clear the per-phone lockout). There is no
+    -- deploy/postgres overlay for these two tables -- p0-5b-grants.sql only ever touches
+    -- app_staff/app_patient -- so 0246 itself is their canonical app_owner grant site.
+    ('public.phone_challenges', 'SELECT'),
+    ('public.phone_challenges', 'INSERT'),
+    ('public.phone_challenges', 'UPDATE'),
+    ('public.phone_challenges', 'DELETE'),
+    ('public.phone_otp_locks', 'SELECT'),
+    ('public.phone_otp_locks', 'INSERT'),
+    ('public.phone_otp_locks', 'UPDATE'),
+    ('public.phone_otp_locks', 'DELETE')
 )
 SELECT coalesce(string_agg(tbl || ' ' || priv, ', ' ORDER BY tbl, priv), '')
 FROM required
@@ -1204,7 +1217,20 @@ SELECT has_column_privilege('app_owner', 'public.operator_incidents', 'alert_sen
   # resolved to "not configured" for every unauthenticated caller (permission denied, 42501,
   # swallowed by configAdapter.ts:fetchFromDb into null) even with SMTP fully configured — the owner
   # could not log in. The accessor returns ONLY a boolean (never host/user/password/from).
-  local expected_secdef_count=56
+  # 56 -> 58 (2026-07-26): migration 0246_public_booking_phone_otp_accessors adds exactly two
+  # reviewed app_owner SECURITY DEFINER accessors for the A-3 anonymous booking OTP path —
+  # app.phone_otp_public_booking_issue_challenge(text,text,text,integer,integer,text,jsonb) and
+  # app.phone_otp_public_booking_consume_challenge(text,text,integer,integer). They exist because
+  # both booking handlers stamp a `bootstrap` principal, which webappPoolProvider routes to the
+  # NONSTAFF pool (app_patient), and p0-5b-grants.sql lists public.phone_challenges /
+  # public.phone_otp_locks in the app_staff set only — verified live on DEV 2026-07-26:
+  # `select count(*) from phone_challenges` as the nonstaff login → 42501 permission denied. The
+  # remedy is NOT a runtime-role table grant (this gate's sibling assert_* would FATAL on it); it is
+  # the same accessor idiom as 0232's public e-mail OTP consume. Their table reads/writes are the
+  # eight new required-grant rows added above. Neither accessor returns a challenge row: issue
+  # returns a bare boolean, consume returns only the caller's own pinned booking intent and the
+  # delivery channel — never the one-time code.
+  local expected_secdef_count=58
   local actual_secdef_count
   actual_secdef_count="$(sudo -u postgres psql -d "$DB" -X -v ON_ERROR_STOP=1 -tAc "
 SELECT count(*) FROM pg_proc p WHERE pg_get_userbyid(p.proowner) = 'app_owner' AND p.prosecdef;
@@ -1217,7 +1243,7 @@ SELECT count(*) FROM pg_proc p WHERE pg_get_userbyid(p.proowner) = 'app_owner' A
     exit 1
   }
 
-  echo "   app_owner SECURITY DEFINER table-grant completeness: OK (19 required table grants + 1 column grant present, $actual_secdef_count/$expected_secdef_count secdef functions pinned)"
+  echo "   app_owner SECURITY DEFINER table-grant completeness: OK (27 required table grants + 1 column grant present, $actual_secdef_count/$expected_secdef_count secdef functions pinned)"
 }
 
 mark_e1_runtime_coverage_start(){

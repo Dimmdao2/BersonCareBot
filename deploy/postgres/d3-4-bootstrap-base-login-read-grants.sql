@@ -223,6 +223,17 @@ REVOKE EXECUTE ON FUNCTION app.email_otp_public_delete_unverified_registration(u
 REVOKE EXECUTE ON FUNCTION app.email_otp_public_find_latest_email_challenge_by_email(text, bigint) FROM :"d3_4_bootstrap_base_role";
 REVOKE EXECUTE ON FUNCTION app.email_otp_public_consume_latest_challenge(text, text) FROM :"d3_4_bootstrap_base_role";
 REVOKE EXECUTE ON FUNCTION app.email_otp_public_find_email_send_cooldown_by_email(text) FROM :"d3_4_bootstrap_base_role";
+-- 0246 A-3 anonymous booking phone-OTP pair (see the matching GRANTs in the UP section below).
+SELECT format(
+  'REVOKE EXECUTE ON FUNCTION app.phone_otp_public_booking_issue_challenge(text, text, text, integer, integer, text, jsonb) FROM %I',
+  :'d3_4_bootstrap_base_role'
+)
+WHERE to_regprocedure('app.phone_otp_public_booking_issue_challenge(text, text, text, integer, integer, text, jsonb)') IS NOT NULL \gexec
+SELECT format(
+  'REVOKE EXECUTE ON FUNCTION app.phone_otp_public_booking_consume_challenge(text, text, integer, integer) FROM %I',
+  :'d3_4_bootstrap_base_role'
+)
+WHERE to_regprocedure('app.phone_otp_public_booking_consume_challenge(text, text, integer, integer)') IS NOT NULL \gexec
 REVOKE EXECUTE ON FUNCTION app.email_auth_find_email_send_cooldown(uuid, text) FROM :"d3_4_bootstrap_base_role";
 REVOKE EXECUTE ON FUNCTION app.email_auth_delete_email_challenges_for_user(uuid) FROM :"d3_4_bootstrap_base_role";
 REVOKE EXECUTE ON FUNCTION app.email_auth_insert_email_challenge(uuid, text, text, bigint) FROM :"d3_4_bootstrap_base_role";
@@ -442,6 +453,26 @@ GRANT EXECUTE ON FUNCTION app.email_otp_public_delete_unverified_registration(uu
 GRANT EXECUTE ON FUNCTION app.email_otp_public_find_latest_email_challenge_by_email(text, bigint) TO :"d3_4_bootstrap_base_role";
 GRANT EXECUTE ON FUNCTION app.email_otp_public_consume_latest_challenge(text, text) TO :"d3_4_bootstrap_base_role";
 GRANT EXECUTE ON FUNCTION app.email_otp_public_find_email_send_cooldown_by_email(text) TO :"d3_4_bootstrap_base_role";
+-- 0246: the A-3 anonymous booking phone-OTP pair, the phone-side twin of the e-mail OTP accessors
+-- immediately above. Both booking handlers stamp a `bootstrap` principal, and a bootstrap principal
+-- never SET ROLEs (packages/db-principal/src/index.ts:applyDbPrincipalToConnection -> the
+-- "bootstrap" case only clears app.* config) — so the request stays on this NOINHERIT login role
+-- and a GRANT to app_patient alone buys it nothing. Reproduced live on DEV 2026-07-26: with EXECUTE
+-- granted to app_patient and nothing else, the runtime login still answered
+-- "permission denied for function phone_otp_public_booking_issue_challenge". Neither function
+-- returns a challenge row: issue answers true/false, consume answers with the caller's own pinned
+-- booking intent and the delivery channel — never the one-time code. WHERE-guarded like
+-- is_smtp_outbound_configured above, so a DB without migration 0246 is a no-op rather than a FATAL.
+SELECT format(
+  'GRANT EXECUTE ON FUNCTION app.phone_otp_public_booking_issue_challenge(text, text, text, integer, integer, text, jsonb) TO %I',
+  :'d3_4_bootstrap_base_role'
+)
+WHERE to_regprocedure('app.phone_otp_public_booking_issue_challenge(text, text, text, integer, integer, text, jsonb)') IS NOT NULL \gexec
+SELECT format(
+  'GRANT EXECUTE ON FUNCTION app.phone_otp_public_booking_consume_challenge(text, text, integer, integer) TO %I',
+  :'d3_4_bootstrap_base_role'
+)
+WHERE to_regprocedure('app.phone_otp_public_booking_consume_challenge(text, text, integer, integer)') IS NOT NULL \gexec
 GRANT EXECUTE ON FUNCTION app.email_auth_find_email_send_cooldown(uuid, text) TO :"d3_4_bootstrap_base_role";
 GRANT EXECUTE ON FUNCTION app.email_auth_delete_email_challenges_for_user(uuid) TO :"d3_4_bootstrap_base_role";
 GRANT EXECUTE ON FUNCTION app.email_auth_insert_email_challenge(uuid, text, text, bigint) TO :"d3_4_bootstrap_base_role";

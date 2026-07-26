@@ -35,6 +35,12 @@ import { createPgPhoneMessengerBindPort } from "@/infra/repos/pgPhoneMessengerBi
 import type { ChannelContext } from "@/modules/auth/channelContext";
 import { createIntegratorSmsAdapter } from "@/infra/integrations/sms/integratorSmsAdapter";
 import { createStubSmsAdapter } from "@/infra/integrations/sms/stubSmsAdapter";
+import { deliverSmsCodeViaIntegrator } from "@/infra/integrations/sms/integratorSmsDelivery";
+import {
+  createPgPublicBookingOtpPort,
+  inMemoryPublicBookingOtpPort,
+} from "@/infra/repos/pgPublicBookingOtp";
+import type { PublicBookingCodeDelivery } from "@/modules/public-booking/publicBookingVerification";
 import { inMemoryPhoneChallengeStore } from "@/infra/repos/inMemoryPhoneChallengeStore";
 import { createPgPhoneChallengeStore } from "@/infra/repos/pgPhoneChallengeStore";
 import { inMemoryUserByPhonePort } from "@/infra/repos/inMemoryUserByPhone";
@@ -1286,6 +1292,27 @@ const smsPort =
         sharedSecret: integratorWebhookSecret(),
       })
     : createStubSmsAdapter({ challengeStore });
+
+/**
+ * A-3: the anonymous booking OTP path stores through `app.phone_otp_public_booking_*`
+ * (SECURITY DEFINER) rather than touching `phone_challenges`/`phone_otp_locks` directly — both
+ * booking handlers run as app_patient, which has no grant on either table.
+ */
+const publicBookingOtpPort = !inMemoryRepos
+  ? createPgPublicBookingOtpPort()
+  : inMemoryPublicBookingOtpPort;
+
+/** Delivery only; the same signed integrator call the login path uses, minus the storage. */
+const deliverPublicBookingCode: PublicBookingCodeDelivery =
+  env.INTEGRATOR_API_URL && integratorWebhookSecret()
+    ? (phone, code) =>
+        deliverSmsCodeViaIntegrator(phone, code, {
+          integratorBaseUrl: env.INTEGRATOR_API_URL,
+          sharedSecret: integratorWebhookSecret(),
+        })
+    : // No integrator configured (local dev / stub SMS): nothing is sent, exactly as
+      // `createStubSmsAdapter` sends nothing. The code lives only in the challenge row.
+      async () => ({ ok: true });
 const phoneAuthDeps = {
   smsPort,
   challengeStore,
@@ -1402,11 +1429,16 @@ function _buildAppDeps() {
     },
     patientBooking: patientBookingService,
     /**
-     * A-3: the OTP seam the anonymous booking path proves contact ownership with. Exposed as the
-     * two existing auth primitives rather than a new one-time-code system, so the per-phone
-     * cooldown/lockout in `phoneOtpLimits` applies to booking codes for free.
+     * A-3: the OTP seam the anonymous booking path proves contact ownership with. Storage goes
+     * through the SECURITY DEFINER accessors (no table grant for the anonymous runtime role);
+     * delivery goes through the same signed integrator call the login path uses. The per-phone
+     * cooldown and lockout still apply — they are enforced inside the accessors against the same
+     * `phone_challenges` / `phone_otp_locks` rows, with the constants from `otpConstants.ts`.
      */
-    publicBookingVerification: { smsPort, challengeStore },
+    publicBookingVerification: {
+      otp: publicBookingOtpPort,
+      deliverCode: deliverPublicBookingCode,
+    },
     patientMaintenanceHistory: patientMaintenanceHistoryService,
     doctorCabinet: {
       getDoctorWorkspaceState,
