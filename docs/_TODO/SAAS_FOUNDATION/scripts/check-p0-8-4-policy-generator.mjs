@@ -114,7 +114,15 @@ for (const table of expectedP084PublicFkPathTargets) {
 // P0.8.4 targets must render the fail-closed staff-or-patient branch. be_patient_package_items
 // (fk_path) resolves its patient owner via an EXISTS against its parent be_patient_packages;
 // the rest (denorm_org_column) have a direct patient column on the child row itself.
-const expectedPatientOwnedTargets = 11;
+//
+// Corrected 2026-07-26 (taskdb #1018): public.reminder_occurrence_history moved OUT of this direct
+// count (11 -> 10) into the patient-chain-owned count below (15 -> 16). It kept the same
+// integrator_user_id/bigint column shape as its sibling public.reminder_delivery_events (still
+// counted here), but a direct column predicate reading app.current_integrator_user_id() can never
+// admit a patient session — packages/db-principal/src/index.ts applyDbPrincipal always clears that
+// GUC for kind "patient". Proven live: all three patient reminder actions (done/snooze/skip) 404'd.
+// See rls-descriptor-model.mjs patientOwnedColumns/patientChainOwnedTables for the full note.
+const expectedPatientOwnedTargets = 10;
 const patientOwnedDescriptors = descriptors.filter((descriptor) => descriptor.patientColumn);
 
 if (patientOwnedDescriptors.length !== expectedPatientOwnedTargets) {
@@ -163,7 +171,11 @@ for (const descriptor of patientOwnedDescriptors) {
 // treatment_program_events -> treatment_program_instances.patient_user_id, and TWO-hop
 // treatment_program_instance_stage_items/_groups -> treatment_program_instance_stages (itself
 // chain-owned, no direct column) -> treatment_program_instances.patient_user_id.
-const expectedPatientChainOwnedTargets = 15;
+// Corrected 2026-07-26 (taskdb #1018): +1 (15 -> 16) for public.reminder_occurrence_history, moved in
+// from the direct patient-owned count above — bridged through platform_users.integrator_user_id
+// (UNIQUE) instead of reading app.current_integrator_user_id() directly, which a patient session
+// never populates. See rls-descriptor-model.mjs for the full note.
+const expectedPatientChainOwnedTargets = 16;
 const patientChainOwnedDescriptors = descriptors.filter((descriptor) => descriptor.patientChain);
 
 if (patientChainOwnedDescriptors.length !== expectedPatientChainOwnedTargets) {
@@ -186,6 +198,7 @@ const expectedChainTables = [
   "public.treatment_program_events",
   "public.treatment_program_instance_stage_items",
   "public.treatment_program_instance_stage_groups",
+  "public.reminder_occurrence_history",
 ].sort();
 
 if (JSON.stringify(patientChainOwnedDescriptors.map((d) => d.table).sort()) !== JSON.stringify(expectedChainTables)) {

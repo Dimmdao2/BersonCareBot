@@ -339,7 +339,19 @@ const patientOwnedColumns = new Map([
   ["public.symptom_entries", { column: "platform_user_id" }],
   ["public.webapp_reminder_occurrences", { column: "platform_user_id" }],
   ["public.reminder_delivery_events", { column: "integrator_user_id", castType: "bigint" }],
-  ["public.reminder_occurrence_history", { column: "integrator_user_id", castType: "bigint" }],
+  // public.reminder_occurrence_history is NOT registered here (as a direct integrator_user_id/bigint
+  // column reading app.current_integrator_user_id()) even though its column shape matches
+  // reminder_delivery_events above. Corrected 2026-07-26 (taskdb #1018, live 404 on all three patient
+  // reminder actions): packages/db-principal/src/index.ts applyDbPrincipal's "patient" branch
+  // (:845-849) ALWAYS clears APP_INTEGRATOR_USER_CONFIG_KEY to "" and only ever populates
+  // APP_PATIENT_USER_CONFIG_KEY — a patient session's app.integrator_user_id GUC is never set, so a
+  // direct-column predicate reading app.current_integrator_user_id() can never admit a patient's own
+  // row here (verified: table-level SELECT grant to app_patient already exists, so the empty result
+  // was RLS filtering to zero rows, not an aclcheck_error). See patientChainOwnedTables below for the
+  // real predicate: this table's patient identity is reached by bridging through
+  // platform_users.integrator_user_id (UNIQUE, apps/webapp/db/schema/schema.ts:107), the same join
+  // apps/webapp/src/infra/repos/pgReminderJournal.ts recordDone/recordSnooze/recordSkip already use
+  // for their own application-level ownership check.
 
   // public.* fk_path (P0.8.4): patient column lives on the SAME immediate FK parent already used
   // for the org fk_path predicate (public.be_patient_packages.platform_user_id). The sibling
@@ -657,6 +669,36 @@ const patientChainOwnedTables = new Map([
   ["public.be_product_history_events", {
     hops: [{ table: "public.be_product_purchases", alias: "b4f_purchase", parentPk: "id", localFk: "product_purchase_id" }],
     terminalColumn: "platform_user_id",
+    castType: "uuid",
+  }],
+
+  // reminder_occurrence_history (P0.8.4, denorm_org_column): corrected 2026-07-26 (taskdb #1018) from
+  // a direct integrator_user_id/bigint column (removed above from patientOwnedColumns — see the note
+  // left in its place) to a bridge through platform_users. This table has no platform_users uuid FK
+  // column of its own; it carries only the bare integrator bigint id
+  // (apps/webapp/db/schema/schema.ts:1836, NOT NULL). platform_users.integrator_user_id is UNIQUE
+  // (apps/webapp/db/schema/schema.ts:107, constraint platform_users_integrator_user_id_key), so
+  // matching on it identifies at most one platform_users row — the same bridge
+  // apps/webapp/src/infra/repos/pgReminderJournal.ts already performs in application code
+  // (`INNER JOIN platform_users pu ON pu.integrator_user_id = roh.integrator_user_id ... AND pu.id =
+  // platformUserId`) for its own pre-write ownership check. A patient session only ever populates
+  // app.patient_user_id (never app.integrator_user_id, see the note above), so the bridge must land on
+  // platform_users.id via app.current_patient_user_id(), castType "uuid" (the default).
+  //
+  // outerQualifier is required here (see rls-sql-renderer.mjs renderPatientChainPredicate note):
+  // the bridge column is named integrator_user_id on BOTH sides (this table and platform_users), so
+  // a bare reference to the outer row's integrator_user_id inside the EXISTS subquery would resolve
+  // to the platform_users alias instead (SQL inner-scope shadowing) and silently open every row to
+  // any patient. Proven live on a throwaway DB before this qualifier was added.
+  ["public.reminder_occurrence_history", {
+    hops: [{
+      table: "public.platform_users",
+      alias: "b4f_reminder_occurrence_platform_user",
+      parentPk: "integrator_user_id",
+      localFk: "integrator_user_id",
+      outerQualifier: "public.reminder_occurrence_history",
+    }],
+    terminalColumn: "id",
     castType: "uuid",
   }],
 ]);

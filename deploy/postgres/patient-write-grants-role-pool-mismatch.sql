@@ -77,6 +77,24 @@
 --     through a SECURITY DEFINER RPC the way product analytics already does -- see below). See
 --     the isolation-42501-fix-prep.md report's "Exceptions design note" section for the full writeup.
 --
+--     CORRECTION 2026-07-26 (taskdb #1018): this note originally scoped the gap to recordSnooze/
+--     recordSkip's UPDATE only. It also broke recordDone -- recordDone's pre-write ownership SELECT
+--     (pgReminderJournal.ts:145-151, `reminder_occurrence_history JOIN platform_users ... WHERE
+--     pu.id = platformUserId`) hit the SAME RLS policy with no patient branch and came back zero
+--     rows (not a 42501 -- app_patient's SELECT-level table grant on reminder_occurrence_history
+--     already existed; RLS silently filtered every row), so recordDone 404'd too, upstream of and
+--     independent from this overlay's reminder_journal INSERT grant. The "add a patient-branch
+--     policy" side of the owner call above is now resolved: deploy/postgres/
+--     phase4-locked-helper-rls-policies.sql's saas_org_dormant_p0_8_4 for reminder_occurrence_history
+--     now carries a patient branch bridged through platform_users.integrator_user_id (see
+--     docs/_TODO/SAAS_FOUNDATION/scripts/rls-descriptor-model.mjs patientChainOwnedTables). That
+--     resolves recordDone fully (it never writes to reminder_occurrence_history) and unblocks the
+--     ownership SELECT for recordSnooze/recordSkip too, but recordSnooze/recordSkip still need the
+--     UPDATE column grant this overlay excludes here -- until that grant is added, they will pass
+--     the ownership check and then 42501 on the UPDATE (caught and surfaced as the same 404), so
+--     they remain broken end-to-end even after the RLS fix. That UPDATE-grant decision was NOT part
+--     of taskdb #1018's scope and is still open.
+--
 --   - product_analytics_hourly (org-GUC-scoped policy "c4_web_push_reminder_org", RLS not patient-aware):
 --     confirmed NOT reachable by app_patient at all -- see next bullet, the entire patient analytics
 --     ingest path bypasses direct table grants.

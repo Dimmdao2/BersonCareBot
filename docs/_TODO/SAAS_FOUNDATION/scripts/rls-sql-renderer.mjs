@@ -243,7 +243,23 @@ export function renderPatientChainPredicate({ hops, terminalColumn, castType = "
   });
 
   const firstHop = hops[0];
-  const outerJoinCondition = `${quoteSqlIdentifier(firstHop.alias)}.${quoteSqlIdentifier(firstHop.parentPk)} = ${quoteSqlIdentifier(firstHop.localFk)}`;
+  // Corrected 2026-07-26 (taskdb #1018): hops[0].localFk is meant to reference the OUTER (policy)
+  // row, but left bare it is parsed inside the EXISTS subquery's own scope -- if hops[0]'s parent
+  // table (hops[0].alias) happens to carry a column with the SAME NAME as localFk (e.g. bridging
+  // through a shared bigint identity column like integrator_user_id, present verbatim on both sides
+  // of the bridge), standard SQL name resolution binds the bare reference to the INNER subquery
+  // scope instead of the outer row, turning the join into a self-referential tautology (b4f_x.col =
+  // b4f_x.col, always true) and silently opening the table to every session with ANY matching
+  // terminal identity -- exactly the isolation failure this predicate exists to prevent. Proven live
+  // on a throwaway DB while building the public.reminder_occurrence_history <-> platform_users
+  // bridge (both tables really do have a column named integrator_user_id). `outerQualifier` is
+  // opt-in (only hops[0] can carry it) and defaults to unset, so every hop that doesn't need it
+  // renders byte-identical SQL to before this fix.
+  const outerLocalFkSql =
+    typeof firstHop.outerQualifier === "string" && firstHop.outerQualifier.length > 0
+      ? `${quoteQualifiedName(firstHop.outerQualifier)}.${quoteSqlIdentifier(firstHop.localFk)}`
+      : quoteSqlIdentifier(firstHop.localFk);
+  const outerJoinCondition = `${quoteSqlIdentifier(firstHop.alias)}.${quoteSqlIdentifier(firstHop.parentPk)} = ${outerLocalFkSql}`;
   const lastAlias = hops[hops.length - 1].alias;
   const terminalSql = `${quoteSqlIdentifier(lastAlias)}.${quoteSqlIdentifier(terminalColumn)} = ${contextSql}`;
   const ownPredicate = `EXISTS ( SELECT 1 ${fromParts.join(" ")} WHERE ${outerJoinCondition} AND ${terminalSql} )`;
