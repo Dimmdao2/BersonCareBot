@@ -12,7 +12,7 @@ const files = {
     'apps/webapp/src/modules/operator-health/saasIsolationPostRuntimeGate.ts',
   postRuntimeGateTest:
     'apps/webapp/src/modules/operator-health/saasIsolationPostRuntimeGate.test.ts',
-  ui: 'apps/webapp/src/app/app/settings/SystemHealthSection.tsx',
+  ui: 'apps/webapp/src/app/app/admin/system-health/SystemHealthSection.tsx',
   testScenarioRunner: 'apps/webapp/src/modules/operator-health/saasIsolationTestScenarioRunner.ts',
   testScenarioRunnerTest:
     'apps/webapp/src/modules/operator-health/saasIsolationTestScenarioRunner.test.ts',

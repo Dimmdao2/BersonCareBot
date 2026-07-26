@@ -70,7 +70,7 @@ const frozenBaselines = {
     ['apps/webapp/src/app/app/doctor/admin/booking/loadBookingAdminOverview.ts', 6],
     ['apps/webapp/src/app/app/settings/BookingEngineSection.tsx', 11],
     ['apps/webapp/src/app/app/settings/BookingScheduleSlotsProbeSection.tsx', 5],
-    ['apps/webapp/src/app/app/settings/SystemHealthSection.tsx', 3],
+    ['apps/webapp/src/app/app/admin/system-health/SystemHealthSection.tsx', 3],
     ['apps/webapp/src/infra/repos/doctorAppointmentPurgeFilter.ts', 3],
     ['apps/webapp/src/infra/repos/doctorAppointmentsReadSwitch.ts', 5],
     ['apps/webapp/src/infra/repos/pgAppointmentProjection.ts', 1],
