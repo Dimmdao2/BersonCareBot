@@ -212,6 +212,28 @@ finding that has no line here is a QUESTION for the owner, never work (see `docs
       remote branches already merged.
 - [ ] **G-3** Mark #970 superseded by the owner's confirmed session numbers.
 - [ ] **G-4** Full deploy to TEST + the 114-page × 5-role walk, redirects NOT followed, plus DEV screenshots.
+      Harness built and proven on DEV: `docs/_TODO/SAAS_FOUNDATION/scripts/walk-app-pages-no-redirect.mjs`
+      (`redirect: "manual"`, GET-only, cookies never written to disk). Redirect trap reproduced:
+      `/app/doctor/schedule` as `public` → **307 → /app**, recorded as REDIRECT, not OK. 26 dynamic-segment
+      paths are listed as skipped, not silently dropped.
+      **🔴 The walk is GET-only, so it proves pages LOAD — it does not prove anything WORKS.** Both
+      privilege defects found this morning break on a button press, not on page load, and a GET walk would
+      have reported both surfaces green. A click-through under the patient role is required on top of the walk.
+      **Preconditions found by a read-only sweep before deploying (each is the same class as F-4 —
+      an orphan `deploy/postgres/*.sql` that no closure runs, so `deploy-test.sh` never applies it):**
+      - `patient-support-mark-read-grant.sql` — F-4. Wired in `7e0bf0a83`.
+      - `patient-write-grants-role-pool-mismatch.sql` — patient INSERT on `reminder_journal`, UPDATE on the
+        three `treatment_program_instance*` tables. **Never applied anywhere, not even by hand on DEV** —
+        reminder done/snooze/skip and treatment-program item completion 500 with 42501 today. In flight.
+      - `patient-media-playback-telemetry-accessors.sql` (2026-07-16) — wired only into the PROD deploy
+        script, never the TEST path. In flight.
+      **Verified clean by the same sweep** (so the coverage is known, not just the hits): journal integrity
+      246/246 tags↔files after `2423509cc`; `d3-4-bootstrap-base-login-read-grants.sql`,
+      `phase4-force-rls-cutover.sql`, `u9a-platform-settings-role.sql`,
+      `specialist-owner-provisioning-rls.sql`, `c5a-platform-operations-runtime.sql` all genuinely wired;
+      migrations 0243/0244/0245 pending-but-correct, they apply on the next ordinary deploy.
+      Unexplained and judged inert, recorded rather than dismissed: `app_owner|org_brand_revisions|SELECT`
+      exists on DEV, on TEST it does not, and no committed file grants it.
 
 ## Done tonight (evidence)
 
