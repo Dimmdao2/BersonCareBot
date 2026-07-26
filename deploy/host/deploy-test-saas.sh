@@ -98,6 +98,11 @@ P2_B_CONTEXT_INSTALLED=0
 WRITERS_STOPPED=0
 SERVICES_RELEASED=0
 PRODUCT_SMOKE_GATE_FAILED=0
+# Post-health gate failures collected instead of aborting. See run_closure_gate + CLOSURE_GATE_RED_EXIT.
+CLOSURE_GATE_FAILURES=()
+# Distinct exit code meaning "gates are red BUT the TEST units are up and healthy". The caller
+# (deploy-test.sh) must treat it as a red deploy that is NOT an outage, and must not stop the units.
+CLOSURE_GATE_RED_EXIT=3
 FIXTURE_VALIDATOR_ROOT="$SRC_REPO"
 LOCKED_PRODUCT_SMOKE_FIXTURE_CANONICAL=""
 E1_RUNTIME_COVERAGE_STARTED_AT=""
@@ -1366,6 +1371,31 @@ assert_awg_relay_active(){
   echo "   awg-quick@awg0: OK (active)"
 }
 
+# Run a post-health closure gate WITHOUT letting it take TEST down.
+#
+# Why this exists (owner outage, 2026-07-26): the owner ran an ordinary code-only deploy, one of the
+# gates after the unit restart went red, and cleanup_exit's unit-stop branch killed all five TEST
+# units and left them down. He found a dead environment. The same class had already been fixed once
+# for the product-smoke gate alone (0d138fc94) — but SEVEN other gates after the restart still aborted
+# the same way, so the fix covered one instance of the class instead of the class.
+#
+# Everything after assert_test_health_ok is a VERIFICATION, not a step that can leave TEST
+# half-migrated: the migration window is closed, elevation is cleaned up, and the units are up and
+# answering. A failure there means "this deploy is not trustworthy", which must be LOUD — it does not
+# mean "the environment must be destroyed". So: record, keep serving, exit red at the end.
+#
+# The gate runs in a subshell so its internal `exit 1` cannot terminate the closure.
+run_closure_gate(){
+  local label="$1"
+  shift
+  if ( "$@" ); then
+    return 0
+  fi
+  CLOSURE_GATE_FAILURES+=("$label")
+  echo "WARN: closure gate RED: $label — TEST units stay running; the deploy will exit red" >&2
+  return 0
+}
+
 run_strict_post_migration_closure(){
   assert_test_writers_stopped
   assert_cleanup_elevation
@@ -1428,28 +1458,37 @@ run_strict_post_migration_closure(){
   sleep 4
   assert_test_units_active
   assert_test_health_ok
-  log "A2 nginx forwarded-host preflight"
-  apply_test_nginx_webapp_config
-  run_a2_nginx_preflight
-  log "A2 product smoke gate (mandatory locked)"
-  run_locked_product_smoke
-  log "U3S specialist signup/provisioning smoke (private cluster, mandatory)"
-  run_specialist_signup_provisioning_smoke
-  log "specialist-owner provisioning seam pin (app_owner + be_organizations FORCE RLS)"
-  assert_specialist_owner_provisioning_seam_pinned
-  log "app_owner SECURITY DEFINER table-grant completeness (whole-class gate)"
-  assert_app_owner_secdef_table_grants_complete
-  log "E1 post-runtime coverage/read gate"
-  run_e1_post_runtime_coverage_gate
-  assert_awg_relay_active
+
+  # TEST is up, healthy and answering from here on. Release it BEFORE the verification gates run, so
+  # that no red gate below can reach cleanup_exit's unit-stop branch. See run_closure_gate.
   SERVICES_RELEASED=1
 
-  # Fail the deploy LOUDLY for a red product-smoke gate, but only after SERVICES_RELEASED=1 —
-  # cleanup_exit's unit-stop branch is gated on SERVICES_RELEASED!=1, so raising the failure here
-  # keeps TEST units running while still turning the whole closure red (non-zero exit, FATAL line).
-  if [ "$PRODUCT_SMOKE_GATE_FAILED" = "1" ]; then
-    echo "FATAL: A2 product smoke gate failed (see WARN lines above for per-scenario triage). TEST units are left running; this is a gate failure, not an outage." >&2
-    exit 1
+  log "A2 nginx forwarded-host preflight"
+  run_closure_gate "A2 nginx config apply" apply_test_nginx_webapp_config
+  run_closure_gate "A2 nginx forwarded-host preflight" run_a2_nginx_preflight
+  log "A2 product smoke gate (mandatory locked)"
+  run_closure_gate "A2 product smoke" run_locked_product_smoke
+  log "U3S specialist signup/provisioning smoke (private cluster, mandatory)"
+  run_closure_gate "U3S specialist signup/provisioning smoke" run_specialist_signup_provisioning_smoke
+  log "specialist-owner provisioning seam pin (app_owner + be_organizations FORCE RLS)"
+  run_closure_gate "specialist-owner provisioning seam pin" assert_specialist_owner_provisioning_seam_pinned
+  log "app_owner SECURITY DEFINER table-grant completeness (whole-class gate)"
+  run_closure_gate "app_owner SECURITY DEFINER table-grant completeness" assert_app_owner_secdef_table_grants_complete
+  log "E1 post-runtime coverage/read gate"
+  run_closure_gate "E1 post-runtime coverage/read gate" run_e1_post_runtime_coverage_gate
+  run_closure_gate "awg relay active" assert_awg_relay_active
+
+  # run_locked_product_smoke records its own per-scenario failures in a flag rather than exiting, so
+  # fold that flag in here; run_closure_gate above only catches a hard abort inside it.
+  if [ "$PRODUCT_SMOKE_GATE_FAILED" = "1" ] && [[ ! " ${CLOSURE_GATE_FAILURES[*]-} " == *" A2 product smoke "* ]]; then
+    CLOSURE_GATE_FAILURES+=("A2 product smoke (per-scenario)")
+  fi
+
+  if [ "${#CLOSURE_GATE_FAILURES[@]}" -gt 0 ]; then
+    echo "FATAL: ${#CLOSURE_GATE_FAILURES[@]} post-health closure gate(s) RED:" >&2
+    printf '  - %s\n' "${CLOSURE_GATE_FAILURES[@]}" >&2
+    echo "TEST units are left RUNNING and healthy. This is a GATE failure, not an outage — the deploy is not trustworthy, but the environment is up." >&2
+    exit "$CLOSURE_GATE_RED_EXIT"
   fi
 }
 

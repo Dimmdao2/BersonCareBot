@@ -152,6 +152,20 @@ cleanup_elevation
 
 # 5) The same fail-closed closure as the fresh-restore wrapper: roles/helpers/grants, base+safe
 #    overlays, exact FORCE assertions, separate seed cleanup, locked restart, health and product smoke.
+#    Exit code 3 from the closure means "verification gates are red BUT the TEST units are up and
+#    healthy" (see CLOSURE_GATE_RED_EXIT there). It must NOT reach our own cleanup_exit unit-stop
+#    branch: on 2026-07-26 a red gate during an ordinary code deploy left the owner with all five
+#    TEST units down. A red gate makes the deploy untrustworthy; it does not make the environment
+#    disposable. Anything else non-zero is a real failure before release and still stops the units.
+set +e
 bash "$DEPLOY_REPO/$STRICT_CLOSURE" --post-migration-closure
+closure_status=$?
+set -e
+if [ "$closure_status" -eq 3 ]; then
+  SERVICES_RELEASED=1
+  echo "FATAL: post-migration closure gates are RED (see the gate list above). TEST units are left RUNNING and healthy — this is a gate failure, not an outage. Do NOT treat this deploy as done." >&2
+  exit 1
+fi
+[ "$closure_status" -eq 0 ] || exit "$closure_status"
 SERVICES_RELEASED=1
 echo "== deploy-test: готово =="
