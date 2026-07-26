@@ -4,10 +4,6 @@ import { loadBookingAdminOverview } from "@/app/app/doctor/admin/booking/loadBoo
 import { BookingOverviewPanel } from "@/app/app/doctor/admin/booking/BookingOverviewPanel";
 import { BookingRulesPageClient } from "@/app/app/doctor/admin/booking/BookingRulesPageClient";
 import { BookingCatalogHelp } from "@/app/app/settings/BookingCatalogHelp";
-import { BookingSoloLocationsSection } from "@/app/app/settings/BookingSoloLocationsSection";
-import { BookingSoloServicesSection } from "@/app/app/settings/BookingSoloServicesSection";
-import { BookingSoloAvailabilitySection } from "@/app/app/settings/BookingSoloAvailabilitySection";
-import { BOOKING_CARD_GRID_CLASS } from "@/shared/ui/doctor/doctorWorkspaceLayout";
 import { PlatformLocationPaletteSection } from "./PlatformLocationPaletteSection";
 
 function parseAdminBoolean(valueJson: unknown): boolean {
@@ -49,19 +45,6 @@ export default async function DoctorAdminBookingOverviewPage() {
       <BookingOverviewPanel data={overview} />
 
       <PlatformLocationPaletteSection />
-
-      <section id="section-locations">
-        <BookingSoloLocationsSection />
-      </section>
-
-      <div className={BOOKING_CARD_GRID_CLASS}>
-        <section id="section-services">
-          <BookingSoloServicesSection />
-        </section>
-        <section id="section-availability">
-          <BookingSoloAvailabilitySection />
-        </section>
-      </div>
 
       <section id="section-rules">
         <BookingRulesPageClient allowPastUnlinkPastPackageSessions={allowPastUnlink} />

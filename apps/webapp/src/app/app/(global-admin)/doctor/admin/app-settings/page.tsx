@@ -7,7 +7,6 @@ import { WebPushVapidSection } from "@/app/app/settings/WebPushVapidSection";
 import { NotificationsTopicsSection } from "@/app/app/settings/NotificationsTopicsSection";
 import { DoctorAppShell } from "@/shared/ui/doctor/DoctorAppShell";
 import { DoctorPageHeader } from "@/shared/ui/doctor/shell/DoctorPageHeader";
-import { ScheduleNotificationsSection } from "@/app/app/doctor/schedule/tabs/notifications/ScheduleNotificationsSection";
 
 export default async function DoctorAdminAppSettingsPage() {
   await requireAdminDoctorPage();
@@ -24,9 +23,6 @@ export default async function DoctorAdminAppSettingsPage() {
         hasStoredPrivateKey={data.webPushVapidUi.hasStoredPrivateKey}
       />
       <NotificationsTopicsSection initialRows={data.notificationsTopicsRows} />
-      <div className="mt-6">
-        <ScheduleNotificationsSection endpoint="/api/admin/notification-templates" />
-      </div>
     </DoctorAppShell>
   );
 }

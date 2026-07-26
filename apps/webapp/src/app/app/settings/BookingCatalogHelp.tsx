@@ -10,18 +10,6 @@ export function BookingCatalogHelp() {
       <h2 className="mb-2 font-semibold">Порядок настройки</h2>
       <ol className="list-decimal space-y-2 pl-5 text-muted-foreground">
         <li>
-          <Link href="#section-locations" className="text-foreground font-medium hover:underline">
-            Локации и услуги
-          </Link>{" "}
-          — места приёма и общий каталог услуг.
-        </li>
-        <li>
-          <Link href="#section-availability" className="text-foreground font-medium hover:underline">
-            Доступность
-          </Link>{" "}
-          — где какая услуга доступна.
-        </li>
-        <li>
           <Link href="/app/doctor/appointments?tab=schedule" className="text-foreground font-medium hover:underline">
             Расписание
           </Link>{" "}
