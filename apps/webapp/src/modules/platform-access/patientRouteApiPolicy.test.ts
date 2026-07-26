@@ -63,7 +63,7 @@ describe("patientPathsAllowedDuringPhoneActivation", () => {
     expect(patientPathsAllowedDuringPhoneActivation("/app/patient")).toBe(false);
     expect(patientPathsAllowedDuringPhoneActivation("/app/patient/profile")).toBe(false);
     expect(patientPathsAllowedDuringPhoneActivation("/app/patient/cabinet")).toBe(false);
-    expect(patientPathsAllowedDuringPhoneActivation("/app/patient/booking/new")).toBe(false);
+    expect(patientPathsAllowedDuringPhoneActivation("/app/patient/booking")).toBe(false);
     expect(patientPathsAllowedDuringPhoneActivation("/app/patient/diary")).toBe(false);
   });
 });
@@ -95,7 +95,7 @@ describe("patientPathRequiresBoundPhone", () => {
 
   it("allows cabinet, booking wizard, diary, purchases without patient tier", () => {
     expect(patientPathRequiresBoundPhone("/app/patient/cabinet")).toBe(false);
-    expect(patientPathRequiresBoundPhone("/app/patient/booking/new/city")).toBe(false);
+    expect(patientPathRequiresBoundPhone("/app/patient/booking/city")).toBe(false);
     expect(patientPathRequiresBoundPhone("/app/patient/diary")).toBe(false);
     expect(patientPathRequiresBoundPhone("/app/patient/diary/symptoms/journal")).toBe(false);
     expect(patientPathRequiresBoundPhone("/app/patient/purchases")).toBe(false);
