@@ -1318,6 +1318,41 @@ SELECT count(*) FROM pg_proc p WHERE pg_get_userbyid(p.proowner) = 'app_owner' A
   echo "   app_owner SECURITY DEFINER table-grant completeness: OK (31 required table grants + 1 column grant present, $actual_secdef_count/$expected_secdef_count secdef functions pinned)"
 }
 
+assert_c5a_clinical_test_measure_kinds_closure(){
+  # H-7 (#1040), self-audit follow-up: deploy/postgres/c5a-platform-operations-runtime.sql:49-89
+  # guards its clinical_test_measure_kinds app_staff write-lock revoke and app_platform_settings
+  # grant with `IF to_regclass(...) IS NULL`, only RAISE WARNING on skip. \set ON_ERROR_STOP on
+  # stops the script on ERROR, never on WARNING, and nothing downstream read the resulting grant
+  # state back -- the deploy exited 0 whether the closure actually applied or silently skipped.
+  #
+  # The guard itself is correct and stays: some throwaway partial-migration clusters genuinely never
+  # create this table (the comment in that file names the U3S specialist-signup-provisioning smoke's
+  # own private cluster, built from a hand-picked migration subset that excludes 0034). What this
+  # gate fixes is that THIS deploy is not one of those clusters -- run_strict_post_migration_closure
+  # always runs against the main TEST DB after the full drizzle-migrations chain, which includes
+  # 0034, so the table is always expected to exist here and the closure is always expected to have
+  # taken effect. A skip that reaches this point is a real regression, not a benign throwaway-cluster
+  # skip, so it is FATAL rather than a WARNING line nobody is required to read.
+  local ok
+  ok="$(sudo -u postgres psql -d "$DB" -X -v ON_ERROR_STOP=1 -tAc "
+SELECT (
+  to_regclass('public.clinical_test_measure_kinds') IS NOT NULL
+  AND NOT has_table_privilege('app_staff', 'public.clinical_test_measure_kinds', 'UPDATE')
+  AND NOT has_table_privilege('app_staff', 'public.clinical_test_measure_kinds', 'DELETE')
+  AND has_table_privilege('app_platform_settings', 'public.clinical_test_measure_kinds', 'SELECT')
+  AND has_table_privilege('app_platform_settings', 'public.clinical_test_measure_kinds', 'UPDATE')
+)::text;
+")"
+  [ "$ok" = "true" ] || {
+    echo "FATAL: public.clinical_test_measure_kinds write-lock closure (A-6 / #1007) did not take effect on this deploy." >&2
+    echo "       Either the table is missing (migration 0034 did not run -- unexpected on a full TEST deploy)," >&2
+    echo "       or app_staff still holds UPDATE/DELETE, or app_platform_settings is missing SELECT/UPDATE." >&2
+    echo "       See deploy/postgres/c5a-platform-operations-runtime.sql's guarded DO blocks (lines ~49-89)." >&2
+    exit 1
+  }
+  echo "   clinical_test_measure_kinds write-lock closure: OK (app_staff locked out, app_platform_settings holds SELECT/UPDATE)"
+}
+
 assert_db_owner_and_telemetry_owner_secdef_anon_surface_pinned(){
   # A-1 stage 1 (night plan 2026-07-26, taskdb): additive-only whole-class gate, sibling to
   # assert_app_owner_secdef_table_grants_complete right above -- same idiom, same closure position,
@@ -1740,6 +1775,8 @@ run_strict_post_migration_closure(){
   run_closure_gate "specialist-owner provisioning seam pin" assert_specialist_owner_provisioning_seam_pinned
   log "app_owner SECURITY DEFINER table-grant completeness (whole-class gate)"
   run_closure_gate "app_owner SECURITY DEFINER table-grant completeness" assert_app_owner_secdef_table_grants_complete
+  log "clinical_test_measure_kinds write-lock closure pin (H-7 / #1040, detects a guarded skip)"
+  run_closure_gate "clinical_test_measure_kinds write-lock closure" assert_c5a_clinical_test_measure_kinds_closure
   log "DB-owner + telemetry-owner SECURITY DEFINER anon-reachable surface (A-1 stage 1, whole-class gate)"
   run_closure_gate "DB-owner + telemetry-owner SECURITY DEFINER anon-reachable surface" assert_db_owner_and_telemetry_owner_secdef_anon_surface_pinned
   log "E1 post-runtime coverage/read gate"
