@@ -1,5 +1,23 @@
 # Execution log
 
+## 2026-07-27 — owner: implement the clinical access log; threat coverage recorded in SEC-03
+
+- Owner challenged the access log directly: "если утекают данные при взломе - там же просто утекает дамп? при
+  чем тут журнал который пишет только доступ через реальный логин?" The objection is correct for that scenario
+  and is now recorded in `stages/SEC-03_CLINICAL_ACCESS_AUDIT.md` as an explicit threat-coverage table: the log
+  does nothing against a stolen dump, disk or bucket key (those belong to `CRYPTO-01`/`INFRA-01`/`DR-01`), and is
+  the only control against insider abuse and stolen sessions. Second recorded function: bounding the declared
+  scope of an incident for the 24/72h notification in `SEC-04`. Also recorded who reads it and when, and the
+  legal grounding (РСБ group of приказ ФСТЭК №21 within the УЗ-3 baseline under ПП №1119).
+- Owner then said this all has to be implemented. No new plan file was created: `SEC-03` and `SEC-02` already
+  hold the work, and taskdb cards `#908` (SEC-03) and `#900` (SEC-02) already exist. Only the missing reasoning
+  was written into the two stage files.
+- Recorded but NOT resolved: owner said the SSH-root/password and root-services findings are "только на тесте...
+  На проде не будет", while the 2026-07-19 snapshot was taken on host `adelaide` = `135.106.162.170`, defined as
+  current PROD in `SERVER CONVENTIONS.md:43`. Flagged in `SEC-02` Slice 0 for his direct confirmation; not
+  decided by an agent.
+- Not changed: no code, no host, no DB, no deploy, no TEST/PROD action. Documentation only.
+
 ## 2026-07-27 — owner ruling: split media storage first, encryption only afterwards and only for patient data
 
 - Owner asked directly whether 152-ФЗ requires encrypting exercise videos and patient appointment videos, and
