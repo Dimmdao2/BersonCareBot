@@ -6,7 +6,7 @@ import { apiJson } from "@/shared/lib/apiJson";
 import { Card, CardContent, CardHeader, CardTitle } from "@/shared/ui/doctor/primitives/card";
 import { Button } from "@/shared/ui/doctor/primitives/button";
 import { Input } from "@/shared/ui/doctor/primitives/input";
-import { Select, SelectContent, SelectItem, SelectTrigger } from "@/shared/ui/doctor/primitives/select";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/shared/ui/doctor/primitives/select";
 import { LabeledSwitch } from "@/components/common/form/LabeledSwitch";
 
 type GoogleCalendarSectionProps = {
@@ -240,7 +240,8 @@ export function GoogleCalendarSection({
             {calendarSaveError && <p className="text-xs text-destructive">{calendarSaveError}</p>}
             {calendars.length > 0 && (
               <Select value={calendarId} onValueChange={(v) => selectCalendar(v ?? "")} disabled={isPending}>
-                <SelectTrigger className="w-full font-mono text-xs" displayLabel={calendarId ? (calendars.find((c) => c.id === calendarId)?.summary ?? calendarId) : "— выберите календарь —"}>
+                <SelectTrigger className="w-full font-mono text-xs">
+                  <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="">— выберите календарь —</SelectItem>

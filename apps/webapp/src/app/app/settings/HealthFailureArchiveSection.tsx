@@ -5,7 +5,7 @@ import Link from "next/link";
 import { apiJson } from "@/shared/lib/apiJson";
 import { Button } from "@/shared/ui/doctor/primitives/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/shared/ui/doctor/primitives/card";
-import { Select, SelectContent, SelectItem, SelectTrigger } from "@/shared/ui/doctor/primitives/select";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/shared/ui/doctor/primitives/select";
 import {
   HEALTH_FAILURE_ARCHIVE_INTEGRATOR_OUTBOX_PROBE,
   HEALTH_FAILURE_ARCHIVE_OUTGOING_PROBE,
@@ -108,7 +108,8 @@ export function HealthFailureArchiveSection({ initialProbe = "all" }: HealthFail
               value={probe}
               onValueChange={(v) => setProbe(v as HealthFailureArchiveProbe | "all")}
             >
-              <SelectTrigger displayLabel={probe === "all" ? "Все" : probe}>
+              <SelectTrigger>
+                <SelectValue />
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">Все</SelectItem>

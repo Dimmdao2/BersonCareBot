@@ -605,7 +605,7 @@ export function CommercialConstructorClient() {
                 if (value) setOrganizationId(value);
               }}
             >
-              <SelectTrigger displayLabel={selectedOrganization?.title ?? ''}>
+              <SelectTrigger>
                 <SelectValue placeholder="Выберите организацию" />
               </SelectTrigger>
               <SelectContent>
