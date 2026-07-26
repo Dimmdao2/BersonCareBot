@@ -43,7 +43,29 @@ finding that has no line here is a QUESTION for the owner, never work (see `docs
       or expose 2-3 accessors returning scalars not rows (PostgREST `basic_auth` shape); split PII satellite
       (GDPR Art. 4(5)). Must keep ~40 pre-auth read sites and ~8 pre-auth write sites working. Same class:
       `appointment_records`, `patient_bookings` (no `organization_id` at all).
-- [ ] **A-5 (#1006) Bootstrap-principal reads — swept, but the gate was DEFEATED by the audit. Re-opened.**
+- [x] **A-5 (#1006) — gate rebuilt and PROVEN against both attacks** (`0f4035e7b`). The census now decides
+      lexical coverage **per call site** over the TypeScript AST (`typescript` is already a repo dependency;
+      no framework added): a read counts as covered only inside a `runWith*Principal` callback or after an
+      **awaited** guard in the same statement list. An import covers nothing, an unawaited call covers
+      nothing, a comment covers nothing. Read detection spans the whole server module graph, not just
+      `src/app`, so a read reached through `configAdapter`/`pgAppRuntimeSettings` is no longer invisible.
+      Both of the auditor's attacks were reproduced: attack (a) guard-imported-but-not-awaited — old gate
+      4/4 green, new gate 3 assertions red; attack (b) anonymous page reaching the bare
+      `app_runtime_settings` query — old gate 4/4 green, new gate 2 red. Removing each attack returns 4/4.
+      `getOptionalPatientSession` is out of the establisher list (it returns `null` and stamps nothing), and
+      the pages that relied on it are now **visible in a frozen manifest of 12** rather than silently
+      accepted — up from the 5 in my hand-written list. The gate also states in the file what it honestly
+      cannot carry: principal establishment is a runtime, per-async-context property that no source scan
+      decides.
+      **The product bug behind it is fixed too:** `getAppBaseUrl()` now reads through
+      `app.read_public_runtime_setting`, the definer accessor the anonymous role may execute (migration
+      0245 registers the key exactly as 0193 does for the timezone — no new function, definer count
+      unchanged). And `getConfigValue` now distinguishes "the database has no value" (an answer, cacheable)
+      from "the read never happened" (not an answer, never cached) — that was the poisoning mechanism.
+      Proven: `og:url` was `http://127.0.0.1:5200`, is now `https://test.bersoncare.ru`. Also settled: `/` is
+      dynamic, not statically rendered, so the wrong origin was never frozen beyond the 60 s cache.
+
+- [x] **A-5 first pass, SUPERSEDED — its gate was false assurance.**
       The independent auditor kept all four assertions green with a live instance of the bug present, and the
       headline assertion stayed green when the fix it protects was reverted. Two causes: the establisher regex
       matches a guard's own DEFINITION site (17 guards live under `src/app`), so merely *importing* a guard
