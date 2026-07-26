@@ -3,6 +3,8 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import { withExplicitOrganizationPrincipal } from "@/app-layer/principal/withOrganizationPrincipal";
+import { env, isTestEnv } from "@/config/env";
+import { isMockPaymentConfirmEnabled } from "@/modules/payments/mockPaymentGatePolicy";
 
 const bodySchema = z.object({
   intentId: z.string().uuid(),
@@ -11,6 +13,11 @@ const bodySchema = z.object({
 });
 
 export async function POST(request: Request) {
+  // H-4 (#818): no-bank test path, unauthenticated route — dev/test only, fails closed elsewhere.
+  if (!isMockPaymentConfirmEnabled({ nodeEnv: env.NODE_ENV, isTestEnv })) {
+    return NextResponse.json({ ok: false, error: "not_found" }, { status: 404 });
+  }
+
   stampBootstrapPrincipal("api/booking/public/payments/mock-complete:POST", request);
   const parsed = bodySchema.safeParse(await request.json().catch(() => null));
   if (!parsed.success) {

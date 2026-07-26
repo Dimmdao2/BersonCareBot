@@ -4,12 +4,19 @@ import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import { requirePatientApiBusinessAccess } from "@/app-layer/guards/requireRole";
 import { withExplicitOrganizationPrincipal } from "@/app-layer/principal/withOrganizationPrincipal";
 import { routePaths } from "@/app-layer/routes/paths";
+import { env, isTestEnv } from "@/config/env";
+import { isMockPaymentConfirmEnabled } from "@/modules/payments/mockPaymentGatePolicy";
 
 const bodySchema = z.object({
   intentId: z.string().uuid(),
 });
 
 export async function POST(request: Request) {
+  // H-4 (#818): no-bank test path — dev/test only, fails closed everywhere else.
+  if (!isMockPaymentConfirmEnabled({ nodeEnv: env.NODE_ENV, isTestEnv })) {
+    return NextResponse.json({ ok: false, error: "not_found" }, { status: 404 });
+  }
+
   const gate = await requirePatientApiBusinessAccess({ returnPath: routePaths.patientBooking });
   if (!gate.ok) return gate.response;
   const parsed = bodySchema.safeParse(await request.json().catch(() => null));
