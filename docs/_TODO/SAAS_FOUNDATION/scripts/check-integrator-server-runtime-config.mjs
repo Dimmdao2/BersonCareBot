@@ -289,11 +289,17 @@ function run(overrides = {}) {
   if (legacyRoleProjection < 0 || currentEmailProjection <= legacyRoleProjection) {
     fail('ordinary deploy E1 overlay does not restore admin_emails after legacy 0201');
   }
+  // C-4 (2026-07-26, commit 5f81febc4, docs/ARCHITECTURE/ADMIN_ACCESS_MODEL.md): this same commit
+  // that closed the admin_emails DB-list hole also switched isVerifiedEmailGlobalAdminAsync from
+  // reading admin_emails via getFreshServerRuntimeTokenList to comparing against the single
+  // env-pinned PLATFORM_OWNER_IDENTITY -- this script's own requirement just never got updated to
+  // match, same stale-assertion class fixed in check-e1-webapp-runtime-config.mjs's envRole block.
   requireFragments('fresh verified-email policy', files.envRole, [
     'isVerifiedEmailGlobalAdminAsync',
-    'getFreshServerRuntimeTokenList("admin_emails")',
+    'PLATFORM_OWNER_IDENTITY',
     'return false;',
   ]);
+  forbidFragments('fresh verified-email policy', files.envRole, ['getFreshServerRuntimeTokenList(']);
 }
 
 if (process.argv.includes('--self-test')) {
