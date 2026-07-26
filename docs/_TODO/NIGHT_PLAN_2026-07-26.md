@@ -54,7 +54,22 @@ finding that has no line here is a QUESTION for the owner, never work (see `docs
       Supabase's schema-scoped `supabase_auth_admin`; PostgREST's private `basic_auth` schema + scalar-returning
       definer accessor. Both shipped systems scope the definer owner narrowly and never reuse the table-owning
       or bypass-everything role.
-      Not started — sequenced after G-4 (deploy + page walk).
+      **STAGE 1 DONE 2026-07-26 (`9b40d74e9`) — the gate is in, and it was proven able to FAIL.**
+      A new assertion pins the anon-reachable definer counts for the DB-owner role (28) and
+      `saas_telemetry_owner` (1), plus a 17-row required-privilege allowlist for the 7 tables those 28
+      functions actually touch (read out of each function body, not guessed). It runs after the units are
+      up, so a red gate can never take TEST down. **Proven to fail four independent ways** — revoking a
+      table privilege from the owner, revoking EXECUTE from the anon role, adding a spurious
+      anon-reachable definer, and revoking the telemetry function — each producing the right FATAL and
+      returning to green when undone. A trap was caught during that proof: PostgreSQL grants EXECUTE to
+      PUBLIC by default on function creation, which silently masked one violation until the fixture
+      revoked it explicitly.
+      **Measured numbers differ from the research above — explained, not drift.** Live today: 118 definers
+      (was 115), 48 anon-reachable (was 46), `app_owner` owning 19 of them (was 17). The +2 anon-reachable
+      are exactly `app.phone_otp_public_booking_issue_challenge` and `..._consume_challenge` from migration
+      0245 — the A-3 public-booking OTP seam this branch shipped, which is also why `expected_secdef_count`
+      moved 56→58. The two numbers this new gate pins (28 and 1) reproduced **exactly**.
+      Stages 2 (owner split behind WARN-then-FATAL) and 3 (structural allowlist instead of a count) remain.
 - [ ] **A-2 (C2) Public read surface.** Owner: study which actions genuinely need it; do not serve public
       data under system roles. External research says a policy over a mixed table is NOT enough (RLS is
       row-granular; covert channels are documented by PostgreSQL itself) — the shape is a **separate public
