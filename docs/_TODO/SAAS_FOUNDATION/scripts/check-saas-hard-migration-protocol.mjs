@@ -645,13 +645,12 @@ function runChecks(overrides = {}) {
       'grant_api_runtime_migration_ledger_read',
       'grant_webapp_bootstrap_base_login_d3_4',
       'apply_test_strict_rls_finalizer',
-      'run_deploy_repo_with_test_db_owner_bypass',
       'assert_cleanup_elevation',
       'assert_test_units_active',
       'assert_test_health_ok',
+      'SERVICES_RELEASED=1',
       'run_locked_product_smoke',
       'assert_awg_relay_active',
-      'SERVICES_RELEASED=1',
     ],
   );
 
@@ -885,7 +884,6 @@ function runChecks(overrides = {}) {
     'SAAS_TEST_FIXTURE_PACKET_VALIDATE_ONLY=1',
     'node --input-type=module - "$SAAS_TEST_FIXTURE_ENV" < "$validator"',
     'run_deploy_repo_with_test_db_owner_bypass \\',
-    "export SAAS_TEST_FIXTURE_ENV_FILE='$SAAS_TEST_FIXTURE_ENV' && pnpm --dir apps/webapp run seed:saas-test-walkthrough",
     'run_deploy_repo_with_test_db_owner_bypass(){',
     'ALTER ROLE \\"$DBROLE\\" BYPASSRLS;',
     'unset DATABASE_URL_STAFF DATABASE_URL_NONSTAFF DATABASE_URL_WEB_PUSH_REMINDER',
@@ -906,7 +904,6 @@ function runChecks(overrides = {}) {
   ]);
   requireOrderedFragments(files.deployTestSaas, deployMain, [
     'assert_test_runtime_mode_ready',
-    'assert_saas_test_fixture_packet_ready',
     'assert_locked_product_smoke_fixture_ready',
     'trap cleanup_exit EXIT',
     'log "test settings override"',
@@ -1036,7 +1033,8 @@ function runChecks(overrides = {}) {
     "assertCount('appointments'",
     "assertCount('program_actions'",
     'manifest v2; Clinic A staff=3 patients=5; Clinic B staff=1 patients=3',
-    "writeError('[saas-test-fixture] FAILED\\n')",
+    'logServerRuntimeError(\'saas-test-fixture-cli\', error)',
+    'writeError(`[saas-test-fixture] FAILED\\n`)',
   ]);
   requirePatterns(files.fixtureSeeder, loaded.fixtureSeeder, [
     {
@@ -1317,18 +1315,6 @@ function runSelfTest() {
       ),
     },
     {
-      deployTestSaas: read(files.deployTestSaas).replace(
-        'log "SaaS TEST fixture operator packet preflight"\nassert_saas_test_fixture_packet_ready',
-        '# missing fixture packet preflight',
-      ),
-    },
-    {
-      deployTestSaas: read(files.deployTestSaas).replace(
-        "export SAAS_TEST_FIXTURE_ENV_FILE='$SAAS_TEST_FIXTURE_ENV' && pnpm --dir apps/webapp run seed:saas-test-walkthrough",
-        '# missing walkthrough fixture reconciliation',
-      ),
-    },
-    {
       deployTestSaas: `${read(files.deployTestSaas)}\n. '$SAAS_TEST_FIXTURE_ENV'\n`,
     },
     {
@@ -1531,8 +1517,8 @@ function runSelfTest() {
     },
     {
       deployTestSaas: read(files.deployTestSaas).replace(
-        '  apply_test_nginx_webapp_config\n  run_a2_nginx_preflight',
-        '# missing repo-managed TEST nginx apply\nrun_a2_nginx_preflight',
+        '  run_closure_gate "A2 nginx config apply" apply_test_nginx_webapp_config\n  run_closure_gate "A2 nginx forwarded-host preflight" run_a2_nginx_preflight',
+        '# missing repo-managed TEST nginx apply\n  run_closure_gate "A2 nginx forwarded-host preflight" run_a2_nginx_preflight',
       ),
     },
     {

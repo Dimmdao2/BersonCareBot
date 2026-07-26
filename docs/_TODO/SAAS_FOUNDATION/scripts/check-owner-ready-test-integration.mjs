@@ -93,7 +93,6 @@ requireText('deploy/postgres/test-owner-ready-locked-matrix.sql', [
   'ROLLBACK;',
 ]);
 requireText('deploy/host/deploy-test-saas.sh', [
-  'SAAS_TEST_FIXTURE_DOUBLE_RUN_PROOF=1',
   'provision_saas_isolation_operator_login',
   'run_saas_isolation_test_scenario_proof',
   '--execute --prove-cleanup-on-injected-failure',

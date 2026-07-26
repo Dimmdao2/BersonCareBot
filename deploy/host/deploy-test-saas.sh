@@ -1087,7 +1087,9 @@ SEAM_OK_SQL
 )"
   local ok="" _seam_attempt
   for _seam_attempt in 1 2 3 4 5; do
-    ok="$(sudo -u postgres psql -d "$DB" -X -v ON_ERROR_STOP=1 -tAc "$seam_ok_sql" 2>/dev/null || true)"
+    set +e
+    ok="$(sudo -u postgres psql -d "$DB" -X -v ON_ERROR_STOP=1 -tAc "$seam_ok_sql" 2>/dev/null)"
+    set -e
     [ "$ok" = "t" ] && break
     sleep 2
   done
@@ -1099,6 +1101,7 @@ SEAM_OK_SQL
     # class. So we do NOT abort the deploy on it -- but we print a per-condition breakdown so a GENUINE
     # seam regression is still visible in the deploy log for an operator to act on.
     echo "WARNING: specialist-owner provisioning seam pin did not read as pinned (non-fatal; overlays set the invariant deterministically). Per-condition (t/true = ok):" >&2
+    set +e
     sudo -u postgres psql -d "$DB" -X -x -tAc "
 SELECT
  (SELECT EXISTS (SELECT 1 FROM pg_roles WHERE rolname='app_owner' AND NOT rolcanlogin AND rolbypassrls))::text AS c1_role_nologin_bypassrls,
@@ -1108,7 +1111,8 @@ SELECT
  ((SELECT pg_get_userbyid(p.proowner) FROM pg_proc p WHERE p.oid='app.current_provisioned_owner_organization()'::regprocedure)='app_owner')::text AS c5_orgfn_owner,
  (SELECT (c.relrowsecurity AND c.relforcerowsecurity) FROM pg_class c WHERE c.oid='public.be_organizations'::regclass)::text AS c6_be_org_force,
  (SELECT NOT EXISTS (SELECT 1 FROM pg_policy pol WHERE pol.polrelid='public.be_organizations'::regclass AND pol.polcmd IN ('a','*') AND (pol.polroles='{0}' OR EXISTS (SELECT 1 FROM unnest(pol.polroles) AS r(oid) JOIN pg_roles ro ON ro.oid=r.oid WHERE ro.rolname IN ('app_staff','app_patient')))))::text AS c7_no_broad_insert_policy;
-" 2>&1 | sed 's/^/       /' >&2 || true
+" 2>&1 | sed 's/^/       /' >&2
+    set -e
     return 0
   }
   echo "   specialist-owner provisioning seam: OK (app_owner pinned, be_organizations FORCE RLS intact)"

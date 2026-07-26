@@ -540,8 +540,8 @@ function runChecks(overrides = {}) {
   forbidText(files.envRole, loaded.envRole, ["getConfigValue(", "readAdminSystemSettingString"]);
   for (const text of [loaded.publicSnapshot, loaded.oauthProviders]) {
     requireText("public oauth availability", text, [
-      'getPublicRuntimeBool("oauth_yandex_enabled")',
-      'getPublicRuntimeBool("oauth_google_enabled")',
+      'isOAuthProviderEnabled("yandex")',
+      'isOAuthProviderEnabled("google")',
       'getPublicRuntimeBool("oauth_apple_enabled")',
     ]);
     forbidText("public oauth availability", text, [
@@ -549,6 +549,11 @@ function runChecks(overrides = {}) {
       "getYandexOauthClientId", "getGoogleClientId", "getAppleOauthClientId",
     ]);
   }
+  requireText(files.authChannelPolicy, loaded.authChannelPolicy, [
+    'google: "auth_oauth_google_enabled"',
+    'yandex: "auth_oauth_yandex_enabled"',
+    "export async function isOAuthProviderEnabled",
+  ]);
   requireText(files.patientMaintenance, loaded.patientMaintenance, [
     "getPatientRuntimeBool", "getPatientRuntimeValue", "organizationId: string | null",
     "organizationId === null", "Promise.resolve(\"\")",
