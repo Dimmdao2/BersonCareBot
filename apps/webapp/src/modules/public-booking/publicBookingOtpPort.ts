@@ -2,7 +2,7 @@
  * A-3 — the database seam the anonymous booking OTP path uses.
  *
  * Two operations, mirroring the two SECURITY DEFINER accessors in
- * `0246_public_booking_phone_otp_accessors.sql`. The shape is dictated by one rule: the code is
+ * `0245_public_booking_phone_otp_accessors.sql`. The shape is dictated by one rule: the code is
  * never read back out of the database. It goes IN on issue and IN on consume, and the comparison
  * happens inside the accessor — exactly as `EmailOtpPublicDbPort.consumeLatestEmailChallenge` sends
  * a hash in and gets a verdict out, never a row.

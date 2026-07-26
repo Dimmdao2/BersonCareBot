@@ -13,7 +13,7 @@
 #   integrator_push_outbox.idempotency_key
 #   system_settings.key
 #   platform_users.calendar_timezone
-#   platform_users.session_epoch   (session revocation, migration 0244 — see below)
+#   platform_users.session_epoch   (session revocation, migration 0243 — see below)
 #
 # platform_users.session_epoch is load-bearing for AVAILABILITY, not just for a feature: the session
 # chokepoint compares it on every request and fails closed, so releasing code that expects it onto a

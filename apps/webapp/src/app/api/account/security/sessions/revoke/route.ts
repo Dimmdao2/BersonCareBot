@@ -17,7 +17,7 @@ export async function POST() {
   // `platform_users.session_epoch` — exactly like logout and password reset.
   //
   // `revokeSessions()` is kept, and kept FIRST, as MFA bookkeeping: it still bumps
-  // `staff_security_profiles.session_version`, and migration 0244's trigger folds that bump into the
+  // `staff_security_profiles.session_version`, and migration 0243's trigger folds that bump into the
   // same epoch. Both calls therefore land on one counter; the explicit call below is what makes the
   // outcome independent of whether a staff-security row exists at all.
   await deps.staffSecurity.revokeSessions();

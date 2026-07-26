@@ -1156,11 +1156,11 @@ WITH required(tbl, priv) AS (
     -- already required above for the invite/slug definers; org_enrollments SELECT comes canonically
     -- from deploy/postgres/patient-invites-rls.sql).
     ('public.org_enrollments', 'SELECT'),
-    -- 0246 public booking phone OTP: app.phone_otp_public_booking_issue_challenge() and
+    -- 0245 public booking phone OTP: app.phone_otp_public_booking_issue_challenge() and
     -- app.phone_otp_public_booking_consume_challenge() read AND write both phone-OTP tables
     -- (insert/expire the challenge, count attempts, set/clear the per-phone lockout). There is no
     -- deploy/postgres overlay for these two tables -- p0-5b-grants.sql only ever touches
-    -- app_staff/app_patient -- so 0246 itself is their canonical app_owner grant site.
+    -- app_staff/app_patient -- so 0245 itself is their canonical app_owner grant site.
     ('public.phone_challenges', 'SELECT'),
     ('public.phone_challenges', 'INSERT'),
     ('public.phone_challenges', 'UPDATE'),
@@ -1217,7 +1217,7 @@ SELECT has_column_privilege('app_owner', 'public.operator_incidents', 'alert_sen
   # resolved to "not configured" for every unauthenticated caller (permission denied, 42501,
   # swallowed by configAdapter.ts:fetchFromDb into null) even with SMTP fully configured — the owner
   # could not log in. The accessor returns ONLY a boolean (never host/user/password/from).
-  # 56 -> 58 (2026-07-26): migration 0246_public_booking_phone_otp_accessors adds exactly two
+  # 56 -> 58 (2026-07-26): migration 0245_public_booking_phone_otp_accessors adds exactly two
   # reviewed app_owner SECURITY DEFINER accessors for the A-3 anonymous booking OTP path —
   # app.phone_otp_public_booking_issue_challenge(text,text,text,integer,integer,text,jsonb) and
   # app.phone_otp_public_booking_consume_challenge(text,text,integer,integer). They exist because

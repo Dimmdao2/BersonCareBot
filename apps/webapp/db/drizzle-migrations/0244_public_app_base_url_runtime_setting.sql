@@ -1,4 +1,4 @@
--- 0245_public_app_base_url_runtime_setting: the anonymous landing page served the ENV fallback
+-- 0244_public_app_base_url_runtime_setting: the anonymous landing page served the ENV fallback
 -- instead of the configured `app_base_url`, and poisoned that value for authenticated consumers.
 --
 -- MEASURED ON DEV (bcb_webapp_dev, 2026-07-26), before this migration:

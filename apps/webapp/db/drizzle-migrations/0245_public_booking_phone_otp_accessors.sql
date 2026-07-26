@@ -1,4 +1,4 @@
--- 0246_public_booking_phone_otp_accessors: make the A-3 anonymous booking OTP path reachable under
+-- 0245_public_booking_phone_otp_accessors: make the A-3 anonymous booking OTP path reachable under
 -- the real role model, without handing a runtime role a table GRANT.
 --
 -- Root cause this migration closes. Commits 124d7d074 + 73cfaf547 made anonymous booking prove
@@ -265,9 +265,9 @@ BEGIN
   -- downgrade on TEST/PROD: if the transfer is skipped there, app_owner's SECURITY DEFINER count
   -- never reaches the pinned value and assert_app_owner_secdef_table_grants_complete FATALs.
   IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'app_owner') THEN
-    RAISE WARNING '0246: role app_owner absent; phone OTP booking accessors keep the migrator as definer';
+    RAISE WARNING '0245: role app_owner absent; phone OTP booking accessors keep the migrator as definer';
   ELSIF NOT pg_has_role(current_user, 'app_owner', 'member') THEN
-    RAISE WARNING '0246: % is not a member of app_owner; phone OTP booking accessors keep the migrator as definer', current_user;
+    RAISE WARNING '0245: % is not a member of app_owner; phone OTP booking accessors keep the migrator as definer', current_user;
   ELSE
     ALTER FUNCTION app.phone_otp_public_booking_issue_challenge(text, text, text, integer, integer, text, jsonb) OWNER TO app_owner;
     ALTER FUNCTION app.phone_otp_public_booking_consume_challenge(text, text, integer, integer) OWNER TO app_owner;

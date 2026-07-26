@@ -110,7 +110,7 @@ export const PUBLIC_RUNTIME_STRING_DEFAULTS = {
   support_contact_url: "",
   app_display_timezone: "Europe/Moscow",
   /**
-   * The product's own public origin. Registered in the public projection by migration 0245 so the
+   * The product's own public origin. Registered in the public projection by migration 0244 so the
    * anonymous landing can read the CONFIGURED value through `app.read_public_runtime_setting`
    * instead of being denied on `system_settings` and silently served the env fallback. Default is
    * empty on purpose: "no configured value" must stay distinguishable, and the env value is the

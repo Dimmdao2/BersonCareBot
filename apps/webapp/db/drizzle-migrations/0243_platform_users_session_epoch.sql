@@ -1,4 +1,4 @@
--- 0244: platform_users.session_epoch — THE session-revocation mechanism (there is now exactly one).
+-- 0243: platform_users.session_epoch — THE session-revocation mechanism (there is now exactly one).
 -- Authority: docs/_TODO/NIGHT_PLAN_2026-07-26.md item C-1 (owner-approved: staff idle 12 h /
 -- patient idle 30 d, absolute ceiling 7 d / 90 d, plus a one-time forced global sign-out at
 -- cutover). This replaces 0239's `sessions_valid_from` timestamp, which is dropped at the bottom.

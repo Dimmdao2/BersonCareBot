@@ -1,6 +1,6 @@
 /**
  * DB implementation of `PublicBookingOtpPort`, over the two SECURITY DEFINER accessors added by
- * `0246_public_booking_phone_otp_accessors.sql`.
+ * `0245_public_booking_phone_otp_accessors.sql`.
  *
  * Same construction as `pgEmailOtpPublic.ts`: every statement is a `SELECT ... FROM app.<accessor>`,
  * so the calling runtime role needs EXECUTE on the function and NOTHING on `public.phone_challenges`

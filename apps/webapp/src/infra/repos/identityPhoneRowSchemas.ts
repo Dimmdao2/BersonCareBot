@@ -61,7 +61,7 @@ export const platformUserSessionRowSchema = z.object({
   role: z.string(),
   phone_normalized: z.string().nullable(),
   /**
-   * `platform_users.session_epoch` — the revocation counter (C-1, 2026-07-26, migration 0244).
+   * `platform_users.session_epoch` — the revocation counter (C-1, 2026-07-26, migration 0243).
    * REQUIRED and `>= 1`, with no `.optional()` and no `.default()`, on purpose: the column is
    * `NOT NULL DEFAULT 1 CHECK (session_epoch >= 1)`, so every live row has one. If a SELECT that
    * feeds this schema ever stops listing the column, parsing throws and the session is rejected —
