@@ -18,6 +18,38 @@
 # =============================================================================
 set -euo pipefail
 
+# Transcript. On 2026-07-26 a deploy went red, its cleanup stopped all five TEST units, and by the time
+# anyone looked the only surviving evidence was systemd's "Stopping…" lines — the reason the deploy failed
+# was gone. Which gate went red is still unknown. Nothing about that investigation was possible because this
+# script wrote its output to a terminal nobody kept.
+#
+# Everything below is teed to a per-run file. This runs BEFORE the first FATAL check so an early abort is
+# captured too. Kept out of the repo tree deliberately (it records env-file paths and role names) and out of
+# /tmp, which is world-readable and swept.
+DEPLOY_LOG_DIR="${DEPLOY_LOG_DIR:-$HOME/.local/state/bersoncarebot/deploy-logs}"
+if [ -z "${BCB_DEPLOY_LOG_ACTIVE:-}" ]; then
+  mkdir -p "$DEPLOY_LOG_DIR"
+  chmod 700 "$DEPLOY_LOG_DIR" 2>/dev/null || true
+  DEPLOY_LOG_FILE="$DEPLOY_LOG_DIR/deploy-test-$(date -u +%Y%m%dT%H%M%SZ)-$$.log"
+  export BCB_DEPLOY_LOG_ACTIVE=1
+  echo "[deploy-test] transcript: $DEPLOY_LOG_FILE"
+  # Re-exec through tee so both streams are captured while still reaching the terminal. The exit code must be
+  # the SCRIPT's, not tee's — otherwise a red deploy reports success, which is the failure mode this whole
+  # change exists to stop. `set -o pipefail` alone is not enough (it would return tee's status on success),
+  # so take PIPESTATUS[0] explicitly, and disable errexit around the call so a non-zero run still reaches it.
+  # `bash "$0"`, not `"$0"` — the documented invocation is `bash deploy/host/deploy-test.sh`, so the exec bit
+  # is not guaranteed and re-execing the path directly would fail with 126 before anything ran. Caught by a
+  # probe of this very wrapper.
+  set +e
+  bash "$0" "$@" 2>&1 | tee "$DEPLOY_LOG_FILE"
+  deploy_status="${PIPESTATUS[0]}"
+  set -e
+  # Keep the last 40 transcripts; they are small, and a full disk is its own outage.
+  ls -1t "$DEPLOY_LOG_DIR"/deploy-test-*.log 2>/dev/null | tail -n +41 | xargs -r rm -f
+  echo "[deploy-test] transcript saved: $DEPLOY_LOG_FILE (exit $deploy_status)"
+  exit "$deploy_status"
+fi
+
 SRC_REPO=/home/dev/dev-projects/BersonCareBot
 DEPLOY_REPO=/opt/projects/bersoncarebot-test
 BRANCH="${1:-feat/doctor-ui-rebuild}"
