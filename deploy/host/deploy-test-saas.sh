@@ -1788,7 +1788,11 @@ sudo -u deploy bash -lc "cd '$DEPLOY_REPO' && \
 cleanup_elevation
 CNT="$(sudo -u postgres psql -d "$DB" -tAc "SELECT count(*) FROM drizzle.__drizzle_migrations;")"
 [ "${CNT:-0}" -ge 178 ] || { echo "FATAL: drizzle migration count ${CNT:-0} < 178"; exit 1; }
-for col in "system_settings.organization_id" "user_phone_history.organization_id"; do
+# platform_users.session_epoch (D1, 2026-07-26): the session chokepoint compares it on every request
+# and fails closed, so TEST code released onto a database without it 401s every session including
+# fresh logins. Same column is asserted by deploy/host/webapp-post-migrate-schema-check.sh on prod
+# and by the webapp at boot (apps/webapp/src/instrumentation.ts).
+for col in "system_settings.organization_id" "user_phone_history.organization_id" "platform_users.session_epoch"; do
   t="${col%.*}"; c="${col#*.}"
   ok="$(sudo -u postgres psql -d "$DB" -tAc "SELECT EXISTS(SELECT 1 FROM information_schema.columns WHERE table_schema='public' AND table_name='$t' AND column_name='$c');")"
   [ "$ok" = "t" ] || { echo "FATAL: missing column $col after migrate"; exit 1; }

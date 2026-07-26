@@ -57,7 +57,15 @@ describe("pgUserByPhonePort.findByPhone", () => {
       });
     runWebappPgTextMock
       .mockResolvedValueOnce({
-        rows: [{ id: "u1", display_name: "N", first_name: null, role: "client", phone_normalized: "+79991234567" }],
+        rows: [{
+          id: "u1",
+          display_name: "N",
+          first_name: null,
+          role: "client",
+          phone_normalized: "+79991234567",
+          session_epoch: 1,
+          is_archived: false,
+        }],
       })
       .mockResolvedValueOnce({ rows: [] as { channel_code: string; external_id: string }[] });
 
@@ -69,7 +77,10 @@ describe("pgUserByPhonePort.findByPhone", () => {
     expect(String(runWebappPgTextMock.mock.calls[0]?.[0])).not.toContain(
       "get_staff_security_session_state",
     );
-    expect(u?.securityVersion).toBeUndefined();
+    // findByPhone goes through loadSessionIdentityUser, which always carries session_epoch (C-1,
+    // 2026-07-26) but never the staff-only security_factor_required — that flag is attached only by
+    // findByUserId's LATERAL join below.
+    expect(u?.sessionEpoch).toBe(1);
     expect(u?.securityFactorRequired).toBeUndefined();
   });
 });
@@ -120,9 +131,9 @@ describe("pgUserByPhonePort read helpers", () => {
           patronymic: null,
           role: "doctor",
           phone_normalized: null,
-          security_version: 7,
+          session_epoch: 7,
+          is_archived: false,
           security_factor_required: true,
-          sessions_valid_from: null,
         }],
       })
       .mockResolvedValueOnce({ rows: [] });
@@ -134,18 +145,17 @@ describe("pgUserByPhonePort read helpers", () => {
 
     expect(sessionUser).toMatchObject({
       userId,
-      securityVersion: 7,
+      // C-1 (2026-07-26): `session_epoch` replaces `securityVersion` — the single revocation counter
+      // for staff AND patients, always present on a live row (NOT NULL DEFAULT 1 CHECK (>= 1)).
+      sessionEpoch: 7,
       securityFactorRequired: true,
-      // S2 remedy (2026-07-25): a SQL NULL surfaces as `null` = "no revocation cutoff". It must be
-      // present, because absence is the fail-closed "could not be read" state at the chokepoint.
-      sessionsValidFrom: null,
     });
     expect(String(runWebappPgTextMock.mock.calls[0]?.[0])).toContain(
       "get_staff_security_session_state",
     );
   });
 
-  it("findByUserId converts a real sessions_valid_from timestamp to unix seconds", async () => {
+  it("findByUserId returns session_epoch as a number", async () => {
     const userId = "11111111-1111-4111-8111-111111111111";
     queryMock.mockResolvedValueOnce({ rows: [{ id: userId, merged_into_id: null }] });
     runWebappPgTextMock
@@ -158,9 +168,9 @@ describe("pgUserByPhonePort read helpers", () => {
           patronymic: null,
           role: "doctor",
           phone_normalized: null,
-          security_version: 0,
+          session_epoch: 12,
+          is_archived: false,
           security_factor_required: false,
-          sessions_valid_from: new Date(1_700_000_000_000),
         }],
       })
       .mockResolvedValueOnce({ rows: [] });
@@ -170,13 +180,13 @@ describe("pgUserByPhonePort read helpers", () => {
       () => pgUserByPhonePort.findByUserId(userId),
     );
 
-    expect(sessionUser?.sessionsValidFrom).toBe(1_700_000_000);
+    expect(sessionUser?.sessionEpoch).toBe(12);
   });
 
-  it("findByUserId FAILS CLOSED when the row carries no sessions_valid_from key at all", async () => {
-    // S2 remedy (2026-07-25): the SELECT always lists the column, so an absent key means the query
-    // drifted. Returning "no cutoff" there would silently disable revocation for that user, so it
-    // throws and the session chokepoint rejects instead.
+  it("findByUserId returns null when the row is archived (D2, 2026-07-26)", async () => {
+    // Archiving must end the session on every subsequent request, not merely gate future UI — see
+    // findByUserId's doc comment. `null` here is the same signal a deleted row produces, and the
+    // session chokepoint in service.ts treats both as "unreadable" and rejects.
     const userId = "11111111-1111-4111-8111-111111111111";
     queryMock.mockResolvedValueOnce({ rows: [{ id: userId, merged_into_id: null }] });
     runWebappPgTextMock.mockResolvedValueOnce({
@@ -188,18 +198,24 @@ describe("pgUserByPhonePort read helpers", () => {
         patronymic: null,
         role: "doctor",
         phone_normalized: null,
-        security_version: 0,
+        session_epoch: 1,
+        is_archived: true,
         security_factor_required: false,
       }],
     });
 
-    await expect(runWithDbPatientPrincipal(
+    const sessionUser = await runWithDbPatientPrincipal(
       { platformUserId: userId, source: "pgUserByPhone.test" },
       () => pgUserByPhonePort.findByUserId(userId),
-    )).rejects.toThrow("session_user_sessions_valid_from_not_selected");
+    );
+
+    expect(sessionUser).toBeNull();
   });
 
-  it("findByUserId FAILS CLOSED on an unparseable sessions_valid_from instead of dropping it", async () => {
+  it("findByUserId FAILS CLOSED when the row carries no session_epoch key at all", async () => {
+    // C-1 (2026-07-26): the SELECT always lists the column, so an absent key means the query
+    // drifted. `session_epoch` is required (no `.optional()`/`.default()`) in the zod schema
+    // specifically so this throws instead of silently disabling revocation for that user.
     const userId = "11111111-1111-4111-8111-111111111111";
     queryMock.mockResolvedValueOnce({ rows: [{ id: userId, merged_into_id: null }] });
     runWebappPgTextMock.mockResolvedValueOnce({
@@ -211,16 +227,39 @@ describe("pgUserByPhonePort read helpers", () => {
         patronymic: null,
         role: "doctor",
         phone_normalized: null,
-        security_version: 0,
+        is_archived: false,
         security_factor_required: false,
-        sessions_valid_from: "not-a-timestamp",
       }],
     });
 
     await expect(runWithDbPatientPrincipal(
       { platformUserId: userId, source: "pgUserByPhone.test" },
       () => pgUserByPhonePort.findByUserId(userId),
-    )).rejects.toThrow("session_user_sessions_valid_from_unparseable");
+    )).rejects.toThrow("find_by_user_id: invalid row shape");
+  });
+
+  it("findByUserId FAILS CLOSED on an unparseable session_epoch instead of dropping it", async () => {
+    const userId = "11111111-1111-4111-8111-111111111111";
+    queryMock.mockResolvedValueOnce({ rows: [{ id: userId, merged_into_id: null }] });
+    runWebappPgTextMock.mockResolvedValueOnce({
+      rows: [{
+        id: userId,
+        display_name: "Owner Doctor",
+        first_name: null,
+        last_name: null,
+        patronymic: null,
+        role: "doctor",
+        phone_normalized: null,
+        session_epoch: "not-a-number",
+        is_archived: false,
+        security_factor_required: false,
+      }],
+    });
+
+    await expect(runWithDbPatientPrincipal(
+      { platformUserId: userId, source: "pgUserByPhone.test" },
+      () => pgUserByPhonePort.findByUserId(userId),
+    )).rejects.toThrow("find_by_user_id: invalid row shape");
   });
 
   it("findByUserId rejects a target that does not match the identity-self principal", async () => {

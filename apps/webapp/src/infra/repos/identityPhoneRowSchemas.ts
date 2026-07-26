@@ -60,11 +60,23 @@ export const platformUserSessionRowSchema = z.object({
   patronymic: z.string().nullable().optional(),
   role: z.string(),
   phone_normalized: z.string().nullable(),
-  security_version: z.coerce.number().int().nonnegative().optional().default(0),
+  /**
+   * `platform_users.session_epoch` — the revocation counter (C-1, 2026-07-26, migration 0244).
+   * REQUIRED and `>= 1`, with no `.optional()` and no `.default()`, on purpose: the column is
+   * `NOT NULL DEFAULT 1 CHECK (session_epoch >= 1)`, so every live row has one. If a SELECT that
+   * feeds this schema ever stops listing the column, parsing throws and the session is rejected —
+   * which is the fail-closed direction. The previous `security_version` field defaulted to 0 when
+   * absent, and that default is exactly how the old check passed for every user without a
+   * `staff_security_profiles` row.
+   */
+  session_epoch: z.coerce.number().int().min(1),
+  /**
+   * `platform_users.is_archived` (D2). Checked on the session path on EVERY request, not merely
+   * stamped once at archive time — see `pgUserByPhone.findByUserId`, which returns `null` for an
+   * archived row so no caller can resolve or mint a session for one.
+   */
+  is_archived: z.coerce.boolean(),
   security_factor_required: z.coerce.boolean().optional().default(false),
-  /** `platform_users.sessions_valid_from` (S2 remedy, 2026-07-25). Not selected by every query that
-   * uses this schema (e.g. `loadSessionIdentityUser`), so absent/NULL both mean "no cutoff". */
-  sessions_valid_from: z.union([z.string(), z.date()]).nullable().optional(),
 });
 
 export const platformUserProfileRowSchema = z.object({

@@ -43,9 +43,9 @@ vi.mock("./sessionCookie", () => ({
   sessionTtlSecondsForRole: () => 3_600,
   shouldRenewSession: vi.fn(),
   writeFreshLoginMarkerCookie: vi.fn(),
-  // S2 remedy (2026-07-25): this file's fixtures use `issuedAt: 1` (1970) with a far-future
-  // `expiresAt`, which is exactly what the real absolute-max-age cap would reject — that concern
-  // is covered separately in service.sessionsValidFrom.test.ts, so it is neutralized here.
+  // This file's fixtures use `issuedAt: 1` (1970) with a far-future `expiresAt`, which is exactly
+  // what the real absolute-max-age cap would reject — that concern is covered separately in
+  // service.sessionRevocation.test.ts, so it is neutralized here.
   isSessionBeyondAbsoluteMaxAge: () => false,
 }));
 
@@ -62,15 +62,12 @@ vi.mock("@/app-layer/principal/sessionPrincipal", () => ({
 
 vi.mock("@/infra/repos/pgUserByPhone", () => ({
   pgUserByPhonePort: {
-    // S2 remedy (2026-07-25): the real port ALWAYS returns `sessionsValidFrom` — `null` when the
-    // row holds SQL NULL (no revocation cutoff). Its absence now means "the cutoff could not be
-    // read" and fails closed at the chokepoint (asserted in service.sessionsValidFrom.test.ts).
-    // This file's fixtures predate the column, so default them to the "read fine, no cutoff" shape
-    // rather than restating it at ~10 call sites.
-    findByUserId: async (...args: unknown[]) => {
-      const fresh = (await mocks.findByUserId(...args)) as { sessionsValidFrom?: number | null } | null;
-      return fresh && fresh.sessionsValidFrom === undefined ? { ...fresh, sessionsValidFrom: null } : fresh;
-    },
+    // C-1 (2026-07-26): the real port ALWAYS returns a numeric `sessionEpoch` for a live DB row
+    // (`platform_users.session_epoch` is `NOT NULL DEFAULT 1 CHECK (>= 1)`). Unlike the predecessor
+    // `sessionsValidFrom` shim this file used to install here, there is no "read fine, no cutoff"
+    // default to inject — every fixture below carries its own `sessionEpoch` explicitly (via the
+    // `doctorUser(epoch)` factory), so this is a plain passthrough.
+    findByUserId: (...args: unknown[]) => mocks.findByUserId(...args),
     getVerifiedEmailForUser: (...args: unknown[]) => mocks.getVerifiedEmailForUser(...args),
   },
 }));
@@ -92,12 +89,20 @@ import { getCurrentSession, getCurrentSessionForIdentitySelf } from "./service";
 const USER_ID = "11111111-1111-4111-8111-111111111111";
 const ORGANIZATION_ID = "22222222-2222-4222-8222-222222222222";
 
-function doctorUser(): SessionUser {
+/**
+ * `sessionEpoch` defaults to `1` — the value every live `platform_users` row starts at (C-1,
+ * 2026-07-26) — so ordinary tests in this file that don't care about revocation get a cookie/DB-row
+ * pair that matches at the chokepoint without having to restate the epoch at every call site. Pass
+ * `null` explicitly to build the pre-cutover shape (no `sessionEpoch` key at all) — a default
+ * *parameter* only substitutes on `undefined`, so `undefined` cannot be used as that signal here.
+ */
+function doctorUser(sessionEpoch: number | null = 1): SessionUser {
   return {
     userId: USER_ID,
     role: "doctor",
     displayName: "DEV Doctor",
     bindings: {},
+    ...(sessionEpoch === null ? {} : { sessionEpoch }),
   };
 }
 
@@ -317,70 +322,82 @@ describe("getCurrentSession identity-self concurrency", () => {
     expect(getCurrentDbPrincipal()).toBeUndefined();
   });
 
-  // D1 — session_version / logout-everywhere enforcement. `app.revoke_staff_sessions()` bumps
-  // `staff_security_profiles.session_version`; every request re-reads it via
-  // `pgUserByPhonePort.findByUserId()` and compares it against the version embedded in the signed
-  // cookie at login. A mismatch must reject the cookie fail-closed (see service.ts ~L912).
-  describe("staff security_version enforcement (revoke-everywhere)", () => {
-    it("rejects a staff cookie whose embedded security version is behind the DB's after a revoke bumped it", async () => {
-      const staleCookieUser = { ...doctorUser(), securityVersion: 1 };
+  // C-1 (2026-07-26) — session_epoch / logout-everywhere enforcement. Any revocation event (logout,
+  // password reset, "sign out everywhere", staff MFA revoke, archive) bumps `platform_users.
+  // session_epoch`; every request re-reads it via `pgUserByPhonePort.findByUserId()` and compares it
+  // against the epoch embedded in the signed cookie at login, for EQUALITY. A mismatch must reject
+  // the cookie fail-closed (see service.ts's chokepoint in getCurrentSessionWithPrincipalMode()).
+  // This replaces the old `securityVersion` mechanism, which was staff-only and defaulted absent
+  // values on both sides to 0 — a default that made a revoke a no-op for anyone without a
+  // `staff_security_profiles` row. `session_epoch` has no such default (full end-to-end proof,
+  // including the archived-identity and absolute-age cases, lives in
+  // service.sessionRevocation.test.ts; these three stay local to this file because they exercise it
+  // through the same identity-self concurrency mocks/wrapper as the rest of the suite above).
+  describe("session_epoch enforcement (revoke-everywhere)", () => {
+    it("rejects a staff cookie whose embedded session_epoch is behind the DB's after a revoke bumped it", async () => {
+      const staleCookieUser = doctorUser(1);
       mocks.decodedSession = {
         user: staleCookieUser,
         issuedAt: 1,
         expiresAt: 9_999_999_999,
       } satisfies AppSession;
-      // Simulates `app.revoke_staff_sessions()` having bumped session_version to 2 in the DB —
-      // this cookie was issued before the revoke and must be treated as logged out.
-      mocks.findByUserId.mockResolvedValue({ ...staleCookieUser, securityVersion: 2 });
+      // Simulates a revocation event having bumped session_epoch to 2 in the DB — this cookie was
+      // minted before that and must be treated as logged out.
+      mocks.findByUserId.mockResolvedValue(doctorUser(2));
       mocks.getVerifiedEmailForUser.mockResolvedValue(null);
       mocks.isVerifiedEmailGlobalAdminAsync.mockResolvedValue(false);
 
       const session = await runWithDbBootstrapPrincipal(
-        { source: "service.sessionConcurrency.revoked-version" },
+        { source: "service.sessionConcurrency.revoked-epoch" },
         () => getCurrentSession(),
       );
 
       expect(session).toBeNull();
     });
 
-    it("accepts a staff cookie whose embedded security version matches the DB's current version", async () => {
-      const currentUser = { ...doctorUser(), securityVersion: 2 };
+    it("accepts a staff cookie whose embedded session_epoch matches the DB's current epoch", async () => {
+      const currentUser = doctorUser(2);
       mocks.decodedSession = {
         user: currentUser,
         issuedAt: 1,
         expiresAt: 9_999_999_999,
       } satisfies AppSession;
-      mocks.findByUserId.mockResolvedValue({ ...currentUser, securityVersion: 2 });
+      mocks.findByUserId.mockResolvedValue(doctorUser(2));
       mocks.getVerifiedEmailForUser.mockResolvedValue(null);
       mocks.isVerifiedEmailGlobalAdminAsync.mockResolvedValue(false);
 
       const session = await runWithDbBootstrapPrincipal(
-        { source: "service.sessionConcurrency.current-version" },
+        { source: "service.sessionConcurrency.current-epoch" },
         () => getCurrentSession(),
       );
 
       expect(session?.user.role).toBe("doctor");
-      expect(session?.user.securityVersion).toBe(2);
+      expect(session?.user.sessionEpoch).toBe(2);
     });
 
-    it("accepts a legacy pre-versioning cookie against a never-revoked profile — both default to version 0, so no deploy-wide logout", async () => {
-      const legacyUser = doctorUser(); // no `securityVersion` field, as pre-migration cookies are
+    it("CUTOVER: rejects a legacy pre-epoch cookie even against a matching, never-revoked profile", async () => {
+      // This is the deliberate behavior flip from the predecessor mechanism (see the describe-level
+      // comment above): a cookie minted before this deploy carries no `sessionEpoch` at all, and
+      // `platform_users.session_epoch` is `NOT NULL DEFAULT 1` — there is no shared "unset" value the
+      // two sides could coincidentally agree on, so every pre-cutover session dies exactly once.
+      const legacyUser = doctorUser(null); // no `sessionEpoch` field, as pre-cutover cookies are
       mocks.decodedSession = {
         user: legacyUser,
         issuedAt: 1,
         expiresAt: 9_999_999_999,
       } satisfies AppSession;
-      // DB row also has never seen a revoke, so its session_version is still 0 (unset).
-      mocks.findByUserId.mockResolvedValue(legacyUser);
+      // The DB row was never revoked, so it sits at its default epoch of 1 — still not equal to the
+      // cookie's missing value.
+      mocks.findByUserId.mockResolvedValue(doctorUser(1));
       mocks.getVerifiedEmailForUser.mockResolvedValue(null);
       mocks.isVerifiedEmailGlobalAdminAsync.mockResolvedValue(false);
 
       const session = await runWithDbBootstrapPrincipal(
-        { source: "service.sessionConcurrency.legacy-no-version" },
+        { source: "service.sessionConcurrency.legacy-no-epoch" },
         () => getCurrentSession(),
       );
 
-      expect(session?.user.role).toBe("doctor");
+      expect(session).toBeNull();
     });
   });
 });

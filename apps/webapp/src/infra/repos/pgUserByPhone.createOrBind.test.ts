@@ -58,7 +58,17 @@ const webCtx = { channel: "web" as const, chatId: "web-100" };
 function mockSessionUserLoad(userId: string) {
   runWebappPgTextMock
     .mockResolvedValueOnce({
-      rows: [{ id: userId, display_name: "Pat", first_name: null, role: "client", phone_normalized: phone }],
+      rows: [{
+        id: userId,
+        display_name: "Pat",
+        first_name: null,
+        role: "client",
+        phone_normalized: phone,
+        // C-1 (2026-07-26): loadSessionIdentityUser's row schema now requires session_epoch and
+        // is_archived on every row it parses.
+        session_epoch: 1,
+        is_archived: false,
+      }],
     })
     .mockResolvedValueOnce({ rows: [{ channel_code: "telegram", external_id: "tg-100" }] });
 }

@@ -49,10 +49,21 @@ async function loadPuRowForMerge(client: PoolClient, id: string) {
   return r.rows[0] ? parseIdentityRow(puMergeRowSchema, r.rows[0], "pu_merge_row") : null;
 }
 
-async function loadSessionIdentityUser(pool: Pool, userId: string): Promise<SessionUser> {
+/**
+ * Loads the session-shaped identity for a `platform_users` row.
+ *
+ * Returns `null` when the row is ARCHIVED (D2, 2026-07-26). Archiving must not merely gate future
+ * UI — it must end the session. Both loaders in this file therefore refuse to produce a
+ * `SessionUser` for an archived row, so no caller can resolve an existing session for one and no
+ * caller can mint a new one; the archive writer's epoch bump kills the cookies that already exist,
+ * and this check is what makes it hold on EVERY subsequent request.
+ */
+async function loadSessionIdentityUser(pool: Pool, userId: string): Promise<SessionUser | null> {
   const canonicalId = (await resolveCanonicalUserId(pool, userId)) ?? userId;
   const userRow = await runIdentityPoolPgText(
-    `SELECT pu.id, pu.display_name, pu.first_name, pu.last_name, pu.patronymic, pu.role, pu.phone_normalized
+    `SELECT pu.id, pu.display_name, pu.first_name, pu.last_name, pu.patronymic, pu.role, pu.phone_normalized,
+            pu.session_epoch,
+            COALESCE(pu.is_archived, false) AS is_archived
      FROM platform_users pu
      WHERE pu.id = $1`,
     [canonicalId],
@@ -61,6 +72,7 @@ async function loadSessionIdentityUser(pool: Pool, userId: string): Promise<Sess
     throw new Error(`loadSessionUser: user ${userId} missing after canonical resolve`);
   }
   const u = parseIdentityRow(platformUserSessionRowSchema, userRow.rows[0], "load_session_user");
+  if (u.is_archived) return null;
   const firstName = u.first_name?.trim() || undefined;
   const lastName = u.last_name?.trim() || undefined;
   const patronymic = u.patronymic?.trim() || undefined;
@@ -78,6 +90,7 @@ async function loadSessionIdentityUser(pool: Pool, userId: string): Promise<Sess
     ...(patronymic ? { patronymic } : {}),
     phone: u.phone_normalized ?? undefined,
     bindings,
+    sessionEpoch: u.session_epoch,
   };
 }
 
@@ -113,8 +126,8 @@ export const pgUserByPhonePort: UserByPhonePort = {
     }
     const userRow = await runIdentityPoolPgText(
       `SELECT pu.id, pu.display_name, pu.first_name, pu.last_name, pu.patronymic, pu.role, pu.phone_normalized,
-              pu.sessions_valid_from,
-              COALESCE(sss.session_version, 0) AS security_version,
+              pu.session_epoch,
+              COALESCE(pu.is_archived, false) AS is_archived,
               COALESCE(sss.factor_required, false) AS security_factor_required
        FROM platform_users pu
        LEFT JOIN LATERAL app.get_staff_security_session_state() sss ON true
@@ -123,24 +136,12 @@ export const pgUserByPhonePort: UserByPhonePort = {
     );
     if (userRow.rows.length === 0) return null;
     const u = parseIdentityRow(platformUserSessionRowSchema, userRow.rows[0], "find_by_user_id");
-    // S2 remedy (2026-07-25): this is the ONE read of `platform_users.sessions_valid_from`. It is
-    // always selected above, so the tri-state is unambiguous here: a genuine SQL NULL becomes
-    // `null` (= no cutoff), a real timestamp becomes unix seconds. A present-but-unparseable value
-    // is NOT downgraded to "no cutoff" — it throws, and the caller
-    // (`modules/auth/service.ts` resolveSessionUserAgainstDb) turns that into a rejected session.
-    let sessionsValidFrom: number | null = null;
-    if (u.sessions_valid_from === undefined) {
-      // The SELECT above always lists the column, so `undefined` (key absent from the row) can only
-      // mean the query drifted away from it. Fail closed rather than silently returning "no cutoff".
-      throw new Error("session_user_sessions_valid_from_not_selected");
-    }
-    if (u.sessions_valid_from !== null) {
-      const ms = new Date(u.sessions_valid_from).getTime();
-      if (!Number.isFinite(ms)) {
-        throw new Error("session_user_sessions_valid_from_unparseable");
-      }
-      sessionsValidFrom = Math.floor(ms / 1000);
-    }
+    // D2 (2026-07-26): an archived identity has no session, on every request. Returning `null` here
+    // rather than carrying an `isArchived` flag on SessionUser is deliberate — every caller of this
+    // method is an auth path (session resolution or session minting), and `null` already means
+    // "there is no session identity" to all of them, so the check cannot be forgotten downstream
+    // and no stale copy of the flag can ever travel in a cookie.
+    if (u.is_archived) return null;
     const firstName = u.first_name?.trim() || undefined;
     const lastName = u.last_name?.trim() || undefined;
     const patronymic = u.patronymic?.trim() || undefined;
@@ -158,24 +159,25 @@ export const pgUserByPhonePort: UserByPhonePort = {
       ...(patronymic ? { patronymic } : {}),
       phone: u.phone_normalized ?? undefined,
       bindings,
-      securityVersion: u.security_version,
+      sessionEpoch: u.session_epoch,
       securityFactorRequired: u.security_factor_required,
-      sessionsValidFrom,
     };
   },
 
   /**
-   * S2 remedy (2026-07-25): stamps `platform_users.sessions_valid_from = now()` for the caller's
-   * OWN row. Must run under the identity-self principal (see
-   * `app-layer/principal/staffSecuritySelfPrincipal.ts` — `enterStaffSecuritySelfPrincipal` /
+   * C-1 (2026-07-26): increments `platform_users.session_epoch` for the caller's OWN row, which
+   * kills every session minted with the previous value. Must run under the identity-self principal
+   * (`app-layer/principal/staffSecuritySelfPrincipal.ts` — `enterStaffSecuritySelfPrincipal` /
    * `runWithStaffSecuritySelfPrincipal`), exactly like `findByUserId` above; the DB function reads
-   * that same principal via `app.require_staff_security_self_user_id()` and raises if it is
-   * missing. Used by logout and password reset — both self-operations, both today unable to revoke
-   * anything (logout never touched the DB at all; password reset's staff-only revoke silently
-   * no-ops when no `staff_security_profiles` row exists, which is every current TEST user).
+   * that same principal via `app.require_staff_security_self_user_id()` and raises if it is missing.
+   *
+   * Used by logout, password reset and "sign out everywhere" — all self-operations, and all of them
+   * previously unable to revoke anything: logout never touched the DB at all, and the other two went
+   * through the staff-only `app.revoke_staff_sessions()`, which raises `staff_security_profile_missing`
+   * for any user without an MFA enrollment row (every current TEST user).
    */
   async invalidateSessionsForSelf(): Promise<void> {
-    await runIdentityPoolPgText("SELECT app.stamp_platform_user_sessions_valid_from_self()");
+    await runIdentityPoolPgText("SELECT app.bump_platform_user_session_epoch_self()");
   },
 
   async findByPhone(normalizedPhone: string): Promise<SessionUser | null> {
@@ -375,6 +377,11 @@ export const pgUserByPhonePort: UserByPhonePort = {
       ? await runWithDbOrganizationPrincipal(profileBindOrganizationId, bindInTransaction)
       : await bindInTransaction();
 
-    return { user: await loadSessionIdentityUser(pool, bound.userId), wasCreated: bound.wasCreated };
+    const user = await loadSessionIdentityUser(pool, bound.userId);
+    if (!user) {
+      // Archived (D2): binding a channel must not resurrect an archived identity into a session.
+      throw new Error("createOrBind: platform user is archived");
+    }
+    return { user, wasCreated: bound.wasCreated };
   },
 };

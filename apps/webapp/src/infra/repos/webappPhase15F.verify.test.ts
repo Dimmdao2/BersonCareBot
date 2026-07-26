@@ -18,6 +18,13 @@ const CLASS_B_POOL_QUERY_REL = [
   "infra/repos/broadcastChannelCounts.ts",
   // SAAS principal-aware pool: wraps pool.query to stamp the DB principal per connection (transport chokepoint).
   "infra/db/webappPoolProvider.ts",
+  // C-1 (2026-07-26) BOOT-time schema assertion: reads information_schema on its own short-lived
+  // connection, before the app serves anything. It must NOT go through the principal-aware pool —
+  // at boot there is no request, no principal and no pool yet, and a guard that exists to run
+  // BEFORE the app is usable cannot depend on the machinery that only exists once it is. It opens
+  // one connection with a 5s timeout, asks one read-only question, and closes it. Class B is
+  // exactly this: intentional, isolated raw transport. Pinned here so it cannot grow.
+  "modules/auth/sessionRevocationSchema.ts",
 ] as const;
 
 /** Class B: healthcheck / principal-apply query on a checked-out client. */
@@ -96,7 +103,7 @@ describe("Wave3 phase 15F webapp prod tail (Class B/C gate)", () => {
   const rawSqlDoc = readFileSync(RAW_SQL_INVENTORY, "utf8");
   const prodFiles = listProdTsFiles(WEBAPP_SRC);
 
-  it("domain pool.query only in Class B allowlist (4 files)", () => {
+  it("domain pool.query only in Class B allowlist (5 files)", () => {
     const offenders: string[] = [];
     for (const abs of prodFiles) {
       const rel = relFromWebappSrc(abs);
@@ -108,7 +115,7 @@ describe("Wave3 phase 15F webapp prod tail (Class B/C gate)", () => {
       }
     }
     expect(offenders).toEqual([]);
-    expect(CLASS_B_POOL_QUERY_REL).toHaveLength(4);
+    expect(CLASS_B_POOL_QUERY_REL).toHaveLength(5);
   });
 
   it("client.query only in Class B health + Class C allowlist (3 files)", () => {
@@ -153,7 +160,7 @@ describe("Wave3 phase 15F webapp prod tail (Class B/C gate)", () => {
     expect(offenders).toEqual([]);
   });
 
-  it("post-15 prod tail size is 6 runtime files", () => {
+  it("post-15 prod tail size is 7 runtime files", () => {
     const runtimeTail = new Set<string>();
     for (const abs of prodFiles) {
       const rel = relFromWebappSrc(abs);
@@ -166,7 +173,7 @@ describe("Wave3 phase 15F webapp prod tail (Class B/C gate)", () => {
         runtimeTail.add(rel);
       }
     }
-    expect(runtimeTail.size).toBe(6);
+    expect(runtimeTail.size).toBe(7);
     // webappPoolProvider.ts intentionally uses both pool.query and client.query, so it appears in
     // two capability allowlists — dedupe the expected tail to the set of distinct runtime files.
     const expectedTail = new Set<string>([

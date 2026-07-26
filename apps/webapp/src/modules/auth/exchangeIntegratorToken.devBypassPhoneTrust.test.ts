@@ -76,6 +76,9 @@ describe("exchangeIntegratorToken — dev bypass + DB phone", () => {
       displayName: "Demo Client",
       phone: "+79990000001",
       bindings: { telegramId: "111111111" },
+      // C-1 (2026-07-26): persistNewAuthSession refuses to mint a cookie for a DB-backed identity
+      // without a numeric session_epoch, so the DB-shaped fixture must carry one.
+      sessionEpoch: 1,
     } satisfies SessionUser);
 
     const findByChannelBinding = vi.fn(async () => ({
@@ -128,6 +131,7 @@ describe("exchangeIntegratorToken — dev bypass + DB phone", () => {
         displayName: "Demo Admin",
         phone: "+79990000003",
         bindings: { telegramId: "333333333" },
+        sessionEpoch: 1,
       } satisfies SessionUser;
     });
 
@@ -168,6 +172,7 @@ describe("exchangeIntegratorToken — dev bypass + DB phone", () => {
       displayName: "Demo Admin",
       phone: "+79990000003",
       bindings: { telegramId: "333333333" },
+      sessionEpoch: 1,
     } satisfies SessionUser);
 
     const findOrCreateByChannelBinding = vi.fn(async () => {
@@ -198,6 +203,7 @@ describe("exchangeIntegratorToken — dev bypass + DB phone", () => {
       displayName: "Demo Clinic Owner",
       phone: "+79990000004",
       bindings: { telegramId: "999999999999004" },
+      sessionEpoch: 1,
     } satisfies SessionUser);
 
     const identityResolutionPort: IdentityResolutionPort = {
@@ -230,6 +236,7 @@ describe("exchangeIntegratorToken — dev bypass + DB phone", () => {
       displayName: "Demo Doctor",
       phone: "+79990000002",
       bindings: { telegramId: "222222222" },
+      sessionEpoch: 1,
     } satisfies SessionUser);
 
     const identityResolutionPort: IdentityResolutionPort = {
@@ -257,6 +264,17 @@ describe("exchangeIntegratorToken — dev bypass + DB phone", () => {
 
   it("keeps locked dev bypass read-only when the prepared phone matches", async () => {
     envControl.principalMode = "locked";
+    // Locked mode skips applyDevBypassPlatformUserPhoneInDb (and thus its own findByUserId call),
+    // but persistNewAuthSession still mints the cookie through withFreshSessionEpoch, which reads
+    // the identity-self row for its session_epoch (C-1, 2026-07-26) regardless of lock mode.
+    findByUserIdMock.mockResolvedValue({
+      userId: "ffffffff-bbbb-4ccc-8ddd-eeeeeeeeeeee",
+      role: "admin",
+      displayName: "Demo Admin",
+      phone: "+79990000003",
+      bindings: { telegramId: "333333333" },
+      sessionEpoch: 1,
+    } satisfies SessionUser);
     const updateRoleMock = vi.fn().mockResolvedValue(undefined);
     const identityResolutionPort: IdentityResolutionPort = {
       findByChannelBinding: vi.fn(async () => ({

@@ -2,6 +2,26 @@ import { AsyncLocalStorage } from "node:async_hooks";
 import { createHmac, randomUUID } from "node:crypto";
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+/**
+ * Acceptance for a `platform_users.id` used as a DB principal (C-1 / D7, 2026-07-26).
+ *
+ * It is DELIBERATELY the plain 8-4-4-4-12 hex shape, not {@link UUID_RE}. The strict form asserts
+ * RFC-4122 version 1-5 plus the `10x` variant; PostgreSQL's own `uuid` type asserts NEITHER — it
+ * accepts any 32 hex digits — so a row can legitimately hold an id that the strict test rejects
+ * (the DEV seed rows `00000000-0000-0000-0000-00000000000{2,3}` do, and any future UUIDv7 id
+ * would too). That divergence was a live defect: the webapp classified such an id as "DB-backed"
+ * via its own loose predicate, then this normalizer threw when the same id was installed as a
+ * principal, so the identity read failed and the session was rejected forever — a permanent 401
+ * with no way out. The two predicates are now ONE, exported below, so "we will read this id from
+ * the DB" and "this id may be a principal" can never disagree again.
+ *
+ * What is retained is everything with a security purpose: fixed length, hex-only charset, exact
+ * delimiter positions and lowercase normalization — enough that a principal string can never be a
+ * `tg:…`-style external id, carry whitespace, or vary in encoding. The version/variant nibbles
+ * carry no security property here; they were shape trivia the database does not enforce.
+ * {@link UUID_RE} is untouched and still guards organization ids and correlation ids.
+ */
+const PLATFORM_USER_UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const POSITIVE_INTEGER_RE = /^[1-9][0-9]*$/;
 const MAX_SIGNED_BIGINT = 9_223_372_036_854_775_807n;
 
@@ -256,8 +276,22 @@ export function normalizeDbPrincipalOrganizationId(organizationId: string): stri
   return normalizeUuid(organizationId, "Invalid DB principal organization id");
 }
 
+/**
+ * THE predicate for "this string may be used as a `platform_users.id`". Both the principal layer
+ * (below) and the webapp's session layer (`shared/platform-user/isPlatformUserUuid.ts`) must use
+ * this one function — see {@link PLATFORM_USER_UUID_RE} for why they used to disagree and what
+ * that cost.
+ */
+export function isDbPrincipalPlatformUserId(platformUserId: string): boolean {
+  return PLATFORM_USER_UUID_RE.test(platformUserId.trim());
+}
+
 export function normalizeDbPrincipalPlatformUserId(platformUserId: string): string {
-  return normalizeUuid(platformUserId, "Invalid DB principal platform user id");
+  const trimmed = platformUserId.trim();
+  if (!isDbPrincipalPlatformUserId(trimmed)) {
+    throw new Error("Invalid DB principal platform user id");
+  }
+  return trimmed.toLowerCase();
 }
 
 export function normalizeDbPrincipalIntegratorUserId(integratorUserId: string | number | bigint): string {

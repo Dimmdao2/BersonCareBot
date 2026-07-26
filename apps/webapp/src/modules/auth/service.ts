@@ -128,72 +128,104 @@ async function finalizeCurrentSession(
   return normalized;
 }
 
-function persistNewAuthSession(
-  cookieStore: Awaited<ReturnType<typeof cookies>>,
-  session: AppSession,
-): void {
-  cookieStore.set(SESSION_COOKIE_NAME, encodeSessionCookie(session), buildSessionCookieOptions(session));
-  writeFreshLoginMarkerCookie(cookieStore);
-}
-
 /**
- * Подтягивает актуальные ФИО/телефон/bindings из БД и отсекает сессии после удаления строки в `platform_users`
- * (например ops `reset-user`), когда cookie ещё валиден по подписи.
- */
-/**
- * `sessions_valid_from` is written by Postgres (`now()`), while a cookie's `issuedAt` is written by
- * the Node process. Every writer stamps the column and then immediately re-mints the cookie
- * (role change → `setSessionFromUser`, password reset → fresh login), so without a small allowance
- * a DB clock even one second ahead of the app clock would reject the brand-new cookie and present
- * as "login is broken". The allowance only ever forgives a cookie minted within a few seconds of
- * the revocation itself; it cannot keep a genuinely old session alive.
- */
-const SESSIONS_VALID_FROM_CLOCK_SKEW_SECONDS = 5;
-
-/**
- * True when this identity is expected to be re-derived from `platform_users` on every request —
- * i.e. exactly the condition under which {@link resolveSessionUserAgainstDb} performs its DB read.
- * The S2 chokepoint below uses it to decide whether a MISSING `sessionsValidFrom` is "there is no
- * DB row behind this session" (accept) or "the revocation cutoff could not be read" (reject).
+ * True when this identity has a `platform_users` row behind it, i.e. exactly the condition under
+ * which {@link resolveSessionIdentityAgainstDb} performs its DB read and under which a session is
+ * required to carry a `sessionEpoch`. Anything else (no DATABASE_URL at all, legacy non-UUID
+ * onboarding transports) has no row that could ever hold an epoch.
  */
 function sessionIdentityIsDbBacked(user: SessionUser): boolean {
   return Boolean(env.DATABASE_URL?.trim()) && isPlatformUserUuid(user.userId);
 }
 
-async function resolveSessionUserAgainstDb(user: SessionUser): Promise<SessionUser | null> {
-  // `sessionsValidFrom` may only ever come from the DB read below. Every path that returns the
-  // COOKIE's user instead strips it, so a stale value can never be mistaken for a fresh read.
-  const withoutCutoff = (u: SessionUser): SessionUser => {
-    const { sessionsValidFrom: _fromCookie, ...rest } = u;
-    return rest;
-  };
-  if (!env.DATABASE_URL?.trim()) return withoutCutoff(user);
-  if (!isPlatformUserUuid(user.userId)) return withoutCutoff(user);
+/**
+ * Outcome of re-deriving a cookie's identity from `platform_users`.
+ *
+ * This is a three-way result rather than `SessionUser | null` so the chokepoint can tell "there is
+ * no DB row behind this identity" (nothing to enforce) apart from "there is one and we could not
+ * read it" (fail closed). The previous design encoded that distinction as the presence of a field
+ * on the returned user, which forced a strip-on-every-fallback dance and made the fail-closed case
+ * one forgotten `delete` away from failing open.
+ */
+type ResolvedSessionIdentity =
+  /** The row was read. `sessionEpoch` is its current revocation counter. */
+  | { outcome: "db"; user: SessionUser; sessionEpoch: number }
+  /** No `platform_users` row exists behind this identity; the epoch invariant does not apply. */
+  | { outcome: "not-db-backed"; user: SessionUser }
+  /** A row should exist but could not be read (lookup failed, row gone, or identity archived). */
+  | { outcome: "unreadable" };
+
+/**
+ * Подтягивает актуальные ФИО/телефон/bindings из БД и отсекает сессии после удаления строки в
+ * `platform_users` (например ops `reset-user`), когда cookie ещё валиден по подписи.
+ */
+async function resolveSessionIdentityAgainstDb(user: SessionUser): Promise<ResolvedSessionIdentity> {
+  if (!sessionIdentityIsDbBacked(user)) return { outcome: "not-db-backed", user };
   try {
     // `getCurrentSession()` can run more than once during one RSC render. Its outer principal
     // cell is deliberately mutable so the completed session can promote the request to staff,
     // but an in-flight identity lookup must not share that cell with a sibling resolver. Scope
     // the exact-id read to its own identity-self cell so a concurrent staff promotion cannot
     // change the principal observed by `pgUserByPhone.findByUserId()` mid-query.
-    return await runWithStaffSecuritySelfPrincipal(
+    const fresh = await runWithStaffSecuritySelfPrincipal(
       user.userId,
       "getCurrentSession:identity-self",
       async () => {
         const { pgUserByPhonePort } = await import("@/infra/repos/pgUserByPhone");
-        const fresh = await pgUserByPhonePort.findByUserId(user.userId);
-        if (!fresh) return null;
-        return fresh;
+        return pgUserByPhonePort.findByUserId(user.userId);
       },
     );
+    // `null` here covers a deleted row AND an archived one (D2 — see findByUserId).
+    if (!fresh || typeof fresh.sessionEpoch !== "number") return { outcome: "unreadable" };
+    return { outcome: "db", user: fresh, sessionEpoch: fresh.sessionEpoch };
   } catch {
-    // Staff security and revocation are fail-closed: a transient identity-state
-    // lookup failure must not turn a protected staff cookie into an accepted one.
-    if (user.role === "doctor" || user.role === "admin") return null;
-    // Patients previously fell back to the cookie user here. That fallback survives, but WITHOUT a
-    // revocation cutoff — so the chokepoint in getCurrentSessionWithPrincipalMode() sees "cutoff
-    // could not be read" for a DB-backed user and rejects, instead of silently accepting.
-    return withoutCutoff(user);
+    // Fail closed for everyone, staff and patients alike. The old code fell back to the COOKIE's
+    // user for patients on a lookup failure; that fallback is gone. An identity whose revocation
+    // state cannot be read is not an accepted session — a DB outage must not become an authorization
+    // decision, and "the row says nothing" is not the same as "the row says yes".
+    return { outcome: "unreadable" };
   }
+}
+
+/**
+ * Attaches the CURRENT `platform_users.session_epoch` to a session about to be written to a cookie.
+ *
+ * This is the mint-side half of the revocation invariant, and it lives in one place for the same
+ * reason the comparison does: every login path in this file funnels through
+ * {@link persistNewAuthSession}. Most callers already hold a user loaded by `findByUserId`, which
+ * carries the epoch, and short-circuit here without a query; the token/messenger paths that build a
+ * user from a payload do not, and they are exactly the paths that would otherwise mint a cookie the
+ * very next request rejects.
+ *
+ * It THROWS rather than minting an epoch-less cookie when the read fails. A login that fails loudly
+ * is diagnosable; a login that succeeds and then 401s on every subsequent request is the D1 symptom
+ * this whole change exists to remove.
+ */
+async function withFreshSessionEpoch(session: AppSession): Promise<AppSession> {
+  if (typeof session.user.sessionEpoch === "number") return session;
+  if (!sessionIdentityIsDbBacked(session.user)) return session;
+  const fresh = await runWithStaffSecuritySelfPrincipal(
+    session.user.userId,
+    "auth/persistNewAuthSession:identity-self",
+    async () => {
+      const { pgUserByPhonePort } = await import("@/infra/repos/pgUserByPhone");
+      return pgUserByPhonePort.findByUserId(session.user.userId);
+    },
+  );
+  if (!fresh || typeof fresh.sessionEpoch !== "number") {
+    throw new Error("session_epoch_unavailable_at_mint");
+  }
+  return { ...session, user: { ...session.user, sessionEpoch: fresh.sessionEpoch } };
+}
+
+async function persistNewAuthSession(
+  cookieStore: Awaited<ReturnType<typeof cookies>>,
+  session: AppSession,
+): Promise<AppSession> {
+  const stamped = await withFreshSessionEpoch(session);
+  cookieStore.set(SESSION_COOKIE_NAME, encodeSessionCookie(stamped), buildSessionCookieOptions(stamped));
+  writeFreshLoginMarkerCookie(cookieStore);
+  return stamped;
 }
 
 async function parseIntegratorToken(token: string): Promise<IntegratorTokenPayload | null> {
@@ -612,11 +644,14 @@ export async function exchangeIntegratorToken(
     }
   }
 
-  const session: AppSession = devParsed
+  const built: AppSession = devParsed
     ? { ...buildSession(user), authSource: "dev_bypass" }
     : buildSession(user);
   const cookieStore = await cookies();
-  persistNewAuthSession(cookieStore, session);
+  // The session that is RETURNED is the one that was actually written to the cookie, epoch and all
+  // (C-1) — never the pre-stamp draft, so a caller can never hand back a session shape the next
+  // request would reject.
+  const session = await persistNewAuthSession(cookieStore, built);
 
   const setMessengerPlatformCookie =
     !devParsed &&
@@ -685,9 +720,8 @@ export async function exchangeTelegramInitData(
     user = { ...user, role: envRole };
   }
 
-  const session = buildSession(user);
   const cookieStore = await cookies();
-  persistNewAuthSession(cookieStore, session);
+  const session = await persistNewAuthSession(cookieStore, buildSession(user));
 
   let redirectTo = getRedirectPathForRole(user.role);
   if (user.role === "client" && parsed.startParam) {
@@ -790,9 +824,8 @@ export async function exchangeMaxInitData(
     user = { ...user, role: envRole };
   }
 
-  const session = buildSession(user);
   const cookieStore = await cookies();
-  persistNewAuthSession(cookieStore, session);
+  const session = await persistNewAuthSession(cookieStore, buildSession(user));
 
   let redirectTo = getRedirectPathForRole(user.role);
   if (user.role === "client" && parsed.startParam) {
@@ -881,9 +914,8 @@ export async function exchangeTelegramLoginWidget(
     user = { ...user, role: envRole };
   }
 
-  const session = buildSession(user);
   const cookieStore = await cookies();
-  persistNewAuthSession(cookieStore, session);
+  const session = await persistNewAuthSession(cookieStore, buildSession(user));
 
   return {
     session,
@@ -937,28 +969,24 @@ async function getCurrentSessionWithPrincipalMode(
     return null;
   }
 
-  const resolvedUser = await resolveSessionUserAgainstDb(decoded.user);
-  if (resolvedUser === null) return null;
-  if ((decoded.user.securityVersion ?? 0) !== (resolvedUser.securityVersion ?? 0)) return null;
-  // S2 remedy (2026-07-25, docs/_TODO/SECURITY_AUDIT_2026-07-25/FINDINGS.md): the ONE chokepoint
-  // for both new invariants, right beside the securityVersion check above. No handler repeats it.
-  // `sessionsValidFrom` is `platform_users.sessions_valid_from`, freshly read from the DB on every
-  // request and never trusted from the cookie (encodeSessionCookie strips it). Tri-state, FAIL
-  // CLOSED on the unknown case:
-  //   * undefined + DB-backed identity → the cutoff could not be read (identity lookup failed, or
-  //     the row shape drifted). Reject: an unreadable revocation state is not an accepted session.
-  //   * undefined + non-DB identity (integrator/dev token with a non-platform id, or no
-  //     DATABASE_URL) → there is no row that could ever carry a cutoff. Accept.
-  //   * null → the row was read and holds SQL NULL, i.e. nothing has ever revoked this user. Accept.
-  //   * number → a session issued before that instant is dead.
-  if (resolvedUser.sessionsValidFrom === undefined) {
-    if (sessionIdentityIsDbBacked(decoded.user)) return null;
-  } else if (
-    resolvedUser.sessionsValidFrom !== null &&
-    decoded.issuedAt < resolvedUser.sessionsValidFrom - SESSIONS_VALID_FROM_CLOCK_SKEW_SECONDS
-  ) {
-    return null;
+  // ===================================================================================
+  // THE session-revocation chokepoint (C-1, 2026-07-26). One mechanism, one comparison,
+  // no clocks. No handler anywhere repeats any of this.
+  // ===================================================================================
+  const resolved = await resolveSessionIdentityAgainstDb(decoded.user);
+  // The row should exist but could not be read — deleted, archived (D2), or the lookup failed.
+  // An unreadable revocation state is never an accepted session.
+  if (resolved.outcome === "unreadable") return null;
+  if (resolved.outcome === "db") {
+    // `platform_users.session_epoch` vs the epoch the cookie was minted with, compared for EQUALITY.
+    // Both sides are the same integer written by the same authority, so there is no clock, no skew
+    // allowance and no direction to get wrong: any revocation event increments the column, and every
+    // cookie carrying the old value dies at once. A cookie that carries NO epoch (`undefined`)
+    // cannot equal a live row either — the column is `NOT NULL DEFAULT 1 CHECK (>= 1)` — which is
+    // what makes the cutover sign every pre-existing session out exactly once.
+    if (decoded.user.sessionEpoch !== resolved.sessionEpoch) return null;
   }
+  const resolvedUser = resolved.user;
   // Absolute age cap, enforced here so the proxy's renewal path cannot bypass it (renewal itself
   // also refuses past this point — see sessionCookie.ts — but a cookie renewed right up to the
   // boundary and then merely replayed without ever asking to renew again must still die here).
@@ -1076,13 +1104,12 @@ export async function getCurrentSessionForIdentitySelf(): Promise<AppSession | n
 }
 
 /**
- * Выход. Clears the client cookie AND — S2 remedy (2026-07-25,
- * docs/_TODO/SECURITY_AUDIT_2026-07-25/FINDINGS.md) — stamps `platform_users.sessions_valid_from`
- * for the signed-out user, so a cookie copied before this call stops being accepted the next time
- * it is resolved against the DB (see the chokepoint in `getCurrentSessionWithPrincipalMode` above).
- * Previously this function ONLY cleared the cookie; a copied session kept working after logout for
- * up to its full TTL. The DB stamp is best-effort: a transient DB failure must not stop the user
- * from clearing their own browser cookie.
+ * Выход. Clears the client cookie AND — C-1 (2026-07-26) — increments
+ * `platform_users.session_epoch` for the signed-out user, so a cookie copied before this call stops
+ * being accepted the next time it is resolved against the DB (see the chokepoint in
+ * `getCurrentSessionWithPrincipalMode` above). Previously this function ONLY cleared the cookie; a
+ * copied session kept working after logout for up to its full TTL. The DB increment is best-effort:
+ * a transient DB failure must not stop the user from clearing their own browser cookie.
  */
 export async function clearSession(): Promise<void> {
   const cookieStore = await cookies();
@@ -1145,7 +1172,7 @@ export async function setSessionFromUser(
     ...(opts?.staffSecurity ? { staffSecurity: opts.staffSecurity } : {}),
   };
   const cookieStore = await cookies();
-  persistNewAuthSession(cookieStore, full);
+  await persistNewAuthSession(cookieStore, full);
 }
 
 /** TTL повторного подтверждения PIN перед удалением дневников (секунды). */

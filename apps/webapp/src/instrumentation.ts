@@ -25,6 +25,18 @@ export async function register(): Promise<void> {
     );
   }
   if (process.env.NEXT_PHASE === "phase-production-build") return;
+  // D1 (C-1, 2026-07-26): refuse to start against a database that is behind this build. Session
+  // revocation compares `platform_users.session_epoch` on every request and fails closed, so a
+  // missing column is a total outage that presents as "every login returns 401". Fail here, once,
+  // with a message that names the migration — see modules/auth/sessionRevocationSchema.ts for why an
+  // UNREACHABLE database is explicitly not fatal.
+  const databaseUrl = (process.env.DATABASE_URL ?? "").trim();
+  if (databaseUrl && process.env.NEXT_RUNTIME === "nodejs") {
+    const { assertSessionRevocationSchema, probeSessionRevocationColumn } = await import(
+      "@/modules/auth/sessionRevocationSchema"
+    );
+    await assertSessionRevocationSchema(() => probeSessionRevocationColumn(databaseUrl));
+  }
   // Next.js compiles this file for both the Node.js and Edge runtimes. This exact
   // `if (process.env.NEXT_RUNTIME === "nodejs") { await import(...) }` shape is the
   // documented pattern Next statically recognizes to exclude the branch — and its

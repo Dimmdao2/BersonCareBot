@@ -1279,13 +1279,15 @@ export function createPgDoctorClientsPort(): DoctorClientsPort {
     },
 
     async setUserArchived(userId: string, archived: boolean): Promise<void> {
-      // S2 remedy (2026-07-25, docs/_TODO/SECURITY_AUDIT_2026-07-25/FINDINGS.md): archiving a user
-      // must kill their existing sessions too, not just gate future access. Only stamped when
-      // actually archiving (archived = true) — un-archiving does not need to force a re-login.
+      // C-1 (2026-07-26): archiving a user must kill their existing sessions too, not just gate
+      // future access. Only incremented when actually archiving (archived = true) — un-archiving
+      // does not need to force a re-login. This bump alone is NOT the D2 fix: it kills the cookies
+      // that exist right now, while `pgUserByPhone` refusing to load an archived identity is what
+      // keeps a session from being resolved or minted on every later request.
       await runWebappPgText(
         `UPDATE platform_users SET
            is_archived = $2,
-           sessions_valid_from = CASE WHEN $2 THEN now() ELSE sessions_valid_from END,
+           session_epoch = session_epoch + CASE WHEN $2 THEN 1 ELSE 0 END,
            updated_at = now()
          WHERE id = $1::uuid AND role = 'client'`,
         [userId, archived]

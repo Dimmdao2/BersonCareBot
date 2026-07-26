@@ -23,26 +23,33 @@ export type SessionUser = {
   patronymic?: string;
   phone?: string;
   bindings: ChannelBindings;
-  /** Server-side revocation generation for staff security. Missing legacy profiles resolve to zero. */
-  securityVersion?: number;
+  /**
+   * `platform_users.session_epoch` — THE server-side revocation generation, for staff AND patients
+   * (C-1, 2026-07-26). A monotonic per-user counter: any revocation event (logout, password reset,
+   * "sign out everywhere", role change, archive, staff MFA revoke via the 0215 trigger) increments
+   * it. The session carries the value it was minted with, and `modules/auth/service.ts` compares it
+   * for EQUALITY against a fresh read of the row on every request — in exactly ONE place. A
+   * mismatch is a dead session.
+   *
+   * It replaces both of the mechanisms that used to sit here:
+   *   * `securityVersion` (`staff_security_profiles.session_version`) — same counter shape, but
+   *     staff-only and only for MFA-enrolled staff, so it revoked nothing for anyone else;
+   *   * `sessionsValidFrom` (`platform_users.sessions_valid_from`) — a DB `now()` timestamp
+   *     compared against the app-written cookie `issuedAt`, i.e. two different clocks. Removed:
+   *     an equality comparison of a counter has no clock in it at all.
+   *
+   * `undefined` means "not carried / not read". For a DB-backed platform user that is a REJECT at
+   * the chokepoint, never "nothing to enforce" — the column is `NOT NULL DEFAULT 1 CHECK (>= 1)`,
+   * so a live row always has a value and its absence can only mean the cookie predates the
+   * mechanism or the identity read failed. It is `undefined` only for identities with no
+   * `platform_users` row behind them at all (no DATABASE_URL, legacy non-UUID onboarding ids).
+   *
+   * Unlike `sessionsValidFrom` this value IS persisted in the cookie — that is the whole point of
+   * an equality check, and it is safe precisely because a stale copy can only ever fail to match.
+   */
+  sessionEpoch?: number;
   /** A verified staff factor exists in DB; workspace access requires a factor-verified session. */
   securityFactorRequired?: boolean;
-  /**
-   * Unix seconds, `platform_users.sessions_valid_from` (S2 remedy, 2026-07-25). A session cookie
-   * whose `issuedAt` is earlier than this instant is dead — checked in ONE place,
-   * `modules/auth/service.ts` beside `securityVersion`.
-   *
-   * TRI-STATE, and the difference is the fail-closed contract:
-   *   * `number`    — a real cutoff read from the DB row. Compare against `issuedAt`.
-   *   * `null`      — the DB row was read and the column is genuinely `NULL` → no cutoff. Accept.
-   *   * `undefined` — the value was NOT obtained (the identity is not DB-backed at all, or the
-   *                   identity read failed/returned an unusable value). For a DB-backed platform
-   *                   user this is treated as REJECT, never as "nothing to enforce".
-   *
-   * It is deliberately NEVER persisted into the session cookie (`encodeSessionCookie` strips it),
-   * so a stale cookie-carried value can never satisfy the presence check above.
-   */
-  sessionsValidFrom?: number | null;
 };
 
 export type AppSession = {

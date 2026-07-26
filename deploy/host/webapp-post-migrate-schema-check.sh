@@ -13,6 +13,13 @@
 #   integrator_push_outbox.idempotency_key
 #   system_settings.key
 #   platform_users.calendar_timezone
+#   platform_users.session_epoch   (session revocation, migration 0244 — see below)
+#
+# platform_users.session_epoch is load-bearing for AVAILABILITY, not just for a feature: the session
+# chokepoint compares it on every request and fails closed, so releasing code that expects it onto a
+# database without it rejects every session including brand-new logins (D1, 2026-07-26). The webapp
+# also asserts the same column at boot (apps/webapp/src/instrumentation.ts); this check is the half
+# that refuses to RELEASE, before `systemctl restart` is reached.
 # Checked tables:
 #   user_notification_topic_channels
 #   product_analytics_hourly
@@ -42,7 +49,8 @@ missing_columns="$(
         ('media_transcode_jobs', 'status'),
         ('integrator_push_outbox', 'idempotency_key'),
         ('system_settings', 'key'),
-        ('platform_users', 'calendar_timezone')
+        ('platform_users', 'calendar_timezone'),
+        ('platform_users', 'session_epoch')
     )
     SELECT required.table_name || '.' || required.column_name
     FROM required

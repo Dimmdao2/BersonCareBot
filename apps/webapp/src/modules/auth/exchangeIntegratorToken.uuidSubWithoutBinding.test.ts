@@ -73,6 +73,9 @@ describe("exchangeIntegratorToken — UUID sub without messenger binding (Phase 
       displayName: "Canon",
       phone: "+79990000000",
       bindings: { telegramId: "111" },
+      // C-1 (2026-07-26): persistNewAuthSession refuses to mint a cookie for a DB-backed identity
+      // without a numeric session_epoch, so the DB-shaped fixture must carry one.
+      sessionEpoch: 1,
     });
 
     const token = buildWebappEntryToken({

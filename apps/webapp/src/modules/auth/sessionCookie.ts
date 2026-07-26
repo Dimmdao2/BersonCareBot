@@ -79,14 +79,45 @@ export function isSessionBeyondAbsoluteMaxAge(
 }
 
 export function encodeSessionCookie(session: AppSession): string {
-  // S2 remedy (2026-07-25): `sessionsValidFrom` is a server-side revocation cutoff that must be
-  // re-read from the DB on every request. It is stripped here so it can NEVER travel in the cookie:
-  // the chokepoint in modules/auth/service.ts treats "value present" as proof the DB was consulted,
-  // and a cookie-carried copy minted before a revocation would defeat exactly that.
-  const { sessionsValidFrom: _neverPersisted, ...user } = session.user;
-  const payload = encodeBase64Url(JSON.stringify({ ...session, user }));
+  // C-1 (2026-07-26): nothing is stripped here any more. The predecessor mechanism stripped
+  // `sessionsValidFrom` because it used "value present" as proof the DB had been consulted; the
+  // epoch needs no such proxy. `sessionEpoch` is *meant* to travel in the cookie — an equality
+  // comparison against the fresh row is safe precisely because a stale copy can only fail to match.
+  const payload = encodeBase64Url(JSON.stringify(session));
   const signature = sign(payload, env.SESSION_COOKIE_SECRET);
   return `${payload}.${signature}`;
+}
+
+const SESSION_USER_ROLES = new Set<SessionUser["role"]>(["client", "doctor", "admin"]);
+
+/**
+ * Shape validation for a signature-verified session payload (D4, 2026-07-26).
+ *
+ * A valid signature only proves this process minted the bytes; it says nothing about the payload
+ * still having the fields the invariants are computed from. An independent audit exploited exactly
+ * that: a cookie with `issuedAt` omitted skipped BOTH the revocation check and the absolute-age
+ * ceiling — 401 with the field present, 200 with it absent — because every read of a missing field
+ * produced `undefined`, and `undefined` failed every comparison in the permissive direction.
+ *
+ * So the invariants' inputs are validated here, once, before anything downstream reads them:
+ * missing or non-numeric is rejected, never coerced and never defaulted. `sessionEpoch` is the one
+ * field allowed to be genuinely absent — identities with no `platform_users` row behind them (no
+ * DATABASE_URL, legacy non-UUID onboarding ids) have no epoch — but if present it must be a
+ * positive integer, and the chokepoint separately rejects its ABSENCE for any DB-backed identity.
+ */
+function isWellFormedSessionPayload(parsed: unknown): parsed is AppSession {
+  if (!parsed || typeof parsed !== "object") return false;
+  const session = parsed as Partial<AppSession>;
+  if (!Number.isSafeInteger(session.issuedAt)) return false;
+  if (!Number.isSafeInteger(session.expiresAt)) return false;
+  const user = session.user;
+  if (!user || typeof user !== "object") return false;
+  if (typeof user.userId !== "string" || user.userId.trim() === "") return false;
+  if (!SESSION_USER_ROLES.has(user.role)) return false;
+  if (user.sessionEpoch !== undefined) {
+    if (!Number.isSafeInteger(user.sessionEpoch) || (user.sessionEpoch as number) < 1) return false;
+  }
+  return true;
 }
 
 export function decodeSessionCookie(raw: string): AppSession | null {
@@ -100,6 +131,7 @@ export function decodeSessionCookie(raw: string): AppSession | null {
   } catch {
     return null;
   }
+  if (!isWellFormedSessionPayload(parsed)) return null;
   const operatorSession = parsed.operatorSession;
   if (
     operatorSession !== undefined &&

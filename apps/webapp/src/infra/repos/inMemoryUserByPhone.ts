@@ -72,7 +72,8 @@ export const inMemoryUserByPhonePort: UserByPhonePort = {
   },
 
   async invalidateSessionsForSelf(): Promise<void> {
-    // No-op: the in-memory port has no revocation-timestamp column to stamp. Real enforcement is
-    // covered by pgUserByPhone.invalidateSessionsForSelf + its dedicated tests.
+    // No-op: the in-memory port has no `platform_users` row and therefore no epoch to increment.
+    // Sessions backed by it are not DB-backed, so the chokepoint never compares an epoch for them.
+    // Real enforcement is covered by pgUserByPhone.invalidateSessionsForSelf + its dedicated tests.
   },
 };
