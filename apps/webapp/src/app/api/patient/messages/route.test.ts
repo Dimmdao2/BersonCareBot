@@ -110,6 +110,29 @@ describe("GET /api/patient/messages", () => {
     expect(data.unreadCount).toBe(1);
   });
 
+  it("surfaces readOnly from bootstrap and polling for a closed own conversation", async () => {
+    gateMock.mockResolvedValue(okClient("u1"));
+    bootstrapMock.mockResolvedValue({
+      conversationId: "00000000-0000-4000-8000-000000000002",
+      messages: [],
+      readOnly: true,
+    });
+    unreadMock.mockResolvedValue(0);
+    const boot = await GET(new Request("http://localhost/api/patient/messages"));
+    expect(boot.status).toBe(200);
+    expect((await boot.json()) as { readOnly?: boolean }).toMatchObject({ ok: true, readOnly: true });
+
+    pollNewMock.mockResolvedValue({ messages: [], readOnly: true });
+    const polled = await GET(
+      new Request(
+        "http://localhost/api/patient/messages?conversationId=00000000-0000-4000-8000-000000000002",
+      ),
+    );
+    // A closed own conversation opens and renders — it is never answered with "not found".
+    expect(polled.status).toBe(200);
+    expect((await polled.json()) as { readOnly?: boolean }).toMatchObject({ ok: true, readOnly: true });
+  });
+
   it("returns 400 for invalid conversationId uuid", async () => {
     gateMock.mockResolvedValue(okClient("u1"));
     const res = await GET(new Request("http://localhost/api/patient/messages?conversationId=not-a-uuid"));
@@ -149,6 +172,20 @@ describe("POST /api/patient/messages", () => {
       }),
     );
     expect(res.status).toBe(404);
+  });
+
+  it("returns 409 conversation_closed — never 404 — for the patient's own closed conversation", async () => {
+    gateMock.mockResolvedValue(okClient("u1"));
+    sendTextMock.mockResolvedValue({ ok: false, error: "conversation_closed" });
+    const res = await POST(
+      new Request("http://localhost/api/patient/messages", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ text: "hi", conversationId: "00000000-0000-4000-8000-000000000002" }),
+      }),
+    );
+    expect(res.status).toBe(409);
+    expect((await res.json()) as { error?: string }).toEqual({ ok: false, error: "conversation_closed" });
   });
 
   it("returns 200 on success", async () => {

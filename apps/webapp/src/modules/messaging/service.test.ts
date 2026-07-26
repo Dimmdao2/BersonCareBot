@@ -68,9 +68,14 @@ describe("createPatientMessagingService", () => {
     );
   });
 
-  it("bootstrap calls ensure and listMessagesSince", async () => {
+  it("bootstrap calls ensure, listMessagesSince and reports the conversation as writable", async () => {
     const ensure = vi.fn().mockResolvedValue({ id: "conv-1" });
     const list = vi.fn().mockResolvedValue([]);
+    const getConversationIfOwnedByUser = vi.fn().mockResolvedValue({
+      id: "conv-1",
+      status: "open",
+      closedAt: null,
+    });
     const port = {
       ensureWebappConversationForUser: ensure,
       mergeLegacySupportConversationsForPlatformUser: vi.fn().mockResolvedValue({
@@ -78,11 +83,14 @@ describe("createPatientMessagingService", () => {
         movedMessageCount: 0,
       }),
       listMessagesSince: list,
+      getConversationIfOwnedByUser,
     } as unknown as SupportCommunicationPort;
     const svc = createPatientMessagingService(port);
     const r = await svc.bootstrap("user-1");
     expect(ensure).toHaveBeenCalledWith("user-1");
     expect(list).toHaveBeenCalled();
+    expect(getConversationIfOwnedByUser).toHaveBeenCalledWith("conv-1", "user-1");
     expect(r.conversationId).toBe("conv-1");
+    expect(r.readOnly).toBe(false);
   });
 });

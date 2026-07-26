@@ -476,18 +476,14 @@ export const inMemorySupportCommunicationPort: SupportCommunicationPort = {
     return c;
   },
 
+  /** Mirrors the scoped pg predicate: this conversation only, owned by this user, any status. */
   async markInboundReadForUser(conversationId, platformUserId) {
     const c = conversations.get(conversationId);
     if (!c || c.platformUserId !== platformUserId) return;
-    const convIds = new Set(
-      Array.from(conversations.values())
-        .filter((row) => row.platformUserId === platformUserId)
-        .map((row) => row.id),
-    );
     const now = new Date().toISOString();
     for (const m of messages.values()) {
       if (
-        convIds.has(m.conversationId) &&
+        m.conversationId === conversationId &&
         m.senderRole !== "user" &&
         !isSupportNotificationMessage(m) &&
         m.readAt == null

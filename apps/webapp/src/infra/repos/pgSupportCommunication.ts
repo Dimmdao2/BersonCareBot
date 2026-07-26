@@ -1215,22 +1215,36 @@ export function createPgSupportCommunicationPort(): SupportCommunicationPort {
       return mapConversationRow(r.rows[0]!);
     },
 
+    /**
+     * Read receipt for ONE conversation. The `conversationId` argument used to be checked for
+     * ownership and then thrown away: the UPDATE ran over `conversation_id IN (every conversation
+     * of this user)`, so opening a single thread silently marked every other thread — closed ones
+     * included — as read and the unread badge lied for anyone with more than one conversation.
+     *
+     * Scope predicate (same join shape as `markInboundMessagesReadForUser` right below):
+     *   - `c.id = $1` — exactly the conversation that was opened, nothing else.
+     *   - `c.platform_user_id = $2` — ownership; a foreign id updates zero rows (RLS policy
+     *     `saas_org_dormant_p0_8_4` is the second, authoritative wall).
+     * Deliberately NOT filtered by `status` / `closed_at` / `source` / `admin_scope`: the badge this
+     * clears (`countUnreadForUser`) counts inbound messages across every conversation of the user
+     * regardless of those columns, so narrowing here would strand unread counts that the patient
+     * has no other way to clear.
+     * Message predicate is left byte-identical to `countUnreadForUser` — inbound, non-notification,
+     * still unread — so the two always agree. Notification-class messages keep their own counter
+     * (`countUnreadNotificationsForUser`) and their own mark-read.
+     */
     async markInboundReadForUser(conversationId, platformUserId) {
-      const ok = await runWebappPgText<Record<string, unknown>>(
-        `SELECT 1 FROM support_conversations WHERE id = $1::uuid AND platform_user_id = $2::uuid`,
-        [conversationId, platformUserId]
-      );
-      if (ok.rows.length === 0) return;
       await runWebappPgText(
         `UPDATE support_conversation_messages m
          SET read_at = COALESCE(m.read_at, now())
-         WHERE conversation_id IN (
-           SELECT id FROM support_conversations WHERE platform_user_id = $1::uuid
-         )
-         AND m.sender_role <> 'user'
-         AND NOT ${SUPPORT_NOTIFICATION_SQL}
-         AND m.read_at IS NULL`,
-        [platformUserId]
+         FROM support_conversations c
+         WHERE m.conversation_id = c.id
+           AND c.id = $1::uuid
+           AND c.platform_user_id = $2::uuid
+           AND m.sender_role <> 'user'
+           AND NOT ${SUPPORT_NOTIFICATION_SQL}
+           AND m.read_at IS NULL`,
+        [conversationId, platformUserId]
       );
     },
 

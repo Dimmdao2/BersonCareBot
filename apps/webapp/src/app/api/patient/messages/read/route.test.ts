@@ -96,6 +96,52 @@ describe("POST patient messages/read", () => {
     expect(markInboundReadMock).toHaveBeenCalledWith(patientUserId, conversationId);
   });
 
+  it("marks a CLOSED own conversation read with 200 — a closed thread is history, not 'not found'", async () => {
+    getConversationIfOwnedByUserMock.mockResolvedValue({
+      id: conversationId,
+      organizationId: "org-1",
+      status: "closed",
+      closedAt: "2026-01-02T00:00:00.000Z",
+    });
+    const res = await POST(
+      new Request("http://localhost", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ conversationId }),
+      }),
+    );
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ ok: true });
+    expect(markInboundReadMock).toHaveBeenCalledWith(patientUserId, conversationId);
+  });
+
+  it("returns 404 for a conversation owned by someone else", async () => {
+    getConversationIfOwnedByUserMock.mockResolvedValue(null);
+    const res = await POST(
+      new Request("http://localhost", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ conversationId }),
+      }),
+    );
+    expect(res.status).toBe(404);
+    expect(markInboundReadMock).not.toHaveBeenCalled();
+  });
+
+  it("passes the requested conversation id straight through — never a user-wide sweep", async () => {
+    const otherConversationId = "44444444-4444-4444-8444-444444444444";
+    const res = await POST(
+      new Request("http://localhost", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ conversationId: otherConversationId }),
+      }),
+    );
+    expect(res.status).toBe(200);
+    expect(getConversationIfOwnedByUserMock).toHaveBeenCalledWith(otherConversationId, patientUserId);
+    expect(markInboundReadMock).toHaveBeenCalledWith(patientUserId, otherConversationId);
+  });
+
   it("skips discussion sync when feature disabled", async () => {
     getBooleanMock.mockResolvedValue(false);
     const res = await POST(

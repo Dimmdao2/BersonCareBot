@@ -19,6 +19,12 @@ export function PatientMessagesClient() {
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [composerExpanded, setComposerExpanded] = useState(false);
+  /**
+   * Закрытое обращение остаётся видимым и читаемым, но писать в него нельзя. Форму отправки в этом
+   * случае не показываем вовсе: кнопка, которая появляется и затем отбивается сервером, хуже, чем
+   * её отсутствие. Флаг приходит с сервера (`readOnly`), тем же предикатом, что и отказ POST.
+   */
+  const [readOnly, setReadOnly] = useState(false);
 
   const loadBootstrap = useCallback(async () => {
     const res = await fetch("/api/patient/messages");
@@ -27,6 +33,7 @@ export function PatientMessagesClient() {
       error?: string;
       conversationId?: string;
       messages?: SerializedSupportMessage[];
+      readOnly?: boolean;
     };
     if (!res.ok || !data.ok || !data.conversationId) {
       setError(data.error ?? "Ошибка загрузки");
@@ -34,6 +41,7 @@ export function PatientMessagesClient() {
     }
     setConversationId(data.conversationId);
     setMessages(data.messages ?? []);
+    setReadOnly(data.readOnly === true);
     const readRes = await fetch("/api/patient/messages/read", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -64,9 +72,11 @@ export function PatientMessagesClient() {
       const fullData = (await fullRes.json()) as {
         ok?: boolean;
         messages?: SerializedSupportMessage[];
+        readOnly?: boolean;
       };
       if (!fullRes.ok || !fullData.ok || !Array.isArray(fullData.messages)) return;
       setMessages(fullData.messages);
+      setReadOnly(fullData.readOnly === true);
       const readRes = await fetch("/api/patient/messages/read", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -82,7 +92,7 @@ export function PatientMessagesClient() {
 
   const send = async () => {
     const t = draft.trim();
-    if (!t || !conversationId || sending) return;
+    if (!t || !conversationId || sending || readOnly) return;
     setSending(true);
     setError(null);
     try {
@@ -97,6 +107,12 @@ export function PatientMessagesClient() {
         message?: SerializedSupportMessage;
       };
       if (!res.ok || !data.ok) {
+        // Обращение закрыли, пока форма была открыта — убираем форму, а не показываем код ошибки.
+        if (data.error === "conversation_closed") {
+          setReadOnly(true);
+          setError(null);
+          return;
+        }
         setError(data.error ?? "Не отправлено");
         return;
       }
@@ -143,10 +159,26 @@ export function PatientMessagesClient() {
         variant="patient"
         relativeFooters
         messages={messages}
-        emptyText="Напишите сообщение поддержке — ответ появится здесь."
+        emptyText={
+          readOnly
+            ? "В этом обращении нет сообщений."
+            : "Напишите сообщение поддержке — ответ появится здесь."
+        }
         className="min-h-0 flex-1"
         composer={
-          <MessageComposer
+          readOnly ?
+          <p
+            data-testid="patient-messages-readonly-notice"
+            className={cn(
+              patientMutedTextClass,
+              "shrink-0 border-t border-[var(--patient-border)] bg-[var(--patient-card-bg)] pt-3 text-center md:pt-4",
+              patientInnerPageStackClass,
+            )}
+          >
+            Обращение закрыто. Историю можно читать, но написать в него уже нельзя — создайте новое
+            обращение.
+          </p>
+          : <MessageComposer
             value={draft}
             onValueChange={setDraft}
             onSubmit={send}

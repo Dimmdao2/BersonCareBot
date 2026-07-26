@@ -39,10 +39,13 @@ export async function GET(request: Request) {
       conversationId: boot.conversationId,
       messages: boot.messages.map(serializeSupportMessage),
       unreadCount,
+      readOnly: boot.readOnly,
     });
   }
 
   const polled = await deps.messaging.patient.pollNew(userId, conversationId, since ?? null);
+  // 404 только для чужого обращения (единый ответ на объект без прав, OWASP ASVS 5.0 V8.2.2).
+  // Своё закрытое обращение открывается и читается — оно лишь помечено `readOnly`.
   if (!polled) {
     return NextResponse.json({ ok: false, error: "not_found" }, { status: 404 });
   }
@@ -50,6 +53,7 @@ export async function GET(request: Request) {
     ok: true,
     conversationId,
     messages: polled.messages.map(serializeSupportMessage),
+    readOnly: polled.readOnly,
   });
 }
 
@@ -70,6 +74,10 @@ export async function POST(request: Request) {
   if (!result.ok) {
     if (result.error === "not_found") {
       return NextResponse.json({ ok: false, error: "not_found" }, { status: 404 });
+    }
+    // Закрытое обращение существует и читается — отказ по состоянию, а не «не найдено».
+    if (result.error === "conversation_closed") {
+      return NextResponse.json({ ok: false, error: "conversation_closed" }, { status: 409 });
     }
     if (result.error === "blocked") {
       return NextResponse.json({ ok: false, error: "blocked" }, { status: 403 });

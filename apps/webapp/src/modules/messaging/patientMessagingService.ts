@@ -8,6 +8,18 @@ import { logger, serializeError } from "@/infra/logging/logger";
 
 const MAX_LEN = 4000;
 
+/**
+ * A closed support thread stays VISIBLE and READABLE for its owner — it is history, and history is
+ * never answered with "no such thing". It is only write-closed. Same predicate everywhere so the
+ * composer the patient sees and the POST the server accepts can never disagree.
+ */
+export function isSupportConversationReadOnly(conv: {
+  status: string;
+  closedAt: string | null;
+}): boolean {
+  return conv.status !== "open" || conv.closedAt !== null;
+}
+
 export type PatientMessagingServiceOptions = {
   /** Если true — пациент не может отправлять сообщения (этап 9, `platform_users.is_blocked`). */
   isUserMessagingBlocked?: (platformUserId: string) => Promise<boolean>;
@@ -27,32 +39,48 @@ export function createPatientMessagingService(
   options?: PatientMessagingServiceOptions
 ) {
   return {
-    /** Гарантирует диалог и возвращает последние сообщения. */
+    /**
+     * Гарантирует диалог и возвращает последние сообщения.
+     * `ensureWebappConversationForUser` не фильтрует по статусу, поэтому здесь может вернуться уже
+     * закрытое обращение — оно открывается и читается, но помечается `readOnly`, чтобы клиент не
+     * рисовал форму отправки, которая заведомо будет отклонена сервером.
+     */
     async bootstrap(platformUserId: string): Promise<{
       conversationId: string;
       messages: SupportConversationMessageRow[];
+      readOnly: boolean;
     }> {
       const { id } = await port.ensureWebappConversationForUser(platformUserId);
       await port.mergeLegacySupportConversationsForPlatformUser?.(platformUserId).catch((err: unknown) => {
         logger.error({ err: serializeError(err) }, "[patientMessaging] merge legacy conversations error");
       });
-      const messages = await port.listMessagesSince(id, { sinceCreatedAt: null, limit: 100 });
-      return { conversationId: id, messages: messages.filter(isSupportChatMessage) };
+      const [conv, messages] = await Promise.all([
+        port.getConversationIfOwnedByUser(id, platformUserId),
+        port.listMessagesSince(id, { sinceCreatedAt: null, limit: 100 }),
+      ]);
+      return {
+        conversationId: id,
+        messages: messages.filter(isSupportChatMessage),
+        readOnly: conv ? isSupportConversationReadOnly(conv) : false,
+      };
     },
 
-    /** Новые сообщения после `since` (для polling). */
+    /** Новые сообщения после `since` (для polling). Закрытое обращение читается как обычно. */
     async pollNew(
       platformUserId: string,
       conversationId: string,
       sinceCreatedAt: string | null
-    ): Promise<{ messages: SupportConversationMessageRow[] } | null> {
+    ): Promise<{ messages: SupportConversationMessageRow[]; readOnly: boolean } | null> {
       const conv = await port.getConversationIfOwnedByUser(conversationId, platformUserId);
       if (!conv) return null;
       const messages = await port.listMessagesSince(conversationId, {
         sinceCreatedAt: sinceCreatedAt ?? undefined,
         limit: 80,
       });
-      return { messages: messages.filter(isSupportChatMessage) };
+      return {
+        messages: messages.filter(isSupportChatMessage),
+        readOnly: isSupportConversationReadOnly(conv),
+      };
     },
 
     async sendText(platformUserId: string, conversationId: string, text: string): Promise<
@@ -60,9 +88,11 @@ export function createPatientMessagingService(
       | { ok: false; error: string }
     > {
       const conv = await port.getConversationIfOwnedByUser(conversationId, platformUserId);
+      // Чужое обращение — единый ответ «нет такого» (OWASP ASVS 5.0 V8.2.2 / CWE-639).
       if (!conv) return { ok: false, error: "not_found" };
-      if (conv.status !== "open" || conv.closedAt !== null) {
-        return { ok: false, error: "not_found" };
+      // Своё закрытое — существует, видно, читается; отказ честный, а не «не найдено».
+      if (isSupportConversationReadOnly(conv)) {
+        return { ok: false, error: "conversation_closed" };
       }
       if (options?.isUserMessagingBlocked) {
         const blocked = await options.isUserMessagingBlocked(platformUserId);
@@ -127,6 +157,11 @@ export function createPatientMessagingService(
       return { ok: true, message: serializeSupportMessage(message) };
     },
 
+    /**
+     * Квитанция «прочитано» по ОДНОМУ обращению. Закрытое обращение — не ошибка: пациент видит его
+     * историю, значит имеет право её прочитать; если непрочитанных входящих в нём нет, это просто
+     * no-op. Чужое обращение не совпадёт по владельцу и не изменит ни одной строки.
+     */
     async markInboundRead(platformUserId: string, conversationId: string): Promise<void> {
       await port.markInboundReadForUser(conversationId, platformUserId);
     },

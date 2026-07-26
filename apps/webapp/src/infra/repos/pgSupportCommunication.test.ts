@@ -393,7 +393,10 @@ describe("SupportCommunicationPort admin reads (in-memory)", () => {
     expect(await port.countUnreadForUser(platformUserId)).toBe(0);
   });
 
-  it("markInboundReadForUser clears unread in legacy and canonical conversations for same user", async () => {
+  // Regression (F-4): this used to assert the leak — one mark-read cleared BOTH conversations of the
+  // user. Opening one thread must clear that thread only; the other keeps its unread message, which
+  // is exactly what `countUnreadForUser` keeps counting.
+  it("markInboundReadForUser clears unread ONLY in the conversation that was opened", async () => {
     const platformUserId = "patient-unread-legacy-2";
     const { id: canonicalId } = await port.ensureWebappConversationForUser(platformUserId);
     const legacy = await port.upsertConversationFromProjection({
@@ -428,6 +431,59 @@ describe("SupportCommunicationPort admin reads (in-memory)", () => {
 
     expect(await port.countUnreadForUser(platformUserId)).toBe(2);
     await port.markInboundReadForUser(canonicalId, platformUserId);
+    expect(await port.countUnreadForUser(platformUserId)).toBe(1);
+    const canonicalMessages = (await port.getConversationWithMessages(canonicalId))!.messages;
+    expect(canonicalMessages.every((m) => m.readAt !== null)).toBe(true);
+    const legacyMessages = (await port.getConversationWithMessages(legacy.id))!.messages;
+    expect(legacyMessages.every((m) => m.readAt === null)).toBe(true);
+
+    // …and the other conversation is still clearable on its own terms.
+    await port.markInboundReadForUser(legacy.id, platformUserId);
+    expect(await port.countUnreadForUser(platformUserId)).toBe(0);
+  });
+
+  it("markInboundReadForUser is a successful no-op for a foreign conversation", async () => {
+    const owner = "patient-unread-owner-4";
+    const stranger = "patient-unread-stranger-4";
+    const { id: ownerConversationId } = await port.ensureWebappConversationForUser(owner);
+    await port.appendWebappMessage({
+      conversationId: ownerConversationId,
+      integratorMessageId: "webapp-unread-foreign-4",
+      senderRole: "admin",
+      text: "Owner only",
+      source: "webapp",
+      createdAt: new Date().toISOString(),
+    });
+
+    await expect(port.markInboundReadForUser(ownerConversationId, stranger)).resolves.toBeUndefined();
+    expect(await port.countUnreadForUser(owner)).toBe(1);
+  });
+
+  it("markInboundReadForUser still clears a CLOSED own conversation (owner ruling: read-only, not 'not found')", async () => {
+    const platformUserId = "patient-unread-closed-5";
+    const closed = await port.upsertConversationFromProjection({
+      integratorConversationId: "closed-unread-conv-5",
+      integratorUserId: null,
+      source: "webapp",
+      adminScope: "support",
+      status: "closed",
+      openedAt: new Date().toISOString(),
+      lastMessageAt: new Date().toISOString(),
+      closedAt: new Date().toISOString(),
+    });
+    const closedRow = (await port.getConversationWithMessages(closed.id))!.conversation;
+    (closedRow as { platformUserId: string | null }).platformUserId = platformUserId;
+    await port.appendWebappMessage({
+      conversationId: closed.id,
+      integratorMessageId: "webapp-unread-closed-5",
+      senderRole: "admin",
+      text: "Closed thread reply",
+      source: "webapp",
+      createdAt: new Date().toISOString(),
+    });
+
+    expect(await port.countUnreadForUser(platformUserId)).toBe(1);
+    await port.markInboundReadForUser(closed.id, platformUserId);
     expect(await port.countUnreadForUser(platformUserId)).toBe(0);
   });
 

@@ -153,6 +153,54 @@ describe("createPgSupportCommunicationPort", () => {
     });
   });
 
+  describe("markInboundReadForUser", () => {
+    const CONV_ID = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb";
+    const USER_ID = "cccccccc-cccc-4ccc-8ccc-cccccccccccc";
+
+    it("scopes the read receipt to the one conversation and its owner", async () => {
+      runWebappPgTextMock.mockResolvedValueOnce({ rows: [], rowCount: 1 });
+      const port = createPgSupportCommunicationPort();
+      await port.markInboundReadForUser(CONV_ID, USER_ID);
+
+      expect(runWebappPgTextMock).toHaveBeenCalledTimes(1);
+      const sql = String(runWebappPgTextMock.mock.calls[0]?.[0] ?? "");
+      expect(sql).toContain("UPDATE support_conversation_messages m");
+      expect(sql).toContain("FROM support_conversations c");
+      expect(sql).toContain("m.conversation_id = c.id");
+      expect(sql).toContain("c.id = $1::uuid");
+      expect(sql).toContain("c.platform_user_id = $2::uuid");
+      // The leak this replaces: every conversation of the user in one UPDATE.
+      expect(sql).not.toContain("conversation_id IN (");
+      expect(runWebappPgTextMock.mock.calls[0]?.[1]).toEqual([CONV_ID, USER_ID]);
+    });
+
+    it("keeps the message class identical to the unread counter and never filters by conversation status", async () => {
+      runWebappPgTextMock.mockResolvedValueOnce({ rows: [], rowCount: 0 });
+      const port = createPgSupportCommunicationPort();
+      await port.markInboundReadForUser(CONV_ID, USER_ID);
+      const markSql = String(runWebappPgTextMock.mock.calls[0]?.[0] ?? "");
+
+      runWebappPgTextMock.mockReset();
+      runWebappPgTextMock.mockResolvedValueOnce({ rows: [{ c: "0" }] });
+      await port.countUnreadForUser(USER_ID);
+      const countSql = String(runWebappPgTextMock.mock.calls[0]?.[0] ?? "");
+
+      for (const clause of [
+        "m.sender_role <> 'user'",
+        "m.read_at IS NULL",
+        "'doctor_broadcast', 'appointment_lifecycle'",
+      ]) {
+        expect(markSql).toContain(clause);
+        expect(countSql).toContain(clause);
+      }
+      // A closed / non-webapp conversation still contributes to the counter, so mark-read must be
+      // able to clear it — otherwise the badge can never reach zero (owner ruling 2026-07-26).
+      expect(markSql).not.toContain("c.status");
+      expect(markSql).not.toContain("closed_at");
+      expect(markSql).not.toContain("admin_scope");
+    });
+  });
+
   describe("listOpenConversationsForAdmin", () => {
     it("passes normalized source, limit and unreadOnly as bound params", async () => {
       runWebappPgTextMock.mockResolvedValueOnce({ rows: [] });
