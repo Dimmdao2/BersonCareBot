@@ -6,12 +6,14 @@ const {
   completeLoginMock,
   findByUserIdMock,
   setSessionFromUserMock,
+  checkAuthConfirmRateLimitMock,
 } = vi.hoisted(() => ({
   readContinuationMock: vi.fn(),
   clearContinuationMock: vi.fn(),
   completeLoginMock: vi.fn(),
   findByUserIdMock: vi.fn(),
   setSessionFromUserMock: vi.fn(),
+  checkAuthConfirmRateLimitMock: vi.fn(),
 }));
 
 vi.mock("@/modules/auth/staffLoginContinuation", () => ({
@@ -25,6 +27,10 @@ vi.mock("@/app-layer/di/buildAppDeps", () => ({
     staffSecurity: { completeLogin: completeLoginMock },
     userByPhone: { findByUserId: findByUserIdMock },
   }),
+}));
+vi.mock("@/modules/auth/authConfirmRateLimit", () => ({
+  AUTH_CONFIRM_RATE_LIMIT_SEC: 600,
+  checkAuthConfirmRateLimit: (...args: unknown[]) => checkAuthConfirmRateLimitMock(...args),
 }));
 
 import { POST } from "./route";
@@ -43,8 +49,39 @@ function request() {
 describe("POST /api/auth/email-password/login/factor", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    checkAuthConfirmRateLimitMock.mockResolvedValue({ limited: false });
     readContinuationMock.mockResolvedValue({ userId: USER_ID, token: "signed-continuation-token" });
     findByUserIdMock.mockResolvedValue(user);
+  });
+
+  // C-2 remainder: proves the refusal path, not just the happy path -- this route previously had
+  // zero route-level rate limiting (confirmed: no RateLimit reference anywhere in it), so a
+  // per-account-only lockout could be circumvented by spreading TOTP/recovery-code guesses across
+  // many source IPs.
+  it("returns 429 rate_limited before reading the login continuation, when the per-IP limit trips", async () => {
+    checkAuthConfirmRateLimitMock.mockResolvedValueOnce({ limited: true, reason: "rate_limited" });
+
+    const response = await POST(request());
+
+    expect(response.status).toBe(429);
+    expect(response.headers.get("Retry-After")).toBe("600");
+    await expect(response.json()).resolves.toEqual({
+      ok: false,
+      error: "rate_limited",
+      retryAfterSeconds: 600,
+    });
+    expect(readContinuationMock).not.toHaveBeenCalled();
+    expect(completeLoginMock).not.toHaveBeenCalled();
+  });
+
+  it("returns 503 proxy_configuration when the per-IP key cannot be resolved, without touching completeLogin", async () => {
+    checkAuthConfirmRateLimitMock.mockResolvedValueOnce({ limited: true, reason: "proxy_configuration" });
+
+    const response = await POST(request());
+
+    expect(response.status).toBe(503);
+    await expect(response.json()).resolves.toEqual({ ok: false, error: "proxy_configuration" });
+    expect(completeLoginMock).not.toHaveBeenCalled();
   });
 
   it("keeps logout/relogin before recovery-code acknowledgement in recovery_confirmation", async () => {

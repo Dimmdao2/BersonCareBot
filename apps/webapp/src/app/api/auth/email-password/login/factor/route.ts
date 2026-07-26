@@ -9,6 +9,10 @@ import {
 import { setSessionFromUser } from "@/modules/auth/service";
 import { getRedirectPathForRole } from "@/modules/auth/redirectPolicy";
 import { enterStaffSecuritySelfPrincipal } from "@/app-layer/principal/staffSecuritySelfPrincipal";
+import {
+  AUTH_CONFIRM_RATE_LIMIT_SEC,
+  checkAuthConfirmRateLimit,
+} from "@/modules/auth/authConfirmRateLimit";
 
 const bodySchema = z
   .object({
@@ -19,6 +23,23 @@ const bodySchema = z
 
 export async function POST(request: Request) {
   stampBootstrapPrincipal("api/auth/email-password/login/factor:POST", request);
+
+  // C-2 remainder: this route verifies a TOTP/recovery code with no route-level rate limit at
+  // all -- per-account lockout exists inside staffSecurity.completeLogin (factor_locked), but
+  // nothing capped the per-IP attempt rate, so the code space could be attacked from many
+  // addresses. Same chokepoint the other eight confirm routes use, same position (before body
+  // parsing), same shape mapping.
+  const rateLimit = await checkAuthConfirmRateLimit(request, "email_password_login_factor");
+  if (rateLimit.limited) {
+    if (rateLimit.reason === "proxy_configuration") {
+      return NextResponse.json({ ok: false, error: "proxy_configuration" }, { status: 503 });
+    }
+    return NextResponse.json(
+      { ok: false, error: "rate_limited", retryAfterSeconds: AUTH_CONFIRM_RATE_LIMIT_SEC },
+      { status: 429, headers: { "Retry-After": String(AUTH_CONFIRM_RATE_LIMIT_SEC) } },
+    );
+  }
+
   const parsed = bodySchema.safeParse(await request.json().catch(() => null));
   if (!parsed.success) return NextResponse.json({ ok: false, error: "invalid_body" }, { status: 400 });
   const continuation = await readStaffLoginContinuation();
