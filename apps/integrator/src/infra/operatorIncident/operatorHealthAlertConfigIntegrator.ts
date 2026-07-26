@@ -1,9 +1,10 @@
+import { sql } from 'drizzle-orm';
 import { z } from 'zod';
 import {
   extractSystemSettingInnerValue,
   fetchPublicSystemSettingValueJson,
 } from '../db/publicSystemSettings.js';
-import { parseMessengerIdTokens } from '../db/parseMessengerIdTokens.js';
+import { runIntegratorSql } from '../db/runIntegratorSql.js';
 import type { DbPort } from '../../kernel/contracts/index.js';
 
 const DEFAULT_CHANNELS = { telegram: true, max: true, web_push: true };
@@ -159,20 +160,38 @@ export async function loadOperatorHealthAlertConfigIntegrator(
   return parseLegacyConfig(legacyJson);
 }
 
+type AdminNotificationTargetRow = { channel_code: string | null; external_id: string | null };
+
+/**
+ * C-4 (2026-07-26, docs/ARCHITECTURE/ADMIN_ACCESS_MODEL.md, webapp repo): recipients are resolved
+ * from WHO ACTUALLY HOLDS THE ADMIN ROLE right now (`platform_users.role='admin'` joined to their
+ * bound messenger channels), never from the `admin_telegram_ids`/`admin_max_ids` DB-resident address
+ * lists — those no longer confer any role either (webapp `envRole.ts`) and are not read here
+ * anymore. Mirrors `apps/webapp/src/infra/repos/pgAdminNotificationTargets.ts`; kept as a separate
+ * query here because the integrator's DB access goes through `DbPort`/`runIntegratorSql`, not the
+ * webapp's Drizzle pool. The integrator's login role already has SELECT on both tables
+ * (`deploy/postgres/integrator-login-public-identity-grants.sql`) — no new grant needed.
+ */
 export async function loadAdminMessengerIdLists(
   db: DbPort,
 ): Promise<{ telegram: string[]; max: string[] }> {
-  const [tgInner, maxInner] = await Promise.all([
-    fetchPublicSystemSettingValueJson(db, 'admin_telegram_ids').then((v) =>
-      extractSystemSettingInnerValue(v ?? null) ?? v,
-    ),
-    fetchPublicSystemSettingValueJson(db, 'admin_max_ids').then((v) =>
-      extractSystemSettingInnerValue(v ?? null) ?? v,
-    ),
-  ]);
-  const dedupe = (ids: string[]) => [...new Set(ids.map((x) => x.trim()).filter(Boolean))];
-  return {
-    telegram: dedupe(parseMessengerIdTokens(tgInner)),
-    max: dedupe(parseMessengerIdTokens(maxInner)),
-  };
+  const res = await runIntegratorSql<AdminNotificationTargetRow>(
+    db,
+    sql`SELECT ucb.channel_code, ucb.external_id
+          FROM public.platform_users pu
+          JOIN public.user_channel_bindings ucb
+            ON ucb.user_id = pu.id AND ucb.channel_code IN ('telegram', 'max')
+         WHERE pu.role = 'admin'
+           AND pu.merged_into_id IS NULL
+           AND pu.is_archived = FALSE`,
+  );
+  const telegram = new Set<string>();
+  const max = new Set<string>();
+  for (const row of res.rows) {
+    const id = row.external_id?.trim();
+    if (!id) continue;
+    if (row.channel_code === 'telegram') telegram.add(id);
+    if (row.channel_code === 'max') max.add(id);
+  }
+  return { telegram: [...telegram], max: [...max] };
 }

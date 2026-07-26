@@ -6,7 +6,7 @@ import {
   AUTH_CHANNEL_DISABLED_ERROR,
   isAuthChannelEnabled,
 } from "@/modules/auth/authChannelPolicy";
-import { resolveRoleFromEnv } from "@/modules/auth/envRole";
+import { reconcileDbRoleWithEnvRole, resolveRoleFromEnv } from "@/modules/auth/envRole";
 import { getRedirectPathForRole } from "@/modules/auth/redirectPolicy";
 import { setSessionFromUser } from "@/modules/auth/service";
 import { enterStaffSecuritySelfPrincipal } from "@/app-layer/principal/staffSecuritySelfPrincipal";
@@ -56,14 +56,17 @@ export async function POST(request: Request) {
     return NextResponse.json({ ok: false, error: "server_error" }, { status: 500 });
   }
 
+  // C-4 (2026-07-26): the messenger/phone allowlists never grant role anymore (envRole.ts);
+  // reconciled so a resolver that only ever says "client" cannot demote an existing staff role.
   const envRole = resolveRoleFromEnv({
     phone: sessionUser.phone,
     telegramId: sessionUser.bindings.telegramId,
     maxId: sessionUser.bindings.maxId,
   });
-  if (sessionUser.role !== envRole) {
-    await deps.userProjection.updateRole(sessionUser.userId, envRole);
-    sessionUser = { ...sessionUser, role: envRole };
+  const reconciledRole = reconcileDbRoleWithEnvRole(sessionUser.role, envRole);
+  if (sessionUser.role !== reconciledRole) {
+    await deps.userProjection.updateRole(sessionUser.userId, reconciledRole);
+    sessionUser = { ...sessionUser, role: reconciledRole };
   }
 
   await setSessionFromUser(sessionUser);

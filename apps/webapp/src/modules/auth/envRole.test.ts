@@ -1,24 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const { getFreshServerRuntimeTokenListMock, getServerRuntimeTokenListMock } = vi.hoisted(() => ({
-  getFreshServerRuntimeTokenListMock: vi.fn(),
-  getServerRuntimeTokenListMock: vi.fn(),
-}));
-
-vi.mock("@/modules/system-settings/configAdapter", () => ({
-  getFreshServerRuntimeTokenList: getFreshServerRuntimeTokenListMock,
-  getServerRuntimeTokenList: getServerRuntimeTokenListMock,
-}));
-
 vi.mock("@/config/env", () => ({
   env: {
-    ADMIN_PHONES: "+79643805480, +79991112233",
-    DOCTOR_PHONES: "+79990000002",
-    ALLOWED_PHONES: "",
-    ADMIN_TELEGRAM_ID: 9_001_001_001,
-    DOCTOR_TELEGRAM_IDS: "9001001002 9001001003",
-    ADMIN_MAX_IDS: "max-admin-1",
-    DOCTOR_MAX_IDS: "max-doc-1 max-doc-2",
+    PLATFORM_OWNER_IDENTITY: "dimmdao@gmail.com",
   },
 }));
 
@@ -29,112 +13,67 @@ import {
   resolveRoleFromEnv,
 } from "./envRole";
 
-describe("resolveRoleFromEnv", () => {
-  it("returns admin when phone matches ADMIN_PHONES (normalized)", () => {
-    expect(resolveRoleFromEnv({ phone: "+79643805480" })).toBe("admin");
-    expect(resolveRoleFromEnv({ phone: "89643805480" })).toBe("admin");
+describe("resolveRoleFromEnv (C-4: no allowlist ever grants role anymore)", () => {
+  it("always returns client, regardless of phone/telegram/max", () => {
+    expect(resolveRoleFromEnv({ phone: "+79643805480" })).toBe("client");
+    expect(resolveRoleFromEnv({ telegramId: "9001001001" })).toBe("client");
+    expect(resolveRoleFromEnv({ maxId: "max-admin-1" })).toBe("client");
+    expect(resolveRoleFromEnv({})).toBe("client");
   });
+});
 
-  it("returns doctor when phone matches DOCTOR_PHONES and not admin", () => {
-    expect(resolveRoleFromEnv({ phone: "+79990000002" })).toBe("doctor");
-  });
-
-  it("returns client without phone or when not listed", () => {
-    expect(resolveRoleFromEnv({ phone: undefined })).toBe("client");
-    expect(resolveRoleFromEnv({ phone: "+70000000000" })).toBe("client");
-  });
-
-  it("returns admin when telegramId matches ADMIN_TELEGRAM_ID", () => {
-    expect(resolveRoleFromEnv({ telegramId: "9001001001" })).toBe("admin");
-  });
-
-  it("returns doctor when telegramId is in DOCTOR_TELEGRAM_IDS", () => {
-    expect(resolveRoleFromEnv({ telegramId: "9001001002" })).toBe("doctor");
-    expect(resolveRoleFromEnv({ telegramId: "9001001003" })).toBe("doctor");
-  });
-
-  it("returns client when telegramId is not in admin/doctor lists", () => {
-    expect(resolveRoleFromEnv({ telegramId: "111222333" })).toBe("client");
-  });
-
-  it("returns admin/doctor by maxId lists", () => {
-    expect(resolveRoleFromEnv({ maxId: "max-admin-1" })).toBe("admin");
-    expect(resolveRoleFromEnv({ maxId: "max-doc-1" })).toBe("doctor");
-    expect(resolveRoleFromEnv({ maxId: "max-doc-2" })).toBe("doctor");
-  });
-
-  it("admin telegram wins over doctor phone", () => {
-    expect(
-      resolveRoleFromEnv({
-        telegramId: "9001001001",
-        phone: "+79990000002",
-      }),
-    ).toBe("admin");
+describe("resolveRoleAsync (C-4: no allowlist ever grants role anymore)", () => {
+  it("always resolves client without reading any DB list", async () => {
+    await expect(resolveRoleAsync({ phone: "+79643805480" })).resolves.toBe("client");
+    await expect(resolveRoleAsync({ telegramId: "9001001001" })).resolves.toBe("client");
+    await expect(resolveRoleAsync({ maxId: "max-admin-1" })).resolves.toBe("client");
   });
 });
 
 describe("reconcileDbRoleWithEnvRole", () => {
-  it("preserves DB staff roles when legacy env allowlists resolve to client", () => {
+  it("preserves DB staff roles when the (now always-client) env source resolves client", () => {
     expect(reconcileDbRoleWithEnvRole("doctor", "client")).toBe("doctor");
     expect(reconcileDbRoleWithEnvRole("admin", "client")).toBe("admin");
+    expect(reconcileDbRoleWithEnvRole("client", "client")).toBe("client");
   });
 
-  it("keeps env allowlist promotion compatibility for client accounts", () => {
+  it("keeps admin as the strongest staff role if a promoting env source ever existed again", () => {
+    expect(reconcileDbRoleWithEnvRole("doctor", "admin")).toBe("admin");
+    expect(reconcileDbRoleWithEnvRole("admin", "doctor")).toBe("admin");
     expect(reconcileDbRoleWithEnvRole("client", "doctor")).toBe("doctor");
     expect(reconcileDbRoleWithEnvRole("client", "admin")).toBe("admin");
   });
-
-  it("keeps admin as the strongest staff role", () => {
-    expect(reconcileDbRoleWithEnvRole("doctor", "admin")).toBe("admin");
-    expect(reconcileDbRoleWithEnvRole("admin", "doctor")).toBe("admin");
-  });
 });
 
-describe("resolveRoleAsync", () => {
-  it("loads exactly the six cached role settings, excluding independent email elevation", async () => {
-    getServerRuntimeTokenListMock.mockImplementation(async (key: string) =>
-      key === "doctor_phones" ? '["+75550000001"]' : "[]",
-    );
-
-    await expect(resolveRoleAsync({ phone: "+75550000001" })).resolves.toBe("doctor");
-    expect(getServerRuntimeTokenListMock.mock.calls.map(([key]) => key)).toEqual([
-      "admin_telegram_ids",
-      "admin_max_ids",
-      "admin_phones",
-      "doctor_telegram_ids",
-      "doctor_max_ids",
-      "doctor_phones",
-    ]);
-  });
-
-  it("keeps the legacy env policy when the closed runtime accessor fails", async () => {
-    getServerRuntimeTokenListMock.mockRejectedValueOnce(new Error("permission denied"));
-    await expect(resolveRoleAsync({ telegramId: "9001001001" })).resolves.toBe("admin");
-  });
-});
-
-describe("isVerifiedEmailGlobalAdminAsync", () => {
-  beforeEach(() => {
-    getFreshServerRuntimeTokenListMock.mockReset();
-  });
-
-  it("requires an exact normalized verified email from the DB-only allowlist", async () => {
-    getFreshServerRuntimeTokenListMock.mockResolvedValue('["DimmDao@Gmail.com"]');
-
-    await expect(isVerifiedEmailGlobalAdminAsync(" dimmdao@gmail.com ")).resolves.toBe(true);
-    await expect(isVerifiedEmailGlobalAdminAsync("other@example.com")).resolves.toBe(false);
-    expect(getFreshServerRuntimeTokenListMock).toHaveBeenCalledWith("admin_emails");
-  });
-
-  it("fails closed after a removal or database failure, even after a warm positive read", async () => {
-    getFreshServerRuntimeTokenListMock
-      .mockResolvedValueOnce('["dimmdao@gmail.com"]')
-      .mockResolvedValueOnce("[]")
-      .mockRejectedValueOnce(new Error("permission denied"));
-
+describe("isVerifiedEmailGlobalAdminAsync (C-4: env-pinned identity only, admin_emails never read)", () => {
+  it("is true only for the exact normalized env-pinned identity", async () => {
+    await expect(isVerifiedEmailGlobalAdminAsync(" DimmDao@Gmail.com ")).resolves.toBe(true);
     await expect(isVerifiedEmailGlobalAdminAsync("dimmdao@gmail.com")).resolves.toBe(true);
-    await expect(isVerifiedEmailGlobalAdminAsync("dimmdao@gmail.com")).resolves.toBe(false);
-    await expect(isVerifiedEmailGlobalAdminAsync("dimmdao@gmail.com")).resolves.toBe(false);
-    expect(getFreshServerRuntimeTokenListMock).toHaveBeenCalledTimes(3);
+  });
+
+  it("THE NEGATIVE PROOF (C-4 regression test): an account whose address sits in a stale admin_emails DB value does not become admin — that value is never read", async () => {
+    // Even a value that used to be the DB admin_emails allowlist grants nothing now.
+    await expect(isVerifiedEmailGlobalAdminAsync("someone-in-stale-admin-emails@example.com")).resolves.toBe(
+      false,
+    );
+    await expect(isVerifiedEmailGlobalAdminAsync("other@example.com")).resolves.toBe(false);
+  });
+
+  it("fails closed on empty/missing input", async () => {
+    await expect(isVerifiedEmailGlobalAdminAsync(undefined)).resolves.toBe(false);
+    await expect(isVerifiedEmailGlobalAdminAsync("")).resolves.toBe(false);
+    await expect(isVerifiedEmailGlobalAdminAsync("   ")).resolves.toBe(false);
+  });
+});
+
+describe("isVerifiedEmailGlobalAdminAsync with no pin configured", () => {
+  beforeEach(() => {
+    vi.resetModules();
+  });
+
+  it("fails closed when PLATFORM_OWNER_IDENTITY is unset", async () => {
+    vi.doMock("@/config/env", () => ({ env: { PLATFORM_OWNER_IDENTITY: "" } }));
+    const { isVerifiedEmailGlobalAdminAsync: isAdminWithNoPin } = await import("./envRole");
+    await expect(isAdminWithNoPin("dimmdao@gmail.com")).resolves.toBe(false);
   });
 });

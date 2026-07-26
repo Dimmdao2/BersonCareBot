@@ -4,7 +4,12 @@ import { decodeBase64Url } from "@/shared/utils/base64url";
 import { env, isProduction } from "@/config/env";
 import type { AppSession, SessionUser, UserRole } from "@/shared/types/session";
 import { isPlatformUserUuid } from "@/shared/platform-user/isPlatformUserUuid";
-import { isVerifiedEmailGlobalAdminAsync, resolveRoleAsync, isWhitelistedAsync } from "./envRole";
+import {
+  isVerifiedEmailGlobalAdminAsync,
+  reconcileDbRoleWithEnvRole,
+  resolveRoleAsync,
+  isWhitelistedAsync,
+} from "./envRole";
 import type { IdentityResolutionPort, MessengerIdentityResolutionHints } from "./identityResolutionPort";
 import type { AccountOutcome } from "./oauthYandexResolve";
 import { normalizePhone } from "./phoneNormalize";
@@ -633,14 +638,19 @@ export async function exchangeIntegratorToken(
   }
 
   if (!devParsed) {
+    // C-4: the messenger/phone allowlists never promote anyone anymore (envRole.ts), so this only
+    // ever composes back to `user.role` unchanged — see reconcileDbRoleWithEnvRole's doc comment.
+    // Kept (rather than deleted) so a role source that resolves something other than "client" here
+    // again in the future still cannot demote an existing DB-persisted staff role.
     const envRole = await resolveRoleAsync({
       phone: user.phone ?? parsed.phone,
       telegramId: user.bindings?.telegramId ?? parsed.bindings?.telegramId,
       maxId: user.bindings?.maxId ?? parsed.bindings?.maxId,
     });
-    if (user.role !== envRole) {
-      if (updateRoleFn) await updateRoleFn(user.userId, envRole);
-      user = { ...user, role: envRole };
+    const reconciledRole = reconcileDbRoleWithEnvRole(user.role, envRole);
+    if (user.role !== reconciledRole) {
+      if (updateRoleFn) await updateRoleFn(user.userId, reconciledRole);
+      user = { ...user, role: reconciledRole };
     }
   }
 
@@ -710,14 +720,16 @@ export async function exchangeTelegramInitData(
     };
   }
 
+  // C-4: see the comment on the equivalent block in exchangeIntegratorToken above.
   const envRole = await resolveRoleAsync({
     phone: user.phone,
     telegramId: parsed.telegramId,
     maxId: user.bindings?.maxId,
   });
-  if (user.role !== envRole) {
-    if (updateRoleFn) await updateRoleFn(user.userId, envRole);
-    user = { ...user, role: envRole };
+  const reconciledRole = reconcileDbRoleWithEnvRole(user.role, envRole);
+  if (user.role !== reconciledRole) {
+    if (updateRoleFn) await updateRoleFn(user.userId, reconciledRole);
+    user = { ...user, role: reconciledRole };
   }
 
   const cookieStore = await cookies();
@@ -814,14 +826,16 @@ export async function exchangeMaxInitData(
     };
   }
 
+  // C-4: see the comment on the equivalent block in exchangeIntegratorToken above.
   const envRole = await resolveRoleAsync({
     phone: user.phone,
     telegramId: user.bindings?.telegramId,
     maxId: parsed.maxUserId,
   });
-  if (user.role !== envRole) {
-    if (updateRoleFn) await updateRoleFn(user.userId, envRole);
-    user = { ...user, role: envRole };
+  const reconciledRole = reconcileDbRoleWithEnvRole(user.role, envRole);
+  if (user.role !== reconciledRole) {
+    if (updateRoleFn) await updateRoleFn(user.userId, reconciledRole);
+    user = { ...user, role: reconciledRole };
   }
 
   const cookieStore = await cookies();
@@ -904,14 +918,16 @@ export async function exchangeTelegramLoginWidget(
     };
   }
 
+  // C-4: see the comment on the equivalent block in exchangeIntegratorToken above.
   const envRole = await resolveRoleAsync({
     phone: user.phone,
     telegramId,
     maxId: user.bindings?.maxId,
   });
-  if (user.role !== envRole) {
-    if (updateRoleFn) await updateRoleFn(user.userId, envRole);
-    user = { ...user, role: envRole };
+  const reconciledRole = reconcileDbRoleWithEnvRole(user.role, envRole);
+  if (user.role !== reconciledRole) {
+    if (updateRoleFn) await updateRoleFn(user.userId, reconciledRole);
+    user = { ...user, role: reconciledRole };
   }
 
   const cookieStore = await cookies();
@@ -1018,10 +1034,6 @@ async function getCurrentSessionWithPrincipalMode(
     };
   }
 
-  const phone = session.user.phone?.trim();
-  const telegramId = session.user.bindings?.telegramId?.trim();
-  const maxId = session.user.bindings?.maxId?.trim();
-  const hasMessengerOrPhoneIdentity = Boolean(phone || telegramId || maxId);
   let verifiedEmail: string | undefined;
   // Email elevation is independent from legacy phone/TG/MAX bindings. It is
   // evaluated fresh on every non-dev session and is never projected into
@@ -1043,32 +1055,16 @@ async function getCurrentSessionWithPrincipalMode(
   }
   if (isDevBypassSession) return finalizeCurrentSession(session, patientOrganizationHint, options);
 
-  // This is the base role. A false/error result from the email policy must return
-  // to it; `admin_emails` is only a fresh session elevation, never a fallback.
-  let roleFromBindings = session.user.role;
-  if (hasMessengerOrPhoneIdentity) {
-    roleFromBindings = await resolveRoleAsync({ phone, telegramId, maxId });
-  }
-  let nextSession = session;
-  if (session.user.role !== roleFromBindings) {
-    const nextUser = { ...session.user, role: roleFromBindings };
-    nextSession = {
-      ...buildSession(nextUser),
-      postLoginHints: session.postLoginHints,
-      adminMode: session.adminMode,
-      reauth: session.reauth,
-      staffSecurity: session.staffSecurity,
-    };
-
-    if (env.DATABASE_URL && hasMessengerOrPhoneIdentity) {
-      try {
-        const { pgUserProjectionPort } = await import("@/infra/repos/pgUserProjection");
-        await pgUserProjectionPort.updateRole(session.user.userId, roleFromBindings);
-      } catch {
-        /* ignore: in-memory tests or DB unavailable */
-      }
-    }
-  }
+  // C-4 (2026-07-26, ADMIN_ACCESS_MODEL.md): admin/doctor used to be re-derived from the
+  // messenger/phone allowlists on every session refresh and PERSISTED over `session.user.role`
+  // whenever it differed. That path could only ever demote — `resolveRoleAsync` never promotes
+  // anyone anymore, see envRole.ts — and would have overwritten a legitimately DB-persisted
+  // staff role (e.g. the demo doctor account, whose bound phone used to also appear in
+  // `doctor_phones`) back to "client" on every request. `session.user.role` here is already the
+  // fresh `platform_users.role` (from `resolveSessionIdentityAgainstDb` above) or, for a
+  // non-DB-backed identity, the cookie's own role, which self-registration can never make staff
+  // (ADMIN_ACCESS_MODEL.md) — so it is used as-is; the lists are not consulted at all.
+  const nextSession = session;
 
   if (await isVerifiedEmailGlobalAdminAsync(verifiedEmail)) {
     const emailAdminSession: AppSession = {

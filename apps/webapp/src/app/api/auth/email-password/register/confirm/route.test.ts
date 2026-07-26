@@ -20,6 +20,7 @@ vi.mock("@/modules/auth/service", () => ({
 
 vi.mock("@/modules/auth/envRole", () => ({
   resolveRoleFromEnv: () => "client",
+  reconcileDbRoleWithEnvRole: (currentRole: string) => currentRole,
 }));
 
 vi.mock("@/app-layer/di/buildAppDeps", () => ({

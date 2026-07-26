@@ -1,71 +1,23 @@
 import { env } from "@/config/env";
 import type { UserRole } from "@/shared/types/session";
-import { normalizePhone } from "./phoneNormalize";
-import {
-  getFreshServerRuntimeTokenList,
-  getServerRuntimeTokenList,
-} from "@/modules/system-settings/configAdapter";
-import { parseIdTokens } from "@/shared/parsers/parseIdTokens";
 import { normalizeEmail } from "./emailAuth";
 
-/** Нормализованные номера из env (whitelist для входа по телефону в токене). */
-export function getNormalizedWhitelistedPhonesFromEnv(): Set<string> {
-  const set = new Set<string>();
-  for (const raw of [env.ADMIN_PHONES, env.DOCTOR_PHONES, env.ALLOWED_PHONES]) {
-    for (const s of parseIdTokens(raw ?? "")) {
-      const t = s.trim();
-      if (t) set.add(normalizePhone(t));
-    }
-  }
-  return set;
-}
-
-function phoneInEnvList(phone: string | undefined, listRaw: string): boolean {
-  if (!phone?.trim()) return false;
-  const n = normalizePhone(phone);
-  for (const s of parseIdTokens(listRaw)) {
-    const t = s.trim();
-    if (!t) continue;
-    if (normalizePhone(t) === n) return true;
-  }
-  return false;
-}
-
 /**
- * Роль из env: Telegram / Max ID (ADMIN_TELEGRAM_ID, DOCTOR_TELEGRAM_IDS, ADMIN_MAX_IDS, DOCTOR_MAX_IDS)
- * и номера (ADMIN_PHONES / DOCTOR_PHONES после normalizePhone).
- * Приоритет: admin (telegram → max → phone) → doctor (telegram → max → phone) → client.
+ * C-4 (2026-07-26, docs/ARCHITECTURE/ADMIN_ACCESS_MODEL.md): admin/doctor role is never granted by
+ * a DB-resident or env-resident allowlist anymore — not `admin_emails`, not
+ * `admin_phones`/`admin_telegram_ids`/`admin_max_ids`, not `doctor_phones`/`doctor_telegram_ids`/
+ * `doctor_max_ids`, and not their `ADMIN_*`/`DOCTOR_*` env fallbacks. `platform_users.role` — set
+ * only by migration/provisioning or (later) an explicit invitation, never by a login-time list
+ * lookup — is the single source of a staff role, plus the independent env-pinned owner identity in
+ * {@link isVerifiedEmailGlobalAdminAsync}.
+ *
+ * This resolver always returns "client" now. It is kept only so every existing caller (service.ts's
+ * messenger/phone/OAuth exchange paths) keeps its call shape; each of those callers composes the
+ * result with {@link reconcileDbRoleWithEnvRole} before ever comparing it against — or persisting it
+ * over — an existing DB role, so an env source that can only ever say "client" is structurally
+ * unable to demote an existing admin/doctor row.
  */
-export function resolveRoleFromEnv(ids: { phone?: string; telegramId?: string; maxId?: string }): UserRole {
-  const tid = ids.telegramId?.trim();
-  if (tid) {
-    if (typeof env.ADMIN_TELEGRAM_ID === "number" && String(env.ADMIN_TELEGRAM_ID) === tid) {
-      return "admin";
-    }
-  }
-
-  const mid = ids.maxId?.trim();
-  if (mid) {
-    for (const s of parseIdTokens(env.ADMIN_MAX_IDS ?? "")) {
-      if (s.trim() === mid) return "admin";
-    }
-  }
-
-  if (phoneInEnvList(ids.phone, env.ADMIN_PHONES ?? "")) return "admin";
-
-  if (tid) {
-    for (const s of parseIdTokens(env.DOCTOR_TELEGRAM_IDS ?? "")) {
-      if (s.trim() === tid) return "doctor";
-    }
-  }
-
-  if (mid) {
-    for (const s of parseIdTokens(env.DOCTOR_MAX_IDS ?? "")) {
-      if (s.trim() === mid) return "doctor";
-    }
-  }
-
-  if (phoneInEnvList(ids.phone, env.DOCTOR_PHONES ?? "")) return "doctor";
+export function resolveRoleFromEnv(_ids: { phone?: string; telegramId?: string; maxId?: string }): UserRole {
   return "client";
 }
 
@@ -76,6 +28,12 @@ export function resolveRoleFromEnv(ids: { phone?: string; telegramId?: string; m
  * a DB-stored staff role. Self-registered specialists get `platform_users.role='doctor'`
  * from provisioning and must keep that role on later password logins even when they are not
  * listed in legacy env allowlists.
+ *
+ * Since C-4, `envRole` passed in here is always `"client"` ({@link resolveRoleFromEnv} /
+ * {@link resolveRoleAsync} never resolve anything else) — the admin/doctor promotion branches below
+ * are therefore dead in current practice. The function is kept, and every caller keeps composing
+ * through it, precisely so that stays true structurally rather than by caller discipline: a future
+ * env/DB source that resolves "admin"/"doctor" again still could not demote an existing DB role.
  */
 export function reconcileDbRoleWithEnvRole(currentRole: UserRole, envRole: UserRole): UserRole {
   if (envRole === "admin") return "admin";
@@ -85,89 +43,35 @@ export function reconcileDbRoleWithEnvRole(currentRole: UserRole, envRole: UserR
   return "client";
 }
 
-function idInList(id: string, list: string[]): boolean {
-  return list.some((s) => s.trim() === id.trim());
-}
-
-function phoneInList(phone: string | undefined, list: string[]): boolean {
-  if (!phone?.trim()) return false;
-  const n = normalizePhone(phone);
-  return list.some((s) => {
-    const t = s.trim();
-    return t && normalizePhone(t) === n;
-  });
-}
-
-function emailInList(email: string | undefined, list: string[]): boolean {
-  const normalized = normalizeEmail(email ?? "");
-  return Boolean(normalized) && list.some((candidate) => normalizeEmail(candidate) === normalized);
-}
-
 /**
- * Async role resolver: DB (system_settings) → env fallback.
- * Uses configAdapter (60s TTL cache). Falls back to resolveRoleFromEnv on any error.
- * Verified email is intentionally excluded: it is an independent, fresh,
- * DB-only elevation evaluated by isVerifiedEmailGlobalAdminAsync().
+ * C-4: the legacy env/DB messenger+phone allowlists (`admin_telegram_ids`/`admin_max_ids`/
+ * `admin_phones`/`doctor_telegram_ids`/`doctor_max_ids`/`doctor_phones`) no longer confer role, and
+ * are no longer read here at all. Retained only for its call shape — see
+ * {@link resolveRoleFromEnv}'s doc comment, which applies verbatim.
  */
-export async function resolveRoleAsync(ids: {
+export async function resolveRoleAsync(_ids: {
   phone?: string;
   telegramId?: string;
   maxId?: string;
 }): Promise<UserRole> {
-  try {
-    const [
-      adminTelegramRaw,
-      adminMaxRaw,
-      adminPhonesRaw,
-      doctorTelegramRaw,
-      doctorMaxRaw,
-      doctorPhonesRaw,
-    ] = await Promise.all([
-      getServerRuntimeTokenList("admin_telegram_ids", String(env.ADMIN_TELEGRAM_ID ?? "")),
-      getServerRuntimeTokenList("admin_max_ids", env.ADMIN_MAX_IDS ?? ""),
-      getServerRuntimeTokenList("admin_phones", env.ADMIN_PHONES ?? ""),
-      getServerRuntimeTokenList("doctor_telegram_ids", env.DOCTOR_TELEGRAM_IDS ?? ""),
-      getServerRuntimeTokenList("doctor_max_ids", env.DOCTOR_MAX_IDS ?? ""),
-      getServerRuntimeTokenList("doctor_phones", env.DOCTOR_PHONES ?? ""),
-    ]);
-
-    const adminTelegramIds = parseIdTokens(adminTelegramRaw);
-    const adminMaxIds = parseIdTokens(adminMaxRaw);
-    const adminPhones = parseIdTokens(adminPhonesRaw);
-    const doctorTelegramIds = parseIdTokens(doctorTelegramRaw);
-    const doctorMaxIds = parseIdTokens(doctorMaxRaw);
-    const doctorPhones = parseIdTokens(doctorPhonesRaw);
-
-    const tid = ids.telegramId?.trim() ?? "";
-    const mid = ids.maxId?.trim() ?? "";
-
-    if (tid && idInList(tid, adminTelegramIds)) return "admin";
-    if (mid && idInList(mid, adminMaxIds)) return "admin";
-    if (phoneInList(ids.phone, adminPhones)) return "admin";
-    if (tid && idInList(tid, doctorTelegramIds)) return "doctor";
-    if (mid && idInList(mid, doctorMaxIds)) return "doctor";
-    if (phoneInList(ids.phone, doctorPhones)) return "doctor";
-
-    return "client";
-  } catch {
-    return resolveRoleFromEnv(ids);
-  }
+  return "client";
 }
 
 /**
- * DB-only verified-email policy. It is deliberately fresh and fail-closed:
- * a cache hit, stale positive, config outage, or missing row can never retain
- * an email-derived administrator session.
+ * The single source of the admin role, alongside a persisted `platform_users.role='admin'` row
+ * (migration `0233_global_admin_hard_role.sql` plus the idempotent env-pinned assertion in
+ * `instrumentation.ts`). Compares only against the env-pinned owner identity
+ * (`env.PLATFORM_OWNER_IDENTITY`) — the `admin_emails` DB-resident allowlist is never read for
+ * authorization anymore (docs/ARCHITECTURE/ADMIN_ACCESS_MODEL.md). Deliberately fail-closed: an
+ * empty/unset pin, or an email that does not match it, is never admin. The identifier is kept
+ * abstracted on purpose (env value, not "email" in the name) — a later switch to a phone number or
+ * ЕСИА id (taskdb #1034/#1035) is a value change here, not a rebuild.
  */
 export async function isVerifiedEmailGlobalAdminAsync(email: string | undefined): Promise<boolean> {
   const normalized = normalizeEmail(email ?? "");
   if (!normalized) return false;
-  try {
-    const adminEmails = parseIdTokens(await getFreshServerRuntimeTokenList("admin_emails"));
-    return emailInList(normalized, adminEmails);
-  } catch {
-    return false;
-  }
+  const pinned = normalizeEmail(env.PLATFORM_OWNER_IDENTITY ?? "");
+  return Boolean(pinned) && pinned === normalized;
 }
 
 /**

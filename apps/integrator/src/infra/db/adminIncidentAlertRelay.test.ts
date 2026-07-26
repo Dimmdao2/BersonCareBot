@@ -55,10 +55,22 @@ describe('messengerPhoneBindDedupKey', () => {
   });
 });
 
-/** Build a minimal DbPort mock that returns the given value_json for given setting keys. */
-function makeDbPort(settingValues: Record<string, unknown>): DbPort {
+/**
+ * Build a minimal DbPort mock that returns the given value_json for given setting keys, plus
+ * (C-4, 2026-07-26) canned platform-users / channel-bindings rows for loadAdminMessengerIdLists's
+ * role-based recipient query — admin_telegram_ids/admin_max_ids are no longer read for this at
+ * all, so those settings keys are never looked up by production code anymore; `adminTargets` is
+ * what stands in for "who currently holds the admin role and has this channel bound".
+ */
+function makeDbPort(
+  settingValues: Record<string, unknown>,
+  adminTargets: Array<{ channel_code: string; external_id: string }> = [],
+): DbPort {
   return {
-    query: vi.fn(async (_sql: string, params?: unknown[]) => {
+    query: vi.fn(async (queryText: string, params?: unknown[]) => {
+      if (queryText.includes('platform_users')) {
+        return { rows: adminTargets };
+      }
       const key = params?.[0] as string | undefined;
       if (key && key in settingValues) {
         return { rows: [{ value_json: settingValues[key] }] };
@@ -98,10 +110,10 @@ function operatorCfgJson(channels: { telegram?: boolean; max?: boolean; web_push
 
 describe('relayMessengerPhoneBindAdminIncident — MAX via dispatchPort', () => {
   it('dispatches a max intent with userId recipient when max channel is enabled', async () => {
-    const db = makeDbPort({
-      operator_health_alert_config: operatorCfgJson({ max: true }),
-      admin_max_ids: { value: ['12345'] },
-    });
+    const db = makeDbPort(
+      { operator_health_alert_config: operatorCfgJson({ max: true }) },
+      [{ channel_code: 'max', external_id: '12345' }],
+    );
     const { port, intents } = makeDispatchPort();
 
     await relayMessengerPhoneBindAdminIncident({
@@ -122,10 +134,13 @@ describe('relayMessengerPhoneBindAdminIncident — MAX via dispatchPort', () => 
   });
 
   it('dispatches to multiple max recipients', async () => {
-    const db = makeDbPort({
-      operator_health_alert_config: operatorCfgJson({ max: true }),
-      admin_max_ids: { value: ['111', '222'] },
-    });
+    const db = makeDbPort(
+      { operator_health_alert_config: operatorCfgJson({ max: true }) },
+      [
+        { channel_code: 'max', external_id: '111' },
+        { channel_code: 'max', external_id: '222' },
+      ],
+    );
     const { port, intents } = makeDispatchPort();
 
     await relayMessengerPhoneBindAdminIncident({
@@ -143,10 +158,10 @@ describe('relayMessengerPhoneBindAdminIncident — MAX via dispatchPort', () => 
   });
 
   it('skips max dispatch when no dispatch port is provided', async () => {
-    const db = makeDbPort({
-      operator_health_alert_config: operatorCfgJson({ max: true }),
-      admin_max_ids: { value: ['99999'] },
-    });
+    const db = makeDbPort(
+      { operator_health_alert_config: operatorCfgJson({ max: true }) },
+      [{ channel_code: 'max', external_id: '99999' }],
+    );
 
     // No error should be thrown; function simply logs and skips
     await expect(
@@ -160,10 +175,8 @@ describe('relayMessengerPhoneBindAdminIncident — MAX via dispatchPort', () => 
   });
 
   it('skips max dispatch when no admin_max_ids are configured', async () => {
-    const db = makeDbPort({
-      operator_health_alert_config: operatorCfgJson({ max: true }),
-      // admin_max_ids not present → empty rows
-    });
+    const db = makeDbPort({ operator_health_alert_config: operatorCfgJson({ max: true }) });
+    // No adminTargets → nobody currently holds the admin role with a max binding.
     const { port, intents } = makeDispatchPort();
 
     await relayMessengerPhoneBindAdminIncident({
@@ -178,11 +191,13 @@ describe('relayMessengerPhoneBindAdminIncident — MAX via dispatchPort', () => 
   });
 
   it('dispatches both telegram and max intents when both channels enabled', async () => {
-    const db = makeDbPort({
-      operator_health_alert_config: operatorCfgJson({ telegram: true, max: true }),
-      admin_telegram_ids: { value: ['55555'] },
-      admin_max_ids: { value: ['77777'] },
-    });
+    const db = makeDbPort(
+      { operator_health_alert_config: operatorCfgJson({ telegram: true, max: true }) },
+      [
+        { channel_code: 'telegram', external_id: '55555' },
+        { channel_code: 'max', external_id: '77777' },
+      ],
+    );
     const { port, intents } = makeDispatchPort();
 
     await relayMessengerPhoneBindAdminIncident({
@@ -226,10 +241,10 @@ describe('relayMessengerPhoneBindAdminIncident — MAX via dispatchPort', () => 
   });
 
   it('max eventId is clipped and includes channel and recipient', async () => {
-    const db = makeDbPort({
-      operator_health_alert_config: operatorCfgJson({ max: true }),
-      admin_max_ids: { value: ['42'] },
-    });
+    const db = makeDbPort(
+      { operator_health_alert_config: operatorCfgJson({ max: true }) },
+      [{ channel_code: 'max', external_id: '42' }],
+    );
     const { port, intents } = makeDispatchPort();
 
     await relayMessengerPhoneBindAdminIncident({

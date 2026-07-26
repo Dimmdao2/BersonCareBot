@@ -111,6 +111,22 @@ const envSchema = z.object({
   DOCTOR_PHONES: z.string().optional().default(""),
   /** Comma-separated phone numbers allowed for client-only entry (token / phone flow whitelist). */
   ALLOWED_PHONES: z.string().optional().default(""),
+  /**
+   * C-4 (2026-07-26, docs/ARCHITECTURE/ADMIN_ACCESS_MODEL.md): the ONE identity pinned as the
+   * platform owner, in an environment variable — outside the application's own settings, the same
+   * way Django's `createsuperuser`, AWS root, and Auth0's provider console are provisioned. Both
+   * `envRole.ts:isVerifiedEmailGlobalAdminAsync` (the fresh, per-session admin elevation check) and
+   * `instrumentation.ts:ensurePlatformOwnerAdminRole` (the idempotent `platform_users.role='admin'`
+   * assertion that replaces the literal address migration `0233_global_admin_hard_role.sql` hardcoded)
+   * read only this value — never the DB-resident `admin_emails` allowlist.
+   * Deliberately named by ROLE, not by identifier type: today it is compared as a normalized e-mail,
+   * but a pending legal question (taskdb #1034/#1035) may force a Russian phone number or ЕСИА id —
+   * that switch is a value change here, not a rename or a rebuild.
+   */
+  PLATFORM_OWNER_IDENTITY: z
+    .string()
+    .optional()
+    .transform((v) => (v ?? "").trim()),
   TELEGRAM_BOT_TOKEN: z.string().min(1).optional(),
   /** Optional URL for MVP test video (e.g. /videos/test.mp4 or external). Webapp-owned; no integrator coupling. */
   MEDIA_TEST_VIDEO_URL: z.string().optional().default(""),
@@ -228,6 +244,7 @@ const parsed = envSchema.parse({
   ADMIN_PHONES: process.env.ADMIN_PHONES,
   DOCTOR_PHONES: process.env.DOCTOR_PHONES,
   ALLOWED_PHONES: process.env.ALLOWED_PHONES,
+  PLATFORM_OWNER_IDENTITY: process.env.PLATFORM_OWNER_IDENTITY,
   TELEGRAM_BOT_TOKEN: process.env.TELEGRAM_BOT_TOKEN,
   MEDIA_TEST_VIDEO_URL: process.env.MEDIA_TEST_VIDEO_URL ?? "",
   MEDIA_STORAGE_DIR: process.env.MEDIA_STORAGE_DIR ?? "",

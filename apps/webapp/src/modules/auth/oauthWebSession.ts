@@ -2,7 +2,7 @@ import { recordAuthLogin } from "@/app-layer/product-analytics/recordAuthLogin";
 import { getAppBaseUrl } from "@/modules/system-settings/integrationRuntime";
 import { setSessionFromUser } from "@/modules/auth/service";
 import { getRedirectPathForRole } from "@/modules/auth/redirectPolicy";
-import { resolveRoleAsync } from "@/modules/auth/envRole";
+import { reconcileDbRoleWithEnvRole, resolveRoleAsync } from "@/modules/auth/envRole";
 import { pgUserByPhonePort } from "@/infra/repos/pgUserByPhone";
 import { enterStaffSecuritySelfPrincipal } from "@/app-layer/principal/staffSecuritySelfPrincipal";
 import { isPlatformUserUuid } from "@/shared/platform-user/isPlatformUserUuid";
@@ -34,11 +34,18 @@ export async function completeOAuthWebLoginRedirectUrls(opts: {
     return { ok: false, reason: "session_failed" };
   }
 
-  const role = await resolveRoleAsync({
-    phone: sessionUser.phone,
-    telegramId: sessionUser.bindings.telegramId,
-    maxId: sessionUser.bindings.maxId,
-  });
+  // C-4 (2026-07-26): `resolveRoleAsync` never promotes anyone anymore (envRole.ts) — reconciled
+  // against the just-read DB role so this can never demote an existing staff account (it used to
+  // overwrite `sessionUser.role` outright here, which — once the lists stopped granting anything —
+  // would have logged every doctor/admin out of their own role on every Yandex/OAuth login).
+  const role = reconcileDbRoleWithEnvRole(
+    sessionUser.role,
+    await resolveRoleAsync({
+      phone: sessionUser.phone,
+      telegramId: sessionUser.bindings.telegramId,
+      maxId: sessionUser.bindings.maxId,
+    }),
+  );
 
   const hint = opts.displayNameHint.trim();
   try {

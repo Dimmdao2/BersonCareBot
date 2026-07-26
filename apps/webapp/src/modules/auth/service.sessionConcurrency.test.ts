@@ -200,7 +200,6 @@ describe("getCurrentSession identity-self concurrency", () => {
     mocks.findByUserId.mockResolvedValue(user);
     mocks.getVerifiedEmailForUser.mockResolvedValue("dimmdao@gmail.com");
     mocks.isVerifiedEmailGlobalAdminAsync.mockResolvedValue(true);
-    mocks.resolveRoleAsync.mockResolvedValue(role);
 
     const session = await runWithDbBootstrapPrincipal(
       { source: "service.sessionConcurrency.email-role" },
@@ -210,11 +209,9 @@ describe("getCurrentSession identity-self concurrency", () => {
     expect(session?.user.role).toBe("admin");
     expect(mocks.getVerifiedEmailForUser).toHaveBeenCalledWith(USER_ID);
     expect(mocks.isVerifiedEmailGlobalAdminAsync).toHaveBeenCalledWith("dimmdao@gmail.com");
-    expect(mocks.resolveRoleAsync).toHaveBeenCalledWith({
-      phone: user.phone,
-      telegramId: user.bindings?.telegramId,
-      maxId: user.bindings?.maxId,
-    });
+    // C-4 (2026-07-26): the messenger/phone allowlists no longer confer role at all, so
+    // getCurrentSessionWithPrincipalMode does not consult resolveRoleAsync anymore.
+    expect(mocks.resolveRoleAsync).not.toHaveBeenCalled();
     expect(mocks.updateRole).not.toHaveBeenCalled();
   });
 
@@ -284,19 +281,16 @@ describe("getCurrentSession identity-self concurrency", () => {
     mocks.findByUserId.mockResolvedValue(admin);
     mocks.getVerifiedEmailForUser.mockResolvedValue("dimmdao@gmail.com");
     mocks.isVerifiedEmailGlobalAdminAsync.mockResolvedValue(false);
-    mocks.resolveRoleAsync.mockResolvedValue("admin");
 
     const session = await runWithDbBootstrapPrincipal(
       { source: "service.sessionConcurrency.independent-admin" },
       () => getCurrentSession(),
     );
 
+    // C-4 (2026-07-26): this admin role comes straight from the fresh DB read
+    // (resolveSessionIdentityAgainstDb), not from any messenger/phone allowlist resolution.
     expect(session?.user.role).toBe("admin");
-    expect(mocks.resolveRoleAsync).toHaveBeenCalledWith({
-      phone: admin.phone,
-      telegramId: admin.bindings.telegramId,
-      maxId: undefined,
-    });
+    expect(mocks.resolveRoleAsync).not.toHaveBeenCalled();
     expect(mocks.updateRole).not.toHaveBeenCalled();
   });
 

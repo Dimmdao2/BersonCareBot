@@ -9,7 +9,7 @@ import { exchangeYandexCode, fetchYandexUserInfo } from "@/modules/auth/oauthSer
 import { recordAuthLogin } from "@/app-layer/product-analytics/recordAuthLogin";
 import { setSessionFromUser } from "@/modules/auth/service";
 import { getRedirectPathForRole } from "@/modules/auth/redirectPolicy";
-import { resolveRoleAsync } from "@/modules/auth/envRole";
+import { reconcileDbRoleWithEnvRole, resolveRoleAsync } from "@/modules/auth/envRole";
 import { resolveUserIdForYandexOAuth } from "@/modules/auth/oauthYandexResolve";
 import { pgUserByPhonePort } from "@/infra/repos/pgUserByPhone";
 import { pgOAuthBindingsPort } from "@/infra/repos/pgOAuthBindings";
@@ -164,11 +164,17 @@ export async function handleYandexOAuthCallbackGet(request: Request): Promise<Ne
     return NextResponse.redirect(redirectToAppQuery("session_failed"));
   }
 
-  const role = await resolveRoleAsync({
-    phone: sessionUser.phone,
-    telegramId: sessionUser.bindings.telegramId,
-    maxId: sessionUser.bindings.maxId,
-  });
+  // C-4 (2026-07-26): see the equivalent comment in oauthWebSession.ts — reconciled against the
+  // just-read DB role so a resolver that never promotes anyone anymore cannot demote an existing
+  // staff account logging in via Yandex OAuth.
+  const role = reconcileDbRoleWithEnvRole(
+    sessionUser.role,
+    await resolveRoleAsync({
+      phone: sessionUser.phone,
+      telegramId: sessionUser.bindings.telegramId,
+      maxId: sessionUser.bindings.maxId,
+    }),
+  );
 
   try {
     await setSessionFromUser({

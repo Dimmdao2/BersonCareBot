@@ -43,6 +43,7 @@ describe("checkInsecureSecretsForStartup", () => {
     ADMIN_PHONES: "",
     DOCTOR_PHONES: "",
     ALLOWED_PHONES: "",
+    PLATFORM_OWNER_IDENTITY: "",
     TELEGRAM_BOT_TOKEN: undefined,
     MEDIA_TEST_VIDEO_URL: "",
     MEDIA_STORAGE_DIR: "",

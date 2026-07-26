@@ -2,7 +2,7 @@ import { createHash } from "node:crypto";
 import { logger } from "@/infra/logging/logger";
 import { relayOperatorAlert } from "./relayOperatorAlert";
 import { getConfigValue } from "@/modules/system-settings/configAdapter";
-import { parseIdTokens } from "@/shared/parsers/parseIdTokens";
+import { getAdminNotificationTargetsPort } from "./adminNotificationTargetsRuntime";
 import { getAdminIncidentStaffPushDeps } from "@/modules/admin-incidents/adminIncidentStaffPushRuntime";
 import { sendAdminIncidentStaffWebPush } from "@/modules/admin-incidents/sendAdminIncidentStaffWebPush";
 import { ADMIN_INCIDENT_ALERT_CONFIG_KEY } from "@/modules/admin-incidents/adminIncidentAlertConfig";
@@ -18,10 +18,6 @@ import { reportEmptyAudience } from "./emptyAudienceRuntime";
 
 const MAX_LINE = 500;
 const DEDUP_HOURS = 24;
-
-function dedupe(ids: string[]): string[] {
-  return [...new Set(ids.map((x) => x.trim()).filter(Boolean))];
-}
 
 function clip(s: string, max: number): string {
   const t = s.trim();
@@ -51,17 +47,23 @@ async function loadConfig(): Promise<OperatorHealthAlertConfig> {
   }
 }
 
+/**
+ * C-4 (2026-07-26, docs/ARCHITECTURE/ADMIN_ACCESS_MODEL.md): recipients are resolved from WHO
+ * ACTUALLY HOLDS THE ADMIN ROLE right now (`platform_users.role='admin'` joined to their bound
+ * channels), never from the `admin_telegram_ids`/`admin_max_ids`/`admin_phones` DB-resident address
+ * lists — those no longer confer any role either (envRole.ts) and are not read here anymore. A
+ * failed DB read degrades to an empty audience (never throws): `dispatchOperatorAlert`'s own
+ * empty-audience path already counts and alerts that on its own.
+ */
 async function loadAdminRelayTargets(): Promise<{ telegram: string[]; max: string[]; sms: string[] }> {
-  const [adminTg, adminMax, adminPhones] = await Promise.all([
-    getConfigValue("admin_telegram_ids", ""),
-    getConfigValue("admin_max_ids", ""),
-    getConfigValue("admin_phones", ""),
-  ]);
-  return {
-    telegram: dedupe(parseIdTokens(adminTg)),
-    max: dedupe(parseIdTokens(adminMax)),
-    sms: dedupe(parseIdTokens(adminPhones)),
-  };
+  const port = getAdminNotificationTargetsPort();
+  if (!port) return { telegram: [], max: [], sms: [] };
+  try {
+    return await port.loadTargets();
+  } catch (err) {
+    logger.warn({ err, scope: "operator_alert" }, "[operator_alert] load admin notification targets failed");
+    return { telegram: [], max: [], sms: [] };
+  }
 }
 
 export type DispatchOperatorAlertInput = {

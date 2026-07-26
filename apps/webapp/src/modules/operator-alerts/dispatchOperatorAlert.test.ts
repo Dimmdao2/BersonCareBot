@@ -6,12 +6,21 @@ import {
 } from "@/infra/repos/inMemoryOperatorHealthAlertSent";
 
 const getConfigValueMock = vi.hoisted(() => vi.fn());
+const loadAdminNotificationTargetsFromDbMock = vi.hoisted(() => vi.fn());
 const relayOutboundMock = vi.hoisted(() => vi.fn());
 const getAdminIncidentStaffPushDepsMock = vi.hoisted(() => vi.fn());
 const sendAdminIncidentStaffWebPushMock = vi.hoisted(() => vi.fn());
 
 vi.mock("@/modules/system-settings/configAdapter", () => ({
   getConfigValue: getConfigValueMock,
+}));
+
+// C-4 (2026-07-26): recipients now come from platform_users role, not from the
+// admin_telegram_ids/admin_max_ids/admin_phones DB-resident lists — see pgAdminNotificationTargets.ts,
+// wired to the domain layer via the registered port (adminNotificationTargetsRuntime.ts) so this
+// module never imports infra/repos directly.
+vi.mock("./adminNotificationTargetsRuntime", () => ({
+  getAdminNotificationTargetsPort: () => ({ loadTargets: loadAdminNotificationTargetsFromDbMock }),
 }));
 
 vi.mock("./relayOperatorAlert", () => ({
@@ -61,9 +70,12 @@ describe("dispatchOperatorAlert", () => {
     getConfigValueMock.mockImplementation(async (key: string) => {
       if (key === "operator_health_alert_config") return operatorConfig();
       if (key === "admin_incident_alert_config") return "";
-      if (key === "admin_telegram_ids") return "111,222";
-      if (key === "admin_max_ids") return "";
       return "";
+    });
+    loadAdminNotificationTargetsFromDbMock.mockResolvedValue({
+      telegram: ["111", "222"],
+      max: [],
+      sms: [],
     });
   });
 
@@ -115,13 +127,7 @@ describe("dispatchOperatorAlert", () => {
   });
 
   it("does not dedup when no recipients so a later retry can send", async () => {
-    getConfigValueMock.mockImplementation(async (key: string) => {
-      if (key === "operator_health_alert_config") return operatorConfig();
-      if (key === "admin_incident_alert_config") return "";
-      if (key === "admin_telegram_ids") return "";
-      if (key === "admin_max_ids") return "";
-      return "";
-    });
+    loadAdminNotificationTargetsFromDbMock.mockResolvedValue({ telegram: [], max: [], sms: [] });
     const r1 = await dispatchOperatorAlert({
       block: "critical",
       topic: "test",
@@ -130,13 +136,7 @@ describe("dispatchOperatorAlert", () => {
     });
     expect(r1.reason).toBe("no_recipients");
 
-    getConfigValueMock.mockImplementation(async (key: string) => {
-      if (key === "operator_health_alert_config") return operatorConfig();
-      if (key === "admin_incident_alert_config") return "";
-      if (key === "admin_telegram_ids") return "111";
-      if (key === "admin_max_ids") return "";
-      return "";
-    });
+    loadAdminNotificationTargetsFromDbMock.mockResolvedValue({ telegram: ["111"], max: [], sms: [] });
     const r2 = await dispatchOperatorAlert({
       block: "critical",
       topic: "test",
@@ -148,13 +148,7 @@ describe("dispatchOperatorAlert", () => {
   });
 
   it("returns no_recipients when channels on but lists empty", async () => {
-    getConfigValueMock.mockImplementation(async (key: string) => {
-      if (key === "operator_health_alert_config") return operatorConfig();
-      if (key === "admin_incident_alert_config") return "";
-      if (key === "admin_telegram_ids") return "";
-      if (key === "admin_max_ids") return "";
-      return "";
-    });
+    loadAdminNotificationTargetsFromDbMock.mockResolvedValue({ telegram: [], max: [], sms: [] });
     const r = await dispatchOperatorAlert({
       block: "critical",
       topic: "test",
@@ -181,10 +175,12 @@ describe("dispatchOperatorAlert", () => {
         });
       }
       if (key === "admin_incident_alert_config") return "";
-      if (key === "admin_telegram_ids") return "111";
-      if (key === "admin_max_ids") return "222";
-      if (key === "admin_phones") return "+79990001122";
       return "";
+    });
+    loadAdminNotificationTargetsFromDbMock.mockResolvedValue({
+      telegram: ["111"],
+      max: ["222"],
+      sms: ["+79990001122"],
     });
     getAdminIncidentStaffPushDepsMock.mockReturnValue({});
     relayOutboundMock.mockImplementation(async (input: { channel: string }) => {
@@ -222,9 +218,12 @@ describe("dispatchOperatorAlert", () => {
           });
         }
         if (key === "admin_incident_alert_config") return "";
-        if (key === "admin_telegram_ids") return "111";
-        if (key === "admin_max_ids") return "222";
         return "";
+      });
+      loadAdminNotificationTargetsFromDbMock.mockResolvedValue({
+        telegram: ["111"],
+        max: ["222"],
+        sms: [],
       });
       // Telegram unreachable — exactly the scenario D-2 is designed against.
       relayOutboundMock.mockImplementation(async (input: { channel: string }) => {
@@ -257,11 +256,9 @@ describe("dispatchOperatorAlert", () => {
           });
         }
         if (key === "admin_incident_alert_config") return "";
-        if (key === "admin_telegram_ids") return "";
-        if (key === "admin_max_ids") return "";
-        if (key === "admin_phones") return "";
         return "";
       });
+      loadAdminNotificationTargetsFromDbMock.mockResolvedValue({ telegram: [], max: [], sms: [] });
       getAdminIncidentStaffPushDepsMock.mockReturnValue(null);
 
       const result = await dispatchOperatorAlert({
@@ -290,10 +287,12 @@ describe("dispatchOperatorAlert", () => {
         } });
       }
       if (key === "admin_incident_alert_config") return "";
-      if (key === "admin_telegram_ids") return "111";
-      if (key === "admin_max_ids") return "222";
-      if (key === "admin_phones") return "+79990001122";
       return "";
+    });
+    loadAdminNotificationTargetsFromDbMock.mockResolvedValue({
+      telegram: ["111"],
+      max: ["222"],
+      sms: ["+79990001122"],
     });
     let releaseTelegram: ((value: { ok: false; reason: string }) => void) | undefined;
     relayOutboundMock.mockImplementation((value: { channel: string }) => {

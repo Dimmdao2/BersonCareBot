@@ -2,7 +2,7 @@ import { stampBootstrapPrincipal } from "@/app-layer/principal/bootstrapPrincipa
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
-import { resolveRoleFromEnv } from "@/modules/auth/envRole";
+import { reconcileDbRoleWithEnvRole, resolveRoleFromEnv } from "@/modules/auth/envRole";
 import { hashLoginTokenPlain } from "@/modules/auth/messengerLoginToken";
 import { getRedirectPathForRole } from "@/modules/auth/redirectPolicy";
 import { setSessionFromUser } from "@/modules/auth/service";
@@ -75,12 +75,14 @@ export async function POST(request: Request) {
         { status: 500 }
       );
     }
+    // C-4 (2026-07-26): the messenger/phone allowlists never grant role anymore (envRole.ts);
+    // reconciled so a resolver that only ever says "client" cannot demote an existing staff role.
     const envRole = resolveRoleFromEnv({
       phone: user.phone,
       telegramId: user.bindings?.telegramId,
       maxId: user.bindings?.maxId,
     });
-    const effectiveRole = user.role !== envRole ? envRole : user.role;
+    const effectiveRole = reconcileDbRoleWithEnvRole(user.role, envRole);
     const redirectTo = getRedirectPathForRole(effectiveRole);
 
     if (row.sessionIssuedAt) {

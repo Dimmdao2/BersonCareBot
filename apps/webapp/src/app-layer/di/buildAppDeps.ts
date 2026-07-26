@@ -194,10 +194,12 @@ import { notifyDoctorPatientMessage } from "@/modules/messaging/notifyDoctorPati
 import { notifyDoctorPatientProgramNote } from "@/modules/messaging/notifyDoctorPatientProgramNote";
 import { registerAdminIncidentStaffPushDeps } from "@/modules/admin-incidents/adminIncidentStaffPushRuntime";
 import { registerOperatorAlertDedupPort } from "@/modules/operator-alerts/operatorAlertRuntime";
+import { registerAdminNotificationTargetsPort } from "@/modules/operator-alerts/adminNotificationTargetsRuntime";
 import { registerEmptyAudienceReporter } from "@/modules/operator-alerts/emptyAudienceRuntime";
 import { emptyAudienceReporter } from "@/app-layer/operator-alerts/reportEmptyNotificationAudience";
 import { pgOperatorHealthAlertSentPort } from "@/infra/repos/pgOperatorHealthAlertSent";
 import { inMemoryOperatorHealthAlertSentPort } from "@/infra/repos/inMemoryOperatorHealthAlertSent";
+import { loadAdminNotificationTargetsFromDb } from "@/infra/repos/pgAdminNotificationTargets";
 import { createIntegratorSupportBridge } from "@/modules/messaging/integratorSupportBridge";
 import { createSendProgramNoteReply } from "@/modules/messaging/sendProgramNoteReply";
 import { resolveProgramNoteReplyContext } from "@/app-layer/messaging/programNoteReplyContext";
@@ -954,6 +956,16 @@ registerAdminIncidentStaffPushDeps({
 registerOperatorAlertDedupPort(
   !inMemoryRepos ? pgOperatorHealthAlertSentPort : inMemoryOperatorHealthAlertSentPort,
 );
+// C-4 (2026-07-26): operator-alert recipients resolved from who holds the admin role, not from
+// the admin_telegram_ids/admin_max_ids/admin_phones DB-resident address lists. No in-memory repo
+// exists for this (there is nothing to fake — an in-memory `platform_users` table isn't modeled);
+// the empty-target fallback is the same "nobody configured" shape `dispatchOperatorAlert` already
+// treats as a normal, reported empty audience.
+registerAdminNotificationTargetsPort({
+  loadTargets: !inMemoryRepos
+    ? loadAdminNotificationTargetsFromDb
+    : async () => ({ telegram: [], max: [], sms: [] }),
+});
 // D-b: счётчик пустой аудитории и env-fallback подключаются на краю, домен их не импортирует.
 registerEmptyAudienceReporter(emptyAudienceReporter);
 const resolvePatientLabelForDoctorNotify = async (platformUserId: string): Promise<string> => {
