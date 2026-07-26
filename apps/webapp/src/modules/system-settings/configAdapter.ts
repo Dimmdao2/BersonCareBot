@@ -104,11 +104,19 @@ export function invalidateConfigKey(key: string): void {
   }
 }
 
-async function fetchFromDb(key: string): Promise<string | null> {
+/**
+ * Two different things used to collapse into `null` here: "the database has no value for this key"
+ * (an answer) and "the read never happened" (not an answer). The second one is what an anonymous
+ * request gets on `system_settings` — a 42501 from the bare nonstaff login role — and caching it
+ * poisoned the key for every consumer in the process for the whole TTL. They are now distinct.
+ */
+type SettingReadOutcome = { read: true; value: string | null } | { read: false };
+
+async function fetchFromDb(key: string): Promise<SettingReadOutcome> {
   try {
-    return await readAdminSystemSettingString(key);
+    return { read: true, value: await readAdminSystemSettingString(key) };
   } catch {
-    return null;
+    return { read: false };
   }
 }
 
@@ -144,6 +152,10 @@ export function getConfigValueSync(key: string, envFallback: string): string {
  * Get a runtime config value.
  * Order: in-memory cache → system_settings DB → envFallback.
  *
+ * A read that FAILED is not an answer: the caller still gets its fallback for this one call, but
+ * nothing is written to the cache, so the next caller — which may hold a principal that is allowed
+ * to read the table — asks the database again instead of inheriting a stranger's denial.
+ *
  * @param key   The system_settings key (must be in ALLOWED_KEYS).
  * @param envFallback  The env-sourced fallback value.
  */
@@ -154,9 +166,41 @@ export async function getConfigValue(key: string, envFallback: string): Promise<
     return cached.value;
   }
 
-  const dbValue = await fetchFromDb(key);
-  const resolved = dbValue ?? envFallback;
+  const outcome = await fetchFromDb(key);
+  if (!outcome.read) return envFallback;
 
+  const resolved = outcome.value ?? envFallback;
+  cache.set(key, { value: resolved, fetchedAt: now });
+  return resolved;
+}
+
+/**
+ * Public/pre-session STRING read through the whitelisted `app.read_public_runtime_setting`
+ * SECURITY DEFINER accessor (`infra/repos/pgAppRuntimeSettings.ts`, wrapped in
+ * `runWithDbBootstrapPrincipal`) — the same sanctioned path {@link getPublicConfigBool} uses for
+ * booleans, and the one `app_display_timezone` and the provider-enabled flags already take.
+ *
+ * Reachable by every DB role the anonymous surfaces run as, including the bootstrap pool that has
+ * no SELECT on `system_settings`. Shares the TTL cache with {@link getConfigValue} so
+ * {@link getConfigValueSync} (and therefore `getAppBaseUrlSync`) still sees the configured value,
+ * and — like `getPublicConfigBool` — writes to that cache ONLY after a read that actually happened.
+ */
+export async function getPublicConfigValue(
+  key: PublicRuntimeStringKey,
+  envFallback: string,
+): Promise<string> {
+  const now = Date.now();
+  const cached = cache.get(key);
+  if (cached && now - cached.fetchedAt < TTL_MS) {
+    return cached.value;
+  }
+  let dbValue: string | null;
+  try {
+    dbValue = await safeRuntimeConfig.getPublicStringOrNull(key);
+  } catch {
+    return envFallback;
+  }
+  const resolved = dbValue?.trim() ? dbValue : envFallback;
   cache.set(key, { value: resolved, fetchedAt: now });
   return resolved;
 }

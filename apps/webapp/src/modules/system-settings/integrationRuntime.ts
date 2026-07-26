@@ -1,9 +1,22 @@
 import { env, integratorWebhookSecret, integratorWebappEntrySecret } from "@/config/env";
-import { getConfigValue, getConfigBool, getConfigValueSync } from "@/modules/system-settings/configAdapter";
+import {
+  getConfigValue,
+  getConfigBool,
+  getConfigValueSync,
+  getPublicConfigValue,
+} from "@/modules/system-settings/configAdapter";
 
-/** Публичный URL веб-приложения (admin `app_base_url`), без завершающего `/`. */
+/**
+ * Публичный URL веб-приложения (admin `app_base_url`), без завершающего `/`.
+ *
+ * Читается через публичный проекционный аксессор `app.read_public_runtime_setting` (миграция 0245),
+ * а НЕ напрямую из `system_settings`: анонимный лендинг `src/app/page.tsx` не имеет принципала, и
+ * прямое чтение таблицы отдавало 42501, после чего значение молча подменялось env-фолбэком и в
+ * таком виде попадало в общий кэш процесса — вместе с ним неверный origin уходил в приглашения
+ * клиники и в письма-подтверждения записи.
+ */
 export async function getAppBaseUrl(): Promise<string> {
-  const v = await getConfigValue("app_base_url", env.APP_BASE_URL);
+  const v = await getPublicConfigValue("app_base_url", env.APP_BASE_URL);
   return v.trim().replace(/\/$/, "") || env.APP_BASE_URL.replace(/\/$/, "");
 }
 

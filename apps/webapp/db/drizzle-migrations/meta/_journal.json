@@ -1702,6 +1702,13 @@
       "when": 1793539200038,
       "tag": "0242_server_runtime_setting_2fa_allowlist",
       "breakpoints": true
+    },
+    {
+      "idx": 245,
+      "version": "7",
+      "when": 1793539200041,
+      "tag": "0245_public_app_base_url_runtime_setting",
+      "breakpoints": true
     }
   ]
 }

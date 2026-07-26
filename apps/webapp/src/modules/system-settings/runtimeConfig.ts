@@ -109,6 +109,14 @@ export const PUBLIC_RUNTIME_STRING_DEFAULTS = {
   vk_web_login_url: "",
   support_contact_url: "",
   app_display_timezone: "Europe/Moscow",
+  /**
+   * The product's own public origin. Registered in the public projection by migration 0245 so the
+   * anonymous landing can read the CONFIGURED value through `app.read_public_runtime_setting`
+   * instead of being denied on `system_settings` and silently served the env fallback. Default is
+   * empty on purpose: "no configured value" must stay distinguishable, and the env value is the
+   * caller's fallback, not a default that could be mistaken for an answer.
+   */
+  app_base_url: "",
 } as const;
 
 export const AUTHENTICATED_RUNTIME_BOOLEAN_DEFAULTS = {
@@ -257,6 +265,25 @@ export function createRuntimeConfigProvider(port: RuntimeConfigPort) {
       } catch {
         return PUBLIC_RUNTIME_STRING_DEFAULTS[key];
       }
+    },
+    /**
+     * Public read that reports ABSENCE as `null` and lets a FAILED read throw, instead of
+     * flattening both into the compiled default. Same reason as `getServerTokenListStrict` below:
+     * a caller that caches must be able to tell "the database says there is no value" (an answer,
+     * cacheable) from "the read did not happen" (not an answer, must never be cached).
+     */
+    async getPublicStringOrNull(
+      key: PublicRuntimeStringKey,
+      operationFamily: RuntimeConfigOperationFamily = "public_auth_config",
+    ): Promise<string | null> {
+      const row = await port.getEffective({
+        key,
+        scope: "admin",
+        organizationId: null,
+        allowedAudiences: ["public"],
+        operationFamily,
+      });
+      return parseStringEnvelope(row?.valueJson ?? null);
     },
     async getAuthenticatedBoolean(key: AuthenticatedRuntimeBooleanKey): Promise<boolean> {
       try {
