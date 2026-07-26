@@ -258,17 +258,7 @@ VALUES
   ('"public"."org_enrollments"'),
   ('"public"."broadcast_drafts"'),
   ('"public"."system_settings_audit"'),
-  ('"public"."org_brand_revisions"'),
   ('"public"."comments"');
-
--- public.org_brand_revisions arrives with migration 0238. This artifact is ALSO the one-command
--- emergency FORCE rollback, so it must stay runnable on a database that predates 0238 — otherwise the
--- unresolvable target would abort the rollback with phase4_force_target_resolution_mismatch exactly
--- when it is needed. Dropped from the list only when the table genuinely does not exist; the exact
--- count assertion below follows the same condition, so a typo in the list is still caught.
-DELETE FROM phase4_force_rls_targets
-WHERE target = '"public"."org_brand_revisions"'
-  AND to_regclass('public.org_brand_revisions') IS NULL;
 
 \if :phase4_force_rls_down
 SELECT format('ALTER TABLE %s NO FORCE ROW LEVEL SECURITY;', target)
@@ -292,18 +282,16 @@ VALUES (:'phase4_force_rls_down' = '0');
 DO $phase4_force_post_assert$
 DECLARE
   v_expected_count integer;
-  v_expected_targets integer;
   v_resolved_count integer;
   v_invalid_count integer;
 BEGIN
   SELECT count(*) INTO v_expected_count FROM phase4_force_rls_targets;
 
-  -- 168 pre-0238 tables + public.org_brand_revisions once migration 0238 has been applied.
-  v_expected_targets := 168 + (to_regclass('public.org_brand_revisions') IS NOT NULL)::int;
 
-  IF v_expected_count <> v_expected_targets THEN
+
+  IF v_expected_count <> 168 THEN
     RAISE EXCEPTION 'phase4_force_target_count_mismatch: expected %, got %',
-      v_expected_targets, v_expected_count;
+      168, v_expected_count;
   END IF;
 
   SELECT count(*)

@@ -249,7 +249,12 @@ function runChecks(overrides = {}) {
     '--fixture-file="$fixture_path"',
   ]);
   requireOrdered(files.hard, loaded.hard, [
-    'pnpm --dir apps/webapp run seed:saas-test-walkthrough',
+    // The demo-fixture seed ('pnpm --dir apps/webapp run seed:saas-test-walkthrough') used to head
+    // this sequence. It was removed from the closure on 2026-07-24 — the Clinic A/B demo data existed
+    // only to validate the tenant walls while they were being built, the walls are in place, and the
+    // verification smokes below never depended on it. The owner has since ruled demo data out
+    // entirely («Демо данные НЕ ЗАВОДИТЬ ВООБЩЕ»), so this expectation is deliberately gone rather
+    // than temporarily relaxed. The elevation-cleanup guard that followed it stays as the anchor.
     "assert_cleanup_elevation",
     'log "strict closure: locked patient identity capability gate"',
     "run_test_patient_identity_capability_gate",
