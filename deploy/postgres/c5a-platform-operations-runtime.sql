@@ -36,7 +36,25 @@ GRANT SELECT ON TABLE public.be_organizations TO app_staff;
 -- (idempotent-by-code "add a new label", see POST /api/doctor/measure-kinds -- it can never edit or
 -- overwrite an existing row). Only the platform operator may UPDATE (relabel/reorder existing rows);
 -- DELETE is not used by any route and is not granted to either role.
-REVOKE UPDATE, DELETE ON TABLE public.clinical_test_measure_kinds FROM app_staff;
+--
+-- Guarded, not unconditional: this overlay also runs against scratch/throwaway databases that
+-- never apply the full drizzle-migrations chain (e.g. the U3S specialist-signup-provisioning smoke
+-- builds a private cluster from a hand-picked migration subset that does not include 0034, where
+-- this table is created). An unconditional REVOKE aborted the whole file there with `relation
+-- "public.clinical_test_measure_kinds" does not exist` -- everything after it, including the
+-- app.start_provisioned_organization_trial() SECURITY DEFINER function further down, silently
+-- never ran. The guard stays LOUD: silently skipping a security REVOKE would be worse than failing
+-- loudly, so a missing table logs a RAISE WARNING naming exactly what closure was skipped instead
+-- of just passing quietly.
+DO $c5a_clinical_test_measure_kinds_revoke$
+BEGIN
+  IF to_regclass('public.clinical_test_measure_kinds') IS NULL THEN
+    RAISE WARNING 'A-6 / #1007: public.clinical_test_measure_kinds does not exist on this database -- skipping the app_staff UPDATE/DELETE write-lock revoke. If this table is later created here without rerunning this overlay, app_staff keeps its historical blanket UPDATE/DELETE on it.';
+  ELSE
+    REVOKE UPDATE, DELETE ON TABLE public.clinical_test_measure_kinds FROM app_staff;
+  END IF;
+END
+$c5a_clinical_test_measure_kinds_revoke$;
 
 DROP POLICY IF EXISTS saas_org_dormant_p0_8_3 ON public.saas_org_entitlement_overrides;
 DROP POLICY IF EXISTS saas_org_dormant_p0_8_3 ON public.saas_organization_trials;
@@ -58,7 +76,17 @@ GRANT INSERT ON TABLE public.admin_audit_log TO app_platform_settings;
 -- A-6 / #1007: matching platform-side grant for the clinical_test_measure_kinds write-lock above.
 -- SELECT/UPDATE for catalog management; the platform principal never needs a fresh INSERT path of
 -- its own -- doctors already cover "add a new label" via the insert-only POST route.
-GRANT SELECT, UPDATE ON TABLE public.clinical_test_measure_kinds TO app_platform_settings;
+-- Guarded the same way and for the same reason as the REVOKE above: some databases this overlay
+-- runs against never create this table.
+DO $c5a_clinical_test_measure_kinds_platform_grant$
+BEGIN
+  IF to_regclass('public.clinical_test_measure_kinds') IS NULL THEN
+    RAISE WARNING 'A-6 / #1007: public.clinical_test_measure_kinds does not exist on this database -- skipping the app_platform_settings SELECT/UPDATE grant.';
+  ELSE
+    GRANT SELECT, UPDATE ON TABLE public.clinical_test_measure_kinds TO app_platform_settings;
+  END IF;
+END
+$c5a_clinical_test_measure_kinds_platform_grant$;
 -- Read-only booking configuration for the global-admin overview at /app/doctor/admin/booking.
 -- SELECT and nothing else, enumerated table by table; the matching cross-tenant read policies and
 -- the full rationale are in the be_* platform-operations policy block further down this file.
