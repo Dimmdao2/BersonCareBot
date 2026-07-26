@@ -10,9 +10,15 @@ const getSecurityStatusMock = vi.fn();
 const beginLoginMock = vi.fn();
 const issueContinuationMock = vi.fn();
 const isAuthChannelEnabledMock = vi.hoisted(() => vi.fn());
+const checkAuthConfirmRateLimitMock = vi.hoisted(() => vi.fn());
 
 vi.mock("@/modules/auth/authChannelPolicy", () => ({
   isAuthChannelEnabled: (...args: unknown[]) => isAuthChannelEnabledMock(...args),
+}));
+
+vi.mock("@/modules/auth/authConfirmRateLimit", () => ({
+  AUTH_CONFIRM_RATE_LIMIT_SEC: 600,
+  checkAuthConfirmRateLimit: (...args: unknown[]) => checkAuthConfirmRateLimitMock(...args),
 }));
 
 vi.mock("@/modules/auth/staffLoginContinuation", () => ({
@@ -54,6 +60,8 @@ describe("POST /api/auth/phone/confirm", () => {
     });
     isAuthChannelEnabledMock.mockReset();
     isAuthChannelEnabledMock.mockResolvedValue(true);
+    checkAuthConfirmRateLimitMock.mockReset();
+    checkAuthConfirmRateLimitMock.mockResolvedValue({ limited: false });
     const client = {
       userId: "phone:1",
       role: "client" as const,
@@ -68,6 +76,42 @@ describe("POST /api/auth/phone/confirm", () => {
     );
     findByUserIdMock.mockResolvedValue(client);
     getSecurityStatusMock.mockResolvedValue(null);
+  });
+
+  it("returns 429 rate_limited (same shape as an ordinary failure) when the per-IP limit trips, before touching the challenge", async () => {
+    checkAuthConfirmRateLimitMock.mockResolvedValueOnce({ limited: true, reason: "rate_limited" });
+    const res = await POST(
+      new Request("http://localhost/api/auth/phone/confirm", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ challengeId: "test-challenge", code: "123456" }),
+      })
+    );
+    expect(res.status).toBe(429);
+    expect(res.headers.get("Retry-After")).toBe("600");
+    const data = await res.json();
+    expect(data).toEqual({
+      ok: false,
+      error: "rate_limited",
+      retryAfterSeconds: 600,
+      message: expect.any(String),
+    });
+    expect(confirmPhoneAuthMock).not.toHaveBeenCalled();
+    expect(setSessionFromUserMock).not.toHaveBeenCalled();
+  });
+
+  it("returns 503 proxy_configuration when the per-IP key cannot be resolved", async () => {
+    checkAuthConfirmRateLimitMock.mockResolvedValueOnce({ limited: true, reason: "proxy_configuration" });
+    const res = await POST(
+      new Request("http://localhost/api/auth/phone/confirm", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ challengeId: "test-challenge", code: "123456" }),
+      })
+    );
+    expect(res.status).toBe(503);
+    await expect(res.json()).resolves.toEqual({ ok: false, error: "proxy_configuration" });
+    expect(confirmPhoneAuthMock).not.toHaveBeenCalled();
   });
 
   it("returns 400 when challengeId or code is missing", async () => {

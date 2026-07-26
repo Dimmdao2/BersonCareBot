@@ -4,6 +4,10 @@ import { logger } from "@/app-layer/logging/logger";
 import { z } from "zod";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import { routePaths } from "@/app-layer/routes/paths";
+import {
+  AUTH_CONFIRM_RATE_LIMIT_SEC,
+  checkAuthConfirmRateLimit,
+} from "@/modules/auth/authConfirmRateLimit";
 import { clearDiaryPurgeReauth } from "@/modules/auth/service";
 import { normalizePhone } from "@/modules/auth/phoneNormalize";
 import { requirePatientApiBusinessAccess } from "@/app-layer/guards/requireRole";
@@ -21,6 +25,18 @@ const bodySchema = z.object({
  * Финальное удаление всех дневниковых данных после OTP.
  */
 export async function POST(request: Request) {
+  const rateLimit = await checkAuthConfirmRateLimit(request, "patient_diary_purge");
+  if (rateLimit.limited) {
+    if (rateLimit.reason === "proxy_configuration") {
+      return NextResponse.json({ ok: false, error: "proxy_configuration" }, { status: 503 });
+    }
+    // Same shape this route already returns below for `result.code === "too_many_attempts"`.
+    return NextResponse.json(
+      { ok: false, error: "rate_limited", retryAfterSeconds: AUTH_CONFIRM_RATE_LIMIT_SEC },
+      { status: 429, headers: { "Retry-After": String(AUTH_CONFIRM_RATE_LIMIT_SEC) } },
+    );
+  }
+
   const gate = await requirePatientApiBusinessAccess({ returnPath: routePaths.diary });
   if (!gate.ok) return gate.response;
   const session = gate.session;

@@ -7,6 +7,10 @@ import {
   recordAuthRegistrationSuccess,
 } from "@/app-layer/product-analytics/recordAuthRegistration";
 import {
+  AUTH_CONFIRM_RATE_LIMIT_SEC,
+  checkAuthConfirmRateLimit,
+} from "@/modules/auth/authConfirmRateLimit";
+import {
   formatOtpRetryAfterMessage,
   OTP_TOO_MANY_ATTEMPTS_MESSAGE,
 } from "@/modules/auth/otpConstants";
@@ -31,6 +35,24 @@ const bodySchema = z
  */
 export async function POST(request: Request) {
   stampBootstrapPrincipal("api/auth/phone/messenger-bind/finish:POST", request);
+
+  const rateLimit = await checkAuthConfirmRateLimit(request, "phone_messenger_bind_finish");
+  if (rateLimit.limited) {
+    if (rateLimit.reason === "proxy_configuration") {
+      return NextResponse.json({ ok: false, error: "proxy_configuration" }, { status: 503 });
+    }
+    // Same shape this route already returns below for `result.code === "rate_limited"`.
+    return NextResponse.json(
+      {
+        ok: false,
+        error: "rate_limited",
+        retryAfterSeconds: AUTH_CONFIRM_RATE_LIMIT_SEC,
+        message: errorMessage("rate_limited", AUTH_CONFIRM_RATE_LIMIT_SEC),
+      },
+      { status: 429, headers: { "Retry-After": String(AUTH_CONFIRM_RATE_LIMIT_SEC) } },
+    );
+  }
+
   const raw = (await request.json().catch(() => null)) as unknown;
   const parsed = bodySchema.safeParse(raw);
   if (!parsed.success) {

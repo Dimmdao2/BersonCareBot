@@ -7,6 +7,10 @@ import {
   isAuthChannelEnabled,
 } from "@/modules/auth/authChannelPolicy";
 import {
+  AUTH_CONFIRM_RATE_LIMIT_SEC,
+  checkAuthConfirmRateLimit,
+} from "@/modules/auth/authConfirmRateLimit";
+import {
   confirmEmailChallenge,
   consumeLatestEmailChallengeCodeForUser,
   normalizeEmail,
@@ -28,6 +32,19 @@ const bodySchema = z.object({
 /** Contact-only email setup by code: verify email, set password, create session. */
 export async function POST(request: Request) {
   stampBootstrapPrincipal("api/auth/email-password/setup-code/complete:POST", request);
+
+  const rateLimit = await checkAuthConfirmRateLimit(request, "email_password_setup_code_complete");
+  if (rateLimit.limited) {
+    if (rateLimit.reason === "proxy_configuration") {
+      return NextResponse.json({ ok: false, error: "proxy_configuration" }, { status: 503 });
+    }
+    // Same shape this route already returns below for `confirmed.code === "too_many_attempts"`.
+    return NextResponse.json(
+      { ok: false, error: "rate_limited", retryAfterSeconds: AUTH_CONFIRM_RATE_LIMIT_SEC },
+      { status: 429, headers: { "Retry-After": String(AUTH_CONFIRM_RATE_LIMIT_SEC) } },
+    );
+  }
+
   if (!(await isAuthChannelEnabled("email"))) {
     return NextResponse.json(
       { ok: false, error: AUTH_CHANNEL_DISABLED_ERROR },

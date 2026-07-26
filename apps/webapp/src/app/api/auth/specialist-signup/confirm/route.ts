@@ -5,6 +5,10 @@ import {
   AUTH_CHANNEL_DISABLED_ERROR,
   isAuthChannelEnabled,
 } from "@/modules/auth/authChannelPolicy";
+import {
+  AUTH_CONFIRM_RATE_LIMIT_SEC,
+  checkAuthConfirmRateLimit,
+} from "@/modules/auth/authConfirmRateLimit";
 import { confirmEmailChallenge } from "@/modules/auth/emailAuth";
 import { getSpecialistSignupEnabled } from "@/modules/auth/specialistSignupRollout";
 import { getCurrentSession, setSessionFromUser } from "@/modules/auth/service";
@@ -28,6 +32,20 @@ const PROVISIONING_ERROR_RULES = {
 
 export async function POST(request: Request) {
   stampBootstrapPrincipal("api/auth/specialist-signup/confirm:POST", request);
+
+  const rateLimit = await checkAuthConfirmRateLimit(request, "specialist_signup_confirm");
+  if (rateLimit.limited) {
+    if (rateLimit.reason === "proxy_configuration") {
+      return jsonError("proxy_configuration", {}, { status: 503 });
+    }
+    // Same shape this route already returns below for `result.code === "too_many_attempts"`.
+    return jsonError(
+      "rate_limited",
+      { retryAfterSeconds: AUTH_CONFIRM_RATE_LIMIT_SEC },
+      { status: 429, headers: { "Retry-After": String(AUTH_CONFIRM_RATE_LIMIT_SEC) } },
+    );
+  }
+
   if (!(await isAuthChannelEnabled("email"))) {
     return jsonError(AUTH_CHANNEL_DISABLED_ERROR, {}, { status: 503 });
   }

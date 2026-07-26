@@ -143,5 +143,24 @@ export function createPgPhoneChallengeStore(): PhoneChallengeStore {
     async deleteByPhone(phone: string): Promise<void> {
       await runWebappPgText("DELETE FROM phone_challenges WHERE phone = $1", [phone]);
     },
+    async incrementVerifyAttempts(challengeId: string): Promise<number | null> {
+      // Atomic: a single `UPDATE ... SET verify_attempts = verify_attempts + 1 ... RETURNING`
+      // round trip. Postgres serializes concurrent UPDATEs to the same row, so the second writer's
+      // `+ 1` always applies to the first writer's already-committed value -- no separate SELECT
+      // FOR UPDATE is needed the way 0232/0245's SECURITY DEFINER functions need one, because those
+      // also branch on OTHER columns (code_hash, expiry) read in the same transaction; this call
+      // only ever needs the relative increment itself. `expires_at > now` guards against
+      // incrementing a row that is expired but not yet reaped by a concurrent `get()`.
+      const now = Math.floor(Date.now() / 1000);
+      const r = await runWebappPgText<{ verify_attempts: number | string }>(
+        `UPDATE phone_challenges
+         SET verify_attempts = verify_attempts + 1
+         WHERE challenge_id = $1 AND expires_at > $2
+         RETURNING verify_attempts`,
+        [challengeId, now],
+      );
+      const row = r.rows[0];
+      return row ? Number(row.verify_attempts) : null;
+    },
   };
 }

@@ -6,6 +6,10 @@ import {
   AUTH_CHANNEL_DISABLED_ERROR,
   isAuthChannelEnabled,
 } from "@/modules/auth/authChannelPolicy";
+import {
+  AUTH_CONFIRM_RATE_LIMIT_SEC,
+  checkAuthConfirmRateLimit,
+} from "@/modules/auth/authConfirmRateLimit";
 import { confirmPublicEmailOtpChallenge } from "@/modules/auth/emailOtpPublic";
 import { setSessionFromUser } from "@/modules/auth/service";
 import { getRedirectPathForRole } from "@/modules/auth/redirectPolicy";
@@ -28,6 +32,23 @@ const bodySchema = z.object({
  */
 export async function POST(request: Request) {
   stampBootstrapPrincipal("api/auth/email-otp/confirm:POST", request);
+
+  const rateLimit = await checkAuthConfirmRateLimit(request, "email_otp_confirm");
+  if (rateLimit.limited) {
+    if (rateLimit.reason === "proxy_configuration") {
+      return NextResponse.json({ ok: false, error: "proxy_configuration" }, { status: 503 });
+    }
+    return NextResponse.json(
+      {
+        ok: false,
+        error: "rate_limited",
+        retryAfterSeconds: AUTH_CONFIRM_RATE_LIMIT_SEC,
+        message: errorMessage("rate_limited", AUTH_CONFIRM_RATE_LIMIT_SEC),
+      },
+      { status: 429, headers: { "Retry-After": String(AUTH_CONFIRM_RATE_LIMIT_SEC) } },
+    );
+  }
+
   if (!(await isAuthChannelEnabled("email"))) {
     return NextResponse.json(
       { ok: false, error: AUTH_CHANNEL_DISABLED_ERROR },

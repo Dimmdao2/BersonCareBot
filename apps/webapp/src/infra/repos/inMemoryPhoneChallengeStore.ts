@@ -23,4 +23,15 @@ export const inMemoryPhoneChallengeStore: PhoneChallengeStore = {
       if (payload.phone === phone) store.delete(id);
     }
   },
+  async incrementVerifyAttempts(challengeId: string): Promise<number | null> {
+    const entry = store.get(challengeId);
+    if (!entry) return null;
+    if (entry.expiresAt <= Math.floor(Date.now() / 1000)) {
+      store.delete(challengeId);
+      return null;
+    }
+    const attempts = (entry.verifyAttempts ?? 0) + 1;
+    store.set(challengeId, { ...entry, verifyAttempts: attempts });
+    return attempts;
+  },
 };

@@ -39,4 +39,14 @@ export type PhoneChallengeStore = {
   delete(challengeId: string): Promise<void>;
   /** Удалить все челленджи для номера (новая отправка кода). */
   deleteByPhone?(phone: string): Promise<void>;
+  /**
+   * Atomic wrong-attempt increment (night plan C-2 step 1): the store computes `verifyAttempts + 1`
+   * itself in one round trip (`UPDATE phone_challenges SET verify_attempts = verify_attempts + 1
+   * ... RETURNING verify_attempts`), never the caller. This replaces the old
+   * `get()` + `set({...stored, verifyAttempts: attempts})` pair, whose second call was a blind
+   * `ON CONFLICT DO UPDATE SET verify_attempts = EXCLUDED.verify_attempts` overwrite -- a genuine
+   * lost update, not a race window, under concurrent wrong-code submissions for the same challenge.
+   * Returns null if the challenge no longer exists (already deleted/expired).
+   */
+  incrementVerifyAttempts(challengeId: string): Promise<number | null>;
 };

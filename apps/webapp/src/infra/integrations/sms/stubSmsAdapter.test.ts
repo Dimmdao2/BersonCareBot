@@ -16,6 +16,13 @@ function createTestStore(): PhoneChallengeStore & { getLastCode: () => string | 
     async delete(challengeId: string): Promise<void> {
       map.delete(challengeId);
     },
+    async incrementVerifyAttempts(challengeId: string): Promise<number | null> {
+      const entry = map.get(challengeId);
+      if (!entry) return null;
+      const attempts = (entry.verifyAttempts ?? 0) + 1;
+      map.set(challengeId, { ...entry, verifyAttempts: attempts });
+      return attempts;
+    },
     getLastCode: () => lastCode,
   };
 }

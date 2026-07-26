@@ -7,6 +7,10 @@ import {
   recordAuthRegistrationSuccess,
 } from "@/app-layer/product-analytics/recordAuthRegistration";
 import {
+  AUTH_CONFIRM_RATE_LIMIT_SEC,
+  checkAuthConfirmRateLimit,
+} from "@/modules/auth/authConfirmRateLimit";
+import {
   formatOtpRetryAfterMessage,
   OTP_TOO_MANY_ATTEMPTS_MESSAGE,
 } from "@/modules/auth/otpConstants";
@@ -28,6 +32,25 @@ const bodySchema = z.object({
  */
 export async function POST(request: Request) {
   stampBootstrapPrincipal("api/auth/phone/confirm:POST", request);
+
+  const rateLimit = await checkAuthConfirmRateLimit(request, "phone_confirm");
+  if (rateLimit.limited) {
+    if (rateLimit.reason === "proxy_configuration") {
+      return NextResponse.json({ ok: false, error: "proxy_configuration" }, { status: 503 });
+    }
+    // Same shape this route already returns for its own internal `rate_limited` code below
+    // (ASVS 6.3.8): a rate-limited response must not differ in shape from an ordinary failure.
+    return NextResponse.json(
+      {
+        ok: false,
+        error: "rate_limited",
+        retryAfterSeconds: AUTH_CONFIRM_RATE_LIMIT_SEC,
+        message: errorMessage("rate_limited", AUTH_CONFIRM_RATE_LIMIT_SEC),
+      },
+      { status: 429, headers: { "Retry-After": String(AUTH_CONFIRM_RATE_LIMIT_SEC) } },
+    );
+  }
+
   const raw = (await request.json().catch(() => null)) as unknown;
   const parsed = bodySchema.safeParse(raw);
   if (!parsed.success) {

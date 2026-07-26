@@ -129,8 +129,18 @@ async function verifyChallengeCodeRow(params: {
 
   const expectedHash = hashEmailChallengeCode(params.code);
   if (expectedHash !== params.row.code_hash) {
-    const next = attempts + 1;
-    await db.updateEmailChallengeAttempts(params.challengeId, next);
+    // Atomic: the database computes `attempts + 1` itself inside a row-locked SECURITY DEFINER
+    // function (0247), never the caller. Two concurrent wrong-code confirms against the SAME
+    // challenge each get their own correctly-incremented count -- Postgres serializes UPDATEs to
+    // the same row, so the second writer's `+ 1` always applies to the first writer's already
+    // -committed value, never to a value read before it. (Pattern: 0232_email_otp_atomic_consume.sql.)
+    const next = await db.incrementEmailChallengeAttempts(params.challengeId);
+    if (next == null) {
+      // The challenge vanished between the earlier read and this increment (e.g. a concurrent
+      // resend or expiry cleanup) -- treat exactly like "no such challenge", never "invalid code"
+      // against a challenge that no longer exists.
+      return { ok: false, code: "expired_code" };
+    }
     if (next >= OTP_MAX_VERIFY_ATTEMPTS) {
       await db.deleteEmailChallengeById(params.challengeId);
       return { ok: false, code: "too_many_attempts", retryAfterSeconds: OTP_LOCK_DURATION_SEC };

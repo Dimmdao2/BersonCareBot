@@ -1,8 +1,16 @@
 /** Обратный отсчёт до повторной отправки SMS/email challenge. */
 export const OTP_RESEND_COOLDOWN_SEC = 60;
 
-/** Максимум неверных попыток ввода кода до блокировки. */
-export const OTP_MAX_VERIFY_ATTEMPTS = 4;
+/**
+ * Максимум неверных попыток ввода кода до блокировки.
+ * Standardized at 5 (night plan C-2, step 1): Twilio Verify's proven default, matching the
+ * hardcoded `attempts >= 5` already live in `app.email_otp_public_consume_latest_challenge`
+ * (0232_email_otp_atomic_consume.sql) -- the repo previously had both 4 (this constant, used by the
+ * authenticated email/phone-login engines) and 5 (that one public engine) live at once. 5 is the
+ * *loosening* direction from 4, so it cannot lock out a real user who fat-fingers a code on their
+ * first or second try.
+ */
+export const OTP_MAX_VERIFY_ATTEMPTS = 5;
 
 /** Длительность блокировки после превышения попыток (секунды). */
 export const OTP_LOCK_DURATION_SEC = 600;

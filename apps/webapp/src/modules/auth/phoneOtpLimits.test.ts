@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { inMemoryPhoneChallengeStore } from "@/infra/repos/inMemoryPhoneChallengeStore";
 import { OTP_MAX_VERIFY_ATTEMPTS, OTP_RESEND_COOLDOWN_SEC } from "@/modules/auth/otpConstants";
+import type { PhoneChallengeStore } from "@/modules/auth/phoneChallengeStore";
 import {
   assertPhoneCanStartChallenge,
   onPhoneWrongCode,
@@ -31,6 +32,66 @@ describe("onPhoneWrongCode", () => {
       expect(last.code).toBe("too_many_attempts");
       expect(last.retryAfterSeconds).toBeDefined();
     }
+  });
+
+  it("a legitimate user who mistypes the code once still gets a fresh invalid_code, not too_many_attempts, on the next try", async () => {
+    const challengeId = `test-ch-retry-${Math.random().toString(36).slice(2)}`;
+    const phone = "+79994443322";
+    const expiresAt = Math.floor(Date.now() / 1000) + 600;
+    await inMemoryPhoneChallengeStore.set(challengeId, {
+      phone,
+      expiresAt,
+      code: "123456",
+      verifyAttempts: 0,
+    });
+
+    const first = await onPhoneWrongCode(phone, challengeId, inMemoryPhoneChallengeStore);
+    expect(first).toEqual({ ok: false, code: "invalid_code" });
+    const second = await onPhoneWrongCode(phone, challengeId, inMemoryPhoneChallengeStore);
+    expect(second).toEqual({ ok: false, code: "invalid_code" });
+
+    const stored = await inMemoryPhoneChallengeStore.get(challengeId);
+    expect(stored?.verifyAttempts).toBe(2);
+  });
+
+  /**
+   * B-x atomicity proof (night plan C-2, step 1), mirroring
+   * emailAuth.confirmDb.test.ts's mock-level proof. `incrementVerifyAttempts` here models the DB's
+   * own guarantee for `UPDATE phone_challenges SET verify_attempts = verify_attempts + 1 ...
+   * RETURNING` (pgPhoneChallengeStore.ts): it mutates a SHARED counter the instant it is called,
+   * with no `await` between reading the current value and writing the incremented one back --
+   * exactly what makes a real Postgres UPDATE atomic under concurrent writers to the same row. A
+   * true multi-connection Postgres proof lives in
+   * pgPhoneChallengeAtomicAttempts.devDb.integration.test.ts (opt-in, mutating DEV/scratch DB).
+   */
+  it("N concurrent wrong-code attempts against the same challenge are all counted -- no lost update", async () => {
+    const challengeId = `test-ch-concurrent-${Math.random().toString(36).slice(2)}`;
+    const phone = "+79993332211";
+    const expiresAt = Math.floor(Date.now() / 1000) + 600;
+
+    let sharedAttempts = 0;
+    const store: PhoneChallengeStore = {
+      async get() {
+        return { phone, expiresAt, code: "123456", verifyAttempts: sharedAttempts };
+      },
+      async set() {},
+      async delete() {},
+      async incrementVerifyAttempts() {
+        sharedAttempts += 1;
+        return sharedAttempts;
+      },
+    };
+
+    const N = OTP_MAX_VERIFY_ATTEMPTS - 1;
+    const results = await Promise.all(
+      Array.from({ length: N }, () => onPhoneWrongCode(phone, challengeId, store)),
+    );
+
+    expect(results).toHaveLength(N);
+    for (const result of results) {
+      expect(result).toEqual({ ok: false, code: "invalid_code" });
+    }
+    expect(sharedAttempts).toBe(N);
   });
 });
 

@@ -240,7 +240,14 @@ REVOKE EXECUTE ON FUNCTION app.email_auth_insert_email_challenge(uuid, text, tex
 REVOKE EXECUTE ON FUNCTION app.email_auth_delete_email_challenge_by_id(uuid) FROM :"d3_4_bootstrap_base_role";
 REVOKE EXECUTE ON FUNCTION app.email_auth_upsert_email_send_cooldown(uuid, text) FROM :"d3_4_bootstrap_base_role";
 REVOKE EXECUTE ON FUNCTION app.email_auth_find_email_challenge_for_confirm(uuid, uuid) FROM :"d3_4_bootstrap_base_role";
-REVOKE EXECUTE ON FUNCTION app.email_auth_update_email_challenge_attempts(uuid, integer) FROM :"d3_4_bootstrap_base_role";
+-- 0247 renamed this from an absolute-set accessor to an atomic increment; guarded the same way as
+-- the 0246 booking pair above since a DB that predates 0247 would otherwise FATAL on a REVOKE
+-- against a function that does not exist yet.
+SELECT format(
+  'REVOKE EXECUTE ON FUNCTION app.email_auth_increment_email_challenge_attempts(uuid) FROM %I',
+  :'d3_4_bootstrap_base_role'
+)
+WHERE to_regprocedure('app.email_auth_increment_email_challenge_attempts(uuid)') IS NOT NULL \gexec
 REVOKE EXECUTE ON FUNCTION app.email_auth_find_email_owner_conflict(uuid, text) FROM :"d3_4_bootstrap_base_role";
 REVOKE EXECUTE ON FUNCTION app.email_auth_verify_user_email(uuid, text) FROM :"d3_4_bootstrap_base_role";
 REVOKE EXECUTE ON FUNCTION app.email_auth_find_email_challenge_for_consume(uuid, uuid) FROM :"d3_4_bootstrap_base_role";
@@ -479,7 +486,13 @@ GRANT EXECUTE ON FUNCTION app.email_auth_insert_email_challenge(uuid, text, text
 GRANT EXECUTE ON FUNCTION app.email_auth_delete_email_challenge_by_id(uuid) TO :"d3_4_bootstrap_base_role";
 GRANT EXECUTE ON FUNCTION app.email_auth_upsert_email_send_cooldown(uuid, text) TO :"d3_4_bootstrap_base_role";
 GRANT EXECUTE ON FUNCTION app.email_auth_find_email_challenge_for_confirm(uuid, uuid) TO :"d3_4_bootstrap_base_role";
-GRANT EXECUTE ON FUNCTION app.email_auth_update_email_challenge_attempts(uuid, integer) TO :"d3_4_bootstrap_base_role";
+-- 0247 renamed this from an absolute-set accessor to an atomic increment; guarded the same way as
+-- the 0246 booking pair above so a DB that predates 0247 is a no-op rather than a FATAL.
+SELECT format(
+  'GRANT EXECUTE ON FUNCTION app.email_auth_increment_email_challenge_attempts(uuid) TO %I',
+  :'d3_4_bootstrap_base_role'
+)
+WHERE to_regprocedure('app.email_auth_increment_email_challenge_attempts(uuid)') IS NOT NULL \gexec
 GRANT EXECUTE ON FUNCTION app.email_auth_find_email_owner_conflict(uuid, text) TO :"d3_4_bootstrap_base_role";
 GRANT EXECUTE ON FUNCTION app.email_auth_verify_user_email(uuid, text) TO :"d3_4_bootstrap_base_role";
 GRANT EXECUTE ON FUNCTION app.email_auth_find_email_challenge_for_consume(uuid, uuid) TO :"d3_4_bootstrap_base_role";

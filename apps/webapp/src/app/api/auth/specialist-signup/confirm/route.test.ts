@@ -41,6 +41,12 @@ vi.mock("@/modules/auth/specialistSignupRollout", () => ({
   getSpecialistSignupEnabled: () => getSpecialistSignupEnabledMock(),
 }));
 
+const checkAuthConfirmRateLimitMock = vi.hoisted(() => vi.fn());
+vi.mock("@/modules/auth/authConfirmRateLimit", () => ({
+  AUTH_CONFIRM_RATE_LIMIT_SEC: 600,
+  checkAuthConfirmRateLimit: (...args: unknown[]) => checkAuthConfirmRateLimitMock(...args),
+}));
+
 import { POST } from "./route";
 import * as authChannelPolicy from "@/modules/auth/authChannelPolicy";
 
@@ -57,6 +63,48 @@ describe("POST /api/auth/specialist-signup/confirm", () => {
     ensureProfileMock.mockResolvedValue({ enrolled: false });
     getSpecialistSignupEnabledMock.mockReset();
     getSpecialistSignupEnabledMock.mockResolvedValue(true);
+    checkAuthConfirmRateLimitMock.mockReset();
+    checkAuthConfirmRateLimitMock.mockResolvedValue({ limited: false });
+  });
+
+  it("returns 429 rate_limited (same shape as too_many_attempts) when the per-IP limit trips, before checking rollout or the challenge", async () => {
+    checkAuthConfirmRateLimitMock.mockResolvedValueOnce({ limited: true, reason: "rate_limited" });
+    const res = await POST(
+      new Request("http://localhost/api/auth/specialist-signup/confirm", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          challengeId: "22222222-2222-4222-8222-222222222222",
+          code: "123456",
+        }),
+      }),
+    );
+    expect(res.status).toBe(429);
+    expect(res.headers.get("Retry-After")).toBe("600");
+    await expect(res.json()).resolves.toEqual({
+      ok: false,
+      error: "rate_limited",
+      retryAfterSeconds: 600,
+    });
+    expect(getSpecialistSignupEnabledMock).not.toHaveBeenCalled();
+    expect(confirmEmailChallengeMock).not.toHaveBeenCalled();
+  });
+
+  it("returns 503 proxy_configuration when the per-IP key cannot be resolved", async () => {
+    checkAuthConfirmRateLimitMock.mockResolvedValueOnce({ limited: true, reason: "proxy_configuration" });
+    const res = await POST(
+      new Request("http://localhost/api/auth/specialist-signup/confirm", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          challengeId: "22222222-2222-4222-8222-222222222222",
+          code: "123456",
+        }),
+      }),
+    );
+    expect(res.status).toBe(503);
+    await expect(res.json()).resolves.toEqual({ ok: false, error: "proxy_configuration" });
+    expect(confirmEmailChallengeMock).not.toHaveBeenCalled();
   });
 
   it("rejects a disabled email channel before challenge lookup or provisioning", async () => {

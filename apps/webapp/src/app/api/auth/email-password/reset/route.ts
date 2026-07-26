@@ -6,6 +6,7 @@ import {
   AUTH_CHANNEL_DISABLED_ERROR,
   isAuthChannelEnabled,
 } from "@/modules/auth/authChannelPolicy";
+import { checkAuthConfirmRateLimit } from "@/modules/auth/authConfirmRateLimit";
 import {
   consumeEmailChallengeCode,
   consumeLatestEmailChallengeCodeForUser,
@@ -30,6 +31,18 @@ function resetNeutralFailureResponse() {
 
 export async function POST(request: Request) {
   stampBootstrapPrincipal("api/auth/email-password/reset:POST", request);
+
+  const rateLimit = await checkAuthConfirmRateLimit(request, "email_password_reset");
+  if (rateLimit.limited) {
+    if (rateLimit.reason === "proxy_configuration") {
+      return NextResponse.json({ ok: false, error: "proxy_configuration" }, { status: 503 });
+    }
+    // This route already gives ZERO distinguishing signal for ANY failure -- even a nonexistent
+    // account -- to avoid an account-existence oracle. A rate-limited response keeps that same
+    // uniform shape (ASVS 6.3.8) rather than introducing a new, more informative 429/"rate_limited".
+    return resetNeutralFailureResponse();
+  }
+
   if (!(await isAuthChannelEnabled("email"))) {
     return NextResponse.json(
       { ok: false, error: AUTH_CHANNEL_DISABLED_ERROR },

@@ -34,7 +34,14 @@ export type EmailAuthDbPort = {
   deleteEmailChallengeById: (challengeId: string) => Promise<void>;
   upsertEmailSendCooldown: (userId: string, emailNormalized: string) => Promise<void>;
   findEmailChallengeForConfirm: (challengeId: string, userId: string) => Promise<EmailChallengeRow | null>;
-  updateEmailChallengeAttempts: (challengeId: string, attempts: number) => Promise<void>;
+  /**
+   * Atomic wrong-attempt increment: the database computes `attempts + 1` itself (see
+   * `app.email_auth_increment_email_challenge_attempts`, migration 0247) — the caller never passes
+   * a pre-computed absolute value, which is what made the old `updateEmailChallengeAttempts`
+   * susceptible to a lost update under concurrent wrong-code confirms. Returns null if the
+   * challenge no longer exists.
+   */
+  incrementEmailChallengeAttempts: (challengeId: string) => Promise<number | null>;
   findEmailOwnerConflict: (userId: string, email: string) => Promise<boolean>;
   verifyUserEmail: (userId: string, email: string) => Promise<void>;
   /** Verify a free email or safely merge its sole account owner into the current patient. */

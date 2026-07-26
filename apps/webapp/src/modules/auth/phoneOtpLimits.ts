@@ -100,8 +100,17 @@ export async function onPhoneWrongCode(
     return { ok: false, code: "expired_code" };
   }
 
-  const attempts = (stored.verifyAttempts ?? 0) + 1;
-  await challengeStore.set(challengeId, { ...stored, verifyAttempts: attempts });
+  // Atomic: the store computes verifyAttempts + 1 itself in one round trip (never a full-payload
+  // `set({...stored, verifyAttempts})` overwrite, which was a blind `ON CONFLICT DO UPDATE SET
+  // verify_attempts = EXCLUDED.verify_attempts` -- a genuine lost update under concurrent wrong-code
+  // submissions for the same challenge, not merely a race window).
+  const attempts = await challengeStore.incrementVerifyAttempts(challengeId);
+  if (attempts == null) {
+    // The challenge vanished between the read above and this increment (e.g. a concurrent resend,
+    // expiry cleanup, or a second confirm that already succeeded and deleted it) -- treat exactly
+    // like "no such challenge", never "invalid code" against a challenge that no longer exists.
+    return { ok: false, code: "expired_code" };
+  }
 
   if (attempts >= OTP_MAX_VERIFY_ATTEMPTS) {
     await challengeStore.delete(challengeId);

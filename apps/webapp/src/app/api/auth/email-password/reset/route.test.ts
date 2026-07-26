@@ -38,6 +38,12 @@ vi.mock("@/modules/auth/pinHash", () => ({
   hashPin: async (p: string) => `hashed:${p}`,
 }));
 
+const checkAuthConfirmRateLimitMock = vi.hoisted(() => vi.fn());
+vi.mock("@/modules/auth/authConfirmRateLimit", () => ({
+  AUTH_CONFIRM_RATE_LIMIT_SEC: 600,
+  checkAuthConfirmRateLimit: (...args: unknown[]) => checkAuthConfirmRateLimitMock(...args),
+}));
+
 import { POST } from "./route";
 import * as authChannelPolicy from "@/modules/auth/authChannelPolicy";
 
@@ -50,8 +56,48 @@ describe("POST /api/auth/email-password/reset", () => {
     getSecurityStatus.mockReset();
     revokeSessions.mockReset();
     invalidateSessionsForSelf.mockReset();
+    checkAuthConfirmRateLimitMock.mockReset();
+    checkAuthConfirmRateLimitMock.mockResolvedValue({ limited: false });
     getSecurityStatus.mockResolvedValue(null);
     invalidateSessionsForSelf.mockResolvedValue(undefined);
+  });
+
+  it("returns the SAME neutral invalid_code/400 shape as any other failure when the per-IP limit trips (no account-existence oracle)", async () => {
+    checkAuthConfirmRateLimitMock.mockResolvedValueOnce({ limited: true, reason: "rate_limited" });
+    const res = await POST(
+      new Request("http://localhost/api/auth/email-password/reset", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          email: "known@example.com",
+          code: "123456",
+          newPassword: "newsecret12",
+        }),
+      }),
+    );
+    expect(res.status).toBe(400);
+    await expect(res.json()).resolves.toEqual({ ok: false, error: "invalid_code" });
+    expect(findVerified).not.toHaveBeenCalled();
+    expect(consumeById).not.toHaveBeenCalled();
+    expect(consumeLatest).not.toHaveBeenCalled();
+  });
+
+  it("returns 503 proxy_configuration when the per-IP key cannot be resolved", async () => {
+    checkAuthConfirmRateLimitMock.mockResolvedValueOnce({ limited: true, reason: "proxy_configuration" });
+    const res = await POST(
+      new Request("http://localhost/api/auth/email-password/reset", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          email: "known@example.com",
+          code: "123456",
+          newPassword: "newsecret12",
+        }),
+      }),
+    );
+    expect(res.status).toBe(503);
+    await expect(res.json()).resolves.toEqual({ ok: false, error: "proxy_configuration" });
+    expect(findVerified).not.toHaveBeenCalled();
   });
 
   it("rejects a disabled email channel before lookup, consumption, or password mutation", async () => {

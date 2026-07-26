@@ -44,6 +44,12 @@ vi.mock("@/modules/auth/service", () => ({
   setSessionFromUser,
 }));
 
+const checkAuthConfirmRateLimitMock = vi.hoisted(() => vi.fn());
+vi.mock("@/modules/auth/authConfirmRateLimit", () => ({
+  AUTH_CONFIRM_RATE_LIMIT_SEC: 600,
+  checkAuthConfirmRateLimit: (...args: unknown[]) => checkAuthConfirmRateLimitMock(...args),
+}));
+
 import { POST } from "./route";
 import * as authChannelPolicy from "@/modules/auth/authChannelPolicy";
 
@@ -56,6 +62,49 @@ describe("POST /api/auth/email-password/setup-code/complete", () => {
     confirmEmailChallenge.mockReset();
     consumeLatestEmailChallengeCodeForUser.mockReset();
     setSessionFromUser.mockReset();
+    checkAuthConfirmRateLimitMock.mockReset();
+    checkAuthConfirmRateLimitMock.mockResolvedValue({ limited: false });
+  });
+
+  it("returns 429 rate_limited (same shape as too_many_attempts) when the per-IP limit trips, before resolving auth state", async () => {
+    checkAuthConfirmRateLimitMock.mockResolvedValueOnce({ limited: true, reason: "rate_limited" });
+    const res = await POST(
+      new Request("http://localhost/api/auth/email-password/setup-code/complete", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          email: "patient@example.com",
+          code: "123456",
+          password: "newsecret12",
+        }),
+      }),
+    );
+    expect(res.status).toBe(429);
+    expect(res.headers.get("Retry-After")).toBe("600");
+    await expect(res.json()).resolves.toEqual({
+      ok: false,
+      error: "rate_limited",
+      retryAfterSeconds: 600,
+    });
+    expect(resolveAuthState).not.toHaveBeenCalled();
+  });
+
+  it("returns 503 proxy_configuration when the per-IP key cannot be resolved", async () => {
+    checkAuthConfirmRateLimitMock.mockResolvedValueOnce({ limited: true, reason: "proxy_configuration" });
+    const res = await POST(
+      new Request("http://localhost/api/auth/email-password/setup-code/complete", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          email: "patient@example.com",
+          code: "123456",
+          password: "newsecret12",
+        }),
+      }),
+    );
+    expect(res.status).toBe(503);
+    await expect(res.json()).resolves.toEqual({ ok: false, error: "proxy_configuration" });
+    expect(resolveAuthState).not.toHaveBeenCalled();
   });
 
   it("rejects a disabled email channel before lookup, code consumption, or password mutation", async () => {

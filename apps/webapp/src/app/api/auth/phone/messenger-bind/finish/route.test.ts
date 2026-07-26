@@ -13,6 +13,12 @@ const readContinuationMock = vi.hoisted(() => vi.fn());
 const issueContinuationMock = vi.hoisted(() => vi.fn());
 
 const getPhoneChallengeMock = vi.hoisted(() => vi.fn());
+const checkAuthConfirmRateLimitMock = vi.hoisted(() => vi.fn());
+
+vi.mock("@/modules/auth/authConfirmRateLimit", () => ({
+  AUTH_CONFIRM_RATE_LIMIT_SEC: 600,
+  checkAuthConfirmRateLimit: (...args: unknown[]) => checkAuthConfirmRateLimitMock(...args),
+}));
 
 vi.mock("@/app-layer/di/buildAppDeps", () => ({
   buildAppDeps: () => ({
@@ -59,6 +65,8 @@ describe("POST /api/auth/phone/messenger-bind/finish", () => {
     beginLoginMock.mockReset();
     readContinuationMock.mockReset();
     issueContinuationMock.mockReset();
+    checkAuthConfirmRateLimitMock.mockReset();
+    checkAuthConfirmRateLimitMock.mockResolvedValue({ limited: false });
     getCurrentSessionMock.mockResolvedValue(null);
     readContinuationMock.mockResolvedValue(null);
     getPhoneChallengeMock.mockResolvedValue({ isRegistrationIntent: false, phone: "+79991234567" });
@@ -70,6 +78,41 @@ describe("POST /api/auth/phone/messenger-bind/finish", () => {
       bindings: {},
     });
     getSecurityStatusMock.mockResolvedValue(null);
+  });
+
+  it("returns 429 rate_limited (same shape as an ordinary failure) when the per-IP limit trips, before resolving the challenge", async () => {
+    checkAuthConfirmRateLimitMock.mockResolvedValueOnce({ limited: true, reason: "rate_limited" });
+    const res = await POST(
+      new Request("http://localhost/api/auth/phone/messenger-bind/finish", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ setupToken: "some-token" }),
+      }),
+    );
+    expect(res.status).toBe(429);
+    expect(res.headers.get("Retry-After")).toBe("600");
+    const data = await res.json();
+    expect(data).toEqual({
+      ok: false,
+      error: "rate_limited",
+      retryAfterSeconds: 600,
+      message: expect.any(String),
+    });
+    expect(resolveLoginChallengeMock).not.toHaveBeenCalled();
+  });
+
+  it("returns 503 proxy_configuration when the per-IP key cannot be resolved", async () => {
+    checkAuthConfirmRateLimitMock.mockResolvedValueOnce({ limited: true, reason: "proxy_configuration" });
+    const res = await POST(
+      new Request("http://localhost/api/auth/phone/messenger-bind/finish", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ setupToken: "some-token" }),
+      }),
+    );
+    expect(res.status).toBe(503);
+    await expect(res.json()).resolves.toEqual({ ok: false, error: "proxy_configuration" });
+    expect(resolveLoginChallengeMock).not.toHaveBeenCalled();
   });
 
   it("returns 400 for invalid body", async () => {

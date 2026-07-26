@@ -97,11 +97,21 @@ export async function findEmailChallengeForConfirm(
   return row.rows[0] ?? null;
 }
 
-export async function updateEmailChallengeAttempts(challengeId: string, attempts: number): Promise<void> {
-  await runWebappPgText("SELECT app.email_auth_update_email_challenge_attempts($1::uuid, $2::integer)", [
-    challengeId,
-    attempts,
-  ]);
+/**
+ * Atomic wrong-attempt increment (B-x, night plan C-2 step 1): the database itself computes
+ * `attempts + 1` inside a row-locked SECURITY DEFINER function
+ * (`app.email_auth_increment_email_challenge_attempts`, migration 0247), never the caller. Two
+ * concurrent wrong-code confirms against the SAME challenge can therefore never lose an increment
+ * the way the old absolute-set `updateEmailChallengeAttempts(challengeId, attempts)` could.
+ * Returns null if the challenge no longer exists (e.g. a concurrent resend/expiry deleted it).
+ */
+export async function incrementEmailChallengeAttempts(challengeId: string): Promise<number | null> {
+  const r = await runWebappPgText<{ attempts: number | string }>(
+    "SELECT attempts FROM app.email_auth_increment_email_challenge_attempts($1::uuid)",
+    [challengeId],
+  );
+  const row = r.rows[0];
+  return row ? Number(row.attempts) : null;
 }
 
 export async function findEmailOwnerConflict(userId: string, email: string): Promise<boolean> {
@@ -224,7 +234,7 @@ export const pgEmailAuthPort = {
   deleteEmailChallengeById,
   upsertEmailSendCooldown,
   findEmailChallengeForConfirm,
-  updateEmailChallengeAttempts,
+  incrementEmailChallengeAttempts,
   findEmailOwnerConflict,
   verifyUserEmail,
   claimVerifiedEmail,

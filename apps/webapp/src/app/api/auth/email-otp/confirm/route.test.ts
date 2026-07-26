@@ -6,10 +6,16 @@ const confirmPublicEmailOtpChallengeMock = vi.fn();
 const findByUserIdMock = vi.fn();
 const isVerifiedEmailGlobalAdminAsyncMock = vi.fn();
 const isAuthChannelEnabledMock = vi.hoisted(() => vi.fn());
+const checkAuthConfirmRateLimitMock = vi.hoisted(() => vi.fn());
 
 vi.mock("@/modules/auth/authChannelPolicy", () => ({
   AUTH_CHANNEL_DISABLED_ERROR: "auth_channel_disabled",
   isAuthChannelEnabled: (...args: unknown[]) => isAuthChannelEnabledMock(...args),
+}));
+
+vi.mock("@/modules/auth/authConfirmRateLimit", () => ({
+  AUTH_CONFIRM_RATE_LIMIT_SEC: 600,
+  checkAuthConfirmRateLimit: (...args: unknown[]) => checkAuthConfirmRateLimitMock(...args),
 }));
 
 const testUser = {
@@ -56,12 +62,47 @@ describe("POST /api/auth/email-otp/confirm", () => {
     trySetInitialIfEmptyMock.mockClear();
     isAuthChannelEnabledMock.mockReset();
     isAuthChannelEnabledMock.mockResolvedValue(true);
+    checkAuthConfirmRateLimitMock.mockReset();
+    checkAuthConfirmRateLimitMock.mockResolvedValue({ limited: false });
 
     findByUserIdMock.mockResolvedValue(testUser);
     confirmPublicEmailOtpChallengeMock.mockResolvedValue({
       ok: true as const,
       userId: testUser.userId,
     });
+  });
+
+  it("returns 429 rate_limited (same shape as too_many_attempts) when the per-IP limit trips, before touching the challenge", async () => {
+    checkAuthConfirmRateLimitMock.mockResolvedValueOnce({ limited: true, reason: "rate_limited" });
+    const res = await POST(
+      new Request("http://localhost/api/auth/email-otp/confirm", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ email: "user@example.com", code: "123456" }),
+      }),
+    );
+    expect(res.status).toBe(429);
+    expect(res.headers.get("Retry-After")).toBe("600");
+    const data = (await res.json()) as Record<string, unknown>;
+    expect(data.ok).toBe(false);
+    expect(data.error).toBe("rate_limited");
+    expect(data.retryAfterSeconds).toBe(600);
+    expect(confirmPublicEmailOtpChallengeMock).not.toHaveBeenCalled();
+    expect(setSessionFromUserMock).not.toHaveBeenCalled();
+  });
+
+  it("returns 503 proxy_configuration when the per-IP key cannot be resolved", async () => {
+    checkAuthConfirmRateLimitMock.mockResolvedValueOnce({ limited: true, reason: "proxy_configuration" });
+    const res = await POST(
+      new Request("http://localhost/api/auth/email-otp/confirm", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ email: "user@example.com", code: "123456" }),
+      }),
+    );
+    expect(res.status).toBe(503);
+    await expect(res.json()).resolves.toEqual({ ok: false, error: "proxy_configuration" });
+    expect(confirmPublicEmailOtpChallengeMock).not.toHaveBeenCalled();
   });
 
   it("rejects a disabled email channel before challenge consumption or session work", async () => {

@@ -122,3 +122,24 @@ export const isPatientInviteEmailConfirmRateLimitedByKey = createSlidingWindowRa
   maxPerWindow: 20,
   db: authRateLimitDb,
 });
+
+/**
+ * Per-IP limit shared by every OTP/code CONFIRM route that had none (night plan C-2, step 2):
+ * `phone/confirm`, `email-otp/confirm`, `email-password/reset`, `email-password/setup-code/complete`,
+ * `specialist-signup/confirm`, `email/confirm`, `phone/messenger-bind/finish`, `patient/diary/purge`.
+ * ONE shared scope rather than 8 near-identical ones (single chokepoint) -- an attacker rotating
+ * across these routes from the same IP is bounded by the same budget, not 8 separate ones.
+ *
+ * Threshold 30/10min matches `booking.public_create_confirm` (already proven in this repo) rather
+ * than Cloudflare's stricter 5/5min OTP guidance, deliberately: a clinic's shared front-desk IP
+ * confirming several patients' codes back-to-back must not be throttled. A limit that locks out a
+ * real clinic is a defect (owner ruling, night plan C-2). Internal consistency with the two
+ * existing proven confirm-shaped scopes: `booking.public_create_confirm` (30/10min) and
+ * `patient_invite.email_confirm` (20/10min).
+ */
+export const isAuthConfirmRateLimitedByKey = createSlidingWindowRateLimit({
+  scope: "auth.confirm",
+  windowMs: 10 * 60 * 1000,
+  maxPerWindow: 30,
+  db: authRateLimitDb,
+});

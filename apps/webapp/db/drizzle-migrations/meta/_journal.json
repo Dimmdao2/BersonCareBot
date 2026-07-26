@@ -1730,6 +1730,13 @@
       "when": 1793539200043,
       "tag": "0246_drop_be_ssa_duration_minutes_override",
       "breakpoints": true
+    },
+    {
+      "idx": 247,
+      "version": "7",
+      "when": 1793539200044,
+      "tag": "0247_email_challenge_atomic_attempts",
+      "breakpoints": true
     }
   ]
 }

@@ -9,6 +9,12 @@ vi.mock("@/app-layer/guards/requireRole", () => ({
   requirePatientApiBusinessAccess: mockRequirePatientApiBusinessAccess,
 }));
 
+const checkAuthConfirmRateLimitMock = vi.hoisted(() => vi.fn());
+vi.mock("@/modules/auth/authConfirmRateLimit", () => ({
+  AUTH_CONFIRM_RATE_LIMIT_SEC: 600,
+  checkAuthConfirmRateLimit: (...args: unknown[]) => checkAuthConfirmRateLimitMock(...args),
+}));
+
 import * as authService from "@/modules/auth/service";
 import { POST } from "./route";
 
@@ -30,6 +36,8 @@ describe("POST /api/patient/diary/purge", () => {
   beforeEach(() => {
     purgeMock.mockClear();
     confirmPhoneAuthMock.mockReset();
+    checkAuthConfirmRateLimitMock.mockReset();
+    checkAuthConfirmRateLimitMock.mockResolvedValue({ limited: false });
     mockRequirePatientApiBusinessAccess.mockResolvedValue({
       ok: true,
       session: {
@@ -56,6 +64,39 @@ describe("POST /api/patient/diary/purge", () => {
       },
       redirectTo: "/app/patient",
     });
+  });
+
+  it("returns 429 rate_limited (same shape as too_many_attempts) when the per-IP limit trips, before the auth gate", async () => {
+    checkAuthConfirmRateLimitMock.mockResolvedValueOnce({ limited: true, reason: "rate_limited" });
+    const res = await POST(
+      new Request("http://localhost/api/patient/diary/purge", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ challengeId: "c1", code: "123456" }),
+      })
+    );
+    expect(res.status).toBe(429);
+    expect(res.headers.get("Retry-After")).toBe("600");
+    await expect(res.json()).resolves.toEqual({
+      ok: false,
+      error: "rate_limited",
+      retryAfterSeconds: 600,
+    });
+    expect(mockRequirePatientApiBusinessAccess).not.toHaveBeenCalled();
+    expect(confirmPhoneAuthMock).not.toHaveBeenCalled();
+  });
+
+  it("returns 503 proxy_configuration when the per-IP key cannot be resolved", async () => {
+    checkAuthConfirmRateLimitMock.mockResolvedValueOnce({ limited: true, reason: "proxy_configuration" });
+    const res = await POST(
+      new Request("http://localhost/api/patient/diary/purge", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ challengeId: "c1", code: "123456" }),
+      })
+    );
+    expect(res.status).toBe(503);
+    await expect(res.json()).resolves.toEqual({ ok: false, error: "proxy_configuration" });
   });
 
   it("returns 400 when body invalid", async () => {

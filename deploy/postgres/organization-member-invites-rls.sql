@@ -37,7 +37,7 @@ DROP FUNCTION IF EXISTS app.email_auth_find_latest_email_challenge_for_user(uuid
 DROP FUNCTION IF EXISTS app.email_auth_find_email_challenge_for_consume(uuid, uuid);
 DROP FUNCTION IF EXISTS app.email_auth_verify_user_email(uuid, text);
 DROP FUNCTION IF EXISTS app.email_auth_find_email_owner_conflict(uuid, text);
-DROP FUNCTION IF EXISTS app.email_auth_update_email_challenge_attempts(uuid, integer);
+DROP FUNCTION IF EXISTS app.email_auth_increment_email_challenge_attempts(uuid);
 DROP FUNCTION IF EXISTS app.email_auth_find_email_challenge_for_confirm(uuid, uuid);
 DROP FUNCTION IF EXISTS app.email_auth_upsert_email_send_cooldown(uuid, text);
 DROP FUNCTION IF EXISTS app.email_auth_delete_email_challenge_by_id(uuid);
@@ -788,19 +788,36 @@ AS $$
     AND c.user_id = p_user_id
 $$;
 
-CREATE OR REPLACE FUNCTION app.email_auth_update_email_challenge_attempts(
-  p_challenge_id uuid,
-  p_attempts integer
+-- Keep this runtime overlay semantically aligned with migration 0247. The old absolute-set
+-- accessor (`SET attempts = p_attempts`, the value computed by the CALLER from an earlier, separate
+-- read) is the lost-update bug 0247 fixes: two concurrent wrong-code confirms against the same
+-- challenge could both read attempts=N and both write N+1, losing an increment. It is dropped, not
+-- left reachable, so a stale caller cannot reintroduce that bug; a fresh TEST provision that runs
+-- this overlay after the migration must not resurrect it.
+DROP FUNCTION IF EXISTS app.email_auth_update_email_challenge_attempts(uuid, integer);
+
+CREATE OR REPLACE FUNCTION app.email_auth_increment_email_challenge_attempts(
+  p_challenge_id uuid
 )
-RETURNS void
-LANGUAGE sql
+RETURNS TABLE (attempts integer)
+LANGUAGE plpgsql
 VOLATILE
 SECURITY DEFINER
 SET search_path = pg_catalog
 AS $$
+#variable_conflict use_column
+BEGIN
+  PERFORM 1 FROM public.email_challenges WHERE id = p_challenge_id FOR UPDATE;
+  IF NOT FOUND THEN
+    RETURN;
+  END IF;
+
+  RETURN QUERY
   UPDATE public.email_challenges
-  SET attempts = p_attempts
+  SET attempts = attempts + 1
   WHERE id = p_challenge_id
+  RETURNING public.email_challenges.attempts::integer;
+END
 $$;
 
 CREATE OR REPLACE FUNCTION app.email_auth_find_email_owner_conflict(p_user_id uuid, p_email text)
@@ -912,7 +929,7 @@ ALTER FUNCTION app.email_auth_insert_email_challenge(uuid, text, text, bigint) O
 ALTER FUNCTION app.email_auth_delete_email_challenge_by_id(uuid) OWNER TO :organization_member_invites_owner_ident;
 ALTER FUNCTION app.email_auth_upsert_email_send_cooldown(uuid, text) OWNER TO :organization_member_invites_owner_ident;
 ALTER FUNCTION app.email_auth_find_email_challenge_for_confirm(uuid, uuid) OWNER TO :organization_member_invites_owner_ident;
-ALTER FUNCTION app.email_auth_update_email_challenge_attempts(uuid, integer) OWNER TO :organization_member_invites_owner_ident;
+ALTER FUNCTION app.email_auth_increment_email_challenge_attempts(uuid) OWNER TO :organization_member_invites_owner_ident;
 ALTER FUNCTION app.email_auth_find_email_owner_conflict(uuid, text) OWNER TO :organization_member_invites_owner_ident;
 ALTER FUNCTION app.email_auth_verify_user_email(uuid, text) OWNER TO :organization_member_invites_owner_ident;
 ALTER FUNCTION app.email_auth_find_email_challenge_for_consume(uuid, uuid) OWNER TO :organization_member_invites_owner_ident;
@@ -932,7 +949,7 @@ REVOKE ALL ON FUNCTION app.email_auth_insert_email_challenge(uuid, text, text, b
 REVOKE ALL ON FUNCTION app.email_auth_delete_email_challenge_by_id(uuid) FROM PUBLIC;
 REVOKE ALL ON FUNCTION app.email_auth_upsert_email_send_cooldown(uuid, text) FROM PUBLIC;
 REVOKE ALL ON FUNCTION app.email_auth_find_email_challenge_for_confirm(uuid, uuid) FROM PUBLIC;
-REVOKE ALL ON FUNCTION app.email_auth_update_email_challenge_attempts(uuid, integer) FROM PUBLIC;
+REVOKE ALL ON FUNCTION app.email_auth_increment_email_challenge_attempts(uuid) FROM PUBLIC;
 REVOKE ALL ON FUNCTION app.email_auth_find_email_owner_conflict(uuid, text) FROM PUBLIC;
 REVOKE ALL ON FUNCTION app.email_auth_verify_user_email(uuid, text) FROM PUBLIC;
 REVOKE ALL ON FUNCTION app.email_auth_find_email_challenge_for_consume(uuid, uuid) FROM PUBLIC;
@@ -952,7 +969,7 @@ GRANT EXECUTE ON FUNCTION app.email_auth_insert_email_challenge(uuid, text, text
 GRANT EXECUTE ON FUNCTION app.email_auth_delete_email_challenge_by_id(uuid) TO app_patient;
 GRANT EXECUTE ON FUNCTION app.email_auth_upsert_email_send_cooldown(uuid, text) TO app_patient;
 GRANT EXECUTE ON FUNCTION app.email_auth_find_email_challenge_for_confirm(uuid, uuid) TO app_patient;
-GRANT EXECUTE ON FUNCTION app.email_auth_update_email_challenge_attempts(uuid, integer) TO app_patient;
+GRANT EXECUTE ON FUNCTION app.email_auth_increment_email_challenge_attempts(uuid) TO app_patient;
 GRANT EXECUTE ON FUNCTION app.email_auth_find_email_owner_conflict(uuid, text) TO app_patient;
 GRANT EXECUTE ON FUNCTION app.email_auth_verify_user_email(uuid, text) TO app_patient;
 GRANT EXECUTE ON FUNCTION app.email_auth_find_email_challenge_for_consume(uuid, uuid) TO app_patient;

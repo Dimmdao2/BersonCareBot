@@ -5,6 +5,10 @@ import {
   AUTH_CHANNEL_DISABLED_ERROR,
   isAuthChannelEnabled,
 } from "@/modules/auth/authChannelPolicy";
+import {
+  AUTH_CONFIRM_RATE_LIMIT_SEC,
+  checkAuthConfirmRateLimit,
+} from "@/modules/auth/authConfirmRateLimit";
 import { getCurrentSession } from "@/modules/auth/service";
 import { confirmEmailChallenge } from "@/modules/auth/emailAuth";
 import { getCurrentDbPrincipalOrganizationId } from "@bersoncare/db-principal";
@@ -16,6 +20,24 @@ const bodySchema = z.object({
 
 export async function POST(request: Request) {
   stampBootstrapPrincipal("api/auth/email/confirm:POST", request);
+
+  const rateLimit = await checkAuthConfirmRateLimit(request, "email_confirm");
+  if (rateLimit.limited) {
+    if (rateLimit.reason === "proxy_configuration") {
+      return NextResponse.json({ ok: false, error: "proxy_configuration" }, { status: 503 });
+    }
+    // Same shape this route already returns below for `result.code === "too_many_attempts"`.
+    return NextResponse.json(
+      {
+        ok: false,
+        error: "rate_limited",
+        retryAfterSeconds: AUTH_CONFIRM_RATE_LIMIT_SEC,
+        message: errMsg("rate_limited"),
+      },
+      { status: 429, headers: { "Retry-After": String(AUTH_CONFIRM_RATE_LIMIT_SEC) } },
+    );
+  }
+
   if (!(await isAuthChannelEnabled("email"))) {
     return NextResponse.json(
       { ok: false, error: AUTH_CHANNEL_DISABLED_ERROR },
@@ -70,6 +92,8 @@ function errMsg(code: string): string {
       return "Код истёк. Запросите новый.";
     case "too_many_attempts":
       return "Превышено число попыток.";
+    case "rate_limited":
+      return "Слишком много запросов. Попробуйте позже.";
     case "email_conflict":
       return "Этот email уже используется другим аккаунтом";
     default:
