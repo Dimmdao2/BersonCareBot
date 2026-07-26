@@ -23,7 +23,6 @@ import {
 import type { ClinicalTest, ClinicalTestUsageSnapshot } from "@/modules/tests/types";
 import {
   CLINICAL_TEST_SCHEMA_TYPES,
-  clinicalTestSchemaTypeLabelRu,
   parseClinicalTestScoring,
   type ClinicalTestSchemaType,
   type ClinicalTestScoring,
@@ -526,7 +525,7 @@ export function ClinicalTestForm({
                       }
                     >
                       <SelectTrigger className="w-full sm:max-w-xs">
-                        <SelectValue>{clinicalTestSchemaTypeLabelRu(values.schemaType)}</SelectValue>
+                        <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
                         <SelectItem value="numeric">Одно число в интервале</SelectItem>

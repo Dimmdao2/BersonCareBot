@@ -145,7 +145,7 @@ export function TeamSection({ members, invites, seats }: Props) {
             disabled={submitting}
           />
           <Select value={role} onValueChange={(value) => setRole(value as OrganizationInviteRole)}>
-            <SelectTrigger displayLabel={ROLE_LABELS[role]} disabled={submitting}>
+            <SelectTrigger disabled={submitting}>
               <SelectValue />
             </SelectTrigger>
             <SelectContent>

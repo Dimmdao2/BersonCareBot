@@ -19,6 +19,7 @@ import {
   SelectContent,
   SelectItem,
   SelectTrigger,
+  SelectValue,
 } from '@/shared/ui/doctor/primitives/select';
 
 type Props = {
@@ -94,7 +95,9 @@ export function DoctorTodayPreferencesSection({ initialPreferences, settingsEndp
             onValueChange={setPeopleListMode}
             disabled={isPending}
           >
-            <SelectTrigger displayLabel={PEOPLE_LIST_LABELS[preferences.peopleListMode]} />
+            <SelectTrigger>
+              <SelectValue />
+            </SelectTrigger>
             <SelectContent>
               <SelectItem value="on_support">На сопровождении</SelectItem>
               <SelectItem value="recent_visits">Недавние с визитами</SelectItem>

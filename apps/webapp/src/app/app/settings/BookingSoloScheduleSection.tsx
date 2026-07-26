@@ -10,6 +10,7 @@ import {
   SelectContent,
   SelectItem,
   SelectTrigger,
+  SelectValue,
 } from "@/shared/ui/doctor/primitives/select";
 import { Checkbox } from "@/shared/ui/doctor/primitives/checkbox";
 import { apiJson } from "@/shared/lib/apiJson";
@@ -67,7 +68,6 @@ export function BookingSoloScheduleSection() {
   const [copyFromWeekday, setCopyFromWeekday] = useState<number | null>(null);
   const [copyTargets, setCopyTargets] = useState<number[]>([]);
 
-  const branchLabel = branches.find((b) => b.id === branchId)?.title;
 
   const rowsByWeekday = useMemo(() => {
     const map = new Map<number, HourRow[]>();
@@ -210,7 +210,9 @@ export function BookingSoloScheduleSection() {
           <div className="space-y-1">
             <Label>Локация</Label>
             <Select value={branchId} onValueChange={(v) => v && setBranchId(v)}>
-              <SelectTrigger className="w-[14rem]" displayLabel={branchLabel} />
+              <SelectTrigger className="w-[14rem]">
+                <SelectValue />
+              </SelectTrigger>
               <SelectContent>
                 {branches.map((b) => (
                   <SelectItem key={b.id} value={b.id} label={b.title}>

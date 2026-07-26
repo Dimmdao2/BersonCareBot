@@ -330,11 +330,7 @@ export function BookingRubitimeMappingSection() {
                             setDuplicateActionError(null);
                           }}
                         >
-                          <SelectTrigger
-                            displayLabel={
-                              selected ? duplicateRowSummary(selected) : selectedKeep
-                            }
-                          >
+                          <SelectTrigger>
                             <SelectValue placeholder="Выберите связь" />
                           </SelectTrigger>
                           <SelectContent>

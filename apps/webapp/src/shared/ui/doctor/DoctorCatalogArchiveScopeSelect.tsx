@@ -48,7 +48,7 @@ export function DoctorCatalogArchiveScopeSelect({
         }}
       >
         <SelectTrigger size="sm" className={cn("w-full text-left", triggerClassName)}>
-          <SelectValue>{selected === "archived" ? "Архив" : "Активные"}</SelectValue>
+          <SelectValue />
         </SelectTrigger>
         <SelectContent>
           <SelectItem value="active">Активные</SelectItem>

@@ -11,6 +11,7 @@ import {
   SelectContent,
   SelectItem,
   SelectTrigger,
+  SelectValue,
 } from "@/shared/ui/doctor/primitives/select";
 import { patchAdminSetting } from "./patchAdminSetting";
 
@@ -52,7 +53,6 @@ export function BookingPaymentsSection({ paymentEnabled: initialEnabled, provide
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
 
-  const defaultLabel = providers.find((p) => p.id === defaultProviderId)?.label ?? defaultProviderId;
 
   function save() {
     setError(null);
@@ -86,7 +86,9 @@ export function BookingPaymentsSection({ paymentEnabled: initialEnabled, provide
         <div className="space-y-2">
           <Label>Провайдер по умолчанию</Label>
           <Select value={defaultProviderId} onValueChange={(v) => v && setDefaultProviderId(v)}>
-            <SelectTrigger displayLabel={defaultLabel} className="w-full" />
+            <SelectTrigger className="w-full">
+              <SelectValue />
+            </SelectTrigger>
             <SelectContent>
               {providers.map((p) => (
                 <SelectItem key={p.id} value={p.id}>

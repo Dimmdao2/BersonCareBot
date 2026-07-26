@@ -11,6 +11,7 @@ import {
   SelectContent,
   SelectItem,
   SelectTrigger,
+  SelectValue,
 } from "@/shared/ui/patient/primitives/select";
 
 export type PatientOrganizationClientContext = {
@@ -163,9 +164,10 @@ export function PatientOrganizationContextBar() {
           >
             <SelectTrigger
               aria-label="Текущая организация"
-              displayLabel={context.organization.title}
               className="min-w-0 max-w-[70%] bg-white font-medium text-[var(--patient-text-primary)]"
-            />
+            >
+              <SelectValue />
+            </SelectTrigger>
             <SelectContent align="end">
               {context.organizations.map((organization) => (
                 <SelectItem key={organization.organizationId} value={organization.organizationId}>

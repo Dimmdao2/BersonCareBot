@@ -80,8 +80,6 @@ export function ReminderStatsSection() {
     void load(windowHours);
   }, [load, windowHours]);
 
-  const presetLabel = PRESETS.find((p) => p.hours === windowHours)?.label ?? String(windowHours);
-
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center gap-3">
@@ -93,7 +91,7 @@ export function ReminderStatsSection() {
             if (Number.isFinite(n)) setWindowHours(n);
           }}
         >
-          <SelectTrigger className="w-[140px]" displayLabel={presetLabel}>
+          <SelectTrigger className="w-[140px]">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>

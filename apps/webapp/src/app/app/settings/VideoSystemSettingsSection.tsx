@@ -10,6 +10,7 @@ import {
   SelectContent,
   SelectItem,
   SelectTrigger,
+  SelectValue,
 } from "@/shared/ui/doctor/primitives/select";
 import { LabeledSwitch } from "@/shared/ui/doctor/primitives/labeled-switch";
 import {
@@ -124,8 +125,9 @@ export function VideoSystemSettingsSection({
               <SelectTrigger
                 id="video-default-delivery"
                 className="max-w-md"
-                displayLabel={videoDeliveryStrategySelectItems[defaultDelivery]}
-              />
+              >
+                <SelectValue />
+              </SelectTrigger>
               <SelectContent>
                 <SelectItem value="mp4">{videoDeliveryStrategySelectItems.mp4}</SelectItem>
                 <SelectItem value="hls">{videoDeliveryStrategySelectItems.hls}</SelectItem>
