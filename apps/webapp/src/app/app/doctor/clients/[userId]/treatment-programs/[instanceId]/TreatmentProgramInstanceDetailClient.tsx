@@ -21,7 +21,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/shared/ui/doctor/primitives/dialog";
-import { Select, SelectContent, SelectItem, SelectTrigger } from "@/shared/ui/doctor/primitives/select";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/shared/ui/doctor/primitives/select";
 import type {
   TreatmentProgramInstanceDetail,
   TreatmentProgramInstanceStatus,
@@ -1985,8 +1985,9 @@ function InstanceStageItemDoctorRow(props: {
             <SelectTrigger
               className="h-8 w-full min-w-0 max-w-xs text-xs sm:w-[220px]"
               size="sm"
-              displayLabel={doctorRecommendationActionabilitySelectItems[recActionabilityValue]}
-            />
+            >
+              <SelectValue />
+            </SelectTrigger>
             <SelectContent>
               <SelectItem value="actionable">Требует выполнения</SelectItem>
               <SelectItem value="persistent">Постоянная рекомендация</SelectItem>
@@ -2005,8 +2006,9 @@ function InstanceStageItemDoctorRow(props: {
             <SelectTrigger
               className="h-8 w-full text-xs"
               size="sm"
-              displayLabel={groupSelectItems[groupSelectValue]}
-            />
+            >
+              <SelectValue />
+            </SelectTrigger>
             <SelectContent>
               <SelectItem value="__none__">Без группы</SelectItem>
               {sortByOrderThenId(groups).map((g) => (

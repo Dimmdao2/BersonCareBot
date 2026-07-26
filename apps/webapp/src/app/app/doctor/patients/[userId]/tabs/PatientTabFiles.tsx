@@ -28,6 +28,7 @@ import {
   SelectContent,
   SelectItem,
   SelectTrigger,
+  SelectValue,
 } from "@/shared/ui/doctor/primitives/select";
 import {
   doctorSectionTitleClass,
@@ -324,10 +325,9 @@ function UploadPanel({
           onValueChange={(v) => setCategory(v as PatientFileCategory)}
           disabled={uploadState.phase === "pending"}
         >
-          <SelectTrigger
-            className="flex-1 min-w-0 text-xs h-7"
-            displayLabel={categoryLabel(category)}
-          />
+          <SelectTrigger className="flex-1 min-w-0 text-xs h-7">
+            <SelectValue />
+          </SelectTrigger>
           <SelectContent>
             {PATIENT_FILE_CATEGORIES.map((cat) => (
               <SelectItem key={cat} value={cat}>

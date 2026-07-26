@@ -343,7 +343,6 @@ export function PatientCardClient({ cardHeader, initialTab, createVisitFrom, vis
                     >
                       <SelectTrigger
                         className="h-8 text-sm w-[120px]"
-                        displayLabel={fioGender === "male" ? "Мужской" : fioGender === "female" ? "Женский" : "Не указан"}
                       >
                         <SelectValue />
                       </SelectTrigger>

@@ -9,6 +9,7 @@ import {
   SelectContent,
   SelectItem,
   SelectTrigger,
+  SelectValue,
 } from "@/shared/ui/doctor/primitives/select";
 import {
   doctorClientOverviewSecondaryCardClass,
@@ -175,10 +176,9 @@ export function DoctorClientWarmupSchedulePanel({ userId }: Props) {
                 setSaved(false);
               }}
             >
-              <SelectTrigger
-                className="h-8 w-full text-sm"
-                displayLabel={DAY_FILTER_OPTIONS.find((o) => o.value === dayFilter)?.label}
-              />
+              <SelectTrigger className="h-8 w-full text-sm">
+                <SelectValue />
+              </SelectTrigger>
               <SelectContent>
                 {DAY_FILTER_OPTIONS.map((opt) => (
                   <SelectItem key={opt.value} value={opt.value}>

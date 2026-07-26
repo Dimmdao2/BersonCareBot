@@ -163,7 +163,6 @@ export function DoctorAppointmentActions({ recordId, status, onChanged }: Props)
         <Select value={cancelType} onValueChange={(v) => setCancelType(v ?? "free")}>
           <SelectTrigger
             className="h-8 w-[9rem]"
-            displayLabel={CANCEL_TYPES.find((t) => t.value === cancelType)?.label}
           >
             <SelectValue />
           </SelectTrigger>

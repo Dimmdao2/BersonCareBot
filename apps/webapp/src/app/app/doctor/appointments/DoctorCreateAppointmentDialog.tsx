@@ -10,6 +10,7 @@ import {
   SelectContent,
   SelectItem,
   SelectTrigger,
+  SelectValue,
 } from "@/shared/ui/doctor/primitives/select";
 import { BookingPatientSearchPicker, type BookingPatientPick } from "@/app/app/doctor/admin/booking/BookingPatientSearchPicker";
 import { DoctorDateTimePicker } from "@/shared/ui/doctor/DoctorDateTimePicker";
@@ -98,9 +99,6 @@ export function DoctorCreateAppointmentDialog() {
     });
   }
 
-  const selectedService = services.find((s) => s.id === serviceId);
-  const selectedBranch = branches.find((b) => b.id === branchId);
-
   return (
     <>
       <Button type="button" size="sm" onClick={() => setOpen(true)}>
@@ -114,10 +112,9 @@ export function DoctorCreateAppointmentDialog() {
             <div className="space-y-2">
               <Label>Услуга</Label>
               <Select value={serviceId} onValueChange={(v) => setServiceId(v ?? "")}>
-                <SelectTrigger
-                  displayLabel={selectedService?.title ?? (serviceId ? serviceId : undefined)}
-                  className="w-full"
-                />
+                <SelectTrigger className="w-full">
+                  <SelectValue />
+                </SelectTrigger>
                 <SelectContent>
                   {services.map((s) => (
                     <SelectItem key={s.id} value={s.id} label={s.title}>
@@ -133,10 +130,9 @@ export function DoctorCreateAppointmentDialog() {
             <div className="space-y-2">
               <Label>Локация</Label>
               <Select value={branchId} onValueChange={(v) => setBranchId(v ?? "")}>
-                <SelectTrigger
-                  displayLabel={selectedBranch?.title ?? (branchId ? branchId : undefined)}
-                  className="w-full"
-                />
+                <SelectTrigger className="w-full">
+                  <SelectValue />
+                </SelectTrigger>
                 <SelectContent>
                   {branches.map((b) => (
                     <SelectItem key={b.id} value={b.id} label={b.title}>

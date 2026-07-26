@@ -48,6 +48,7 @@ import {
   SelectContent,
   SelectItem,
   SelectTrigger,
+  SelectValue,
 } from "@/shared/ui/doctor/primitives/select";
 import type {
   ActiveComplaint,
@@ -1452,7 +1453,9 @@ function AddTraumaForm({
         <div className="flex flex-col gap-0.5">
           <label className="text-xs text-muted-foreground">Тип</label>
           <Select value={type} onValueChange={(v) => setType(v ?? "Травма")}>
-            <SelectTrigger displayLabel={type} className="w-full" />
+            <SelectTrigger className="w-full">
+              <SelectValue />
+            </SelectTrigger>
             <SelectContent>
               {TRAUMA_TYPES.map((t) => (
                 <SelectItem key={t} value={t}>{t}</SelectItem>

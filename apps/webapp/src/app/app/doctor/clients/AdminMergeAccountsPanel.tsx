@@ -11,7 +11,7 @@ import { Input } from "@/shared/ui/doctor/primitives/input";
 import { Label } from "@/shared/ui/doctor/primitives/label";
 import { Checkbox } from "@/shared/ui/doctor/primitives/checkbox";
 import { RadioGroup, RadioGroupItem } from "@/shared/ui/doctor/primitives/radio-group";
-import { Select, SelectContent, SelectItem, SelectTrigger } from "@/shared/ui/doctor/primitives/select";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/shared/ui/doctor/primitives/select";
 import { doctorClientSectionTitleClass } from "./doctorClientCardChrome";
 import { cn } from "@/lib/utils";
 import type { ManualMergeResolution } from "@/infra/repos/manualMergeResolution";
@@ -553,20 +553,10 @@ export function AdminMergeAccountsPanel({
             >
               <SelectTrigger
                 id="merge-dup-select"
-                displayLabel={
-                  secondUserSelectExtraOption?.value === secondUserId
-                    ? secondUserSelectExtraOption.label
-                    : (candidates ?? []).find((c) => c.id === secondUserId)
-                      ? (() => {
-                          const c = (candidates ?? []).find((c) => c.id === secondUserId)!;
-                          return `${c.displayName} · ${c.phoneNormalized ?? "нет тел."} · ${c.id.slice(0, 8)}…`;
-                        })()
-                      : secondUserId
-                        ? secondUserId
-                        : "— выберите —"
-                }
                 className="w-full"
-              />
+              >
+                <SelectValue />
+              </SelectTrigger>
               <SelectContent>
                 <SelectItem value="">— выберите —</SelectItem>
                 {secondUserSelectExtraOption ? (
@@ -985,15 +975,10 @@ export function AdminMergeAccountsPanel({
                 >
                   <SelectTrigger
                     id="merge-ch-prefs"
-                    displayLabel={
-                      resolution.channelPreferences === "keep_newer"
-                        ? "keep_newer (как по умолчанию)"
-                        : resolution.channelPreferences === "keep_target"
-                          ? "keep_target (удалить prefs дубликата)"
-                          : "merge"
-                    }
                     className="w-full max-w-md"
-                  />
+                  >
+                    <SelectValue />
+                  </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="keep_newer">keep_newer (как по умолчанию)</SelectItem>
                     <SelectItem value="keep_target">keep_target (удалить prefs дубликата)</SelectItem>

@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState, useTransition, type FormEvent } from "react";
+import { useState, useTransition, type FormEvent } from "react";
 import { DoctorEmptyState } from "@/shared/ui/doctor/DoctorEmptyState";
 import {
   DoctorSection,
@@ -18,6 +18,7 @@ import {
   SelectContent,
   SelectItem,
   SelectTrigger,
+  SelectValue,
 } from "@/shared/ui/doctor/primitives/select";
 import type { ClinicInviteView, ClinicMemberView } from "./types";
 
@@ -111,8 +112,6 @@ export function ClinicMembersClient({ initialMembers, initialInvites }: Props) {
   const [inviteUrl, setInviteUrl] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
-
-  const inviteRoleLabel = useMemo(() => roleLabels[role], [role]);
 
   async function reloadMembers() {
     const response = await fetch("/api/clinic/members", { cache: "no-store" });
@@ -282,7 +281,9 @@ export function ClinicMembersClient({ initialMembers, initialInvites }: Props) {
           <div className="flex flex-col gap-1.5">
             <Label>Роль</Label>
             <Select value={role} onValueChange={(value) => setRole(value === "admin" ? "admin" : "doctor")}>
-              <SelectTrigger className="w-full" displayLabel={inviteRoleLabel} />
+              <SelectTrigger className="w-full">
+                <SelectValue />
+              </SelectTrigger>
               <SelectContent align="start">
                 <SelectItem value="doctor">Врач</SelectItem>
                 <SelectItem value="admin">Администратор</SelectItem>

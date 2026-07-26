@@ -741,7 +741,7 @@ function DoctorCalendarEventPanelInner({
           />
           <Label>Начисление</Label>
           <Select value={cancelCharge} onValueChange={(v) => setCancelCharge(v ?? "free")}>
-            <SelectTrigger displayLabel={CANCEL_CHARGE.find((c) => c.value === cancelCharge)?.label}>
+            <SelectTrigger>
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -766,7 +766,6 @@ function DoctorCalendarEventPanelInner({
             <Select value={postCancelClass} onValueChange={(v) => setPostCancelClass(v ?? "free")}>
               <SelectTrigger
                 className="w-[8.5rem]"
-                displayLabel={POST_CANCEL_CLASS.find((c) => c.value === postCancelClass)?.label}
               >
                 <SelectValue />
               </SelectTrigger>

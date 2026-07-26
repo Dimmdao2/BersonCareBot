@@ -113,8 +113,6 @@ export function DoctorSupplementaryContactsPanel({ userId, initialContacts }: Pr
     }
   }
 
-  const typeLabel = CONTACT_TYPE_OPTIONS.find((o) => o.value === contactType)?.label;
-
   return (
     <div className="flex flex-col gap-2">
       {loading ? <p className="text-sm text-muted-foreground">Загрузка…</p> : null}
@@ -161,7 +159,7 @@ export function DoctorSupplementaryContactsPanel({ userId, initialContacts }: Pr
       ) : null}
       <form onSubmit={onAdd} className="flex flex-col gap-2 sm:flex-row sm:items-end">
         <Select value={contactType} onValueChange={(v) => setContactType(v as PlatformUserContactType)}>
-          <SelectTrigger className="w-full sm:w-[9rem]" displayLabel={typeLabel}>
+          <SelectTrigger className="w-full sm:w-[9rem]">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
