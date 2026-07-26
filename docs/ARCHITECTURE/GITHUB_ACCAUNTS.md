@@ -87,81 +87,53 @@ Hi Dimmdao2!
 
 ---
 
-## **Настройка remote для репозиториев**
+## **Настройка remote для репозиториев (фактическая, проверено 2026-07-26)**
 
-### **Репозиторий основного аккаунта**
+⚠️ **Имена remote в рабочем каталоге НЕ совпадают с именами аккаунтов. Не додумывай — сверяйся с таблицей.**
 
-Пример:
+| имя remote | URL | аккаунт GitHub |
+| --- | --- | --- |
+| `origin` | `git@github-dimmdao2:Dimmdao2/BersonCareBot.git` | **Dimmdao2** |
+| `dimmdao` | `git@github-dimmdao:dimmdao/BersonCareBot.git` | **dimmdao** |
 
-```bash
-git remote set-url origin git@github-dimmdao:dimmdao/BersonCareBot.git
-```
+То есть `origin` — это **Dimmdao2**, а не основной аккаунт. Рабочие ветки трекают `origin`
+(`branch.<name>.remote = origin`).
 
-Проверка:
+Проверка (единственный надёжный способ — смотреть URL, а не имя):
 
 ```bash
 git remote -v
-```
-
-Результат:
-
-```text
-origin  git@github-dimmdao:dimmdao/BersonCareBot.git
-```
-
----
-
-### **Второй аккаунт**
-
-Дополнительный remote:
-
-```bash
-git remote add dimmdao2 git@github-dimmdao2:Dimmdao2/BersonCareBot.git
-```
-
-Проверка:
-
-```text
-dimmdao2 git@github-dimmdao2:Dimmdao2/BersonCareBot.git
 ```
 
 ---
 
 ## **Рабочая схема**
 
-Пуш в основной аккаунт:
+**Правило: пушим ВСЕГДА в оба аккаунта.** Пуш в один — это не бэкап; ровно так в ночь на 2026-07-26
+34 коммита оказались только в одном аккаунте, а агент отчитался, что бэкапа нет вообще.
+
+Ветка разработки (пример — текущая):
 
 ```bash
-git push origin main
+git push dimmdao feat/doctor-ui-rebuild && git push origin feat/doctor-ui-rebuild
 ```
 
-Получение изменений из основного аккаунта:
+Проверка, что оба аккаунта на одном коммите (обе строки обязаны совпасть с `git rev-parse HEAD`):
 
 ```bash
-git pull origin main
+git ls-remote dimmdao refs/heads/feat/doctor-ui-rebuild
+git ls-remote origin  refs/heads/feat/doctor-ui-rebuild
 ```
 
----
-
-Пуш во второй аккаунт:
+Получение изменений:
 
 ```bash
-git push dimmdao2 main
+git pull origin <branch>     # из Dimmdao2
+git pull dimmdao <branch>    # из dimmdao
 ```
 
-Получение изменений из второго аккаунта:
-
-```bash
-git pull dimmdao2 main
-```
-
----
-
-Одновременная синхронизация обоих аккаунтов:
-
-```bash
-git push origin main && git push dimmdao2 main
-```
+🔴 **`main` и `test` агент не пушит никогда** — ни в один из аккаунтов. Это отдельный запрет,
+он не отменяется тем, что ветку разработки пушить обязательно.
 
 ---
 
