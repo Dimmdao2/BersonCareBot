@@ -188,7 +188,13 @@ describe("0238 organization brand publication", () => {
       "p.proname IN ('current_patient_has_active_org_enrollment', 'read_org_brand_core_context')",
     );
     // The app_owner SECURITY DEFINER inventory is pinned by count and by required table grants.
-    expect(deploy).toContain("local expected_secdef_count=55");
+    // 55 -> 56 (2026-07-26): migration 0240 added app.is_smtp_outbound_configured(), a boolean-only
+    // accessor that reports whether an SMTP relay is configured without exposing any of its settings.
+    // The deploy has pinned 56 since that migration; this expectation kept saying 55 and had been
+    // failing ever since. A frozen-count gate that is permanently red teaches everyone to ignore it,
+    // which is exactly how a genuinely new definer function would slip through unnoticed — so the
+    // number is corrected here rather than the gate being relaxed.
+    expect(deploy).toContain("local expected_secdef_count=56");
     expect(deploy).toContain("('public.org_enrollments', 'SELECT')");
   });
 
