@@ -89,4 +89,31 @@ describe("locked patient runtime capabilities", () => {
     expect(settings).toContain('runWithWebappDbOperationFamily("patient_ui_config"');
     expect(timezone).toContain('runWithWebappDbOperationFamily("patient_calendar_timezone"');
   });
+
+  it("keeps branch/service booking enrichment inside the signed capability, not a direct app_patient join (taskdb #1046)", () => {
+    const migration = text(
+      "../../../db/drizzle-migrations/0251_current_patient_booking_rows_branch_enrichment.sql",
+    );
+    const bookings = text("./pgPatientBookings.ts");
+
+    expect(migration).toContain("SECURITY DEFINER");
+    expect(migration).toContain("v_org uuid := app.current_org_id()");
+    expect(migration).toContain("v_patient uuid := app.current_patient_user_id()");
+    expect(migration).toContain("FROM public.be_specialist_service_availability availability");
+    expect(migration).toContain("appointment.organization_id = v_org");
+    // Exact specialist binding is what prevents a same-org/branch/service SSA row from exposing
+    // another specialist's slot display data for this appointment.
+    expect(migration.replace(/\s+/g, " ")).toContain(
+      "availability.specialist_id = appointment.specialist_id",
+    );
+    expect(migration).toContain("'canonical_in_person_context', row.canonical_in_person_context");
+
+    // The webapp connection runs as app_patient, which
+    // deploy/postgres/public-booking-bootstrap-resolver.sql deliberately denies direct SELECT on
+    // be_branches/be_clinic_services/be_specialist_service_availability for (taskdb #1046: a raw
+    // join against these from the webapp side broke /app/patient/booking for every patient on
+    // TEST). The enrichment must stay inside the SECURITY DEFINER capability, never reappear as a
+    // direct join issued from pgPatientBookings.ts.
+    expect(bookings).not.toMatch(/\bJOIN\s+be_(branches|clinic_services|appointments|specialist_service_availability)\b/i);
+  });
 });

@@ -363,16 +363,24 @@ describe("pgPatientBookingsPort", () => {
     });
     expect(row?.branchServiceId).toBe("00000000-0000-4000-8000-0000000000f1");
 
+    // taskdb #1046: the branch/service enrichment JOIN used to run on THIS connection (app_patient),
+    // which deploy/postgres/public-booking-bootstrap-resolver.sql deliberately denies direct SELECT
+    // on be_branches/be_clinic_services/be_specialist_service_availability for — that raw join is
+    // exactly what produced "permission denied for table be_branches" for every patient on TEST.
+    // The enrichment now happens inside app.read_current_patient_booking_rows (migration 0251),
+    // which runs SECURITY DEFINER as app_owner. This webapp-issued query must never re-introduce
+    // a direct join against those tables.
     const sql = String(runWebappPgTextMock.mock.calls[0]?.[0] ?? "");
-    expect(sql).toContain("FROM be_specialist_service_availability availability");
-    expect(sql).toContain("appointment.branch_id");
-    expect(sql).toContain("appointment.service_id");
-    // Exact specialist binding is what prevents a same-org/branch/service SSA
-    // from exposing another specialist's slots for this appointment.
-    expect(sql.replace(/\s+/g, " ")).toContain("availability.specialist_id = appointment.specialist_id");
+    expect(sql).not.toContain("be_specialist_service_availability");
+    expect(sql).not.toContain("be_branches");
+    expect(sql).not.toContain("be_clinic_services");
+    expect(sql).not.toContain("be_appointments");
     expect(sql).not.toContain("patient_rows.booking->>'branch_id'");
     expect(sql).not.toContain("patient_rows.booking->>'service_id'");
     expect(sql).not.toContain("patient_rows.booking->>'branch_service_id'");
+    expect(sql.trim()).toBe(
+      "SELECT booking\n                FROM app.read_current_patient_booking_rows('upcoming', $1::timestamptz)",
+    );
   });
 
   it("listUpcomingByUser delegates filtering to the bounded signed-patient capability", async () => {

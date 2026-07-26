@@ -105,10 +105,17 @@ function mapRow(row: Row): PatientBookingRecord {
 
 /**
  * The security-definer capability decides which patient-booking rows belong to
- * the signed tenant/patient. This outer read only enriches an already-admitted
- * linked canonical row. In particular, `patient_bookings.branch_id`,
- * `service_id`, `branch_service_id`, and snapshots are never used as canonical
- * navigation or display inputs.
+ * the signed tenant/patient, AND enriches each row's canonical branch/service
+ * display fields internally (app.read_current_patient_booking_rows, migration
+ * 0251) — it already runs as app_owner with SELECT on be_appointments/
+ * be_branches/be_clinic_services/be_specialist_service_availability/
+ * be_specialists. This webapp connection runs as app_patient, which
+ * deploy/postgres/public-booking-bootstrap-resolver.sql deliberately denies
+ * direct SELECT on be_branches/be_clinic_services/be_specialist_service_availability
+ * (taskdb #1046) — so this read must never re-join those tables itself; the
+ * capability's own jsonb payload already carries `canonical_in_person_context`.
+ * `patient_bookings.branch_id`, `service_id`, `branch_service_id`, and
+ * snapshots are never used as canonical navigation or display inputs.
  */
 async function listCurrentPatientBookingRows(
   kind: "upcoming" | "history",
@@ -126,61 +133,7 @@ async function listCurrentPatientBookingRows(
         throw new Error("Unsupported patient booking row kind");
     }
   })();
-  const result = await runWebappPgText<{ booking: Row }>(
-    `WITH patient_rows AS MATERIALIZED (
-       ${patientRowsCapabilitySql}
-     ), enriched AS (
-       SELECT
-         patient_rows.booking,
-         CASE
-           WHEN patient_rows.booking->>'booking_type' = 'in_person'
-             AND appointment.id IS NOT NULL
-             AND branch.id IS NOT NULL
-             AND service.id IS NOT NULL
-             AND branch.is_active = TRUE
-             AND service.is_active = TRUE
-             AND service.public_widget_visible = TRUE
-             AND service.admin_manual_only = FALSE
-             AND EXISTS (
-               SELECT 1
-               FROM be_specialist_service_availability availability
-               JOIN be_specialists specialist
-                 ON specialist.id = availability.specialist_id
-                AND specialist.organization_id = availability.organization_id
-                AND specialist.is_active = TRUE
-               WHERE availability.organization_id = appointment.organization_id
-                 AND availability.specialist_id = appointment.specialist_id
-                 AND availability.branch_id = appointment.branch_id
-                 AND availability.service_id = appointment.service_id
-                 AND availability.is_active = TRUE
-             )
-           THEN jsonb_build_object(
-             'branchId', appointment.branch_id,
-             'serviceId', appointment.service_id,
-             'cityCode', branch.city_code,
-             'branchTitle', branch.title,
-             'serviceTitle', service.title,
-             'durationMinutes', appointment.duration_minutes,
-             'priceMinor', service.price_minor
-           )
-           ELSE NULL
-         END AS canonical_in_person_context
-       FROM patient_rows
-       LEFT JOIN be_appointments appointment
-         ON appointment.id = (patient_rows.booking->>'canonical_appointment_id')::uuid
-       LEFT JOIN be_branches branch
-         ON branch.id = appointment.branch_id
-        AND branch.organization_id = appointment.organization_id
-       LEFT JOIN be_clinic_services service
-         ON service.id = appointment.service_id
-        AND service.organization_id = appointment.organization_id
-     )
-     SELECT booking || jsonb_build_object(
-       'canonical_in_person_context', canonical_in_person_context
-     ) AS booking
-     FROM enriched`,
-    [nowIso],
-  );
+  const result = await runWebappPgText<{ booking: Row }>(patientRowsCapabilitySql, [nowIso]);
   return result.rows.map((row) => mapRow(row.booking));
 }
 

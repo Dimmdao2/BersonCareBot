@@ -1758,6 +1758,13 @@
       "when": 1793539200047,
       "tag": "0250_c4d_platform_library_read_staff_scope",
       "breakpoints": true
+    },
+    {
+      "idx": 251,
+      "version": "7",
+      "when": 1793539200048,
+      "tag": "0251_current_patient_booking_rows_branch_enrichment",
+      "breakpoints": true
     }
   ]
 }
