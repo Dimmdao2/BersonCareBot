@@ -54,4 +54,18 @@ export type EmailAuthDbPort = {
   findLatestEmailChallengeForUser: (userId: string, nowSec: number) => Promise<EmailChallengeCodeRow | null>;
   /** Returns the latest unexpired challenge for a user, including the pending email address. */
   findLatestPendingEmailChallengeForUser: (userId: string, nowSec: number) => Promise<EmailChallengeRow | null>;
+  /**
+   * Decaying OTP lockout (night plan C-2 step 3): read-only gate check for `startEmailChallenge`.
+   * Returns the current `locked_until` epoch second for this user, or null if never locked / reset.
+   */
+  findEmailOtpLock: (userId: string) => Promise<{ locked_until: string | number } | null>;
+  /**
+   * Atomically escalates this user's lockout cycle (120s, 240s, 480s, 960s, capped at 1800s -- see
+   * otpConstants.ts:nextOtpLockoutDurationSeconds) and returns the new locked_until epoch second.
+   */
+  registerEmailOtpLockout: (userId: string) => Promise<number>;
+  /**
+   * NIST SP 800-63B §5.2.2: disregard previous failed attempts after a successful verification.
+   */
+  resetEmailOtpLockout: (userId: string) => Promise<void>;
 };

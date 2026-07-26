@@ -1177,7 +1177,16 @@ WITH required(tbl, priv) AS (
     ('public.phone_otp_locks', 'SELECT'),
     ('public.phone_otp_locks', 'INSERT'),
     ('public.phone_otp_locks', 'UPDATE'),
-    ('public.phone_otp_locks', 'DELETE')
+    ('public.phone_otp_locks', 'DELETE'),
+    -- 0248 decaying OTP lockout (night plan C-2 step 3): app.email_auth_find_email_otp_lock(uuid),
+    -- app.email_auth_register_email_otp_lockout(uuid) and app.email_auth_reset_email_otp_lockout(uuid)
+    -- read/write the new email_otp_locks table. It has no dedicated deploy/postgres overlay (a
+    -- brand-new table, not the pre-existing email_challenges family that
+    -- organization-member-invites-rls.sql re-applies), so 0248 itself is the canonical grant site.
+    ('public.email_otp_locks', 'SELECT'),
+    ('public.email_otp_locks', 'INSERT'),
+    ('public.email_otp_locks', 'UPDATE'),
+    ('public.email_otp_locks', 'DELETE')
 )
 SELECT coalesce(string_agg(tbl || ' ' || priv, ', ' ORDER BY tbl, priv), '')
 FROM required
@@ -1240,7 +1249,16 @@ SELECT has_column_privilege('app_owner', 'public.operator_incidents', 'alert_sen
   # eight new required-grant rows added above. Neither accessor returns a challenge row: issue
   # returns a bare boolean, consume returns only the caller's own pinned booking intent and the
   # delivery channel — never the one-time code.
-  local expected_secdef_count=58
+  # 58 -> 61 (2026-07-26): migration 0248_otp_decaying_lockout (night plan C-2 step 3) adds exactly
+  # three reviewed app_owner SECURITY DEFINER accessors for the new email_otp_locks table --
+  # app.email_auth_find_email_otp_lock(uuid) (read-only gate check), and the escalate/reset pair
+  # app.email_auth_register_email_otp_lockout(uuid) / app.email_auth_reset_email_otp_lockout(uuid).
+  # They exist because, like every other accessor in the email_auth_* family, app_patient has no
+  # direct table grant on this new table (p0-5b-grants.sql never lists it, same reason
+  # email_challenges/phone_otp_locks route through SECURITY DEFINER or a dedicated migration grant).
+  # Their table reads/writes are the four new email_otp_locks required-grant rows added above. None
+  # of the three returns anything beyond a bare epoch-second timestamp -- never a code, never a row.
+  local expected_secdef_count=61
   local actual_secdef_count
   actual_secdef_count="$(sudo -u postgres psql -d "$DB" -X -v ON_ERROR_STOP=1 -tAc "
 SELECT count(*) FROM pg_proc p WHERE pg_get_userbyid(p.proowner) = 'app_owner' AND p.prosecdef;
@@ -1253,7 +1271,7 @@ SELECT count(*) FROM pg_proc p WHERE pg_get_userbyid(p.proowner) = 'app_owner' A
     exit 1
   }
 
-  echo "   app_owner SECURITY DEFINER table-grant completeness: OK (27 required table grants + 1 column grant present, $actual_secdef_count/$expected_secdef_count secdef functions pinned)"
+  echo "   app_owner SECURITY DEFINER table-grant completeness: OK (31 required table grants + 1 column grant present, $actual_secdef_count/$expected_secdef_count secdef functions pinned)"
 }
 
 assert_db_owner_and_telemetry_owner_secdef_anon_surface_pinned(){

@@ -2,9 +2,9 @@ import { webappReposAreInMemory } from "@/config/env";
 import type { PhoneOtpLimitsDbPort } from "@/modules/auth/phoneOtpLimitsPort";
 import type { PhoneChallengeStore } from "@/modules/auth/phoneChallengeStore";
 import {
-  OTP_LOCK_DURATION_SEC,
   OTP_MAX_VERIFY_ATTEMPTS,
   OTP_RESEND_COOLDOWN_SEC,
+  nextOtpLockoutDurationSeconds,
 } from "@/modules/auth/otpConstants";
 import type { SendCodeResult, VerifyCodeResult } from "@/modules/auth/smsPort";
 
@@ -27,6 +27,10 @@ function requirePhoneOtpDb(): PhoneOtpLimitsDbPort {
 
 /** In-memory: только Vitest без `DATABASE_URL`. */
 const memLocks = new Map<string, number>();
+/** Decaying lockout cycle count per phone (night plan C-2 step 3), in-memory mirror of the DB's
+ * `lockout_cycle` column. Deliberately NOT cleared just because a lock's `locked_until` is in the
+ * past -- only a successful verification resets it (NIST SP 800-63B §5.2.2), same as the DB path. */
+const memLockCycles = new Map<string, number>();
 const memLastSend = new Map<string, number>();
 
 export async function assertPhoneCanStartChallenge(phone: string): Promise<PhoneChallengeGateResult> {
@@ -40,9 +44,6 @@ export async function assertPhoneCanStartChallenge(phone: string): Promise<Phone
         retryAfterSeconds: Math.max(1, lockedUntil - nowSec()),
       };
     }
-    if (lockedUntil != null && lockedUntil <= nowSec()) {
-      memLocks.delete(n);
-    }
     const last = memLastSend.get(n);
     if (last != null && nowSec() - last < OTP_RESEND_COOLDOWN_SEC) {
       return {
@@ -55,8 +56,6 @@ export async function assertPhoneCanStartChallenge(phone: string): Promise<Phone
   }
 
   const db = requirePhoneOtpDb();
-  await db.deleteExpiredLocks(nowSec());
-
   const lockRow = await db.findLock(n);
   if (lockRow) {
     const lu = Number(lockRow.locked_until);
@@ -114,18 +113,39 @@ export async function onPhoneWrongCode(
 
   if (attempts >= OTP_MAX_VERIFY_ATTEMPTS) {
     await challengeStore.delete(challengeId);
-    const lockUntil = nowSec() + OTP_LOCK_DURATION_SEC;
+    let lockedUntil: number;
     if (webappReposAreInMemory()) {
-      memLocks.set(phone, lockUntil);
+      // Same formula/citations as pgPhoneOtpLimits.ts:registerPhoneOtpLockout /
+      // app.email_auth_register_email_otp_lockout: escalate from the cycle count already on record
+      // for this phone (0 if never locked, or reset by a success), not from the flat constant.
+      const previousCycles = memLockCycles.get(phone) ?? 0;
+      const duration = nextOtpLockoutDurationSeconds(previousCycles);
+      lockedUntil = nowSec() + duration;
+      memLockCycles.set(phone, previousCycles + 1);
+      memLocks.set(phone, lockedUntil);
     } else {
-      await requirePhoneOtpDb().upsertLock(phone, lockUntil);
+      lockedUntil = await requirePhoneOtpDb().registerLockout(phone, nowSec());
     }
     return {
       ok: false,
       code: "too_many_attempts",
-      retryAfterSeconds: OTP_LOCK_DURATION_SEC,
+      retryAfterSeconds: Math.max(1, lockedUntil - nowSec()),
     };
   }
 
   return { ok: false, code: "invalid_code" };
+}
+
+/**
+ * NIST SP 800-63B §5.2.2: disregard any previous failed attempts after a successful
+ * authentication. Called by the SMS adapters right after a code verifies -- resets the escalation
+ * cycle so the next lockout (if any) starts short again, at 2 minutes.
+ */
+export async function registerPhoneVerifySuccess(phone: string): Promise<void> {
+  if (webappReposAreInMemory()) {
+    memLocks.delete(phone);
+    memLockCycles.delete(phone);
+    return;
+  }
+  await requirePhoneOtpDb().resetLockout(phone);
 }

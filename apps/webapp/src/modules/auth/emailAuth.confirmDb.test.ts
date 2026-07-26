@@ -24,6 +24,9 @@ const dbMock: EmailAuthDbPort = {
   findEmailChallengeForConsume: vi.fn(),
   findLatestEmailChallengeForUser: vi.fn(),
   findLatestPendingEmailChallengeForUser: vi.fn(),
+  findEmailOtpLock: vi.fn().mockResolvedValue(null),
+  registerEmailOtpLockout: vi.fn().mockResolvedValue(120),
+  resetEmailOtpLockout: vi.fn().mockResolvedValue(undefined),
 };
 
 describe("confirmEmailChallenge (database)", () => {

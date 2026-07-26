@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { inMemoryPhoneChallengeStore } from "@/infra/repos/inMemoryPhoneChallengeStore";
 import { OTP_MAX_VERIFY_ATTEMPTS, OTP_RESEND_COOLDOWN_SEC } from "@/modules/auth/otpConstants";
 import type { PhoneChallengeStore } from "@/modules/auth/phoneChallengeStore";
@@ -6,7 +6,35 @@ import {
   assertPhoneCanStartChallenge,
   onPhoneWrongCode,
   registerPhoneSend,
+  registerPhoneVerifySuccess,
 } from "@/modules/auth/phoneOtpLimits";
+
+function freshPhone(): string {
+  // Unique per test: phoneOtpLimits.ts's in-memory maps have no exported reset, same reason every
+  // existing test in this file already uses a distinct number.
+  return `+7900${Math.floor(1_000_000 + Math.random() * 8_000_000)}`;
+}
+
+/** Submits a wrong code OTP_MAX_VERIFY_ATTEMPTS times against a fresh challenge for `phone`,
+ * tripping the lockout on the final attempt, and returns the reported retryAfterSeconds. */
+async function triggerPhoneLockout(phone: string): Promise<number> {
+  const challengeId = `lockout-ch-${Math.random().toString(36).slice(2)}`;
+  const expiresAt = Math.floor(Date.now() / 1000) + 600;
+  await inMemoryPhoneChallengeStore.set(challengeId, {
+    phone,
+    expiresAt,
+    code: "123456",
+    verifyAttempts: 0,
+  });
+  let last: Awaited<ReturnType<typeof onPhoneWrongCode>> | undefined;
+  for (let i = 0; i < OTP_MAX_VERIFY_ATTEMPTS; i++) {
+    last = await onPhoneWrongCode(phone, challengeId, inMemoryPhoneChallengeStore);
+  }
+  if (!last || last.ok || last.code !== "too_many_attempts") {
+    throw new Error(`expected too_many_attempts on the final attempt, got ${JSON.stringify(last)}`);
+  }
+  return last.retryAfterSeconds ?? -1;
+}
 
 describe("onPhoneWrongCode", () => {
   it("даёт invalid_code до лимита попыток, затем too_many_attempts", async () => {
@@ -115,5 +143,73 @@ describe("assertPhoneCanStartChallenge (EXEC H.1.6 — cooldown по номер�
 
     const gB = await assertPhoneCanStartChallenge(phoneB);
     expect(gB).toEqual({ ok: true });
+  });
+});
+
+describe("decaying OTP lockout (phone, in-memory) — night plan C-2 step 3", () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-01-01T00:00:00Z"));
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it("escalates 2min -> 4min -> 8min -> 16min -> capped at 30min, then resets to 2min on the next success (NIST SP 800-63B §5.2.2 / OWASP exponential lockout)", async () => {
+    const phone = freshPhone();
+    const expectedSeconds = [120, 240, 480, 960, 1800];
+
+    for (const expected of expectedSeconds) {
+      const retryAfterSeconds = await triggerPhoneLockout(phone);
+      expect(retryAfterSeconds).toBe(expected);
+      // Gate blocks a fresh challenge for the FULL reported duration, no more, no less.
+      const blocked = await assertPhoneCanStartChallenge(phone);
+      expect(blocked.ok).toBe(false);
+      // Wait out exactly the reported duration, then the next escalation cycle can start.
+      vi.advanceTimersByTime((retryAfterSeconds + 1) * 1000);
+      const unblocked = await assertPhoneCanStartChallenge(phone);
+      expect(unblocked).toEqual({ ok: true });
+    }
+
+    // A 6th escalation without an intervening success stays capped -- it never grows past 30 min.
+    const stillCapped = await triggerPhoneLockout(phone);
+    expect(stillCapped).toBe(1800);
+    vi.advanceTimersByTime((stillCapped + 1) * 1000);
+
+    // Reset on success (NIST SP 800-63B §5.2.2): a successful verification resets the cycle to 0.
+    await registerPhoneVerifySuccess(phone);
+    const afterReset = await triggerPhoneLockout(phone);
+    expect(afterReset).toBe(120);
+  });
+
+  it("a legitimate user who mistypes the code once is unaffected -- no lockout, no delay, on the very next try", async () => {
+    const phone = freshPhone();
+    const challengeId = `retry-ch-${Math.random().toString(36).slice(2)}`;
+    await inMemoryPhoneChallengeStore.set(challengeId, {
+      phone,
+      expiresAt: Math.floor(Date.now() / 1000) + 600,
+      code: "123456",
+      verifyAttempts: 0,
+    });
+
+    const wrong = await onPhoneWrongCode(phone, challengeId, inMemoryPhoneChallengeStore);
+    expect(wrong).toEqual({ ok: false, code: "invalid_code" });
+
+    // No lockout was ever registered for this phone -- starting a fresh challenge is still allowed.
+    const gate = await assertPhoneCanStartChallenge(phone);
+    expect(gate).toEqual({ ok: true });
+  });
+
+  it("no state is unrecoverable: waiting out the reported retryAfterSeconds always unblocks the phone, even at the cap", async () => {
+    const phone = freshPhone();
+    for (let i = 0; i < 5; i++) {
+      const retryAfterSeconds = await triggerPhoneLockout(phone);
+      vi.advanceTimersByTime((retryAfterSeconds + 1) * 1000);
+    }
+    // Even at the 30-minute cap, a fresh challenge succeeds once the reported wait has elapsed --
+    // never blocked forever, never requiring anything but waiting.
+    const gate = await assertPhoneCanStartChallenge(phone);
+    expect(gate).toEqual({ ok: true });
   });
 });

@@ -9,6 +9,7 @@ import {
   assertPhoneCanStartChallenge,
   onPhoneWrongCode,
   registerPhoneSend,
+  registerPhoneVerifySuccess,
 } from "@/modules/auth/phoneOtpLimits";
 import { generateSmsCode } from "@/modules/auth/smsCode";
 import type { PhoneOtpDelivery, SendCodeResult, SmsPort, VerifyCodeResult } from "@/modules/auth/smsPort";
@@ -202,6 +203,8 @@ export function createIntegratorSmsAdapter(deps: IntegratorSmsAdapterDeps): SmsP
       if (stored.code !== code) {
         return onPhoneWrongCode(stored.phone, challengeId, challengeStore);
       }
+      // NIST SP 800-63B §5.2.2: disregard previous failed attempts after success.
+      await registerPhoneVerifySuccess(stored.phone);
       /** Челлендж удаляется после полного confirm (bind + messenger secret consumed), не здесь. */
       return { ok: true };
     },

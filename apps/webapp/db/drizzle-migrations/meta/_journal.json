@@ -1737,6 +1737,13 @@
       "when": 1793539200044,
       "tag": "0247_email_challenge_atomic_attempts",
       "breakpoints": true
+    },
+    {
+      "idx": 248,
+      "version": "7",
+      "when": 1793539200045,
+      "tag": "0248_otp_decaying_lockout",
+      "breakpoints": true
     }
   ]
 }

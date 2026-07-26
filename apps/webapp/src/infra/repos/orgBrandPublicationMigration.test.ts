@@ -198,10 +198,15 @@ describe("0238 organization brand publication", () => {
     // anonymous-booking phone OTP accessors, together with the eight phone_challenges /
     // phone_otp_locks required-grant rows they need. This expectation and the deploy constant move
     // in the same commit, on purpose — they are two independent copies of one frozen number.
-    expect(deploy).toContain("local expected_secdef_count=58");
+    // 58 -> 61 (2026-07-26): migration 0248_otp_decaying_lockout (night plan C-2 step 3) added the
+    // three email_otp_locks accessors (find/register/reset), together with the four new
+    // email_otp_locks required-grant rows they need. Same discipline: expectation and deploy
+    // constant move in the same commit.
+    expect(deploy).toContain("local expected_secdef_count=61");
     expect(deploy).toContain("('public.org_enrollments', 'SELECT')");
     expect(deploy).toContain("('public.phone_challenges', 'INSERT')");
     expect(deploy).toContain("('public.phone_otp_locks', 'UPDATE')");
+    expect(deploy).toContain("('public.email_otp_locks', 'DELETE')");
   });
 
   /**

@@ -1,6 +1,11 @@
 import { createHash, randomInt, randomUUID } from "node:crypto";
 import { env, integratorWebhookSecret } from "@/config/env";
-import { OTP_LOCK_DURATION_SEC, OTP_MAX_VERIFY_ATTEMPTS, OTP_RESEND_COOLDOWN_SEC } from "@/modules/auth/otpConstants";
+import {
+  OTP_LOCKOUT_BASE_SEC,
+  OTP_MAX_VERIFY_ATTEMPTS,
+  OTP_RESEND_COOLDOWN_SEC,
+  nextOtpLockoutDurationSeconds,
+} from "@/modules/auth/otpConstants";
 import type { EmailAuthDbPort } from "@/modules/auth/emailAuthPort";
 import { sendEmailAuthCode } from "@/modules/auth/emailSendPort";
 
@@ -29,10 +34,73 @@ const memEmailChallenges = new Map<
 /** In-memory владельцы email (только без DATABASE_URL). */
 const memEmailOwnerByNormalized = new Map<string, string>();
 
+/**
+ * Decaying OTP lockout (night plan C-2 step 3), in-memory mirror of `email_otp_locks` (only
+ * Vitest without `DATABASE_URL`). Keyed by userId, same identity every startEmailChallenge /
+ * confirm* / consume* call already carries. Deliberately NOT cleared just because a lock's
+ * `lockedUntil` is in the past -- only a successful verification resets it (NIST SP 800-63B
+ * §5.2.2), same as the DB path.
+ */
+const memEmailLocks = new Map<string, number>();
+const memEmailLockCycles = new Map<string, number>();
+
 /** Сброс in-memory состояния между тестами. */
 export function resetEmailAuthMemStateForTests(): void {
   memEmailChallenges.clear();
   memEmailOwnerByNormalized.clear();
+  memEmailLocks.clear();
+  memEmailLockCycles.clear();
+}
+
+/**
+ * Decaying OTP lockout (night plan C-2 step 3) gate check, used by `startEmailChallenge` for both
+ * the authenticated and public (delegating) email flows.
+ */
+async function checkEmailOtpLock(
+  userId: string,
+): Promise<{ locked: true; retryAfterSeconds: number } | { locked: false }> {
+  const now = Math.floor(Date.now() / 1000);
+  if (!env.DATABASE_URL) {
+    const lockedUntil = memEmailLocks.get(userId);
+    if (lockedUntil != null && lockedUntil > now) {
+      return { locked: true, retryAfterSeconds: Math.max(1, lockedUntil - now) };
+    }
+    return { locked: false };
+  }
+  const row = await requireEmailAuthDb().findEmailOtpLock(userId);
+  const lockedUntil = row ? Number(row.locked_until) : 0;
+  if (lockedUntil > now) {
+    return { locked: true, retryAfterSeconds: Math.max(1, lockedUntil - now) };
+  }
+  return { locked: false };
+}
+
+/**
+ * Atomically escalates this user's lockout cycle (120s, 240s, 480s, 960s, capped at 1800s -- see
+ * otpConstants.ts:nextOtpLockoutDurationSeconds) and returns the retryAfterSeconds to report.
+ */
+async function registerEmailOtpLockoutForUser(userId: string): Promise<number> {
+  const now = Math.floor(Date.now() / 1000);
+  if (!env.DATABASE_URL) {
+    const previousCycles = memEmailLockCycles.get(userId) ?? 0;
+    const duration = nextOtpLockoutDurationSeconds(previousCycles);
+    const lockedUntil = now + duration;
+    memEmailLockCycles.set(userId, previousCycles + 1);
+    memEmailLocks.set(userId, lockedUntil);
+    return duration;
+  }
+  const lockedUntil = await requireEmailAuthDb().registerEmailOtpLockout(userId);
+  return Math.max(1, lockedUntil - now);
+}
+
+/** NIST SP 800-63B §5.2.2: disregard previous failed attempts after a successful verification. */
+async function resetEmailOtpLockoutForUser(userId: string): Promise<void> {
+  if (!env.DATABASE_URL) {
+    memEmailLocks.delete(userId);
+    memEmailLockCycles.delete(userId);
+    return;
+  }
+  await requireEmailAuthDb().resetEmailOtpLockout(userId);
 }
 
 export function normalizeEmail(email: string): string {
@@ -124,7 +192,17 @@ async function verifyChallengeCodeRow(params: {
 
   const attempts = Number(params.row.attempts);
   if (attempts >= OTP_MAX_VERIFY_ATTEMPTS) {
-    return { ok: false, code: "too_many_attempts", retryAfterSeconds: OTP_LOCK_DURATION_SEC };
+    // Defensive re-check on an already-exhausted row that a concurrent request has not yet
+    // deleted: report the lock that request's own escalation should already have registered,
+    // rather than registering a second escalation for the same exhaustion event (which would
+    // double-count the lockout cycle). If that lock is not yet visible (a genuine race), fall back
+    // to the shortest possible duration -- never to zero, and never by inventing a new escalation.
+    const lockState = await checkEmailOtpLock(params.userId);
+    return {
+      ok: false,
+      code: "too_many_attempts",
+      retryAfterSeconds: lockState.locked ? lockState.retryAfterSeconds : OTP_LOCKOUT_BASE_SEC,
+    };
   }
 
   const expectedHash = hashEmailChallengeCode(params.code);
@@ -143,11 +221,18 @@ async function verifyChallengeCodeRow(params: {
     }
     if (next >= OTP_MAX_VERIFY_ATTEMPTS) {
       await db.deleteEmailChallengeById(params.challengeId);
-      return { ok: false, code: "too_many_attempts", retryAfterSeconds: OTP_LOCK_DURATION_SEC };
+      // Decaying lockout (night plan C-2 step 3): escalate this user's cycle instead of a flat
+      // 10-minute block -- see registerEmailOtpLockoutForUser / otpConstants.ts for the curve.
+      const retryAfterSeconds = await registerEmailOtpLockoutForUser(params.userId);
+      return { ok: false, code: "too_many_attempts", retryAfterSeconds };
     }
     return { ok: false, code: "invalid_code" };
   }
 
+  // NIST SP 800-63B §5.2.2: disregard previous failed attempts after a successful verification --
+  // the code just matched, regardless of what onSuccess() does with it next (e.g. email_conflict is
+  // a downstream business-rule failure, not a wrong guess).
+  await resetEmailOtpLockoutForUser(params.userId);
   return params.onSuccess();
 }
 
@@ -155,6 +240,16 @@ export async function startEmailChallenge(userId: string, emailRaw: string): Pro
   const email = normalizeEmail(emailRaw);
   if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
     return { ok: false, code: "invalid_email" };
+  }
+
+  // Decaying lockout gate (night plan C-2 step 3): before this fix, exhausting attempts on one
+  // challenge only deleted that challenge -- nothing stopped a fresh one from being issued the
+  // moment the unrelated 60s resend cooldown passed, with attempts back at 0. This also protects
+  // `startPublicEmailOtpChallenge`/`startPublicEmailOtpRegistration` (emailOtpPublic.ts), which
+  // delegate to this same function.
+  const lockState = await checkEmailOtpLock(userId);
+  if (lockState.locked) {
+    return { ok: false, code: "too_many_attempts", retryAfterSeconds: lockState.retryAfterSeconds };
   }
 
   if (!env.DATABASE_URL) {
@@ -236,10 +331,13 @@ export async function confirmEmailChallenge(
       row.attempts += 1;
       if (row.attempts >= OTP_MAX_VERIFY_ATTEMPTS) {
         memEmailChallenges.delete(challengeId);
-        return { ok: false, code: "too_many_attempts", retryAfterSeconds: OTP_LOCK_DURATION_SEC };
+        const retryAfterSeconds = await registerEmailOtpLockoutForUser(userId);
+        return { ok: false, code: "too_many_attempts", retryAfterSeconds };
       }
       return { ok: false, code: "invalid_code" };
     }
+    // NIST SP 800-63B §5.2.2: disregard previous failed attempts after a successful verification.
+    await resetEmailOtpLockoutForUser(userId);
     const normalized = normalizeEmail(row.email);
     const owner = memEmailOwnerByNormalized.get(normalized);
     if (owner && owner !== userId) {
@@ -309,10 +407,13 @@ export async function consumeEmailChallengeCode(
       row.attempts += 1;
       if (row.attempts >= OTP_MAX_VERIFY_ATTEMPTS) {
         memEmailChallenges.delete(challengeId);
-        return { ok: false, code: "too_many_attempts", retryAfterSeconds: OTP_LOCK_DURATION_SEC };
+        const retryAfterSeconds = await registerEmailOtpLockoutForUser(userId);
+        return { ok: false, code: "too_many_attempts", retryAfterSeconds };
       }
       return { ok: false, code: "invalid_code" };
     }
+    // NIST SP 800-63B §5.2.2: disregard previous failed attempts after a successful verification.
+    await resetEmailOtpLockoutForUser(userId);
     memEmailChallenges.delete(challengeId);
     return { ok: true };
   }
@@ -373,10 +474,13 @@ export async function confirmLatestEmailChallengeCodeForUser(
       best.attempts += 1;
       if (best.attempts >= OTP_MAX_VERIFY_ATTEMPTS) {
         memEmailChallenges.delete(bestId);
-        return { ok: false, code: "too_many_attempts", retryAfterSeconds: OTP_LOCK_DURATION_SEC };
+        const retryAfterSeconds = await registerEmailOtpLockoutForUser(userId);
+        return { ok: false, code: "too_many_attempts", retryAfterSeconds };
       }
       return { ok: false, code: "invalid_code" };
     }
+    // NIST SP 800-63B §5.2.2: disregard previous failed attempts after a successful verification.
+    await resetEmailOtpLockoutForUser(userId);
     const normalized = normalizeEmail(best.email);
     const owner = memEmailOwnerByNormalized.get(normalized);
     if (owner && owner !== userId) {
@@ -455,10 +559,13 @@ export async function consumeLatestEmailChallengeCodeForUser(
       best.attempts += 1;
       if (best.attempts >= OTP_MAX_VERIFY_ATTEMPTS) {
         memEmailChallenges.delete(bestId);
-        return { ok: false, code: "too_many_attempts", retryAfterSeconds: OTP_LOCK_DURATION_SEC };
+        const retryAfterSeconds = await registerEmailOtpLockoutForUser(userId);
+        return { ok: false, code: "too_many_attempts", retryAfterSeconds };
       }
       return { ok: false, code: "invalid_code" };
     }
+    // NIST SP 800-63B §5.2.2: disregard previous failed attempts after a successful verification.
+    await resetEmailOtpLockoutForUser(userId);
     memEmailChallenges.delete(bestId);
     return { ok: true };
   }

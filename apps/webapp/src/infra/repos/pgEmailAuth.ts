@@ -227,6 +227,40 @@ export async function findLatestPendingEmailChallengeForUser(
   return row.rows[0] ?? null;
 }
 
+/**
+ * Decaying OTP lockout (night plan C-2 step 3): read-only gate check for `startEmailChallenge`.
+ * Backed by `app.email_auth_find_email_otp_lock` (0248_otp_decaying_lockout.sql) -- app_patient has
+ * no direct grant on `email_otp_locks`, same reason every other accessor in this file goes through
+ * a SECURITY DEFINER function.
+ */
+export async function findEmailOtpLock(
+  userId: string,
+): Promise<{ locked_until: string | number } | null> {
+  const row = await runWebappPgText<{ locked_until: string | number }>(
+    "SELECT locked_until FROM app.email_auth_find_email_otp_lock($1::uuid)",
+    [userId],
+  );
+  return row.rows[0] ?? null;
+}
+
+/**
+ * Atomically escalates this user's lockout cycle and returns the new `locked_until` epoch second.
+ * Backed by `app.email_auth_register_email_otp_lockout`, which does the escalation math itself
+ * inside a single `INSERT ... ON CONFLICT DO UPDATE` -- see that function's comment for the formula.
+ */
+export async function registerEmailOtpLockout(userId: string): Promise<number> {
+  const r = await runWebappPgText<{ locked_until: string | number }>(
+    "SELECT locked_until FROM app.email_auth_register_email_otp_lockout($1::uuid)",
+    [userId],
+  );
+  return Number(r.rows[0]!.locked_until);
+}
+
+/** NIST SP 800-63B §5.2.2: disregard previous failed attempts after a successful verification. */
+export async function resetEmailOtpLockout(userId: string): Promise<void> {
+  await runWebappPgText("SELECT app.email_auth_reset_email_otp_lockout($1::uuid)", [userId]);
+}
+
 export const pgEmailAuthPort = {
   findEmailSendCooldown,
   deleteEmailChallengesForUser,
@@ -241,6 +275,9 @@ export const pgEmailAuthPort = {
   findEmailChallengeForConsume,
   findLatestEmailChallengeForUser,
   findLatestPendingEmailChallengeForUser,
+  findEmailOtpLock,
+  registerEmailOtpLockout,
+  resetEmailOtpLockout,
 };
 
 export type EmailAuthDbPort = typeof pgEmailAuthPort;
