@@ -189,7 +189,18 @@ finding that has no line here is a QUESTION for the owner, never work (see `docs
       click to reschedule or cancel; pending messages last in the thread under a divider; collapsing later.
       ~3000 lines exist on `agent/ui964-20260722`; migration must be renumbered, `DoctorCommentsTab` was
       rewritten in feat.
-- [x] **F-4 (#988)** — fixed `ad70a0da9`, proven live over HTTP (unread 2 → 1, the untouched conversation stays unread). Opening one chat marks EVERY conversation read. Land the scoping half only.
+- [ ] **F-4 (#988)** — REOPENED 2026-07-26 by the lead. Code fix `ad70a0da9` is correct and was proven live
+      over HTTP (unread 2 → 1, the untouched conversation stays unread) — **but only on DEV, and only after a
+      worker applied the required grant BY HAND.** Verified read-only on TEST: `app_patient` has SELECT and
+      INSERT on `support_conversation_messages.read_at` and **no UPDATE**, and
+      `deploy/postgres/patient-support-mark-read-grant.sql` is referenced by no closure at all
+      (`grep -rn "patient-support-mark-read-grant" deploy/` → only its own header and prose in a sibling).
+      So a normal `deploy-test.sh` never applies it and mark-read answers 500 / 42501 on TEST.
+      **"Proven on DEV after hand-applied SQL" is not proven** — the same class as the repo's own trap «a grant
+      written in a drizzle migration does not survive; runtime grants belong in the closure that owns the role».
+      In flight: wire it into the closure the way sibling patient grants are wired, and extend the `assert_*`
+      allowlist in the SAME change — the deploy pins an exact privilege set per login role and is FATAL mid-run
+      on an extra grant (that is what took TEST down on 2026-07-24).
 - [x] **F-5** — closed conversation renders read-only `ad70a0da9`: opens 200 with history and `readOnly`, the composer is not rendered, posting answers 409 `conversation_closed` instead of the rejected 404. Closed support conversation renders read-only — never "not found".
 - [ ] **F-6** Clinic slug, public page and the booking screens (worker was stopped mid-flight; migration 0243
       and its `expected_secdef_count` 56→57 sit uncommitted).
