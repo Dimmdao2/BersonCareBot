@@ -25,7 +25,6 @@ function exactRow(id: string, isActive: boolean, createdAt: string) {
     branchId: input.branchId,
     roomId: null,
     cityCode: null,
-    durationMinutesOverride: null,
     priceMinorOverride: null,
     isActive,
     sortOrder: 0,
@@ -114,7 +113,7 @@ describe("pgBookingEngine solo location availability transaction", () => {
 
     expect(harness.updateSets).toEqual([
       expect.objectContaining({ isActive: false }),
-      expect.objectContaining({ isActive: false, durationMinutesOverride: null, priceMinorOverride: null }),
+      expect.objectContaining({ isActive: false, priceMinorOverride: null }),
     ]);
     expect(result.specialistAvailability.id).toBe("eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee");
     expect(harness.state()).toEqual({ committed: true, rolledBack: false });

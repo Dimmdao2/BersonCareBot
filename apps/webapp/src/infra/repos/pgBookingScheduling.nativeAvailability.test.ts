@@ -45,7 +45,6 @@ const ssa = {
   branchId,
   roomId: null,
   cityCode: null,
-  durationMinutesOverride: null,
   priceMinorOverride: null,
   isActive: true,
   sortOrder: 0,
