@@ -10,15 +10,16 @@ vi.mock("./patchAdminSetting", () => ({
 }));
 
 describe("OperatorHealthAlertsSection", () => {
-  it("renders three notification blocks and digest time", () => {
+  it("renders four notification blocks (including support, D-2) and digest time", () => {
     render(<OperatorHealthAlertsSection initialConfig={defaultOperatorHealthAlertConfig()} />);
 
     expect(screen.getByText("Уведомления админу")).toBeInTheDocument();
     expect(screen.getByText("Критичные сбои")).toBeInTheDocument();
     expect(screen.getByText("Суточная сводка")).toBeInTheDocument();
     expect(screen.getByText("Конфликты аккаунтов")).toBeInTheDocument();
+    expect(screen.getByText("Обращения в поддержку")).toBeInTheDocument();
     expect(screen.getByLabelText("Время суточной сводки")).toHaveValue("09:00");
-    expect(screen.getAllByLabelText("SMS")).toHaveLength(3);
+    expect(screen.getAllByLabelText("SMS")).toHaveLength(4);
   });
 
   it("account_conflicts toggle controls single conflicts block", async () => {

@@ -207,6 +207,75 @@ describe("dispatchOperatorAlert", () => {
     expect(sendAdminIncidentStaffWebPushMock).toHaveBeenCalledOnce();
   });
 
+  describe("support block (D-2, night plan 2026-07-26)", () => {
+    it("delivers a support submission via max when Telegram is unavailable", async () => {
+      getConfigValueMock.mockImplementation(async (key: string) => {
+        if (key === "operator_health_alert_config") {
+          return JSON.stringify({
+            value: {
+              topics: { critical_enabled: true, digest_enabled: true, account_conflicts: true, support_enabled: true },
+              digestTime: "09:00",
+              channels: {
+                support: { telegram: true, max: true, web_push: false, sms: false },
+              },
+            },
+          });
+        }
+        if (key === "admin_incident_alert_config") return "";
+        if (key === "admin_telegram_ids") return "111";
+        if (key === "admin_max_ids") return "222";
+        return "";
+      });
+      // Telegram unreachable — exactly the scenario D-2 is designed against.
+      relayOutboundMock.mockImplementation(async (input: { channel: string }) => {
+        if (input.channel === "telegram") return { ok: false, reason: "no_integrator_url" };
+        return { ok: true, status: "accepted" };
+      });
+
+      const result = await dispatchOperatorAlert({
+        block: "support",
+        topic: "support_submission_patient",
+        dedupKey: "support:patient:u1:1",
+        lines: ["Поддержка (webapp)", "Email: a@b.co", "", "Сообщение:", "help"],
+      });
+
+      expect(result.dispatched).toBe(true);
+      expect(relayOutboundMock).toHaveBeenCalledWith(expect.objectContaining({ channel: "telegram" }));
+      expect(relayOutboundMock).toHaveBeenCalledWith(
+        expect.objectContaining({ channel: "max", recipient: "222" }),
+      );
+    });
+
+    it("reports no_recipients (never a silent drop) when nobody is configured on any support channel", async () => {
+      getConfigValueMock.mockImplementation(async (key: string) => {
+        if (key === "operator_health_alert_config") {
+          return JSON.stringify({
+            value: {
+              topics: { support_enabled: true },
+              channels: { support: { telegram: true, max: true, web_push: true, sms: true } },
+            },
+          });
+        }
+        if (key === "admin_incident_alert_config") return "";
+        if (key === "admin_telegram_ids") return "";
+        if (key === "admin_max_ids") return "";
+        if (key === "admin_phones") return "";
+        return "";
+      });
+      getAdminIncidentStaffPushDepsMock.mockReturnValue(null);
+
+      const result = await dispatchOperatorAlert({
+        block: "support",
+        topic: "support_submission_guest",
+        dedupKey: "support:public:2",
+        lines: ["Поддержка (webapp) — гость", "Email: g@b.co"],
+      });
+
+      expect(result.dispatched).toBe(false);
+      expect(result.reason).toBe("no_recipients");
+    });
+  });
+
   it("starts other channel attempts without waiting for a hanging relay", async () => {
     getConfigValueMock.mockImplementation(async (key: string) => {
       if (key === "operator_health_alert_config") {

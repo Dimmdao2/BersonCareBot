@@ -28,6 +28,7 @@ const BLOCKS: BlockDef[] = [
   { block: "critical", title: "Критичные сбои", topicKey: "critical_enabled" },
   { block: "digest", title: "Суточная сводка", topicKey: "digest_enabled", showTime: true },
   { block: "account_conflicts", title: "Конфликты аккаунтов", topicKey: "account_conflicts" },
+  { block: "support", title: "Обращения в поддержку", topicKey: "support_enabled" },
 ];
 
 function ChannelRow({
@@ -57,6 +58,7 @@ export function OperatorHealthAlertsSection({ initialConfig }: OperatorHealthAle
     critical: { ...initialConfig.channels.critical },
     digest: { ...initialConfig.channels.digest },
     account_conflicts: { ...initialConfig.channels.account_conflicts },
+    support: { ...initialConfig.channels.support },
   }));
   const [digestTime, setDigestTime] = useState(initialConfig.digestTime);
   const [saved, setSaved] = useState(false);

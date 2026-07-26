@@ -12,7 +12,7 @@ import {
 
 export const OPERATOR_HEALTH_ALERT_CONFIG_KEY = "operator_health_alert_config" as const;
 
-export const OPERATOR_ALERT_BLOCKS = ["critical", "digest", "account_conflicts"] as const;
+export const OPERATOR_ALERT_BLOCKS = ["critical", "digest", "account_conflicts", "support"] as const;
 export type OperatorAlertBlock = (typeof OPERATOR_ALERT_BLOCKS)[number];
 
 export type OperatorAlertChannels = {
@@ -27,6 +27,8 @@ export type OperatorHealthAlertConfig = {
     critical_enabled: boolean;
     digest_enabled: boolean;
     account_conflicts: boolean;
+    /** D-2 (night plan 2026-07-26): support-form submissions (patient + guest). */
+    support_enabled: boolean;
   };
   digestTime: string;
   channels: Record<OperatorAlertBlock, OperatorAlertChannels>;
@@ -53,12 +55,14 @@ export function defaultOperatorHealthAlertConfig(): OperatorHealthAlertConfig {
       critical_enabled: true,
       digest_enabled: true,
       account_conflicts: true,
+      support_enabled: true,
     },
     digestTime: "09:00",
     channels: {
       critical: { ...DEFAULT_CHANNELS },
       digest: { ...DEFAULT_CHANNELS },
       account_conflicts: { ...DEFAULT_CHANNELS },
+      support: { ...DEFAULT_CHANNELS },
     },
   };
 }
@@ -111,6 +115,7 @@ export function parseOperatorHealthAlertConfig(valueJson: unknown): OperatorHeal
     if (isBool(t.critical_enabled)) out.topics.critical_enabled = t.critical_enabled;
     if (isBool(t.digest_enabled)) out.topics.digest_enabled = t.digest_enabled;
     if (isBool(t.account_conflicts)) out.topics.account_conflicts = t.account_conflicts;
+    if (isBool(t.support_enabled)) out.topics.support_enabled = t.support_enabled;
   }
 
   if ("digestTime" in o) {
@@ -163,6 +168,7 @@ export function mergeOperatorHealthAlertConfigFromLegacy(
 export function isOperatorAlertBlockEnabled(cfg: OperatorHealthAlertConfig, block: OperatorAlertBlock): boolean {
   if (block === "critical") return cfg.topics.critical_enabled;
   if (block === "digest") return cfg.topics.digest_enabled;
+  if (block === "support") return cfg.topics.support_enabled;
   return cfg.topics.account_conflicts;
 }
 
@@ -188,7 +194,7 @@ export function normalizeOperatorHealthAlertConfigForAdminPatch(
   const defaults = defaultOperatorHealthAlertConfig();
   const topics = { ...defaults.topics };
   const tObj = topicsIn as Record<string, unknown>;
-  for (const k of ["critical_enabled", "digest_enabled", "account_conflicts"] as const) {
+  for (const k of ["critical_enabled", "digest_enabled", "account_conflicts", "support_enabled"] as const) {
     if (!(k in tObj)) continue;
     const v = tObj[k];
     if (!isBool(v)) return { ok: false };

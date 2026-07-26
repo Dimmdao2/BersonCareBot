@@ -1,23 +1,23 @@
 import { describe, expect, it, vi, beforeEach, afterEach } from "vitest";
 
-const relayOutboundMock = vi.hoisted(() => vi.fn());
-const envForTest = vi.hoisted(() => ({ ADMIN_TELEGRAM_ID: 424242 as number | undefined }));
+const relaySupportSubmissionMock = vi.hoisted(() => vi.fn());
+const stampBootstrapPrincipalMock = vi.hoisted(() => vi.fn());
 const headerMap = vi.hoisted(() => ({
   entries: [["user-agent", "VitestUA/1"]] as [string, string][],
 }));
 let supportTestIpSeq = 0;
 
-// S7: relay-outbound is now the send path instead of raw Telegram fetch
-vi.mock("@/modules/messaging/relayOutbound", () => ({
-  relayOutbound: relayOutboundMock,
+// D-2: Telegram-only relayOutbound replaced by the multi-channel operator-alert relay.
+vi.mock("@/app-layer/support/relaySupportSubmission", () => ({
+  relaySupportSubmission: relaySupportSubmissionMock,
+}));
+
+vi.mock("@/app-layer/principal/bootstrapPrincipal", () => ({
+  stampBootstrapPrincipal: stampBootstrapPrincipalMock,
 }));
 
 vi.mock("next/headers", () => ({
   headers: vi.fn(async () => new Headers(headerMap.entries)),
-}));
-
-vi.mock("@/config/env", () => ({
-  env: envForTest,
 }));
 
 import { POST } from "./route";
@@ -27,8 +27,7 @@ const jsonBody = (email: string, message: string) =>
 
 describe("POST /api/public/support", () => {
   beforeEach(() => {
-    relayOutboundMock.mockResolvedValue({ ok: true, status: "accepted" });
-    envForTest.ADMIN_TELEGRAM_ID = 424242;
+    relaySupportSubmissionMock.mockResolvedValue({ delivered: true, persisted: false });
     supportTestIpSeq += 1;
     headerMap.entries = [
       ["user-agent", "VitestUA/1"],
@@ -51,7 +50,7 @@ describe("POST /api/public/support", () => {
     expect(res.status).toBe(400);
   });
 
-  it("returns 200 and calls relayOutbound with correct params", async () => {
+  it("returns 200 and relays with correct guest content", async () => {
     const res = await POST(
       new Request("http://localhost/api/public/support", {
         method: "POST",
@@ -60,12 +59,15 @@ describe("POST /api/public/support", () => {
       }),
     );
     expect(res.status).toBe(200);
-    expect(relayOutboundMock).toHaveBeenCalledTimes(1);
-    const [params] = relayOutboundMock.mock.calls[0] as [{ channel: string; recipient: string; text: string; messageId: string }];
-    expect(params.channel).toBe("telegram");
-    expect(params.recipient).toBe("424242");
-    expect(params.text).toContain("гость");
-    expect(params.text).toContain("guest@example.com");
+    expect(relaySupportSubmissionMock).toHaveBeenCalledTimes(1);
+    const [params] = relaySupportSubmissionMock.mock.calls[0] as [
+      { kind: string; email: string; message: string; lines: string[] },
+    ];
+    expect(params.kind).toBe("guest");
+    expect(params.email).toBe("guest@example.com");
+    expect(params.message).toBe("Need help");
+    expect(params.lines.join("\n")).toContain("гость");
+    expect(params.lines.join("\n")).toContain("guest@example.com");
   });
 
   it("returns 429 when rate limited for same IP", async () => {
@@ -91,32 +93,26 @@ describe("POST /api/public/support", () => {
     expect(second.status).toBe(429);
   });
 
-  it("returns 503 when ADMIN_TELEGRAM_ID is missing", async () => {
-    envForTest.ADMIN_TELEGRAM_ID = undefined;
-    const res = await POST(
-      new Request("http://localhost/api/public/support", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: jsonBody("guest@example.com", "help"),
-      }),
-    );
-    expect(res.status).toBe(503);
+  describe("D-2: never a hard failure to the caller", () => {
+    it("returns 200 ok:true with a non-alarming message when no channel confirms delivery", async () => {
+      relaySupportSubmissionMock.mockResolvedValueOnce({ delivered: false, persisted: true });
+      const res = await POST(
+        new Request("http://localhost/api/public/support", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: jsonBody("guest@example.com", "help"),
+        }),
+      );
+      expect(res.status).toBe(200);
+      const body = (await res.json()) as { ok: boolean; delivered: boolean; message: string };
+      expect(body.ok).toBe(true);
+      expect(body.delivered).toBe(false);
+      expect(body.message).not.toMatch(/недоступна|ошибка|попробуйте позже/i);
+    });
   });
 
-  it("returns 503 when ADMIN_TELEGRAM_ID is 0", async () => {
-    envForTest.ADMIN_TELEGRAM_ID = 0;
-    const res = await POST(
-      new Request("http://localhost/api/public/support", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: jsonBody("guest@example.com", "help"),
-      }),
-    );
-    expect(res.status).toBe(503);
-  });
-
-  describe("relay-outbound chokepoint (S7 / P25)", () => {
-    it("calls relayOutbound with channel=telegram and recipient=ADMIN_TELEGRAM_ID", async () => {
+  describe("relay chokepoint (D-2)", () => {
+    it("calls relaySupportSubmission with kind=guest and a unique messageId", async () => {
       const res = await POST(
         new Request("http://localhost/api/public/support", {
           method: "POST",
@@ -125,15 +121,14 @@ describe("POST /api/public/support", () => {
         }),
       );
       expect(res.status).toBe(200);
-      expect(relayOutboundMock).toHaveBeenCalledTimes(1);
-      const [params] = relayOutboundMock.mock.calls[0] as [{ channel: string; recipient: string; messageId: string }];
-      expect(params.channel).toBe("telegram");
-      expect(params.recipient).toBe("424242");
+      expect(relaySupportSubmissionMock).toHaveBeenCalledTimes(1);
+      const [params] = relaySupportSubmissionMock.mock.calls[0] as [{ kind: string; messageId: string }];
+      expect(params.kind).toBe("guest");
       expect(params.messageId).toMatch(/^support:public:/);
     });
 
-    it("returns 502 when relayOutbound fails", async () => {
-      relayOutboundMock.mockResolvedValue({ ok: false, reason: "no_integrator_url" });
+    it("returns 200 (not an HTTP error) even when relaySupportSubmission reports total failure", async () => {
+      relaySupportSubmissionMock.mockResolvedValueOnce({ delivered: false, persisted: false });
       const res = await POST(
         new Request("http://localhost/api/public/support", {
           method: "POST",
@@ -141,17 +136,18 @@ describe("POST /api/public/support", () => {
           body: jsonBody("guest@example.com", "help please"),
         }),
       );
-      expect(res.status).toBe(502);
-      const body = (await res.json()) as { error: string };
-      expect(body.error).toBe("send_failed");
+      expect(res.status).toBe(200);
+      const body = (await res.json()) as { ok: boolean; delivered: boolean };
+      expect(body.ok).toBe(true);
+      expect(body.delivered).toBe(false);
     });
 
-    it("does not stamp rate-limit on failed relay (allows retry)", async () => {
+    it("stamps rate-limit even when relay reports total failure (submission was still accepted)", async () => {
       headerMap.entries = [
         ["user-agent", "VitestUA/1"],
         ["x-forwarded-for", "198.18.1.99"],
       ];
-      relayOutboundMock.mockResolvedValueOnce({ ok: false, reason: "relay_error" });
+      relaySupportSubmissionMock.mockResolvedValueOnce({ delivered: false, persisted: true });
       const first = await POST(
         new Request("http://localhost/api/public/support", {
           method: "POST",
@@ -159,8 +155,7 @@ describe("POST /api/public/support", () => {
           body: jsonBody("a@b.co", "one"),
         }),
       );
-      expect(first.status).toBe(502);
-      // second request on same IP should not be rate-limited
+      expect(first.status).toBe(200);
       const second = await POST(
         new Request("http://localhost/api/public/support", {
           method: "POST",
@@ -168,7 +163,7 @@ describe("POST /api/public/support", () => {
           body: jsonBody("a@b.co", "two"),
         }),
       );
-      expect(second.status).toBe(200);
+      expect(second.status).toBe(429);
     });
   });
 });

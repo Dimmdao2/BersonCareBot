@@ -1,35 +1,30 @@
-import { stampBootstrapPrincipal } from "@/app-layer/principal/bootstrapPrincipal";
 /**
  * POST /api/public/support — обращение в поддержку без сессии (экран входа).
- * Rate limit по IP; то же назначение Telegram, что и `/api/patient/support`.
+ * Rate limit по IP.
  *
- * S7 (unified-messaging): raw fetch(api.telegram.org) removed; message now emitted via
- * relayOutbound → integrator dispatchPort → redirect-covered chokepoint (D7).
- * Public (no-session) route uses the same M2M relay path (N1 approved — same shared secret,
- * server-to-server).
+ * D-2 (night plan 2026-07-26): no longer Telegram-only / no longer 503s when Telegram is
+ * unconfigured. Delivery goes through `relaySupportSubmission` → `dispatchOperatorAlert`, the
+ * existing multi-channel (telegram/max/web_push/sms), config-driven operator-alert mechanism —
+ * the same one `/api/patient/support` now uses. A submission is never lost: if no channel
+ * confirms delivery it is persisted for the operator to recover.
  */
 
 import { headers } from "next/headers";
 import { NextResponse } from "next/server";
 import { logger } from "@/app-layer/logging/logger";
-import { env } from "@/config/env";
+import { stampBootstrapPrincipal } from "@/app-layer/principal/bootstrapPrincipal";
 import { routePaths } from "@/app-layer/routes/paths";
-import { relayOutbound } from "@/modules/messaging/relayOutbound";
+import { relaySupportSubmission } from "@/app-layer/support/relaySupportSubmission";
 
 const RATE_LIMIT_MS = 60_000;
 const lastPublicSupportByKey = new Map<string, number>();
 
 const MAX_MESSAGE_LEN = 4000;
-const TELEGRAM_MAX = 4096;
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 function normalizeEmail(raw: string): string {
   return raw.trim().toLowerCase();
-}
-
-function isValidTelegramAdminChatId(id: number | undefined): id is number {
-  return typeof id === "number" && Number.isFinite(id) && id !== 0;
 }
 
 function sanitizeFromAppPath(raw: unknown): string | null {
@@ -46,14 +41,14 @@ function publicSupportRateKey(h: Headers): string {
   return ip ? `pub:${ip}` : "pub:anon";
 }
 
-function buildGuestTelegramText(params: {
+function buildGuestSupportLines(params: {
   email: string;
   message: string;
   userAgent: string;
   surface: string;
   fromPath: string | null;
-}): string {
-  const lines = [
+}): string[] {
+  return [
     "Поддержка (webapp) — гость, не авторизован",
     `Email: ${params.email}`,
     `Поверхность: ${params.surface}`,
@@ -63,14 +58,6 @@ function buildGuestTelegramText(params: {
     "Сообщение:",
     params.message,
   ].filter((x): x is string => x != null);
-  return lines.join("\n");
-}
-
-function fitTelegramMessage(text: string): string {
-  if (text.length <= TELEGRAM_MAX) return text;
-  const marker = "\n…(обрезано)";
-  const head = text.slice(0, TELEGRAM_MAX - marker.length);
-  return `${head}${marker}`;
 }
 
 export async function POST(request: Request) {
@@ -118,47 +105,39 @@ export async function POST(request: Request) {
     return NextResponse.json({ ok: false, error: "rate_limited" }, { status: 429 });
   }
 
-  const adminId = env.ADMIN_TELEGRAM_ID;
-  if (!isValidTelegramAdminChatId(adminId)) {
-    return NextResponse.json(
-      { ok: false, error: "config", message: "Отправка временно недоступна" },
-      { status: 503 },
-    );
-  }
-
-  const messageText = fitTelegramMessage(
-    buildGuestTelegramText({
-      email,
-      message,
-      userAgent,
-      surface,
-      fromPath,
-    }),
-  );
-
-  // S7 (unified-messaging): emit telegram intent via relay-outbound → integrator dispatchPort.
-  // The pre-fork dev redirect (D7/G1) is the single chokepoint; interim dev-suppress guard retired here.
-  // Public (no-session) uses the M2M relay secret (N1 approved — same secret, server-to-server).
-  const messageId = `support:public:${Date.now()}`;
-  const result = await relayOutbound({
-    messageId,
-    channel: "telegram",
-    recipient: String(adminId),
-    text: messageText,
+  const lines = buildGuestSupportLines({
+    email,
+    message,
+    userAgent,
+    surface,
+    fromPath,
   });
 
-  if (!result.ok) {
-    logger.error(
-      { reason: result.reason, route: "public/support" },
-      "[public/support] relay-outbound failed",
-    );
-    return NextResponse.json(
-      { ok: false, error: "send_failed", message: "Не удалось отправить. Попробуйте позже." },
-      { status: 502 },
-    );
-  }
+  // D-2: emit via the operator-alert relay (multi-channel, config-driven) instead of a raw
+  // Telegram-only call; never lost — see relaySupportSubmission for the fallback contract.
+  const messageId = `support:public:${Date.now()}:${Math.random().toString(36).slice(2, 8)}`;
+  const result = await relaySupportSubmission({
+    kind: "guest",
+    messageId,
+    lines,
+    email,
+    message,
+    fromPath,
+  });
 
   lastPublicSupportByKey.set(rateKey, Date.now());
 
-  return NextResponse.json({ ok: true, message: "Сообщение отправлено" });
+  if (!result.delivered) {
+    logger.warn(
+      { route: "public/support", persisted: result.persisted },
+      "[public/support] no channel confirmed delivery",
+    );
+    return NextResponse.json({
+      ok: true,
+      delivered: false,
+      message: "Сообщение получено. Ответим, как только сможем.",
+    });
+  }
+
+  return NextResponse.json({ ok: true, delivered: true, message: "Сообщение отправлено" });
 }

@@ -1,8 +1,10 @@
 import { describe, expect, it } from "vitest";
 import {
   defaultOperatorHealthAlertConfig,
+  isOperatorAlertBlockEnabled,
   mergeOperatorHealthAlertConfigFromLegacy,
   normalizeOperatorHealthAlertConfigForAdminPatch,
+  OPERATOR_ALERT_BLOCKS,
   parseOperatorHealthAlertConfig,
   adminIncidentTopicToAlertBlock,
 } from "./operatorHealthAlertConfig";
@@ -80,5 +82,52 @@ describe("operatorHealthAlertConfig", () => {
   it("maps legacy topics to alert blocks", () => {
     expect(adminIncidentTopicToAlertBlock("channel_link")).toBe("account_conflicts");
     expect(adminIncidentTopicToAlertBlock("system_health_db_guard")).toBe("critical");
+  });
+
+  describe("support block (D-2, night plan 2026-07-26)", () => {
+    it("is included in OPERATOR_ALERT_BLOCKS and enabled with all channels by default", () => {
+      expect(OPERATOR_ALERT_BLOCKS).toContain("support");
+      const cfg = defaultOperatorHealthAlertConfig();
+      expect(cfg.topics.support_enabled).toBe(true);
+      expect(isOperatorAlertBlockEnabled(cfg, "support")).toBe(true);
+      expect(cfg.channels.support).toEqual({ telegram: true, max: true, web_push: true, sms: true });
+    });
+
+    it("parses a stored support_enabled=false and per-channel toggles", () => {
+      const cfg = parseOperatorHealthAlertConfig({
+        value: {
+          topics: { support_enabled: false },
+          channels: { support: { telegram: false, sms: true } },
+        },
+      });
+      expect(cfg.topics.support_enabled).toBe(false);
+      expect(isOperatorAlertBlockEnabled(cfg, "support")).toBe(false);
+      expect(cfg.channels.support.telegram).toBe(false);
+      expect(cfg.channels.support.sms).toBe(true);
+      // Untouched channel keys keep the default rather than being zeroed out.
+      expect(cfg.channels.support.max).toBe(true);
+    });
+
+    it("legacy-only config (no operator_health_alert_config yet) still defaults support to enabled", () => {
+      const cfg = mergeOperatorHealthAlertConfigFromLegacy(null, null);
+      expect(cfg.topics.support_enabled).toBe(true);
+      expect(cfg.channels.support).toEqual({ telegram: true, max: true, web_push: true, sms: true });
+    });
+
+    it("normalizeOperatorHealthAlertConfigForAdminPatch accepts support_enabled and support channels", () => {
+      const r = normalizeOperatorHealthAlertConfigForAdminPatch({
+        topics: { critical_enabled: true, digest_enabled: true, account_conflicts: true, support_enabled: false },
+        channels: {
+          ...defaultOperatorHealthAlertConfig().channels,
+          support: { telegram: false, max: false, web_push: false, sms: false },
+        },
+        digestTime: "09:00",
+      });
+      expect(r.ok).toBe(true);
+      if (r.ok) {
+        expect(r.value.topics.support_enabled).toBe(false);
+        expect(r.value.channels.support).toEqual({ telegram: false, max: false, web_push: false, sms: false });
+      }
+    });
   });
 });

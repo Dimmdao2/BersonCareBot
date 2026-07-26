@@ -1,35 +1,31 @@
 /**
- * POST /api/patient/support — обращение в поддержку: письмо админу в Telegram.
+ * POST /api/patient/support — обращение в поддержку.
  * Доступ: сессия пациента; разрешены tier `allow` и onboarding `need_activation`; только `stale_session` → 401.
  *
- * S7 (unified-messaging): raw fetch(api.telegram.org) removed; message now emitted via
- * relayOutbound → integrator dispatchPort → redirect-covered chokepoint (D7).
+ * D-2 (night plan 2026-07-26): no longer Telegram-only / no longer 503s when Telegram is
+ * unconfigured. Delivery goes through `relaySupportSubmission` → `dispatchOperatorAlert`, the
+ * existing multi-channel (telegram/max/web_push/sms), config-driven operator-alert mechanism.
+ * A submission is never lost: if no channel confirms delivery it is persisted for the operator
+ * to recover (see `persistUndeliveredSupportSubmission`).
  */
 
 import { headers } from "next/headers";
 import { NextResponse } from "next/server";
 import { logger } from "@/app-layer/logging/logger";
-import { env } from "@/config/env";
 import { getCurrentSession } from "@/modules/auth/service";
 import { patientClientBusinessGate } from "@/app-layer/platform-access";
 import { canAccessPatient } from "@/modules/roles/service";
-import { relayOutbound } from "@/modules/messaging/relayOutbound";
+import { relaySupportSubmission } from "@/app-layer/support/relaySupportSubmission";
 
 const RATE_LIMIT_MS = 60_000;
 const lastSupportByRateKey = new Map<string, number>();
 
 const MAX_MESSAGE_LEN = 4000;
-const TELEGRAM_MAX = 4096;
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 function normalizeEmail(raw: string): string {
   return raw.trim().toLowerCase();
-}
-
-/** Telegram `chat_id`: не 0; отрицательные id допустимы (группы). */
-function isValidTelegramAdminChatId(id: number | undefined): id is number {
-  return typeof id === "number" && Number.isFinite(id) && id !== 0;
 }
 
 /** Только пути приложения; без переводов строк. */
@@ -54,7 +50,7 @@ function resolveRateLimitKey(
   return ip ? `ip:${ip}` : "anon:support";
 }
 
-function buildTelegramText(params: {
+function buildSupportLines(params: {
   email: string;
   message: string;
   userId: string;
@@ -64,9 +60,9 @@ function buildTelegramText(params: {
   userAgent: string;
   surface: string;
   fromPath: string | null;
-}): string {
+}): string[] {
   const b = params.bindings;
-  const lines = [
+  return [
     "Поддержка (webapp)",
     `Email: ${params.email}`,
     `User ID: ${params.userId}`,
@@ -83,14 +79,6 @@ function buildTelegramText(params: {
     "Сообщение:",
     params.message,
   ].filter((x): x is string => x != null);
-  return lines.join("\n");
-}
-
-function fitTelegramMessage(text: string): string {
-  if (text.length <= TELEGRAM_MAX) return text;
-  const marker = "\n…(обрезано)";
-  const head = text.slice(0, TELEGRAM_MAX - marker.length);
-  return `${head}${marker}`;
 }
 
 export async function POST(request: Request) {
@@ -147,50 +135,44 @@ export async function POST(request: Request) {
     return NextResponse.json({ ok: false, error: "rate_limited" }, { status: 429 });
   }
 
-  const adminId = env.ADMIN_TELEGRAM_ID;
-  if (!isValidTelegramAdminChatId(adminId)) {
-    return NextResponse.json(
-      { ok: false, error: "config", message: "Отправка временно недоступна" },
-      { status: 503 },
-    );
-  }
-
-  const messageText = fitTelegramMessage(
-    buildTelegramText({
-      email,
-      message,
-      userId: session.user.userId,
-      displayName: session.user.displayName ?? "",
-      phone: session.user.phone ?? "",
-      bindings: session.user.bindings,
-      userAgent,
-      surface,
-      fromPath,
-    }),
-  );
-
-  // S7 (unified-messaging): emit telegram intent via relay-outbound → integrator dispatchPort.
-  // The pre-fork dev redirect (D7/G1) is the single chokepoint; interim dev-suppress guard retired here.
-  const messageId = `support:patient:${session.user.userId}:${Date.now()}`;
-  const result = await relayOutbound({
-    messageId,
-    channel: "telegram",
-    recipient: String(adminId),
-    text: messageText,
+  const lines = buildSupportLines({
+    email,
+    message,
+    userId: session.user.userId,
+    displayName: session.user.displayName ?? "",
+    phone: session.user.phone ?? "",
+    bindings: session.user.bindings,
+    userAgent,
+    surface,
+    fromPath,
   });
 
-  if (!result.ok) {
-    logger.error(
-      { reason: result.reason, route: "patient/support" },
-      "[patient/support] relay-outbound failed",
-    );
-    return NextResponse.json(
-      { ok: false, error: "send_failed", message: "Не удалось отправить. Попробуйте позже." },
-      { status: 502 },
-    );
-  }
+  // D-2: emit via the operator-alert relay (multi-channel, config-driven) instead of a raw
+  // Telegram-only call; never lost — see relaySupportSubmission for the fallback contract.
+  const messageId = `support:patient:${session.user.userId}:${Date.now()}`;
+  const result = await relaySupportSubmission({
+    kind: "patient",
+    messageId,
+    lines,
+    email,
+    message,
+    userId: session.user.userId,
+    fromPath,
+  });
 
   lastSupportByRateKey.set(rateKey, Date.now());
 
-  return NextResponse.json({ ok: true, message: "Сообщение отправлено" });
+  if (!result.delivered) {
+    logger.warn(
+      { route: "patient/support", persisted: result.persisted },
+      "[patient/support] no channel confirmed delivery",
+    );
+    return NextResponse.json({
+      ok: true,
+      delivered: false,
+      message: "Сообщение получено. Ответим, как только сможем.",
+    });
+  }
+
+  return NextResponse.json({ ok: true, delivered: true, message: "Сообщение отправлено" });
 }
