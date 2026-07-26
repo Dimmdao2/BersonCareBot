@@ -31,7 +31,7 @@ export const routePaths = {
   cabinet: "/app/patient/cabinet",
   /** Запись на приём (Rubitime), без обязательного телефона. */
   patientBooking: "/app/patient/booking",
-  /** Wizard: шаг 1 — формат. Legacy `/app/patient/booking/new*` routes still work as deep links. */
+  /** Wizard: шаг 1 — формат. */
   bookingNew: "/app/patient/booking",
   bookingNewCity: "/app/patient/booking",
   bookingNewService: "/app/patient/booking/service",

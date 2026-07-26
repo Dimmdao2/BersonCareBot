@@ -407,7 +407,7 @@ async function sendBookingWebPush(input: {
   const openUrl =
     input.intentType === 'appointment_lifecycle'
       ? `${base}/app/patient/messages`
-      : `${base}/app/patient/booking/new`;
+      : `${base}/app/patient/booking`;
   const body = JSON.stringify({
     organizationId: input.organizationId,
     phoneNormalized: input.phoneNormalized,

@@ -117,8 +117,8 @@ const CODE_PATH_INVENTORY = [
   {
     area: "Patient booking UI and contract",
     paths: [
-      "apps/webapp/src/app/app/patient/booking/new/confirm/page.tsx",
-      "apps/webapp/src/app/app/patient/booking/new/confirm/ConfirmStepClient.tsx",
+      "apps/webapp/src/app/app/patient/booking/confirm/page.tsx",
+      "apps/webapp/src/app/app/patient/booking/confirm/ConfirmStepClient.tsx",
       "apps/webapp/src/modules/patient-booking/types.ts",
       "apps/webapp/src/modules/patient-booking/createInputValidation.ts",
       "apps/webapp/src/modules/patient-booking/canonicalCreate.ts",

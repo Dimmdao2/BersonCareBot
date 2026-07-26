@@ -21,7 +21,7 @@ const LOADERS = {
   patientDiary: () => import("@/app/app/patient/diary/page") as Promise<PageMod>,
   patientDiaryLfkJournal: () => import("@/app/app/patient/diary/lfk/journal/page") as Promise<PageMod>,
   patientDiarySymptomsJournal: () => import("@/app/app/patient/diary/symptoms/journal/page") as Promise<PageMod>,
-  patientBookingNew: () => import("@/app/app/patient/booking/new/page") as Promise<PageMod>,
+  patientBookingNew: () => import("@/app/app/patient/booking/page") as Promise<PageMod>,
   patientContentSlug: () => import("@/app/app/patient/content/[slug]/page") as Promise<PageMod>,
   patientGoReminderTarget: () => import("@/app/app/patient/go/[kind]/page") as Promise<PageMod>,
   doctorContentMotivation: () => import("@/app/app/doctor/content/motivation/page") as Promise<PageMod>,
@@ -32,7 +32,7 @@ const LOADERS = {
   appTgEntry: () => import("@/app/app/tg/page") as Promise<PageMod>,
   appMaxEntry: () => import("@/app/app/max/page") as Promise<PageMod>,
   homeRoot: () => import("@/app/page") as Promise<PageMod>,
-  publicBookNew: () => import("@/app/book/new/page") as Promise<PageMod>,
+  publicBookNew: () => import("@/app/book/page") as Promise<PageMod>,
   publicBookLayout: () => import("@/app/book/layout") as Promise<PageMod>,
 };
 
@@ -90,7 +90,7 @@ describe("app router RSC pages smoke (in-process)", () => {
     expectAsyncRscPage(mod("patientDiary"), "patient/diary");
     expectAsyncRscPage(mod("patientDiaryLfkJournal"), "patient/diary/lfk/journal");
     expectAsyncRscPage(mod("patientDiarySymptomsJournal"), "patient/diary/symptoms/journal");
-    expectAsyncRscPage(mod("patientBookingNew"), "patient/booking/new");
+    expectAsyncRscPage(mod("patientBookingNew"), "patient/booking");
     expectAsyncRscPage(mod("patientContentSlug"), "patient/content/[slug]");
     expectAsyncRscPage(mod("patientGoReminderTarget"), "patient/go/[kind]");
   });
@@ -114,6 +114,6 @@ describe("app router RSC pages smoke (in-process)", () => {
 
   it("public book routes load without /app session guard", () => {
     expect(typeof mod("publicBookLayout").default).toBe("function");
-    expectAsyncRscPage(mod("publicBookNew"), "book/new");
+    expectAsyncRscPage(mod("publicBookNew"), "book");
   });
 });

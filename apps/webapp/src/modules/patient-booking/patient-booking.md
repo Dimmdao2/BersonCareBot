@@ -31,7 +31,7 @@ Admin keys (`system_settings`, scope `admin`):
 
 ## Слоты
 
-`GET /api/booking/slots` — собственный расчёт (`modules/booking-scheduling`). Query `slotCount` (1–8) для цепочек; UI `/app/patient/booking/slot` фиксирует `slotCount=1` (без multi-slot selector). Legacy `/app/patient/booking/new/slot` остаётся рабочим deeplink.
+`GET /api/booking/slots` — собственный расчёт (`modules/booking-scheduling`). Query `slotCount` (1–8) для цепочек; UI `/app/patient/booking/slot` фиксирует `slotCount=1` (без multi-slot selector).
 
 ## Поля формы
 
@@ -41,7 +41,7 @@ Admin keys (`system_settings`, scope `admin`):
 
 ## Публичный вход
 
-**Публичный канал (этап 3):** UI `/book` (очный + онлайн; legacy `/book/new` работает как deeplink), embed `/book/embed.js`; read-API `GET /api/booking/public/catalog/*`, `slots`, `form-fields`; `POST /api/booking/public/create` — без сессии, rate-limit (`booking.public_create`), UTM → `be_appointments.attribution_json`, `bookingChannel: public_widget`; пользователь через `resolveOrCreateUserByPhone` (`TrustedPatientPhoneSource.PublicBookingByPhone`); кандидаты мерджа — `patient_merge_candidates` + admin `/api/admin/booking-engine/merge-candidates`, UI `/app/doctor/admin/booking`, `/app/doctor/booking-merge`.
+**Публичный канал (этап 3):** UI `/book` (очный + онлайн), embed `/book/embed.js`; read-API `GET /api/booking/public/catalog/*`, `slots`, `form-fields`; `POST /api/booking/public/create` — без сессии, rate-limit (`booking.public_create`), UTM → `be_appointments.attribution_json`, `bookingChannel: public_widget`; пользователь через `resolveOrCreateUserByPhone` (`TrustedPatientPhoneSource.PublicBookingByPhone`); кандидаты мерджа — `patient_merge_candidates` + admin `/api/admin/booking-engine/merge-candidates`, UI `/app/doctor/admin/booking`, `/app/doctor/booking-merge`.
 
 Встроенная локация **«Онлайн»** использует тот же canonical service → specialist → slot путь, что и
 очная локация (`type=in_person` остаётся техническим параметром текущего движка). Она показывается

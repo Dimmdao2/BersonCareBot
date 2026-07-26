@@ -295,13 +295,12 @@ Booking-specific wizard wrapper.
 
 Routes/groups:
 
-- `/app/patient/booking/new`
-- `/app/patient/booking/new/city`
-- `/app/patient/booking/new/service`
-- `/app/patient/booking/new/slot`
-- `/app/patient/booking/new/confirm`
-- `/app/patient/booking/new/done`
-- legacy `/app/patient/booking/*` routes are adjacent booking flows and should converge on the same wizard shell.
+- `/app/patient/booking`
+- `/app/patient/booking/city`
+- `/app/patient/booking/service`
+- `/app/patient/booking/slot`
+- `/app/patient/booking/confirm`
+- `/app/patient/booking/done`
 
 ## 3. Quick Route-To-Layout Map
 
@@ -321,7 +320,7 @@ Routes/groups:
 | `/app/patient` | L11 patient today mosaic |
 | `/app/patient/treatment*` | L12 treatment program flow |
 | `/app/patient/messages`, `/notifications` | L13 patient chat variants |
-| `/app/patient/booking/new*` | L14 booking wizard |
+| `/app/patient/booking*` | L14 booking wizard |
 | patient profile/reminders/diary/help/content/sections/courses/purchases/memberships/settings/info | L10 patient standard stack |
 
 ## 4. Practical Notes For The Next UI Pass

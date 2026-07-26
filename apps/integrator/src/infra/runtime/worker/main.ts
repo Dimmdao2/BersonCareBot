@@ -94,7 +94,7 @@ async function startWorker(): Promise<void> {
                       topicCode: PATIENT_NOTIFICATION_TOPIC_APPOINTMENT_REMINDERS,
                       intentType: 'appointment_reminder',
                       slotStartIso: pushNotify.slotStartIso,
-                      openUrl: `${base}/app/patient/booking/new`,
+                      openUrl: `${base}/app/patient/booking`,
                       stableKey: pushNotify.stableKey,
                       nowIso: new Date().toISOString(),
                     });

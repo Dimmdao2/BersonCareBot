@@ -9,7 +9,7 @@ import {
   bookingChoiceRowClass,
   bookingChoiceRowIconClass,
   bookingChoiceSectionClass,
-} from "@/app/app/patient/booking/new/bookingChoiceStyles";
+} from "@/app/app/patient/booking/bookingChoiceStyles";
 import { patientMutedTextClass } from "@/shared/ui/patient/patientVisual";
 import { cn } from "@/lib/utils";
 

@@ -4,8 +4,8 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { ConfirmStepClient } from "./ConfirmStepClient";
-import { bookingNewHref } from "../../bookingNewHref";
-import type { RescheduleBookingResult } from "../../../cabinet/useRescheduleBooking";
+import { bookingNewHref } from "../bookingNewHref";
+import type { RescheduleBookingResult } from "../../cabinet/useRescheduleBooking";
 
 const mockBooking = {
   id: "booking-id-001",
@@ -55,7 +55,7 @@ vi.mock("next/navigation", () => ({
   useRouter: () => ({ push, replace: vi.fn(), refresh: vi.fn(), prefetch: vi.fn() }),
 }));
 
-vi.mock("../../../cabinet/useCreateBooking", () => ({
+vi.mock("../../cabinet/useCreateBooking", () => ({
   useCreateBooking: () => ({
     submitting: false,
     error: null,
@@ -63,7 +63,7 @@ vi.mock("../../../cabinet/useCreateBooking", () => ({
   }),
 }));
 
-vi.mock("../../../cabinet/useRescheduleBooking", () => ({
+vi.mock("../../cabinet/useRescheduleBooking", () => ({
   useRescheduleBooking: () => ({
     submitting: false,
     error: null,

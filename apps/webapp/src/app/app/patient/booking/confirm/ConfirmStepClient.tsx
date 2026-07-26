@@ -15,9 +15,9 @@ import {
 import { routePaths } from "@/app-layer/routes/paths";
 import type { BookingCategory } from "@/modules/patient-booking/types";
 import type { BookingSlot, PatientBookingRecord } from "@/modules/patient-booking/types";
-import type { BookingSelection } from "../../../cabinet/useBookingSelection";
-import { useCreateBooking } from "../../../cabinet/useCreateBooking";
-import { useRescheduleBooking } from "../../../cabinet/useRescheduleBooking";
+import type { BookingSelection } from "../../cabinet/useBookingSelection";
+import { useCreateBooking } from "../../cabinet/useCreateBooking";
+import { useRescheduleBooking } from "../../cabinet/useRescheduleBooking";
 import {
   formatBookingDateLongRu,
   formatBookingTimeShortRu,

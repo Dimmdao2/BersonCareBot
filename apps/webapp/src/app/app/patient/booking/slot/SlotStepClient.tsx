@@ -6,10 +6,10 @@ import { Button } from "@/shared/ui/patient/primitives/button";
 import { routePaths } from "@/app-layer/routes/paths";
 import { patientButtonPrimaryClass, patientMutedTextClass } from "@/shared/ui/patient/patientVisual";
 import type { BookingCategory, BookingSlot } from "@/modules/patient-booking/types";
-import { BookingCalendar } from "../../../cabinet/BookingCalendar";
-import { BookingSlotList } from "../../../cabinet/BookingSlotList";
-import type { BookingSelection } from "../../../cabinet/useBookingSelection";
-import { useBookingSlots } from "../../../cabinet/useBookingSlots";
+import { BookingCalendar } from "../../cabinet/BookingCalendar";
+import { BookingSlotList } from "../../cabinet/BookingSlotList";
+import type { BookingSelection } from "../../cabinet/useBookingSelection";
+import { useBookingSlots } from "../../cabinet/useBookingSlots";
 
 type InPersonProps = {
   type: "in_person";

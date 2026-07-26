@@ -1,6 +1,6 @@
 "use client";
 
-import { ConfirmStepClient } from "@/app/app/patient/booking/new/confirm/ConfirmStepClient";
+import { ConfirmStepClient } from "@/app/app/patient/booking/confirm/ConfirmStepClient";
 import type { BookingCategory } from "@/modules/patient-booking/types";
 import type { StructuredFio } from "@/shared/lib/fio";
 import { publicBookPaths } from "@/shared/publicBook/paths";

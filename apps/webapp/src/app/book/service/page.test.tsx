@@ -21,7 +21,7 @@ vi.mock("@/app/app/patient/booking/bookingCatalogRsc", () => ({
   loadInPersonServicesForCityRsc: loadInPersonServicesForCityRscMock,
 }));
 
-vi.mock("../../publicOrganizationBooking", () => ({
+vi.mock("../publicOrganizationBooking", () => ({
   resolvePublicOrganizationBySlugRsc: resolvePublicOrganizationBySlugRscMock,
   loadPublicOrganizationServicesForCityRsc: loadPublicOrganizationServicesForCityRscMock,
 }));

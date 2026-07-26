@@ -4,7 +4,7 @@ import { describe, expect, it } from "vitest";
 
 const pagePath = join(import.meta.dirname, "page.tsx");
 
-describe("booking/new page (patient help links)", () => {
+describe("booking page (patient help links)", () => {
   it("shows city-aware address link immediately after BookingUpcomingSection when upcoming bookings exist", () => {
     const src = readFileSync(pagePath, "utf8");
     expect(src).toContain("pickBookingCityCodeForAddressLinks");

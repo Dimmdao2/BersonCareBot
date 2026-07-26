@@ -6,11 +6,11 @@ vi.mock("@/modules/system-settings/appDisplayTimezone", () => ({
   getAppDisplayTimeZone: vi.fn(async () => "Europe/Moscow"),
 }));
 
-vi.mock("@/app/app/patient/booking/new/slot/SlotStepClient", () => ({
+vi.mock("@/app/app/patient/booking/slot/SlotStepClient", () => ({
   SlotStepClient: () => null,
 }));
 
-vi.mock("../../publicOrganizationBooking", () => ({
+vi.mock("../publicOrganizationBooking", () => ({
   loadPublicInPersonSlotContextForSlugRsc: loadPublicInPersonSlotContextForSlugRscMock,
 }));
 

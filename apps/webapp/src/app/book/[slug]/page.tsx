@@ -1,5 +1,5 @@
 import { notFound } from "next/navigation";
-import { PublicFormatStepClient } from "../new/PublicFormatStepClient";
+import { PublicFormatStepClient } from "../PublicFormatStepClient";
 import { PublicBookingShell } from "../PublicBookingShell";
 import { loadPublicOrganizationCitiesRsc, resolvePublicOrganizationBySlugRsc } from "../publicOrganizationBooking";
 

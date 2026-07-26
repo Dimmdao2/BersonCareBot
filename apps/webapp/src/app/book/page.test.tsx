@@ -15,7 +15,7 @@ vi.mock("next/navigation", () => ({
   },
 }));
 
-vi.mock("../publicOrganizationBooking", () => ({
+vi.mock("./publicOrganizationBooking", () => ({
   loadPublicInPersonSlotContextForSlugRsc: loadPublicInPersonSlotContextForSlugRscMock,
 }));
 

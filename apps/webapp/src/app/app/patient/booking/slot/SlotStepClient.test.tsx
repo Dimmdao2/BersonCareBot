@@ -19,7 +19,7 @@ let availableDatesMock: string[] = ["2026-04-10"];
 let slotsByDateMock: Record<string, typeof slotA[]> = { "2026-04-10": [slotA] };
 let selectionSeenBySlotsHook: unknown;
 
-vi.mock("../../../cabinet/useBookingSlots", () => ({
+vi.mock("../../cabinet/useBookingSlots", () => ({
   useBookingSlots: (selection: unknown) => {
     selectionSeenBySlotsHook = selection;
     return ({

@@ -41,6 +41,6 @@
 
 - `PatientHelpArticleList.tsx` — карточки каталога
 - `HelpSupportLink.tsx` — ссылка на поддержку
-- `CabinetInfoLinks.tsx` / `CabinetInfoLinksCard.tsx` — плитки на «Запись» (`booking/new`) и при reuse; deep link при опубликованном контенте
+- `CabinetInfoLinks.tsx` / `CabinetInfoLinksCard.tsx` — плитки на «Запись» (`booking`) и при reuse; deep link при опубликованном контенте
 
 Канон и архитектура: [`modules/help-content/README.md`](../../../modules/help-content/README.md).
