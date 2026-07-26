@@ -58,6 +58,7 @@ const canonicalOrder = [
   "deploy/postgres/patient-invites-rls.sql",
   "deploy/postgres/store-p0-entitlements-rls.sql",
   "deploy/postgres/patient-course-assignment-wall.sql",
+  "deploy/postgres/patient-support-mark-read-grant.sql",
   "deploy/postgres/specialist-signup-public-bootstrap-rls.sql",
   "deploy/postgres/specialist-owner-provisioning-rls.sql",
   "deploy/postgres/u9a-platform-settings-role.sql",
