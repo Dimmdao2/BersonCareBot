@@ -37,14 +37,16 @@ describe("PlatformLocationPaletteSection", () => {
     }));
   });
 
-  it("edits the ordered palette with native accessible color inputs and saves one structured setting", async () => {
+  it("edits the ordered palette with accessible react-colorful pickers and saves one structured setting", async () => {
     const user = userEvent.setup();
     render(<PlatformLocationPaletteSection />);
 
     await waitFor(() => expect(screen.getByRole("button", { name: "Добавить цвет" })).toBeEnabled());
     const first = screen.getByLabelText("Цвет обычной локации 1");
-    expect(first).toHaveAttribute("type", "color");
-    fireEvent.input(first, { target: { value: "#abcdef" } });
+    expect(first.tagName).toBe("BUTTON");
+    await user.click(first);
+    const hexField = await screen.findByLabelText("HEX");
+    fireEvent.change(hexField, { target: { value: "abcdef" } });
     await user.click(screen.getByRole("button", { name: "Добавить цвет" }));
     expect(screen.getAllByLabelText(/Цвет обычной локации \d+/)).toHaveLength(6);
     await user.click(screen.getByRole("button", { name: "Сохранить цвета" }));

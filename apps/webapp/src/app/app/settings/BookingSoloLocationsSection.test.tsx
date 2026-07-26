@@ -80,14 +80,18 @@ describe("BookingSoloLocationsSection built-in Online location", () => {
     await waitFor(() => expect(fetchSoloOverviewMock).toHaveBeenCalledTimes(2));
   });
 
-  it("shows the stored Online color in a native picker and saves an explicit override", async () => {
+  it("shows the stored Online color in a react-colorful picker and saves an explicit hex override", async () => {
+    const user = userEvent.setup();
     render(<BookingSoloLocationsSection />);
 
-    const picker = await screen.findByLabelText("Цвет онлайн-локации");
-    expect(picker).toHaveAttribute("type", "color");
-    expect(picker).toHaveValue("#7c3aed");
-    await waitFor(() => expect(picker).toBeEnabled());
-    fireEvent.change(picker, { target: { value: "#abcdef" } });
+    const trigger = await screen.findByLabelText("Цвет онлайн-локации");
+    expect(trigger.tagName).toBe("BUTTON");
+    await waitFor(() => expect(trigger).toBeEnabled());
+
+    await user.click(trigger);
+    const hexField = await screen.findByLabelText("HEX");
+    expect(hexField).toHaveValue("#7c3aed");
+    fireEvent.change(hexField, { target: { value: "abcdef" } });
 
     await waitFor(() => expect(setOnlineLocationEnabledMock).toHaveBeenCalledWith(false, "#abcdef"));
   });

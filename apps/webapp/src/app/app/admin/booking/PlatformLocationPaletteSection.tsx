@@ -3,8 +3,8 @@
 import { useEffect, useState } from "react";
 import toast from "react-hot-toast";
 import { Button } from "@/shared/ui/doctor/primitives/button";
-import { Input } from "@/shared/ui/doctor/primitives/input";
 import { Label } from "@/shared/ui/doctor/primitives/label";
+import { DoctorColorPicker } from "@/shared/ui/doctor/DoctorColorPicker";
 import { DoctorSection, DoctorSectionHeader, DoctorSectionTitle } from "@/shared/ui/doctor/DoctorSection";
 import {
   BOOKING_LOCATION_PALETTE_SETTING_KEY,
@@ -99,13 +99,12 @@ export function PlatformLocationPaletteSection() {
           <div className="flex flex-wrap gap-3">
             {palette.physicalPalette.map((color, index) => (
               <div key={`${index}-${color}`} className="flex items-center gap-1.5">
-                <Input
-                  type="color"
-                  className="h-10 w-14 cursor-pointer px-1 py-0.5"
-                  aria-label={`Цвет обычной локации ${index + 1}`}
+                <DoctorColorPicker
+                  className="h-10 w-14"
+                  label={`Цвет обычной локации ${index + 1}`}
                   value={color}
                   disabled={!loaded || saving}
-                  onChange={(event) => updatePhysicalColor(index, event.target.value)}
+                  onChange={(next) => updatePhysicalColor(index, next)}
                 />
                 <Button
                   type="button"
@@ -126,15 +125,14 @@ export function PlatformLocationPaletteSection() {
         </div>
         <div className="space-y-2">
           <Label htmlFor="booking-online-default-color">Онлайн</Label>
-          <Input
+          <DoctorColorPicker
             id="booking-online-default-color"
-            type="color"
-            className="h-10 w-14 cursor-pointer px-1 py-0.5"
-            aria-label="Цвет онлайн-локации"
+            className="h-10 w-14"
+            label="Цвет онлайн-локации"
             value={palette.online}
             disabled={!loaded || saving}
-            onChange={(event) => {
-              const online = normalizeLocationHexColor(event.target.value);
+            onChange={(next) => {
+              const online = normalizeLocationHexColor(next);
               if (online) setPalette((current) => ({ ...current, online }));
             }}
           />

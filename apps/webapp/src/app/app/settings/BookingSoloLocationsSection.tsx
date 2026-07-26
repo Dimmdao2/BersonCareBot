@@ -6,6 +6,7 @@ import { Button } from "@/shared/ui/doctor/primitives/button";
 import { Input } from "@/shared/ui/doctor/primitives/input";
 import { Label } from "@/shared/ui/doctor/primitives/label";
 import { Switch } from "@/shared/ui/doctor/primitives/switch";
+import { DoctorColorPicker } from "@/shared/ui/doctor/DoctorColorPicker";
 import {
   SOLO_BOOKING_UNAVAILABLE_MESSAGE,
   apiJson,
@@ -98,15 +99,13 @@ export function BookingSoloLocationsSection() {
         <div className="flex items-center justify-between gap-3 rounded-md border border-border/60 p-3">
           <Label htmlFor="booking-online-location">Онлайн</Label>
           <div className="flex items-center gap-3">
-            <Input
-              type="color"
-              className="h-8 w-12 cursor-pointer px-1 py-0.5"
-              aria-label="Цвет онлайн-локации"
+            <DoctorColorPicker
+              label="Цвет онлайн-локации"
               value={onlineLocation?.color ?? DEFAULT_BOOKING_LOCATION_PALETTE.online}
               disabled={pending}
-              onChange={(event) => run(() => setOnlineLocationEnabled(
+              onChange={(next) => run(() => setOnlineLocationEnabled(
                 onlineLocation?.isActive ?? false,
-                event.target.value,
+                next,
               ))}
             />
             <Switch
@@ -233,12 +232,10 @@ export function BookingSoloLocationsSection() {
                   </td>
                   <td className="px-3 py-2">
                     {editId === b.id ? (
-                      <Input
-                        type="color"
-                        className="h-8 w-12 cursor-pointer px-1 py-0.5"
-                        aria-label={`Цвет ${b.title}`}
+                      <DoctorColorPicker
+                        label={`Цвет ${b.title}`}
                         value={editColor}
-                        onChange={(e) => setEditColor(e.target.value)}
+                        onChange={(next) => setEditColor(next)}
                       />
                     ) : (
                       <span className="inline-flex items-center gap-2">
