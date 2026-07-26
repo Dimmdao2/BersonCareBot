@@ -525,19 +525,27 @@ function runChecks(overrides = {}) {
     "return envFallback;",
   ]);
   forbidText(files.adapter, loaded.adapter, ["return getConfigBool(key, envFallback);"]);
+  // C-4 (2026-07-26, commit 5f81febc4, docs/ARCHITECTURE/ADMIN_ACCESS_MODEL.md): the seven
+  // admin/doctor allowlists (admin_telegram_ids/admin_max_ids/admin_phones/doctor_telegram_ids/
+  // doctor_max_ids/doctor_phones/admin_emails) stopped conferring role at all -- envRole.ts no
+  // longer reads any of them, through the safe runtime-config closure or otherwise, so this E1
+  // invariant's old shape (require each list read through getServerRuntimeTokenList) is stale.
+  // The replacement invariant is stronger, not weaker: these lists must never be read here again
+  // for role purposes, and the only remaining role sources are platform_users.role itself (never
+  // touched by this file) and the env-pinned owner identity in isVerifiedEmailGlobalAdminAsync.
   requireText(files.envRole, loaded.envRole, [
-    "getServerRuntimeTokenList",
-    "getFreshServerRuntimeTokenList",
-    'getServerRuntimeTokenList("admin_telegram_ids"',
-    'getServerRuntimeTokenList("admin_max_ids"',
-    'getServerRuntimeTokenList("admin_phones"',
-    'getServerRuntimeTokenList("doctor_telegram_ids"',
-    'getServerRuntimeTokenList("doctor_max_ids"',
-    'getServerRuntimeTokenList("doctor_phones"',
-    'getFreshServerRuntimeTokenList("admin_emails")',
+    "export function resolveRoleFromEnv",
+    "export async function resolveRoleAsync",
     "isVerifiedEmailGlobalAdminAsync",
+    "PLATFORM_OWNER_IDENTITY",
+    'return "client";',
   ]);
-  forbidText(files.envRole, loaded.envRole, ["getConfigValue(", "readAdminSystemSettingString"]);
+  forbidText(files.envRole, loaded.envRole, [
+    "getConfigValue(",
+    "readAdminSystemSettingString",
+    "getServerRuntimeTokenList(",
+    "getFreshServerRuntimeTokenList(",
+  ]);
   for (const text of [loaded.publicSnapshot, loaded.oauthProviders]) {
     requireText("public oauth availability", text, [
       'isOAuthProviderEnabled("yandex")',
