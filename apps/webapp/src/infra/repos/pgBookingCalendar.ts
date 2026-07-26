@@ -139,7 +139,6 @@ export function createPgBookingCalendarPort(): BookingCalendarPort {
       const [ssaRows, serviceRows, branchRows] = await Promise.all([
         db
           .select({
-            durationMinutesOverride: beSpecialistServiceAvailability.durationMinutesOverride,
             roomId: beSpecialistServiceAvailability.roomId,
           })
           .from(beSpecialistServiceAvailability)
@@ -181,7 +180,7 @@ export function createPgBookingCalendarPort(): BookingCalendarPort {
       if (!service || !branch) return null;
       const ssa = ssaRows[0];
       return {
-        durationMinutes: ssa?.durationMinutesOverride ?? service.durationMinutes,
+        durationMinutes: service.durationMinutes,
         roomId: ssa?.roomId ?? null,
         branchTimezone: branch.timezone,
       };

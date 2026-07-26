@@ -1978,8 +1978,8 @@ async function reconcileFixtures(db: FixtureDb, config: SaasTestFixtureConfig): 
           FROM generate_series(current_date, current_date + 13, interval '1 day') AS day(candidate_date)
           CROSS JOIN LATERAL generate_series(
             wh.start_minute,
-            wh.end_minute - COALESCE(ssa.duration_minutes_override, svc.duration_minutes),
-            COALESCE(ssa.duration_minutes_override, svc.duration_minutes)
+            wh.end_minute - svc.duration_minutes,
+            svc.duration_minutes
           ) AS slot(slot_minute)
           WHERE wh.is_active = true
             AND extract(dow FROM day.candidate_date)::int = wh.weekday
@@ -1998,10 +1998,7 @@ async function reconcileFixtures(db: FixtureDb, config: SaasTestFixtureConfig): 
                 ) AT TIME ZONE branch.timezone)
                 AND appointment.start_at < ((
                   day.candidate_date::date + make_interval(
-                    mins => slot.slot_minute + COALESCE(
-                      ssa.duration_minutes_override,
-                      svc.duration_minutes
-                    )
+                    mins => slot.slot_minute + svc.duration_minutes
                   )
                 ) AT TIME ZONE branch.timezone)
             )

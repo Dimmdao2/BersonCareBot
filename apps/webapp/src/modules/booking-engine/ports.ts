@@ -126,7 +126,6 @@ export type ServiceAvailabilityPort = {
     branchId?: string | null;
     roomId?: string | null;
     cityCode?: string | null;
-    durationMinutesOverride?: number | null;
     priceMinorOverride?: number | null;
     isActive: boolean;
     sortOrder: number;

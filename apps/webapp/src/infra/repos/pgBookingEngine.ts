@@ -904,7 +904,6 @@ export function createPgBookingEnginePort(): BookingEngineCorePort {
             .set({
               roomId: input.roomId ?? null,
               cityCode: input.cityCode ?? null,
-              durationMinutesOverride: input.durationMinutesOverride ?? null,
               priceMinorOverride: input.priceMinorOverride ?? null,
               isActive: input.isActive,
               sortOrder: input.sortOrder,
@@ -924,7 +923,6 @@ export function createPgBookingEnginePort(): BookingEngineCorePort {
             branchId: input.branchId ?? null,
             roomId: input.roomId ?? null,
             cityCode: input.cityCode ?? null,
-            durationMinutesOverride: input.durationMinutesOverride ?? null,
             priceMinorOverride: input.priceMinorOverride ?? null,
             isActive: input.isActive,
             sortOrder: input.sortOrder,
@@ -940,7 +938,6 @@ export function createPgBookingEnginePort(): BookingEngineCorePort {
               beSpecialistServiceAvailability.cityCode,
             ],
             set: {
-              durationMinutesOverride: input.durationMinutesOverride ?? null,
               priceMinorOverride: input.priceMinorOverride ?? null,
               isActive: input.isActive,
               sortOrder: input.sortOrder,
@@ -958,7 +955,6 @@ export function createPgBookingEnginePort(): BookingEngineCorePort {
         branchId: row.branchId ?? null,
         roomId: row.roomId ?? null,
         cityCode: row.cityCode ?? null,
-        durationMinutesOverride: row.durationMinutesOverride ?? null,
         priceMinorOverride: row.priceMinorOverride ?? null,
         isActive: row.isActive,
         sortOrder: row.sortOrder,
@@ -979,7 +975,6 @@ export function createPgBookingEnginePort(): BookingEngineCorePort {
         branchId: row.branchId ?? null,
         roomId: row.roomId ?? null,
         cityCode: row.cityCode ?? null,
-        durationMinutesOverride: row.durationMinutesOverride ?? null,
         priceMinorOverride: row.priceMinorOverride ?? null,
         isActive: row.isActive,
         sortOrder: row.sortOrder,
@@ -1134,7 +1129,6 @@ export function createPgBookingEnginePort(): BookingEngineCorePort {
               return tx
                 .update(beSpecialistServiceAvailability)
                 .set({
-                  durationMinutesOverride: null,
                   priceMinorOverride: null,
                   isActive: input.isActive,
                   sortOrder: 0,
@@ -1152,7 +1146,6 @@ export function createPgBookingEnginePort(): BookingEngineCorePort {
                 branchId: input.branchId,
                 roomId: null,
                 cityCode: null,
-                durationMinutesOverride: null,
                 priceMinorOverride: null,
                 isActive: input.isActive,
                 sortOrder: 0,
@@ -1178,7 +1171,6 @@ export function createPgBookingEnginePort(): BookingEngineCorePort {
             branchId: specialistRow.branchId ?? null,
             roomId: specialistRow.roomId ?? null,
             cityCode: specialistRow.cityCode ?? null,
-            durationMinutesOverride: specialistRow.durationMinutesOverride ?? null,
             priceMinorOverride: specialistRow.priceMinorOverride ?? null,
             isActive: specialistRow.isActive,
             sortOrder: specialistRow.sortOrder,

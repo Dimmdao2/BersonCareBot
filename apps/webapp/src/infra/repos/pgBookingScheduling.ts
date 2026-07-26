@@ -125,7 +125,7 @@ async function resolveCanonicalAvailabilityContext(availabilityId: string): Prom
     specialistId: ssa.specialistId,
     serviceId: ssa.serviceId,
     roomId: ssa.roomId ?? null,
-    durationMinutes: ssa.durationMinutesOverride ?? service.durationMinutes,
+    durationMinutes: service.durationMinutes,
     bufferAfterMinutes: service.bufferAfterMinutes,
     branchTimezone: branch.timezone,
   } satisfies CanonicalBookingContext;
