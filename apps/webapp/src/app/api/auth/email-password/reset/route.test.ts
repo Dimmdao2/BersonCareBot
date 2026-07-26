@@ -170,7 +170,7 @@ describe("POST /api/auth/email-password/reset", () => {
       }),
     );
 
-    expect(consumeLatest).toHaveBeenCalledWith(uid, "123456");
+    expect(consumeLatest).toHaveBeenCalledWith(uid, "123456", "password_reset");
     expect(consumeById).not.toHaveBeenCalled();
     expect(updatePasswordHash).toHaveBeenCalledWith(uid, "hashed:newsecret12");
     expect(res.status).toBe(200);
@@ -227,7 +227,7 @@ describe("POST /api/auth/email-password/reset", () => {
       }),
     );
 
-    expect(consumeById).toHaveBeenCalledWith(uid, ch, "999999");
+    expect(consumeById).toHaveBeenCalledWith(uid, ch, "999999", "password_reset");
     expect(consumeLatest).not.toHaveBeenCalled();
     expect(updatePasswordHash).toHaveBeenCalledWith(uid, "hashed:otherpass12");
     expect(res.status).toBe(200);
@@ -253,7 +253,7 @@ describe("POST /api/auth/email-password/reset", () => {
     const body = (await res.json()) as { ok?: boolean; error?: string };
     expect(body.ok).toBe(false);
     expect(body.error).toBe("invalid_code");
-    expect(consumeLatest).toHaveBeenCalledWith("00000000-0000-4000-8000-000000000000", "123456");
+    expect(consumeLatest).toHaveBeenCalledWith("00000000-0000-4000-8000-000000000000", "123456", "password_reset");
     expect(consumeById).not.toHaveBeenCalled();
     expect(updatePasswordHash).not.toHaveBeenCalled();
   });
@@ -279,7 +279,7 @@ describe("POST /api/auth/email-password/reset", () => {
     expect(res.status).toBe(400);
     const body = (await res.json()) as { ok?: boolean; error?: string };
     expect(body).toEqual({ ok: false, error: "invalid_code" });
-    expect(consumeById).toHaveBeenCalledWith("00000000-0000-4000-8000-000000000000", ch, "123456");
+    expect(consumeById).toHaveBeenCalledWith("00000000-0000-4000-8000-000000000000", ch, "123456", "password_reset");
     expect(consumeLatest).not.toHaveBeenCalled();
     expect(updatePasswordHash).not.toHaveBeenCalled();
   });

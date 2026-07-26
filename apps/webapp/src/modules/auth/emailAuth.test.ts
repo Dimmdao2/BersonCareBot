@@ -27,13 +27,13 @@ describe("startEmailChallenge", () => {
   });
 
   it("отклоняет невалидный email", async () => {
-    const r = await startEmailChallenge(randomUUID(), "not-an-email");
+    const r = await startEmailChallenge(randomUUID(), "not-an-email", "email_verify");
     expect(r.ok).toBe(false);
     if (!r.ok) expect(r.code).toBe("invalid_email");
   });
 
   it("принимает корректный email (без БД — in-memory челлендж)", async () => {
-    const r = await startEmailChallenge(randomUUID(), "user+tag@example.org");
+    const r = await startEmailChallenge(randomUUID(), "user+tag@example.org", "email_verify");
     expect(r.ok).toBe(true);
     if (r.ok) {
       expect(r.challengeId).toBeDefined();
@@ -45,7 +45,7 @@ describe("startEmailChallenge", () => {
 
   it("возвращает email_send_failed при ошибке отправки через integrator", async () => {
     sendEmailCodeMock.mockResolvedValueOnce({ ok: false, error: "http_503" });
-    const r = await startEmailChallenge(randomUUID(), "user@example.org");
+    const r = await startEmailChallenge(randomUUID(), "user@example.org", "email_verify");
     expect(r).toEqual({ ok: false, code: "email_send_failed" });
   });
 });
@@ -60,28 +60,28 @@ describe("confirmEmailChallenge (in-memory)", () => {
 
   it("подтверждает код и резервирует email за пользователем", async () => {
     const uid = randomUUID();
-    const start = await startEmailChallenge(uid, "mine@example.org");
+    const start = await startEmailChallenge(uid, "mine@example.org", "email_verify");
     expect(start.ok).toBe(true);
     if (!start.ok) return;
     const code = sendEmailCodeMock.mock.calls[0]?.[1] as string;
-    const result = await confirmEmailChallenge(uid, start.challengeId, code);
+    const result = await confirmEmailChallenge(uid, start.challengeId, code, "email_verify");
     expect(result).toEqual({ ok: true });
   });
 
   it("возвращает email_conflict если email уже занят другим пользователем", async () => {
     const ownerId = randomUUID();
     const otherId = randomUUID();
-    const startOwner = await startEmailChallenge(ownerId, "taken@example.org");
+    const startOwner = await startEmailChallenge(ownerId, "taken@example.org", "email_verify");
     expect(startOwner.ok).toBe(true);
     if (!startOwner.ok) return;
     const ownerCode = sendEmailCodeMock.mock.calls[0]?.[1] as string;
-    await confirmEmailChallenge(ownerId, startOwner.challengeId, ownerCode);
+    await confirmEmailChallenge(ownerId, startOwner.challengeId, ownerCode, "email_verify");
 
-    const startOther = await startEmailChallenge(otherId, "taken@example.org");
+    const startOther = await startEmailChallenge(otherId, "taken@example.org", "email_verify");
     expect(startOther.ok).toBe(true);
     if (!startOther.ok) return;
     const otherCode = sendEmailCodeMock.mock.calls[1]?.[1] as string;
-    const conflict = await confirmEmailChallenge(otherId, startOther.challengeId, otherCode);
+    const conflict = await confirmEmailChallenge(otherId, startOther.challengeId, otherCode, "email_verify");
     expect(conflict).toEqual({ ok: false, code: "email_conflict" });
   });
 });
@@ -91,11 +91,11 @@ describe("confirmEmailChallenge (in-memory)", () => {
  * is always wrong: generateEmailCode() only produces 100000-999999 (randomInt lower bound excludes
  * the all-zero code). */
 async function triggerEmailLockout(uid: string, email: string): Promise<number> {
-  const start = await startEmailChallenge(uid, email);
+  const start = await startEmailChallenge(uid, email, "email_verify");
   if (!start.ok) throw new Error(`expected startEmailChallenge ok, got ${JSON.stringify(start)}`);
   let last: Awaited<ReturnType<typeof confirmEmailChallenge>> | undefined;
   for (let i = 0; i < OTP_MAX_VERIFY_ATTEMPTS; i++) {
-    last = await confirmEmailChallenge(uid, start.challengeId, "000000");
+    last = await confirmEmailChallenge(uid, start.challengeId, "000000", "email_verify");
   }
   if (!last || last.ok || last.code !== "too_many_attempts") {
     throw new Error(`expected too_many_attempts on the final attempt, got ${JSON.stringify(last)}`);
@@ -136,12 +136,12 @@ describe("decaying OTP lockout (email, in-memory) — night plan C-2 step 3", ()
 
     // Reset on success (NIST SP 800-63B §5.2.2: "disregard any previous failed attempts... after
     // successful authentication"): a correct code resets the escalation cycle to 0.
-    const start = await startEmailChallenge(uid, email);
+    const start = await startEmailChallenge(uid, email, "email_verify");
     expect(start.ok).toBe(true);
     if (!start.ok) return;
     const lastCall = sendEmailCodeMock.mock.calls[sendEmailCodeMock.mock.calls.length - 1];
     const code = lastCall?.[1] as string;
-    const ok = await confirmEmailChallenge(uid, start.challengeId, code);
+    const ok = await confirmEmailChallenge(uid, start.challengeId, code, "email_verify");
     expect(ok).toEqual({ ok: true });
 
     // The next lockout after the reset starts short again, at 2 minutes -- not continuing from 1800s.
@@ -151,19 +151,19 @@ describe("decaying OTP lockout (email, in-memory) — night plan C-2 step 3", ()
 
   it("a legitimate user who mistypes once is unaffected -- no lockout, no delay, on the very next try", async () => {
     const uid = randomUUID();
-    const start = await startEmailChallenge(uid, "mistype@example.org");
+    const start = await startEmailChallenge(uid, "mistype@example.org", "email_verify");
     expect(start.ok).toBe(true);
     if (!start.ok) return;
     const code = sendEmailCodeMock.mock.calls[0]?.[1] as string;
 
-    const wrong = await confirmEmailChallenge(uid, start.challengeId, "000000");
+    const wrong = await confirmEmailChallenge(uid, start.challengeId, "000000", "email_verify");
     expect(wrong).toEqual({ ok: false, code: "invalid_code" });
 
-    const right = await confirmEmailChallenge(uid, start.challengeId, code);
+    const right = await confirmEmailChallenge(uid, start.challengeId, code, "email_verify");
     expect(right).toEqual({ ok: true });
 
     // No lockout was ever registered -- a fresh challenge is still allowed immediately.
-    const startAgain = await startEmailChallenge(uid, "mistype@example.org");
+    const startAgain = await startEmailChallenge(uid, "mistype@example.org", "email_verify");
     expect(startAgain.ok).toBe(true);
   });
 
@@ -177,7 +177,7 @@ describe("decaying OTP lockout (email, in-memory) — night plan C-2 step 3", ()
     // Even at the 30-minute cap, a fresh challenge succeeds once the reported wait has elapsed --
     // never blocked forever, never requiring anything but waiting (owner constraint: no manual/
     // e-mail unblock, unlike Auth0's default 30-day shape).
-    const start = await startEmailChallenge(uid, email);
+    const start = await startEmailChallenge(uid, email, "email_verify");
     expect(start.ok).toBe(true);
   });
 });
@@ -192,11 +192,47 @@ describe("consumeLatestEmailChallengeCodeForUser", () => {
 
   it("принимает код без challengeId (in-memory челлендж)", async () => {
     const uid = randomUUID();
-    const start = await startEmailChallenge(uid, "who@example.org");
+    const start = await startEmailChallenge(uid, "who@example.org", "email_verify");
     expect(start.ok).toBe(true);
     const sentCode = sendEmailCodeMock.mock.calls[0]?.[1];
     expect(typeof sentCode).toBe("string");
-    const consumed = await consumeLatestEmailChallengeCodeForUser(uid, sentCode as string);
+    const consumed = await consumeLatestEmailChallengeCodeForUser(uid, sentCode as string, "email_verify");
     expect(consumed).toEqual({ ok: true });
+  });
+});
+
+describe("purpose binding (C-2 step 4, OWASP ASVS V6.6.2 / NIST SP 800-63B §5.1.3, in-memory)", () => {
+  beforeEach(() => {
+    resetEmailAuthMemStateForTests();
+    sendEmailCodeMock.mockReset();
+    sendEmailCodeMock.mockResolvedValue({ ok: true });
+    bindEmailSendPort({ sendCode: (...args: unknown[]) => sendEmailCodeMock(...args) });
+  });
+
+  it("rejects a code minted for one purpose (e.g. password_reset) when confirmed against a different expected purpose, with the exact same shape as a wrong code", async () => {
+    const uid = randomUUID();
+    const start = await startEmailChallenge(uid, "cross-purpose@example.org", "password_reset");
+    expect(start.ok).toBe(true);
+    if (!start.ok) return;
+    const code = sendEmailCodeMock.mock.calls[0]?.[1] as string;
+
+    // The code is correct, but this caller expects "email_verify" -- a different flow's confirm.
+    const wrongPurpose = await confirmEmailChallenge(uid, start.challengeId, code, "email_verify");
+    expect(wrongPurpose).toEqual({ ok: false, code: "invalid_code" });
+
+    // The SAME code, confirmed with its ACTUAL purpose, still succeeds -- proves the challenge
+    // itself was not consumed/invalidated by the mismatched attempt.
+    const rightPurpose = await confirmEmailChallenge(uid, start.challengeId, code, "password_reset");
+    expect(rightPurpose).toEqual({ ok: true });
+  });
+
+  it("rejects a cross-purpose code via consumeLatestEmailChallengeCodeForUser too", async () => {
+    const uid = randomUUID();
+    const start = await startEmailChallenge(uid, "cross-purpose-consume@example.org", "specialist_signup");
+    expect(start.ok).toBe(true);
+    const code = sendEmailCodeMock.mock.calls[0]?.[1] as string;
+
+    const wrongPurpose = await consumeLatestEmailChallengeCodeForUser(uid, code, "patient_email_change");
+    expect(wrongPurpose).toEqual({ ok: false, code: "invalid_code" });
   });
 });

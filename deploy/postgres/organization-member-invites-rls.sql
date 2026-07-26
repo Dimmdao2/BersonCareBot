@@ -41,6 +41,9 @@ DROP FUNCTION IF EXISTS app.email_auth_increment_email_challenge_attempts(uuid);
 DROP FUNCTION IF EXISTS app.email_auth_find_email_challenge_for_confirm(uuid, uuid);
 DROP FUNCTION IF EXISTS app.email_auth_upsert_email_send_cooldown(uuid, text);
 DROP FUNCTION IF EXISTS app.email_auth_delete_email_challenge_by_id(uuid);
+-- C-2 step 4: purpose stamp accessor added alongside insert (0249). Not a widened insert
+-- signature -- see that migration's header for why.
+DROP FUNCTION IF EXISTS app.email_auth_set_email_challenge_purpose(uuid, text);
 DROP FUNCTION IF EXISTS app.email_auth_insert_email_challenge(uuid, text, text, bigint);
 DROP FUNCTION IF EXISTS app.email_auth_delete_email_challenges_for_user(uuid);
 DROP FUNCTION IF EXISTS app.email_auth_find_email_send_cooldown(uuid, text);
@@ -572,7 +575,7 @@ AS $$
   LIMIT 1
 $$;
 
--- Keep this runtime overlay semantically aligned with migration 0232. The caller
+-- Keep this runtime overlay semantically aligned with migration 0232/0249. The caller
 -- passes only the application-side OTP hash; public challenge table access remains closed.
 CREATE OR REPLACE FUNCTION app.email_otp_public_consume_latest_challenge(
   p_email_normalized text,
@@ -593,6 +596,9 @@ DECLARE
   v_target_user public.platform_users%ROWTYPE;
   v_conflict_user_id uuid;
   v_next_attempts integer;
+  -- C-2 step 4 (0249): the three purposes that legitimately share this one anonymous confirm
+  -- engine. See 0249's header for the residual login-vs-clinic_invite gap this does NOT close.
+  v_allowed_purposes CONSTANT text[] := ARRAY['login', 'public_registration', 'clinic_invite'];
 BEGIN
   IF v_email_normalized = '' THEN
     RETURN QUERY SELECT false, 'expired_code'::text, NULL::uuid, NULL::integer;
@@ -657,7 +663,12 @@ BEGIN
     RETURN QUERY SELECT false, 'too_many_attempts'::text, NULL::uuid, 600;
     RETURN;
   END IF;
-  IF v_challenge.code_hash <> p_code_hash THEN
+  -- C-2 step 4 (OWASP ASVS V6.6.2 / NIST SP 800-63B §5.1.3): a purpose mismatch is folded into the
+  -- EXACT SAME branch as a wrong code hash -- same attempts increment, same result, same shape
+  -- (ASVS 6.3.8 uniform response). NULL purpose (pre-migration rows) is grandfathered in.
+  IF v_challenge.code_hash <> p_code_hash
+     OR NOT (v_challenge.purpose IS NULL OR v_challenge.purpose = ANY(v_allowed_purposes))
+  THEN
     UPDATE public.email_challenges
     SET attempts = attempts + 1
     WHERE id = v_challenge.id
@@ -750,6 +761,23 @@ AS $$
   RETURNING id
 $$;
 
+-- C-2 step 4 (0249): minimal, additive purpose-stamp accessor. NOT a widened insert signature --
+-- app.email_auth_insert_email_challenge's 4-arg signature is pinned by exact arg-type list across
+-- deploy/postgres/d3-4-bootstrap-base-login-read-grants.sql's GRANT/REVOKE lines. Callers insert the
+-- challenge exactly as before, then immediately stamp its purpose with this second call.
+CREATE OR REPLACE FUNCTION app.email_auth_set_email_challenge_purpose(
+  p_challenge_id uuid,
+  p_purpose text
+)
+RETURNS void
+LANGUAGE sql
+VOLATILE
+SECURITY DEFINER
+SET search_path = pg_catalog
+AS $$
+  UPDATE public.email_challenges SET purpose = p_purpose WHERE id = p_challenge_id
+$$;
+
 CREATE OR REPLACE FUNCTION app.email_auth_delete_email_challenge_by_id(p_challenge_id uuid)
 RETURNS void
 LANGUAGE sql
@@ -772,17 +800,22 @@ AS $$
   ON CONFLICT (user_id, email_normalized) DO UPDATE SET last_sent_at = now()
 $$;
 
-CREATE OR REPLACE FUNCTION app.email_auth_find_email_challenge_for_confirm(
+-- C-2 step 4 (0249): adds `purpose` to the output. Argument signature is unchanged (only the
+-- RETURNS TABLE column list grows), so DROP + CREATE (not OR REPLACE, which refuses a return-type
+-- change) is used, and no GRANT/REVOKE line anywhere needs to move.
+DROP FUNCTION IF EXISTS app.email_auth_find_email_challenge_for_confirm(uuid, uuid);
+
+CREATE FUNCTION app.email_auth_find_email_challenge_for_confirm(
   p_challenge_id uuid,
   p_user_id uuid
 )
-RETURNS TABLE (id uuid, email text, code_hash text, expires_at bigint, attempts integer)
+RETURNS TABLE (id uuid, email text, code_hash text, expires_at bigint, attempts integer, purpose text)
 LANGUAGE sql
 STABLE
 SECURITY DEFINER
 SET search_path = pg_catalog
 AS $$
-  SELECT c.id, c.email, c.code_hash, c.expires_at, c.attempts::integer
+  SELECT c.id, c.email, c.code_hash, c.expires_at, c.attempts::integer, c.purpose
   FROM public.email_challenges AS c
   WHERE c.id = p_challenge_id
     AND c.user_id = p_user_id
@@ -851,33 +884,37 @@ AS $$
   WHERE id = p_user_id
 $$;
 
-CREATE OR REPLACE FUNCTION app.email_auth_find_email_challenge_for_consume(
+DROP FUNCTION IF EXISTS app.email_auth_find_email_challenge_for_consume(uuid, uuid);
+
+CREATE FUNCTION app.email_auth_find_email_challenge_for_consume(
   p_challenge_id uuid,
   p_user_id uuid
 )
-RETURNS TABLE (id uuid, code_hash text, expires_at bigint, attempts integer)
+RETURNS TABLE (id uuid, code_hash text, expires_at bigint, attempts integer, purpose text)
 LANGUAGE sql
 STABLE
 SECURITY DEFINER
 SET search_path = pg_catalog
 AS $$
-  SELECT c.id, c.code_hash, c.expires_at, c.attempts::integer
+  SELECT c.id, c.code_hash, c.expires_at, c.attempts::integer, c.purpose
   FROM public.email_challenges AS c
   WHERE c.id = p_challenge_id
     AND c.user_id = p_user_id
 $$;
 
-CREATE OR REPLACE FUNCTION app.email_auth_find_latest_email_challenge_for_user(
+DROP FUNCTION IF EXISTS app.email_auth_find_latest_email_challenge_for_user(uuid, bigint);
+
+CREATE FUNCTION app.email_auth_find_latest_email_challenge_for_user(
   p_user_id uuid,
   p_now_sec bigint
 )
-RETURNS TABLE (id uuid, code_hash text, expires_at bigint, attempts integer)
+RETURNS TABLE (id uuid, code_hash text, expires_at bigint, attempts integer, purpose text)
 LANGUAGE sql
 STABLE
 SECURITY DEFINER
 SET search_path = pg_catalog
 AS $$
-  SELECT c.id, c.code_hash, c.expires_at, c.attempts::integer
+  SELECT c.id, c.code_hash, c.expires_at, c.attempts::integer, c.purpose
   FROM public.email_challenges AS c
   WHERE c.user_id = p_user_id
     AND c.expires_at > p_now_sec
@@ -885,17 +922,19 @@ AS $$
   LIMIT 1
 $$;
 
-CREATE OR REPLACE FUNCTION app.email_auth_find_latest_pending_email_challenge_for_user(
+DROP FUNCTION IF EXISTS app.email_auth_find_latest_pending_email_challenge_for_user(uuid, bigint);
+
+CREATE FUNCTION app.email_auth_find_latest_pending_email_challenge_for_user(
   p_user_id uuid,
   p_now_sec bigint
 )
-RETURNS TABLE (id uuid, email text, code_hash text, expires_at bigint, attempts integer)
+RETURNS TABLE (id uuid, email text, code_hash text, expires_at bigint, attempts integer, purpose text)
 LANGUAGE sql
 STABLE
 SECURITY DEFINER
 SET search_path = pg_catalog
 AS $$
-  SELECT c.id, c.email, c.code_hash, c.expires_at, c.attempts::integer
+  SELECT c.id, c.email, c.code_hash, c.expires_at, c.attempts::integer, c.purpose
   FROM public.email_challenges AS c
   WHERE c.user_id = p_user_id
     AND c.expires_at > p_now_sec
@@ -915,6 +954,8 @@ COMMENT ON FUNCTION app.email_otp_public_consume_latest_challenge(text, text) IS
   'Atomic SECURITY DEFINER public email-OTP consume: receives only a code hash, locks principal then latest challenge, verifies/claims email and consumes exactly once.';
 COMMENT ON FUNCTION app.email_auth_insert_email_challenge(uuid, text, text, bigint) IS
   'SECURITY DEFINER accessor for email OTP challenge creation under app_patient without email_challenges table grants.';
+COMMENT ON FUNCTION app.email_auth_set_email_challenge_purpose(uuid, text) IS
+  'C-2 step 4: stamps the purpose an email challenge was minted for, immediately after app.email_auth_insert_email_challenge creates it. A NEW accessor rather than widening insert''s pinned 4-arg signature.';
 
 ALTER FUNCTION app.email_otp_public_find_user_by_email(text) OWNER TO :organization_member_invites_owner_ident;
 ALTER FUNCTION app.email_otp_public_find_or_create_user(text) OWNER TO :organization_member_invites_owner_ident;
@@ -926,6 +967,7 @@ ALTER FUNCTION app.email_otp_public_find_email_send_cooldown_by_email(text) OWNE
 ALTER FUNCTION app.email_auth_find_email_send_cooldown(uuid, text) OWNER TO :organization_member_invites_owner_ident;
 ALTER FUNCTION app.email_auth_delete_email_challenges_for_user(uuid) OWNER TO :organization_member_invites_owner_ident;
 ALTER FUNCTION app.email_auth_insert_email_challenge(uuid, text, text, bigint) OWNER TO :organization_member_invites_owner_ident;
+ALTER FUNCTION app.email_auth_set_email_challenge_purpose(uuid, text) OWNER TO :organization_member_invites_owner_ident;
 ALTER FUNCTION app.email_auth_delete_email_challenge_by_id(uuid) OWNER TO :organization_member_invites_owner_ident;
 ALTER FUNCTION app.email_auth_upsert_email_send_cooldown(uuid, text) OWNER TO :organization_member_invites_owner_ident;
 ALTER FUNCTION app.email_auth_find_email_challenge_for_confirm(uuid, uuid) OWNER TO :organization_member_invites_owner_ident;
@@ -946,6 +988,7 @@ REVOKE ALL ON FUNCTION app.email_otp_public_find_email_send_cooldown_by_email(te
 REVOKE ALL ON FUNCTION app.email_auth_find_email_send_cooldown(uuid, text) FROM PUBLIC;
 REVOKE ALL ON FUNCTION app.email_auth_delete_email_challenges_for_user(uuid) FROM PUBLIC;
 REVOKE ALL ON FUNCTION app.email_auth_insert_email_challenge(uuid, text, text, bigint) FROM PUBLIC;
+REVOKE ALL ON FUNCTION app.email_auth_set_email_challenge_purpose(uuid, text) FROM PUBLIC;
 REVOKE ALL ON FUNCTION app.email_auth_delete_email_challenge_by_id(uuid) FROM PUBLIC;
 REVOKE ALL ON FUNCTION app.email_auth_upsert_email_send_cooldown(uuid, text) FROM PUBLIC;
 REVOKE ALL ON FUNCTION app.email_auth_find_email_challenge_for_confirm(uuid, uuid) FROM PUBLIC;
@@ -966,6 +1009,7 @@ GRANT EXECUTE ON FUNCTION app.email_otp_public_find_email_send_cooldown_by_email
 GRANT EXECUTE ON FUNCTION app.email_auth_find_email_send_cooldown(uuid, text) TO app_patient;
 GRANT EXECUTE ON FUNCTION app.email_auth_delete_email_challenges_for_user(uuid) TO app_patient;
 GRANT EXECUTE ON FUNCTION app.email_auth_insert_email_challenge(uuid, text, text, bigint) TO app_patient;
+GRANT EXECUTE ON FUNCTION app.email_auth_set_email_challenge_purpose(uuid, text) TO app_patient;
 GRANT EXECUTE ON FUNCTION app.email_auth_delete_email_challenge_by_id(uuid) TO app_patient;
 GRANT EXECUTE ON FUNCTION app.email_auth_upsert_email_send_cooldown(uuid, text) TO app_patient;
 GRANT EXECUTE ON FUNCTION app.email_auth_find_email_challenge_for_confirm(uuid, uuid) TO app_patient;

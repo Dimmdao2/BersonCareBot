@@ -83,7 +83,7 @@ export async function POST(
   }
 
   const result = await withDoctorWorkspacePrincipal(gate.ctx, () =>
-    startEmailChallenge(identity.userId, parsed.data.email),
+    startEmailChallenge(identity.userId, parsed.data.email, "patient_email_change"),
   );
   if (!result.ok) {
     const status =

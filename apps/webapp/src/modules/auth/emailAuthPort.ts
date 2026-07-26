@@ -1,9 +1,30 @@
+/**
+ * C-2 step 4 (OWASP ASVS V6.6.2 / NIST SP 800-63B §5.1.3): the intent an email challenge was minted
+ * for. One purpose per `startEmailChallenge` caller, matching the confirm engine that legitimately
+ * consumes it -- see migration 0249_email_challenge_purpose_binding.sql for the full mapping.
+ * 'login' and 'public_registration' both flow through the same anonymous
+ * POST /api/auth/email-otp/confirm (no way to tell them apart at that layer), and 'clinic_invite'
+ * shares that same DB engine via POST /api/clinic/invites/accept/confirm.
+ */
+export type EmailChallengePurpose =
+  | "login"
+  | "public_registration"
+  | "clinic_invite"
+  | "specialist_signup"
+  | "password_reset"
+  | "password_setup"
+  | "password_register"
+  | "email_verify"
+  | "patient_email_change";
+
 export type EmailChallengeRow = {
   id: string;
   email: string;
   code_hash: string;
   expires_at: string;
   attempts: string;
+  /** NULL for rows minted before 0249 -- treated as "legacy, accept once" by the caller. */
+  purpose: string | null;
 };
 
 export type EmailChallengeCodeRow = {
@@ -11,6 +32,8 @@ export type EmailChallengeCodeRow = {
   code_hash: string;
   expires_at: string;
   attempts: string;
+  /** NULL for rows minted before 0249 -- treated as "legacy, accept once" by the caller. */
+  purpose: string | null;
 };
 
 export type ClaimVerifiedEmailResult =
@@ -30,6 +53,7 @@ export type EmailAuthDbPort = {
     email: string;
     codeHash: string;
     expiresAt: number;
+    purpose: EmailChallengePurpose;
   }) => Promise<string>;
   deleteEmailChallengeById: (challengeId: string) => Promise<void>;
   upsertEmailSendCooldown: (userId: string, emailNormalized: string) => Promise<void>;

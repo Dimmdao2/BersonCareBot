@@ -46,13 +46,13 @@ export async function POST(request: Request) {
   const deps = buildAppDeps();
   const userId = await deps.userPasswordCredentials.findVerifiedUserIdWithPassword(emailNorm);
   if (userId) {
-    void startEmailChallenge(userId, emailNorm).catch(() => undefined);
+    void startEmailChallenge(userId, emailNorm, "password_reset").catch(() => undefined);
     return forgotPasswordNeutralResponse(OTP_RESEND_COOLDOWN_SEC);
   }
 
   const state = await deps.emailPasswordLookup.resolveAuthState(emailNorm);
   if (state.kind === "needs_email_setup") {
-    const challenge = await startEmailChallenge(state.userId, emailNorm);
+    const challenge = await startEmailChallenge(state.userId, emailNorm, "password_setup");
     if (challenge.ok) {
       return NextResponse.json({
         ok: true,

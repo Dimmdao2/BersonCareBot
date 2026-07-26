@@ -140,6 +140,7 @@ describe("POST /api/auth/email/confirm", () => {
       "u-1",
       "00000000-0000-4000-8000-000000000001",
       "123456",
+      "email_verify",
       { profileBindOrganizationId: "00000000-0000-4000-8000-000000000001" },
     );
   });

@@ -36,7 +36,7 @@ export async function POST(request: Request) {
   }
 
   const user = await deps.emailOtpPublicDb.findOrCreatePublicEmailUser(lookup.invite.invitedEmail);
-  const challenge = await startEmailChallenge(user.userId, lookup.invite.invitedEmail);
+  const challenge = await startEmailChallenge(user.userId, lookup.invite.invitedEmail, "clinic_invite");
   if (!challenge.ok) {
     const status = challenge.code === "rate_limited" || challenge.code === "too_many_attempts" ? 429 : 503;
     return jsonError(

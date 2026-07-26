@@ -66,8 +66,8 @@ export async function POST(request: Request) {
   }
 
   const confirmed = parsed.data.challengeId
-    ? await confirmEmailChallenge(state.userId, parsed.data.challengeId, parsed.data.code)
-    : await consumeLatestEmailChallengeCodeForUser(state.userId, parsed.data.code);
+    ? await confirmEmailChallenge(state.userId, parsed.data.challengeId, parsed.data.code, "password_setup")
+    : await consumeLatestEmailChallengeCodeForUser(state.userId, parsed.data.code, "password_setup");
   if (!confirmed.ok) {
     const status = confirmed.code === "too_many_attempts" ? 429 : 400;
     return NextResponse.json(

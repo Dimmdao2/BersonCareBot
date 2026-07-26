@@ -164,6 +164,7 @@ describe("POST /api/auth/email-password/setup-code/complete", () => {
       "550e8400-e29b-41d4-a716-446655440000",
       "11111111-1111-4111-8111-111111111111",
       "123456",
+      "password_setup",
     );
     expect(upsertPasswordHash).toHaveBeenCalledWith(
       "550e8400-e29b-41d4-a716-446655440000",
@@ -203,6 +204,7 @@ describe("POST /api/auth/email-password/setup-code/complete", () => {
     expect(consumeLatestEmailChallengeCodeForUser).toHaveBeenCalledWith(
       "550e8400-e29b-41d4-a716-446655440000",
       "123456",
+      "password_setup",
     );
     expect(upsertPasswordHash).toHaveBeenCalledWith(
       "550e8400-e29b-41d4-a716-446655440000",

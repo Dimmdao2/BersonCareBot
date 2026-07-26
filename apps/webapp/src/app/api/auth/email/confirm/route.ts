@@ -60,6 +60,7 @@ export async function POST(request: Request) {
     session.user.userId,
     parsed.data.challengeId,
     parsed.data.code,
+    "email_verify",
     organizationId ? { profileBindOrganizationId: organizationId } : undefined,
   );
   if (!result.ok) {

@@ -60,16 +60,16 @@ export async function POST(request: Request) {
   const userId = await deps.userPasswordCredentials.findVerifiedUserIdWithPassword(emailNorm);
   if (!userId) {
     if (parsed.data.challengeId) {
-      await consumeEmailChallengeCode(DUMMY_RESET_USER_ID, parsed.data.challengeId, parsed.data.code);
+      await consumeEmailChallengeCode(DUMMY_RESET_USER_ID, parsed.data.challengeId, parsed.data.code, "password_reset");
     } else {
-      await consumeLatestEmailChallengeCodeForUser(DUMMY_RESET_USER_ID, parsed.data.code);
+      await consumeLatestEmailChallengeCodeForUser(DUMMY_RESET_USER_ID, parsed.data.code, "password_reset");
     }
     return resetNeutralFailureResponse();
   }
 
   const consumed = parsed.data.challengeId
-    ? await consumeEmailChallengeCode(userId, parsed.data.challengeId, parsed.data.code)
-    : await consumeLatestEmailChallengeCodeForUser(userId, parsed.data.code);
+    ? await consumeEmailChallengeCode(userId, parsed.data.challengeId, parsed.data.code, "password_reset")
+    : await consumeLatestEmailChallengeCodeForUser(userId, parsed.data.code, "password_reset");
   if (!consumed.ok) {
     return resetNeutralFailureResponse();
   }

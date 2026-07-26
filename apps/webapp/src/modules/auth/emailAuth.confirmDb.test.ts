@@ -54,10 +54,11 @@ describe("confirmEmailChallenge (database)", () => {
       code_hash: codeHash,
       expires_at: String(Math.floor(Date.now() / 1000) + 600),
       attempts: "0",
+      purpose: "email_verify",
     });
     vi.mocked(dbMock.claimVerifiedEmail).mockResolvedValueOnce({ ok: false, code: "email_conflict" });
 
-    const result = await confirmEmailChallenge(userId, challengeId, code);
+    const result = await confirmEmailChallenge(userId, challengeId, code, "email_verify");
     expect(result).toEqual({ ok: false, code: "email_conflict" });
     expect(dbMock.deleteEmailChallengesForUser).toHaveBeenCalledWith(userId);
   });
@@ -74,10 +75,11 @@ describe("confirmEmailChallenge (database)", () => {
       code_hash: codeHash,
       expires_at: String(Math.floor(Date.now() / 1000) + 600),
       attempts: "0",
+      purpose: "email_verify",
     });
     vi.mocked(dbMock.claimVerifiedEmail).mockResolvedValueOnce({ ok: true, merged: false });
 
-    const result = await confirmEmailChallenge(userId, challengeId, code);
+    const result = await confirmEmailChallenge(userId, challengeId, code, "email_verify");
     expect(result).toEqual({ ok: true });
     expect(dbMock.claimVerifiedEmail).toHaveBeenCalledWith(userId, "free@example.org", undefined);
     expect(dbMock.deleteEmailChallengesForUser).toHaveBeenCalledWith(userId);
@@ -111,6 +113,7 @@ describe("confirmEmailChallenge (database)", () => {
       code_hash: codeHash,
       expires_at: String(Math.floor(Date.now() / 1000) + 600),
       attempts: "0",
+      purpose: "email_verify",
     });
 
     let sharedAttempts = 0;
@@ -123,7 +126,7 @@ describe("confirmEmailChallenge (database)", () => {
     // -- this test is about the COUNT being right, the cap-crossing behaviour is covered separately.
     const N = OTP_MAX_VERIFY_ATTEMPTS - 1;
     const results = await Promise.all(
-      Array.from({ length: N }, () => confirmEmailChallenge(userId, challengeId, "000000")),
+      Array.from({ length: N }, () => confirmEmailChallenge(userId, challengeId, "000000", "email_verify")),
     );
 
     expect(results).toHaveLength(N);
@@ -149,14 +152,15 @@ describe("confirmEmailChallenge (database)", () => {
       code_hash: codeHash,
       expires_at: String(Math.floor(Date.now() / 1000) + 600),
       attempts: "0",
+      purpose: "email_verify",
     });
     vi.mocked(dbMock.incrementEmailChallengeAttempts).mockResolvedValueOnce(1);
     vi.mocked(dbMock.claimVerifiedEmail).mockResolvedValueOnce({ ok: true, merged: false });
 
-    const wrong = await confirmEmailChallenge(userId, challengeId, "000000");
+    const wrong = await confirmEmailChallenge(userId, challengeId, "000000", "email_verify");
     expect(wrong).toEqual({ ok: false, code: "invalid_code" });
 
-    const right = await confirmEmailChallenge(userId, challengeId, code);
+    const right = await confirmEmailChallenge(userId, challengeId, code, "email_verify");
     expect(right).toEqual({ ok: true });
     expect(dbMock.incrementEmailChallengeAttempts).toHaveBeenCalledTimes(1);
   });

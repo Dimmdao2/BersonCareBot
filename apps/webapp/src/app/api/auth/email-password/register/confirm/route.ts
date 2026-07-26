@@ -69,7 +69,7 @@ export async function POST(request: Request) {
 
   const profileEmail = (await deps.userProjection.getProfileEmailFields(userId)).email ?? null;
 
-  const result = await confirmEmailChallenge(userId, parsed.data.challengeId, parsed.data.code);
+  const result = await confirmEmailChallenge(userId, parsed.data.challengeId, parsed.data.code, "password_register");
   if (!result.ok) {
     const status = result.code === "too_many_attempts" ? 429 : 400;
     await recordAuthRegistrationFailure({

@@ -65,7 +65,7 @@ export async function startPublicEmailOtpChallenge(
   }
 
   // Delegate to existing startEmailChallenge (handles code gen, hash, DB insert, send, per-user cooldown).
-  return startEmailChallenge(user.userId, email);
+  return startEmailChallenge(user.userId, email, "login");
 }
 
 /** Start a distinct structured patient email-registration flow. */
@@ -98,7 +98,7 @@ export async function startPublicEmailOtpRegistration(
   });
   if (!registration.ok) return { ok: false, code: registration.reason };
 
-  const challenge = await startEmailChallenge(registration.userId, email);
+  const challenge = await startEmailChallenge(registration.userId, email, "public_registration");
   if (!challenge.ok && registration.wasCreated) {
     await publicDb.deleteUnverifiedPublicEmailRegistration(registration.userId);
   }

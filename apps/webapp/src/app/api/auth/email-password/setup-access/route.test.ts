@@ -65,6 +65,7 @@ describe("POST /api/auth/email-password/setup-access", () => {
       expect(startEmailChallengeMock).toHaveBeenCalledWith(
         "11111111-1111-4111-8111-111111111111",
         "known@example.com",
+        "password_setup",
       );
     } finally {
       policy.mockRestore();

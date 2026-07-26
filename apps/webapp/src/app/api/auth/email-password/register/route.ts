@@ -88,7 +88,7 @@ export async function POST(request: Request) {
   });
 
   async function respondWithChallenge(userId: string, rollbackOnSendFail: boolean) {
-    const challenge = await startEmailChallenge(userId, emailNorm);
+    const challenge = await startEmailChallenge(userId, emailNorm, "password_register");
     if (!challenge.ok) {
       if (rollbackOnSendFail) {
         await deps.userPasswordCredentials.deleteUnverifiedEmailPasswordRegistration(userId);
@@ -131,7 +131,7 @@ export async function POST(request: Request) {
     const state = await deps.emailPasswordLookup.resolveAuthState(emailNorm);
 
     if (state.kind === "needs_email_setup") {
-      const challenge = await startEmailChallenge(state.userId, emailNorm);
+      const challenge = await startEmailChallenge(state.userId, emailNorm, "password_register");
       if (!challenge.ok) {
         await recordAuthRegistrationFailure({
           ...LOG_BASE,

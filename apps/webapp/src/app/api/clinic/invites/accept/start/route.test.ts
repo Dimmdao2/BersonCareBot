@@ -75,6 +75,7 @@ describe("clinic invite accept start route", () => {
     expect(startEmailChallengeMock).toHaveBeenCalledWith(
       "11111111-1111-4111-8111-111111111111",
       "newdoc-r1@example.com",
+      "clinic_invite",
     );
   });
 
@@ -101,7 +102,7 @@ describe("clinic invite accept start route", () => {
     const res = await POST(makeRequest({ token: "invite-token-with-length" }));
 
     expect(res.status).toBe(200);
-    expect(startEmailChallengeMock).toHaveBeenCalledWith(existingUserId, "newdoc-r1@example.com");
+    expect(startEmailChallengeMock).toHaveBeenCalledWith(existingUserId, "newdoc-r1@example.com", "clinic_invite");
   });
 
   it("rejects an explicit email mismatch", async () => {

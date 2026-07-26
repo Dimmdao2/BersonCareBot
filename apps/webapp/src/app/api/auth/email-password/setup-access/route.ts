@@ -35,7 +35,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ ok: false, error: "not_eligible" }, { status: 400 });
   }
 
-  const challenge = await startEmailChallenge(state.userId, emailNorm);
+  const challenge = await startEmailChallenge(state.userId, emailNorm, "password_setup");
   if (!challenge.ok) {
     return NextResponse.json(
       { ok: false, error: challenge.code, retryAfterSeconds: challenge.retryAfterSeconds },

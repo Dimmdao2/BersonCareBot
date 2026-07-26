@@ -53,6 +53,7 @@ export async function POST(request: Request) {
   const result = await confirmLatestEmailChallengeCodeForUser(
     session.user.userId,
     parsed.data.code,
+    "patient_email_change",
     organizationId ? { profileBindOrganizationId: organizationId } : undefined,
   );
   if (!result.ok) {

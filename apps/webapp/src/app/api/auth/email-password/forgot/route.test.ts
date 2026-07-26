@@ -97,7 +97,7 @@ describe("POST /api/auth/email-password/forgot", () => {
     const j2 = (await r2.json()) as Record<string, unknown>;
     expect(j2).toEqual({ ok: true, retryAfterSeconds: OTP_RESEND_COOLDOWN_SEC });
     expect(j2.challengeId).toBeUndefined();
-    expect(startEmailChallenge).toHaveBeenCalledWith("550e8400-e29b-41d4-a716-446655440000", "real@b.com");
+    expect(startEmailChallenge).toHaveBeenCalledWith("550e8400-e29b-41d4-a716-446655440000", "real@b.com", "password_reset");
   });
 
   it("sends setup code for contact-only email and returns challenge for current UI", async () => {
@@ -119,7 +119,7 @@ describe("POST /api/auth/email-password/forgot", () => {
     expect(r.status).toBe(200);
     const j = (await r.json()) as Record<string, unknown>;
     expect(j).toEqual({ ok: true, challengeId: "setup-ch-1", retryAfterSeconds: 44, setupRequired: true });
-    expect(startEmailChallenge).toHaveBeenCalledWith("22222222-2222-2222-2222-222222222222", "contact@example.com");
+    expect(startEmailChallenge).toHaveBeenCalledWith("22222222-2222-2222-2222-222222222222", "contact@example.com", "password_setup");
     expect(requestContactEmailSetup).not.toHaveBeenCalled();
   });
 

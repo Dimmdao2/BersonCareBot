@@ -65,7 +65,7 @@ export async function POST(request: Request) {
     if (!resend.ok) {
       return jsonError("duplicate_email", {}, { status: 409 });
     }
-    const challenge = await startEmailChallenge(resend.userId, emailNorm);
+    const challenge = await startEmailChallenge(resend.userId, emailNorm, "specialist_signup");
     if (!challenge.ok) {
       return jsonError(
         challenge.code,
@@ -86,7 +86,7 @@ export async function POST(request: Request) {
     });
   }
 
-  const challenge = await startEmailChallenge(reg.userId, emailNorm);
+  const challenge = await startEmailChallenge(reg.userId, emailNorm, "specialist_signup");
   if (!challenge.ok) {
     await deps.userPasswordCredentials.deleteUnverifiedEmailPasswordRegistration(reg.userId);
     return jsonError(

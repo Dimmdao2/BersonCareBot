@@ -38,7 +38,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ ok: false, error: "validation_error", message: "Некорректный email" }, { status: 400 });
   }
 
-  const result = await startEmailChallenge(session.user.userId, parsed.data.email);
+  const result = await startEmailChallenge(session.user.userId, parsed.data.email, "email_verify");
   if (!result.ok) {
     const status =
       result.code === "rate_limited" || result.code === "too_many_attempts"

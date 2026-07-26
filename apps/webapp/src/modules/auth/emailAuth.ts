@@ -6,8 +6,10 @@ import {
   OTP_RESEND_COOLDOWN_SEC,
   nextOtpLockoutDurationSeconds,
 } from "@/modules/auth/otpConstants";
-import type { EmailAuthDbPort } from "@/modules/auth/emailAuthPort";
+import type { EmailAuthDbPort, EmailChallengePurpose } from "@/modules/auth/emailAuthPort";
 import { sendEmailAuthCode } from "@/modules/auth/emailSendPort";
+
+export type { EmailChallengePurpose } from "@/modules/auth/emailAuthPort";
 
 const CHALLENGE_TTL_SEC = 600; // 10 min
 
@@ -28,7 +30,7 @@ function requireEmailAuthDb(): EmailAuthDbPort {
 /** Без БД (тесты): хранение челленджей в памяти процесса. */
 const memEmailChallenges = new Map<
   string,
-  { userId: string; email: string; code: string; expiresAt: number; attempts: number }
+  { userId: string; email: string; code: string; expiresAt: number; attempts: number; purpose: EmailChallengePurpose }
 >();
 
 /** In-memory владельцы email (только без DATABASE_URL). */
@@ -179,7 +181,14 @@ async function verifyChallengeCodeRow(params: {
   userId: string;
   challengeId: string;
   code: string;
-  row: { id: string; code_hash: string; expires_at: string; attempts: string };
+  row: { id: string; code_hash: string; expires_at: string; attempts: string; purpose: string | null };
+  /**
+   * C-2 step 4 (OWASP ASVS V6.6.2 / NIST SP 800-63B §5.1.3): the purpose THIS confirm call expects.
+   * A row whose purpose does not match is treated exactly like a wrong code -- same attempts
+   * increment, same result shape (ASVS 6.3.8 uniform response). A NULL row purpose (minted before
+   * migration 0249) is grandfathered in for the remainder of its own TTL.
+   */
+  expectedPurpose: EmailChallengePurpose;
   onSuccess: () => Promise<EmailConfirmResult>;
 }): Promise<EmailConfirmResult> {
   const now = Math.floor(Date.now() / 1000);
@@ -206,7 +215,8 @@ async function verifyChallengeCodeRow(params: {
   }
 
   const expectedHash = hashEmailChallengeCode(params.code);
-  if (expectedHash !== params.row.code_hash) {
+  const purposeMatches = params.row.purpose == null || params.row.purpose === params.expectedPurpose;
+  if (expectedHash !== params.row.code_hash || !purposeMatches) {
     // Atomic: the database computes `attempts + 1` itself inside a row-locked SECURITY DEFINER
     // function (0247), never the caller. Two concurrent wrong-code confirms against the SAME
     // challenge each get their own correctly-incremented count -- Postgres serializes UPDATEs to
@@ -236,7 +246,11 @@ async function verifyChallengeCodeRow(params: {
   return params.onSuccess();
 }
 
-export async function startEmailChallenge(userId: string, emailRaw: string): Promise<EmailStartResult> {
+export async function startEmailChallenge(
+  userId: string,
+  emailRaw: string,
+  purpose: EmailChallengePurpose,
+): Promise<EmailStartResult> {
   const email = normalizeEmail(emailRaw);
   if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
     return { ok: false, code: "invalid_email" };
@@ -256,7 +270,7 @@ export async function startEmailChallenge(userId: string, emailRaw: string): Pro
     const code = generateEmailCode();
     const challengeId = randomUUID();
     const expiresAt = Math.floor(Date.now() / 1000) + CHALLENGE_TTL_SEC;
-    memEmailChallenges.set(challengeId, { userId, email, code, expiresAt, attempts: 0 });
+    memEmailChallenges.set(challengeId, { userId, email, code, expiresAt, attempts: 0, purpose });
     const sent = await sendEmailAuthCode(email, code);
     if (!sent.ok) {
       memEmailChallenges.delete(challengeId);
@@ -291,7 +305,7 @@ export async function startEmailChallenge(userId: string, emailRaw: string): Pro
     console.log(`[DEV] Email OTP code for ${email}: ${code}`);
   }
 
-  const challengeId = await db.insertEmailChallenge({ userId, email, codeHash, expiresAt });
+  const challengeId = await db.insertEmailChallenge({ userId, email, codeHash, expiresAt, purpose });
   const sent = await sendEmailAuthCode(email, code);
   if (!sent.ok) {
     if (isEmailOtpDebugEnabled()) {
@@ -311,6 +325,7 @@ export async function confirmEmailChallenge(
   userId: string,
   challengeId: string,
   codeRaw: string,
+  expectedPurpose: EmailChallengePurpose,
   options?: ConfirmEmailOptions,
 ): Promise<EmailConfirmResult> {
   const code = codeRaw.trim();
@@ -327,7 +342,9 @@ export async function confirmEmailChallenge(
       memEmailChallenges.delete(challengeId);
       return { ok: false, code: "expired_code" };
     }
-    if (row.code !== code) {
+    // C-2 step 4: a purpose mismatch is folded into the SAME branch as a wrong code (ASVS 6.3.8
+    // uniform response) -- see verifyChallengeCodeRow for the DB-backed equivalent.
+    if (row.code !== code || row.purpose !== expectedPurpose) {
       row.attempts += 1;
       if (row.attempts >= OTP_MAX_VERIFY_ATTEMPTS) {
         memEmailChallenges.delete(challengeId);
@@ -363,6 +380,7 @@ export async function confirmEmailChallenge(
     challengeId,
     code,
     row,
+    expectedPurpose,
     onSuccess: async () => {
       try {
         const claimed = await db.claimVerifiedEmail(userId, row.email, options);
@@ -388,6 +406,7 @@ export async function consumeEmailChallengeCode(
   userId: string,
   challengeId: string,
   codeRaw: string,
+  expectedPurpose: EmailChallengePurpose,
 ): Promise<EmailConfirmResult> {
   const code = codeRaw.trim();
   if (!code) {
@@ -403,7 +422,9 @@ export async function consumeEmailChallengeCode(
       memEmailChallenges.delete(challengeId);
       return { ok: false, code: "expired_code" };
     }
-    if (row.code !== code) {
+    // C-2 step 4: a purpose mismatch is folded into the SAME branch as a wrong code (ASVS 6.3.8
+    // uniform response).
+    if (row.code !== code || row.purpose !== expectedPurpose) {
       row.attempts += 1;
       if (row.attempts >= OTP_MAX_VERIFY_ATTEMPTS) {
         memEmailChallenges.delete(challengeId);
@@ -429,6 +450,7 @@ export async function consumeEmailChallengeCode(
     challengeId,
     code,
     row,
+    expectedPurpose,
     onSuccess: async () => {
       await db.deleteEmailChallengesForUser(userId);
       return { ok: true };
@@ -445,6 +467,7 @@ export async function consumeEmailChallengeCode(
 export async function confirmLatestEmailChallengeCodeForUser(
   userId: string,
   codeRaw: string,
+  expectedPurpose: EmailChallengePurpose,
   options?: ConfirmEmailOptions,
 ): Promise<EmailConfirmResult> {
   const code = codeRaw.trim();
@@ -455,7 +478,7 @@ export async function confirmLatestEmailChallengeCodeForUser(
   if (!env.DATABASE_URL) {
     const now = Math.floor(Date.now() / 1000);
     let bestId: string | null = null;
-    let best: { userId: string; email: string; code: string; expiresAt: number; attempts: number } | null = null;
+    let best: { userId: string; email: string; code: string; expiresAt: number; attempts: number; purpose: EmailChallengePurpose } | null = null;
     for (const [cid, row] of memEmailChallenges) {
       if (row.userId !== userId) continue;
       if (row.expiresAt <= now) {
@@ -470,7 +493,9 @@ export async function confirmLatestEmailChallengeCodeForUser(
     if (!bestId || !best) {
       return { ok: false, code: "expired_code" };
     }
-    if (best.code !== code) {
+    // C-2 step 4: a purpose mismatch is folded into the SAME branch as a wrong code (ASVS 6.3.8
+    // uniform response).
+    if (best.code !== code || best.purpose !== expectedPurpose) {
       best.attempts += 1;
       if (best.attempts >= OTP_MAX_VERIFY_ATTEMPTS) {
         memEmailChallenges.delete(bestId);
@@ -507,6 +532,7 @@ export async function confirmLatestEmailChallengeCodeForUser(
     challengeId: row.id,
     code,
     row,
+    expectedPurpose,
     onSuccess: async () => {
       try {
         const claimed = await db.claimVerifiedEmail(userId, row.email, options);
@@ -531,6 +557,7 @@ export async function confirmLatestEmailChallengeCodeForUser(
 export async function consumeLatestEmailChallengeCodeForUser(
   userId: string,
   codeRaw: string,
+  expectedPurpose: EmailChallengePurpose,
 ): Promise<EmailConfirmResult> {
   const code = codeRaw.trim();
   if (!code) {
@@ -540,7 +567,7 @@ export async function consumeLatestEmailChallengeCodeForUser(
   if (!env.DATABASE_URL) {
     const now = Math.floor(Date.now() / 1000);
     let bestId: string | null = null;
-    let best: { userId: string; email: string; code: string; expiresAt: number; attempts: number } | null = null;
+    let best: { userId: string; email: string; code: string; expiresAt: number; attempts: number; purpose: EmailChallengePurpose } | null = null;
     for (const [cid, row] of memEmailChallenges) {
       if (row.userId !== userId) continue;
       if (row.expiresAt <= now) {
@@ -555,7 +582,9 @@ export async function consumeLatestEmailChallengeCodeForUser(
     if (!bestId || !best) {
       return { ok: false, code: "expired_code" };
     }
-    if (best.code !== code) {
+    // C-2 step 4: a purpose mismatch is folded into the SAME branch as a wrong code (ASVS 6.3.8
+    // uniform response).
+    if (best.code !== code || best.purpose !== expectedPurpose) {
       best.attempts += 1;
       if (best.attempts >= OTP_MAX_VERIFY_ATTEMPTS) {
         memEmailChallenges.delete(bestId);
@@ -581,6 +610,7 @@ export async function consumeLatestEmailChallengeCodeForUser(
     userId,
     challengeId: row.id,
     code,
+    expectedPurpose,
     row,
     onSuccess: async () => {
       await db.deleteEmailChallengesForUser(userId);

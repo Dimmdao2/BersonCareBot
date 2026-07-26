@@ -21,7 +21,15 @@ export type EmailOtpPublicDbPort = {
   /** Roll back only a newly-created unverified registration after delivery failure. */
   deleteUnverifiedPublicEmailRegistration(userId: string): Promise<void>;
 
-  /** Atomically consume the latest challenge using only a pre-hashed code. */
+  /**
+   * Atomically consume the latest challenge using only a pre-hashed code.
+   * C-2 step 4: the DB function itself now enforces that the row's purpose is one of
+   * 'login' / 'public_registration' / 'clinic_invite' -- the three purposes that share this one
+   * anonymous engine across POST /api/auth/email-otp/confirm and
+   * POST /api/clinic/invites/accept/confirm (see migration 0249's header for why that allow-list is
+   * hardcoded in the function body rather than a caller-supplied argument, and for the residual
+   * login-vs-clinic_invite gap this does not close).
+   */
   consumeLatestEmailChallenge(
     emailNorm: string,
     codeHash: string,

@@ -14,7 +14,11 @@ export function createPgEmailSetupAccessPort(tokensPort: EmailSetupTokensPort): 
     async requestContactEmailSetup(
       params: RequestContactEmailSetupParams,
     ): Promise<RequestContactEmailSetupResult> {
-      const started = await startEmailChallenge(params.userId, params.emailNormalized);
+      // Contact-only email setup access (doctor/admin-created client or Rubitime contact) is
+      // confirmed through the same POST /api/auth/email-password/setup-code/complete as
+      // email-password/setup-access and email-password/forgot's needs_email_setup branch --
+      // "password_setup" purpose (C-2 step 4).
+      const started = await startEmailChallenge(params.userId, params.emailNormalized, "password_setup");
       if (!started.ok) {
         return { ok: false, reason: "not_configured" };
       }

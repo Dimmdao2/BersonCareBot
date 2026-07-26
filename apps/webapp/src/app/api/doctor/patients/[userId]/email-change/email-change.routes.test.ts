@@ -237,7 +237,7 @@ describe("POST /api/doctor/patients/[userId]/email-change", () => {
     expect(body.pending.email).toBe("patient-new@example.com");
     expect(typeof body.pending.expiresAt).toBe("string");
     expect(getClientIdentityForOrganizationMock).toHaveBeenCalledWith(VALID_UUID, ORG_ID);
-    expect(startEmailChallengeMock).toHaveBeenCalledWith(CANONICAL_UUID, "patient-new@example.com");
+    expect(startEmailChallengeMock).toHaveBeenCalledWith(CANONICAL_UUID, "patient-new@example.com", "patient_email_change");
     expect(withDoctorWorkspacePrincipalMock).toHaveBeenCalledWith(
       expect.objectContaining({ organizationId: ORG_ID }),
       expect.any(Function),
@@ -413,6 +413,7 @@ describe("POST /api/patient/email-change/confirm", () => {
     expect(confirmLatestEmailChallengeCodeForUserMock).toHaveBeenCalledWith(
       PATIENT_SESSION.user.userId,
       "654321",
+      "patient_email_change",
       { profileBindOrganizationId: ORG_ID },
     );
   });

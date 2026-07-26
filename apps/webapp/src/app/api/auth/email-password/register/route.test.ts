@@ -192,6 +192,7 @@ describe("POST /api/auth/email-password/register", () => {
     expect(startEmailChallenge).toHaveBeenCalledWith(
       "22222222-2222-2222-2222-222222222222",
       "patient@example.com",
+      "password_register",
     );
     expect(requestContactEmailSetup).not.toHaveBeenCalled();
     expect(tryResend).not.toHaveBeenCalled();

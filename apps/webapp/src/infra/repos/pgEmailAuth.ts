@@ -14,6 +14,7 @@ import {
 import type {
   ClaimVerifiedEmailOptions,
   ClaimVerifiedEmailResult,
+  EmailChallengePurpose,
 } from "@/modules/auth/emailAuthPort";
 
 export type EmailChallengeRow = {
@@ -22,6 +23,7 @@ export type EmailChallengeRow = {
   code_hash: string;
   expires_at: string;
   attempts: string;
+  purpose: string | null;
 };
 
 export type EmailChallengeCodeRow = {
@@ -29,6 +31,7 @@ export type EmailChallengeCodeRow = {
   code_hash: string;
   expires_at: string;
   attempts: string;
+  purpose: string | null;
 };
 
 class EmailClaimConflictError extends Error {}
@@ -66,12 +69,22 @@ export async function insertEmailChallenge(params: {
   email: string;
   codeHash: string;
   expiresAt: number;
+  purpose: EmailChallengePurpose;
 }): Promise<string> {
   const ins = await runWebappPgText<{ id: string }>(
     `SELECT app.email_auth_insert_email_challenge($1::uuid, $2, $3, $4::bigint)::text AS id`,
     [params.userId, params.email, params.codeHash, params.expiresAt],
   );
-  return ins.rows[0]!.id;
+  const challengeId = ins.rows[0]!.id;
+  // C-2 step 4: purpose is stamped via a SEPARATE, NEW accessor rather than a 5th insert argument --
+  // app.email_auth_insert_email_challenge's 4-arg signature is pinned by exact arg-type list across
+  // deploy/postgres/d3-4-bootstrap-base-login-read-grants.sql's GRANT/REVOKE lines (see migration
+  // 0249's header). This runs in the same request, immediately after the row exists.
+  await runWebappPgText(
+    "SELECT app.email_auth_set_email_challenge_purpose($1::uuid, $2)",
+    [challengeId, params.purpose],
+  );
+  return challengeId;
 }
 
 export async function deleteEmailChallengeById(challengeId: string): Promise<void> {
@@ -90,7 +103,7 @@ export async function findEmailChallengeForConfirm(
   userId: string,
 ): Promise<EmailChallengeRow | null> {
   const row = await runWebappPgText<EmailChallengeRow>(
-    `SELECT id::text, email, code_hash, expires_at::text, attempts::text
+    `SELECT id::text, email, code_hash, expires_at::text, attempts::text, purpose
      FROM app.email_auth_find_email_challenge_for_confirm($1::uuid, $2::uuid)`,
     [challengeId, userId],
   );
@@ -196,7 +209,7 @@ export async function findEmailChallengeForConsume(
   userId: string,
 ): Promise<EmailChallengeCodeRow | null> {
   const row = await runWebappPgText<EmailChallengeCodeRow>(
-    `SELECT id::text, code_hash, expires_at::text, attempts::text
+    `SELECT id::text, code_hash, expires_at::text, attempts::text, purpose
      FROM app.email_auth_find_email_challenge_for_consume($1::uuid, $2::uuid)`,
     [challengeId, userId],
   );
@@ -208,7 +221,7 @@ export async function findLatestEmailChallengeForUser(
   nowSec: number,
 ): Promise<EmailChallengeCodeRow | null> {
   const row = await runWebappPgText<EmailChallengeCodeRow>(
-    `SELECT id::text, code_hash, expires_at::text, attempts::text
+    `SELECT id::text, code_hash, expires_at::text, attempts::text, purpose
      FROM app.email_auth_find_latest_email_challenge_for_user($1::uuid, $2::bigint)`,
     [userId, nowSec],
   );
@@ -220,7 +233,7 @@ export async function findLatestPendingEmailChallengeForUser(
   nowSec: number,
 ): Promise<EmailChallengeRow | null> {
   const row = await runWebappPgText<EmailChallengeRow>(
-    `SELECT id::text, email, code_hash, expires_at::text, attempts::text
+    `SELECT id::text, email, code_hash, expires_at::text, attempts::text, purpose
      FROM app.email_auth_find_latest_pending_email_challenge_for_user($1::uuid, $2::bigint)`,
     [userId, nowSec],
   );

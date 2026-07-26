@@ -86,7 +86,7 @@ export async function POST(request: Request) {
     if (!verifiedUserId) {
       return jsonError("expired_code", {}, { status: 400 });
     }
-    const result = await confirmEmailChallenge(verifiedUserId, parsed.data.challengeId, parsed.data.code);
+    const result = await confirmEmailChallenge(verifiedUserId, parsed.data.challengeId, parsed.data.code, "specialist_signup");
     if (!result.ok) {
       return jsonError(
         result.code,

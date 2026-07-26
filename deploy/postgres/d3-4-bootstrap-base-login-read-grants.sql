@@ -237,6 +237,14 @@ WHERE to_regprocedure('app.phone_otp_public_booking_consume_challenge(text, text
 REVOKE EXECUTE ON FUNCTION app.email_auth_find_email_send_cooldown(uuid, text) FROM :"d3_4_bootstrap_base_role";
 REVOKE EXECUTE ON FUNCTION app.email_auth_delete_email_challenges_for_user(uuid) FROM :"d3_4_bootstrap_base_role";
 REVOKE EXECUTE ON FUNCTION app.email_auth_insert_email_challenge(uuid, text, text, bigint) FROM :"d3_4_bootstrap_base_role";
+-- C-2 step 4 (0249): purpose-stamp accessor, called immediately after insert in the same request --
+-- same bootstrap-reachability requirement as the insert accessor immediately above. WHERE-guarded
+-- like the 0246/0247 additions above it, so a DB that predates 0249 is a no-op rather than a FATAL.
+SELECT format(
+  'REVOKE EXECUTE ON FUNCTION app.email_auth_set_email_challenge_purpose(uuid, text) FROM %I',
+  :'d3_4_bootstrap_base_role'
+)
+WHERE to_regprocedure('app.email_auth_set_email_challenge_purpose(uuid, text)') IS NOT NULL \gexec
 REVOKE EXECUTE ON FUNCTION app.email_auth_delete_email_challenge_by_id(uuid) FROM :"d3_4_bootstrap_base_role";
 REVOKE EXECUTE ON FUNCTION app.email_auth_upsert_email_send_cooldown(uuid, text) FROM :"d3_4_bootstrap_base_role";
 REVOKE EXECUTE ON FUNCTION app.email_auth_find_email_challenge_for_confirm(uuid, uuid) FROM :"d3_4_bootstrap_base_role";
@@ -483,6 +491,13 @@ WHERE to_regprocedure('app.phone_otp_public_booking_consume_challenge(text, text
 GRANT EXECUTE ON FUNCTION app.email_auth_find_email_send_cooldown(uuid, text) TO :"d3_4_bootstrap_base_role";
 GRANT EXECUTE ON FUNCTION app.email_auth_delete_email_challenges_for_user(uuid) TO :"d3_4_bootstrap_base_role";
 GRANT EXECUTE ON FUNCTION app.email_auth_insert_email_challenge(uuid, text, text, bigint) TO :"d3_4_bootstrap_base_role";
+-- C-2 step 4 (0249): see the matching REVOKE above for why this is WHERE-guarded and why it needs
+-- the same bootstrap reachability as email_auth_insert_email_challenge immediately above it.
+SELECT format(
+  'GRANT EXECUTE ON FUNCTION app.email_auth_set_email_challenge_purpose(uuid, text) TO %I',
+  :'d3_4_bootstrap_base_role'
+)
+WHERE to_regprocedure('app.email_auth_set_email_challenge_purpose(uuid, text)') IS NOT NULL \gexec
 GRANT EXECUTE ON FUNCTION app.email_auth_delete_email_challenge_by_id(uuid) TO :"d3_4_bootstrap_base_role";
 GRANT EXECUTE ON FUNCTION app.email_auth_upsert_email_send_cooldown(uuid, text) TO :"d3_4_bootstrap_base_role";
 GRANT EXECUTE ON FUNCTION app.email_auth_find_email_challenge_for_confirm(uuid, uuid) TO :"d3_4_bootstrap_base_role";
