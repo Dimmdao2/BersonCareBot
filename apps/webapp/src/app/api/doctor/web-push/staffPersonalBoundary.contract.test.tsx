@@ -182,7 +182,17 @@ describe("staff personal PWA identity-self contract", () => {
     expect(mocks.stampDbPrincipalFromSession).not.toHaveBeenCalled();
   });
 
-  it("does not turn the global-admin exception into general doctor API access", async () => {
+  it("now admits the global admin to requireDoctorApiSession too — it backs account-self routes only", async () => {
+    // Owner ruling 2026-07-26 (fix for the /app/account lockout): admin+adminMode now resolves
+    // account.self alongside platform.operations (workspaceCapabilities.ts), so it clears
+    // requireDoctorApiSession's `hasLaunchCapability(capabilities, "account.self")` check the same
+    // way a doctor session already did. This is not a widening of the narrow identity-self
+    // exception above (StaffWebPushBootstrap/install) — requireDoctorApiSession is a SEPARATE guard
+    // that today only backs /api/doctor/account/email and /api/doctor/account/timezone, both scoped
+    // to session.user.userId. It still resolves no organization membership for authorization, so
+    // this stays account-self, never a grant onto clinical/org-scoped doctor API surfaces (those
+    // route through requireDoctorWorkspaceApiContext, which independently requires a resolved
+    // clinical.workspace membership — untouched by this fix).
     setSignedSession("client", true);
 
     const gate = await runWithDbBootstrapPrincipal(
@@ -190,7 +200,6 @@ describe("staff personal PWA identity-self contract", () => {
       () => requireDoctorApiSession(),
     );
 
-    expect(gate.ok).toBe(false);
-    if (!gate.ok) expect(gate.response.status).toBe(403);
+    expect(gate.ok).toBe(true);
   });
 });

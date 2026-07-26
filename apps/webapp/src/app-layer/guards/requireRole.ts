@@ -93,18 +93,27 @@ export async function requireStaffAccountPage(): Promise<AppSession> {
     adminMode: session.adminMode,
   });
   const restricted = await isRestrictedStaffSecuritySession(session);
+  if (hasLaunchCapability(capabilities, "account.self")) {
+    // A doctor always resolves account.self, and so does a global admin (adminMode permanently
+    // forced on) — owner ruling 2026-07-26: the platform operator manages its own profile,
+    // security/2FA, sessions, notifications and PWA install here like any other staff account.
+    // This is the ONLY branch a global admin now hits: platform.operations no longer bounces it
+    // away from its own account page (that bounce was an unreviewed side effect of the earlier
+    // capability collapse, not a decision — see account.md, written the same commit as the old
+    // redirect, which already documented account.self as the sole gate here).
+    return session;
+  }
   if (hasLaunchCapability(capabilities, "platform.operations")) {
-    // A global admin has EXACTLY {platform.operations} — never account.self — and adminMode is
-    // permanently forced on, so this is otherwise the ONLY branch a global admin ever hits here.
-    // A 2FA-restricted admin (auth_2fa_enabled on, not yet factor_verified) has no other reachable
-    // surface to enroll TOTP: bouncing them to system-health, which itself bounces restricted
-    // sessions back to /app, is an infinite redirect loop with no way to ever enroll (owner
-    // ruling 2026-07-24 fix, audited 2026-07-25). Let the account/security tab render instead;
-    // once enrollment completes (factor_verified), restricted is false and normal routing resumes.
+    // Defense in depth only: today every platform.operations holder also resolves account.self
+    // above, so this is unreachable unless a future capability change ever separates them again.
+    // If it ever does, a 2FA-restricted admin (auth_2fa_enabled on, not yet factor_verified) still
+    // has no other reachable surface to enroll TOTP: bouncing to system-health, which itself
+    // bounces restricted sessions back to /app, would be an infinite redirect loop with no way to
+    // ever enroll (owner ruling 2026-07-24 fix, audited 2026-07-25) — so restricted still wins here.
     if (restricted) return session;
     redirect("/app/doctor/system-health");
   }
-  if (!restricted && !hasLaunchCapability(capabilities, "account.self")) {
+  if (!restricted) {
     redirect(buildOwnHubUrlWithAccessDeniedToast(session.user.role));
   }
   return session;

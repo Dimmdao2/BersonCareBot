@@ -91,6 +91,10 @@ describe("U1 launch capability mapping", () => {
         specialistId: null,
       }),
     ).toEqual(new Set(["account.self"]));
+    // Owner ruling 2026-07-26: explicit admin mode still never derives organization.management or
+    // clinical.workspace from membership facts (membershipRole/specialistId here are ignored), but
+    // it now resolves account.self alongside platform.operations so the global admin can manage its
+    // own personal account (fix for the /app/account lockout, see requireRole.doctorStaffAccess.test.ts).
     expect(
       resolveLaunchCapabilities({
         sessionRole: "admin",
@@ -98,7 +102,7 @@ describe("U1 launch capability mapping", () => {
         membershipRole: "doctor",
         specialistId: "specialist-1",
       }),
-    ).toEqual(new Set(["platform.operations"]));
+    ).toEqual(new Set(["platform.operations", "account.self"]));
   });
 });
 
@@ -435,15 +439,21 @@ describe("requireDoctorApiSession", () => {
     expect(getCurrentDbPrincipal()).toMatchObject({ kind: "bootstrap" });
   });
 
-  it("keeps global admin out of the general doctor API surface", async () => {
-    getCurrentSessionMock.mockResolvedValueOnce({ ...session("admin"), adminMode: true });
+  it("allows a global admin onto the account-self doctor API surface (email/timezone) without a clinic", async () => {
+    // Reversal of the pre-fix behavior (owner ruling 2026-07-26): this guard backs exactly
+    // /api/doctor/account/email and /api/doctor/account/timezone, both scoped to
+    // session.user.userId — i.e. account.self operations, not clinical ones. A global admin now
+    // resolves account.self (workspaceCapabilities.ts) and is admitted here on the same basis a
+    // doctor already is. No organization is resolved for authorization; best-effort staff
+    // principal stamping may still probe membership, but a missing one leaves the DB principal
+    // exactly where it already sat before this guard ran (bootstrap).
+    const admin = { ...session("admin"), adminMode: true };
+    getCurrentSessionMock.mockResolvedValueOnce(admin);
 
     const gate = await requireDoctorApiSession();
 
-    expect(gate.ok).toBe(false);
-    if (gate.ok) return;
-    expect(gate.response.status).toBe(403);
-    expect(resolveOrganizationForUserMock).not.toHaveBeenCalled();
+    expect(gate).toEqual({ ok: true, session: admin });
+    expect(getCurrentDbPrincipal()).toMatchObject({ kind: "bootstrap" });
   });
 
   it.each(["recovery", "recovery_confirmation"] as const)(

@@ -71,16 +71,22 @@ describe("requireStaffAccountPage", () => {
     expect(resolveOrganizationForUserMock).not.toHaveBeenCalled();
   });
 
-  it("keeps an explicit platform operator in the platform shell (2FA off / already verified)", async () => {
+  it("lets an explicit platform operator reach its own account page (2FA off / already verified)", async () => {
+    // Owner ruling 2026-07-26: the global admin manages its own credentials (password reset lives
+    // on the security tab) here, the same as a doctor account. Before this fix,
+    // resolveLaunchCapabilities gave admin+adminMode EXACTLY {platform.operations} — never
+    // account.self — and requireStaffAccountPage bounced platform.operations holders to
+    // system-health unconditionally, locking the platform operator out of its own account.
     getServerRuntimeBoolMock.mockResolvedValue(false);
     const admin = { ...session("admin"), adminMode: true };
     getCurrentSessionMock.mockResolvedValueOnce(admin);
 
-    await expect(requireStaffAccountPage()).rejects.toThrow("redirect:/app/doctor/system-health");
+    await expect(requireStaffAccountPage()).resolves.toBe(admin);
+    expect(redirectMock).not.toHaveBeenCalled();
     expect(resolveOrganizationForUserMock).not.toHaveBeenCalled();
   });
 
-  it("still routes to system-health once a global admin has completed TOTP enrollment (factor_verified)", async () => {
+  it("also reaches the account page once a global admin has completed TOTP enrollment (factor_verified)", async () => {
     getServerRuntimeBoolMock.mockResolvedValue(true);
     const admin = {
       ...session("admin"),
@@ -89,15 +95,17 @@ describe("requireStaffAccountPage", () => {
     };
     getCurrentSessionMock.mockResolvedValueOnce(admin);
 
-    await expect(requireStaffAccountPage()).rejects.toThrow("redirect:/app/doctor/system-health");
+    await expect(requireStaffAccountPage()).resolves.toBe(admin);
+    expect(redirectMock).not.toHaveBeenCalled();
   });
 
-  it("lets a 2FA-restricted global admin reach the account/security tab instead of looping to system-health", async () => {
-    // Regression for the audited redirect loop (2026-07-25): a global admin is permanently
-    // adminMode:true (capabilities = exactly {platform.operations}, no account.self). Before the
-    // fix, requireStaffAccountPage unconditionally bounced platform.operations holders to
-    // system-health, which itself bounces a restricted session back to /app — an infinite loop
-    // with no way to ever reach TOTP enrollment.
+  it("lets a 2FA-restricted global admin reach the account/security tab too (no enrollment loop)", async () => {
+    // Regression for the audited redirect loop (2026-07-25, owner ruling 2026-07-24 fix): before
+    // that fix, an unconditional platform.operations bounce to system-health — which itself
+    // bounces a restricted session back to /app — was an infinite loop with no way to ever reach
+    // TOTP enrollment. Post owner-ruling-2026-07-26, account.self admits this session directly and
+    // the restricted flag no longer needs to matter for a global admin at all; kept as an explicit
+    // case so a future capability change that ever narrows account.self here is still caught.
     getServerRuntimeBoolMock.mockResolvedValue(true);
     const admin = { ...session("admin"), adminMode: true };
     getCurrentSessionMock.mockResolvedValueOnce(admin);

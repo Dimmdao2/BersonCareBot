@@ -31,15 +31,22 @@ export type TrustedWorkspaceCapabilityFacts = {
  *
  * A global administrator in explicit admin mode deliberately stops here: it is
  * a platform operator, not an implicit member of a clinical or organization
- * workspace. Patient/public authorization retains its dedicated guards until
- * U5A; their names remain in this vocabulary so route classification has one
- * complete language.
+ * workspace — `organization.management` and `clinical.workspace` are never
+ * derived for this branch, regardless of any membership facts passed in.
+ * It does resolve `account.self` alongside `platform.operations` (owner
+ * ruling 2026-07-26): the platform operator still manages its own personal
+ * account — profile, security/2FA, sessions, notifications, PWA install —
+ * exactly like a doctor account does a few lines below. That is the one
+ * place this branch and the general one below deliberately agree.
+ * Patient/public authorization retains its dedicated guards until U5A; their
+ * names remain in this vocabulary so route classification has one complete
+ * language.
  */
 export function resolveLaunchCapabilities(
   facts: TrustedWorkspaceCapabilityFacts,
 ): ReadonlySet<LaunchCapability> {
   if (facts.sessionRole === "admin" && facts.adminMode === true) {
-    return new Set(["platform.operations"]);
+    return new Set(["platform.operations", "account.self"]);
   }
 
   const capabilities = new Set<LaunchCapability>();
