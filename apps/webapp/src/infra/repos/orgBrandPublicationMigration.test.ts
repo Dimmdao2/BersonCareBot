@@ -202,7 +202,22 @@ describe("0238 organization brand publication", () => {
     // three email_otp_locks accessors (find/register/reset), together with the four new
     // email_otp_locks required-grant rows they need. Same discipline: expectation and deploy
     // constant move in the same commit.
-    expect(deploy).toContain("local expected_secdef_count=61");
+    // 61 -> 62 (2026-07-26): migration 0249_email_challenge_purpose_binding (night plan C-2 step 4)
+    // added exactly one new accessor, app.email_auth_set_email_challenge_purpose(uuid, text), rather
+    // than widening the pinned 4-arg email_auth_insert_email_challenge signature. No new
+    // required-grant row: it only UPDATEs email_challenges.purpose, already covered by app_owner's
+    // existing UPDATE grant on that table. The four email_auth_find_*_challenge_for_*/
+    // _latest_*_for_user accessors also changed (RETURNS TABLE grew a `purpose` column each), but
+    // that is a same-name/same-args DROP+CREATE with ownership explicitly re-applied to app_owner --
+    // net zero contribution to this count.
+    // 62 -> 63 (2026-07-26): migration 0250_c4d_platform_library_read_staff_scope added exactly one
+    // new accessor, app.read_platform_media_row(uuid), the platform-library media read bridge that
+    // keeps GET /api/media/[id] (and playback/preview/hls siblings) working for the one legitimate
+    // non-staff platform-media read once the same migration scopes `c4d_platform_library_read`
+    // (lfk_exercises, lfk_exercise_regions, lfk_exercise_media, lfk_complex_templates,
+    // lfk_complex_template_exercises, media_files) `TO app_staff`. No new required-grant row: it
+    // only reads public.media_files, already covered by app_owner's existing SELECT grant there.
+    expect(deploy).toContain("local expected_secdef_count=63");
     expect(deploy).toContain("('public.org_enrollments', 'SELECT')");
     expect(deploy).toContain("('public.phone_challenges', 'INSERT')");
     expect(deploy).toContain("('public.phone_otp_locks', 'UPDATE')");

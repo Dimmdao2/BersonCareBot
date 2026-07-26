@@ -1258,7 +1258,34 @@ SELECT has_column_privilege('app_owner', 'public.operator_incidents', 'alert_sen
   # email_challenges/phone_otp_locks route through SECURITY DEFINER or a dedicated migration grant).
   # Their table reads/writes are the four new email_otp_locks required-grant rows added above. None
   # of the three returns anything beyond a bare epoch-second timestamp -- never a code, never a row.
-  local expected_secdef_count=61
+  # 61 -> 62 (2026-07-26): migration 0249_email_challenge_purpose_binding (night plan C-2 step 4)
+  # adds exactly one new reviewed app_owner SECURITY DEFINER accessor --
+  # app.email_auth_set_email_challenge_purpose(uuid, text). It exists because
+  # app.email_auth_insert_email_challenge(uuid,text,text,bigint)'s 4-arg signature is pinned by
+  # exact arg-type list across this file's own GRANT/REVOKE lines for d3_4_bootstrap_base_role;
+  # widening it to carry a 5th "purpose" argument would make those pinned lines resolve to a function
+  # that no longer exists under that signature. Instead this accessor stamps `purpose` on the row
+  # insert already created, in the same request, immediately after. No new required-grant row is
+  # needed: it only UPDATEs email_challenges.purpose, and app_owner already holds UPDATE on
+  # public.email_challenges (organization-member-invites-rls.sql, granted for 0232's consume
+  # function). The four email_auth_find_*_challenge_for_*/_latest_*_for_user accessors also changed
+  # in the same migration (each now also returns `purpose`), but that is a RETURNS TABLE column
+  # change on the SAME name + argument types -- Postgres ownership survives DROP+CREATE only if the
+  # owner is re-applied, which 0249 does explicitly, so the count they contribute is unchanged (one
+  # dropped, one created, net zero) -- only the brand-new accessor above changes this constant.
+  # 62 -> 63 (2026-07-26, A-2 platform-library exposure fix): migration
+  # 0250_c4d_platform_library_read_staff_scope adds exactly one new reviewed app_owner SECURITY
+  # DEFINER accessor -- app.read_platform_media_row(uuid). It exists because the same migration
+  # scopes the previously-unrestricted `c4d_platform_library_read` RLS policy (on lfk_exercises,
+  # lfk_exercise_regions, lfk_exercise_media, lfk_complex_templates, lfk_complex_template_exercises,
+  # media_files) `TO app_staff`, closing an armed-but-unfired exposure where app_patient (the same
+  # role the anonymous bootstrap connection uses) could ambiently read any owner_kind='platform'
+  # row in those six tables. The accessor is the one legitimate non-staff read path this narrowing
+  # would otherwise break (GET /api/media/[id] and its playback/preview/hls siblings serving a
+  # platform exercise's media once resolvePlatformLfkMediaAccess() has already confirmed
+  # entitlement). No new required-grant row: it only reads public.media_files, and app_owner already
+  # holds SELECT there (deploy/postgres/patient-media-playback-telemetry-accessors.sql).
+  local expected_secdef_count=63
   local actual_secdef_count
   actual_secdef_count="$(sudo -u postgres psql -d "$DB" -X -v ON_ERROR_STOP=1 -tAc "
 SELECT count(*) FROM pg_proc p WHERE pg_get_userbyid(p.proowner) = 'app_owner' AND p.prosecdef;

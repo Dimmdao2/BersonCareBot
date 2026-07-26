@@ -777,6 +777,43 @@ export type MediaAccessRow = {
   s3_key: string | null;
 };
 
+/**
+ * Platform exercise-library media bridge (deploy/postgres migration
+ * 0250_c4d_platform_library_read_staff_scope.sql). app_patient (and therefore the anonymous
+ * bootstrap connection) has no ambient RLS visibility into owner_kind = 'platform' rows on
+ * media_files any more -- `c4d_platform_library_read` is scoped `TO app_staff`. This is the one
+ * legitimate non-staff read path (a doctor or patient viewing a platform exercise's media once
+ * apps/webapp/src/app-layer/media/resolvePlatformLfkMediaAccess.ts has already confirmed
+ * entitlement), so it goes through the narrow SECURITY DEFINER accessor instead of an ambient
+ * SELECT. Callers MUST have already confirmed entitlement -- this function does not check it.
+ */
+type PlatformMediaRow = {
+  id: string;
+  mime_type: string;
+  s3_key: string | null;
+  stored_path: string;
+  status: string | null;
+  usage_purpose: string | null;
+  uploaded_by: string;
+  video_processing_status: string | null;
+  hls_master_playlist_s3_key: string | null;
+  poster_s3_key: string | null;
+  video_duration_seconds: number | null;
+  available_qualities_json: unknown;
+  video_delivery_override: string | null;
+  preview_sm_key: string | null;
+  preview_md_key: string | null;
+  preview_status: string | null;
+};
+
+async function readPlatformMediaRow(id: string): Promise<PlatformMediaRow | null> {
+  const res = await runWebappSql<PlatformMediaRow>(
+    getWebappSqlDb(),
+    sql`SELECT * FROM app.read_platform_media_row(${id}::uuid)`,
+  );
+  return res.rows[0] ?? null;
+}
+
 export async function getMediaAccessRow(
   id: string,
   options: { allowPlatformBase?: boolean } = {},
@@ -787,13 +824,20 @@ export async function getMediaAccessRow(
     sql`SELECT usage_purpose, uploaded_by::text, mime_type, stored_path, s3_key
      FROM media_files
      WHERE id = ${id}::uuid
-       AND (
-         (owner_kind = 'organization' AND organization_id = ${organizationId}::uuid)
-         OR (${options.allowPlatformBase === true}::boolean AND owner_kind = 'platform' AND organization_id IS NULL)
-       )
+       AND owner_kind = 'organization' AND organization_id = ${organizationId}::uuid
        AND ${mediaReadableStatusPredicate}`,
   );
-  return res.rows[0] ?? null;
+  if (res.rows[0]) return res.rows[0];
+  if (options.allowPlatformBase !== true) return null;
+  const platformRow = await readPlatformMediaRow(id);
+  if (!platformRow) return null;
+  return {
+    usage_purpose: platformRow.usage_purpose,
+    uploaded_by: platformRow.uploaded_by,
+    mime_type: platformRow.mime_type,
+    stored_path: platformRow.stored_path,
+    s3_key: platformRow.s3_key,
+  };
 }
 
 /** Roll back presign INSERT when presigned URL generation fails. */
@@ -876,13 +920,32 @@ export async function getMediaRowForPlayback(
             usage_purpose, uploaded_by::text
      FROM media_files
      WHERE id = ${id}::uuid AND ${storagePredicate}
-       AND (
-         (owner_kind = 'organization' AND organization_id = ${organizationId}::uuid)
-         OR (${options.allowPlatformBase === true}::boolean AND owner_kind = 'platform' AND organization_id IS NULL)
-       )
+       AND owner_kind = 'organization' AND organization_id = ${organizationId}::uuid
        AND ${mediaReadableStatusPredicate}`,
   );
-  return res.rows[0] ?? null;
+  if (res.rows[0]) return res.rows[0];
+  if (options.allowPlatformBase !== true) return null;
+  const platformRow = await readPlatformMediaRow(id);
+  if (!platformRow) return null;
+  const hasStorage = options.allowLocalSaasTestFixture
+    ? (platformRow.s3_key != null && platformRow.s3_key.trim().length > 0) ||
+      (platformRow.s3_key == null && platformRow.stored_path === "/test-fixtures/saas-exercise.svg")
+    : platformRow.s3_key != null && platformRow.s3_key.trim().length > 0;
+  if (!hasStorage) return null;
+  return {
+    id: platformRow.id,
+    mime_type: platformRow.mime_type,
+    s3_key: platformRow.s3_key,
+    stored_path: platformRow.stored_path,
+    video_processing_status: platformRow.video_processing_status,
+    hls_master_playlist_s3_key: platformRow.hls_master_playlist_s3_key,
+    poster_s3_key: platformRow.poster_s3_key,
+    video_duration_seconds: platformRow.video_duration_seconds,
+    available_qualities_json: platformRow.available_qualities_json,
+    video_delivery_override: platformRow.video_delivery_override,
+    usage_purpose: platformRow.usage_purpose,
+    uploaded_by: platformRow.uploaded_by,
+  };
 }
 
 /** For GET /api/media/[id]: S3 key when row may be redirected (presigned GET to private bucket). */
@@ -895,13 +958,13 @@ export async function getMediaS3KeyForRedirect(
     getWebappSqlDb(),
     sql`SELECT s3_key FROM media_files
          WHERE id = ${id}::uuid AND s3_key IS NOT NULL
-           AND (
-             (owner_kind = 'organization' AND organization_id = ${organizationId}::uuid)
-             OR (${options.allowPlatformBase === true}::boolean AND owner_kind = 'platform' AND organization_id IS NULL)
-           )
+           AND owner_kind = 'organization' AND organization_id = ${organizationId}::uuid
            AND ${mediaReadableStatusPredicate}`,
   );
-  return res.rows[0]?.s3_key ?? null;
+  if (res.rows[0]?.s3_key) return res.rows[0].s3_key;
+  if (options.allowPlatformBase !== true) return null;
+  const platformRow = await readPlatformMediaRow(id);
+  return platformRow?.s3_key ?? null;
 }
 
 /** Presigned-GET target for generated preview JPEG (sm/md). */
@@ -920,13 +983,11 @@ export async function getMediaPreviewS3KeyForRedirect(
     sql`SELECT preview_sm_key, preview_md_key, preview_status
      FROM media_files
      WHERE id = ${id}::uuid
-       AND (
-         (owner_kind = 'organization' AND organization_id = ${organizationId}::uuid)
-         OR (${options.allowPlatformBase === true}::boolean AND owner_kind = 'platform' AND organization_id IS NULL)
-       )
+       AND owner_kind = 'organization' AND organization_id = ${organizationId}::uuid
        AND ${mediaReadableStatusPredicate}`,
   );
-  const row = res.rows[0];
+  const row =
+    res.rows[0] ?? (options.allowPlatformBase === true ? await readPlatformMediaRow(id) : null);
   if (!row || row.preview_status !== "ready") return null;
   const key = size === "sm" ? row.preview_sm_key : row.preview_md_key;
   return key?.trim() ? key : null;

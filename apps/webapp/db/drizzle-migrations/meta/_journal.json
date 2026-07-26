@@ -1744,6 +1744,20 @@
       "when": 1793539200045,
       "tag": "0248_otp_decaying_lockout",
       "breakpoints": true
+    },
+    {
+      "idx": 249,
+      "version": "7",
+      "when": 1793539200046,
+      "tag": "0249_email_challenge_purpose_binding",
+      "breakpoints": true
+    },
+    {
+      "idx": 250,
+      "version": "7",
+      "when": 1793539200047,
+      "tag": "0250_c4d_platform_library_read_staff_scope",
+      "breakpoints": true
     }
   ]
 }
