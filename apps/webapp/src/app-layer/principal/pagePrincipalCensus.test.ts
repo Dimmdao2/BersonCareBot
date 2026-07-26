@@ -489,23 +489,27 @@ function ownFileUncoveredReads(entry: string): ReadSite[] {
  * Removing the class properly (a public read surface: separate projection + dedicated read-only
  * role) is night plan item **A-2**, an owner-gated decision, not this one.
  */
+// PBK-1 (2026-07-27): path-only update. Commit de0b061e0 dropped the literal `new` segment from
+// both booking route trees (`app/app/patient/booking/new/**` -> `app/app/patient/booking/**`,
+// `app/book/new/**` -> `app/book/**`) at the owner's request; the page content, its principal and
+// the count of members here (12) are unchanged — only where each page is reached under moved.
 const UNPRINCIPLED_REACHABLE_PAGES: readonly string[] = [
   // Anonymous specialist-first landing. Reads `app_base_url` through the PUBLIC projection
   // accessor; charged here only because `getEffective` also holds the organization branch.
   "page.tsx -> infra/repos/pgAppRuntimeSettings.ts",
   // Anonymous clinic booking funnel: `app_display_timezone` through the same public accessor.
-  "book/new/confirm/page.tsx -> infra/repos/pgAppRuntimeSettings.ts",
-  "book/new/slot/page.tsx -> infra/repos/pgAppRuntimeSettings.ts",
-  "app/patient/booking/new/done/page.tsx -> infra/repos/pgAppRuntimeSettings.ts",
+  "book/confirm/page.tsx -> infra/repos/pgAppRuntimeSettings.ts",
+  "book/slot/page.tsx -> infra/repos/pgAppRuntimeSettings.ts",
+  "app/patient/booking/done/page.tsx -> infra/repos/pgAppRuntimeSettings.ts",
   // Public `/book/{slug}` catalog: reads run under `withExplicitOrganizationPrincipal`, the
   // organization id resolution under `stampBootstrapPrincipal`; the shared catalog helper takes
   // the container as a PARAMETER, which the walk charges to the caller.
-  "book/new/service/page.tsx -> app/app/patient/booking/bookingCatalogRsc.ts",
-  "app/patient/booking/new/service/page.tsx -> app/app/patient/booking/bookingCatalogRsc.ts",
-  "app/patient/booking/new/slot/page.tsx -> app/app/patient/booking/bookingCatalogRsc.ts",
+  "book/service/page.tsx -> app/app/patient/booking/bookingCatalogRsc.ts",
+  "app/patient/booking/service/page.tsx -> app/app/patient/booking/bookingCatalogRsc.ts",
+  "app/patient/booking/slot/page.tsx -> app/app/patient/booking/bookingCatalogRsc.ts",
   // `getOptionalPatientSession()` + early return: safe by control flow, not by lexical coverage.
-  "app/patient/booking/new/confirm/page.tsx -> app/app/patient/booking/new/confirm/page.tsx",
-  "app/patient/booking/new/page.tsx -> app/app/patient/booking/new/page.tsx",
+  "app/patient/booking/confirm/page.tsx -> app/app/patient/booking/confirm/page.tsx",
+  "app/patient/booking/page.tsx -> app/app/patient/booking/page.tsx",
   "app/patient/content/[slug]/page.tsx -> app/app/patient/content/[slug]/page.tsx",
   "app/patient/help/[slug]/page.tsx -> app/app/patient/help/[slug]/page.tsx",
   "app/patient/sections/[slug]/page.tsx -> app/app/patient/sections/[slug]/page.tsx",
@@ -596,8 +600,9 @@ describe("RSC page DB-principal census (night plan A-5, bug class of 19f52fed2)"
     // read is deliberately pre-authentication. Never by granting the nonstaff login role the table.
     expect(offenders).toEqual([
       // `getOptionalPatientSession()` + early return — safe by control flow, see the header.
-      "app/patient/booking/new/confirm/page.tsx:138",
-      "app/patient/booking/new/page.tsx:55",
+      // PBK-1 (2026-07-27): path only — `new/confirm` -> `confirm`, `new/page.tsx` -> `page.tsx`.
+      "app/patient/booking/confirm/page.tsx:138",
+      "app/patient/booking/page.tsx:55",
       "app/patient/content/[slug]/page.tsx:33",
       "app/patient/help/[slug]/page.tsx:28",
       "app/patient/sections/[slug]/page.tsx:42",
@@ -625,7 +630,15 @@ describe("RSC page DB-principal census (night plan A-5, bug class of 19f52fed2)"
     // 12: `app/admin/layout.tsx` (before and after this rename) reaches no DB read in its own file
     // — its guard call covers the rest of the block, and the shell it renders is a client
     // component, so no edge is followed into it.
-    expect(pageEntries).toHaveLength(173);
+    // PBK-1 (2026-07-27): net -9 page entries. Both booking trees dropped the literal `new`
+    // segment (`app/app/patient/booking/new/**` -> `app/app/patient/booking/**`, `app/book/new/**`
+    // -> `app/book/**`); the pre-existing parent-level pages that used to be thin re-export shims
+    // for the `new/*` step content are now that content itself, one file per step, so the 9 former
+    // `new/*/page.tsx` entries (5 under patient booking, 4 under public booking) are gone and no
+    // new entries appear in their place. Readers stay at 12: the moved step pages already counted
+    // as readers by their old (shim) path, so the DB-reading page COUNT is unchanged — only the
+    // path each one is reached under moved (see the surface assertion below).
+    expect(pageEntries).toHaveLength(164);
     expect(readers).toHaveLength(12);
   });
 
