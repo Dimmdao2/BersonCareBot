@@ -38,8 +38,8 @@ const SETTING_BY_CHANNEL = {
  * from every DB role the public login screen runs as, including the unauthenticated bootstrap pool
  * this function is called from on every `GET /api/auth/login/alternatives-config` and
  * `POST /api/auth/check-phone` — unlike `getConfigValue("smtp_outbound", "")`, which resolves to a
- * direct `SELECT ... FROM system_settings` that role has no table privilege for (FORCE RLS denies
- * it, 42501), silently swallowed by configAdapter.ts:fetchFromDb() into the env fallback `""`, so
+ * direct table read of `system_settings` that role has no privilege for (FORCE RLS denies it,
+ * 42501), silently swallowed by configAdapter.ts:fetchFromDb() into the env fallback `""`, so
  * the login screen never offered "code to e-mail" even with SMTP fully configured (bug fixed here).
  *
  * `getIsSmtpOutboundConfiguredOrNull()` never throws; it returns `null` only when the accessor
