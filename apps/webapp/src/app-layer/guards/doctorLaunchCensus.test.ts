@@ -40,13 +40,12 @@ function collectServerActionFiles(dir: URL, result: URL[] = []): URL[] {
  */
 const launchManifest: readonly LaunchManifestEntry[] = [
   { route: "usage/page.tsx", launchClass: "platform", capability: "platform-operations", objectPolicy: "platform-neutral-no-pii" },
-  { route: "commercial/page.tsx", launchClass: "platform", capability: "platform-operations", objectPolicy: "platform-config" },
   { route: "booking-merge/page.tsx", launchClass: "platform", capability: "platform-operations", objectPolicy: "platform-neutral-no-pii" },
   { route: "analytics/page.tsx", launchClass: "platform", capability: "platform-operations", objectPolicy: "platform-config" },
   { route: "analytics/clients/page.tsx", launchClass: "platform", capability: "platform-operations", objectPolicy: "platform-config" },
   { route: "analytics/notifications/page.tsx", launchClass: "platform", capability: "platform-operations", objectPolicy: "platform-config" },
   // audit-log and health-archive moved to app/platform/ in slice 2 (PLAT-01…09); system-health
-  // moved in slice 1 — see newPlatformLaunchManifest.
+  // moved in slice 1, commercial in slice 3 — see newPlatformLaunchManifest.
   { route: "admin/app-settings/page.tsx", launchClass: "platform", capability: "platform-operations", objectPolicy: "platform-config" },
   { route: "admin/auth/page.tsx", launchClass: "platform", capability: "platform-operations", objectPolicy: "platform-config" },
   { route: "admin/booking/catalog/page.tsx", launchClass: "platform", capability: "platform-operations", objectPolicy: "platform-config" },
@@ -61,12 +60,14 @@ const launchManifest: readonly LaunchManifestEntry[] = [
 /**
  * PLAT-01…09: the platform shell's own route tree, disjoint from `(global-admin)/doctor/`.
  * Slice 1 (2026-07-26) moved `system-health` here; slice 2 (2026-07-26) adds `health-archive`
- * and `audit-log`. Slices 3-7 add the rest of `launchManifest` above as each page physically moves.
+ * and `audit-log`; slice 3 (2026-07-26) adds `commercial`. Slices 4-7 add the rest of
+ * `launchManifest` above as each page physically moves.
  */
 const newPlatformLaunchManifest: readonly LaunchManifestEntry[] = [
   { route: "system-health/page.tsx", launchClass: "platform", capability: "platform-operations", objectPolicy: "platform-config" },
   { route: "health-archive/page.tsx", launchClass: "platform", capability: "platform-operations", objectPolicy: "platform-config" },
   { route: "audit-log/page.tsx", launchClass: "platform", capability: "platform-operations", objectPolicy: "platform-config" },
+  { route: "commercial/page.tsx", launchClass: "platform", capability: "platform-operations", objectPolicy: "platform-config" },
 ];
 
 const mutableMediaManifest: readonly LaunchManifestEntry[] = [
@@ -145,7 +146,7 @@ describe("U1 finite doctor launch manifest", () => {
     ]);
   });
 
-  it("is exact for the new app/platform/ route tree (PLAT-01…09 slices 1-2: system-health, health-archive, audit-log so far)", () => {
+  it("is exact for the new app/platform/ route tree (PLAT-01…09 slices 1-3: system-health, health-archive, audit-log, commercial so far)", () => {
     const discovered = new Set(
       collectFiles(newPlatformRoot, "page.tsx").map((file) =>
         fileURLToPath(file).replace(fileURLToPath(newPlatformRoot), ""),

@@ -46,6 +46,8 @@ export function doctorRouteRedirectResponse(
     // reasoning — exact-path entries, not prefixes.
     "/app/doctor/health-archive": "/app/platform/health-archive",
     "/app/doctor/audit-log": "/app/platform/audit-log",
+    // PLAT-01…09 slice 3 (2026-07-26): commercial (tariffs and trial) moved the same way.
+    "/app/doctor/commercial": "/app/platform/commercial",
     // Old /clients/ client-card list → new /patients/ card list (old client card removed).
     "/app/doctor/clients": "/app/doctor/patients",
     "/app/doctor/messages": "/app/doctor/communications?tab=chats",

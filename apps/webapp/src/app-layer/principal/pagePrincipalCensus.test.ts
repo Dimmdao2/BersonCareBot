@@ -615,6 +615,8 @@ describe("RSC page DB-principal census (night plan A-5, bug class of 19f52fed2)"
     // PLAT-01…09 slice 2 (2026-07-26): net 0. `health-archive/page.tsx` and `audit-log/page.tsx`
     // moved the same way (one entry removed, one added, each) — no new layout.tsx this time, since
     // `app/platform/layout.tsx` already exists from slice 1.
+    // PLAT-01…09 slice 3 (2026-07-26): net 0. `commercial/page.tsx` moved the same way (one entry
+    // removed, one added) — no new layout.tsx, same reason.
     expect(pageEntries).toHaveLength(174);
     expect(readers).toHaveLength(12);
   });
