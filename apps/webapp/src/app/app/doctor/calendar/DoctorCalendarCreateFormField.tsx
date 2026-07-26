@@ -51,7 +51,7 @@ export function DoctorCalendarCreateFormField({
       value={value ?? noneValue()}
       onValueChange={(v) => onChange(v === noneValue() ? null : v)}
     >
-      <SelectTrigger displayLabel={options.find((o) => o.id === value)?.label ?? noneLabel}>
+      <SelectTrigger>
         <SelectValue />
       </SelectTrigger>
       <SelectContent>

@@ -40,7 +40,7 @@ export function DoctorCalendarToolbarFilter({ noneLabel, options, value, onChang
 
   return (
     <Select value={value ?? noneValue()} onValueChange={(v) => onChange(v === noneValue() ? null : v)}>
-      <SelectTrigger className="w-[10rem]" displayLabel={options.find((o) => o.id === value)?.label ?? noneLabel}>
+      <SelectTrigger className="w-[10rem]">
         <SelectValue />
       </SelectTrigger>
       <SelectContent>

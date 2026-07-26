@@ -7,7 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/shared/ui/doctor/pri
 import { Button } from "@/shared/ui/doctor/primitives/button";
 import { Label } from "@/shared/ui/doctor/primitives/label";
 import { Checkbox } from "@/shared/ui/doctor/primitives/checkbox";
-import { Select, SelectContent, SelectItem, SelectTrigger } from "@/shared/ui/doctor/primitives/select";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/shared/ui/doctor/primitives/select";
 import { cn } from "@/lib/utils";
 import {
   formatRegistrationAuthMethodLabel,
@@ -139,9 +139,10 @@ export function AdminAuthRegistrationEventsSection() {
         <div className="flex flex-wrap items-center gap-3">
           <Select value={preset} onValueChange={(v) => setPreset((v ?? "week") as Preset)}>
             <SelectTrigger
-              displayLabel={preset === "week" ? "Неделя" : "Месяц"}
               className="text-sm"
-            />
+            >
+              <SelectValue />
+            </SelectTrigger>
             <SelectContent>
               <SelectItem value="week">Неделя</SelectItem>
               <SelectItem value="month">Месяц</SelectItem>
@@ -152,11 +153,10 @@ export function AdminAuthRegistrationEventsSection() {
             onValueChange={(v) => setEventType((v ?? "") as AuthRegistrationEventType | "")}
           >
             <SelectTrigger
-              displayLabel={
-                REGISTRATION_EVENT_TYPE_FILTER_OPTIONS.find((o) => o.value === eventType)?.label ?? ""
-              }
               className="text-sm"
-            />
+            >
+              <SelectValue />
+            </SelectTrigger>
             <SelectContent>
               {REGISTRATION_EVENT_TYPE_FILTER_OPTIONS.map((o) => (
                 <SelectItem key={o.value || "all-types"} value={o.value}>
@@ -170,11 +170,10 @@ export function AdminAuthRegistrationEventsSection() {
             onValueChange={(v) => setAuthMethod(v ?? "")}
           >
             <SelectTrigger
-              displayLabel={
-                REGISTRATION_AUTH_METHOD_FILTER_OPTIONS.find((o) => o.value === authMethod)?.label ?? ""
-              }
               className="text-sm"
-            />
+            >
+              <SelectValue />
+            </SelectTrigger>
             <SelectContent>
               {REGISTRATION_AUTH_METHOD_FILTER_OPTIONS.map((o) => (
                 <SelectItem key={o.value || "all-methods"} value={o.value}>

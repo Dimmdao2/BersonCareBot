@@ -310,7 +310,7 @@ export function BookingEngineSection({ mode = "catalog" }: { mode?: BookingEngin
                 <Label>Кабинет</Label>
                 <div className="flex flex-wrap gap-2">
                   <Select value={roomBranchId} onValueChange={(v) => v && setRoomBranchId(v)}>
-                    <SelectTrigger className="w-[10rem]" displayLabel={data.branches.find((b) => b.id === roomBranchId)?.title}>
+                    <SelectTrigger className="w-[10rem]">
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
@@ -363,7 +363,7 @@ export function BookingEngineSection({ mode = "catalog" }: { mode?: BookingEngin
                     onChange={(e) => setSpecialistName(e.target.value)}
                   />
                   <Select value={specialistBranchId} onValueChange={(v) => v && setSpecialistBranchId(v)}>
-                    <SelectTrigger className="w-[10rem]" displayLabel={data.branches.find((b) => b.id === specialistBranchId)?.title}>
+                    <SelectTrigger className="w-[10rem]">
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
@@ -477,7 +477,6 @@ export function BookingEngineSection({ mode = "catalog" }: { mode?: BookingEngin
                   <Select value={linkSpecId} onValueChange={(v) => v && setLinkSpecId(v)}>
                     <SelectTrigger
                       className="w-[10rem]"
-                      displayLabel={data.specialists.find((s) => s.id === linkSpecId)?.fullName}
                     >
                       <SelectValue />
                     </SelectTrigger>
@@ -492,7 +491,6 @@ export function BookingEngineSection({ mode = "catalog" }: { mode?: BookingEngin
                   <Select value={linkRoomId} onValueChange={(v) => v && setLinkRoomId(v)}>
                     <SelectTrigger
                       className="w-[10rem]"
-                      displayLabel={data.rooms.find((r) => r.id === linkRoomId)?.title}
                     >
                       <SelectValue />
                     </SelectTrigger>
@@ -533,7 +531,6 @@ export function BookingEngineSection({ mode = "catalog" }: { mode?: BookingEngin
                   <Select value={locServiceId} onValueChange={(v) => v && setLocServiceId(v)}>
                     <SelectTrigger
                       className="w-[10rem]"
-                      displayLabel={data.services.find((s) => s.id === locServiceId)?.title}
                     >
                       <SelectValue />
                     </SelectTrigger>
@@ -548,7 +545,6 @@ export function BookingEngineSection({ mode = "catalog" }: { mode?: BookingEngin
                   <Select value={locBranchId} onValueChange={(v) => v && setLocBranchId(v)}>
                     <SelectTrigger
                       className="w-[10rem]"
-                      displayLabel={data.branches.find((b) => b.id === locBranchId)?.title}
                     >
                       <SelectValue />
                     </SelectTrigger>
@@ -588,7 +584,7 @@ export function BookingEngineSection({ mode = "catalog" }: { mode?: BookingEngin
                 <Label>Доступность специалист × услуга × филиал × город × кабинет</Label>
                 <div className="flex flex-wrap gap-2">
                   <Select value={availSpecialistId} onValueChange={(v) => v && setAvailSpecialistId(v)}>
-                    <SelectTrigger className="w-[10rem]" displayLabel={data.specialists.find((s) => s.id === availSpecialistId)?.fullName}>
+                    <SelectTrigger className="w-[10rem]">
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
@@ -600,7 +596,7 @@ export function BookingEngineSection({ mode = "catalog" }: { mode?: BookingEngin
                     </SelectContent>
                   </Select>
                   <Select value={availServiceId} onValueChange={(v) => v && setAvailServiceId(v)}>
-                    <SelectTrigger className="w-[10rem]" displayLabel={data.services.find((s) => s.id === availServiceId)?.title}>
+                    <SelectTrigger className="w-[10rem]">
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
@@ -612,7 +608,7 @@ export function BookingEngineSection({ mode = "catalog" }: { mode?: BookingEngin
                     </SelectContent>
                   </Select>
                   <Select value={availBranchId} onValueChange={(v) => v && setAvailBranchId(v)}>
-                    <SelectTrigger className="w-[10rem]" displayLabel={data.branches.find((b) => b.id === availBranchId)?.title}>
+                    <SelectTrigger className="w-[10rem]">
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
@@ -635,11 +631,6 @@ export function BookingEngineSection({ mode = "catalog" }: { mode?: BookingEngin
                   >
                     <SelectTrigger
                       className="w-[10rem]"
-                      displayLabel={
-                        availRoomId
-                          ? data.rooms.find((r) => r.id === availRoomId)?.title
-                          : "—"
-                      }
                     >
                       <SelectValue />
                     </SelectTrigger>
