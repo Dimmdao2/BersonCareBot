@@ -184,4 +184,43 @@ export type OperatorHealthWritePort = {
   markOpenIncidentsAlertSent(input: { incidentIds: string[]; alertSentAtIso: string }): Promise<{ updated: number }>;
   /** TTL purge `integration_webhook_error_events` (burst P8). */
   purgeIntegrationWebhookErrorEventsOlderThanHours(hours: number): Promise<{ deleted: number }>;
+  /**
+   * taskdb #1038: generalizes the T0 -> +1h escalation P3 built for
+   * `outbound_delivery_provider` to EVERY `block: "critical"` topic, instead of the flat
+   * 24h dedup silently swallowing repeats for the rest of the tick's candidates. Reuses the
+   * same `operator_incidents` row/claim lifecycle rather than inventing a second mechanism.
+   * `direction` carries the real topic; `integration`/`errorClass` are fixed marker values
+   * (see `CRITICAL_ALERT_CADENCE_INTEGRATION`) so this namespace never collides with real
+   * provider incidents (email/telegram/google_calendar) opened by the delivery-failure
+   * detector. `nowIso` pins `opened_at` to the tick's own clock (not the DB server's), so
+   * cadence math stays deterministic under a simulated `now`.
+   */
+  openOrTouchCriticalAlertIncident(input: {
+    dedupKey: string;
+    direction: string;
+    nowIso: string;
+    errorDetail?: string | null;
+  }): Promise<{ id: string; openedAt: string }>;
+  /** Claim ONE specific incident's due alert (initial or +1h) if its cadence window has arrived. */
+  claimIncidentAlertIfDue(input: {
+    incidentId: string;
+    nowIso: string;
+    staleBeforeIso: string;
+    claimToken: string;
+  }): Promise<OutboundProviderAlertClaim | null>;
+  /**
+   * Resolve every open generic critical-alert incident (see `openOrTouchCriticalAlertIncident`)
+   * whose dedup key is NOT among this tick's active critical candidates — the fault cleared,
+   * so a LATER recurrence of the same dedup key opens a fresh row and starts a new T0
+   * escalation instead of staying silent forever behind an incident that never resolved.
+   */
+  resolveStaleCriticalAlertIncidents(input: { activeDedupKeys: string[] }): Promise<{ resolved: number }>;
 };
+
+/**
+ * Reserved `operator_incidents.integration` marker for rows opened by
+ * `openOrTouchCriticalAlertIncident` (generic critical-alert cadence, taskdb #1038). Never a
+ * real integration name (email/telegram/google_calendar), so the resolve-sweep and the
+ * outbound-provider failure detector can never step on each other's rows.
+ */
+export const CRITICAL_ALERT_CADENCE_INTEGRATION = "critical_alert_cadence";

@@ -12,7 +12,7 @@ import {
   OPERATOR_REMINDERS_JOB_FAMILY,
   OPERATOR_WEB_PUSH_ONLY_REMINDER_TICK_JOB_KEY,
 } from "@/modules/operator-health/reconcileJobKeys";
-import type { OperatorHealthWritePort } from "@/modules/operator-health/ports";
+import { CRITICAL_ALERT_CADENCE_INTEGRATION, type OperatorHealthWritePort } from "@/modules/operator-health/ports";
 
 const MAX_JOB_ERROR_CHARS = 2_048;
 
@@ -320,6 +320,135 @@ export const pgOperatorHealthWritePort: OperatorHealthWritePort = {
       .where(and(isNull(operatorIncidents.resolvedAt), inArray(operatorIncidents.id, incidentIds)))
       .returning({ id: operatorIncidents.id });
     return { updated: rows.length };
+  },
+
+  async openOrTouchCriticalAlertIncident(input) {
+    const db = getDrizzle();
+    const rows = await db
+      .insert(operatorIncidents)
+      .values({
+        dedupKey: input.dedupKey,
+        direction: input.direction,
+        integration: CRITICAL_ALERT_CADENCE_INTEGRATION,
+        errorClass: "critical",
+        errorDetail: input.errorDetail ?? null,
+        openedAt: input.nowIso,
+        lastSeenAt: input.nowIso,
+      })
+      .onConflictDoUpdate({
+        target: [operatorIncidents.dedupKey],
+        targetWhere: sql`resolved_at IS NULL`,
+        set: {
+          lastSeenAt: input.nowIso,
+          occurrenceCount: sql`${operatorIncidents.occurrenceCount} + 1`,
+          errorDetail: sql`coalesce(excluded.error_detail, ${operatorIncidents.errorDetail})` as unknown as string,
+        },
+      })
+      .returning({ id: operatorIncidents.id, openedAt: operatorIncidents.openedAt });
+    const row = rows[0];
+    if (!row) {
+      throw new Error("openOrTouchCriticalAlertIncident: empty returning");
+    }
+    return { id: row.id, openedAt: row.openedAt };
+  },
+
+  async claimIncidentAlertIfDue(input) {
+    const db = getDrizzle();
+    type ClaimedRow = {
+      id: string;
+      dedup_key: string;
+      direction: string;
+      integration: string;
+      error_class: string;
+      error_detail: string | null;
+      opened_at: string;
+      last_seen_at: string;
+      occurrence_count: number;
+      alert_sent_at: string | null;
+      acknowledged_at: string | null;
+      initial_alert_sent_at: string | null;
+      one_hour_alert_sent_at: string | null;
+      phase: "initial" | "one_hour_repeat";
+    };
+    // Same due/claim shape as `claimDueOutboundProviderAlert`, narrowed to ONE known incident id
+    // instead of a direction-filtered scan — the critical tick already knows which row it just
+    // opened-or-touched, so there is no cross-topic set to scan or exclude here.
+    const result = await db.execute<ClaimedRow>(sql`
+      WITH due AS (
+        SELECT id,
+          CASE
+            WHEN initial_alert_sent_at IS NULL THEN 'initial'
+            ELSE 'one_hour_repeat'
+          END AS phase
+        FROM public.operator_incidents
+        WHERE id = ${input.incidentId}::uuid
+          AND resolved_at IS NULL
+          AND acknowledged_at IS NULL
+          AND (
+            initial_alert_sent_at IS NULL
+            OR (
+              one_hour_alert_sent_at IS NULL
+              AND opened_at + interval '1 hour' <= ${input.nowIso}::timestamptz
+            )
+          )
+          AND (alert_claimed_at IS NULL OR alert_claimed_at < ${input.staleBeforeIso}::timestamptz)
+        FOR UPDATE SKIP LOCKED
+        LIMIT 1
+      )
+      UPDATE public.operator_incidents AS incident
+      SET alert_claim_phase = due.phase,
+          alert_claim_token = ${input.claimToken}::uuid,
+          alert_claimed_at = ${input.nowIso}::timestamptz
+      FROM due
+      WHERE incident.id = due.id
+      RETURNING incident.id, incident.dedup_key, incident.direction, incident.integration,
+        incident.error_class, incident.error_detail, incident.opened_at, incident.last_seen_at,
+        incident.occurrence_count, incident.alert_sent_at, incident.acknowledged_at,
+        incident.initial_alert_sent_at, incident.one_hour_alert_sent_at, due.phase
+    `);
+    const row = result.rows[0];
+    if (!row) return null;
+    const claim: OutboundProviderAlertClaim = {
+      id: row.id,
+      dedupKey: row.dedup_key,
+      direction: row.direction,
+      integration: row.integration,
+      errorClass: row.error_class,
+      errorDetail: row.error_detail,
+      openedAt: row.opened_at,
+      lastSeenAt: row.last_seen_at,
+      occurrenceCount: Number(row.occurrence_count),
+      alertSentAt: row.alert_sent_at,
+      acknowledgedAt: row.acknowledged_at,
+      initialAlertSentAt: row.initial_alert_sent_at,
+      oneHourAlertSentAt: row.one_hour_alert_sent_at,
+      phase: row.phase,
+      claimToken: input.claimToken,
+    };
+    return claim;
+  },
+
+  async resolveStaleCriticalAlertIncidents(input) {
+    const db = getDrizzle();
+    const finishedIso = new Date().toISOString();
+    // Mirrors `claimDueOutboundProviderAlert`'s exclude-list pattern (jsonb array -> NOT IN),
+    // which is empty-array-safe: an empty `activeDedupKeys` correctly resolves every open
+    // generic incident (a fully healthy tick with no critical candidates left).
+    const result = await db.execute<{ id: string }>(sql`
+      UPDATE public.operator_incidents
+      SET resolved_at = ${finishedIso}::timestamptz,
+          alert_claim_phase = NULL,
+          alert_claim_token = NULL,
+          alert_claimed_at = NULL
+      WHERE resolved_at IS NULL
+        AND integration = ${CRITICAL_ALERT_CADENCE_INTEGRATION}
+        AND dedup_key NOT IN (
+          SELECT value
+          FROM jsonb_array_elements_text(${JSON.stringify(input.activeDedupKeys)}::jsonb) AS excluded(value)
+        )
+      RETURNING id
+    `);
+    return { resolved: result.rows.length };
   },
 
   async purgeIntegrationWebhookErrorEventsOlderThanHours(hours: number) {
