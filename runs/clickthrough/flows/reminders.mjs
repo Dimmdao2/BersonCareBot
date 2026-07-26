@@ -43,7 +43,7 @@ async function postAction(page, baseUrl, occurrenceId, action, body) {
   );
 }
 
-export async function runReminderFlow({ browser, baseUrl, screenshotDir, log }) {
+export async function runReminderFlow({ browser, baseUrl, screenshotDir }) {
   const steps = [];
   const context = await browser.newContext({ viewport: { width: 1280, height: 900 } });
   await applyProfileCookie(context, "patient", baseUrl);

@@ -11,7 +11,7 @@ function resolvePlaywright() {
     const globalRoot = execFileSync("npm", ["root", "-g"], { encoding: "utf8" }).trim();
     const req = createRequire(globalRoot + "/");
     return req("playwright");
-  } catch (e) {
+  } catch {
     // Fall back to normal resolution (e.g. if a future run adds playwright as a devDependency).
     const req = createRequire(import.meta.url);
     return req("playwright");

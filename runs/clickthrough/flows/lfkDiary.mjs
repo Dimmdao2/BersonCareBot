@@ -12,7 +12,7 @@
  */
 import { applyProfileCookie } from "../lib/fixtureAuth.mjs";
 
-export async function runLfkDiaryFlow({ browser, baseUrl, screenshotDir, log }) {
+export async function runLfkDiaryFlow({ browser, baseUrl, screenshotDir }) {
   const steps = [];
   const context = await browser.newContext({ viewport: { width: 1280, height: 900 } });
   await applyProfileCookie(context, "patient", baseUrl);

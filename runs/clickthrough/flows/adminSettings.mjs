@@ -16,7 +16,7 @@
  */
 import { applyProfileCookie } from "../lib/fixtureAuth.mjs";
 
-export async function runAdminSettingsFlow({ browser, baseUrl, screenshotDir, log }) {
+export async function runAdminSettingsFlow({ browser, baseUrl, screenshotDir }) {
   const steps = [];
   const context = await browser.newContext({ viewport: { width: 1280, height: 900 } });
   await applyProfileCookie(context, "global_admin", baseUrl);

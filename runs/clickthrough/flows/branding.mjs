@@ -5,7 +5,7 @@
  */
 import { applyProfileCookie } from "../lib/fixtureAuth.mjs";
 
-export async function runBrandingFlow({ browser, baseUrl, screenshotDir, log }) {
+export async function runBrandingFlow({ browser, baseUrl, screenshotDir }) {
   const steps = [];
   const testName = `Точка Здоровья — clickthrough ${new Date().toISOString().slice(11, 19)}`;
 
