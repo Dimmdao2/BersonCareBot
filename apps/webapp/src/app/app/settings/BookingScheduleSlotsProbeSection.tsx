@@ -10,6 +10,7 @@ import {
   SelectContent,
   SelectItem,
   SelectTrigger,
+  SelectValue,
 } from "@/shared/ui/doctor/primitives/select";
 import { apiJson } from "@/shared/lib/apiJson";
 
@@ -58,9 +59,6 @@ export function BookingScheduleSlotsProbeSection() {
     });
   }, [loadCatalog]);
 
-  const branchLabel = branches.find((b) => b.id === branchId)?.title;
-  const serviceLabel = services.find((s) => s.id === serviceId)?.title;
-
   function probe() {
     if (!branchId || !serviceId || !date) return;
     setError(null);
@@ -96,7 +94,9 @@ export function BookingScheduleSlotsProbeSection() {
           <div className="space-y-2">
             <Label>Локация</Label>
             <Select value={branchId} onValueChange={(v) => v && setBranchId(v)}>
-              <SelectTrigger displayLabel={branchLabel} className="w-full max-w-md" />
+              <SelectTrigger className="w-full max-w-md">
+                <SelectValue />
+              </SelectTrigger>
               <SelectContent>
                 {branches.map((b) => (
                   <SelectItem key={b.id} value={b.id} label={b.title}>
@@ -109,7 +109,9 @@ export function BookingScheduleSlotsProbeSection() {
           <div className="space-y-2">
             <Label>Услуга</Label>
             <Select value={serviceId} onValueChange={(v) => v && setServiceId(v)}>
-              <SelectTrigger displayLabel={serviceLabel} className="w-full max-w-md" />
+              <SelectTrigger className="w-full max-w-md">
+                <SelectValue />
+              </SelectTrigger>
               <SelectContent>
                 {services.map((s) => (
                   <SelectItem key={s.id} value={s.id} label={s.title}>

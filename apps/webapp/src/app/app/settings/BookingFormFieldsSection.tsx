@@ -162,7 +162,6 @@ export function BookingFormFieldsSection({ layout = "cards" }: { layout?: "cards
                       >
                         <SelectTrigger
                           className="h-8 w-[8rem]"
-                          displayLabel={FIELD_TYPES.find((t) => t.value === f.fieldType)?.label ?? f.fieldType}
                         >
                           <SelectValue />
                         </SelectTrigger>
@@ -264,7 +263,7 @@ export function BookingFormFieldsSection({ layout = "cards" }: { layout?: "cards
                   setFields((prev) => prev.map((x) => (x.id === f.id ? { ...x, fieldType: v } : x)));
                 }}
               >
-                <SelectTrigger displayLabel={FIELD_TYPES.find((t) => t.value === f.fieldType)?.label ?? f.fieldType}>
+                <SelectTrigger>
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -368,7 +367,7 @@ export function BookingFormFieldsSection({ layout = "cards" }: { layout?: "cards
                 if (v) setDraft({ ...draft, fieldType: v });
               }}
             >
-              <SelectTrigger displayLabel={FIELD_TYPES.find((t) => t.value === draft.fieldType)?.label}>
+              <SelectTrigger>
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>

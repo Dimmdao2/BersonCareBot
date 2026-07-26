@@ -8,6 +8,7 @@ import {
   SelectContent,
   SelectItem,
   SelectTrigger,
+  SelectValue,
 } from "@/shared/ui/doctor/primitives/select";
 import { savePatientHomeRepeatCooldownsAction } from "@/app/app/doctor/patient-home/patientHomeDoctorSettingsActions";
 import {
@@ -21,12 +22,6 @@ const MINUTE_OPTIONS: number[] = Array.from(
   { length: (PATIENT_REPEAT_COOLDOWN_MINUTES_MAX - PATIENT_REPEAT_COOLDOWN_MINUTES_MIN) / 5 + 1 },
   (_, i) => PATIENT_REPEAT_COOLDOWN_MINUTES_MIN + i * 5,
 );
-
-function minuteTriggerLabel(valueStr: string): string {
-  const n = Number.parseInt(valueStr, 10);
-  if (!Number.isFinite(n)) return valueStr;
-  return `${n} мин`;
-}
 
 type Props = {
   initialWarmupMinutes: number;
@@ -91,7 +86,9 @@ export function PatientHomeRepeatCooldownPanel(props: Props) {
         <label className="flex flex-col gap-1">
           <span className="text-xs font-medium text-muted-foreground">Разминка (мин)</span>
           <Select value={warmupMin} onValueChange={(v) => { if (v) setWarmupMin(v); }} disabled={pending}>
-            <SelectTrigger className="w-40" displayLabel={minuteTriggerLabel(warmupMin)} />
+            <SelectTrigger className="w-40">
+              <SelectValue />
+            </SelectTrigger>
             <SelectContent className="max-h-72">
               {minuteOptions.map((m) => (
                 <SelectItem key={m} value={String(m)} label={`${m} мин`}>
@@ -105,7 +102,9 @@ export function PatientHomeRepeatCooldownPanel(props: Props) {
         <label className="flex flex-col gap-1">
           <span className="text-xs font-medium text-muted-foreground">Пункты плана (мин)</span>
           <Select value={planMin} onValueChange={(v) => { if (v) setPlanMin(v); }} disabled={pending}>
-            <SelectTrigger className="w-40" displayLabel={minuteTriggerLabel(planMin)} />
+            <SelectTrigger className="w-40">
+              <SelectValue />
+            </SelectTrigger>
             <SelectContent className="max-h-72">
               {minuteOptions.map((m) => (
                 <SelectItem key={m} value={String(m)} label={`${m} мин`}>

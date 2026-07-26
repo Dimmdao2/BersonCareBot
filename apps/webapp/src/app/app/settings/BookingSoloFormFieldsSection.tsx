@@ -180,9 +180,7 @@ export function BookingSoloFormFieldsSection() {
                         );
                       }}
                     >
-                      <SelectTrigger
-                        displayLabel={QUESTION_TYPES.find((t) => t.value === f.fieldType)?.label ?? f.fieldType}
-                      >
+                      <SelectTrigger>
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
@@ -283,10 +281,9 @@ export function BookingSoloFormFieldsSection() {
               onChange={(e) => setNewLabel(e.target.value)}
             />
             <Select value={newType} onValueChange={(v) => v && setNewType(v)}>
-              <SelectTrigger
-                className="w-[10rem]"
-                displayLabel={QUESTION_TYPES.find((t) => t.value === newType)?.label}
-              />
+              <SelectTrigger className="w-[10rem]">
+                <SelectValue />
+              </SelectTrigger>
               <SelectContent>
                 {QUESTION_TYPES.map((t) => (
                   <SelectItem key={t.value} value={t.value} label={t.label}>

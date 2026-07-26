@@ -12,6 +12,7 @@ import {
   SelectContent,
   SelectItem,
   SelectTrigger,
+  SelectValue,
 } from "@/shared/ui/doctor/primitives/select";
 import { buildPublicBookingWidgetOutputs } from "@/shared/publicBook/adminWidgetUrls";
 import { BOOKING_FORM_MAX_WIDTH_CLASS } from "@/shared/ui/doctor/doctorWorkspaceLayout";
@@ -75,8 +76,6 @@ export function BookingPublicWidgetSection() {
     });
   }, []);
 
-  const branchLabel = branches.find((b) => b.id === branchId)?.title;
-  const serviceLabel = services.find((s) => s.id === serviceId)?.title;
   const publicSlug = publicWidget?.publicSlug ?? null;
   const publicSpecialists = publicWidget?.specialists ?? [];
   const publicAvailability = publicWidget?.specialistAvailability ?? [];
@@ -122,7 +121,9 @@ export function BookingPublicWidgetSection() {
         <div className="space-y-2">
           <Label>Локация</Label>
           <Select value={branchId || "__none__"} onValueChange={(v) => setBranchId(!v || v === "__none__" ? "" : v)}>
-            <SelectTrigger displayLabel={branchLabel ?? "—"} className="w-full" />
+            <SelectTrigger className="w-full">
+              <SelectValue />
+            </SelectTrigger>
             <SelectContent>
               <SelectItem value="__none__" label="—">
                 —
@@ -141,7 +142,9 @@ export function BookingPublicWidgetSection() {
             value={serviceId || "__none__"}
             onValueChange={(v) => setServiceId(!v || v === "__none__" ? "" : v)}
           >
-            <SelectTrigger displayLabel={serviceLabel ?? "—"} className="w-full" />
+            <SelectTrigger className="w-full">
+              <SelectValue />
+            </SelectTrigger>
             <SelectContent>
               <SelectItem value="__none__" label="—">
                 —

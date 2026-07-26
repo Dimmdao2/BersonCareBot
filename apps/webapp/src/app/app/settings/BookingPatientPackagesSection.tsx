@@ -5,7 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/shared/ui/doctor/pri
 import { Button } from "@/shared/ui/doctor/primitives/button";
 import { Input } from "@/shared/ui/doctor/primitives/input";
 import { Label } from "@/shared/ui/doctor/primitives/label";
-import { Select, SelectContent, SelectItem, SelectTrigger } from "@/shared/ui/doctor/primitives/select";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/shared/ui/doctor/primitives/select";
 import { apiJson } from "@/shared/lib/apiJson";
 
 type Props = {
@@ -209,7 +209,8 @@ export function BookingPatientPackagesSection({
         <div className="border-t pt-3">
           <p className="mb-2 text-sm font-medium">Из каталога</p>
           <Select value={catalogId} onValueChange={(v) => setCatalogId(v ?? "")}>
-            <SelectTrigger className="mb-2 w-full" displayLabel={catalog.find((c) => c.id === catalogId)?.title ?? "Продукт"}>
+            <SelectTrigger className="mb-2 w-full">
+              <SelectValue />
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="">Продукт</SelectItem>
@@ -240,7 +241,8 @@ export function BookingPatientPackagesSection({
           <Input className="mt-2" placeholder="Цена ₽" value={priceRub} onChange={(e) => setPriceRub(e.target.value)} />
           <div className="mt-2 flex gap-2">
             <Select value={serviceId} onValueChange={(v) => setServiceId(v ?? "")}>
-              <SelectTrigger className="flex-1" displayLabel={services.find((s) => s.id === serviceId)?.title ?? "Услуга"}>
+              <SelectTrigger className="flex-1">
+                <SelectValue />
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="">Услуга</SelectItem>
