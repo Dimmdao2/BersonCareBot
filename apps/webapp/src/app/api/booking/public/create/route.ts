@@ -173,11 +173,11 @@ export async function POST(request: Request) {
       if (issued.code === "invalid_phone") {
         return jsonError("invalid_phone", {}, { status: 400 });
       }
-      return jsonError(
-        "verification_unavailable",
-        issued.retryAfterSeconds ? { retryAfterSeconds: issued.retryAfterSeconds } : {},
-        { status: 503 },
-      );
+      // No `retryAfterSeconds` here. The per-phone resend cooldown is keyed on the NUMBER, so
+      // echoing a countdown would tell a caller that somebody recently requested a code for that
+      // number — a weaker oracle than account existence, but the same class, and observed live on
+      // DEV before it was removed.
+      return jsonError("verification_unavailable", {}, { status: 503 });
     }
 
     return jsonOk(

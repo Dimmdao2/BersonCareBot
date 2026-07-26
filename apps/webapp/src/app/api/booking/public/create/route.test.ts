@@ -174,7 +174,9 @@ describe("POST /api/booking/public/create", () => {
         sendCodeMock.mockResolvedValueOnce(failure);
         const response = await POST(request(inPersonBody()));
         expect(response.status).toBe(503);
-        expect((await response.json()).error).toBe("verification_unavailable");
+        // Identical body every time — no retry countdown, which would leak that a code was
+        // recently sent to that number.
+        expect(await response.json()).toEqual({ ok: false, error: "verification_unavailable" });
       }
     });
   });
