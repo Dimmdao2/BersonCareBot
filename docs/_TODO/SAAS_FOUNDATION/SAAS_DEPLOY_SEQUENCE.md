@@ -62,6 +62,11 @@ NOTE: all appointments in the current prod copy are historical (newest ~2026-06-
 is legitimately empty — browse to June or seed a future appointment to see records.
 
 ## Identity role-allowlist normalization (RESOLVED 2026-07-13)
+
+> ⚠️ **SUPERSEDED (2026-07-26).** Granting the admin role via DB-resident `admin_*`/`doctor_*` allowlists —
+> the mechanism this section works around — is the superseded scheme. Canon:
+> [ADMIN_ACCESS_MODEL.md](../../ARCHITECTURE/ADMIN_ACCESS_MODEL.md).
+
 The prod dump carries the owner's OWN phone/telegram/MAX in the `admin_*` allowlists of
 `system_settings` (BOTH `public` and the duplicate `integrator` copy). `resolveRoleAsync` reads those
 DB allowlists FIRST (env is only fallback) and force-promotes the owner's DOCTOR login to admin on every

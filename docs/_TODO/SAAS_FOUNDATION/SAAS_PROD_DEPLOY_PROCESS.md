@@ -338,6 +338,11 @@ email-code option, because the public login path runs under a bootstrap principa
 - Verify delivery/alerting live; decommission old host only after owner authorizes + rollback horizon passes.
 
 ## 7. Per-item readiness matrix + gaps (inventory 2026-07-24)
+
+> ⚠️ **SUPERSEDED (2026-07-26)** — item 2 below describes the old session-only `admin_emails` elevation as a
+> "harmless redundant belt" beside the persisted role; that allowlist grant path is now the superseded scheme.
+> Canon: [ADMIN_ACCESS_MODEL.md](../../ARCHITECTURE/ADMIN_ACCESS_MODEL.md).
+
 Cross-cutting finding (READ FIRST): **almost every destructive DB-mutation script has a hard code-level refusal of any DB name containing `prod`/`production`/`live`, with NO override flag** (the "prod untouchable" rule, baked in). So the audited single-command paths are proven on TEST/disposable copies but **cannot literally be pointed at the real prod DB** until a reviewed unlock (an explicit-flag gate on the guard) or a temporarily-renamed DB is arranged. This is engineering work, separate from the (proven) business logic. **#9 is the first item where this unlock is now built** (`-v allow_authorized_prod_target=1`, §3.5) — same explicit-flag pattern (not a blanket removal) is the model for #3's still-open guard.
 
 | # | Step | Asset | Status |

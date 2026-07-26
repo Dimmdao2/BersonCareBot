@@ -306,6 +306,12 @@ purpose into the hashed code payload.
 
 ## D5. The escalation chain nobody had noticed — MEDIUM now, HIGH if armed, open
 
+> ⚠️ **SUPERSEDED (2026-07-26).** The owner has now ruled on the options below: allowlist-based role granting
+> (`admin_emails` and the sibling `admin_*`/`doctor_*` keys) is removed as a grant mechanism, the owner's
+> identity is pinned in env, and admin/support access is invite-only. Canon:
+> [ADMIN_ACCESS_MODEL.md](../../ARCHITECTURE/ADMIN_ACCESS_MODEL.md). The same keys' use as notification
+> recipients (mentioned below) is a separate, still-open concern — not resolved by this ruling.
+
 **Found by the adversarial auditor, missed by everyone else.** `getCurrentSession` elevates **any** session to
 `role: "admin"` on every request when the account's verified e-mail appears in the `admin_emails` setting.
 Chain: authenticated patient → `POST /api/auth/email/start` with an allowlisted address (caller-chosen) →

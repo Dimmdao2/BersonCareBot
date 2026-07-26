@@ -249,6 +249,9 @@ The settings page has 6 tabs, but most admin content was migrated to separate pa
 
 ### 2.9 Access lists — role routing by ID
 
+> ⚠️ **SUPERSEDED (2026-07-26).** Granting the admin/doctor role by listing an address in these keys is the
+> superseded scheme. Canon: [ADMIN_ACCESS_MODEL.md](ARCHITECTURE/ADMIN_ACCESS_MODEL.md).
+
 **Location:** Previously in settings (AccessListsSection — appears to have been removed from main nav, but keys are still in ALLOWED_KEYS)
 
 | Setting key | UI Label | Who configures | Description |
@@ -661,6 +664,10 @@ The current `/app/settings` page has 6 tabs but only the "Специалист" 
 Looking at `patientHomeDoctorSettingsActions.ts`, `savePatientHomePracticeTargetAction` calls `requireDoctorOrThrow()` not `requireAdminOrThrow()`. This means any doctor can change the global practice target, but other "patient home" settings (morning ping, warmup rotation, repeat cooldowns) are admin-only. This asymmetry is likely intentional but undocumented.
 
 ### 6.4 `AccessListsSection` component exists but its location in the nav is unclear
+
+> ⚠️ **SUPERSEDED (2026-07-26).** The role-routing keys named below are the superseded admin/doctor grant
+> mechanism. Canon: [ADMIN_ACCESS_MODEL.md](ARCHITECTURE/ADMIN_ACCESS_MODEL.md).
+
 `AccessListsSection.tsx` exists with a full UI for editing `allowed_telegram_ids`, `doctor_telegram_ids`, `admin_telegram_ids` etc., but it's not imported in any of the current admin pages scanned. The admin phone/ID fields are managed via `AdminSettingsSection` (only first slot), and the access lists section seems to have been orphaned during the admin settings refactor.
 
 ### 6.5 The `integration_test_ids` key is deprecated
@@ -673,6 +680,10 @@ Marked as `@deprecated` in `types.ts` — "Legacy: pick разминки дня 
 `/api/admin/booking-engine/scheduling-settings` exposes `bufferMinutes` per specialist AND `minNoticeHours`, but only `BookingSoloScheduleSection` (the simpler UI) reads both. The more complex `BookingWorkingHoursSection` doesn't show buffer or notice hours settings. The `booking_calendar_show_working_hours` flag exists in `ALLOWED_KEYS` but doesn't appear in any settings section file — it seems to be read somewhere but has no UI for changing it.
 
 ### 6.8 No per-specialist settings page
+
+> ⚠️ **SUPERSEDED (2026-07-26).** Routing users to the doctor role via these keys is the superseded scheme.
+> Canon: [ADMIN_ACCESS_MODEL.md](ARCHITECTURE/ADMIN_ACCESS_MODEL.md).
+
 Despite having `doctor_phones`, `doctor_telegram_ids`, `doctor_max_ids` keys that can route multiple users to doctor role, there's no per-specialist profile settings page. All specialist configuration is done at the admin level. In SaaS mode, each specialist would need their own profile page.
 
 ### 6.9 `notifications_topics` is a global setting but patient-facing

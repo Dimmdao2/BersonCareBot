@@ -51,6 +51,10 @@ routes.** `isEmailOtpStartRateLimitedByKey` (10/min per IP) is imported by exact
 `proxy.ts` does CSRF and redirects only; and there is **no `limit_req`/`limit_conn` in any live nginx vhost or in
 `deploy/nginx/*.conf`**. An unauthenticated attacker grinds guesses indefinitely with no IP block and no signal.
 
+> ⚠️ **SUPERSEDED (2026-07-26).** The owner decision this finding calls for below ("never populate
+> `admin_emails`; treat the DB `role` as the only admin source") is now ruled: allowlist-based role granting
+> is the superseded scheme. Canon: [ADMIN_ACCESS_MODEL.md](../../ARCHITECTURE/ADMIN_ACCESS_MODEL.md).
+
 **MISSED BY BOTH — the escalation payload, and it points at our own new global admin.**
 `getCurrentSession` (`modules/auth/service.ts:990-998`) elevates **any** session to `role: "admin"` on every
 request if the account's *verified* e-mail appears in the `admin_emails` setting. Chain: authenticated patient →
@@ -102,6 +106,9 @@ single-process `systemctl` state, not measured.
 | 4 | LOW | `resolveSessionUserAgainstDb` fails **open** for patients on a transient DB error (returns the unverified cookie user) and fails closed for staff. | `modules/auth/service.ts:142-167` |
 | 5 | INFO | `toggleAdminMode()` can never toggle off — `adminMode` is forced true whenever `role === "admin"`. Dead/misleading, not an escalation. | `modules/auth/service.ts:105-107,1035-1051` |
 | 6 | INFO | Allowlist-based admin elevation (`admin_emails` in settings, `ADMIN_PHONES`/`ADMIN_TELEGRAM_ID` env) is still a parallel grant path beside `platform_users.role`; writing it is gated to existing admins. Matches the standing "role-by-allowlist is a stopgap" note. | `envRole.ts:112-171`; `app/api/platform/settings/route.ts:92-113` |
+
+> ⚠️ Row 6 above — SUPERSEDED (2026-07-26): allowlist-based role elevation is the superseded scheme. Canon:
+> [ADMIN_ACCESS_MODEL.md](../../ARCHITECTURE/ADMIN_ACCESS_MODEL.md).
 
 Worker's "verified safe" (auditor must re-check): MAC verified with a constant-time compare **before**
 `JSON.parse`, algorithm server-pinned; absolute expiry enforced server-side regardless of cookie `Max-Age`;
