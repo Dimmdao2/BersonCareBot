@@ -3,6 +3,27 @@
 > Статус: **план; код/схема/конфиг этим документом не менялись.** DOCS-ONLY проход, реальность проверена
 > `code-search`/точечным чтением 2026-07-17. Реализация — отдельный проход по чек-листам ниже.
 >
+> **Reconciliation 2026-07-27 (was → now → why):** был документ с 44 открытыми `[ ]` без сверки с фактическим
+> состоянием кода на `feat/doctor-ui-rebuild`. Стало: построчная сверка каждого чекбокса против кода/тестов/деплоя
+> (не по отчёту, не по имени файла). Почему: между 2026-07-17 (реальность-лок этого документа) и сегодня прошла
+> отдельная, не отслеженная этим планом волна работы (карточки C5A/#1003/owner ruling 2026-07-26) — она закрыла
+> Phase 1-3 практически полностью и местами **превысила** формулировку плана (единый резолвер вырос в
+> read/mutation/Server-Action/Page адаптеры с 4-состояниями `active/read_only/blocked` вместо плоского on/off;
+> платформенный UI получил не временное размещение внутри doctor-сайдбара, а полностью отдельный `/app/admin/*`
+> shell с собственной навигацией — то, что план явно откладывал как scope воркстрима U9). Phase 4 (SaaS billing) и
+> Phase 5 (интеграционная приёмка) подтверждены как реально ОТКРЫТЫЕ — `modules/saas-billing`, `saas_billing_*`
+> схема, `saas-webhook` роут не существуют нигде в репозитории (проверено `grep`/`find`, не по памяти). Итог:
+> **20 из 44 боксов отмечены `[x]`** (с пруфом commit/file:line/перепрогнанный зелёный тест — большинство Phase 1-3),
+> **24 остаются открытыми** `[ ]` (в основном Phase 4/5 целиком + два открытых пункта внутри Phase 3 — trial policy
+> при provisioning и NULL-org migration mapping). Часть ticked-боксов помечена ДУБЛЬ-СЛИТ: функциональность есть,
+> но не в форме отдельных роутов, которые называл план (единый `/api/admin/commercial` вместо раздельных
+> `/api/admin/tariffs`+`/api/admin/organizations`) — это не пробел, а более сильный «single chokepoint»-паттерн.
+> Отдельно зафиксирован «ложный друг»: статический anti-bypass чекер существует и протестирован (self-test 6/6),
+> но при прямом запуске сегодня даёт false-positive и не подключён ни к `lint`, ни к `ci`. Phase 1 п.3 (весь бокс —
+> про этот чекер) оставлен ОТКРЫТЫМ по этой причине; DoD п.1 (бокс о двух вещах — едином резолвере И чекере)
+> тикнут с явной 🔴-оговоркой, потому что часть про «один резолвер, оба пути его используют» доказана отдельно от
+> чекера.
+>
 > **Обязательная delta 2026-07-18:** перед реализацией этот checklist читается вместе с
 > [`../SAAS_PRODUCT_UX_INITIATIVE/OWNER_REVIEW_2026-07-18.md`](../SAAS_PRODUCT_UX_INITIATIVE/OWNER_REVIEW_2026-07-18.md)
 > §§P1-P3,15 и [`SAAS_S4_TARIFFS_STORE_ENTITLEMENTS.md`](./SAAS_S4_TARIFFS_STORE_ENTITLEMENTS.md). Утверждения ниже
@@ -226,13 +247,37 @@ Compatibility-projection `be_organizations.tariff_id` остаётся исто�
 
 ### Phase 1 — chokepoint hardening (registry + redesign, без нового UI)
 
-- [ ] Реализовать `assertMechanicEnabled` + redesign `requireEntitlement(ctx, mechanic)` + новый
-  `requireEntitlementForAction(ctx, mechanic)` по контракту §3.1. Не менять `resolveOrgEntitlements`/`isMechanicEnabled`.
-- [ ] Починить `courses/route.ts:50-53` — один вызов auth, один вызов entitlement.
+- [x] **Реализовать `assertMechanicEnabled` + redesign `requireEntitlement(ctx, mechanic)` + новый
+  `requireEntitlementForAction(ctx, mechanic)` по контракту §3.1. Не менять `resolveOrgEntitlements`/`isMechanicEnabled`.**
+  — ГОТОВО, превышает формулировку (`530cb2bbd` P1 thin slice → `4ae94a0a2`/`739f67a98`/`d424a1273`/`31e3a8e5d`/
+  `efc30b730` C5A). `apps/webapp/src/app-layer/guards/requireEntitlement.ts:44-121`: `assertMechanicEnabled` — тонкая
+  обёртка над `isMechanicEnabled` без изменений резолвера; вместо плоского `requireEntitlement`/`requireEntitlementForAction`
+  реализованы `requireEntitlementForRead`/`requireEntitlementForMutation` (route) и `requireEntitlementForReadAction`/
+  `requireEntitlementForMutationAction` (Server Action) + `requireEntitlementForPage` (RSC), все через один общий
+  `checkEntitlement()` с 4-состояниями `active/read_only/blocked` (не просто on/off, как просил план). `resolveOrgEntitlements`/
+  `isMechanicEnabled` не тронуты.
+- [x] **Починить `courses/route.ts:50-53` — один вызов auth, один вызов entitlement.**
+  — ПОДТВЕРЖДЕНО чтением файла: `apps/webapp/src/app/api/doctor/courses/route.ts` — `GET` вызывает
+  `requireDoctorWorkspaceApiContext()` один раз (строка ~27) и `requireEntitlementForRead` один раз (строка ~29);
+  `POST` — `requireDoctorWorkspaceApiContext()` один раз и `requireEntitlementForMutation` один раз после валидации
+  тела. Двойного auth нет.
 - [ ] Добавить статический чекер (скрипт в `apps/webapp/scripts/` или тест-guard), не дающий прямого импорта
   `isMechanicEnabled`/tariff-чтения из `app/api/**` или `app/app/**/actions.ts` мимо `requireEntitlement*`.
-- [ ] Unit-тесты: `requireEntitlement` без auth-side-effect (принимает готовый ctx), `requireEntitlementForAction`
-  тот же resolver, оба independent от auth-механизма вызывающего кода.
+  — ЧАСТИЧНО: `apps/webapp/scripts/check-s4-entitlement-coverage.ts` (230 строк) + `check-s4-entitlement-coverage.test.ts`
+  (6 тестов) существуют, покрывают именно этот инвариант (`staticBypassFindings`/`DIRECT_BYPASS_PATTERN` ловит прямой
+  вызов `assertMechanicEnabled|isMechanicEnabled|resolveOrgEntitlements|getTariffForOrg|listOverrides` вне
+  `APPROVED_BYPASS_BOUNDARY_FILES`), self-test проходит (`6/6 passed`, перезапущено при сверке). **Но:** прямой запуск
+  `npx tsx scripts/check-s4-entitlement-coverage.ts` сегодня падает (exit 1) на false positive — регэксп матчит
+  `isMechanicEnabled(` внутри JSDoc-комментария в `apps/webapp/src/modules/org-branding/service.ts:138` (реального
+  обхода там нет, только упоминание в тексте комментария). Скрипт также НЕ подключён ни к `lint`, ни к `ci`
+  (`package.json` есть `check:s4-entitlement-coverage`, но ни `lint`, ни корневой `ci` его не вызывают — проверено
+  `grep`). Не считать закрытым, пока false positive не починен и чекер не подключён к гейту.
+- [x] **Unit-тесты: `requireEntitlement` без auth-side-effect (принимает готовый ctx), `requireEntitlementForAction`
+  тот же resolver, оба independent от auth-механизма вызывающего кода.**
+  — ГОТОВО и перепрогнано зелёным: `apps/webapp/src/app-layer/guards/requireEntitlement.test.ts` (6 `it`-блоков) —
+  мокает только `buildAppDeps`, вызывает `requireEntitlementForRead/Mutation/ReadAction/MutationAction` напрямую с
+  готовым `ctx`, без auth-инфраструктуры. `npx vitest run` в рамках этой сверки: 3 файла/24 теста зелёных, включая
+  этот.
 
 **Проверка:** `pnpm --filter webapp vitest run` по затронутым файлам + `pnpm --filter webapp typecheck`.
 **Выход:** один chokepoint работает из route.ts и из Server Actions одинаково; нет двойного auth нигде.
@@ -241,14 +286,35 @@ Compatibility-projection `be_organizations.tariff_id` остаётся исто�
 
 Для каждой строки таблицы §4 со статусом «❌ не гейтится»:
 
-- [ ] Перед правкой — `code-search`/`grep` подтверждает актуальный путь файла (пути в §4 уже проверены на
-  2026-07-17, но файл мог измениться за время работы — не доверять слепо этому документу дольше одного сеанса).
-- [ ] Добавить вызов `requireEntitlement`/`requireEntitlementForAction` **после** существующего auth/composed gate.
-- [ ] Проверка per mechanic на test (curl/actions): дефолт (без тарифа/override) — работает как раньше; override
-  `enabled=false` для org A — 403/typed-denied; org B не затронут; удалить override — снова работает.
+- [x] **Перед правкой — `code-search`/`grep` подтверждает актуальный путь файла (пути в §4 уже проверены на
+  2026-07-17, но файл мог измениться за время работы — не доверять слепо этому документу дольше одного сеанса).**
+  — ПОДТВЕРЖДЕНО косвенно: при сверке 2026-07-27 все пути из таблицы §4 (`courses/route.ts`, `broadcasts/actions.ts`,
+  `content/sections/actions.ts`, `patient-packages/route.ts`, patient-card под-ресурсы, `admin/booking-engine/*`,
+  `admin/settings/route.ts`) всё ещё существуют по тем же путям и реально гейтятся — расхождений с §4 не найдено.
+- [x] **Добавить вызов `requireEntitlement`/`requireEntitlementForAction` после существующего auth/composed gate.**
+  — ГОТОВО на всех перечисленных в §4 write-поверхностях, `grep` подтверждает по каждой: `mailings`
+  (`broadcasts/actions.ts:77,102` → `requireEntitlementForMutationAction`), `cms_pages` (`sections/actions.ts:95,136,
+  202,248` — 4 экспорта), `subscriptions` (`patient-packages/route.ts:77`), `patient_card` (гейтится не один
+  представитель, а ВСЕ write sub-resources: visits/anamnesis/complaints/diagnoses/diagnoses-status — см.
+  `protectedActionRegistry.ts:71-76`, шире, чем просил план), `files`
+  (`patients/[userId]/files/route.ts:142`), `booking` (admin booking-engine services/branches/schedule-blocks/
+  online-location routes), `payments` (`admin/settings/route.ts:379`). `patient_app`/`exercise_catalog`/
+  `exercise_packages`/`patient_app_paid_subscription`/`branding`/`custom_domain` честно в `DECLARED_NO_SURFACE`
+  (`app-layer/entitlements/protectedActionRegistry.ts:130-137`), не изобретены.
+- [x] **Проверка per mechanic на test (curl/actions): дефолт (без тарифа/override) — работает как раньше; override
+  `enabled=false` для org A — 403/typed-denied; org B не затронут; удалить override — снова работает.**
+  — ДОКАЗАНО на уровне contract-тестов, НЕ живым curl/actions прогоном. Файлы `*.entitlement.test.ts`
+  (`services/route.entitlement.test.ts`, `courses/route.entitlement.test.ts`, `clinic/invites/route.entitlement.test.ts`
+  + `requireEntitlement.test.ts`) — перепрогнаны в рамках этой сверки: 4 файла / 19 тестов зелёных (число уточнено независимым аудитом 27.07: перепрогон даёт 19, не 18), проверяют
+  default-on, 403 при `enabled=false`, и что composed-гейт вызывается **до** entitlement
+  (`invocationCallOrder` assertion в `services/route.entitlement.test.ts`). Живой curl-round-trip с реальным override
+  create/delete на тестовом сервере в рамках этой сверки не выполнялся — если нужен именно он, это отдельный шаг.
 - [ ] 🔴 Полный regression sweep по demo-clinic-a: каждая гейтнутая write-поверхность всё ещё 200 по умолчанию
   (ни одна не сломалась случайно), auth всегда предшествует entitlement (порядок не инвертирован), кросс-тенантная
   проверка (override A не течёт на B).
+  — НЕ СДЕЛАНО: `grep -rn "demo-clinic-a" apps/webapp` не находит ничего в коде (только в план-документах);
+  отдельного regression-sweep скрипта/теста с этим именем нет. Contract-тесты выше покрывают per-mechanic логику
+  изолированно, но не заменяют явный полный прогон по живой demo-clinic-a.
 
 **Проверка:** contract test на каждый gated route/action; полный regression sweep как отдельный пункт приёмки.
 **Выход:** все механики с реальной write-поверхностью гейтятся одним и тем же chokepoint; поверхности без
@@ -256,27 +322,53 @@ write-пути честно помечены `declared_no_surface` (не изо�
 
 ### Phase 3 — global-admin конструктор тарифов + assign-to-org + trial policy
 
-- [ ] Спроектировать backward-compatible trial-policy storage как ссылку на существующий admin-created tariff с
-  duration/start/post-trial полями; не добавлять фиксированный тариф или `is_default` product semantics.
-- [ ] Расширить `modules/org-entitlements` write-портом: `listTariffs`, `getTariff`, `createTariff`, `updateTariff`,
+- [x] **Спроектировать backward-compatible trial-policy storage как ссылку на существующий admin-created tariff с
+  duration/start/post-trial полями; не добавлять фиксированный тариф или `is_default` product semantics.**
+  — ГОТОВО: `TrialPolicy` в `apps/webapp/src/modules/org-entitlements/types.ts` и `trialPolicySchema` в
+  `apps/webapp/src/app/api/admin/commercial/route.ts:31-39` требуют `tariffId: uuid()` (ссылка на реальный тариф),
+  `durationDays`, `graceDays`, `startEvent: "organization_provisioned"`, `postTrialBehavior`
+  (`read_only|blocked|tariff`), `postTrialTariffId`. Никакого `is_default`/hardcoded тарифа в схеме нет.
+- [x] **Расширить `modules/org-entitlements` write-портом: `listTariffs`, `getTariff`, `createTariff`, `updateTariff`,
   `deactivateTariff`, `getTrialPolicy`, `setTrialPolicy`, `assignTariffToOrg`, `unassignTariffFromOrg`, `upsertOverride`,
   `deleteOverride`. Валидировать mechanic-ключи только по `MECHANICS` (registry §4) — отсутствующий UI-toggle не
-  теряет ключ молча.
-- [ ] Подтвердить фактическое RLS-состояние `be_organizations` (см. риск в Reality lock) **до** реализации
-  cross-org listing endpoint — если таблица без своей FORCE RLS policy сегодня, зафиксировать это явно и решить,
-  нужен ли аудируемый platform read port или явный global-admin bypass с логированием (не тихий DB bypass —
-  см. S4 «Неподвижные рамки»: «Platform cross-clinic operations проходят отдельный audited platform port/capability,
-  не adminMode, не случайную clinic session и не DB bypass»).
-- [ ] `GET/POST/PATCH /api/admin/tariffs` (+ деактивация) под **`requireAdminWorkspaceApiContext`** — НЕ путать с
-  `requireAdminBookingEngine`/`requireClinicManagementApiContext` (те org-scoped, см. риск именования в Reality lock).
-- [ ] `GET /api/admin/organizations` — cross-org список для picker'а (только id/title/tariffId), тот же guard.
-- [ ] `POST /api/admin/organizations/:id/tariff` — назначить/снять тариф; `POST/DELETE /api/admin/organizations/:id/entitlement-overrides`
-  — override CRUD с identity `(organizationId, mechanic)`; delete возвращает effective tariff result, не хранит копию.
+  теряет ключ молча.**
+  — ГОТОВО с переименованием: `PlatformEntitlementsPort` (`apps/webapp/src/modules/org-entitlements/ports.ts:56-66`)
+  имеет `listTariffs`, `getTrialPolicy`, `createTariff`, `updateTariff`, `archiveTariff` (=`deactivateTariff`,
+  переименован), `assignTariff(organizationId, tariffId|null, audit)` (assign И unassign в одной функции — `null`
+  снимает), `upsertOverride`, `deleteOverride`, `setTrialPolicy`, плюс незапрошенные, но полезные
+  `startTrial`/`extendTrial`. Mechanic-ключи валидируются по `MECHANIC_REGISTRY`/`MECHANICS`
+  (`org-entitlements/types.ts:11-32`, сейчас 15 ключей — `clinic_team` добавлен позже реестра §4 из плана).
+- [x] **Подтвердить фактическое RLS-состояние `be_organizations` (см. риск в Reality lock) до реализации
+  cross-org listing endpoint...**
+  — ПОДТВЕРЖДЕНО, риск §8.1 закрыт: `deploy/postgres/c5a-platform-operations-runtime.sql:147-155` —
+  `ALTER TABLE public.be_organizations FORCE ROW LEVEL SECURITY` + реальные политики
+  `be_organizations_platform_operations_select`/`_update` и `be_organizations_staff_current_org_read`. Таблица
+  больше не «без своей policy» — cross-org listing идёт через audited platform-only read, не DB bypass.
+- [x] **`GET/POST/PATCH /api/admin/tariffs` (+ деактивация) под `requireAdminWorkspaceApiContext`...**
+  — ГОТОВО, но формой/именем guard'а отличается от буквы плана: реализовано как один
+  `apps/webapp/src/app/api/admin/commercial/route.ts` с `GET` (чтение) и `POST` (discriminated union
+  `create_tariff|update_tariff|archive_tariff|assign_tariff|upsert_override|delete_override|set_trial_policy|
+  start_trial|extend_trial`), не раздельные `/api/admin/tariffs`. Гейт — `requirePlatformOperationsApiContext()`
+  (`requireRole.ts:231`), НЕ буквально `requireAdminWorkspaceApiContext` (тот существует, но используется в других
+  местах — users/archive), однако это ТОЖЕ настоящий platform-only гейт, не org-scoped
+  `requireAdminBookingEngine`/`requireClinicManagementApiContext` — риск подмены гейта из Reality lock не
+  реализовался. Commit `49f19b120` (`refactor(admin): rename /app/platform/* to /app/admin/*`).
+- [x] **`GET /api/admin/organizations` — cross-org список для picker'а...**
+  — ДУБЛЬ-СЛИТ: нет отдельного роута, тот же `GET /api/admin/commercial` возвращает `{ tariffs, organizations,
+  trialPolicy }` одним payload'ом (`route.ts:99-104`), тем же гейтом. Функционально эквивалентно, один chokepoint
+  вместо двух — соответствует правилу «single chokepoint, no dup».
+- [x] **`POST /api/admin/organizations/:id/tariff` ... `POST/DELETE /api/admin/organizations/:id/entitlement-overrides`...**
+  — ДУБЛЬ-СЛИТ: `assign_tariff`/`upsert_override`/`delete_override` — actions внутри того же
+  `POST /api/admin/commercial` (`route.ts:56-74`), identity `(organizationId, mechanic)` соблюдена.
 - [ ] Org-creation: применить выбранную global-admin trial policy через typed service в атомарной provisioning
   boundary; не выбирать тариф по имени/`is_default` и не скрывать неполную policy под all-on fallback — см. §3.2.
+  — НЕ СДЕЛАНО: `grep` по `modules/organization-provisioning/{service,ports}.ts` не находит ни `trial`, ни `tariff`.
+  `startTrial` вызывается только вручную из admin UI action (`route.ts` `start_trial`), не из
+  `specialist-signup/confirm|retry` или provisioning flow. Новая организация trial policy автоматически не получает.
 - [ ] Для существующих org с `tariff_id IS NULL` сначала выполнить read-only inventory/dry-run. Apply разрешён только
   по owner-approved mapping; до него сохранить compatibility behavior, не назначать придуманный all-true тариф.
-- [ ] UI-размещение — **PLAT-02/PLAT-03**, НЕ старый паттерн S23 (см. §0a). Не добавлять пункт в кластер
+  — НЕ СДЕЛАНО: никакого dry-run/inventory скрипта или роута для `tariff_id IS NULL` в репозитории не найдено.
+- [x] **UI-размещение — PLAT-02/PLAT-03, НЕ старый паттерн S23 (см. §0a). Не добавлять пункт в кластер**
   «Настройки» `doctorNavLinks.ts` рядом с `admin-app-settings`/`admin-auth` — тот кластер сам помечен на миграцию
   прочь из doctor-сайдбара. Вместо этого — новый route-group маршрут по образцу уже существующего PLAT-07
   (`system-health`): `apps/webapp/src/app/app/(global-admin)/doctor/tariffs/page.tsx` + свой `layout.tsx`
@@ -284,20 +376,32 @@ write-пути честно помечены `declared_no_surface` (не изо�
   [`system-health/layout.tsx:15-27`](<../../../apps/webapp/src/app/app/(global-admin)/doctor/system-health/layout.tsx>)).
   Точное имя route-сегмента (`tariffs` / `organizations` / `commercial`) — инженерный выбор фазы, не финальная
   IA-навигация (та — scope workstream'а U9, см. §0a; эта страница не дублирует и не подменяет его будущий shell).
-- [ ] Точка входа в навигации: зеркалируемый паттерн PLAT-07 **имеет** пункт меню — `system-health`/`health-archive`/
-  `audit-log` живут в отдельном кластере `system` («Система», `accessTier: "global_admin"`) —
-  [`doctorNavLinks.ts:137-152`](../../../apps/webapp/src/shared/ui/doctor/doctorNavLinks.ts). Страница «Тарифы»
-  получает global_admin-tier пункт **в этом же кластере `system`** (одна строка в `items`), НЕ в кластере
-  «Настройки» (`id: "settings"`, строки 112-135 — админ-формы, S23). Это тот же интерим-паттерн, что и у
-  system-health: пункт виден только global_admin, а финальная platform-навигация — U9.
-- [ ] Содержимое страницы = **PLAT-03** (список тарифов + форма имя/цена/период + чекбокс-грид всех 14 механик,
-  контент «Commercial») и **PLAT-02** (назначение тарифа клинике + override-редактор, контент «Organizations» —
-  явная platform capability + target-организация, без org-membership fallback). Одна страница/вкладки — ок для
-  этой фазы; в финальном U9-shell это может стать двумя разными PLAT-экранами.
-- [ ] Только shared doctor primitives + shadcn — см. `.cursor/rules/doctor-ui-shared-primitives.mdc`, без локальных
-  одноразовых карточек. `clinic_admin`/doctor не видят маршрут (нет пункта меню, никакого fallback на doctor nav) и
-  получают 403 на API.
-- [ ] Audit-событие на каждое tariff/assignment/override изменение: actor, target org, before/after mechanic map,
+  — ГОТОВО, но по НОВОМУ, более сильному паттерну, чем просил план: план ожидал `(global-admin)/doctor/tariffs/`
+  внутри doctor-дерева (временное размещение до U9). Вместо этого owner ruling того же 2026-07-26
+  (`49f19b120 refactor(admin): rename /app/platform/* to /app/admin/*`) вынес ВЕСЬ platform-shell в отдельный
+  `apps/webapp/src/app/app/admin/*` с собственным `layout.tsx` (`requirePlatformOperationsPage()`,
+  `DoctorWorkspaceShell`) — то есть фактически уже сделал часть работы workstream'а U9, которую план явно
+  откладывал. Страница — `apps/webapp/src/app/app/admin/commercial/page.tsx` (сегмент `commercial`, не `tariffs`),
+  guard `requirePlatformOperationsPage()`. Старый `doctorNavLinks.ts` больше не содержит НИ «system»-кластер,
+  НИ пункт «Тарифы» вообще (`grep` — 0 совпадений «tariff/commercial/Тариф») — файл сам это документирует
+  комментарием: «the platform operator's own destinations ... moved out to `platformNavLinks.ts`».
+- [x] **Точка входа в навигации: ... Страница «Тарифы» получает global_admin-tier пункт в этом же кластере
+  `system`... НЕ в кластере «Настройки»...**
+  — ГОТОВО, тем же превышающим план способом: пункт живёт не в `doctorNavLinks.ts`, а в новом отдельном
+  `apps/webapp/src/shared/ui/doctor/platformNavLinks.ts:36` — `{ id: "commercial", label: "Тарифы и триал",
+  href: "/app/admin/commercial", accessTier: "global_admin" }`, плоский platform-only список (не смешан с
+  doctor-навигацией вообще, не просто «не в кластере Настройки»).
+- [x] **Содержимое страницы = PLAT-03 (список тарифов + форма имя/цена/период + чекбокс-грид всех 14 механик) и
+  PLAT-02 (назначение тарифа клинике + override-редактор)...**
+  — ГОТОВО: `apps/webapp/src/app/app/admin/commercial/CommercialConstructorClient.tsx` реализует форму
+  имя/цена/период/mechanics-грид + список тарифов + назначение организации + override-редактор + trial-policy
+  форму в одном компоненте, обёрнутом в `DoctorAppShell`/`DoctorPageHeader`.
+- [x] **Только shared doctor primitives + shadcn ... `clinic_admin`/doctor не видят маршрут ... получают 403 на API.**
+  — ГОТОВО: `CommercialConstructorClient` использует общие `DoctorAppShell`/`DoctorPageHeader`/`Badge` и т.п., не
+  одноразовые локальные карточки. Нав-пункт фильтруется по `accessTier: "global_admin"` в `platformNavLinks.ts`.
+  403 подтверждён живым (пусть и mocked-guard) тестом: `apps/webapp/src/app/api/admin/commercial/route.test.ts:49-54`
+  — перепрогнан в рамках этой сверки зелёным вместе с остальными.
+- [x] **Audit-событие на каждое tariff/assignment/override изменение: actor, target org, before/after mechanic map,
   без секретов/PII. **Механизм — переиспользовать существующий `admin_audit_log`, не строить новый:** таблица уже
   есть ([`schema.ts:1949-1975`](../../../apps/webapp/db/schema/schema.ts): `organizationId` nullable, `actorId`,
   `action`, `targetId`, `details jsonb`, `status`), writer `writeAuditLog` —
@@ -311,6 +415,14 @@ write-пути честно помечены `declared_no_surface` (не изо�
   before/after mechanic map — в `details`. Вызов из module-слоя — через port по clean-architecture правилам
   (`.cursor/rules/clean-architecture-module-isolation.mdc`), не прямым импортом `@/infra/adminAuditLog` из module.
   Отдельная audit-таблица под тарифы НЕ создаётся (single chokepoint / no-dup).
+  — ГОТОВО, точно по спеке: `apps/webapp/src/infra/repos/pgPlatformEntitlements.ts:25` импортирует существующий
+  `adminAuditLog` из `db/schema/schema.ts` (не новую таблицу), локальный `appendAudit()` (строки 51-65) пишет
+  `{ before, after, reason }` в `details`. Ключи действий совпадают со спекой почти дословно: `saas_tariff_create`
+  (288), `saas_tariff_update` (301), `saas_tariff_deactivate` (313), `saas_tariff_assign`/`saas_tariff_unassign`
+  (346-347, по значению tariffId), `saas_entitlement_override_upsert` (362), `saas_entitlement_override_delete`
+  (370), плюс незапрошенные `saas_trial_policy_update`/`saas_trial_extend` (382/399). Запись идёт из `infra/repos`
+  (не через отдельный re-export порт, как предлагал план для module-слоя) — это infra-слой обращается к своей же
+  БД напрямую, не нарушение clean-architecture правила о module-изоляции в буквальном смысле.
 
 **Проверка:** module/PG тесты на write-порт; authz A/B матрица (`demo-clinic-a` не может дойти до `/api/admin/tariffs`
 ни страницы, ни API); constructor RTL-тест; desktop+mobile screenshot приёмка.
@@ -324,6 +436,9 @@ write-пути честно помечены `declared_no_surface` (не изо�
 
 - [ ] Новый домен `modules/saas-billing` (ports/service), DI через `buildAppDeps`, переиспользует существующий
   `PaymentProviderPort`/`paymentProviderRegistry` — не форкает и не переписывает адаптеры (владелец §1).
+  — НЕ СДЕЛАНО: подтверждено дважды независимо (`find apps/webapp/src/modules -iname "*saas-billing*"` — пусто;
+  `ls apps/webapp/src/modules | grep -i bill` — пусто). Тот же открытый пункт, что S4-4 в
+  `SAAS_S4_TARIFFS_STORE_ENTITLEMENTS.md` §9 (строки 313-370, всё ещё `[ ]`, без commit-ссылок).
 - [ ] Минимальные org-owned таблицы: billing account, **`saas_billing_subscriptions`**
   (`pending_payment → active → expired/cancelled`), invoice (снимок tariff/amount/currency/period), provider event
   (idempotent, без patient data). **Именование обязательно дизъюнктно с mechanic `subscriptions`:** в `MECHANICS`
@@ -331,8 +446,13 @@ write-пути честно помечены `declared_no_surface` (не изо�
   = «разрешены ли клинике пациентские абонементы» — совсем другая сущность. Все таблицы/типы/переменные Phase 4
   используют префикс `saas_billing_*` / `SaasBillingSubscription`, голое слово «subscription» в новом коде запрещено
   (см. риск §8.7).
+  — НЕ СДЕЛАНО: `grep -rn "SaasBillingSubscription\|saas_billing_subscriptions" apps/webapp` — 0 совпадений в схеме
+  и коде. Найден только dormant-плейсхолдер `DormantSaasMerchantIdentity` в
+  `apps/webapp/src/modules/payments/merchantIdentityContracts.ts:8-20` с явным комментарием «S4-0 declares this
+  only; S4-4 owns its DB setting and activation» — заготовка есть, реализации нет.
 - [ ] Перенести существующие manual `tariff_id` assignments (из Phase 3) в `saas_billing_subscriptions` rows с
   `source="manual"`; compatibility-projection `be_organizations.tariff_id` остаётся согласованной, не второй истиной.
+  — НЕ СДЕЛАНО: зависит от предыдущего пункта (таблицы `saas_billing_subscriptions` не существует).
 - [ ] Новый global setting-ключ `saas_billing_payment_provider` в `ALLOWED_KEYS`
   ([`system-settings/types.ts`](../../../apps/webapp/src/modules/system-settings/types.ts)) — **отдельная** identity
   от `booking_payment_providers` (владелец не путает platform merchant с per-clinic booking merchant — см. S4 §3).
@@ -351,24 +471,45 @@ write-пути честно помечены `declared_no_surface` (не изо�
   живёт на той же PLAT-страницу(ах), что и Phase 3 (или соседней PLAT-05 секции), не смешивается с org Settings.
   Redaction/secret-handling по тому же паттерну, что уже есть у `booking_payment_providers` в
   [`admin/settings/route.ts`](../../../apps/webapp/src/app/api/admin/settings/route.ts).
+  — НЕ СДЕЛАНО: `apps/webapp/src/modules/system-settings/registry.ts` не содержит ключа
+  `saas_billing_payment_provider` (только `booking_payment_providers`). Только dormant-заготовка из предыдущего
+  пункта (`merchantIdentityContracts.ts`, `activation: "dormant_until_s4_4"`), сам ключ не зарегистрирован.
 - [ ] Дефолтный provider id = `"mock"` (уже существующий адаптер, [`paymentProviderRegistry.ts:25-26`](../../../apps/webapp/src/infra/payments/paymentProviderRegistry.ts))
   до тех пор, пока владелец не передаст реальные ключи. Схема/сервис/UI/webhook реализуются и проверяются
   **полностью** на mock-адаптере — отсутствие реальных ключей не блокирует ни один из этих пунктов.
+  — НЕ СДЕЛАНО: нечему быть дефолтным — модуля/сервиса, который бы читал этот provider id, не существует.
 - [ ] `POST /api/payments/saas-webhook/[provider]` (новый, отдельный от booking-webhook) под bootstrap principal:
   load global config → verify signature/status через существующий `verifyWebhook` → resolve invoice /
   `saas_billing_subscription` → org-scoped capture. Неизвестный ref — safe-acknowledge; forged
   signature/amount/currency mismatch/replay не меняют доступ.
+  — НЕ СДЕЛАНО: `find apps/webapp/src -iname "*saas-webhook*"` — пусто. Существующие роуты —
+  `api/payments/webhook/[provider]` (booking) и `api/payments/patient-acquiring-webhook/[provider]` — оба
+  pre-existing, разные поверхности, не тронуты и не дублированы (это ок — не в scope).
 - [ ] Checkout UI — **другая зона от Phase 3.** Clinic-facing план/usage/инвойсы/оплата = **`MGMT-08` Plan, usage
   and billing** («Current plan, limits, invoices, recovery | Owner; delegated view/pay if explicitly allowed», см.
   §0a) — внутри обычного tenant-дерева `/app/doctor/**` (не в `(global-admin)` route group из Phase 3). Новая
   страница/секция под clinic settings/organization area; возвращает provider checkout URL; return page сверяет
   invoice/order по server-derived org, никогда не берёт сумму/tariff/target org от клиента.
+  — НЕ СДЕЛАНО как SaaS-checkout, но соседняя READ-ONLY поверхность в той же MGMT-08 зоне уже существует:
+  `apps/webapp/src/app/app/settings/BillingSection.tsx` (+ `billingCommercialState.ts`, вкладка `"billing"` в
+  `settingsTabs.ts`) показывает название тарифа, human-readable commercial-state и грид всех механик — но БЕЗ
+  checkout/invoice/payment-history/upgrade (`grep -in "invoice\|checkout\|payment history"` на обоих файлах —
+  ничего), с явным комментарием в коде: «No tariff-change UI here by design — that stays with the platform
+  administrator» (commit `60b43d757`). Живой скриншот этой страницы — `runs/screenshots/billing-real.png`
+  (25.07, видны все 15 механик со статусом «Включено»). Это НЕ закрывает пункт плана (нет ни одного элемента
+  checkout), но следующая реализация Phase 4 должна расширить/заменить этот компонент, а не дублировать новый.
 - [ ] Успешный capture продлевает `source="paid_subscription"`; expiry/cancel/refund завершает только этот source;
   manual global-admin assignment не перетирается истёкшей подпиской молча.
+  — НЕ СДЕЛАНО: зависит от несуществующего billing-модуля.
 - [ ] Деградация при `expired`/`past_due` — сверить с каноном 4-состояний entitlement denial (`upgrade/grace/
   read-only/blocked`, [`ROLE_CAPABILITY_MATRIX.md:17`](../SAAS_PRODUCT_UX_INITIATIVE/ROLE_CAPABILITY_MATRIX.md),
   см. §0a) при проектировании state machine: истечение подписки не обязано мгновенно бить `blocked` на все
   mechanics — решить явно (grace-период до hard block — инженерный выбор этой фазы, не молчаливый пробел).
+  — ЧАСТИЧНО заложен фундамент: `checkEntitlement()` в `requireEntitlement.ts:19-38` уже различает
+  `active`/`read_only`/`blocked` lifecycle (не `upgrade`/`grace` полностью, 3 из 4 состояний канона) и протестирован
+  (`requireEntitlement.test.ts` кейсы «allows reads in read-only lifecycle but rejects mutations», «allows recovery
+  reads in blocked lifecycle»). Но САМА подписка/её state machine, которая переводила бы lifecycle по `expired`/
+  `past_due`, не существует — фундамент для потребления есть, источника события (billing) нет.
 
 **Проверка:** state-machine + idempotency тесты; подписанный webhook success/replay/forgery/amount-mismatch;
 capture/refund integration тест на mock-адаптере; secret redaction scan; checkout UI RTL/E2E.
@@ -379,36 +520,80 @@ capture/refund integration тест на mock-адаптере; secret redaction
 
 - [ ] Fixture-манифест: global_admin; demo-clinic-a/b с разными тарифами и override; новая org через signup flow
   (проверяет §3.2 — использует выбранный trial tariff/duration, без hardcoded/default/all-true).
+  — НЕ СДЕЛАНО: `grep -rln "demo-clinic-a\|demo-clinic-b" apps/webapp --include="*.ts" --include="*.tsx" --include="*.sql"`
+  — 0 совпадений в коде (только в план-документах). Зависит и от открытого Phase 3 п.7 (trial при provisioning).
 - [ ] Global admin создаёт/меняет тариф, полный mechanic grid, назначает A, меняет override, видит billing state.
+  — ЧАСТИЧНО заложено: API/UI-механика (create/update/archive tariff, assign, override, полный mechanic-грид)
+  реально существует и протестирована (46 зелёных тестов между `pgPlatformEntitlements.*.test.ts`,
+  `api/admin/commercial/route.test.ts`, `CommercialConstructorClient.test.tsx`, `org-entitlements/service.test.ts`
+  — перепрогнаны в рамках этой сверки). «Видит billing state» — нет, поскольку billing (Phase 4) не существует.
+  Живой click-through с demo-организациями в рамках этой сверки не проводился.
 - [ ] Clinic A проходит mock checkout, получает активную подписку на тариф; clinic B её не видит/не затронута.
+  — НЕ СДЕЛАНО: checkout не существует (Phase 4).
 - [ ] Negatives: unauthenticated, doctor вместо global_admin на `/api/admin/tariffs` (403), forged org id, forged
   webhook signature, amount mismatch, replay, mechanic OFF при активной подписке (доступ всё равно закрыт по
   entitlement, подписка не значит automatic mechanic override).
+  — ЧАСТИЧНО: unauthenticated/wrong-role 403 покрыт тестом (`api/admin/commercial/route.test.ts:49-54`,
+  mocked-guard unit test, не живой E2E). Forged webhook/amount-mismatch/replay/mechanic-OFF-during-subscription —
+  не применимы, пока saas-webhook и подписка не существуют.
 - [ ] Полный regression sweep: existing org сохраняют compatibility access до owner-approved mapping; после
   отдельного mapping apply ни одна организация не теряет доступ вопреки preview.
+  — НЕ СДЕЛАНО: mapping/dry-run инструмент из Phase 3 п.8 не существует, sweep нечего проверять.
 - [ ] Один финальный `pnpm install --frozen-lockfile && pnpm run ci` после всех фаз — не гонять full CI после
   каждого шага.
+  — НЕ СДЕЛАНО в рамках этой сверки (запускались только точечные `vitest run` на затронутые файлы, по правилу
+  «scoped tests per change, full CI once at end» — полный `pnpm run ci` разумен только после Phase 4/5, которых
+  ещё нет).
 
 **Выход:** тарифы, единый chokepoint, admin-грид и SaaS billing (keyless-safe) работают на тестовом сервере;
 демонстрируемо владельцу.
 
 ## 6. Definition of Done
 
-- [ ] `requireEntitlement`/`requireEntitlementForAction` — один резолвер, оба API route и Server Action пути реально
-  используют его; статический guard подтверждает отсутствие обходов.
-- [ ] Все 14 механик из реестра §4 либо гейтятся на реальной write-поверхности, либо честно помечены
-  `declared_no_surface` — ни одна не осталась «предполагается, но не проверено».
+- [x] **`requireEntitlement`/`requireEntitlementForAction` — один резолвер, оба API route и Server Action пути реально
+  используют его.** (первая половина исходного составного пункта DoD)
+  — ДОКАЗАНО: `checkEntitlement()` в `requireEntitlement.ts` — единственный внутренний резолвер за 6 адаптерами
+  (Read/Mutation route + ReadAction/MutationAction + Page); `courses/route.ts` и
+  `broadcasts/actions.ts`/`sections/actions.ts` реально его используют.
+- [ ] **Статический guard подтверждает отсутствие обходов.** (вторая половина исходного составного пункта DoD)
+  — **Разделено независимым аудитом 27.07: составной пункт не может нести одну галочку, когда одна его половина
+  документированно не работает.** Чекер `check-s4-entitlement-coverage.ts` логически проверен своими тестами
+  (6/6 зелёных), но прямой запуск даёт exit 1 — false positive на JSDoc-комментарии в
+  `org-branding/service.ts:138` — и он не подключён ни к `lint`, ни к `ci`. То есть сегодня он не гейтит
+  ничего автоматически. Закроется починкой false positive плюс подключением чекера к `lint`.
+- [x] **Все 14 механик из реестра §4 либо гейтятся на реальной write-поверхности, либо честно помечены
+  `declared_no_surface`...**
+  — ГОТОВО (реестр вырос до 15 — `clinic_team` добавлен позже §4 из этого плана):
+  `apps/webapp/src/app-layer/entitlements/protectedActionRegistry.ts` мапит write-поверхности всех гейтящихся
+  механик (courses/mailings/cms_pages/subscriptions/patient_card/files/booking/payments/clinic_team) и честно
+  декларирует `exercise_catalog`/`exercise_packages`/`patient_app`/`patient_app_paid_subscription`/`branding`/
+  `custom_domain` в `DECLARED_NO_SURFACE` (строки 130-137). Coverage-тест (6/6) подтверждает: ни одна механика не
+  осталась без mapping или exemption.
 - [ ] Новая организация применяет выбранную global-admin trial policy; если зависимая policy не утверждена/неполна,
   автоматическое trial provisioning fail-closed без подстановки придуманного тарифа. Existing NULL-org проходят
   отдельный owner-approved migration mapping до удаления compatibility behavior.
-- [ ] Global-admin управляет тарифами/ценами/периодом/mechanics/назначением/override как данными; `clinic_admin`
-  получает 403 везде.
+  — НЕ СДЕЛАНО: см. Phase 3 пп.7-8 выше — ни provisioning-интеграция, ни dry-run/mapping инструмент не существуют.
+- [x] **Global-admin управляет тарифами/ценами/периодом/mechanics/назначением/override как данными; `clinic_admin`
+  получает 403 везде.**
+  — ГОТОВО: `CommercialConstructorClient.tsx` + `POST /api/admin/commercial` (create/update/archive/assign/
+  upsert-override/delete-override actions) под `requirePlatformOperationsApiContext`; 403-тест на неавторизованный
+  вызов зелёный (`route.test.ts:49-54`, перепрогнан).
 - [ ] SaaS billing проходит полный цикл (checkout → capture → активная `saas_billing_subscription` → expiry/refund)
   на mock-адаптере; реальные ключи подключаются сменой настройки, без нового кода.
+  — НЕ СДЕЛАНО: весь Phase 4 открыт (см. выше), цикла не существует.
 - [ ] A/B изоляция и security negatives (Phase 5) закрыты на тестовом сервере; один финальный CI gate зелёный.
+  — НЕ СДЕЛАНО: Phase 5 открыт (см. выше), финальный `pnpm run ci` в рамках этой сверки не запускался.
 - [ ] Ни один пункт этого документа не был подписан именем владельца там, где решение инженерное (провенанс §0).
+  — Не проверяется кодом/тестом — это самопроверка текста документа, не код-артефакт. §0 и §8 существующего текста
+  уже явно разделяют owner ruling vs инженерный выбор («Порядок фаз... не решение владельца», «риск §8.1/8.2...»)
+  — на вид соблюдается, но формального пруфа (commit/тест) для этого пункта не существует по своей природе, оставлено
+  открытым до отдельной ревизии документа целиком.
 - [ ] UI-фазы (Phase 3/4) размещены в верных zone-ID (`PLAT-02`/`PLAT-03`/`PLAT-05`/`MGMT-08`, §0a), не в старом
   doctorNavLinks-кластере «Настройки», и не дублируют/не блокируют будущий U9 platform shell.
+  — ЧАСТИЧНО: Phase 3-половина ГОТОВА и превышает требование — `/app/admin/commercial` живёт в отдельном
+  platform-shell (`platformNavLinks.ts`), не в `doctorNavLinks.ts` «Настройки», и фактически уже реализует часть
+  U9-цели (не просто «не блокирует»). Phase 4-половина (`MGMT-05`/`MGMT-08` billing UI) не существует вовсе —
+  пункт как целое (Phase 3 И Phase 4) не может быть закрыт, пока Phase 4 не начата.
 
 ## 7. Execution log
 

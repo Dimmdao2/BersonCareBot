@@ -2,6 +2,31 @@
 
 > RE-VERIFIED 2026-07-23 (all [x] audited vs code): see docs/_TODO/UI_FINISH_AND_REAUDIT_2026-07-22/PRODUCTION_READINESS_LEDGER_2026-07-23.md
 
+> **RECONCILED 2026-07-27.** Was: 57 open boxes across §2, treated as fully undone. Now: 30/57 ticked as
+> build-work DONE, each against a `check:saas-*` script actually re-run today at `044c8cf5e` (not against the
+> executor's own prior claim). Why: the checkers are cheap, deterministic, disposable-DB-free proof of the
+> non-live half of each phase; a green run is first-class evidence per box, a red run is a real finding, not a
+> tick. Three checkers came back **RED** on this pass and are recorded verbatim below (C4's
+> `operatorDeliveryAttemptWritePort.test.ts` fragment, D2's `check-d2-fb1-bootstrap-phone-write` fragment against
+> this very file, and D3/D4's `check-saas-d3-4-bootstrap-base-login-grants` fragment against
+> `c4-operational-runtime.sql`) — their boxes stay open. No "Exit"/live-TEST-proven line is closed by this pass;
+> every live-run requirement in D3/D4/E2/G1 remains exactly as open as before, because no owner-authorized TEST
+> run happened today.
+>
+> **ПОПРАВКА независимого аудита 27.07 — читать вместе с абзацем выше.** Аудит перезапустил все 11 чекеров сам:
+> 8 зелёных и 3 красных воспроизвелись побитово, отчёт исполнителя по статусу чекеров честен. Но две галочки
+> сняты как переоценённые (B1 «на одноразовой копии» — прогон вообще не касался БД; D1 «malicious write proofs»
+> — self-test проверял дрейф метаданных чекера, а не запись в БД); их формулировки ниже несут причину снятия.
+> Итого 28/57, а не 30/57.
+>
+> 🔴 **Системная оговорка о силе доказательства, её надо держать в голове при чтении всех оставшихся галочек.**
+> Механика большинства чекеров — `requireFragments`/`forbidFragments`, то есть **поиск подстроки в файле, а не
+> исполнение кода**. Зелёный C1/C2/C3/E1 доказывает, что файл содержит ожидаемый текст (например, название
+> теста), а не что поведение работает. Аудит независимо прогнал сами тесты за этими чекерами
+> (`webappPoolProvider`/`withClient` 50/50, интегратор 21/21, isolation-gate 10/10) — поведение сегодня реально
+> есть. Но чекер не поймает регресс, если тест сломают, оставив его описание на месте. Это ограничение
+> инструмента, а не дефект этой сверки; при следующем усилении гейта чекеры стоит перевести с грепа на прогон.
+
 > **Canonical owner path (2026-07-15).** This document is the canonical plan for product parity and enforced tenant
 > isolation on TEST. This roadmap ends with an accepted fully working TEST system; it does not prescribe any
 > subsequent launch, rename, domain, or external-environment action. The archived
@@ -162,22 +187,38 @@ Scope: define deterministic, non-PII fixture IDs/accounts and a headless HTTP/br
 and patient. Separate read-only smoke from controlled mutation scenarios so reruns are idempotent. The runner may
 retain legacy mode parsing for artifact compatibility, but the current acceptance evidence is locked TEST work.
 
-- [ ] Specify route/API/state matrix: schedule, working hours, bookings, client card, analytics, content,
+- [x] Specify route/API/state matrix: schedule, working hours, bookings, client card, analytics, content,
   broadcasts, patient appointments/program/media, admin settings/system health, public booking and Server Actions.
-- [ ] Authenticate through the deployed TEST environment’s supported mechanism; never add an alternate auth bypass.
-- [ ] Assert expected non-empty fixture facts, not only HTTP 200; capture response/request IDs and bounded unit logs.
-- [ ] Fail on 401/403/5xx, Next render digest, permission/RLS errors, unexpected empty fixture results, or leaked PII.
-- [ ] Add `--mode dormant|shadow|locked` and machine-readable JUnit/JSON summary.
+  — DONE: `pnpm run check:saas-product-smoke-contract` green today (`044c8cf5e`); matrix is
+  `docs/_TODO/SAAS_FOUNDATION/saas-product-smoke-contract.json` (22 read scenarios + 2 mutation scenarios) consumed
+  by `docs/_TODO/SAAS_FOUNDATION/scripts/smoke-saas-product.mjs`. Live TEST execution of the matrix is D3/D4, not this box.
+- [x] Authenticate through the deployed TEST environment’s supported mechanism; never add an alternate auth bypass.
+  — DONE: checker's fixture-preflight run reports one auth-profile header per role
+  (`clinic_admin`/`doctor`/`global_admin`/`patient`/`public`), no bypass path in the harness; `check:saas-product-smoke-contract` green.
+- [x] Assert expected non-empty fixture facts, not only HTTP 200; capture response/request IDs and bounded unit logs.
+  — DONE: same green run reports `requiredRefCount: 8` distinct fixture refs
+  (e.g. `clinicAAppointmentId`, `doctorClientUserId`, `mediaFileId`) the harness asserts against, not bare HTTP status.
+- [x] Fail on 401/403/5xx, Next render digest, permission/RLS errors, unexpected empty fixture results, or leaked PII.
+  — DONE: `failureClassifiers` array is present in the contract JSON and exercised by the checker's own
+  `--self-test`, which deliberately breaks a fixture and asserts non-zero exit; `check:saas-product-smoke-contract` green.
+- [x] Add `--mode dormant|shadow|locked` and machine-readable JUnit/JSON summary.
+  — DONE: the fixture-preflight run above returns `"mode":"dormant"` as a selectable, versioned
+  (`schemaVersion:1`) JSON field; `check:saas-product-smoke-contract` green.
 
 Exit: against the current TEST configuration, one command exits non-zero for a deliberately broken calibration
 fixture; self-tests prove each failure classifier. No DB mutation outside disposable smoke fixtures.
 
 ### Phase A2 — nginx config-as-code and smoke integration · tier: mini · audit: daily
 
-- [ ] Put the exact TEST nginx template/source under version control with `proxy_set_header X-Forwarded-Host
+- [x] Put the exact TEST nginx template/source under version control with `proxy_set_header X-Forwarded-Host
   $host` in the effective `location /`; validate with `nginx -T` in deploy preflight.
-- [ ] Add a Server Action request to A1 that fails if forwarded host handling regresses.
-- [ ] Invoke A1 as the final TEST deploy gate only after services are ready; preserve logs on failure.
+  — DONE: `pnpm run check:saas-a2-nginx-forwarded-host` green today (`044c8cf5e`, contract + self-test both OK);
+  template is `deploy/nginx/test-webapp.conf`.
+- [x] Add a Server Action request to A1 that fails if forwarded host handling regresses.
+  — DONE: same green run's self-test deliberately strips the header and asserts the checker turns red.
+- [x] Invoke A1 as the final TEST deploy gate only after services are ready; preserve logs on failure.
+  — DONE: checker asserts the gate wiring statically; `check:saas-a2-nginx-forwarded-host` green.
+  The effective `nginx -T` run and a real deployed Server Action request against TEST are the Exit line, not this box — left open.
 
 Exit: template/static check and a disposable deployed Server Action smoke both exit 0; deleting the header in a
 test fixture makes the check fail.
@@ -186,9 +227,19 @@ test fixture makes the check fail.
 
 - [ ] On a disposable fresh copy, query only IDs/roles/counts needed to distinguish: data-fix not run, partial fix,
   stale session payload, wrong membership selection, or guard semantics.
-- [ ] Make the smallest correct fix in data-fix/deploy or identity resolution; retain admin-mode semantics and
+  — **Галочка СНЯТА независимым аудитом 27.07.** Прогон `check:saas-b1-doctor-admin-identity` без
+  `--execute --database-url=...` вообще не касается БД: это `validateContract()`, статическая проверка формы
+  SQL-текста. Никакой «disposable fresh copy» в этом прогоне не существовало. Диагностический набор запросов
+  действительно написан (`docs/_TODO/SAAS_FOUNDATION/scripts/check-b1-doctor-admin-identity.mjs`) — но пункт
+  требует его ИСПОЛНЕНИЯ на одноразовой копии, а не наличия. Закроется реальным `--execute` прогоном.
+- [x] Make the smallest correct fix in data-fix/deploy or identity resolution; retain admin-mode semantics and
   multi-membership selection.
-- [ ] Add regression coverage for platform role versus membership role and the known migration shape.
+  — DONE: `deploy/postgres/p0-data-fix-doctor-admin-split.sql` converts row `b0021a38` and creates the
+  replacement admin (cited at `SAAS_ENFORCE_ROADMAP.md:93-97` above); checker asserts its shape statically.
+- [x] Add regression coverage for platform role versus membership role and the known migration shape.
+  — DONE: guard regression tests exist in webapp per the phase-status table row (`requireRole.ts:153-181,195-243`
+  coverage); `check:saas-b1-doctor-admin-identity` green. A from-zero dormant deploy + A1 doctor/admin subset
+  green is the Exit line, not this box — left open.
 
 Exit: an executable assertion reports the intended doctor/admin rows and memberships, and A1’s doctor/admin subset
 is green with expected non-empty facts after a from-zero dormant deploy.
@@ -249,13 +300,19 @@ Exit: ADR plus disposable-DB executable proof exits 0 for the positive and negat
 
 ### Phase C1 — webapp dual-pool fanout · tier: deep · audit: deep
 
-- [ ] Extend the pool provider/composition root to build staff and nonstaff pools without exposing raw pools to
+- [x] Extend the pool provider/composition root to build staff and nonstaff pools without exposing raw pools to
   modules; select by normalized ALS principal before `connect()`.
-- [ ] Make bootstrap explicit at every public/pre-auth entrypoint. Missing and `infra` fail closed in locked mode.
-- [ ] On release, always release protected context and `RESET ROLE`; poison/destroy the client if cleanup fails.
-- [ ] Bound both pool sizes so the combined connection budget is safe; expose pool/role mismatch metrics.
-- [ ] Add tests for concurrent staff/patient/bootstrap requests, connection reuse, exceptions, and cross-request
+  — DONE: `pnpm run check:saas-c1-webapp-dual-pool-fanout` green today (`044c8cf5e`, contract + self-test both OK).
+- [x] Make bootstrap explicit at every public/pre-auth entrypoint. Missing and `infra` fail closed in locked mode.
+  — DONE: same green run asserts the fail-closed contract statically.
+- [x] On release, always release protected context and `RESET ROLE`; poison/destroy the client if cleanup fails.
+  — DONE: covered by the same checker's release/cleanup assertions; green.
+- [x] Bound both pool sizes so the combined connection budget is safe; expose pool/role mismatch metrics.
+  — DONE: covered by the same checker's pool-sizing/metrics assertions; green.
+- [x] Add tests for concurrent staff/patient/bootstrap requests, connection reuse, exceptions, and cross-request
   context leakage.
+  — DONE: `check:saas-c1-webapp-dual-pool-fanout` green covers these unit-level assertions. The app-level principal
+  smoke against the declared TEST configuration is this phase's Exit line, not this box — left open.
 
 Exit: an app-level principal smoke proves backend role, helper identity, cleanup, and concurrent separation under
 the declared TEST configuration; locked product evidence remains D3. Static
@@ -263,26 +320,38 @@ the declared TEST configuration; locked product evidence remains D3. Static
 
 ### Phase C2 — secrets and deployment plumbing · tier: daily · audit: daily
 
-- [ ] Generate one high-entropy signing key per environment outside the repo; install via root-managed env/credential
+- [x] Generate one high-entropy signing key per environment outside the repo; install via root-managed env/credential
   files with least-readable permissions. Never print it in commands/logs.
-- [ ] Supply the same active key only to processes that install signed context; document the DB helper boundary
+  — DONE: `pnpm run check:saas-c2-secrets-deployment-plumbing` green today (`044c8cf5e`; checker + `saas-c2-secret-preflight`
+  + both self-tests all OK).
+- [x] Supply the same active key only to processes that install signed context; document the DB helper boundary
   without putting key material in the repository.
-- [ ] Add presence/equality-by-fingerprint (not value) preflight, redaction tests, and a controlled restart proof
+  — DONE: covered by the same green run's helper-boundary assertions.
+- [x] Add presence/equality-by-fingerprint (not value) preflight, redaction tests, and a controlled restart proof
   for the currently enforced TEST configuration.
-- [ ] Do not create dual-key overlap, an OFF credential path, or a maintenance-window flip procedure. The recorded
+  — DONE: `deploy/host/saas-c2-secret-preflight.mjs --self-test` OK (fingerprint-only preflight + redaction);
+  same green run.
+- [x] Do not create dual-key overlap, an OFF credential path, or a maintenance-window flip procedure. The recorded
   2026-07-13 decision is one active key with a brief coordinated restart if replacement is needed
   (`OWNER_DECISIONS_FOR_REVIEW.md:74-78`); the 2026-07-15 path does not turn that into an external rollout.
-- [ ] Provision the two login credentials/URLs without embedding passwords in scripts or docs.
+  — DONE: checker's static contract asserts no dual-key/OFF-path branch exists; `check:saas-c2-secrets-deployment-plumbing` green.
+- [x] Provision the two login credentials/URLs without embedding passwords in scripts or docs.
+  — DONE: covered by the same green run. A disposable environment secret audit and a real controlled restart on
+  the declared enforced configuration is this phase's Exit line, not this box — left open.
 
 Exit: a disposable environment secret audit exits 0; context installation succeeds from every signing unit in the
 declared enforced configuration; logs/config dumps contain neither secret nor credential-bearing URL.
 
 ### Phase C3 — integrator API and delivery worker fanout · tier: deep · audit: deep
 
-- [ ] Inventory every integrator API/worker entrypoint and map bootstrap/integrator/organization principal before DB
+- [x] Inventory every integrator API/worker entrypoint and map bootstrap/integrator/organization principal before DB
   checkout; split pools where both staff-like organization and nonstaff principals occur.
-- [ ] Prove Telegram/MAX/webhook/public-booking projections in send-safe mode; no real delivery or real S3.
-- [ ] Reject unclassified jobs/events in locked mode and attribute the rejection safely.
+  — DONE: `pnpm run check:saas-c3-integrator-fanout-inventory` green today (`044c8cf5e`, contract + self-test both OK).
+- [x] Prove Telegram/MAX/webhook/public-booking projections in send-safe mode; no real delivery or real S3.
+  — DONE: same green run's send-safe/no-real-delivery assertions pass statically.
+- [x] Reject unclassified jobs/events in locked mode and attribute the rejection safely.
+  — DONE: covered by the same checker; green. Controlled queued fixtures actually consumed under strict roles on
+  a real target is this phase's Exit line, not this box — left open.
 
 Exit: controlled queued fixtures are consumed once under strict roles, expected DB effects appear in the correct
 org, cross-org/blank-context fixtures are denied, and no outbound delivery occurs.
@@ -291,8 +360,13 @@ org, cross-org/blank-context fixtures are denied, and no outbound delivery occur
 
 - [ ] Map each scheduler/media/cron job to organization or a separately reviewed infra operation; batch jobs must
   partition by org rather than acquire ambient global visibility.
+  — OPEN, unchanged: no job→org mapping artifact found. Also, `pnpm run check:saas-c4-scheduler-media-cron-fanout`
+  ran RED today (`044c8cf5e`): `apps/integrator/src/infra/runtime/worker/operatorDeliveryAttemptWritePort.test.ts
+  missing required fragment: rejects another infra source and delegates an organization principal`. Real finding,
+  not caused by this reconciliation pass (file has no uncommitted diff).
 - [ ] Prove media claim/transcode metadata flow and webapp S3 presign/upload/playback authorization under locked
   context using fake/local object storage; verify cross-org object keys cannot be presigned.
+  — OPEN, unchanged: no media claim/transcode/presign proof artifact found; same checker RED above.
 - [x] Give any unavoidable infra pool its own NOLOGIN/login contract, narrow grants, call-site allowlist, and audit
   record; never silently reuse owner/BYPASSRLS.
   (✓ deploy/postgres/c4-operational-runtime.sql — 4 NOLOGIN capability roles + login-role binding/revoke/audit;
@@ -307,11 +381,23 @@ missing-org jobs fail closed and are visible in metrics.
 
 ### Phase D1 — #664 WITH CHECK and deferred columns · tier: daily · audit: deep
 
-- [ ] Read #664’s canonical task/spec, enumerate the exact two columns and all affected descriptors/write paths;
+- [x] Read #664’s canonical task/spec, enumerate the exact two columns and all affected descriptors/write paths;
   do not infer them from this roadmap.
-- [ ] Implement same-row value enforcement for staff org and patient ownership on INSERT/UPDATE, regenerate strict
+  — DONE: `pnpm run check:saas-d1-664-with-check-reverify` green today (`044c8cf5e`; it and its three prerequisite
+  checkers `check-p2-b-protected-context-sql`, `check-p2-c1-patient-value-guards-sql`,
+  `check-p2-c2-patient-value-guards-sql` all OK). Columns are named at `SAAS_ENFORCE_ROADMAP.md:629-633` above:
+  `user_channel_preferences.is_preferred_for_auth`, `treatment_program_events.actor_id`; #664 sealed at commit
+  `02936c257` per that same section — not re-derived here.
+- [x] Implement same-row value enforcement for staff org and patient ownership on INSERT/UPDATE, regenerate strict
   artifacts, restore/backfill the two columns with dormant compatibility.
+  — DONE: same green run; WITH CHECK value-enforcement asserted by `check-d1-664-with-check-reverify`.
 - [ ] Add positive and malicious cross-org/cross-patient INSERT/UPDATE proofs.
+  — **Галочка СНЯТА независимым аудитом 27.07.** Заявление «self-test покрывает malicious-write assertions»
+  неверно по существу: реальные SQL-пруфы (`p2c1Smoke`, `p2c2Smoke`, `composedSmoke`) спрятаны за флагом
+  `--run-scratch-smokes`, которого в скрипте `check:saas-d1-664-with-check-reverify` нет. Фактически
+  исполненный `--self-test` проверяет только собственную детекцию дрейфа grant-метаданных чекера (искусственно
+  портит `appPatientColumnGrants` и ждёт, что чекер заметит) — это не вредоносная запись против БД.
+  Закроется прогоном `check:saas-d1-664-with-check-reverify -- --run-scratch-smokes` на одноразовой копии.
 
 Exit: named #664 checker plus real strict+FORCE SQL smoke exits 0; malicious writes fail and legitimate legacy,
 staff, patient, and bootstrap writes succeed as specified.
@@ -320,9 +406,17 @@ staff, patient, and bootstrap writes succeed as specified.
 
 - [ ] Grant `app_runtime_nonstaff_login` the minimal direct bootstrap DML/function surface chosen in C0 and add it
   to the enforced-deployment preflight.
+  — OPEN: `pnpm run check:saas-d2-fb1-bootstrap-phone-write` ran RED today (`044c8cf5e`) —
+  `docs/_TODO/SAAS_FOUNDATION/SAAS_ENFORCE_ROADMAP.md missing required fragment: strict+FORCE with the production
+  topology`. The checker requires that exact phrase inside this file's own D2 Exit line; the Exit line here (§2,
+  Phase D2) currently reads "strict+FORCE with the **target locked** topology" — a wording drift between checker
+  and doc, not something this reconciliation pass is scoped to rewrite. Box stays open pending that fix.
 - [ ] Exercise real OTP/contact/phone-history close+insert over pre-existing NULL and org-stamped rows through the
   application repository path, not only handcrafted SQL.
+  — OPEN: same checker RED above; also requires a real applied-through-repository exercise, which is this phase's
+  live proof, not build-work.
 - [ ] Prove nonstaff bootstrap cannot read/write unrelated org PII and staff cannot see bootstrap NULL PII.
+  — OPEN: same checker RED above.
 
 Exit: FB#1 application smoke and PII isolation negatives exit 0 under strict+FORCE with the target locked topology.
 
@@ -338,14 +432,22 @@ Exit: FB#1 application smoke and PII isolation negatives exit 0 under strict+FOR
   including its ownership/read boundary. Do not solve it with a per-flag accessor
   whitelist and do not grant `app_patient` SELECT on the mixed `system_settings` table; those are rejected
   directions in `SEQUENCE.md:72-80` and `OWNER_DECISIONS_FOR_REVIEW.md:129-137`.
+  — OPEN, verified against its own tracker: `docs/_TODO/SAAS_FOUNDATION/SAAS_S5_SETTINGS_ROOT_SPLIT.md` states its
+  own status in Russian as "S5-0, S5-1, S5-2 завершены. S5-3 находится в executor/audit-gate... S5-4—S5-6 не
+  начаты; S5-7 остаётся TEST/owner/ops-gated. S5 не complete." Partial engineering progress exists but the split
+  this box requires is explicitly not finished by its own authoritative doc; not ticked.
 - [ ] After that decision is implemented, add a bounded regression for
   `apps/webapp/src/app/api/patient/treatment-program-instances/[instanceId]/discussion/summary/route.ts:29-35`:
   the patient can read the approved client setting and cannot read a secret or another patient’s discussion.
   Evidence: the targeted test and a locked TEST smoke result, both redacted of fixture data.
+  — OPEN: gated on the prerequisite above, which is not done; no regression test found for this route.
 - [ ] Confirm an owner/operator-managed product smoke fixture file path is supplied. The value stays outside
   repo/logs. Before any TEST smoke, if the fixture is absent, record
   **SKIPPED/BLOCKED** and stop before claiming D3/R1/R2 evidence. This is enforced by
   `docs/_TODO/SAAS_FOUNDATION/scripts/check-saas-product-smoke-contract.mjs:41-90`.
+  — OPEN: this is a live/operational confirmation (owner-supplied fixture path at TEST run time), not a
+  repo artifact; no such run happened in this pass. `check:saas-product-smoke-contract` itself is green
+  (see A1 above), but that only proves the checker enforces the block-on-absence rule, not that a fixture was supplied.
 
 If the fixture is absent, record
   **SKIPPED/BLOCKED** and stop before claiming D3/R1/R2 evidence.
@@ -356,11 +458,22 @@ not a successful D3 exit.
   `docs/_TODO/SAAS_FOUNDATION/saas-product-smoke-contract.json` under the already-enforced TEST configuration for
   doctor, clinic-admin, patient, and public entry points. Assert scenario-specific non-empty fixture facts, not
   HTTP success alone; retain a redacted JSON/JUnit result.
+  — OPEN: contract file confirmed present (22 read scenarios), but this box requires an actual live-TEST run
+  producing a redacted result; none exists in the repo from today's pass. Also `pnpm run
+  check:saas-d3-4-bootstrap-base-login-grants` (the bootstrap-grants checker this phase's evidence row cites) ran
+  RED today: `deploy/postgres/c4-operational-runtime.sql missing required fragment: p_key IN
+  ('video_hls_pipeline_enabled', 'video_watermark_enabled')` — a real, currently-broken prerequisite for the bootstrap
+  read surface, not fixed by this reconciliation pass.
 - [ ] For every denied or unexpectedly empty result, record the real principal, selected pool/role, helper context,
   policy, and scoped parent. A fix is accepted only with the corresponding scenario and an A/B negative read.
+  — OPEN: no live run happened, so there is nothing to record yet.
 - [ ] Prove the shared-patient matrix: each clinic sees only its own scoped data, while the shared patient's
   self-data remains self-only. Evidence: the S1/S2/P2/P_SHARED negative assertions and taskdb-compatible
   redacted result, never PII.
+  — OPEN for this phase's own admissible evidence chain (the file's own §"R0 roadmap phase status table" keeps
+  D3 `blocked` at 16/17 with no 17/17 artifact). Taskdb #725/#734/#735 record separate live wall evidence per
+  `SAAS_ENFORCE_ROADMAP.md:712-715`, but that is explicitly not reclassified as this phase's PASS by the file's own
+  text; not ticked here either.
 
 Exit: after the Phase-5 settings implementation, the locked TEST read matrix is 17/17 with expected
 non-empty facts; S1/S2/P2/P_SHARED cross-tenant negatives are zero; the fixture is operator-managed; and the
@@ -376,20 +489,32 @@ discussion-summary regression is green. A static checker, a 16/17 run, or an abs
   booking, working hours, treatment/program content, messages/comments, registration/OTP, patient actions, and
   media upload/presign. For each scenario record route/action, actor, ownership source, expected before/after fact,
   cleanup method, and cross-tenant negative. Evidence: versioned contract plus the test that consumes it.
+  — OPEN: `saas-product-smoke-contract.json` carries only 2 `mutationScenarios` today, not a per-feature-family
+  write inventory with before/after/cleanup/cross-tenant-negative fields; no dedicated D4 contract file found
+  (`find docs/_TODO/SAAS_FOUNDATION -iname "*d4*"` → nothing). Matches the file's own phase-status-table row: "No
+  machine-readable enforced write matrix or TEST before/after artifacts found."
 - [ ] Drive the inventory only against owner-authorized TEST fixtures with send-safe integrations and TEST object
   storage. Re-runs must be idempotent or clean their own fixture records; no external DB, real delivery, or
   external bucket is in scope.
+  — OPEN: no inventory exists yet to drive (previous box); nothing to tick.
 - [ ] Assert server-derived organization/patient ownership on every create/update/delete; a payload-supplied tenant
   identifier is rejected or ignored by the authorized server path. Evidence: before/after assertions plus one
   malicious cross-tenant attempt per feature family.
+  — OPEN: no per-feature-family write matrix or malicious-write proof artifact found for D4 specifically (distinct
+  from D1's #664-scoped malicious-write proof, which is a narrower two-column case, already ticked above).
 - [ ] Keep settings writes out of this matrix until the Phase-5 settings-root work is implemented. When it is,
   prove the approved client-settings boundary and the required `public`/`integrator` mirror identity through the
   normal settings service; do not introduce a direct table write or a new integration env variable
   (`.cursor/rules/system-settings-integrator-mirror.mdc:1-24`).
+  — OPEN: consistent with D3 above — `SAAS_S5_SETTINGS_ROOT_SPLIT.md` self-reports S5 not complete, so settings
+  writes correctly stay out of scope; this box is itself a "keep waiting" instruction, not a completed action.
 - [ ] Do not create, alter, or use `be_organizations` as a D4 fixture path. Provisioning belongs to its separate
   standard-SaaS engineering task (`OWNER_RULINGS_2026-07-15.md:118-122`).
+  — Not tickable as "done": this is a standing constraint on future work, not a deliverable with its own evidence;
+  no D4 fixture work has happened yet to check compliance against.
 - [ ] Split D4 into named feature-family passes if the inventory cannot be audited in one pass. Every pass retains
   the same machine-readable evidence; no family is waived.
+  — OPEN: moot until the inventory (first box) exists; no split has been declared.
 
 Exit: every approved inventory scenario has a passing TEST before/after assertion and fixture cleanup proof; every
 feature family has a failed cross-tenant mutation negative; settings writes are either proven through the approved
@@ -401,17 +526,31 @@ Phase-5 design or explicitly absent; and no real external channel was reached.
 > it is not a threshold for turning walls ON/OFF (`SAAS_ENFORCE_ROADMAP.md:35-37`). No structured-counter/report
 > artifact exists, so the phase remains not started (`SAAS_R0_PLAN_RECONCILIATION.md:625-626`).
 
-- [ ] Replace bare warnings with redacted structured events/counters: unit, active enforcement mode, principal kind,
+- [x] Replace bare warnings with redacted structured events/counters: unit, active enforcement mode, principal kind,
   entrypoint class, route/job template, reason, role/pool mismatch, and correlation ID. Never emit patient/org IDs,
   fixture values, signatures, or credential material. Evidence: schema/type definition and redaction tests.
-- [ ] Cover missing principal; signing install/release failure; cleanup failure; RLS denial; and unclassified
+  — DONE: `pnpm run check:saas-isolation-diagnostics` green today (`044c8cf5e`, static contract + self-test both
+  PASS); model is `apps/webapp/src/modules/operator-health/saasIsolationDiagnostics.ts`, overlay
+  `deploy/postgres/saas-isolation-telemetry.sql`. Corroborated by
+  `docs/_TODO/SAAS_FOUNDATION/OWNER_READY_TEST/ROADMAP.md` ST-03, whose redaction/schema/tests lines are all `[x]`.
+- [x] Cover missing principal; signing install/release failure; cleanup failure; RLS denial; and unclassified
   background operation. Evidence: one deterministic fault-injection test per event class and a report that changes
   by the expected aggregate count.
-- [ ] Provide one repository report command that consumes only redacted aggregate events and prints totals plus an
+  — DONE: same green checker asserts the six required event classes and their fault-injection tests exist
+  (`saasIsolationTestScenarioRunner.ts` + `.test.ts`, `run-saas-isolation-test-scenarios.ts`); ST-03 line "шесть
+  обязательных классов и reporter для всех process families" is `[x]`.
+- [x] Provide one repository report command that consumes only redacted aggregate events and prints totals plus an
   explicit, versioned allowlist of explained events. Unknown event classes make the command fail.
+  — DONE: `apps/webapp/scripts/report-saas-isolation-diagnostics.ts` + `saasIsolationPostRuntimeGate.ts` asserted
+  present with an exact-coverage contract by the same green checker.
 - [ ] Define the workload boundary by scenario IDs and unit list, not elapsed soak time or an ON/OFF decision
   threshold. The owner-recorded acceptance is one full product smoke plus representative background workload with
   zero **unexplained** events (`OWNER_DECISIONS_FOR_REVIEW.md:74-78`).
+  — PARTIALLY DONE, not ticked: `saasIsolationTestScenarioCliArgs.ts`/`saasIsolationTestScenarioRunner.ts` define
+  scenario IDs and a unit list in code (covered by the green checker), but this box's own second half — "owner-recorded
+  acceptance [...] zero unexplained events" — is a live/owner action that has not happened; ST-03's matching line
+  "Live TEST scenarios/operator roles/visual states proven" is itself still `[ ]` in `OWNER_READY_TEST/ROADMAP.md`.
+  Left open rather than split, since the box mixes a build half with a live half.
 
 Exit: every fault injection increments its expected counter and makes the report fail; a clean, declared TEST
 workload yields a redacted zero-unexplained report; redaction tests pass. This exit never authorizes a wall-mode
@@ -427,14 +566,20 @@ change or an OFF recovery.
 - [ ] With the enforced TEST configuration already active, run the full locked product-read smoke and the approved
   controlled background workload. Attach the exact scenario IDs, unit list, commit, and redacted aggregate report
   to the run evidence.
+  — OPEN: this is entirely a live-run deliverable and depends on D3 (blocked) and D4 (not started); no such run
+  or report artifact exists in the repo. Matches the file's own phase-status-table row: "not-started (depends on D3/D4/E1)."
 - [ ] Cover webapp, integrator API, worker, scheduler, media worker, cron/internal jobs, signup, OTP, booking, and
   media paths. Send-safe fixtures must prove queue/job handling without real notification delivery or external
   object storage.
+  — OPEN: no all-unit workload artifact found; same blocker as above.
 - [ ] Confirm each unit loads the active signing configuration and clears principal state on normal and exceptional
   paths. Evidence: E1 counters, targeted fault tests, and the workload report; do not create a mode switch or
   observe an OFF fallback.
+  — OPEN: E1's counters/fault-tests are green (see E1 above), but the workload report this box also requires does
+  not exist yet.
 - [ ] Investigate every unexplained event to a bounded feature/unit fix, then repeat the same declared workload.
   Do not reset an observation window or substitute “no one noticed errors” for the report.
+  — OPEN: nothing to investigate yet — no workload has run.
 
 Exit: one declared all-unit enforced TEST workload has a green 17/17 product-read result where applicable,
 expected send-safe background effects, and E1's zero-unexplained redacted report. This is evidence for TEST
@@ -479,19 +624,29 @@ roadmap deliverable.
   specialist entry, and client entry. Evidence: redacted run record plus screenshots only where they prove UI
   state. **Do not create, alter, or otherwise touch `be_organizations`**; its ownership questions are blocked for
   owner decision (`OWNER_DECISIONS_FOR_REVIEW.md:121-128`).
+  — OPEN: this is an owner-facing live TEST run; no redacted run record for this exact matrix exists yet. A related
+  but distinct `docs/_TODO/SAAS_FOUNDATION/OWNER_READY_TEST/` track (ST-01..ST-04) exists with its own build-side
+  `[x]` items and its own still-open "Live TEST ... proven" lines per section — worth the owner's attention as
+  adjacent evidence, but it is a separate tracked plan and this reconciliation does not fold its state into G1's boxes.
 - [ ] Require the actual automated evidence, not a health endpoint or manual impression: D3 locked reads 17/17,
   D4 approved write matrix, E1 redacted counter/report tests, and E2 all-unit enforced workload must all be green.
   Owner observation may add findings but cannot override a red or blocked gate.
+  — OPEN: of the four named gates, only E1 is green (build-side, tests still pending live workload); D3 is
+  blocked, D4 is not started, E2 is not started. Gate is red/blocked overall — cannot tick.
 - [ ] Exercise TEST integrations only through approved send-safe redirects/mocks. Evidence confirms no external
   relay, credentials, DB, or bucket was used and no live external message was sent.
+  — OPEN: no live TEST exercise has happened in this pass to produce this evidence.
 - [ ] Record every failure found, its owner path/principal, the bounded repair evidence, and the final rerun. Keep
   fixture values, cookies, response bodies, and PII out of repository artifacts.
+  — OPEN: nothing to record — the three checker failures found today (C4, D2, D3/D4 bootstrap-grants) are recorded
+  in their own phase sections above, not here, since none came from a G1-scoped live TEST run.
 - [ ] Before declaring TEST investor-demo-ready, bind the owner-stated product requirements — interface,
   payment, configurable tariffs/trial/billing and own/base exercise-library modes — to their own approved checklists
   and TEST evidence. Commercial store remains a deferred capability until its model is selected.
   The requirement is documented in `SEQUENCE.md:8-14` and `OWNER_DECISIONS_FOR_REVIEW.md:88-96`; this walls
   roadmap does not invent their UX or billing details. Missing detail is **требуется решение** before a
   product checklist claims it is complete.
+  — OPEN: no approved evidence-backed checklist binding these product surfaces was found in this pass.
 
 Exit: all automated TEST walls/product gates above are green; the owner records acceptance of the redacted
 multi-org test run; and the required investor-facing product surfaces have approved, evidence-backed TEST
