@@ -233,7 +233,7 @@ describe("DoctorMenuAccordion", () => {
     );
     expect(screen.getByRole("link", { name: "Здоровье системы" })).toHaveAttribute(
       "href",
-      "/app/platform/system-health",
+      "/app/admin/system-health",
     );
     expect(screen.getByRole("link", { name: "Аналитика" })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Журнал операций" })).toBeInTheDocument();

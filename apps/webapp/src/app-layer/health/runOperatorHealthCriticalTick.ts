@@ -57,7 +57,7 @@ export async function runOperatorHealthCriticalTick(now = new Date()): Promise<{
             deliveryIdentity: `incident:${claim.id}:phase:${claim.phase}`,
             lines: c.lines,
             pushTitle: c.pushTitle,
-            pushUrl: "/app/platform/system-health",
+            pushUrl: "/app/admin/system-health",
             deduplication: "incident_cadence",
           });
           if (!result.dispatched) {
@@ -88,7 +88,7 @@ export async function runOperatorHealthCriticalTick(now = new Date()): Promise<{
       dedupKey: c.dedupKey,
       lines: c.lines,
       pushTitle: c.pushTitle,
-      pushUrl: "/app/platform/system-health",
+      pushUrl: "/app/admin/system-health",
     });
     if (result.dispatched) {
       alerted += 1;

@@ -300,7 +300,7 @@ describe("doctor menu structure", () => {
 
 describe("getDoctorShellHomeHref", () => {
   it("keeps each launch persona in its own canonical shell", () => {
-    expect(getDoctorShellHomeHref(platformOnlyAccess)).toBe("/app/platform/system-health");
+    expect(getDoctorShellHomeHref(platformOnlyAccess)).toBe("/app/admin/system-health");
     expect(getDoctorShellHomeHref(doctorAccess)).toBe("/app/doctor");
     expect(getDoctorShellHomeHref(clinicAdminAccess)).toBe("/app/settings");
     expect(getDoctorShellHomeHref({ capabilities: ["account.self"] })).toBe("/app/account");

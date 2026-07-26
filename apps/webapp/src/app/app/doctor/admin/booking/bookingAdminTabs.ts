@@ -3,9 +3,12 @@
 // PLAT-01…09 slice 4 (2026-07-26): the platform admin/booking page physically moved from
 // `(global-admin)/doctor/admin/booking` to `platform/admin/booking` — its live URL (route groups
 // don't appear in the URL) moved with it, from `/app/doctor/admin/booking` to
-// `/app/platform/admin/booking`. This constant is that URL: it drives the redirect-stub subpages
-// (catalog, integrations) below, the tab nav, and the screen-title lookup in doctorScreenTitles.ts.
-export const BOOKING_ADMIN_BASE = "/app/platform/admin/booking";
+// `/app/platform/admin/booking`. Owner ruling 2026-07-26 (final home): the whole `/app/platform/*`
+// tree renamed to `/app/admin/*`, and the nested `admin/booking` subtree flattened one level (no
+// `/app/admin/admin/booking`) — this constant's value is now `/app/admin/booking`. It drives the
+// redirect-stub subpages (catalog, integrations) below, the tab nav, and the screen-title lookup
+// in doctorScreenTitles.ts.
+export const BOOKING_ADMIN_BASE = "/app/admin/booking";
 
 export type BookingAdminTabId =
   | "overview"

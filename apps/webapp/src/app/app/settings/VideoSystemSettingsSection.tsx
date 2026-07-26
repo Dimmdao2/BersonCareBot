@@ -187,7 +187,7 @@ export function VideoSystemSettingsSection({
           />
           <p className="text-xs text-muted-foreground">
             Очередь и метрики: вкладка{" "}
-            <Link href="/app/platform/system-health" className="underline underline-offset-2">
+            <Link href="/app/admin/system-health" className="underline underline-offset-2">
               Здоровье системы
             </Link>
             .

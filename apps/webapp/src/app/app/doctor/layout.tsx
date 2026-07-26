@@ -26,8 +26,9 @@ function getValueJson<T>(valueJson: unknown, fallback: T): T {
 }
 
 export default async function DoctorSectionLayout({ children }: { children: ReactNode }) {
-  // Platform URLs live under `/app/platform/**` (and, until slices 2-7 finish moving them,
-  // still partly under `(global-admin)/doctor/**`), outside this clinical layout. Keep the
+  // Platform URLs live under `/app/admin/**` (renamed from `/app/platform/**` by owner ruling
+  // 2026-07-26; see doctorRouteRedirects.ts) and, until slices 5-7 finish moving them, still
+  // partly under `(global-admin)/doctor/**` — both outside this clinical layout. Keep the
   // historical `/app/doctor` entry as a non-looping platform landing rather than allowing a
   // platform principal to render a clinical child beneath this shell.
   const currentSession = await getCurrentSession();
@@ -41,7 +42,7 @@ export default async function DoctorSectionLayout({ children }: { children: Reac
       "platform.operations",
     )
   ) {
-    redirect("/app/platform/system-health");
+    redirect("/app/admin/system-health");
   }
   const workspaceAccess = await requireOrganizationWorkspaceContext();
   const session = workspaceAccess.session;

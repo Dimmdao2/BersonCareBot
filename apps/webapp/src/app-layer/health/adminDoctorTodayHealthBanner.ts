@@ -3,7 +3,7 @@ import { collectOperatorHealthBannerInput } from "./collectCriticalHealthSignals
 import type { SystemHealthResponse } from "./collectAdminSystemHealthData";
 import type { OperatorHealthBannerInput } from "@/modules/operator-health/criticalHealthSignals";
 
-const SYSTEM_HEALTH_HREF = "/app/platform/system-health";
+const SYSTEM_HEALTH_HREF = "/app/admin/system-health";
 
 export type AdminDoctorTodayHealthBanner =
   | { show: true; href: string; title: string; tone?: "warning" | "stop" }

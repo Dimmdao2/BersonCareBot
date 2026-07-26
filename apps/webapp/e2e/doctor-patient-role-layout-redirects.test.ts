@@ -109,16 +109,16 @@ describe("staff layout role redirects", () => {
     expect(redirectMock).not.toHaveBeenCalled();
   });
 
-  it("admin layout redirects non-admin to doctor hub with access-denied toast flag", async () => {
+  it("admin layout redirects a doctor session to /app (owner ruling 2026-07-26: merged into requirePlatformOperationsPage(), same contract as every other /app/admin/* and /app/platform/* layout — plain /app, no per-role toast)", async () => {
     getCurrentSessionMock.mockResolvedValueOnce(session("doctor"));
     await expect(AdminLayout({ children: null })).rejects.toThrow("redirect");
-    expect(redirectMock).toHaveBeenCalledWith(buildOwnHubUrlWithAccessDeniedToast("doctor"));
+    expect(redirectMock).toHaveBeenCalledWith("/app");
   });
 
-  it("admin layout redirects client to patient hub with access-denied toast flag", async () => {
+  it("admin layout redirects a client session to /app (same reason as above)", async () => {
     getCurrentSessionMock.mockResolvedValueOnce(session("client"));
     await expect(AdminLayout({ children: null })).rejects.toThrow("redirect");
-    expect(redirectMock).toHaveBeenCalledWith(buildOwnHubUrlWithAccessDeniedToast("client"));
+    expect(redirectMock).toHaveBeenCalledWith("/app");
   });
 
   it("admin layout redirects unauthenticated to /app", async () => {

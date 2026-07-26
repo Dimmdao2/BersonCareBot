@@ -617,7 +617,15 @@ describe("RSC page DB-principal census (night plan A-5, bug class of 19f52fed2)"
     // `app/platform/layout.tsx` already exists from slice 1.
     // PLAT-01…09 slice 3 (2026-07-26): net 0. `commercial/page.tsx` moved the same way (one entry
     // removed, one added) — no new layout.tsx, same reason.
-    expect(pageEntries).toHaveLength(174);
+    // Owner ruling 2026-07-26 (final home): the whole `app/platform/*` tree (13 page.tsx entries)
+    // renamed to `app/admin/*`, merging with the pre-existing `app/admin/layout.tsx` +
+    // `admin/promo/page.tsx`. Net -1 page entry: the 13 page.tsx files move 1:1 (net 0), but
+    // `app/platform/layout.tsx` is deleted outright — its guard/shell content now lives in the
+    // pre-existing `app/admin/layout.tsx` instead of a second, sibling layout.tsx. Readers stay at
+    // 12: `app/admin/layout.tsx` (before and after this rename) reaches no DB read in its own file
+    // — its guard call covers the rest of the block, and the shell it renders is a client
+    // component, so no edge is followed into it.
+    expect(pageEntries).toHaveLength(173);
     expect(readers).toHaveLength(12);
   });
 

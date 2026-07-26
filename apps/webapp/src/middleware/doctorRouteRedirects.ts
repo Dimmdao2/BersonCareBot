@@ -35,38 +35,58 @@ export function doctorRouteRedirectResponse(
   }
 
   const legacyRedirects: Record<string, string> = {
-    // PLAT-01…09 slice 1 (2026-07-26): system-health moved out of the clinical/doctor URL space
-    // into its own platform shell at /app/platform/*. This is a single exact-path entry (like
-    // /app/doctor/clients below), not a prefix — see the /app/doctor/admin/booking note further
-    // down for why a *prefix* redirect here is dangerous (it ran ahead of any session/role and
-    // swallowed a live global-admin-only page for months). Slices 2-7 add sibling entries here
-    // as each remaining `(global-admin)/doctor/**` page physically moves to `/app/platform/*`.
-    "/app/doctor/system-health": "/app/platform/system-health",
-    // PLAT-01…09 slice 2 (2026-07-26): health-archive and audit-log moved the same way. Same
-    // reasoning — exact-path entries, not prefixes.
-    "/app/doctor/health-archive": "/app/platform/health-archive",
-    "/app/doctor/audit-log": "/app/platform/audit-log",
-    // PLAT-01…09 slice 3 (2026-07-26): commercial (tariffs and trial) moved the same way.
-    "/app/doctor/commercial": "/app/platform/commercial",
-    // PLAT-01…09 slice 4 (2026-07-26): the whole admin/* subtree moved the same way — exact-path
-    // entries, not prefixes. Two of these (form-public, payments) now render null; their removal
-    // is an open owner question (OWNER_QUESTIONS_2026-07-26.md #6), not decided here.
-    "/app/doctor/admin/app-settings": "/app/platform/admin/app-settings",
-    "/app/doctor/admin/auth": "/app/platform/admin/auth",
+    // PLAT-01…09 slices 1-4 (2026-07-26) moved these out of the clinical/doctor URL space into a
+    // new `/app/platform/*` shell, one exact-path entry at a time (like /app/doctor/clients below),
+    // never a prefix — see the /app/doctor/admin/booking note further down for why a *prefix*
+    // redirect here is dangerous (it once ran ahead of any session/role and swallowed a live
+    // global-admin-only page for months).
+    //
+    // Owner ruling 2026-07-26 (final home): "/app/platform/*" was renamed to "/app/admin/*" the
+    // same day, merging with the pre-existing `/app/admin` (which only served `/app/admin/promo`,
+    // untouched by this rename — see app/app/admin/promo/page.tsx). The nested `admin/*` settings
+    // subtree is flattened one level here too (no "/app/admin/admin/*"). Every entry below now
+    // points straight at the FINAL `/app/admin/*` URL — never a two-hop chain through the
+    // now-deleted `/app/platform/*` shell.
+    "/app/doctor/system-health": "/app/admin/system-health",
+    "/app/doctor/health-archive": "/app/admin/health-archive",
+    "/app/doctor/audit-log": "/app/admin/audit-log",
+    "/app/doctor/commercial": "/app/admin/commercial",
+    // Two of these (form-public, payments) now render null; their removal is an open owner
+    // question (OWNER_QUESTIONS_2026-07-26.md #6), not decided here.
+    "/app/doctor/admin/app-settings": "/app/admin/app-settings",
+    "/app/doctor/admin/auth": "/app/admin/auth",
     // Unlike the OLD "/app/doctor/admin/booking" note above (dated: this map had no entry for it
     // because a blanket redirect there would have swallowed the page while it still lived at this
-    // URL via the (global-admin) route group), the page has now physically moved to
-    // `/app/platform/admin/booking` and NOTHING serves this literal path any more — there is no
-    // separate specialist-facing page.tsx here (grep-verified: zero page.tsx/layout.tsx anywhere
-    // under `app/doctor/admin/`, only shared components consumed by the platform page above and
-    // by unrelated specialist screens). The role-conflict that blocked a redirect no longer exists.
-    "/app/doctor/admin/booking": "/app/platform/admin/booking",
-    "/app/doctor/admin/booking/catalog": "/app/platform/admin/booking/catalog",
-    "/app/doctor/admin/booking/form-public": "/app/platform/admin/booking/form-public",
-    "/app/doctor/admin/booking/integrations": "/app/platform/admin/booking/integrations",
-    "/app/doctor/admin/booking/payments": "/app/platform/admin/booking/payments",
-    "/app/doctor/admin/integrations": "/app/platform/admin/integrations",
-    "/app/doctor/admin/technical": "/app/platform/admin/technical",
+    // URL via the (global-admin) route group), the page has long since physically moved off this
+    // path and NOTHING serves this literal path any more — there is no separate specialist-facing
+    // page.tsx here (grep-verified: zero page.tsx/layout.tsx anywhere under `app/doctor/admin/`,
+    // only shared components consumed by the admin page below and by unrelated specialist
+    // screens). The role-conflict that blocked a redirect no longer exists.
+    "/app/doctor/admin/booking": "/app/admin/booking",
+    "/app/doctor/admin/booking/catalog": "/app/admin/booking/catalog",
+    "/app/doctor/admin/booking/form-public": "/app/admin/booking/form-public",
+    "/app/doctor/admin/booking/integrations": "/app/admin/booking/integrations",
+    "/app/doctor/admin/booking/payments": "/app/admin/booking/payments",
+    "/app/doctor/admin/integrations": "/app/admin/integrations",
+    "/app/doctor/admin/technical": "/app/admin/technical",
+    // The rename above deleted the entire `/app/platform/*` app-router tree in one commit — a
+    // clean cutover, not a phased move, so there is no live page left under `/app/platform/*` for
+    // a prefix rule to swallow. Exact-path entries are still used, for the same
+    // review-every-mapping discipline as the rest of this file, covering an owner tab/bookmark
+    // opened earlier the same day against the now-retired `/app/platform/*` URLs.
+    "/app/platform/system-health": "/app/admin/system-health",
+    "/app/platform/health-archive": "/app/admin/health-archive",
+    "/app/platform/audit-log": "/app/admin/audit-log",
+    "/app/platform/commercial": "/app/admin/commercial",
+    "/app/platform/admin/app-settings": "/app/admin/app-settings",
+    "/app/platform/admin/auth": "/app/admin/auth",
+    "/app/platform/admin/booking": "/app/admin/booking",
+    "/app/platform/admin/booking/catalog": "/app/admin/booking/catalog",
+    "/app/platform/admin/booking/form-public": "/app/admin/booking/form-public",
+    "/app/platform/admin/booking/integrations": "/app/admin/booking/integrations",
+    "/app/platform/admin/booking/payments": "/app/admin/booking/payments",
+    "/app/platform/admin/integrations": "/app/admin/integrations",
+    "/app/platform/admin/technical": "/app/admin/technical",
     // Old /clients/ client-card list → new /patients/ card list (old client card removed).
     "/app/doctor/clients": "/app/doctor/patients",
     "/app/doctor/messages": "/app/doctor/communications?tab=chats",
@@ -77,12 +97,6 @@ export function doctorRouteRedirectResponse(
     // Schedule legacy → real page-shell (e12). Tab values align with scheduleTabFromQuery: cal/work/setup.
     "/app/doctor/calendar": "/app/doctor/schedule?tab=cal",
     "/app/doctor/appointments": "/app/doctor/schedule?tab=cal",
-    // SUPERSEDED by PLAT-01…09 slice 4 (2026-07-26): "/app/doctor/admin/booking" used to be
-    // deliberately NOT redirected here, because this map runs in middleware (no role information)
-    // and the page still lived at that exact URL via the (global-admin) route group — a blanket
-    // redirect would have swallowed it for the one caller (the global admin) it was real for. The
-    // page has now physically moved to /app/platform/admin/booking (see the entry above), so the
-    // old URL has no live handler for anyone and the redirect is safe and present above.
     // Analytics legacy subpages → aggregate page-shell. Tabs align with analyticsTabFromQuery.
     // (material-ratings остаётся отдельным маршрутом — подробная таблица оценок, ссылка из вкладки «Контент».)
     "/app/doctor/analytics/clients": "/app/doctor/analytics?tab=clients",

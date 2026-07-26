@@ -145,7 +145,7 @@ export async function dispatchOperatorAlert(input: DispatchOperatorAlertInput): 
   const targets = await loadAdminRelayTargets();
   const pushTitle = input.pushTitle ?? input.topic;
   const pushBody = clip(input.lines.find((line) => line.trim().length > 0) ?? text, 160);
-  const pushUrl = input.pushUrl ?? "/app/platform/admin/technical";
+  const pushUrl = input.pushUrl ?? "/app/admin/technical";
 
   const attempts: Array<Promise<boolean>> = [];
 

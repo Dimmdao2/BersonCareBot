@@ -43,7 +43,7 @@ export type DoctorMenuAccess = {
 };
 
 export function getDoctorShellHomeHref(access: DoctorMenuAccess): string {
-  if (hasLaunchCapability(access.capabilities, "platform.operations")) return "/app/platform/system-health";
+  if (hasLaunchCapability(access.capabilities, "platform.operations")) return "/app/admin/system-health";
   if (hasLaunchCapability(access.capabilities, "clinical.workspace")) return routePaths.doctor;
   if (hasLaunchCapability(access.capabilities, "organization.management")) {
     return routePaths.settings;

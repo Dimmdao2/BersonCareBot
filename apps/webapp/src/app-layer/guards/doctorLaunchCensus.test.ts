@@ -55,21 +55,30 @@ const launchManifest: readonly LaunchManifestEntry[] = [
  * and `audit-log`; slice 3 (2026-07-26) adds `commercial`; slice 4 (2026-07-26) adds the whole
  * `admin/*` subtree (app-settings, auth, booking + its 4 sub-pages, integrations, technical).
  * Slices 5-7 add the rest of `launchManifest` above as each page physically moves.
+ *
+ * Owner ruling 2026-07-26 (final home): the whole tree above renamed from `app/platform/` to
+ * `app/admin/`, merging with the pre-existing `admin/promo` (a legacy redirect stub, added to
+ * this manifest below) and flattening the nested `admin/*` settings subtree one level (no
+ * `admin/admin/*` route paths).
  */
 const newPlatformLaunchManifest: readonly LaunchManifestEntry[] = [
   { route: "system-health/page.tsx", launchClass: "platform", capability: "platform-operations", objectPolicy: "platform-config" },
   { route: "health-archive/page.tsx", launchClass: "platform", capability: "platform-operations", objectPolicy: "platform-config" },
   { route: "audit-log/page.tsx", launchClass: "platform", capability: "platform-operations", objectPolicy: "platform-config" },
   { route: "commercial/page.tsx", launchClass: "platform", capability: "platform-operations", objectPolicy: "platform-config" },
-  { route: "admin/app-settings/page.tsx", launchClass: "platform", capability: "platform-operations", objectPolicy: "platform-config" },
-  { route: "admin/auth/page.tsx", launchClass: "platform", capability: "platform-operations", objectPolicy: "platform-config" },
-  { route: "admin/booking/catalog/page.tsx", launchClass: "platform", capability: "platform-operations", objectPolicy: "platform-config" },
-  { route: "admin/booking/form-public/page.tsx", launchClass: "platform", capability: "platform-operations", objectPolicy: "platform-config" },
-  { route: "admin/booking/integrations/page.tsx", launchClass: "platform", capability: "platform-operations", objectPolicy: "platform-config" },
-  { route: "admin/booking/page.tsx", launchClass: "platform", capability: "platform-operations", objectPolicy: "platform-config" },
-  { route: "admin/booking/payments/page.tsx", launchClass: "platform", capability: "platform-operations", objectPolicy: "platform-config" },
-  { route: "admin/integrations/page.tsx", launchClass: "platform", capability: "platform-operations", objectPolicy: "platform-config" },
-  { route: "admin/technical/page.tsx", launchClass: "platform", capability: "platform-operations", objectPolicy: "platform-config" },
+  { route: "app-settings/page.tsx", launchClass: "platform", capability: "platform-operations", objectPolicy: "platform-config" },
+  { route: "auth/page.tsx", launchClass: "platform", capability: "platform-operations", objectPolicy: "platform-config" },
+  { route: "booking/catalog/page.tsx", launchClass: "platform", capability: "platform-operations", objectPolicy: "platform-config" },
+  { route: "booking/form-public/page.tsx", launchClass: "platform", capability: "platform-operations", objectPolicy: "platform-config" },
+  { route: "booking/integrations/page.tsx", launchClass: "platform", capability: "platform-operations", objectPolicy: "platform-config" },
+  { route: "booking/page.tsx", launchClass: "platform", capability: "platform-operations", objectPolicy: "platform-config" },
+  { route: "booking/payments/page.tsx", launchClass: "platform", capability: "platform-operations", objectPolicy: "platform-config" },
+  { route: "integrations/page.tsx", launchClass: "platform", capability: "platform-operations", objectPolicy: "platform-config" },
+  { route: "technical/page.tsx", launchClass: "platform", capability: "platform-operations", objectPolicy: "platform-config" },
+  // Pre-existing legacy redirect stub, unrelated to the PLAT-01…09 moves — kept as-is (see
+  // promo/page.tsx and the owner report on its zero inbound links). It renders nothing itself
+  // (`redirect()` only), so "platform-neutral-no-pii" like the other redirect-only entries above.
+  { route: "promo/page.tsx", launchClass: "platform", capability: "platform-operations", objectPolicy: "platform-neutral-no-pii" },
 ];
 
 const mutableMediaManifest: readonly LaunchManifestEntry[] = [
@@ -124,7 +133,7 @@ const settingsServerActionPolicy = {
 describe("U1 finite doctor launch manifest", () => {
   const appRoot = new URL("../../app/", import.meta.url);
   const platformRoot = new URL("app/(global-admin)/doctor/", appRoot);
-  const newPlatformRoot = new URL("app/platform/", appRoot);
+  const newPlatformRoot = new URL("app/admin/", appRoot);
   const doctorRoot = new URL("app/doctor/", appRoot);
   const settingsRoot = new URL("app/settings/", appRoot);
   const mediaRoot = new URL("api/media/", appRoot);
@@ -148,7 +157,7 @@ describe("U1 finite doctor launch manifest", () => {
     ]);
   });
 
-  it("is exact for the new app/platform/ route tree (PLAT-01…09 slices 1-3: system-health, health-archive, audit-log, commercial so far)", () => {
+  it("is exact for the app/admin/ route tree (PLAT-01…09 slices 1-4, renamed from app/platform/ by owner ruling 2026-07-26, plus the pre-existing admin/promo stub)", () => {
     const discovered = new Set(
       collectFiles(newPlatformRoot, "page.tsx").map((file) =>
         fileURLToPath(file).replace(fileURLToPath(newPlatformRoot), ""),
@@ -223,13 +232,15 @@ describe("U1 finite doctor launch manifest", () => {
   it("keeps clinical and platform RSC trees physically disjoint at preserved URLs", () => {
     const doctorLayout = readFileSync(new URL("app/doctor/layout.tsx", appRoot), "utf8");
     const platformLayout = readFileSync(new URL("app/(global-admin)/doctor/layout.tsx", appRoot), "utf8");
-    const newPlatformLayout = readFileSync(new URL("app/platform/layout.tsx", appRoot), "utf8");
-    expect(doctorLayout).toContain('redirect("/app/platform/system-health")');
+    const adminLayout = readFileSync(new URL("app/admin/layout.tsx", appRoot), "utf8");
+    expect(doctorLayout).toContain('redirect("/app/admin/system-health")');
     expect(platformLayout).toContain("requirePlatformOperationsPage()");
     expect(platformLayout).toContain("enableTenantRuntime={false}");
     expect(platformLayout).toContain('menuKind="platform"');
-    expect(newPlatformLayout).toContain("requirePlatformOperationsPage()");
-    expect(newPlatformLayout).toContain("enableTenantRuntime={false}");
-    expect(newPlatformLayout).toContain('menuKind="platform"');
+    // app/admin/layout.tsx is the owner-ruling-2026-07-26 merge of app/platform/layout.tsx
+    // (deleted) with the pre-existing admin shell — same guard/shell contract as above.
+    expect(adminLayout).toContain("requirePlatformOperationsPage()");
+    expect(adminLayout).toContain("enableTenantRuntime={false}");
+    expect(adminLayout).toContain('menuKind="platform"');
   });
 });

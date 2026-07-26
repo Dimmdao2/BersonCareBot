@@ -111,7 +111,7 @@ export async function requireStaffAccountPage(): Promise<AppSession> {
     // bounces restricted sessions back to /app, would be an infinite redirect loop with no way to
     // ever enroll (owner ruling 2026-07-24 fix, audited 2026-07-25) — so restricted still wins here.
     if (restricted) return session;
-    redirect("/app/platform/system-health");
+    redirect("/app/admin/system-health");
   }
   if (!restricted) {
     redirect(buildOwnHubUrlWithAccessDeniedToast(session.user.role));
@@ -399,7 +399,7 @@ export async function requireOrganizationWorkspaceContext(): Promise<DoctorWorks
     adminMode: session.adminMode,
   });
   if (hasLaunchCapability(accountCapabilities, "platform.operations")) {
-    redirect("/app/platform/system-health");
+    redirect("/app/admin/system-health");
   }
   const resolved = await resolveDoctorWorkspaceAccessContext(session);
   if (!resolved.ok) {

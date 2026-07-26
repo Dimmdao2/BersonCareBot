@@ -32,17 +32,19 @@ import {
 } from "@/modules/operator-health/operatorHealthProjectionThresholds";
 
 export const ADMIN_TAB_REDIRECTS: Record<string, string> = {
-  "system-health": "/app/platform/system-health",
-  "health-archive": "/app/platform/health-archive",
-  "audit-log": "/app/platform/audit-log",
+  "system-health": "/app/admin/system-health",
+  "health-archive": "/app/admin/health-archive",
+  "audit-log": "/app/admin/audit-log",
   "product-analytics": "/app/doctor/analytics?tab=app",
   "reminder-stats": "/app/doctor/analytics?tab=notifications",
-  // PLAT-01…09 slice 4 (2026-07-26): admin/* pages moved to /app/platform/admin/*.
-  "app-params": "/app/platform/admin/app-settings",
-  auth: "/app/platform/admin/auth",
-  integrations: "/app/platform/admin/integrations",
-  catalog: "/app/platform/admin/booking",
-  diagnostics: "/app/platform/admin/technical",
+  // PLAT-01…09 slice 4 (2026-07-26) moved admin/* pages to /app/platform/admin/*; owner ruling
+  // 2026-07-26 (final home) renamed the whole tree to /app/admin/* and flattened the nested
+  // admin/* subtree one level (no /app/admin/admin/*).
+  "app-params": "/app/admin/app-settings",
+  auth: "/app/admin/auth",
+  integrations: "/app/admin/integrations",
+  catalog: "/app/admin/booking",
+  diagnostics: "/app/admin/technical",
 };
 
 function getValueJson<T>(valueJson: unknown, fallback: T): T {

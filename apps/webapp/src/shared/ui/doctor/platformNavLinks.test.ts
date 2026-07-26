@@ -48,18 +48,18 @@ describe("platform menu structure — flat by owner ruling 2026-07-26", () => {
     expect(new Set(labels).size).toBe(labels.length);
   });
 
-  it("system-health, health-archive, audit-log, commercial and the admin/* subtree point at platform URLs; only analytics is unmoved (slices 5-7)", () => {
+  it("system-health, health-archive, audit-log, commercial and the admin/* subtree point at /app/admin/* URLs; only analytics is unmoved (slices 5-7)", () => {
     const byId = new Map(PLATFORM_MENU_LINKS.map((i) => [i.id, i]));
-    expect(byId.get("system-health")).toMatchObject({ href: "/app/platform/system-health" });
+    expect(byId.get("system-health")).toMatchObject({ href: "/app/admin/system-health" });
     expect(byId.get("analytics")).toMatchObject({ href: "/app/doctor/analytics" });
-    expect(byId.get("commercial")).toMatchObject({ href: "/app/platform/commercial" });
-    expect(byId.get("admin-app-settings")).toMatchObject({ href: "/app/platform/admin/app-settings" });
-    expect(byId.get("admin-auth")).toMatchObject({ href: "/app/platform/admin/auth" });
-    expect(byId.get("admin-booking")).toMatchObject({ href: "/app/platform/admin/booking" });
-    expect(byId.get("admin-integrations")).toMatchObject({ href: "/app/platform/admin/integrations" });
-    expect(byId.get("admin-technical")).toMatchObject({ href: "/app/platform/admin/technical" });
-    expect(byId.get("health-archive")).toMatchObject({ href: "/app/platform/health-archive" });
-    expect(byId.get("audit-log")).toMatchObject({ href: "/app/platform/audit-log" });
+    expect(byId.get("commercial")).toMatchObject({ href: "/app/admin/commercial" });
+    expect(byId.get("admin-app-settings")).toMatchObject({ href: "/app/admin/app-settings" });
+    expect(byId.get("admin-auth")).toMatchObject({ href: "/app/admin/auth" });
+    expect(byId.get("admin-booking")).toMatchObject({ href: "/app/admin/booking" });
+    expect(byId.get("admin-integrations")).toMatchObject({ href: "/app/admin/integrations" });
+    expect(byId.get("admin-technical")).toMatchObject({ href: "/app/admin/technical" });
+    expect(byId.get("health-archive")).toMatchObject({ href: "/app/admin/health-archive" });
+    expect(byId.get("audit-log")).toMatchObject({ href: "/app/admin/audit-log" });
   });
 
   it("audit-log keeps its registrationSystemFailures badge", () => {

@@ -3,7 +3,7 @@
  *
  * Owner ruling 2026-07-26: the global admin is not a doctor — his clients are the specialists
  * and the clinics, not patients. His pages are moving out of `DoctorWorkspaceShell`'s clinical
- * menu (`doctorNavLinks.ts`) into their own `/app/platform/*` navigation.
+ * menu (`doctorNavLinks.ts`) into their own `/app/admin/*` navigation.
  *
  * Owner ruling 2026-07-26 (nav shape): this menu must be FLAT — no nesting, no accordion
  * groups. Every item sits at the top level and is directly clickable. It used to be one
@@ -19,45 +19,50 @@ import type { DoctorMenuAccess, DoctorMenuLinkItem } from "@/shared/ui/doctor/do
 import { isDoctorMenuLinkVisible } from "@/shared/ui/doctor/doctorNavLinks";
 
 /**
- * Slice 1 (PLAT-01…09) moved `system-health` to `/app/platform/system-health`. Slice 2 moved
- * `health-archive` and `audit-log` alongside it. Slice 3 moved `commercial`. Slice 4 moves the
- * whole `admin/*` subtree (app-settings, auth, booking, integrations, technical). Slices 5-7 move
- * the rest and update these hrefs then. No label collided once un-nested; every entry below kept
- * its original label.
+ * Slice 1 (PLAT-01…09) moved `system-health` to its own platform shell. Slice 2 moved
+ * `health-archive` and `audit-log` alongside it. Slice 3 moved `commercial`. Slice 4 moved the
+ * whole `admin/*` subtree (app-settings, auth, booking, integrations, technical). All of it first
+ * landed at `/app/platform/*`; owner ruling 2026-07-26 (final home) renamed that whole tree to
+ * `/app/admin/*` the same day, flattening the nested `admin/*` settings subtree one level (no
+ * `/app/admin/admin/*`) — every href below reflects that final shape. Slices 5-7 move the rest
+ * (`analytics`, still pointing at the clinical `/app/doctor/analytics` URL below) and update its
+ * href then. No label collided once un-nested; every entry below kept its original label. This
+ * file keeps its historical name — "platform" here names the `platform.operations` capability
+ * this menu serves, not the (now-retired) `/app/platform/*` URL prefix.
  */
 const RAW_PLATFORM_MENU_ITEMS: DoctorMenuLinkItem[] = [
   { id: "analytics", label: "Аналитика", href: "/app/doctor/analytics", accessTier: "global_admin" },
   // Moved in slice 3.
-  { id: "commercial", label: "Тарифы и триал", href: "/app/platform/commercial", accessTier: "global_admin" },
+  { id: "commercial", label: "Тарифы и триал", href: "/app/admin/commercial", accessTier: "global_admin" },
   // Moved in slice 4.
   {
     id: "admin-app-settings",
     label: "Настройки приложения",
-    href: "/app/platform/admin/app-settings",
+    href: "/app/admin/app-settings",
     accessTier: "global_admin",
   },
-  { id: "admin-auth", label: "Авторизация", href: "/app/platform/admin/auth", accessTier: "global_admin" },
-  { id: "admin-booking", label: "Бронирование", href: "/app/platform/admin/booking", accessTier: "global_admin" },
+  { id: "admin-auth", label: "Авторизация", href: "/app/admin/auth", accessTier: "global_admin" },
+  { id: "admin-booking", label: "Бронирование", href: "/app/admin/booking", accessTier: "global_admin" },
   {
     id: "admin-integrations",
     label: "Интеграции",
-    href: "/app/platform/admin/integrations",
+    href: "/app/admin/integrations",
     accessTier: "global_admin",
   },
   {
     id: "admin-technical",
     label: "Технические режимы",
-    href: "/app/platform/admin/technical",
+    href: "/app/admin/technical",
     accessTier: "global_admin",
   },
   // Moved in slice 1.
-  { id: "system-health", label: "Здоровье системы", href: "/app/platform/system-health", accessTier: "global_admin" },
+  { id: "system-health", label: "Здоровье системы", href: "/app/admin/system-health", accessTier: "global_admin" },
   // Moved in this slice.
-  { id: "health-archive", label: "Архив сбоев", href: "/app/platform/health-archive", accessTier: "global_admin" },
+  { id: "health-archive", label: "Архив сбоев", href: "/app/admin/health-archive", accessTier: "global_admin" },
   {
     id: "audit-log",
     label: "Журнал операций",
-    href: "/app/platform/audit-log",
+    href: "/app/admin/audit-log",
     badgeKey: "registrationSystemFailures",
     accessTier: "global_admin",
   },

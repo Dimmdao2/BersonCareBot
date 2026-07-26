@@ -305,17 +305,19 @@ describe("legacy settings compatibility", () => {
   });
 
   it("keeps historical platform admin-tab redirects", async () => {
-    // system-health, health-archive and audit-log moved to /app/platform/* in PLAT-01…09 slices
-    // 1-2 (2026-07-26); app-params/auth/integrations/catalog/diagnostics moved the same way in
-    // slice 4. Only product-analytics/reminder-stats still target /app/doctor/analytics (unmoved).
+    // system-health, health-archive and audit-log moved out of the doctor URL space in PLAT-01…09
+    // slices 1-2 (2026-07-26); app-params/auth/integrations/catalog/diagnostics moved the same way
+    // in slice 4. All of it landed at /app/platform/* first, then the owner ruling the same day
+    // renamed the whole tree to /app/admin/*. Only product-analytics/reminder-stats still target
+    // /app/doctor/analytics (unmoved).
     await expect(SettingsPage({ searchParams: Promise.resolve({ adminTab: "system-health" }) })).rejects.toThrow(
-      "redirect:/app/platform/system-health",
+      "redirect:/app/admin/system-health",
     );
     await expect(SettingsPage({ searchParams: Promise.resolve({ adminTab: "health-archive" }) })).rejects.toThrow(
-      "redirect:/app/platform/health-archive",
+      "redirect:/app/admin/health-archive",
     );
     await expect(SettingsPage({ searchParams: Promise.resolve({ adminTab: "audit-log" }) })).rejects.toThrow(
-      "redirect:/app/platform/audit-log",
+      "redirect:/app/admin/audit-log",
     );
     await expect(SettingsPage({ searchParams: Promise.resolve({ adminTab: "product-analytics" }) })).rejects.toThrow(
       /redirect:\/app\/doctor\//,

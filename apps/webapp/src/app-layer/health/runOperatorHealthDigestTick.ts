@@ -99,7 +99,7 @@ export async function runOperatorHealthDigestTick(
         : digest.hasIssues
           ? "Сводка здоровья системы"
           : "Всё в порядке",
-    pushUrl: "/app/platform/system-health",
+    pushUrl: "/app/admin/system-health",
   });
 
   if (!result.dispatched) {

@@ -36,49 +36,49 @@ describe("doctorRouteRedirectResponse — 308 redirects (old → new URLs)", () 
     },
   );
 
-  it("redirects /app/doctor/system-health to /app/platform/system-health (PLAT-01…09 slice 1)", () => {
+  it("redirects /app/doctor/system-health directly to /app/admin/system-health (owner ruling 2026-07-26: final home, one hop)", () => {
     const res = doctorRouteRedirectResponse(req("/app/doctor/system-health"));
     expect(res?.status).toBe(308);
     expect(res?.headers.get("location")).toBe(
-      "http://localhost/app/platform/system-health",
+      "http://localhost/app/admin/system-health",
     );
   });
 
-  it("redirects /app/doctor/health-archive to /app/platform/health-archive (PLAT-01…09 slice 2)", () => {
+  it("redirects /app/doctor/health-archive directly to /app/admin/health-archive", () => {
     const res = doctorRouteRedirectResponse(req("/app/doctor/health-archive"));
     expect(res?.status).toBe(308);
     expect(res?.headers.get("location")).toBe(
-      "http://localhost/app/platform/health-archive",
+      "http://localhost/app/admin/health-archive",
     );
   });
 
-  it("redirects /app/doctor/audit-log to /app/platform/audit-log (PLAT-01…09 slice 2)", () => {
+  it("redirects /app/doctor/audit-log directly to /app/admin/audit-log", () => {
     const res = doctorRouteRedirectResponse(req("/app/doctor/audit-log"));
     expect(res?.status).toBe(308);
     expect(res?.headers.get("location")).toBe(
-      "http://localhost/app/platform/audit-log",
+      "http://localhost/app/admin/audit-log",
     );
   });
 
-  it("redirects /app/doctor/commercial to /app/platform/commercial (PLAT-01…09 slice 3)", () => {
+  it("redirects /app/doctor/commercial directly to /app/admin/commercial", () => {
     const res = doctorRouteRedirectResponse(req("/app/doctor/commercial"));
     expect(res?.status).toBe(308);
     expect(res?.headers.get("location")).toBe(
-      "http://localhost/app/platform/commercial",
+      "http://localhost/app/admin/commercial",
     );
   });
 
-  it("redirects the whole admin/* subtree to /app/platform/admin/* (PLAT-01…09 slice 4)", () => {
+  it("redirects the whole admin/* subtree directly to the flattened /app/admin/* URLs (PLAT-01…09 slice 4 + owner ruling 2026-07-26 final home)", () => {
     const cases: ReadonlyArray<[string, string]> = [
-      ["/app/doctor/admin/app-settings", "/app/platform/admin/app-settings"],
-      ["/app/doctor/admin/auth", "/app/platform/admin/auth"],
-      ["/app/doctor/admin/booking", "/app/platform/admin/booking"],
-      ["/app/doctor/admin/booking/catalog", "/app/platform/admin/booking/catalog"],
-      ["/app/doctor/admin/booking/form-public", "/app/platform/admin/booking/form-public"],
-      ["/app/doctor/admin/booking/integrations", "/app/platform/admin/booking/integrations"],
-      ["/app/doctor/admin/booking/payments", "/app/platform/admin/booking/payments"],
-      ["/app/doctor/admin/integrations", "/app/platform/admin/integrations"],
-      ["/app/doctor/admin/technical", "/app/platform/admin/technical"],
+      ["/app/doctor/admin/app-settings", "/app/admin/app-settings"],
+      ["/app/doctor/admin/auth", "/app/admin/auth"],
+      ["/app/doctor/admin/booking", "/app/admin/booking"],
+      ["/app/doctor/admin/booking/catalog", "/app/admin/booking/catalog"],
+      ["/app/doctor/admin/booking/form-public", "/app/admin/booking/form-public"],
+      ["/app/doctor/admin/booking/integrations", "/app/admin/booking/integrations"],
+      ["/app/doctor/admin/booking/payments", "/app/admin/booking/payments"],
+      ["/app/doctor/admin/integrations", "/app/admin/integrations"],
+      ["/app/doctor/admin/technical", "/app/admin/technical"],
     ];
     for (const [from, to] of cases) {
       const res = doctorRouteRedirectResponse(req(from));
@@ -88,15 +88,38 @@ describe("doctorRouteRedirectResponse — 308 redirects (old → new URLs)", () 
   });
 
   it("used to deliberately NOT redirect /app/doctor/admin/booking — now safe, since the page moved (see comment above the entry in doctorRouteRedirects.ts)", () => {
-    // Historical regression guard, updated for PLAT-01…09 slice 4. The base path used to be
-    // excluded from this legacy map, which runs before any session is resolved, because the
+    // Historical regression guard, updated for the 2026-07-26 admin rename. The base path used to
+    // be excluded from this legacy map, which runs before any session is resolved, because the
     // global-admin page still lived at this exact URL (via the (global-admin) route group) and a
-    // blanket 308 would have swallowed it for the one caller it was real for. The page has now
-    // physically moved to /app/platform/admin/booking, so nothing serves the old URL for anyone
-    // and the redirect above is correct, not a regression of the original incident.
+    // blanket 308 would have swallowed it for the one caller it was real for. The page has since
+    // physically moved (now to /app/admin/booking), so nothing serves the old URL for anyone and
+    // the redirect above is correct, not a regression of the original incident.
     const res = doctorRouteRedirectResponse(req("/app/doctor/admin/booking"));
     expect(res?.status).toBe(308);
-    expect(res?.headers.get("location")).toBe("http://localhost/app/platform/admin/booking");
+    expect(res?.headers.get("location")).toBe("http://localhost/app/admin/booking");
+  });
+
+  it("redirects the retired /app/platform/* URLs to /app/admin/* (owner may still have them open/bookmarked from today)", () => {
+    const cases: ReadonlyArray<[string, string]> = [
+      ["/app/platform/system-health", "/app/admin/system-health"],
+      ["/app/platform/health-archive", "/app/admin/health-archive"],
+      ["/app/platform/audit-log", "/app/admin/audit-log"],
+      ["/app/platform/commercial", "/app/admin/commercial"],
+      ["/app/platform/admin/app-settings", "/app/admin/app-settings"],
+      ["/app/platform/admin/auth", "/app/admin/auth"],
+      ["/app/platform/admin/booking", "/app/admin/booking"],
+      ["/app/platform/admin/booking/catalog", "/app/admin/booking/catalog"],
+      ["/app/platform/admin/booking/form-public", "/app/admin/booking/form-public"],
+      ["/app/platform/admin/booking/integrations", "/app/admin/booking/integrations"],
+      ["/app/platform/admin/booking/payments", "/app/admin/booking/payments"],
+      ["/app/platform/admin/integrations", "/app/admin/integrations"],
+      ["/app/platform/admin/technical", "/app/admin/technical"],
+    ];
+    for (const [from, to] of cases) {
+      const res = doctorRouteRedirectResponse(req(from));
+      expect(res?.status, from).toBe(308);
+      expect(res?.headers.get("location"), from).toBe(`http://localhost${to}`);
+    }
   });
 
   // ── Communications legacy ─────────────────────────────────────────────────

@@ -75,16 +75,16 @@ describe("getDoctorScreenTitle", () => {
   it("returns fallback for unknown doctor path", () => {
     expect(getDoctorScreenTitle("/app/doctor/unknown-section")).toBe("Кабинет");
   });
-  it("returns booking admin titles for subpaths (PLAT-01…09 slice 4: moved to /app/platform/admin/booking)", () => {
-    expect(getDoctorScreenTitle("/app/platform/admin/booking")).toBe("Настройки записи");
-    expect(getDoctorScreenTitle("/app/platform/admin/booking/form-public")).toBe(
+  it("returns booking admin titles for subpaths (PLAT-01…09 slice 4: moved to /app/admin/booking)", () => {
+    expect(getDoctorScreenTitle("/app/admin/booking")).toBe("Настройки записи");
+    expect(getDoctorScreenTitle("/app/admin/booking/form-public")).toBe(
       "Настройки записи — Форма и публичная запись",
     );
-    expect(getDoctorScreenTitle("/app/platform/admin/booking/payments")).toBe("Настройки записи — Оплата");
-    expect(getDoctorScreenTitle("/app/platform/admin/booking/integrations")).toBe("Настройки записи");
+    expect(getDoctorScreenTitle("/app/admin/booking/payments")).toBe("Настройки записи — Оплата");
+    expect(getDoctorScreenTitle("/app/admin/booking/integrations")).toBe("Настройки записи");
     // Legacy и несуществующие маршруты → overview
-    expect(getDoctorScreenTitle("/app/platform/admin/booking/catalog")).toBe("Настройки записи");
-    expect(getDoctorScreenTitle("/app/platform/admin/booking/locations")).toBe("Настройки записи");
-    expect(getDoctorScreenTitle("/app/platform/admin/booking/operations")).toBe("Настройки записи");
+    expect(getDoctorScreenTitle("/app/admin/booking/catalog")).toBe("Настройки записи");
+    expect(getDoctorScreenTitle("/app/admin/booking/locations")).toBe("Настройки записи");
+    expect(getDoctorScreenTitle("/app/admin/booking/operations")).toBe("Настройки записи");
   });
 });
