@@ -9,8 +9,9 @@ It does not read or copy `/run/bersoncarebot/saas-smoke.fixture` and does not us
 - The helper requires `webapp.test` to be a regular non-symlink `root:deploy 0640` file with no duplicate env keys.
   Its `DATABASE_URL` must be PostgreSQL on exact `127.0.0.1:5432/bersoncarebot_test`.
 - Before sending credentials, the helper proves that `bersoncarebot-webapp-test.service` is active as
-  `deploy:deploy`, has the canonical TEST standalone working directory, and that its `MainPID` owns the
-  `127.0.0.1:6300` listener.
+  `bcb-web-test:bcb-web-test` (its own dedicated OS identity since the B-1 split — see
+  `docs/_TODO/B1_B2_IDENTITY_SPLIT_RUNBOOK.md`), has the canonical TEST standalone working directory, and
+  that its `MainPID` owns the `127.0.0.1:6300` listener.
 - Credentials are read internally from the existing strict `/opt/env/bersoncarebot/saas-test-fixture.env` parser.
   Values never enter argv, stdout, logs, repository files, or the handoff manifest.
 - Authentication uses ordinary `POST /api/auth/email-password/login`, followed by ordinary

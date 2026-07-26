@@ -166,8 +166,8 @@ function assertTestWebappListenerIdentity() {
   if (
     properties.get("ActiveState") !== "active" ||
     properties.get("SubState") !== "running" ||
-    properties.get("User") !== "deploy" ||
-    properties.get("Group") !== "deploy" ||
+    properties.get("User") !== "bcb-web-test" ||
+    properties.get("Group") !== "bcb-web-test" ||
     properties.get("WorkingDirectory") !== "/opt/projects/bersoncarebot-test/apps/webapp/.next/standalone/apps/webapp"
   ) {
     fail("test_webapp_systemd_identity_mismatch");
@@ -385,8 +385,8 @@ function selfTest() {
       "ActiveState=active",
       "SubState=running",
       "MainPID=1234",
-      "User=deploy",
-      "Group=deploy",
+      "User=bcb-web-test",
+      "Group=bcb-web-test",
       "WorkingDirectory=/opt/projects/bersoncarebot-test/apps/webapp/.next/standalone/apps/webapp",
     ].join("\n"));
     if (serviceProperties.get("MainPID") !== "1234") fail("self_test_systemd_parse_failed");
