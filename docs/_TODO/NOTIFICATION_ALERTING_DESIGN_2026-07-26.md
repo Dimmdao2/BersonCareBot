@@ -113,20 +113,75 @@ still an open request against Alertmanager.
 ### D-h. Content: a content-free nudge for anything patient-linked.
 
 Neutral sender; no condition, procedure, specialty, provider or patient name in a subject line or push
-payload; the body says an item exists and links to sign-in. This is the MyChart pattern, and it is practice
-that **exceeds** the rule — HIPAA's encryption spec (45 CFR §164.312(e)(2)(ii)) is *Addressable*, and
-minimum-necessary (§164.502(b)) does not apply to disclosures to the individual at all.
+payload; the body says an item exists and links to sign-in.
 
-Do not oversell it. UR Medicine's own MyChart terms admit *"any person with access to a patient's e-mail will
-be able to see this notification"* and that its mere existence *"may be information that a patient would not
-want others to know."* Under 323-ФЗ Art. 13 that residual disclosure is exactly what to minimise.
+**Correction to my own earlier reasoning (2026-07-26, deeper legal research).** I first justified this partly
+by "minimum necessary". **That justification is wrong.** 45 CFR §164.502(b)(2)(ii) exempts *uses or
+disclosures made to the individual* from minimum-necessary entirely — it never reaches a message addressed to
+the patient. It is the single most repeated wrong argument for this pattern, and we will not repeat it.
+Equally: **no regulation anywhere requires a content-free notification** — not HIPAA, not OCR guidance, not
+NIST SP 800-66r2 (checked: zero occurrences of "lock screen", "SMS", "push notif", "preview"), and not any
+Russian norm. It is convergent industry practice. The real justifications are these four, and they are strong:
 
-Operator alerts are content-free about patients too: "delivery queue stuck, 47 items", never a name. Scrub PHI
-from bounce handling and from notification logs — a bounce body echoes the original message.
+1. **The delivery vendor is a business associate, not a conduit.** The conduit exception is explicitly narrow
+   (78 FR 5566 at 5571-5572: "mere courier services… transient versus persistent"). An e-mail/SMS API vendor
+   queues, retries and *persists* bodies in delivery logs and webhooks — that is maintaining, not transporting.
+2. **The last leg is a conduit you cannot contract with** — the recipient's mail provider, the mobile carrier,
+   APNs/FCM. No agreement, no audit, no breach notification.
+3. **The visible envelope sits outside any encryption you control**, and the regulator has already fined seven
+   figures over exactly that surface: OCR's Aetna settlement ($1,000,000, 2020) was for "HIV medication"
+   being readable *through a window envelope* — 11 887 people — without anyone opening it. A subject line and
+   a lock-screen preview are the same surface. On iOS, preview visibility is **user-controlled and the sender
+   cannot force it off**.
+4. **Russia, which is our operative jurisdiction, pushes harder than HIPAA** — see below.
 
-**Before either the SMTP relay or a future SMS provider carries anything patient-linked, confirm its BAA/DPA
-position** (45 CFR §164.502(e)(1)(i)). If the relay is not covered, the content-free nudge is not merely good
-practice — it is what keeps the relay out of scope.
+**Russian specifics that change the design, not just the wording:**
+
+- **ФЗ-323 ст. 13 ч. 1 protects the FACT of seeking care**, not merely the diagnosis: «Сведения о факте
+  обращения гражданина за оказанием медицинской помощи… составляют врачебную тайну». So even "Клиника X:
+  напоминание о визите" discloses protected matter to whoever reads the screen. Broader than HIPAA's
+  practical floor.
+- **Мера ЗИС.3 of ФСТЭК order № 21 is mandatory at EVERY protection level** (marked "+" in all four УЗ
+  columns) — protection of personal data *from disclosure* when transmitted over channels leaving the
+  controlled zone. SMS cannot satisfy that cryptographically. п. 8.13 of the same order expressly allows
+  satisfying ЗИС-group measures «архитектуры информационной системы и проектных решений». **Content
+  minimisation is therefore the only executable compliance route for SMS** — this is the sharpest argument we
+  have, and it is Russian, not borrowed.
+- **The health ministry has already codified the pattern.** Приказ № 965н (телемедицина) п. 8 describes it
+  literally: «предоставления доступа к соответствующим данным и **направления уведомления по указанным
+  контактным данным**». Приказ № 789н restricts delivery of electronic medical documents to a closed list —
+  личный кабинет on ЕПГУ or the clinic's own МИС; **ordinary e-mail and SMS are not on that list**.
+- **152-ФЗ ст. 18 ч. 5**: storing Russian citizens' personal data outside the Russian Federation is
+  prohibited. A foreign mail or SMS provider that retains message bodies in logs abroad is a live exposure —
+  another reason bodies must be empty. (Our current relay is Russian; this constrains any future change.)
+- **ФЗ-38 ст. 18 ч. 2 bans automated mass *advertising* dispatch outright, regardless of consent**, and one
+  message mixing a reminder with an offer becomes advertising in its entirety. Keep operational and
+  promotional messages structurally separate — this is also why 16 CFR §316.3 matters on the US side.
+- **152-ФЗ ст. 9 ч. 1, as amended by ФЗ 24.06.2025 № 156-ФЗ**, requires consent to be «конкретным,
+  предметным» and «оформлено **отдельно** от иных информации и (или) документов». A notifications checkbox
+  buried inside a general consent or offer does not satisfy it, and a defective consent is its own offence
+  under КоАП ст. 13.11 ч. 2 — up to 700 000 ₽ for a legal entity.
+
+**Do not oversell the pattern.** UR Medicine's own MyChart terms concede that "any person with access to a
+patient's e-mail will be able to see this notification" and that its mere existence "may be information that a
+patient would not want others to know". Under ФЗ-323 ст. 13 that residual signal is precisely what remains to
+be minimised — hence a neutral sender name and no clinic-specialty wording.
+
+**A hard requirement we must build, not merely observe:** 45 CFR §164.522(b) — a provider **must** accommodate
+reasonable requests to receive communications by alternative means or at alternative locations, and **may not
+require an explanation**. Per-patient channel preference must be settable, honoured, and never interrogated.
+
+Operator alerts are content-free about patients too: "delivery queue stuck, 47 items", never a name. Scrub
+patient data from bounce handling and from notification logs — a bounce quotes the original message back to
+whoever monitors the return address, and retained bodies in our own logs are a patient-data store subject to
+the full regime.
+
+**Before either the SMTP relay or a future SMS provider carries anything patient-linked, confirm its
+contractual position.** Cautionary precedent from the research: Twilio signs agreements for SMS but its own
+documentation states plainly that **SendGrid e-mail cannot** — "customers should not use SendGrid for any
+purpose or in any manner involving Protected Health Information". Third-party blogs claiming otherwise
+contradict the vendor. If a relay is not covered, the content-free nudge is not merely good practice — it is
+what keeps the relay out of scope.
 
 ### D-i. What proves it works — the acceptance test
 
