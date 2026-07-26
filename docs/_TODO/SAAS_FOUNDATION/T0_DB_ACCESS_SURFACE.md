@@ -51,8 +51,8 @@ Commands were run against non-test TypeScript files unless otherwise noted.
 | Webapp non-test files using DB helper APIs (explorer count) | 185 |
 | Webapp modules/app-layer/app files using DB helper APIs (explorer count) | 45 |
 | API route files total (explorer count) | 489 |
-| API route files with DB signals | 24 |
-| Server action files total (top-level `"use server"` files) | 28 |
+| API route files with DB signals | 23 |
+| Server action files total (top-level `"use server"` files) | 29 |
 | Server action files with DB signals | 1 |
 | Files using `getPool(` | 74 |
 | Files using `getDrizzle(` | 86 |
@@ -82,7 +82,6 @@ These route files had `getPool`, `getDrizzle`, `runWebappPgText`, direct query, 
 - `apps/webapp/src/app/api/admin/operator-incidents/acknowledge-all/route.ts`
 - `apps/webapp/src/app/api/admin/operator-incidents/resolve-all/route.ts`
 - `apps/webapp/src/app/api/admin/users/[userId]/profile/route.ts`
-- `apps/webapp/src/app/api/booking/public/create/route.ts`
 - `apps/webapp/src/app/api/doctor/clients/[userId]/merge-candidates/route.ts`
 - `apps/webapp/src/app/api/doctor/clients/integrator-merge/route.ts`
 - `apps/webapp/src/app/api/doctor/clients/name-match-hints/route.ts`
@@ -104,7 +103,7 @@ These route files had `getPool`, `getDrizzle`, `runWebappPgText`, direct query, 
 
 ## Webapp Server Action Entrypoints
 
-All App Router server action entrypoints at T0.1. Only one currently has a direct DB/principal signal, but all 28 top-level `"use server"` files are T0 entrypoints because most reach DB through services:
+All App Router server action entrypoints at T0.1. Only one currently has a direct DB/principal signal, but all 29 top-level `"use server"` files are T0 entrypoints because most reach DB through services:
 
 - `apps/webapp/src/app/app/doctor/broadcasts/actions.ts`
 - `apps/webapp/src/app/app/doctor/clinical-tests/actions.ts`
@@ -132,6 +131,7 @@ All App Router server action entrypoints at T0.1. Only one currently has a direc
 - `apps/webapp/src/app/app/patient/notifications/notificationPrefsActions.ts`
 - `apps/webapp/src/app/app/patient/profile/actions.ts`
 - `apps/webapp/src/app/app/patient/reminders/actions.ts`
+- `apps/webapp/src/app/app/settings/brandingActions.ts`
 - `apps/webapp/src/app/app/settings/doctorNotificationPrefsActions.ts`
 - `apps/webapp/src/app/app/settings/patient-home/actions.ts`
 
