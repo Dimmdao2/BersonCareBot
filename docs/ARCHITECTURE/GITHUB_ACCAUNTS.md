@@ -91,13 +91,17 @@ Hi Dimmdao2!
 
 ⚠️ **Имена remote в рабочем каталоге НЕ совпадают с именами аккаунтов. Не додумывай — сверяйся с таблицей.**
 
-| имя remote | URL | аккаунт GitHub |
-| --- | --- | --- |
-| `origin` | `git@github-dimmdao2:Dimmdao2/BersonCareBot.git` | **Dimmdao2** |
-| `dimmdao` | `git@github-dimmdao:dimmdao/BersonCareBot.git` | **dimmdao** |
+| имя remote | URL | аккаунт GitHub | роль |
+| --- | --- | --- | --- |
+| `origin` | `git@github-dimmdao2:Dimmdao2/BersonCareBot.git` | **Dimmdao2** | dev / бэкап (прод-деплой выключен `if:false`) |
+| `dimmdao` | `git@github-dimmdao:dimmdao/BersonCareBot.git` | **dimmdao** | **производственный** (ручной workflow «Deploy (production)») |
 
 То есть `origin` — это **Dimmdao2**, а не основной аккаунт. Рабочие ветки трекают `origin`
 (`branch.<name>.remote = origin`).
+
+Эта же карта записана в [`AGENTS.md`](../../AGENTS.md) → «Операционные правила · Deploy / push»,
+и именно она была верной, когда текст ниже ещё врал. **При расхождении двух документов побеждает
+`AGENTS.md`** — он единая точка входа для агентов. Правишь одно — синхронизируй второе.
 
 Проверка (единственный надёжный способ — смотреть URL, а не имя):
 
