@@ -46,7 +46,10 @@ export function CreatableComboboxInput({
 
   const selectedLabel = useMemo(() => {
     if (!value) return "";
-    return items.find((i) => i.value === value)?.label ?? value;
+    // `value` — код из справочника (`{ code, label }` из `/api/doctor/measure-kinds`), не подпись.
+    // При промахе показываем placeholder, а НЕ код: сырой ключ в закрытом поле — тот самый
+    // многолетний дефект «в списке подписи, в поле ключ».
+    return items.find((i) => i.value === value)?.label ?? "";
   }, [items, value]);
 
   const filtered = useMemo(() => {

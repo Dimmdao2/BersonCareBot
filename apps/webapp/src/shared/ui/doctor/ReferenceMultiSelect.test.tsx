@@ -120,4 +120,37 @@ describe("ReferenceMultiSelect", () => {
       expect(screen.queryByRole("listbox")).not.toBeInTheDocument();
     });
   });
+
+  it("никогда не показывает uuid в чипе: пока справочник грузится — «…», после — подпись", async () => {
+    let resolveItems: (v: typeof mockItems) => void = () => {};
+    const { loadReferenceItems } = await import("@/modules/references/referenceCache");
+    vi.mocked(loadReferenceItems).mockReturnValueOnce(
+      new Promise((resolve) => {
+        resolveItems = resolve;
+      }),
+    );
+
+    render(<ReferenceMultiSelect categoryCode="body_region" value={["rid-2"]} onChange={vi.fn()} />);
+
+    // До загрузки справочника подписи ещё нет — но и ключа быть не должно.
+    expect(document.body.textContent).not.toContain("rid-2");
+    expect(document.body.textContent).toContain("…");
+
+    resolveItems(mockItems);
+    await waitFor(() => {
+      expect(screen.getByText("Пункт два")).toBeInTheDocument();
+    });
+    expect(document.body.textContent).not.toContain("rid-2");
+  });
+
+  it("значение, которого нет в справочнике, подписывается словами, а не ключом", async () => {
+    render(
+      <ReferenceMultiSelect categoryCode="body_region" value={["rid-удалён"]} onChange={vi.fn()} />,
+    );
+
+    await waitFor(() => {
+      expect(screen.getByText("Значение недоступно")).toBeInTheDocument();
+    });
+    expect(document.body.textContent).not.toContain("rid-удалён");
+  });
 });

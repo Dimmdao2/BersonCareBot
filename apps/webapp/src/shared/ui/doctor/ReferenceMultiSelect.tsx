@@ -153,7 +153,15 @@ export function ReferenceMultiSelect({
               key={rid}
               className="inline-flex max-w-full items-center gap-1 rounded-md border border-border bg-muted/60 px-2 py-0.5 text-xs"
             >
-              <span className="truncate">{titleById.get(rid) ?? rid}</span>
+              {/*
+                Ключ (uuid) в чипе пользователю не показываем НИКОГДА: пока справочник грузится —
+                многоточие, если после загрузки совпадения нет (значение удалили из справочника) —
+                явная подпись. Раньше здесь стоял `?? rid`, и на форме упражнения в поле «Регион»
+                висел сырой uuid, пока не отработает fetch.
+              */}
+              <span className="truncate">
+                {titleById.get(rid) ?? (loadState === "done" ? "Значение недоступно" : "…")}
+              </span>
               <Button
                 type="button"
                 variant="ghost"

@@ -1,24 +1,33 @@
 "use client"
 
 /**
- * Выпадающий список на `@base-ui/react/select` (`Select` = `SelectPrimitive.Root`).
+ * Выпадающий список на `@base-ui/react/select`.
  *
- * **Подпись выбранного значения в триггере:**
- * Рекомендуемый способ — проп `displayLabel` на `SelectTrigger`:
- * ```tsx
- * <SelectTrigger displayLabel={options.find(o => o.value === val)?.label}>
- * ```
- * Он автоматически оборачивает подпись в `<SelectValue>` и решает проблему
- * «сырого ключа/uuid до первого открытия списка».
+ * # Подпись выбранного значения в триггере — решено ОДИН РАЗ здесь
  *
- * Альтернативы (обратная совместимость):
- * - `items` на `<Select>` — `Record<string, React.ReactNode>` или массив `{ value, label }`
- *   (см. тип `SelectRootProps["items"]` в `@base-ui/react/select`);
- * - явные дети `<SelectValue>…</SelectValue>`;
- * - `label` на `<SelectItem>` (пробрасывается в Base UI).
+ * Base UI (в отличие от Radix) НЕ читает подпись из смонтированного `<Select.Item>`.
+ * `Select.Value` резолвит подпись ТОЛЬКО через проп `items` на `Select.Root`
+ * (`internals/resolveValueLabel.ts::resolveSelectedLabel`), а при промахе падает в
+ * `stringifyAsLabel(value)` — то есть печатает СЫРОЙ КЛЮЧ/uuid. Постоянно, а не «до первого
+ * открытия»: пока значение не выбрано виден placeholder, после выбора — ключ.
+ * Именно поэтому баг «в списке подписи, в поле ключ» возвращался годами: чинили его
+ * ОПТ-ИН (`displayLabel` на каждом вызове), и каждый новый экран заводил его заново.
  *
- * ⚠️ Пустой `<SelectValue />` без `displayLabel`/`items`/детей
- * может отображать сырой `value` пока список ещё не смонтирован.
+ * Поэтому здешний `Select` — обёртка, которая САМА собирает `items` из своих
+ * `<SelectItem value=…>подпись</SelectItem>` (см. `collectItemLabels`). Ничего писать на
+ * вызове не надо: `<SelectValue />` показывает подпись по умолчанию.
+ *
+ * Явные опции (все опциональны, побеждают авто-сбор):
+ * - `items` на `<Select>` — если опции рендерит ОТДЕЛЬНЫЙ компонент, а не литеральные дети
+ *   (авто-сбор проходит по дереву `children`, `.map()` и `? :` он видит, чужой компонент — нет);
+ * - явные дети `<SelectValue>…</SelectValue>` — когда подпись в поле ≠ подписи в списке;
+ * - `displayLabel` на `<SelectTrigger>` — легаси-форма того же самого.
+ *
+ * ⚠️ `label` на `<SelectItem>` подпись в триггере НЕ чинит — в Base UI это только
+ * keyboard-typeahead (`SelectItem.d.ts`: «text label to use when the item is matched during
+ * keyboard text navigation»).
+ *
+ * Гейт, который держит это на месте: `selectValueLabelCensus.test.ts`.
  */
 
 import * as React from "react"
@@ -27,7 +36,50 @@ import { Select as SelectPrimitive } from "@base-ui/react/select"
 import { cn } from "@/lib/utils"
 import { ChevronDownIcon, CheckIcon, ChevronUpIcon } from "lucide-react"
 
-const Select = SelectPrimitive.Root
+type DerivedItem = { value: unknown; label: React.ReactNode }
+
+/**
+ * Обходит дерево `children` и собирает `{ value, label }` каждого `<SelectItem>`.
+ * `React.Children` разворачивает массивы (`.map()`) и фрагменты, поэтому динамические
+ * списки собираются так же, как литеральные.
+ */
+function collectItemLabels(children: React.ReactNode, out: DerivedItem[] = []): DerivedItem[] {
+  React.Children.forEach(children, (child) => {
+    if (!React.isValidElement(child)) return
+    const props = child.props as {
+      value?: unknown
+      children?: React.ReactNode
+    }
+    if (child.type === SelectItem && props.value !== undefined) {
+      out.push({ value: props.value, label: props.children })
+    }
+    if (props.children !== undefined) collectItemLabels(props.children, out)
+  })
+  return out
+}
+
+function Select<Value, Multiple extends boolean | undefined = false>({
+  items,
+  children,
+  ...props
+}: SelectPrimitive.Root.Props<Value, Multiple>) {
+  const derivedItems = React.useMemo(() => {
+    if (items !== undefined) return items
+    const collected = collectItemLabels(children)
+    // Пустой массив ведёт себя как `undefined`, но `undefined` не меняет ни одной ветки
+    // в `SelectValue`/`hasNullItemLabel` — оставляем поведение Base UI байт-в-байт.
+    return collected.length > 0 ? (collected as SelectPrimitive.Root.Props<Value, Multiple>["items"]) : undefined
+  }, [items, children])
+
+  return (
+    <SelectPrimitive.Root
+      {...(props as SelectPrimitive.Root.Props<Value, Multiple>)}
+      items={derivedItems}
+    >
+      {children}
+    </SelectPrimitive.Root>
+  )
+}
 
 function SelectGroup({ className, ...props }: SelectPrimitive.Group.Props) {
   return (
