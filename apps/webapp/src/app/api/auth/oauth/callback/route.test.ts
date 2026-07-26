@@ -24,9 +24,18 @@ vi.mock("@/modules/auth/redirectPolicy", () => ({
   getRedirectPathForRole: vi.fn().mockReturnValue("/app/patient"),
 }));
 
-vi.mock("@/modules/auth/envRole", () => ({
-  resolveRoleAsync: vi.fn().mockResolvedValue("client"),
-}));
+// C-4 (2026-07-26): the handler composes resolveRoleAsync's result through reconcileDbRoleWithEnvRole
+// (envRole.ts) before ever setting a session role, so the mock has to provide both exports now — a
+// bare resolveRoleAsync stub used to be enough before that composition landed. reconcileDbRoleWithEnvRole
+// is pure/deterministic (no DB, no env read), so the real implementation is used via importOriginal
+// rather than re-implementing its promote/demote rules here.
+vi.mock("@/modules/auth/envRole", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/modules/auth/envRole")>();
+  return {
+    ...actual,
+    resolveRoleAsync: vi.fn().mockResolvedValue("client"),
+  };
+});
 
 vi.mock("@/infra/repos/pgOAuthBindings", () => ({
   pgOAuthBindingsPort: { listProvidersForUser: vi.fn(), findUserByOAuthId: findUserMock },

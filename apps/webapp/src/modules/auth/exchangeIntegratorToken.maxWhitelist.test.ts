@@ -58,8 +58,15 @@ function buildWebappEntryToken(params: {
   return `${payload}.${sig}`;
 }
 
+// C-4 (2026-07-26, docs/ARCHITECTURE/ADMIN_ACCESS_MODEL.md): this case used to prove the opposite —
+// that an ADMIN_PHONES env match promoted an existing DB-persisted "client" row to admin at login.
+// That promotion is exactly the hole C-4 closed (resolveRoleAsync/resolveRoleFromEnv in envRole.ts
+// now unconditionally return "client", and reconcileDbRoleWithEnvRole can only preserve or
+// promote-from-nothing, never read an env list to promote a client row). ADMIN_PHONES is asserted
+// here to prove it no longer does anything, not that it still works. Kept in the mocked env (rather
+// than deleted) so a future regression that makes envRole read it again is caught by this same file.
 describe("exchangeIntegratorToken — whitelist via existing binding", () => {
-  it("accepts MAX token when bound user has admin phone", async () => {
+  it("ADMIN_PHONES no longer promotes an existing client-role bound user to admin", async () => {
     cookieSet.mockClear();
     const token = buildWebappEntryToken({
       sub: "max:555123",
@@ -89,7 +96,7 @@ describe("exchangeIntegratorToken — whitelist via existing binding", () => {
 
     const result = await exchangeIntegratorToken(token, identityResolutionPort);
     expect(result).not.toBeNull();
-    expect(result?.session.user.role).toBe("admin");
+    expect(result?.session.user.role).toBe("client");
     expect(cookieSet).toHaveBeenCalled();
   });
 });
