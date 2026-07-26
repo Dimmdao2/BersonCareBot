@@ -1076,7 +1076,8 @@ productsServiceResolved =
         courses: coursesService,
         resolvePlatformUserByPhone: (phone, name) =>
           import("@/app-layer/platform-user/resolveOrCreateUserByPhone").then((m) =>
-            m.resolveOrCreateUserByPhone(phone, name),
+            // Products flow: behaviour unchanged by A-3, same class flagged for the owner.
+            m.resolveOrCreateUserByPhone(phone, name, true),
           ),
         findPlatformUserByPhone: async (phone) => {
           const user = await userByPhonePort.findByPhone(phone);
@@ -1400,6 +1401,12 @@ function _buildAppDeps() {
       listEmergencyTopics: () => listEmergencyTopics(contentPagesPort),
     },
     patientBooking: patientBookingService,
+    /**
+     * A-3: the OTP seam the anonymous booking path proves contact ownership with. Exposed as the
+     * two existing auth primitives rather than a new one-time-code system, so the per-phone
+     * cooldown/lockout in `phoneOtpLimits` applies to booking codes for free.
+     */
+    publicBookingVerification: { smsPort, challengeStore },
     patientMaintenanceHistory: patientMaintenanceHistoryService,
     doctorCabinet: {
       getDoctorWorkspaceState,

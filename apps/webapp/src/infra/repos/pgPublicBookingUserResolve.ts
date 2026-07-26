@@ -2,9 +2,23 @@ import { and, eq, isNull } from "drizzle-orm";
 import { getDrizzleOrMutationTx } from "@/infra/db/drizzleMutationTx";
 import { platformUsers } from "../../../db/schema/schema";
 
+/**
+ * Resolve-or-create a client by normalised phone.
+ *
+ * `phoneProven` is REQUIRED and has no default on purpose (A-3). Before 2026-07-26 this function
+ * stamped `patient_phone_trust_at` on every insert, so an unauthenticated POST to
+ * `/api/booking/public/create` minted a phone-trusted identity — the same flag the login path
+ * consults (`pgCanonicalPlatformUser.ts:118-127`). Trust is now a claim the caller has to have
+ * earned, and the caller has to say so in the type system.
+ *
+ * @param phoneProven the caller has just proved control of THIS phone number (an SMS code it
+ *   entered, or an authenticated session already bound to it). A code delivered to an e-mail does
+ *   not qualify — see `channelProvesPhoneControl`.
+ */
 export async function resolveOrCreateTrustedPatientUserByPhone(
   phoneNormalized: string,
   displayName: string,
+  phoneProven: boolean,
 ): Promise<{ userId: string | null; created: boolean }> {
   const db = getDrizzleOrMutationTx();
   const existing = await db
@@ -26,7 +40,7 @@ export async function resolveOrCreateTrustedPatientUserByPhone(
       phoneNormalized,
       displayName,
       role: "client",
-      patientPhoneTrustAt: new Date().toISOString(),
+      patientPhoneTrustAt: phoneProven ? new Date().toISOString() : null,
     })
     .returning({ id: platformUsers.id });
   return { userId: inserted[0]?.id ?? null, created: inserted[0] != null };

@@ -40,7 +40,15 @@ export async function POST(request: Request) {
   if (detail.purchase.buyerPhoneNormalized && detail.purchase.buyerPhoneNormalized !== phoneNorm) {
     return NextResponse.json({ ok: false, error: "phone_mismatch" }, { status: 403 });
   }
-  const resolved = await resolveOrCreateUserByPhone(parsed.data.contactPhone, parsed.data.contactPhone);
+  // Behaviour deliberately UNCHANGED by A-3 (which scopes to `/api/booking/public/create`): this
+  // path still mints phone trust from an unauthenticated request. It is the same class of defect
+  // and is raised for the owner rather than silently altered here — changing it is a product
+  // decision about the public product-purchase flow, not part of this item.
+  const resolved = await resolveOrCreateUserByPhone(
+    parsed.data.contactPhone,
+    parsed.data.contactPhone,
+    true,
+  );
   if (!resolved.ok) {
     return NextResponse.json({ ok: false, error: resolved.error }, { status: 400 });
   }

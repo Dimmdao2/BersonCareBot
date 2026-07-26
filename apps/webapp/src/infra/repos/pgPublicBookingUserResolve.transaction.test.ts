@@ -25,7 +25,7 @@ describe("public booking user resolution transaction participation", () => {
     getDrizzleOrMutationTxMock.mockReturnValue(activeCaptureTx);
 
     await expect(
-      resolveOrCreateTrustedPatientUserByPhone("+70000000000", "Synthetic User"),
+      resolveOrCreateTrustedPatientUserByPhone("+70000000000", "Synthetic User", true),
     ).resolves.toEqual({ userId: "user-1", created: true });
 
     expect(getDrizzleOrMutationTxMock).toHaveBeenCalledTimes(1);

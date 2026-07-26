@@ -1,21 +1,40 @@
+/**
+ * A-3 — step 1 of the anonymous booking flow: prove control of the contact, THEN book.
+ *
+ * Owner ruling: «всегда просить код или вход». This handler no longer creates a booking for an
+ * anonymous caller. It validates and tenant-binds the request, pins it server-side, sends a
+ * one-time code and returns a challenge. `POST /api/booking/public/create/confirm` finishes the
+ * job. An authenticated patient booking under their OWN phone skips the code — they proved control
+ * of it at login — which is the "или вход" half of the ruling.
+ *
+ * What this handler deliberately no longer does before proof: resolve or create a person from the
+ * phone, check whether that person is blocked at this clinic, pick up their paid package, or return
+ * their identifier. Those were the three oracles and the harm.
+ */
 import { stampBootstrapPrincipal } from "@/app-layer/principal/bootstrapPrincipal";
 import { ensureAuthModulePortsBound } from "@/app-layer/di/bindAuthModulePorts";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
-import { getPool } from "@/app-layer/db/client";
-import { withExplicitOrganizationPrincipal } from "@/app-layer/principal/withOrganizationPrincipal";
-import { resolveOrCreateUserByPhone } from "@/app-layer/platform-user/resolveOrCreateUserByPhone";
-import { recordPublicBookingMergeCandidates } from "@/app-layer/platform-user/recordPublicBookingMergeCandidates";
+import { createVerifiedPublicBooking } from "@/app-layer/booking/createVerifiedPublicBooking";
 import {
   isPublicBookingCreateRateLimited,
   PUBLIC_BOOKING_RATE_LIMIT_SEC,
   resolvePublicBookingRateLimitClientKey,
 } from "@/modules/public-booking/publicBookingRateLimit";
+import { issuePublicBookingVerification } from "@/modules/public-booking/publicBookingVerification";
+import {
+  PUBLIC_BOOKING_INTENT_VERSION,
+  type PublicBookingIntent,
+} from "@/modules/public-booking/publicBookingIntent";
+import { redactPublicBookingRecord } from "@/modules/public-booking/publicBookingResponse";
+import { normalizeRuPhoneE164 } from "@/shared/phone/normalizeRuPhoneE164";
+import { canAccessPatient } from "@/modules/roles/service";
 import { publicBookingCreateBodySchema } from "../bookingPublicBodySchema";
 import {
   InPersonBookingResolveError,
   resolveInPersonBookingContext,
   resolveSlugBoundPublicInPersonBookingOrganization,
 } from "@/modules/patient-booking/inPersonBookingResolve";
+import { withExplicitOrganizationPrincipal } from "@/app-layer/principal/withOrganizationPrincipal";
 import {
   jsonError,
   jsonOk,
@@ -32,8 +51,12 @@ const PUBLIC_IN_PERSON_RESOLVE_ERROR_RULES = {
   invalid_in_person_keys: { status: 400, code: "invalid_in_person_keys" },
 } as const satisfies ApiErrorLiteralRules;
 
+/**
+ * Errors reachable on THIS step. Note what is absent: `booking_blocked`. Whether a phone belongs to
+ * a client this clinic has blocked is decided at confirm, behind proof of ownership — a 403 that
+ * only a blocked client's phone could produce was oracle #3.
+ */
 const PUBLIC_BOOKING_CREATE_ERROR_RULES = {
-  booking_blocked: { status: 403, code: "booking_blocked" },
   branch_service_not_found: { status: 404, code: "branch_service_not_found" },
   canonical_booking_unavailable: { status: 503, code: "canonical_booking_unavailable" },
   catalog_unavailable: { status: 503, code: "catalog_unavailable" },
@@ -44,6 +67,28 @@ const PUBLIC_BOOKING_CREATE_ERROR_RULES = {
   required_field_missing: { status: 400, code: "required_field_missing" },
   slot_overlap: { status: 409, code: "slot_overlap" },
 } as const satisfies ApiErrorLiteralRules;
+
+type Deps = ReturnType<typeof buildAppDeps>;
+
+/**
+ * Does the caller already hold a session proving control of the phone on this booking?
+ *
+ * Only an exact match of the caller's OWN normalised phone counts. A logged-in patient booking for
+ * somebody else still has to produce a code — otherwise any account would be a free pass to attach
+ * bookings to any phone, which is the same hole one step to the left.
+ *
+ * This branch depends on the CALLER's session, never on whether the submitted contact matched
+ * anything, so it introduces no oracle.
+ */
+async function sessionProvesContactPhone(deps: Deps, contactPhone: string): Promise<boolean> {
+  const normalized = normalizeRuPhoneE164(contactPhone);
+  if (!normalized) return false;
+  const session = await deps.auth.getCurrentSession().catch(() => null);
+  if (!session) return false;
+  if (!canAccessPatient(session.user.role)) return false;
+  const sessionPhone = session.user.phone ? normalizeRuPhoneE164(session.user.phone) : null;
+  return sessionPhone != null && sessionPhone === normalized;
+}
 
 export async function POST(request: Request) {
   stampBootstrapPrincipal("api/booking/public/create:POST", request);
@@ -73,61 +118,78 @@ export async function POST(request: Request) {
 
   const body = parsed.data;
   const deps = buildAppDeps();
-  const bookingChannel = "public_widget" as const;
-  const attribution = body.attribution;
 
   try {
     if (body.type === "online") {
       return jsonError("ambiguous_booking_tenant", {}, { status: 400 });
     }
 
+    // Tenant binding, unchanged and still ahead of everything else: slug → organisation,
+    // branch+service → organisation, resolved context → organisation, all three must agree.
     const publicContext = await resolveSlugBoundPublicInPersonBookingOrganization(deps, body);
-    const result = await withExplicitOrganizationPrincipal(
+    const ctx = await withExplicitOrganizationPrincipal(
       { organizationId: publicContext.organizationId, source: "api/booking/public/create:POST" },
       async () => {
-        const ctx = await resolveInPersonBookingContext(deps, publicContext.keys);
-        if (ctx.organizationId !== publicContext.organizationId) {
+        const resolved = await resolveInPersonBookingContext(deps, publicContext.keys);
+        if (resolved.organizationId !== publicContext.organizationId) {
           throw new InPersonBookingResolveError("ambiguous_booking_tenant");
         }
-        const user = await resolveOrCreateUserByPhone(body.contactPhone, body.contactName);
-        if (!user.ok) {
-          throw new Error(user.error);
-        }
-        const branch = await deps.bookingEngine?.catalog.getBranch(ctx.branchId);
-        const cityCode = branch?.cityCode.trim().toLowerCase();
-        if (!cityCode) throw new InPersonBookingResolveError("branch_not_found");
-        const booking = await deps.patientBooking.createBooking({
-          userId: user.userId,
-          organizationId: ctx.organizationId,
-          bookingChannel,
-          attribution,
-          type: "in_person",
-          branchId: ctx.branchId,
-          serviceId: ctx.serviceId,
-          cityCode,
-          slotStart: body.slotStart,
-          slotEnd: body.slotEnd,
-          slotCount: body.slotCount,
-          contactName: body.contactName,
-          contactPhone: body.contactPhone,
-          contactEmail: body.contactEmail,
-          formAnswers: body.formAnswers,
-        });
-        return { booking, userId: user.userId };
+        return resolved;
       },
     );
 
-    if (result.booking.canonicalAppointmentId && deps.bookingEngine) {
-      await recordPublicBookingMergeCandidates({
-        pool: getPool(),
-        organizationId: publicContext.organizationId,
-        anchorUserId: result.userId,
-        contactName: body.contactName,
-        triggerAppointmentId: result.booking.canonicalAppointmentId,
-      });
+    const intent: PublicBookingIntent = {
+      v: PUBLIC_BOOKING_INTENT_VERSION,
+      organizationId: ctx.organizationId,
+      branchId: ctx.branchId,
+      serviceId: ctx.serviceId,
+      slotStart: body.slotStart,
+      slotEnd: body.slotEnd,
+      slotCount: body.slotCount,
+      contactName: body.contactName,
+      contactPhone: body.contactPhone,
+      contactEmail: body.contactEmail,
+      formAnswers: body.formAnswers,
+      attribution: body.attribution,
+    };
+
+    if (await sessionProvesContactPhone(deps, body.contactPhone)) {
+      // `booking_blocked` is mapped ONLY here. On this branch the caller is provably the phone's
+      // owner, so a 403 tells them their own status; on the anonymous branch the same 403 was the
+      // third existence oracle and is now unreachable, because nothing looks the person up.
+      try {
+        const booking = await createVerifiedPublicBooking(deps, intent, true);
+        return jsonOk({ booking: redactPublicBookingRecord(booking) }, { status: 200 });
+      } catch (error) {
+        if (error instanceof Error && error.message === "booking_blocked") {
+          return jsonError("booking_blocked", {}, { status: 403 });
+        }
+        throw error;
+      }
     }
 
-    return jsonOk({ booking: result.booking, userId: result.userId }, { status: 200 });
+    const issued = await issuePublicBookingVerification(deps.publicBookingVerification, intent);
+    if (!issued.ok) {
+      if (issued.code === "invalid_phone") {
+        return jsonError("invalid_phone", {}, { status: 400 });
+      }
+      return jsonError(
+        "verification_unavailable",
+        issued.retryAfterSeconds ? { retryAfterSeconds: issued.retryAfterSeconds } : {},
+        { status: 503 },
+      );
+    }
+
+    return jsonOk(
+      {
+        verification: {
+          challengeId: issued.challengeId,
+          expiresInSeconds: issued.expiresInSeconds,
+          ...(issued.retryAfterSeconds ? { retryAfterSeconds: issued.retryAfterSeconds } : {}),
+        },
+      },
+      { status: 200 },
+    );
   } catch (error) {
     const mapped = mapApiError(
       error,

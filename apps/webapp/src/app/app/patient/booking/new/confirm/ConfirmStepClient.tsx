@@ -68,7 +68,16 @@ type ConfirmStepOptions = {
   successRedirectPath?: string;
   doneRedirectPath?: string;
   buildAwaitingPaymentHref?: (booking: PatientBookingRecord, contactPhone: string) => string;
-  useCreateBookingHook?: typeof useCreateBooking;
+  /**
+   * A-3: the public variant of this hook may answer the first request with a one-time-code
+   * challenge instead of a booking (`verificationPrompt`). The authenticated variant never does, so
+   * the extra members are optional and the screen simply never shows the code step for it.
+   */
+  useCreateBookingHook?: () => ReturnType<typeof useCreateBooking> & {
+    verificationPrompt?: { challengeId: string; expiresInSeconds: number; contactPhone: string } | null;
+    confirmVerification?: (code: string) => Promise<PatientBookingRecord | false>;
+    cancelVerification?: () => void;
+  };
   useRescheduleBookingHook?: typeof useRescheduleBooking;
 };
 
@@ -291,6 +300,81 @@ export function ConfirmStepClient({
       !missingRequiredExtra,
   );
 
+  /** Shared by the direct create and, for the public widget, the post-code create (A-3). */
+  function onBookingCreated(booking: PatientBookingRecord) {
+    if (booking.status === "awaiting_payment") {
+      toast.success("Требуется оплата");
+      const payPath = buildAwaitingPaymentHref
+        ? buildAwaitingPaymentHref(booking, phone.trim())
+        : `/app/patient/booking/pay?bookingId=${encodeURIComponent(booking.id)}`;
+      router.push(payPath);
+      return;
+    }
+    const doneQ = new URLSearchParams({
+      bookingId: booking.id,
+      slotStart: booking.slotStart,
+      slotEnd: booking.slotEnd,
+      serviceTitle:
+        booking.serviceTitleSnapshot ?? serviceTitle ?? (type === "online" ? formatLabel : ""),
+    });
+    const loc =
+      booking.branchTitleSnapshot ??
+      (type === "online" || isOnlineLocation ? "Онлайн" : cityTitle ?? "");
+    if (loc) doneQ.set("locationLabel", loc);
+    if (cityCode) doneQ.set("cityCode", cityCode);
+    router.push(`${doneRedirectPath}?${doneQ.toString()}`);
+  }
+
+  const verificationPrompt = createState.verificationPrompt ?? null;
+  if (verificationPrompt && createState.confirmVerification) {
+    const confirmVerification = createState.confirmVerification;
+    return (
+      <div className="flex flex-col gap-4">
+        <form
+          className={cn(patientFormSurfaceClass, "gap-3")}
+          onSubmit={(event) => {
+            event.preventDefault();
+            const data = new FormData(event.currentTarget);
+            const code = String(data.get("publicBookingCode") ?? "");
+            void confirmVerification(code).then((booking) => {
+              if (!booking) return;
+              onBookingCreated(booking);
+            });
+          }}
+        >
+          <h2 className={patientSectionTitleClass}>Подтверждение записи</h2>
+          <p className={cn(patientMutedTextClass, "text-sm")}>
+            Мы отправили код на номер {verificationPrompt.contactPhone}. Введите его, чтобы
+            подтвердить запись — так мы убеждаемся, что номер принадлежит вам.
+          </p>
+          <label className="flex flex-col gap-1">
+            <span className={cn(patientMutedTextClass, "text-xs")}>Код из сообщения</span>
+            <Input
+              name="publicBookingCode"
+              inputMode="numeric"
+              autoComplete="one-time-code"
+              required
+            />
+          </label>
+          {error ? <p className="text-sm text-destructive">{error}</p> : null}
+          <Button type="submit" className={patientButtonPrimaryClass} disabled={submitting}>
+            {submitting ? "Проверяем код..." : "Подтвердить запись"}
+          </Button>
+          {createState.cancelVerification ? (
+            <Button
+              type="button"
+              variant="ghost"
+              onClick={() => createState.cancelVerification?.()}
+              disabled={submitting}
+            >
+              Изменить данные
+            </Button>
+          ) : null}
+        </form>
+      </div>
+    );
+  }
+
   return (
     <div className="flex flex-col gap-4">
       <div className={cn(patientCardClass, "text-sm ring-0")}>
@@ -346,31 +430,10 @@ export function ConfirmStepClient({
               productPurchaseId: productPurchaseId.trim() || undefined,
             })
             .then((booking) => {
+              // `false` also covers "the server asked for a code first" (A-3): the hook has set
+              // `verificationPrompt` and the screen re-renders into the code step.
               if (!booking) return;
-              if (booking.status === "awaiting_payment") {
-                toast.success("Требуется оплата");
-                const payPath = buildAwaitingPaymentHref
-                  ? buildAwaitingPaymentHref(booking, phone.trim())
-                  : `/app/patient/booking/pay?bookingId=${encodeURIComponent(booking.id)}`;
-                router.push(payPath);
-                return;
-              }
-              // Redirect to success/calendar screen instead of straight to hub.
-              const doneQ = new URLSearchParams({
-                bookingId: booking.id,
-                slotStart: booking.slotStart,
-                slotEnd: booking.slotEnd,
-                serviceTitle:
-                  booking.serviceTitleSnapshot ??
-                  serviceTitle ??
-                  (type === "online" ? formatLabel : ""),
-              });
-              const loc =
-                booking.branchTitleSnapshot ??
-                (type === "online" || isOnlineLocation ? "Онлайн" : cityTitle ?? "");
-              if (loc) doneQ.set("locationLabel", loc);
-              if (cityCode) doneQ.set("cityCode", cityCode);
-              router.push(`${doneRedirectPath}?${doneQ.toString()}`);
+              onBookingCreated(booking);
             });
         }}
       >

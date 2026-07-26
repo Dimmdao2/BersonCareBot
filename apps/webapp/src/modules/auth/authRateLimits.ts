@@ -81,10 +81,24 @@ export const isPhoneMessengerBindStartRateLimited = createSlidingWindowRateLimit
   db: authRateLimitDb,
 });
 
+/** Per-IP limit on the public booking INTENT step (issues an OTP; does not create a booking). */
 export const isPublicBookingCreateRateLimited = createSlidingWindowRateLimit({
   scope: "booking.public_create",
   windowMs: 60 * 60 * 1000,
   maxPerWindow: 20,
+  db: authRateLimitDb,
+});
+
+/**
+ * Per-IP limit on the public booking CONFIRM step, deliberately a separate scope and threshold so
+ * code guessing cannot be funded out of the intent budget (ASVS 2.4.1). Shaped after the existing
+ * `patient_invite.email_confirm` pair. The per-code attempt cap and the per-phone lockout are
+ * enforced independently by `phoneOtpLimits`.
+ */
+export const isPublicBookingConfirmRateLimited = createSlidingWindowRateLimit({
+  scope: "booking.public_create_confirm",
+  windowMs: 10 * 60 * 1000,
+  maxPerWindow: 30,
   db: authRateLimitDb,
 });
 

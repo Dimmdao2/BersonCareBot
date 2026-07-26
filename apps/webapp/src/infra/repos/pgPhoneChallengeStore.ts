@@ -2,6 +2,10 @@
 import { runWebappPgText } from "@/infra/db/runWebappSql";
 import type { ChannelContext } from "@/modules/auth/channelContext";
 import type { PhoneChallengePayload, PhoneChallengeStore } from "@/modules/auth/phoneChallengeStore";
+import {
+  parsePublicBookingIntent,
+  type PublicBookingIntent,
+} from "@/modules/public-booking/publicBookingIntent";
 
 const OTP_DELIVERY_KEYS = new Set(["sms", "telegram", "max", "email"]);
 
@@ -42,12 +46,19 @@ function profileBindOrganizationIdFromRow(row: { channel_context: unknown }): st
   return typeof value === "string" && value.trim() ? value.trim() : undefined;
 }
 
+function publicBookingIntentFromRow(row: { channel_context: unknown }): PublicBookingIntent | undefined {
+  const raw = row.channel_context;
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return undefined;
+  return parsePublicBookingIntent((raw as Record<string, unknown>).publicBookingIntent) ?? undefined;
+}
+
 function mergeChannelContextJson(payload: PhoneChallengePayload): string | null {
   if (
     !payload.channelContext
     && !payload.deliveryChannel
     && !payload.profileBindUserId
     && !payload.profileBindOrganizationId
+    && !payload.publicBookingIntent
   ) return null;
   const o: Record<string, unknown> = {};
   if (payload.channelContext) {
@@ -61,6 +72,9 @@ function mergeChannelContextJson(payload: PhoneChallengePayload): string | null 
   }
   if (payload.profileBindOrganizationId) {
     o.profileBindOrganizationId = payload.profileBindOrganizationId;
+  }
+  if (payload.publicBookingIntent) {
+    o.publicBookingIntent = payload.publicBookingIntent;
   }
   return JSON.stringify(o);
 }
@@ -110,6 +124,7 @@ export function createPgPhoneChallengeStore(): PhoneChallengeStore {
       const deliveryChannel = otpDeliveryFromRow(row);
       const profileBindUserId = profileBindUserIdFromRow(row);
       const profileBindOrganizationId = profileBindOrganizationIdFromRow(row);
+      const publicBookingIntent = publicBookingIntentFromRow(row);
       return {
         phone: row.phone,
         expiresAt,
@@ -119,6 +134,7 @@ export function createPgPhoneChallengeStore(): PhoneChallengeStore {
         deliveryChannel,
         profileBindUserId,
         profileBindOrganizationId,
+        publicBookingIntent,
       };
     },
     async delete(challengeId: string): Promise<void> {

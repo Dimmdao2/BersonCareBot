@@ -5,16 +5,22 @@ import {
   trustedPatientPhoneWriteAnchor,
 } from "@/modules/platform-access/trustedPhonePolicy";
 
+/**
+ * @param phoneProven the caller has proved control of this phone on THIS request path. Required,
+ *   no default: every call site must state it (A-3). `false` still resolves or creates the
+ *   identity, it just does not stamp `patient_phone_trust_at`.
+ */
 export async function resolveOrCreateUserByPhone(
   contactPhone: string,
   contactName: string,
+  phoneProven: boolean,
 ): Promise<{ ok: true; userId: string } | { ok: false; error: string }> {
   const phoneNorm = normalizeRuPhoneE164(contactPhone);
   if (!phoneNorm) return { ok: false, error: "invalid_phone" };
 
   const display = contactName.trim().slice(0, 500) || phoneNorm;
-  const resolved = await resolveOrCreateTrustedPatientUserByPhone(phoneNorm, display);
-  if (resolved.userId && resolved.created) {
+  const resolved = await resolveOrCreateTrustedPatientUserByPhone(phoneNorm, display, phoneProven);
+  if (resolved.userId && resolved.created && phoneProven) {
     trustedPatientPhoneWriteAnchor(TrustedPatientPhoneSource.PublicBookingByPhone);
   }
 

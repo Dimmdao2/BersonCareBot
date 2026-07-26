@@ -1,4 +1,5 @@
 import type { ChannelContext } from "./channelContext";
+import type { PublicBookingIntent } from "@/modules/public-booking/publicBookingIntent";
 
 /**
  * Хранилище челленджей SMS: challengeId -> { phone, expiresAt, code?, channelContext? }.
@@ -24,6 +25,12 @@ export type PhoneChallengePayload = {
   profileBindUserId?: string;
   /** Server-resolved organization scope for the authenticated profile merge. */
   profileBindOrganizationId?: string;
+  /**
+   * Server-validated public booking payload, pinned at start and replayed only after the code
+   * verifies (A-3). Same discipline as `profileBind*` above: fixed from a server-approved source
+   * at start, NEVER re-read from the confirm request body.
+   */
+  publicBookingIntent?: PublicBookingIntent;
 };
 
 export type PhoneChallengeStore = {
