@@ -26,6 +26,18 @@ GRANT SELECT ON TABLE public.saas_tariffs, public.saas_organization_trials,
   public.saas_org_entitlement_overrides TO app_staff;
 GRANT SELECT ON TABLE public.be_organizations TO app_staff;
 
+-- A-6 / #1007 (docs/_TODO/NIGHT_PLAN_2026-07-26.md): `clinical_test_measure_kinds` has no
+-- `organization_id` at all -- the owner's FINAL scope decision (2026-06-17,
+-- docs/_TODO/SAAS_FOUNDATION/scope-derivation/VERIFIED_SCOPE.md) deliberately left it OUT of the
+-- 84-table needs-org-id list: it is a platform-owned catalog, not per-tenant. app_staff (every
+-- clinic doctor) held blanket UPDATE/DELETE from the generic P0.5b grant, with no ownership check
+-- anywhere in the write path -- any clinic's doctor could bulk-relabel/reorder EVERY row, mutating
+-- what every other clinic's clinical-test form renders. Doctors keep SELECT (read) and INSERT
+-- (idempotent-by-code "add a new label", see POST /api/doctor/measure-kinds -- it can never edit or
+-- overwrite an existing row). Only the platform operator may UPDATE (relabel/reorder existing rows);
+-- DELETE is not used by any route and is not granted to either role.
+REVOKE UPDATE, DELETE ON TABLE public.clinical_test_measure_kinds FROM app_staff;
+
 DROP POLICY IF EXISTS saas_org_dormant_p0_8_3 ON public.saas_org_entitlement_overrides;
 DROP POLICY IF EXISTS saas_org_dormant_p0_8_3 ON public.saas_organization_trials;
 DROP POLICY IF EXISTS saas_org_entitlement_overrides_org_wall ON public.saas_org_entitlement_overrides;
@@ -43,6 +55,10 @@ GRANT SELECT ON TABLE public.be_organizations TO app_platform_settings;
 GRANT UPDATE (tariff_id, commercial_access_state, updated_at)
   ON TABLE public.be_organizations TO app_platform_settings;
 GRANT INSERT ON TABLE public.admin_audit_log TO app_platform_settings;
+-- A-6 / #1007: matching platform-side grant for the clinical_test_measure_kinds write-lock above.
+-- SELECT/UPDATE for catalog management; the platform principal never needs a fresh INSERT path of
+-- its own -- doctors already cover "add a new label" via the insert-only POST route.
+GRANT SELECT, UPDATE ON TABLE public.clinical_test_measure_kinds TO app_platform_settings;
 -- Read-only booking configuration for the global-admin overview at /app/doctor/admin/booking.
 -- SELECT and nothing else, enumerated table by table; the matching cross-tenant read policies and
 -- the full rationale are in the be_* platform-operations policy block further down this file.

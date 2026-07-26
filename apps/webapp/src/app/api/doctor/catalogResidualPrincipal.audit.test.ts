@@ -58,9 +58,14 @@ describe("doctor catalog residual principal coverage", () => {
 
   it.each(principalOnlyRepoWriteFiles)("%s requires principal for global catalog writes", (file) => {
     const src = readSource(file);
-    expect(src).toContain("getCurrentDbPrincipalOrganizationId");
+    // A-6/#1007: this table has no organization_id at all (owner FINAL scope decision,
+    // docs/_TODO/SAAS_FOUNDATION/scope-derivation/VERIFIED_SCOPE.md — platform-owned catalog, not
+    // per-tenant), so there is no organization to assert. The gate instead requires a real,
+    // non-anonymous write principal of kind "staff" (doctor, insert-only) or "platform" (operator,
+    // full catalog management) — see assertStaffOrPlatformWritePrincipal.
+    expect(src).toContain("getCurrentDbPrincipal");
     expect(src).toContain("runDrizzleMutationTransaction");
-    expect(src).toContain("organization_principal_required");
+    expect(src).toContain("staff_or_platform_principal_required");
     expect(src).not.toContain("db.transaction(async");
   });
 });
