@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState, useTransition } from "react";
+import { useEffect, useState, useTransition } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/shared/ui/doctor/primitives/card";
 import { Button } from "@/shared/ui/doctor/primitives/button";
 import { Input } from "@/shared/ui/doctor/primitives/input";
@@ -103,11 +103,6 @@ export function BookingManualLifecycleSection({
     });
   }, [platformUserId]);
 
-  const appointmentLabel = useMemo(
-    () => appointmentOptions.find((o) => o.id === appointmentId)?.label,
-    [appointmentOptions, appointmentId],
-  );
-
   return (
     <Card>
       <CardHeader>
@@ -118,7 +113,9 @@ export function BookingManualLifecycleSection({
           <Label>Запись</Label>
           {platformUserId && appointmentOptions.length > 0 ? (
             <Select value={appointmentId} onValueChange={(v) => v && setAppointmentId(v)}>
-              <SelectTrigger displayLabel={appointmentLabel} className="w-full max-w-lg" />
+              <SelectTrigger className="w-full max-w-lg">
+                <SelectValue />
+              </SelectTrigger>
               <SelectContent>
                 {appointmentOptions.map((o) => (
                   <SelectItem key={o.id} value={o.id} label={o.label}>
@@ -140,7 +137,7 @@ export function BookingManualLifecycleSection({
           <div className="space-y-2">
             <Label>Тип отмены</Label>
             <Select value={cancelType} onValueChange={(v) => setCancelType(v ?? "free")}>
-              <SelectTrigger className="w-[14rem]" displayLabel={CANCEL_TYPES.find((t) => t.value === cancelType)?.label}>
+              <SelectTrigger className="w-[14rem]">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>

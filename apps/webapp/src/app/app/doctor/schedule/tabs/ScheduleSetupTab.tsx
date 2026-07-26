@@ -404,7 +404,7 @@ function ScheduleCalendarDefaultsSection() {
             value={state.defaultBranchId ?? "__none__"}
             onValueChange={(v) => updateReady({ defaultBranchId: v === "__none__" ? null : v })}
           >
-            <SelectTrigger displayLabel={state.branches.find((b) => b.id === state.defaultBranchId)?.label ?? "Не выбран"}>
+            <SelectTrigger>
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -689,9 +689,7 @@ function SectionPackages() {
               value={deductionMode}
               onValueChange={(v) => setDeductionMode(v as "auto_on_visit_confirmed" | "manual")}
             >
-              <SelectTrigger
-                displayLabel={deductionMode === "auto_on_visit_confirmed" ? "Автоматически при подтверждении" : "Вручную"}
-              >
+              <SelectTrigger>
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>

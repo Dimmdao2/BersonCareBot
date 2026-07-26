@@ -71,15 +71,12 @@ export function DefaultPromoProgramClient(props: {
     }
   };
 
-  const displayLabel =
-    selected === PROMO_TEMPLATE_NONE ? "Не задано" : (templates.find((t) => t.id === selected)?.title ?? selected);
-
   return (
     <div className="flex max-w-xl flex-col gap-6">
       <div className="flex max-w-xl flex-col gap-4">
         <div className="flex flex-col gap-2 sm:flex-row sm:items-start">
           <Select value={selected} onValueChange={(v) => setSelected(v ?? PROMO_TEMPLATE_NONE)}>
-            <SelectTrigger displayLabel={displayLabel} className="w-full sm:flex-1">
+            <SelectTrigger className="w-full sm:flex-1">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>

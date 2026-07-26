@@ -33,6 +33,7 @@ import {
   SelectContent,
   SelectItem,
   SelectTrigger,
+  SelectValue,
 } from "@/shared/ui/doctor/primitives/select";
 import {
   Dialog,
@@ -988,10 +989,9 @@ export function NewVisitPanel({
                 }
               }}
             >
-              <SelectTrigger
-                displayLabel={location || "— место приёма —"}
-                className="h-[26px] min-w-[7.5rem] px-2 text-xs"
-              />
+              <SelectTrigger className="h-[26px] min-w-[7.5rem] px-2 text-xs">
+                <SelectValue />
+              </SelectTrigger>
               <SelectContent>
                 <SelectItem value="">— место приёма —</SelectItem>
                 {locationOptions.map((o) => <SelectItem key={o} value={o}>{o}</SelectItem>)}
@@ -1021,10 +1021,9 @@ export function NewVisitPanel({
                 }
               }}
             >
-              <SelectTrigger
-                displayLabel={service || "— услуга —"}
-                className="h-[26px] min-w-[7rem] px-2 text-xs"
-              />
+              <SelectTrigger className="h-[26px] min-w-[7rem] px-2 text-xs">
+                <SelectValue />
+              </SelectTrigger>
               <SelectContent>
                 <SelectItem value="">— услуга —</SelectItem>
                 {servicesForCurrentBranch.map((o) => <SelectItem key={o.id} value={o.title}>{o.title}</SelectItem>)}

@@ -6,7 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/shared/ui/doctor/pri
 import { Button } from "@/shared/ui/doctor/primitives/button";
 import { Input } from "@/shared/ui/doctor/primitives/input";
 import { Label } from "@/shared/ui/doctor/primitives/label";
-import { Select, SelectContent, SelectItem, SelectTrigger } from "@/shared/ui/doctor/primitives/select";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/shared/ui/doctor/primitives/select";
 
 const API = "/api/admin/booking-engine/packages";
 const SERVICES_API = "/api/admin/booking-engine/services";
@@ -103,7 +103,8 @@ export function BookingCatalogPackagesSection({ apiBase = API }: { apiBase?: str
           <Input id="pkg-price" value={priceRub} onChange={(e) => setPriceRub(e.target.value)} />
           <div className="flex flex-wrap gap-2">
             <Select value={serviceId} onValueChange={(v) => setServiceId(v ?? "")}>
-              <SelectTrigger displayLabel={services.find((s) => s.id === serviceId)?.title ?? "Услуга"}>
+              <SelectTrigger>
+                <SelectValue />
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="">Услуга</SelectItem>

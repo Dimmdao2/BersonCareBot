@@ -612,11 +612,6 @@ export function PatientTestSetProgressForm(props: PatientTestSetProgressFormProp
                     >
                       <SelectTrigger
                         className="h-9 max-w-[280px] text-sm"
-                        displayLabel={
-                          qualDecisions[t.testId]
-                            ? patientTestQualDecisionSelectItems[qualDecisions[t.testId]!]
-                            : undefined
-                        }
                       >
                         <SelectValue placeholder="Выберите итог" />
                       </SelectTrigger>

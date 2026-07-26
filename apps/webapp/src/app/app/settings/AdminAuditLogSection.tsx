@@ -7,7 +7,7 @@ import { Button } from "@/shared/ui/doctor/primitives/button";
 import { Input } from "@/shared/ui/doctor/primitives/input";
 import { Label } from "@/shared/ui/doctor/primitives/label";
 import { Badge } from "@/shared/ui/doctor/primitives/badge";
-import { Select, SelectContent, SelectItem, SelectTrigger } from "@/shared/ui/doctor/primitives/select";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/shared/ui/doctor/primitives/select";
 import { AuditLogMergeTarget } from "@/components/admin/AuditLogMergeTarget";
 import { auditActorShortLabel } from "@/infra/adminAuditLogPresentation";
 import { CopyForAiButton } from "./CopyForAiButton";
@@ -226,7 +226,8 @@ export function AdminAuditLogSection() {
               value={draft.action}
               onValueChange={(v) => setDraft((d) => ({ ...d, action: v ?? "" }))}
             >
-              <SelectTrigger id="audit-action" className="w-full" displayLabel={ACTION_FILTER_OPTIONS.find((o) => o.value === draft.action)?.label}>
+              <SelectTrigger id="audit-action" className="w-full">
+                <SelectValue />
               </SelectTrigger>
               <SelectContent>
                 {ACTION_FILTER_OPTIONS.map((opt) => (
@@ -253,7 +254,8 @@ export function AdminAuditLogSection() {
               value={draft.status}
               onValueChange={(v) => setDraft((d) => ({ ...d, status: v as FilterState["status"] }))}
             >
-              <SelectTrigger id="audit-status" className="w-full" displayLabel={draft.status || "Все"}>
+              <SelectTrigger id="audit-status" className="w-full">
+                <SelectValue />
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="">Все</SelectItem>

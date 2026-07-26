@@ -5,7 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/shared/ui/doctor/pri
 import { Button } from "@/shared/ui/doctor/primitives/button";
 import { Input } from "@/shared/ui/doctor/primitives/input";
 import { Label } from "@/shared/ui/doctor/primitives/label";
-import { Select, SelectContent, SelectItem, SelectTrigger } from "@/shared/ui/doctor/primitives/select";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/shared/ui/doctor/primitives/select";
 import { Checkbox } from "@/shared/ui/doctor/primitives/checkbox";
 import { BE_PRODUCT_TYPES, type ProductAccessRules, type ProductComposition } from "@/modules/products/types";
 import { apiJson } from "@/shared/lib/apiJson";
@@ -199,7 +199,8 @@ export function BookingCatalogProductsSection({
             onValueChange={(v) => setProductType(v as (typeof BE_PRODUCT_TYPES)[number])}
             aria-label="Тип продукта"
           >
-            <SelectTrigger displayLabel={TYPE_LABELS[productType]}>
+            <SelectTrigger>
+              <SelectValue />
             </SelectTrigger>
             <SelectContent>
               {BE_PRODUCT_TYPES.map((t) => (

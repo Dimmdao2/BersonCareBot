@@ -6,7 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/shared/ui/doctor/pri
 import { Button } from "@/shared/ui/doctor/primitives/button";
 import { Input } from "@/shared/ui/doctor/primitives/input";
 import { Label } from "@/shared/ui/doctor/primitives/label";
-import { Select, SelectContent, SelectItem, SelectTrigger } from "@/shared/ui/doctor/primitives/select";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/shared/ui/doctor/primitives/select";
 
 type Props = {
   apiBase?: string;
@@ -144,7 +144,8 @@ export function BookingPatientProductsSection({
         ) : null}
         <Label htmlFor="pp-svc">Услуга для списания</Label>
         <Select value={serviceId} onValueChange={(v) => setServiceId(v ?? "")} aria-label="Услуга">
-          <SelectTrigger id="pp-svc" className="w-full" displayLabel={services.find((s) => s.id === serviceId)?.title ?? "—"}>
+          <SelectTrigger id="pp-svc" className="w-full">
+            <SelectValue />
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="">—</SelectItem>

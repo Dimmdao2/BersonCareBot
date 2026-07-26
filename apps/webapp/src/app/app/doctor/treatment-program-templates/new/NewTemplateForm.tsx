@@ -11,6 +11,7 @@ import {
   SelectContent,
   SelectItem,
   SelectTrigger,
+  SelectValue,
 } from "@/shared/ui/doctor/primitives/select";
 import { cn } from "@/lib/utils";
 import { TREATMENT_PROGRAM_TEMPLATES_PATH } from "../paths";
@@ -110,8 +111,9 @@ export function NewTemplateForm({
               id={`${titleInputId}-status`}
               size="sm"
               className="w-full max-w-md justify-between text-left"
-              displayLabel={TEMPLATE_STATUS_LABEL[status]}
-            />
+            >
+              <SelectValue />
+            </SelectTrigger>
             <SelectContent>
               <SelectItem value="draft">Черновик</SelectItem>
               <SelectItem value="published">Опубликован</SelectItem>

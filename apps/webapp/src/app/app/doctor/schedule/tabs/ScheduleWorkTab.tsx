@@ -10,6 +10,7 @@ import {
   SelectContent,
   SelectItem,
   SelectTrigger,
+  SelectValue,
 } from "@/shared/ui/doctor/primitives/select";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/shared/ui/doctor/primitives/dialog";
 import {
@@ -1071,7 +1072,6 @@ export function ScheduleWorkTab({ deepLinkParams, onDeepLinkChange, isActive }: 
   const selectedCount = selected.size;
   const selectedDates = [...selected].sort();
   const firstSelectedDate = selectedPrimaryDate ?? selectedDates[0] ?? null;
-  const panelBranchLabel = branches.find((b) => b.id === panelBranchId)?.title;
   const hasScheduleForSelection = selectionMode === "weekday" && selectedWeekday !== null
     ? resolvePanelDefaultsForWeekday(selectedWeekday, visibleWorkingHours) !== null
     : selectedDates.some((date) => resolvePanelDefaultsForDate(date, dayMap, visibleWorkingHours) !== null);
@@ -1363,7 +1363,9 @@ export function ScheduleWorkTab({ deepLinkParams, onDeepLinkChange, isActive }: 
                     value={panelBranchId}
                     onValueChange={(v) => v && setPanelBranchId(v)}
                   >
-                    <SelectTrigger className="h-8" displayLabel={panelBranchLabel} data-testid="panel-branch" />
+                    <SelectTrigger className="h-8" data-testid="panel-branch">
+                      <SelectValue />
+                    </SelectTrigger>
                     <SelectContent>
                       {branches.map((b) => (
                         <SelectItem key={b.id} value={b.id} label={b.title}>
