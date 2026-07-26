@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState, type FormEvent } from 'react
 import {
   MECHANIC_REGISTRY,
   MECHANICS,
+  QUOTA_UNIT_LABELS,
   type OrgMechanic,
   type Tariff,
   type TariffQuota,
@@ -173,7 +174,9 @@ function QuotaEditor({
         />
       ) : null}
       {quota ? atomicSnapshot ? (
-        <p className="self-center text-xs text-muted-foreground">Единица: items · текущее значение</p>
+        <p className="self-center text-xs text-muted-foreground">
+          Единица: {QUOTA_UNIT_LABELS.items} · текущее значение
+        </p>
       ) : (
         <>
           <Select
@@ -188,7 +191,7 @@ function QuotaEditor({
             <SelectContent>
               {units.map((unit) => (
                 <SelectItem key={unit} value={unit}>
-                  {unit}
+                  {QUOTA_UNIT_LABELS[unit]}
                 </SelectItem>
               ))}
             </SelectContent>
@@ -555,12 +558,11 @@ export function CommercialConstructorClient() {
               Активный тариф
             </Label>
             <div className="space-y-1">
-              <Label htmlFor="tariff-reason">Причина изменения</Label>
+              <Label htmlFor="tariff-reason">Причина изменения (необязательно)</Label>
               <Input
                 id="tariff-reason"
                 value={reason}
                 onChange={(event) => setReason(event.target.value)}
-                required
               />
             </div>
             <div className="flex flex-wrap gap-2">
@@ -674,7 +676,7 @@ export function CommercialConstructorClient() {
             </div>
           ) : null}
           <div className="space-y-1">
-            <Label htmlFor="organization-reason">Причина</Label>
+            <Label htmlFor="organization-reason">Причина (необязательно)</Label>
             <Input
               id="organization-reason"
               value={reason}
@@ -682,7 +684,7 @@ export function CommercialConstructorClient() {
             />
           </div>
           <Button
-            disabled={busy || !organizationId || !reason.trim() || !manualAssignmentChanged}
+            disabled={busy || !organizationId || !manualAssignmentChanged}
             onClick={() =>
               void mutate(
                 {
@@ -769,7 +771,7 @@ export function CommercialConstructorClient() {
           </div>
           <div className="flex flex-wrap gap-2">
             <Button
-              disabled={busy || !organizationId || !reason.trim()}
+              disabled={busy || !organizationId}
               onClick={() =>
                 void mutate(
                   {
@@ -789,11 +791,7 @@ export function CommercialConstructorClient() {
             </Button>
             <Button
               variant="outline"
-              disabled={
-                busy ||
-                !organizationId ||
-                !reason.trim()
-              }
+              disabled={busy || !organizationId}
               onClick={() =>
                 void mutate(
                   { action: 'delete_override', organizationId, mechanic: overrideMechanic, reason },
@@ -807,7 +805,7 @@ export function CommercialConstructorClient() {
           <div className="flex flex-wrap items-end gap-2 border-t border-border/70 pt-3">
             <Button
               variant="outline"
-              disabled={busy || !organizationId || !reason.trim() || !canStartTrial}
+              disabled={busy || !organizationId || !canStartTrial}
               onClick={() =>
                 void mutate({ action: 'start_trial', organizationId, reason }, (result) =>
                   result?.created
@@ -833,7 +831,7 @@ export function CommercialConstructorClient() {
             </div>
             <Button
               variant="outline"
-              disabled={busy || !organizationId || !reason.trim() || !canExtendTrial}
+              disabled={busy || !organizationId || !canExtendTrial}
               onClick={() =>
                 void mutate(
                   { action: 'extend_trial', organizationId, days: Number(extensionDays), reason },
@@ -973,12 +971,11 @@ export function CommercialConstructorClient() {
               Правило активно
             </Label>
             <div className="space-y-1">
-              <Label htmlFor="trial-reason">Причина изменения</Label>
+              <Label htmlFor="trial-reason">Причина изменения (необязательно)</Label>
               <Input
                 id="trial-reason"
                 value={reason}
                 onChange={(event) => setReason(event.target.value)}
-                required
               />
             </div>
             <div className="md:col-span-2">

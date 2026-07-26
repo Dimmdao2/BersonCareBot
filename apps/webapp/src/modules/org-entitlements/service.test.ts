@@ -9,7 +9,7 @@ import {
   resolveOrgEntitlements,
   resolveOrgQuotaProjections,
 } from "./service";
-import { MECHANIC_REGISTRY, MECHANICS } from "./types";
+import { MECHANIC_REGISTRY, MECHANICS, QUOTA_UNIT_LABELS } from "./types";
 
 function portFor(
   tariff: { mechanics: Record<string, boolean>; includedSeats?: number | null } | null,
@@ -208,10 +208,14 @@ describe("resolveClinicSeatLimit", () => {
 });
 
 describe("platform tariff constructor validation", () => {
-  it("rejects blank audit reasons before a write", async () => {
-    const port = { createTariff: vi.fn() };
+  // Owner 2026-07-26 (#1003): "убрать необходимость ввода причины для правки тарифов" — a blank
+  // reason must no longer block a write. `appendAudit` (pgPlatformEntitlements.ts) always writes
+  // actorId/action/before/after regardless of reason content, so audit continuity does not depend
+  // on this string being non-empty.
+  it("accepts a blank audit reason and still forwards it to the port for the audit row", async () => {
+    const port = { createTariff: vi.fn(async () => ({ id: "created" })) };
     const service = createPlatformEntitlementsService(port as never);
-    expect(() => service.createTariff({
+    await service.createTariff({
       name: "Base",
       description: "",
       priceMinor: 1000,
@@ -221,8 +225,11 @@ describe("platform tariff constructor validation", () => {
       quotas: {},
       includedSeats: 1,
       isActive: true,
-    }, { actorId: null, reason: " " })).toThrow("commercial_change_reason_required");
-    expect(port.createTariff).not.toHaveBeenCalled();
+    }, { actorId: "actor-1", reason: "" });
+    expect(port.createTariff).toHaveBeenCalledWith(
+      expect.objectContaining({ name: "Base" }),
+      { actorId: "actor-1", reason: "" },
+    );
   });
 
   it("rejects a quota unit not registered for the mechanic", async () => {
@@ -279,5 +286,22 @@ describe("platform tariff constructor validation", () => {
     expect(migration).toContain("v_count * 5 >= v_limit * 4");
     expect(migration).toContain("saas_quota_reached:courses");
     expect(migration).not.toContain("saas_organization_quota_usage");
+  });
+});
+
+describe("quota unit labels", () => {
+  // Owner 2026-07-26 (#1003): "квоты... машинные ключи и непонятные единицы" — every quota unit
+  // the registry declares must resolve to a human Russian label, not the raw machine key, and a
+  // new mechanic can't silently ship without one (Record<TariffQuotaUnit, string> already makes a
+  // missing key a type error; this test proves it stays a *human* label, not `unit === unit`).
+  it("gives every declared quota unit a Russian label distinct from its raw key", () => {
+    const declaredUnits = new Set(MECHANICS.flatMap((mechanic) => MECHANIC_REGISTRY[mechanic].quotaUnits));
+    expect(declaredUnits.size).toBeGreaterThan(0);
+    for (const unit of declaredUnits) {
+      const label = QUOTA_UNIT_LABELS[unit];
+      expect(label).toBeTruthy();
+      expect(label).not.toBe(unit);
+      expect(/[а-яА-ЯёЁ]/.test(label)).toBe(true);
+    }
   });
 });

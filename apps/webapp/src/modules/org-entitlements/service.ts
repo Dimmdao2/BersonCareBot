@@ -15,10 +15,6 @@ import {
 } from "./types";
 import type { OrgEntitlementsPort, PlatformEntitlementsPort, PlatformMutationAudit } from "./ports";
 
-function assertAudit(audit: PlatformMutationAudit): void {
-  if (!audit.reason.trim()) throw new Error("commercial_change_reason_required");
-}
-
 function assertMechanic(value: string): asserts value is OrgMechanic {
   if (!MECHANICS.includes(value as OrgMechanic)) throw new Error("entitlement_mechanic_invalid");
 }
@@ -237,7 +233,6 @@ export function createPlatformEntitlementsService(port: PlatformEntitlementsPort
       input: Omit<Tariff, "id" | "createdAt" | "updatedAt">,
       audit: PlatformMutationAudit,
     ) => {
-      assertAudit(audit);
       return port.createTariff(normalizeTariffInput(input), audit);
     },
     updateTariff: (
@@ -245,22 +240,18 @@ export function createPlatformEntitlementsService(port: PlatformEntitlementsPort
       input: Omit<Tariff, "id" | "createdAt" | "updatedAt">,
       audit: PlatformMutationAudit,
     ) => {
-      assertAudit(audit);
       return port.updateTariff(id, normalizeTariffInput(input), audit);
     },
     archiveTariff: (id: string, audit: PlatformMutationAudit) => {
-      assertAudit(audit);
       return port.archiveTariff(id, audit);
     },
     assignTariff: (organizationId: string, tariffId: string | null, audit: PlatformMutationAudit) => {
-      assertAudit(audit);
       return port.assignTariff(organizationId, tariffId, audit);
     },
     upsertOverride: (
       input: { organizationId: string; mechanic: OrgMechanic; enabled: boolean; quota: TariffQuota | null; expiresAt: string | null },
       audit: PlatformMutationAudit,
     ) => {
-      assertAudit(audit);
       assertMechanic(input.mechanic);
       if (input.quota) assertQuota(input.mechanic, input.quota);
       if (input.expiresAt && !Number.isFinite(new Date(input.expiresAt).getTime())) {
@@ -269,21 +260,17 @@ export function createPlatformEntitlementsService(port: PlatformEntitlementsPort
       return port.upsertOverride(input, audit);
     },
     deleteOverride: (organizationId: string, mechanic: OrgMechanic, audit: PlatformMutationAudit) => {
-      assertAudit(audit);
       assertMechanic(mechanic);
       return port.deleteOverride(organizationId, mechanic, audit);
     },
     setTrialPolicy: (policy: TrialPolicy, audit: PlatformMutationAudit) => {
-      assertAudit(audit);
       assertTrialPolicy(policy);
       return port.setTrialPolicy(policy, audit);
     },
     startTrial: (organizationId: string, audit: PlatformMutationAudit) => {
-      assertAudit(audit);
       return port.startTrial(organizationId, audit);
     },
     extendTrial: (organizationId: string, days: number, audit: PlatformMutationAudit) => {
-      assertAudit(audit);
       if (!Number.isSafeInteger(days) || days <= 0) throw new Error("trial_extension_days_invalid");
       return port.extendTrial(organizationId, days, audit);
     },

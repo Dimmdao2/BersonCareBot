@@ -39,7 +39,10 @@ const trialPolicySchema = z.object({
   isActive: z.boolean(),
 });
 
-const reasonSchema = z.string().trim().min(1).max(500);
+// Owner 2026-07-26 (#1003): a reason is recorded on every audit-log row (actor, action, before/after)
+// regardless of content — it is no longer REQUIRED to save an edit. Still capped so a pasted essay
+// can't bloat the audit row.
+const reasonSchema = z.string().trim().max(500);
 const uuidSchema = z.string().uuid();
 
 const operationSchema = z.discriminatedUnion('action', [

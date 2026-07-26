@@ -1,5 +1,6 @@
 /** @vitest-environment jsdom */
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { CommercialConstructorClient } from "./CommercialConstructorClient";
 
@@ -123,7 +124,9 @@ describe("CommercialConstructorClient", () => {
     fireEvent.click(await screen.findByRole("tab", { name: "Организации" }));
     fireEvent.click((await screen.findAllByRole("combobox"))[0]!);
     fireEvent.click(screen.getByText("Организация с триалом"));
-    fireEvent.change(screen.getByLabelText("Причина"), { target: { value: "Проверка операции" } });
+    fireEvent.change(screen.getByLabelText("Причина (необязательно)"), {
+      target: { value: "Проверка операции" },
+    });
 
     expect(screen.getByRole("button", { name: "Сохранить исключение" })).toBeEnabled();
     expect(screen.getByRole("button", { name: "Удалить" })).toBeEnabled();
@@ -178,5 +181,68 @@ describe("CommercialConstructorClient", () => {
     expect(screen.getByRole("status")).toHaveTextContent("Загрузка коммерческих настроек");
     rejectRequest?.(new Error("network_failed"));
     expect(await screen.findByRole("alert")).toHaveTextContent("network_failed");
+  });
+
+  // Owner 2026-07-26 (#1003): "убрать необходимость ввода причины для правки тарифов (сейчас
+  // блокирует сохранение)". The `required` HTML attribute on the reason input is exactly what
+  // blocked native form submission — proves it is gone, and that saving with a blank reason still
+  // reaches the API with reason: "" (the audit row still gets written server-side).
+  it("does not require a reason to save a tariff", async () => {
+    const fetchMock = vi.fn(async (_url: string, init?: RequestInit) => {
+      if (init?.method === "POST") {
+        return { ok: true, json: async () => ({ ok: true, result: { id: "created" } }) };
+      }
+      return {
+        ok: true,
+        json: async () => ({ ok: true, tariffs: [], organizations: [], trialPolicy: null }),
+      };
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(<CommercialConstructorClient />);
+    await screen.findByRole("heading", { name: "Новый тариф" });
+
+    const reasonInput = screen.getByLabelText("Причина изменения (необязательно)");
+    expect(reasonInput).not.toBeRequired();
+
+    fireEvent.change(screen.getByLabelText("Название"), { target: { value: "Базовый" } });
+    fireEvent.click(screen.getByRole("button", { name: "Создать" }));
+
+    await waitFor(() =>
+      expect(fetchMock).toHaveBeenCalledWith(
+        "/api/admin/commercial",
+        expect.objectContaining({ method: "POST" }),
+      ),
+    );
+    const postCall = fetchMock.mock.calls.find(([, init]) => init?.method === "POST")!;
+    const body = JSON.parse((postCall[1] as RequestInit).body as string);
+    expect(body).toMatchObject({ action: "create_tariff", reason: "" });
+  });
+
+  // Owner 2026-07-26 (#1003): "квоты... там какой-то бред, машинные ключи и непонятные единицы".
+  // The unit picker used to render the raw `quotaUnits` machine key ("appointments") as both the
+  // dropdown option and, once selected, the trigger's own value.
+  it("shows a human-readable quota unit label instead of the raw machine key", async () => {
+    vi.stubGlobal("fetch", vi.fn(async () => ({
+      ok: true,
+      json: async () => ({ ok: true, tariffs: [], organizations: [], trialPolicy: null }),
+    })));
+
+    render(<CommercialConstructorClient />);
+    await screen.findByRole("heading", { name: "Новый тариф" });
+
+    // "booking" (quotaUnits: ["appointments"]) mechanic row, scoped by its own label so this does
+    // not depend on the mechanic's position in the registry.
+    const user = userEvent.setup();
+    const bookingRow = screen.getByText("Онлайн-запись").closest(".rounded-xl") as HTMLElement;
+    await user.click(within(bookingRow).getByRole("combobox"));
+    await user.click(await screen.findByRole("option", { name: "Числовая" }));
+
+    // Selecting "Числовая" reveals unit/period/usagePolicy comboboxes inside the same row.
+    const rowComboboxes = await within(bookingRow).findAllByRole("combobox");
+    expect(rowComboboxes).toHaveLength(4);
+    await user.click(rowComboboxes[1]!);
+    expect(await screen.findByRole("option", { name: "Записи" })).toBeInTheDocument();
+    expect(screen.queryByText("appointments")).not.toBeInTheDocument();
   });
 });

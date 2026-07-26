@@ -34,6 +34,23 @@ export const MECHANICS = Object.keys(MECHANIC_REGISTRY) as OrgMechanic[];
 export type TariffQuotaUnit =
   (typeof MECHANIC_REGISTRY)[OrgMechanic]["quotaUnits"][number];
 
+/**
+ * Owner 2026-07-26 (#1003): the tariff constructor's quota-unit picker showed the raw
+ * `quotaUnits` machine key ("appointments", "bytes", …) as both the option text and the selected
+ * value. Single canonical Russian label per unit key, same pattern as `MECHANIC_REGISTRY.label` —
+ * every unit that appears in the registry above MUST have an entry here (`Record` makes a missing
+ * key a type error, not a silent raw-key fallback at render time).
+ */
+export const QUOTA_UNIT_LABELS: Record<TariffQuotaUnit, string> = {
+  appointments: "Записи",
+  items: "Штуки",
+  bytes: "Байты",
+  clients: "Клиенты",
+  transactions: "Операции",
+  messages: "Сообщения",
+  seats: "Места",
+};
+
 export const QUOTA_PERIODS = ["snapshot", "day", "month", "year"] as const;
 export type QuotaPeriod = (typeof QUOTA_PERIODS)[number];
 export const QUOTA_USAGE_POLICIES = ["snapshot", "consumption"] as const;

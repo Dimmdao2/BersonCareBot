@@ -5,6 +5,7 @@ const listTariffsMock = vi.hoisted(() => vi.fn());
 const listOrganizationsMock = vi.hoisted(() => vi.fn());
 const getTrialPolicyMock = vi.hoisted(() => vi.fn());
 const createTariffMock = vi.hoisted(() => vi.fn());
+const archiveTariffMock = vi.hoisted(() => vi.fn());
 const upsertOverrideMock = vi.hoisted(() => vi.fn());
 const setTrialPolicyMock = vi.hoisted(() => vi.fn());
 
@@ -19,6 +20,7 @@ vi.mock('@/app-layer/di/buildAppDeps', () => ({
       listOrganizations: listOrganizationsMock,
       getTrialPolicy: getTrialPolicyMock,
       createTariff: createTariffMock,
+      archiveTariff: archiveTariffMock,
       upsertOverride: upsertOverrideMock,
       setTrialPolicy: setTrialPolicyMock,
     },
@@ -35,6 +37,7 @@ beforeEach(() => {
   listOrganizationsMock.mockReset();
   getTrialPolicyMock.mockReset();
   createTariffMock.mockReset();
+  archiveTariffMock.mockReset();
   upsertOverrideMock.mockReset();
   setTrialPolicyMock.mockReset();
 });
@@ -103,18 +106,35 @@ describe('/api/admin/commercial', () => {
     );
   });
 
-  it('rejects a mutation without an audit reason', async () => {
+  it('accepts a mutation with a blank audit reason (owner 2026-07-26, #1003: reason is no longer required)', async () => {
+    guardMock.mockResolvedValueOnce({ ok: true, session: { user: { userId: ACTOR_ID } } });
+    archiveTariffMock.mockResolvedValueOnce(undefined);
+
+    const response = await POST(
+      new Request('http://test/api/admin/commercial', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ action: 'archive_tariff', tariffId: ACTOR_ID, reason: '' }),
+      }),
+    );
+
+    expect(response.status).toBe(200);
+    expect(archiveTariffMock).toHaveBeenCalledWith(ACTOR_ID, { actorId: ACTOR_ID, reason: '' });
+  });
+
+  it('still rejects a reason over the 500-char audit-row cap', async () => {
     guardMock.mockResolvedValueOnce({ ok: true, session: { user: { userId: ACTOR_ID } } });
 
     const response = await POST(
       new Request('http://test/api/admin/commercial', {
         method: 'POST',
-        body: JSON.stringify({ action: 'archive_tariff', tariffId: ACTOR_ID, reason: '' }),
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ action: 'archive_tariff', tariffId: ACTOR_ID, reason: 'x'.repeat(501) }),
       }),
     );
 
     expect(response.status).toBe(400);
-    expect(createTariffMock).not.toHaveBeenCalled();
+    expect(archiveTariffMock).not.toHaveBeenCalled();
   });
 
   it('passes a typed exact-organization quota override to the platform service', async () => {
