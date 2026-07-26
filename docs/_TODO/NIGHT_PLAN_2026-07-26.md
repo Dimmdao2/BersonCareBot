@@ -27,6 +27,34 @@ finding that has no line here is a QUESTION for the owner, never work (see `docs
       dynamic SQL are inert constant literals. All 115 definers already pin `search_path` and none is granted
       to PUBLIC. The existing deploy gate pins only `app_owner`'s count — 29 anon-executable definers owned
       by other roles are pinned by nothing.
+      **Researched and DECIDED 2026-07-26 (lead, on a research brief verified live against `bersoncarebot_test`).**
+      Facts above re-verified: 115 definers, all pin `search_path`, none granted to PUBLIC, 46 anon-reachable,
+      17 owned by `app_owner`, 162 FORCE-RLS tables — all confirmed. **Two corrections:** 17+28 = 45, not 46;
+      the 46th is `app.report_saas_isolation_event`, owned by a **third** role `saas_telemetry_owner` (NOLOGIN,
+      no BYPASSRLS). And the 28 DB-owner-owned functions touch exactly **7 tables** — of which **6 have RLS not
+      enabled at all** (`relrowsecurity=false`), so for those the owner split reduces blast radius but restores
+      no row-level protection; that remainder is A-4, and A-1 must not claim credit for it.
+      Also verified live: the 2026-07-24 remedy is already in place — `app.provision_specialist_owner` is owned
+      by `app_owner` (NOLOGIN, BYPASSRLS, **0 members**, owns exactly the 3 P2-B tables).
+      **Decision — Option C, staged; matches the owner's «все 1+2+3»:**
+      1. **A first, alone (safe default, zero deploy risk):** extend the deploy gate to pin the anon-reachable
+         definer count for `bersoncarebot_test` (28) and `saas_telemetry_owner` (1), plus a required-grant
+         allowlist for the 7 tables — mirroring the existing 27-row `app_owner` VALUES pattern. Purely additive
+         assertion; cannot leave TEST half-configured.
+      2. **Then the owner split:** a narrow `NOLOGIN NOBYPASSRLS` role owns the 28; grant it exactly the 7
+         tables' needed privileges; `system_settings` (the one FORCE-RLS target) gets a **policy**, not bypass.
+         Land **WARN-not-FATAL first**, flip to FATAL after clean deploy cycles — the repo's own precedent
+         (`assert_specialist_owner_provisioning_seam_pinned` started that way), and the guard against repeating
+         the 2026-07-24 mid-deploy outage.
+      3. **Then make the gate structural, not a count:** every anon-reachable definer's owner must be in a
+         reviewed allowlist, and the DB-owner role must own **zero** of them. Pure `pg_catalog` introspection —
+         no AST machinery needed. This closes the gap for FUTURE functions, not just today's 29.
+      Named sources behind the shape (not invented): PostgreSQL `CREATE FUNCTION` on SECURITY DEFINER owner
+      privileges and `search_path`; `ddl-rowsecurity` on BYPASSRLS/FORCE and on documented covert channels;
+      Supabase's schema-scoped `supabase_auth_admin`; PostgREST's private `basic_auth` schema + scalar-returning
+      definer accessor. Both shipped systems scope the definer owner narrowly and never reuse the table-owning
+      or bypass-everything role.
+      Not started — sequenced after G-4 (deploy + page walk).
 - [ ] **A-2 (C2) Public read surface.** Owner: study which actions genuinely need it; do not serve public
       data under system roles. External research says a policy over a mixed table is NOT enough (RLS is
       row-granular; covert channels are documented by PostgreSQL itself) — the shape is a **separate public
