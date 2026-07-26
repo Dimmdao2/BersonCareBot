@@ -208,6 +208,18 @@ finding that has no line here is a QUESTION for the owner, never work (see `docs
 - [ ] **E-1** Cut Telegram from the RU build (legal) — and MAX too («MAX тоже нахер пока»). Order matters:
       support forms first, then the reversible runtime kill-switch, then code, then data. `telegram_state`
       is shared with MAX — with both going, it retires wholesale.
+      **🔴 AMENDED 2026-07-26 — do NOT retire MAX wholesale.** Owner: «возможно вернем еще макс как способ
+      входа». Cutting a messenger as a **delivery channel** is not the same decision as cutting it as an
+      **identification method**; the legal reason for the first does not automatically carry to the second.
+      So the «retires wholesale» line above is superseded: the MAX **binding/auth** surface must survive
+      even if MAX message delivery is switched off. Deleting it and rebuilding later is pure waste.
+      Whether MAX is actually a permitted identification route is part of the live legal question
+      (taskdb #1034, research in flight): MAX is tied to Russian phone numbers by construction, so if the
+      law does require a Russian number / ЕСИА / another qualified means, MAX login may satisfy it
+      transitively. **Do not start E-1's code or data phases until that returns** — the kill-switch and
+      the support-form migration (D-2, done) are safe to keep, the deletion is not.
+      Support forms no longer depend on Telegram (`eb62b6544`), so the prerequisite is met and only the
+      irreversible half is blocked.
 - [ ] **E-2** Bot-token plaintext in `system_settings` retires with the bot.
 - [ ] **E-3** Pre-production: message the messenger-only accounts while the bots still work.
 
