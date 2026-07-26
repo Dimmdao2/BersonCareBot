@@ -36,12 +36,14 @@ describe("doctorRouteRedirectResponse — 308 redirects (old → new URLs)", () 
     },
   );
 
-  it("redirects /app/doctor/admin/booking to schedule?tab=setup", () => {
+  it("does NOT redirect /app/doctor/admin/booking — it is a global-admin page, and middleware has no role", () => {
+    // Regression guard. This path used to be in the legacy map, which runs before any session is
+    // resolved, so the 308 applied to the global admin too. That made BookingOverviewPanel and
+    // PlatformLocationPaletteSection — which exist nowhere else — unreachable for everyone, and hid
+    // the fact that the page itself was broken. The role decision now lives in the page's guard
+    // (requireAdminDoctorPage -> requirePlatformOperationsPage), which can actually see the session.
     const res = doctorRouteRedirectResponse(req("/app/doctor/admin/booking"));
-    expect(res?.status).toBe(308);
-    expect(res?.headers.get("location")).toBe(
-      "http://localhost/app/doctor/schedule?tab=setup",
-    );
+    expect(res).toBeNull();
   });
 
   // ── Communications legacy ─────────────────────────────────────────────────

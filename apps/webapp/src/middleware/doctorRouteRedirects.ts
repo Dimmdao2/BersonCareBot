@@ -45,7 +45,18 @@ export function doctorRouteRedirectResponse(
     // Schedule legacy → real page-shell (e12). Tab values align with scheduleTabFromQuery: cal/work/setup.
     "/app/doctor/calendar": "/app/doctor/schedule?tab=cal",
     "/app/doctor/appointments": "/app/doctor/schedule?tab=cal",
-    "/app/doctor/admin/booking": "/app/doctor/schedule?tab=setup",
+    // NOT redirected: "/app/doctor/admin/booking". It was here, and it swallowed a global-admin
+    // surface (2026-07-26). This map runs in middleware, which has no role information, so the
+    // redirect applied to EVERY caller — including the global admin, for whom that URL is a real
+    // platform page. Its siblings (catalog, form-public, integrations, payments) were never in this
+    // map and stayed reachable; only the index collided. The page carries BookingOverviewPanel and
+    // PlatformLocationPaletteSection, which exist NOWHERE else in the codebase — so nobody could
+    // reach them at all, and the page was silently broken for months without anyone noticing (it is
+    // how the missing-principal bug in it survived).
+    // The role decision belongs in the guard, which has the session: the page calls
+    // requireAdminDoctorPage() -> requirePlatformOperationsPage(), so a caller without
+    // platform.operations is redirected there instead. A specialist following an old bookmark is
+    // still sent somewhere sensible; the global admin now gets the page.
     // Analytics legacy subpages → aggregate page-shell. Tabs align with analyticsTabFromQuery.
     // (material-ratings остаётся отдельным маршрутом — подробная таблица оценок, ссылка из вкладки «Контент».)
     "/app/doctor/analytics/clients": "/app/doctor/analytics?tab=clients",
