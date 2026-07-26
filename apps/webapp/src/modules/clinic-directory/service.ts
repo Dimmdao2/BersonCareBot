@@ -3,7 +3,6 @@ import type {
   ClinicDirectoryPort,
   OrganizationSlugMutationResult,
   OrganizationSlugResolution,
-  PublishOrganizationResult,
   RenameOrganizationSlugInput,
   ReserveOrganizationSlugInput,
 } from './ports';
@@ -12,16 +11,10 @@ import { suggestOrganizationSlug, validateOrganizationSlugCandidate } from './or
 export type ClinicDirectoryService = {
   resolveOrganizationIdBySlug(slug: string): Promise<string | null>;
   getPublishedSlugForOrganization(organizationId: string): Promise<string | null>;
-  getCurrentSlugForOrganization(organizationId: string): Promise<string | null>;
   resolveCanonicalSlug(slug: string): Promise<OrganizationSlugResolution | null>;
   reserveSlug(input: ReserveOrganizationSlugInput): Promise<OrganizationSlugMutationResult>;
   claimReservedSlug(input: ClaimOrganizationSlugInput): Promise<OrganizationSlugMutationResult>;
   renameSlug(input: RenameOrganizationSlugInput): Promise<OrganizationSlugMutationResult>;
-  publishOrganization(input: {
-    organizationId: string;
-    displayName: string;
-  }): Promise<PublishOrganizationResult>;
-  unpublishOrganization(organizationId: string): Promise<{ ok: true } | { ok: false; code: 'not_published' }>;
   suggestSlug(title: string): string | null;
 };
 
@@ -46,10 +39,6 @@ export function createClinicDirectoryService(port: ClinicDirectoryPort): ClinicD
       return port.getPublishedSlugForOrganization(organizationId);
     },
 
-    async getCurrentSlugForOrganization(organizationId) {
-      return port.getCurrentSlugForOrganization(organizationId);
-    },
-
     async resolveCanonicalSlug(slugRaw) {
       const validated = validateOrganizationSlugCandidate(slugRaw);
       if (!validated.ok) return null;
@@ -72,17 +61,6 @@ export function createClinicDirectoryService(port: ClinicDirectoryPort): ClinicD
       const validated = validatedSlug(input.reservedSlug);
       if (!validated.ok) return validated;
       return port.renameSlug({ ...input, reservedSlug: validated.slug });
-    },
-
-    async publishOrganization(input) {
-      return port.publishOrganization({
-        organizationId: input.organizationId,
-        displayName: input.displayName.trim(),
-      });
-    },
-
-    async unpublishOrganization(organizationId) {
-      return port.unpublishOrganization(organizationId);
     },
 
     suggestSlug: suggestOrganizationSlug,

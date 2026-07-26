@@ -74,20 +74,6 @@ export function createPgClinicDirectoryPort(): ClinicDirectoryPort {
       return rows[0]?.slug ?? null;
     },
 
-    async getCurrentSlugForOrganization(organizationId) {
-      const rows = await getDrizzle()
-        .select({ slug: organizationSlugClaims.slug })
-        .from(organizationSlugClaims)
-        .where(
-          and(
-            eq(organizationSlugClaims.organizationId, organizationId),
-            eq(organizationSlugClaims.kind, 'current'),
-          ),
-        )
-        .limit(1);
-      return rows[0]?.slug ?? null;
-    },
-
     async resolveCanonicalSlug(slug) {
       const result = await runWebappPgText<{
         organization_id: string;
@@ -265,69 +251,6 @@ export function createPgClinicDirectoryPort(): ClinicDirectoryPort {
         if (isUniqueViolation(error)) return { ok: false, code: 'slug_unavailable' };
         throw error;
       }
-    },
-
-    async publishOrganization(input) {
-      exactStaffOrganizationPrincipal(input.organizationId);
-      return runDrizzleMutationTransaction(async (tx) => {
-        // Same deterministic lock reserve/claim/rename take, so a concurrent rename cannot swap
-        // the current slug between this read and the directory upsert below.
-        await lockOrganizationSlugClaims(tx, input.organizationId);
-        const [current] = await tx
-          .select({ slug: organizationSlugClaims.slug })
-          .from(organizationSlugClaims)
-          .where(
-            and(
-              eq(organizationSlugClaims.organizationId, input.organizationId),
-              eq(organizationSlugClaims.kind, 'current'),
-            ),
-          )
-          .limit(1);
-        if (!current) return { ok: false as const, code: 'current_slug_not_found' as const };
-
-        const now = new Date().toISOString();
-        // Always the CURRENT claim's own slug, never a caller-supplied one — the DB trigger
-        // `app.guard_clinic_directory_current_slug` also enforces this at commit time, so the
-        // directory projection can never point at a slug the organization does not actually hold.
-        await tx
-          .insert(clinicPublicDirectoryEntries)
-          .values({
-            organizationId: input.organizationId,
-            slug: current.slug,
-            displayName: input.displayName,
-            isPublished: true,
-            publishedAt: now,
-            updatedAt: now,
-          })
-          .onConflictDoUpdate({
-            target: clinicPublicDirectoryEntries.organizationId,
-            set: {
-              slug: current.slug,
-              displayName: input.displayName,
-              isPublished: true,
-              publishedAt: now,
-              updatedAt: now,
-            },
-          });
-        return { ok: true as const, slug: current.slug };
-      });
-    },
-
-    async unpublishOrganization(organizationId) {
-      exactStaffOrganizationPrincipal(organizationId);
-      const now = new Date().toISOString();
-      const updated = await getDrizzle()
-        .update(clinicPublicDirectoryEntries)
-        .set({ isPublished: false, updatedAt: now })
-        .where(
-          and(
-            eq(clinicPublicDirectoryEntries.organizationId, organizationId),
-            eq(clinicPublicDirectoryEntries.isPublished, true),
-          ),
-        )
-        .returning({ organizationId: clinicPublicDirectoryEntries.organizationId });
-      if (updated.length === 0) return { ok: false, code: 'not_published' };
-      return { ok: true };
     },
   };
 }

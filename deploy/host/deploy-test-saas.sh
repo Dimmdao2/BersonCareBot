@@ -1204,18 +1204,7 @@ SELECT has_column_privilege('app_owner', 'public.operator_incidents', 'alert_sen
   # resolved to "not configured" for every unauthenticated caller (permission denied, 42501,
   # swallowed by configAdapter.ts:fetchFromDb into null) even with SMTP fully configured — the owner
   # could not log in. The accessor returns ONLY a boolean (never host/user/password/from).
-  # 56 -> 57 (2026-07-26): migration 0243_public_clinic_page_brand_accessor adds exactly one
-  # reviewed app_owner SECURITY DEFINER accessor — app.read_public_org_brand_projection(uuid) (reads
-  # public.be_organizations/public.org_brand_revisions/public.media_files/
-  # public.clinic_public_directory_entries; app_owner SELECT on all four is granted by that
-  # migration itself). It exists because the anonymous public clinic page (`/<slug>`) has no patient
-  # principal and no enrollment, so the existing patient-enrollment read policy on
-  # org_brand_revisions (0238) cannot serve it; this accessor is fail-closed on inactive/unpublished
-  # organizations and never surfaces draft/archived revisions. NOTE: this bump is the only edit
-  # 0243's worker made to this script — the required-grant VALUES list above intentionally was not
-  # extended with the three new table rows in the same change (out of that worker's authorized
-  # scope); a follow-up should add them for full audit-gate coverage.
-  local expected_secdef_count=57
+  local expected_secdef_count=56
   local actual_secdef_count
   actual_secdef_count="$(sudo -u postgres psql -d "$DB" -X -v ON_ERROR_STOP=1 -tAc "
 SELECT count(*) FROM pg_proc p WHERE pg_get_userbyid(p.proowner) = 'app_owner' AND p.prosecdef;
