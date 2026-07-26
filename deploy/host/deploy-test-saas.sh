@@ -1129,12 +1129,17 @@ assert_app_owner_secdef_table_grants_complete(){
   #
   # (a) explicit required-grant set, one row per (table, privilege) app_owner's reviewed SECURITY
   #     DEFINER functions are known to need as of this writing.
-  # Settle briefly: like the seam-pin assertion above, this runs mid-closure after the restart, so a
-  # one-off closure transient must not FATAL it (the seam-pin retry loop already absorbs most of the
-  # settle window before control reaches here).
-  sleep 2
-  local missing
-  missing="$(sudo -u postgres psql -d "$DB" -X -v ON_ERROR_STOP=1 -tAc "
+  # Settle-with-retry, like the seam-pin assertion right above this one in the closure sequence: this
+  # runs mid-closure after the restart, so a one-off closure transient must not FATAL it. The seam-pin
+  # retry loop absorbs most of the settle window before control reaches here, but a single "sleep 2"
+  # read on top of that was observed to still occasionally FATAL on a fully-correct, fully-committed
+  # grant state (2026-07-26: FATAL'd mid-deploy on public.operator_incidents UPDATE (alert_sent_at)
+  # while every required table/column grant -- including that exact one -- read back present seconds
+  # later with no further overlay/GRANT applied in between). Retry-with-settle exactly like the
+  # sibling seam-pin check above: only a PERSISTENT gap FATALs, never a one-off closure blip.
+  local missing="" operator_incidents_ok="" _secdef_grants_attempt
+  for _secdef_grants_attempt in 1 2 3 4 5; do
+    missing="$(sudo -u postgres psql -d "$DB" -X -v ON_ERROR_STOP=1 -tAc "
 WITH required(tbl, priv) AS (
   VALUES
     ('public.email_challenges', 'SELECT'),
@@ -1178,16 +1183,17 @@ SELECT coalesce(string_agg(tbl || ' ' || priv, ', ' ORDER BY tbl, priv), '')
 FROM required
 WHERE NOT has_table_privilege('app_owner', tbl, priv);
 ")"
+    operator_incidents_ok="$(sudo -u postgres psql -d "$DB" -X -v ON_ERROR_STOP=1 -tAc "
+SELECT has_column_privilege('app_owner', 'public.operator_incidents', 'alert_sent_at', 'UPDATE')::text;
+")"
+    [ -z "$missing" ] && [ "$operator_incidents_ok" = "t" ] && break
+    sleep 2
+  done
   [ -z "$missing" ] || {
     echo "FATAL: app_owner is missing required table GRANT(s): $missing" >&2
     echo "       app_owner is BYPASSRLS -- this is a base table-ACL gap, not an RLS/policy gap." >&2
     exit 1
   }
-
-  local operator_incidents_ok
-  operator_incidents_ok="$(sudo -u postgres psql -d "$DB" -X -v ON_ERROR_STOP=1 -tAc "
-SELECT has_column_privilege('app_owner', 'public.operator_incidents', 'alert_sent_at', 'UPDATE')::text;
-")"
   [ "$operator_incidents_ok" = "t" ] || {
     echo "FATAL: app_owner is missing UPDATE (alert_sent_at) on public.operator_incidents" >&2
     exit 1

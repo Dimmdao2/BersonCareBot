@@ -51,13 +51,25 @@ async function main(): Promise<void> {
   const port = createPgOrganizationProvisioningPort();
 
   await runWithDbStaffPrincipal({ organizationId, platformUserId }, async () => {
+    // Superseded 2026-07-26 (was: `if (!first.created) throw ...`, asserting the FIRST call here
+    // creates the specialist). Since commit feb80b75d, app.provision_specialist_owner binds the
+    // owner's specialist inline in the same transaction (the dead-workspace fix), so by the time the
+    // parent scratch smoke invokes this script the membership this test targets is already bound.
+    // What this now proves is the idempotent no-op path: ensureOwnBookableSpecialist must return the
+    // existing specialist without creating a second one or writing a second audit row (see
+    // pgOrganizationProvisioning.ts's `if (membership.specialistId) return { created: false }`).
     const first = await port.ensureOwnBookableSpecialist({
       organizationId,
       membershipId,
       platformUserId,
       fullName,
     });
-    if (!first.created) throw new Error('first binding must create the specialist');
+    if (first.created) {
+      throw new Error('binding must be a no-op once provisioning already bound the specialist');
+    }
+    if (!first.specialistId) {
+      throw new Error('binding no-op must still return the specialist provisioning already bound');
+    }
 
     const replay = await port.ensureOwnBookableSpecialist({
       organizationId,

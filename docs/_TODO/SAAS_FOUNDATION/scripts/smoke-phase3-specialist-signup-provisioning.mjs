@@ -448,6 +448,32 @@ CREATE TABLE public.admin_audit_log (
   resolved_at timestamptz,
   created_at timestamptz NOT NULL DEFAULT now()
 );
+-- Added 2026-07-26: stub relations for the six-table read-only booking-configuration surface
+-- deploy/postgres/c5a-platform-operations-runtime.sql grants/policies for app_platform_settings
+-- (commit 2ed89349d, "the platform role could not read booking configuration"). Nothing in this
+-- smoke script queries their columns -- the overlay only GRANTs the whole table and installs a
+-- bare USING (true) SELECT policy -- so an id + organization_id stub is enough for those
+-- statements to apply cleanly against this synthetic schema. be_specialists already exists above.
+CREATE TABLE public.be_branches (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  organization_id uuid NOT NULL REFERENCES public.be_organizations(id) ON DELETE CASCADE
+);
+CREATE TABLE public.be_clinic_services (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  organization_id uuid NOT NULL REFERENCES public.be_organizations(id) ON DELETE CASCADE
+);
+CREATE TABLE public.be_specialist_service_availability (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  organization_id uuid NOT NULL REFERENCES public.be_organizations(id) ON DELETE CASCADE
+);
+CREATE TABLE public.be_service_location_availability (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  organization_id uuid NOT NULL REFERENCES public.be_organizations(id) ON DELETE CASCADE
+);
+CREATE TABLE public.be_working_hours (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  organization_id uuid NOT NULL REFERENCES public.be_organizations(id) ON DELETE CASCADE
+);
 RESET ROLE;
 `;
 }
@@ -503,7 +529,14 @@ async function runCurrentContractProof() {
     first.organizationId && first.membershipId,
     'first provisioning must return org and membership',
   );
-  assert(first.specialistId === null, 'organization provisioning must defer specialist binding');
+  // Superseded 2026-07-26 (was: first.specialistId === null, 'organization provisioning must defer
+  // specialist binding'). commit feb80b75d moved specialist creation into the same transaction as
+  // organization/membership provisioning (the owner-reported dead-workspace fix: a membership left
+  // with specialist_id NULL made resolveLaunchCapabilities() withhold clinical.workspace forever).
+  assert(
+    typeof first.specialistId === 'string' && first.specialistId.length > 0,
+    'organization provisioning must bind the owner specialist in the same transaction',
+  );
 
   const replay = await provisionOnce(
     principal,
@@ -807,9 +840,12 @@ function assertSameReceipt(left, right, label) {
   assert(left.ok === true && right.ok === true, `${label}: both calls must succeed`);
   assert(left.organizationId === right.organizationId, `${label}: organization must converge`);
   assert(left.membershipId === right.membershipId, `${label}: membership must converge`);
+  // Superseded 2026-07-26 (was: both null, 'binding stays deferred') -- see the sibling note on the
+  // first-provisioning assert above: the specialist is now bound inline, so a replay/concurrent call
+  // must observe the SAME already-bound specialist, not a still-null one.
   assert(
-    left.specialistId === null && right.specialistId === null,
-    `${label}: binding stays deferred`,
+    left.specialistId && left.specialistId === right.specialistId,
+    `${label}: specialist binding must converge on the one specialist created by the first call`,
   );
 }
 
@@ -837,13 +873,16 @@ SELECT json_build_object(
   );
   assert(row.organizations === 1, 'provisioning must create exactly one organization');
   assert(row.memberships === 1, 'provisioning must create exactly one membership');
-  assert(row.specialists === 0, 'provisioning must not create a specialist before binding');
+  // Superseded 2026-07-26 (was: row.specialists === 0, 'provisioning must not create a specialist
+  // before binding') -- feb80b75d binds the owner's specialist inline; see the note on the
+  // first-provisioning assert in runCurrentContractProof for the full rationale.
+  assert(row.specialists === 1, 'provisioning must create exactly one specialist for the owner');
   assert(row.enrollments === 0, 'owner provisioning must not create patient enrollment');
   assert(row.receipts === 1, 'organization must have one reference catalog receipt');
   assert(row.intent_status === 'provisioned', 'intent must be provisioned');
   assert(
-    row.intent_specialist === null,
-    'intent specialist receipt must remain null before binding',
+    row.intent_specialist === receipt.specialistId,
+    'intent specialist receipt must record the specialist bound by this same provisioning call',
   );
   assert(row.organization_tariff === trialTariffId, 'organization must receive the trial tariff');
   assert(row.commercial_access_state === 'active', 'trial must activate commercial access');
@@ -895,15 +934,26 @@ SELECT json_build_object(
 )::text;
 `),
   );
-  assert(state.specialists === 1, 'binding must create exactly one specialist');
+  // Superseded 2026-07-26: feb80b75d moved specialist creation into provisioning itself, so by the
+  // time this helper runs (runCanonicalBindingHelper, right above) the owner already has a bound
+  // specialist -- ensureOwnBookableSpecialist (apps/webapp/src/infra/repos/pgOrganizationProvisioning.ts,
+  // ensureOwnBookableSpecialist) hits its `if (membership.specialistId) return { created: false }`
+  // early-out and never reaches its INSERT or its admin_audit_log write. What this now proves is that
+  // the still-live bind-specialist route/repo path is a genuine no-op against an owner who no longer
+  // needs it -- not a second specialist, not a duplicate audit row.
+  assert(state.specialists === 1, 'binding-helper no-op must not create a second specialist');
   assert(
     state.membership_specialist === true,
-    'binding must attach the specialist to owner membership',
+    'binding-helper no-op must leave the specialist attached to the owner membership',
   );
-  assert(state.audit_events === 1, 'idempotent binding must write exactly one audit event');
   assert(
-    state.intent_specialist === null,
-    'deferred binding must not rewrite the provisioning receipt',
+    state.audit_events === 0,
+    'binding-helper no-op must not write a second specialist_self_binding_created event ' +
+      '(provisioning itself creates none -- only ensureOwnBookableSpecialist\'s create path does)',
+  );
+  assert(
+    state.intent_specialist === receipt.specialistId,
+    'binding-helper no-op must not rewrite the specialist recorded by provisioning',
   );
 }
 
@@ -970,8 +1020,17 @@ function assertStaticSourceGuards() {
     'canonical provisioning must derive the user from the signed self principal',
   );
   assert(
-    !source.ownerProvisioningOverlay.includes('INSERT INTO public.be_specialists'),
-    'canonical organization provisioning must not create a specialist',
+    source.ownerProvisioningOverlay.includes('INSERT INTO public.be_specialists (') &&
+      source.ownerProvisioningOverlay.includes('IF v_specialist_id IS NULL THEN'),
+    // Superseded 2026-07-26 (was: 'canonical organization provisioning must not create a
+    // specialist'). commit feb80b75d ("fix(product): dead workspace after clinic signup")
+    // deliberately moved specialist creation INTO this same transaction: a membership left with
+    // specialist_id NULL made resolveLaunchCapabilities() withhold clinical.workspace forever
+    // (owner-reported dead workspace). The new invariant this guard protects is idempotency, not
+    // absence: the INSERT must stay guarded on v_specialist_id IS NULL so a re-run of provisioning
+    // for an already-provisioned intent never creates a second specialist row.
+    'canonical provisioning must bind the registering owner\'s own specialist row in the same ' +
+      'transaction, guarded so a re-run never creates a second one',
   );
   assert(
     source.ownerProvisioningOverlay.includes("'specialist_signup_active_membership_exists'"),
