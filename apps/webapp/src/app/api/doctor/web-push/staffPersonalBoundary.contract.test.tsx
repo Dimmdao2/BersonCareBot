@@ -40,6 +40,10 @@ vi.mock("@/modules/auth/sessionCookie", () => ({
   clearFreshLoginMarkerCookie: vi.fn(),
   decodeSessionCookie: () => mocks.decodedSession,
   encodeSessionCookie: vi.fn(),
+  // C-1 (2026-07-26): the absolute-age cap the chokepoint enforces after the epoch comparison
+  // (service.ts, getCurrentSessionWithPrincipalMode). Same stub as
+  // service.sessionConcurrency.test.ts — these fixtures are never beyond the cap.
+  isSessionBeyondAbsoluteMaxAge: () => false,
   renewSessionIfActive: vi.fn(),
   sessionTtlSecondsForRole: () => 3_600,
   shouldRenewSession: vi.fn(),
@@ -94,8 +98,14 @@ import { GET as getStaffWebPushStatus } from "./status/route";
 
 const USER_ID = "aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee";
 
+// C-1 (2026-07-26, service.ts resolveSessionIdentityAgainstDb): the session chokepoint now
+// compares the cookie's `sessionEpoch` for equality against a fresh `platform_users` read, and
+// treats a row without a numeric epoch as unreadable (fail closed). The real
+// `pgUserByPhonePort.findByUserId` always returns one (`session_epoch NOT NULL DEFAULT 1`), so
+// every fixture here carries the matching value — same pattern as
+// `service.sessionConcurrency.test.ts`'s `doctorUser()`.
 function sessionUser(role: UserRole): SessionUser {
-  return { userId: USER_ID, role, displayName: "Owner", bindings: {} };
+  return { userId: USER_ID, role, displayName: "Owner", bindings: {}, sessionEpoch: 1 };
 }
 
 function setSignedSession(role: UserRole, verifiedEmailAdmin: boolean): void {

@@ -265,9 +265,13 @@ describe("GET/POST /api/doctor/tasks", () => {
     const { GET } = await import("../../../tasks/route");
     const res = await GET(new Request("http://localhost/api/doctor/tasks"));
     expect(res.status).toBe(200);
-    expect(listForOwner).toHaveBeenCalledWith(
-      expect.objectContaining({ ownerUserId: doctorUserId, patientUserId: null }),
-    );
+    // Owner punch-list (2026-07-25) item 1, commit 1561246d8: GET used to hard-filter
+    // `patientUserId: null`, which made a patient-linked task vanish from this list after the
+    // first reload even though it still belonged to this owner. The route now omits the field so
+    // `listForOwner` returns ALL open tasks for the owner (linked and global) — this expectation
+    // was never updated when that fix landed.
+    expect(listForOwner).toHaveBeenCalledWith(expect.objectContaining({ ownerUserId: doctorUserId }));
+    expect(listForOwner.mock.calls[0][0]).not.toHaveProperty("patientUserId");
   });
 
   it("POST rejects non-client patientUserId", async () => {
