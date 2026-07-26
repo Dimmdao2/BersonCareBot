@@ -108,6 +108,8 @@ function run(overrides = {}) {
     'FROM %I CASCADE',
     "'app.read_integrator_smtp_outbound_setting()',",
     'TO :"integrator_runtime_config_role";',
+    'CREATE OR REPLACE FUNCTION app.read_global_server_runtime_setting(p_key text)',
+    "AND setting.audience IN ('server', 'public')",
     'integrator_server_runtime_config_least_privilege_verified',
     'GRANT EXECUTE ON FUNCTION app.release_principal_context()',
     'app.install_signed_context(text, integer, bigint, uuid, uuid, bigint, text)',
@@ -128,6 +130,11 @@ function run(overrides = {}) {
     'GRANT SELECT ON TABLE public.app_runtime_settings TO :"integrator_runtime_config_role"',
     'GRANT SELECT ON TABLE public.system_settings',
     'GRANT EXECUTE ON FUNCTION app.install_signed_context(text, integer, bigint, uuid, uuid, bigint, text)\n  TO :"integrator_runtime_config_role"',
+    // A-5 (2026-07-26): the audience widening must stay a two-way OR of exactly ('server','public')
+    // -- never a bare narrow 'server'-only re-check (that is the regression this file fixes) and
+    // never widened further (e.g. 'authenticated_client') without a fresh owner-reviewed decision.
+    "AND setting.audience = 'server'\n    AND setting.organization_id IS NULL",
+    "setting.audience IN ('server', 'public', 'authenticated_client')",
   ]);
 
   requireFragments('reader', files.reader, [

@@ -91,6 +91,38 @@ GRANT SELECT ON TABLE public.app_runtime_settings TO app_owner;
 ALTER FUNCTION app.read_global_server_runtime_setting(text) OWNER TO app_owner;
 ALTER FUNCTION app.read_integrator_smtp_outbound_setting() OWNER TO app_owner;
 
+-- 0244_public_app_base_url_runtime_setting registered app_base_url in the projection at
+-- audience='public' for the anonymous landing page. The unique index backing this projection is
+-- (key, scope) WHERE organization_id IS NULL -- audience is NOT part of the key -- so that INSERT's
+-- ON CONFLICT ... DO UPDATE overwrote the audience='server' row 0191/0230 depend on instead of
+-- adding a second row (two rows for one key are impossible by construction: verified on TEST,
+-- no key in app_runtime_settings carries more than one audience). CREATE OR REPLACE here (this file
+-- already owns this function's ownership/grants and runs LAST, after 0230 is replayed by
+-- rehydrate_post_restore_runtime_overlays/e1-webapp-runtime-config.sql earlier in the same closure)
+-- widens the accessor to accept the row at EITHER audience. This is safe in this direction only:
+-- a server-side caller reading a value already published to anonymous visitors adds no exposure --
+-- app_base_url is literally in every visitor's address bar (0244's own disclosure note). The reverse
+-- (a public accessor reading 'server' rows) is NOT done here and must not be done elsewhere. Every
+-- other filter (scope, organization_id, the key allowlist) is unchanged, and only the already-narrow
+-- integrator_runtime_config_role holds EXECUTE on this function (revoked from PUBLIC below), so the
+-- widened read is not reachable by any other caller.
+CREATE OR REPLACE FUNCTION app.read_global_server_runtime_setting(p_key text)
+RETURNS jsonb
+LANGUAGE sql
+STABLE
+SECURITY DEFINER
+SET search_path = pg_catalog
+AS $function$
+  SELECT setting.value_json
+  FROM public.app_runtime_settings AS setting
+  WHERE p_key IN ('app_base_url', 'error_tracking_enabled', 'error_tracking_dsn')
+    AND setting.key = p_key
+    AND setting.scope = 'admin'
+    AND setting.audience IN ('server', 'public')
+    AND setting.organization_id IS NULL
+  LIMIT 1
+$function$;
+
 REVOKE ALL ON FUNCTION app.read_global_server_runtime_setting(text) FROM PUBLIC;
 REVOKE ALL ON FUNCTION app.read_global_server_runtime_setting(text)
   FROM app_staff, app_patient, app_worker;
