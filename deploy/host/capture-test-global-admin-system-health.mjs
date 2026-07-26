@@ -17,7 +17,7 @@ import { deflateSync, inflateSync } from "node:zlib";
 const exactBase = "https://test.bersoncare.ru";
 const exactCookieHost = "test.bersoncare.ru";
 // PLAT-01…09 slice 1 (2026-07-26): system-health moved to its own platform shell.
-const exactRoute = "/app/platform/system-health";
+const exactRoute = "/app/admin/system-health";
 const exactJar = "/run/bersoncarebot-visual/global-admin.cookies";
 const screenshotRoot = "/home/dev/dev-projects/BersonCareBot/.claude/screenshots/SAAS-S3-TEST-WALKTHROUGH";
 const shotEngine = "/home/dev/brain/host-orch/shot.mjs";

@@ -8,11 +8,11 @@ const files = {
   cookieTest: "apps/webapp/src/modules/auth/sessionCookie.test.ts",
   types: "apps/webapp/src/shared/types/session.ts",
   // PLAT-01…09 slice 1 (2026-07-26): system-health moved from `(global-admin)/doctor/` to its
-  // own `/app/platform/*` shell. `globalAdminLayout` now points at the layout that actually
-  // governs this page (`app/platform/layout.tsx`) — the old path this pointed at
+  // own `/app/admin/*` shell. `globalAdminLayout` now points at the layout that actually
+  // governs this page (`app/admin/layout.tsx`) — the old path this pointed at
   // (`(global-admin)/doctor/system-health/layout.tsx`) never existed as a real file.
-  globalAdminLayout: "apps/webapp/src/app/app/platform/layout.tsx",
-  globalAdminPage: "apps/webapp/src/app/app/platform/system-health/page.tsx",
+  globalAdminLayout: "apps/webapp/src/app/app/admin/layout.tsx",
+  globalAdminPage: "apps/webapp/src/app/app/admin/system-health/page.tsx",
   runbook: "docs/_TODO/SAAS_FOUNDATION/OWNER_READY_TEST/TEST_VISUAL_GLOBAL_ADMIN_SESSION.md",
   package: "package.json",
 };
@@ -80,7 +80,7 @@ function validate(source) {
   requireFragments("capture", source.capture, [
     'const exactBase = "https://test.bersoncare.ru"',
     'const exactCookieHost = "test.bersoncare.ru"',
-    'const exactRoute = "/app/platform/system-health"',
+    'const exactRoute = "/app/admin/system-health"',
     'const exactJar = "/run/bersoncarebot-visual/global-admin.cookies"',
     'fields[3] !== "TRUE"',
     'fields[0] !== exactCookieHost',
@@ -148,8 +148,14 @@ function validate(source) {
     "operatorSession?:",
     'purpose: "test_global_admin_visual"',
   ]);
+  // 2026-07-26: the platform console moved to /app/admin and the layout guard was reconciled.
+  // The layout is now guarded by requirePlatformOperationsPage(), which is STRICTLY STRONGER than the
+  // old requireGlobalAdminDoctorPage() this used to assert here: it additionally enforces the 2FA
+  // restricted-session gate and stamps the platform DB principal (without which every settings page
+  // 42501s on system_settings). The page-level requireGlobalAdminDoctorPage() assertion below is kept
+  // — defence in depth, both guards are real and both are asserted, just in their actual files.
   requireFragments("global admin layout", source.globalAdminLayout, [
-    "requireGlobalAdminDoctorPage()",
+    "requirePlatformOperationsPage()",
     "<DoctorWorkspaceShell",
     "adminMode={true}",
   ]);
