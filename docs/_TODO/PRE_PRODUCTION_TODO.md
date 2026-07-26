@@ -87,7 +87,28 @@ globally across all clinics, with no possession proof — so the fix changes beh
 cutover note and re-count how many production bookings currently arrive by the anonymous path before changing
 it. Tracked as taskdb #1004.
 
-## 7. Re-count every "affected users" figure against PROD
+## 7. Two settings the alerting work needs before it is real — one is genuinely the owner's
+
+Built and committed (`f5ecb6e78`), but inert until configured. Recording rather than guessing, because one of
+them means creating an account somewhere.
+
+1. **`OPERATOR_HEARTBEAT_PIPELINE_URL` / `OPERATOR_HEARTBEAT_DIGEST_URL` — owner decision.** The dead man's
+   switch only proves anything if the thing that notices the silence lives **off this box**; a heartbeat our
+   own dead server checks itself is theatre. That means a third-party endpoint (healthchecks.io or
+   equivalent, self-hostable). Signing up somewhere is the owner's call, not an agent's. Until then the
+   emitter runs and the check runs, both locally.
+2. **`OPERATOR_ALERT_FALLBACK_EMAIL`** — the address an operational alert goes to when the resolved audience
+   is empty. Deliberately read from env, not from `system_settings`, so it cannot be configured away through
+   the admin UI. Needs the owner's own address in the TEST and PROD env files.
+3. `INTERNAL_JOB_SECRET` is unset on DEV, which is why the local heartbeat receiver answers 503 there. TEST
+   and PROD already have it — no action, noted so nobody "fixes" it.
+
+Also carried forward from the same work, deliberately deferred: the operator alert path currently shares
+transport and credentials with patient mail. Decision **D-c** in `NOTIFICATION_ALERTING_DESIGN_2026-07-26.md`
+says it must not — GitLab's 2017 outage is the precedent, where the alert about broken mail travelled over
+the broken mail. Splitting it needs a second provider or the external heartbeat above.
+
+## 8. Re-count every "affected users" figure against PROD
 
 Standing rule rather than a task: every number in the security and Telegram-removal work was measured on a
 DEV/TEST copy. Before any cutover step that touches people, re-run the same query against PROD and record
