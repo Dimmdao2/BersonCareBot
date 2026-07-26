@@ -43,6 +43,17 @@ GRANT SELECT ON TABLE public.be_organizations TO app_platform_settings;
 GRANT UPDATE (tariff_id, commercial_access_state, updated_at)
   ON TABLE public.be_organizations TO app_platform_settings;
 GRANT INSERT ON TABLE public.admin_audit_log TO app_platform_settings;
+-- Read-only booking configuration for the global-admin overview at /app/doctor/admin/booking.
+-- SELECT and nothing else, enumerated table by table; the matching cross-tenant read policies and
+-- the full rationale are in the be_* platform-operations policy block further down this file.
+GRANT SELECT ON TABLE
+  public.be_branches,
+  public.be_specialists,
+  public.be_clinic_services,
+  public.be_specialist_service_availability,
+  public.be_service_location_availability,
+  public.be_working_hours
+  TO app_platform_settings;
 
 ALTER TABLE public.saas_tariffs ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.saas_tariffs FORCE ROW LEVEL SECURITY;
@@ -104,6 +115,73 @@ CREATE POLICY be_organizations_staff_current_org_read ON public.be_organizations
     AND app.current_org_id() IS NOT NULL
     AND id = app.current_org_id()
   );
+
+-- Booking-configuration read for the platform principal — the second half of taskdb #1009.
+--
+-- Symptom. /app/doctor/admin/booking is a platform-operations page (its guard chain is
+-- requireAdminDoctorPage() -> requirePlatformOperationsPage(), so it runs as app_platform_settings).
+-- It was unreachable for everyone until 79a4c1f57 removed a legacy middleware redirect; reachable,
+-- it still could not render, because loadBookingAdminOverview() reads booking-engine configuration
+-- this role could not see.
+--
+-- Exactly which tables, and how that was established: by reading the loader's call graph rather
+-- than guessing. loadBookingAdminOverview() calls catalog.listBranches / catalog.listSpecialists /
+-- services.listServices / services.listSpecialistServiceAvailability /
+-- services.listServiceLocationAvailability (infra/repos/pgBookingEngine.ts) and
+-- bookingScheduling.listWorkingHoursAdmin + usesWorkingHoursFallback ->
+-- port.listWorkingHours (infra/repos/pgBookingScheduling.ts). Resolving those drizzle tables through
+-- db/schema/bookingEngine.ts and db/schema/bookingScheduling.ts gives the six relations below and no
+-- others. getDefaultOrganizationId() reads public.system_settings, which this role already holds;
+-- public.be_organizations is granted above for the commercial surface.
+--
+-- TWO obstacles, and a GRANT alone fixes only the first — verified on DEV, where granting SELECT
+-- without a policy returned 0 rows and no error, i.e. an empty page rather than a diagnosable
+-- failure. (1) privilege: the role held SELECT on be_organizations only. (2) RLS: each of these
+-- tables carries a single permissive policy, saas_org_dormant_p0_8_3
+-- (deploy/postgres/phase4-locked-helper-rls-policies.sql), applying to ALL ROLES and shaped
+-- `app.is_staff() AND app.current_org_id() IS NOT NULL AND organization_id = app.current_org_id()`.
+-- A platform principal is not app_staff and carries no org context, so it matches no row.
+--
+-- Cross-tenant read is the intended behaviour here, by the owner's ruling that the global admin sees
+-- all clinics — the same shape the saas_* tables above already use. It is deliberately narrower than
+-- those: FOR SELECT, never FOR ALL, one enumerated table at a time, and no BYPASSRLS anywhere. These
+-- policies are scoped TO app_platform_settings, so tenant isolation for app_staff is untouched: staff
+-- still match only saas_org_dormant_p0_8_3 and still see one organization.
+--
+-- Why here and not a migration: p2-b-protected-principal-context.sql and p0-5b-grants.sql scrub
+-- privileges on every closure, and this file is the overlay that owns app_platform_settings and runs
+-- after them (deploy/host/runtime-overlay-rehydrate-lib.sh always_overlays). A grant written in a
+-- migration runs once and is silently revoked by the next deploy — exactly what happened to
+-- migration 0241 and is recorded at the end of this file.
+--
+-- ENABLE/FORCE ROW LEVEL SECURITY is deliberately NOT asserted for these six: unlike be_organizations
+-- they are already in phase4-force-rls-cutover.sql's pinned target list, which owns their ENABLE/FORCE
+-- state (and un-forces them on its documented DOWN path). Adding no table there leaves its expected
+-- target count untouched. Note also that these policies make the EXECUTE grants at the end of this
+-- file load-bearing for six more tables: saas_org_dormant_p0_8_3 is permissive and applies to ALL
+-- ROLES, so Postgres evaluates app.is_staff()/app.current_org_id() for the platform role here too.
+DROP POLICY IF EXISTS be_branches_platform_operations_select ON public.be_branches;
+CREATE POLICY be_branches_platform_operations_select ON public.be_branches
+  FOR SELECT TO app_platform_settings USING (true);
+DROP POLICY IF EXISTS be_specialists_platform_operations_select ON public.be_specialists;
+CREATE POLICY be_specialists_platform_operations_select ON public.be_specialists
+  FOR SELECT TO app_platform_settings USING (true);
+DROP POLICY IF EXISTS be_clinic_services_platform_operations_select ON public.be_clinic_services;
+CREATE POLICY be_clinic_services_platform_operations_select ON public.be_clinic_services
+  FOR SELECT TO app_platform_settings USING (true);
+DROP POLICY IF EXISTS be_specialist_service_availability_platform_operations_select
+  ON public.be_specialist_service_availability;
+CREATE POLICY be_specialist_service_availability_platform_operations_select
+  ON public.be_specialist_service_availability
+  FOR SELECT TO app_platform_settings USING (true);
+DROP POLICY IF EXISTS be_service_location_availability_platform_operations_select
+  ON public.be_service_location_availability;
+CREATE POLICY be_service_location_availability_platform_operations_select
+  ON public.be_service_location_availability
+  FOR SELECT TO app_platform_settings USING (true);
+DROP POLICY IF EXISTS be_working_hours_platform_operations_select ON public.be_working_hours;
+CREATE POLICY be_working_hours_platform_operations_select ON public.be_working_hours
+  FOR SELECT TO app_platform_settings USING (true);
 
 ALTER TABLE public.admin_audit_log ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.admin_audit_log FORCE ROW LEVEL SECURITY;
@@ -326,6 +404,49 @@ SELECT 1 / (
   )
 )::int AS c5a_staff_current_org_read_policy_wall
 FROM actual;
+
+-- Booking-configuration read wall (#1009). Pins BOTH halves of the fix and, just as importantly,
+-- its narrowness: read-only, exactly these six relations, FOR SELECT only, scoped to the platform
+-- role, no WITH CHECK. A future FOR ALL or a stray INSERT/UPDATE/DELETE grant fails the closure here
+-- instead of quietly handing the platform principal cross-tenant write.
+WITH booking_config(relation_name) AS (
+  VALUES
+    ('be_branches'),
+    ('be_specialists'),
+    ('be_clinic_services'),
+    ('be_specialist_service_availability'),
+    ('be_service_location_availability'),
+    ('be_working_hours')
+), privilege_wall AS (
+  SELECT bool_and(
+    has_table_privilege('app_platform_settings', 'public.' || relation_name, 'SELECT')
+    AND NOT has_table_privilege('app_platform_settings', 'public.' || relation_name, 'INSERT')
+    AND NOT has_table_privilege('app_platform_settings', 'public.' || relation_name, 'UPDATE')
+    AND NOT has_table_privilege('app_platform_settings', 'public.' || relation_name, 'DELETE')
+  ) AS ok
+  FROM booking_config
+), policy_wall AS (
+  SELECT
+    count(policy.polname) AS present,
+    bool_and(
+      policy.polcmd = 'r'
+      AND policy.polpermissive
+      AND policy.polroles = ARRAY[(SELECT oid FROM pg_roles WHERE rolname = 'app_platform_settings')]
+      AND policy.polwithcheck IS NULL
+      AND pg_get_expr(policy.polqual, policy.polrelid) = 'true'
+    ) AS ok
+  FROM booking_config
+  LEFT JOIN pg_class AS relation ON relation.relname = booking_config.relation_name
+    AND relation.relnamespace = 'public'::regnamespace
+  LEFT JOIN pg_policy AS policy ON policy.polrelid = relation.oid
+    AND policy.polname = booking_config.relation_name || '_platform_operations_select'
+)
+SELECT 1 / (
+  privilege_wall.ok
+  AND policy_wall.present = 6
+  AND policy_wall.ok
+)::int AS c5a_platform_booking_config_read_only_wall
+FROM privilege_wall, policy_wall;
 
 COMMIT;
 
