@@ -224,8 +224,10 @@ describe("frozen webapp mutation census", () => {
   const specialFiles = new Set([...integratorFiles, ...internalFiles, ...paymentFiles, ...appleFiles]);
 
   it("freezes every API route, unsafe route, and unsafe handler", () => {
-    expect(routeFiles).toHaveLength(517);
-    expect(sha256Lines(routeInventory)).toBe("1b5302429d574d950365e4a4ab377e17e3f8d7cfc856ba86ad6027cc37802efa");
+    // 517 -> 518: 1561246d8 added `api/doctor/proactive-insights/by-patient/route.ts` (GET only,
+    // so the unsafe-handler census below is unchanged) and left this frozen census red.
+    expect(routeFiles).toHaveLength(518);
+    expect(sha256Lines(routeInventory)).toBe("ab4f1a73123590408f9fbd2da8ee0724197acbaf7f881dcc21f776b19adf706e");
     expect(unsafeInventory).toHaveLength(353);
     expect(unsafeInventory.reduce((count, entry) => count + entry.methods.length, 0)).toBe(392);
     expect(sha256Lines(unsafeInventoryLines)).toBe("b7149b57c96564d44642018a52d822a9b000034887c2b300c73388ba835f531d");
@@ -249,8 +251,11 @@ describe("frozen webapp mutation census", () => {
       .filter((file) => /\.[tj]sx?$/.test(file) && readFileSync(file, "utf8").includes("use server"))
       .map((file) => relative(webappRoot, file))
       .sort();
-    expect(serverActions).toHaveLength(28);
-    expect(sha256Lines(serverActions)).toBe("ca418715bca5ed91ad56b35df9dbe968db9769cf2d132f16b1b246b6d991eded");
+    // 28 -> 29: ad9db8266 added `src/app/app/settings/brandingActions.ts` and left this frozen
+    // census red. A permanently red gate teaches everyone to ignore gates, so the count and the
+    // hash are re-frozen here against the reviewed file list.
+    expect(serverActions).toHaveLength(29);
+    expect(sha256Lines(serverActions)).toBe("0cd77097478786b48646ec7a7043f64e927ed3412444e005e73b14c12a739829");
   });
 
   it("freezes nine stateful GET exceptions and their stronger proof", () => {

@@ -102,6 +102,10 @@ const delegatedActionFiles = new Set(doctorServerActionManifest.filter((route) =
 const settingsServerActionPolicy = {
   "doctorNotificationPrefsActions.ts": "account-self",
   "patient-home/actions.ts": "doctor-workspace",
+  // Added by ad9db8266 (clinic name and logo). Its authority is the organization-management
+  // capability, not the clinical workspace and not the personal account — so it gets its own
+  // policy value rather than being folded into one of the two above.
+  "brandingActions.ts": "org-branding-management",
 } as const;
 
 describe("U1 finite doctor launch manifest", () => {
@@ -181,6 +185,10 @@ describe("U1 finite doctor launch manifest", () => {
       if (policy === "account-self") {
         expect(source, route).toContain("requireStaffAccountPage(");
         expect(source, route).not.toContain("requireDoctorAccess(");
+        expect(source, route).not.toContain("requireDoctorWorkspaceContext(");
+      } else if (policy === "org-branding-management") {
+        expect(source, route).toContain("requireOrgBrandingManagementContext(");
+        expect(source, route).not.toContain("requireStaffAccountPage(");
         expect(source, route).not.toContain("requireDoctorWorkspaceContext(");
       } else {
         expect(source, route).toContain("requireDoctorWorkspaceContext(");

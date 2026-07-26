@@ -1,4 +1,5 @@
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
+import { requireAdminDoctorPage } from "@/app/app/settings/requireAdminDoctorPage";
 import { loadBookingAdminOverview } from "@/app/app/doctor/admin/booking/loadBookingAdminOverview";
 import { BookingOverviewPanel } from "@/app/app/doctor/admin/booking/BookingOverviewPanel";
 import { BookingRulesPageClient } from "@/app/app/doctor/admin/booking/BookingRulesPageClient";
@@ -23,6 +24,18 @@ function parseAdminBoolean(valueJson: unknown): boolean {
 }
 
 export default async function DoctorAdminBookingOverviewPage() {
+  // Same bug, same shape, same fix as the sibling `booking/payments/page.tsx` in 19f52fed2: both
+  // this page's `layout.tsx` and the `(global-admin)/doctor/layout.tsx` above it already call a
+  // platform guard, but a layout's `enterWithDbPlatformPrincipal` never reaches a sibling page's
+  // async context — Next renders them in separate continuations. Without this line the reads below
+  // run under the BOOTSTRAP principal, which `choosePoolKindForPrincipal` routes to the nonstaff
+  // pool and `applySignedDbPrincipal` answers with `release_principal_context()` + `RESET ROLE`,
+  // i.e. as the bare `bcb_*_nonstaff_login` that holds no grant on `system_settings` or on the
+  // booking-engine tables `loadBookingAdminOverview()` reads. Calling the guard HERE stamps the
+  // platform principal in this component's own context, so both reads run as
+  // `app_platform_settings`, which already holds them. No new GRANT: granting the patient-pool
+  // login role these tables would destroy the wall the dual-pool design exists to hold.
+  await requireAdminDoctorPage();
   const deps = buildAppDeps();
   const [overview, settingRow] = await Promise.all([
     loadBookingAdminOverview(),
