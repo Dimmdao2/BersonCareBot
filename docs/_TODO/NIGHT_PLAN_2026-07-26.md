@@ -43,7 +43,29 @@ finding that has no line here is a QUESTION for the owner, never work (see `docs
       or expose 2-3 accessors returning scalars not rows (PostgREST `basic_auth` shape); split PII satellite
       (GDPR Art. 4(5)). Must keep ~40 pre-auth read sites and ~8 pre-auth write sites working. Same class:
       `appointment_records`, `patient_bookings` (no `organization_id` at all).
-- [x] **A-5 (#1006) Bootstrap-principal reads — swept, gated** (`bf7e951f7`), pending independent audit.
+- [ ] **A-5 (#1006) Bootstrap-principal reads — swept, but the gate was DEFEATED by the audit. Re-opened.**
+      The independent auditor kept all four assertions green with a live instance of the bug present, and the
+      headline assertion stayed green when the fix it protects was reverted. Two causes: the establisher regex
+      matches a guard's own DEFINITION site (17 guards live under `src/app`), so merely *importing* a guard
+      satisfies it; and reads through modules outside `src/app` (`configAdapter`, `pgAppRuntimeSettings`) make
+      the page invisible to the census entirely. Also `getOptionalPatientSession` sits in the establisher list
+      but returns `null` and stamps nothing for an anonymous caller. Being repaired; a false gate is worse
+      than no gate.
+      **Two of my own claims here were wrong, corrected by the audit:** (1) the "five public pages" — four of
+      them never touch `system_settings` at all; they read through `app.read_public_runtime_setting`, a
+      definer accessor the anonymous role may execute, under an explicitly declared bootstrap principal, and
+      get the CORRECT value with zero denials. Only the landing genuinely reaches `system_settings`, and the
+      `getConfigValue` chokepoint has 50 call sites across 18 files, so attributing the denial volume to five
+      pages was unfounded. (2) The claim that 26 `api/integrator/*` handlers "express no principal at all" is
+      false — every one of them stamps a bootstrap principal through `assertIntegratorGetRequest` /
+      `verifyIntegratorSignature`. The count is 0, not 26. The consequence (same 42501, same bare login role)
+      is real, but it is deliberate, not accidental — #1008's stated reason must be rewritten.
+      **A real product bug came out of it:** the anonymous landing serves the env fallback instead of the
+      configured `app_base_url`, AND `configAdapter` caches that failure in a process-global map keyed only by
+      setting name — poisoning it for ~60 s for authenticated consumers too: clinic invite links, booking
+      confirmation e-mails, OAuth redirect base. Being fixed with the gate.
+
+- [x] **A-5 first pass (superseded above)** (`bf7e951f7`).
       **The class was far smaller than the denial count implied, and the count was misleading.** Census: 173
       page/layout entries, 88 read the DB in their own scope, **87 already stamped a principal, exactly 1 did
       not** — now fixed. Server actions swept too: 0 unstamped. Route handlers are outside the class by
