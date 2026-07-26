@@ -11,6 +11,7 @@ import {
   SelectContent,
   SelectItem,
   SelectTrigger,
+  SelectValue,
 } from "@/shared/ui/doctor/primitives/select";
 
 const POLICY_API = "/api/admin/booking-engine/prepayment-policies";
@@ -78,10 +79,6 @@ export function BookingPrepaymentSection() {
       void load();
     });
   }, [load, startTransition]);
-
-  const selectedService = services.find((s) => s.id === serviceId);
-  const serviceDisplayLabel = selectedService?.title ?? "";
-  const onlineDisplayLabel = ONLINE_CATEGORIES.find((c) => c.value === onlineCategory)?.label ?? "";
 
   function applyService(id: string) {
     setServiceId(id);
@@ -166,10 +163,9 @@ export function BookingPrepaymentSection() {
             }
           }}
         >
-          <SelectTrigger
-            displayLabel={scope === "service" ? "Очный приём (услуга)" : "Онлайн"}
-            className="w-full"
-          />
+          <SelectTrigger className="w-full">
+            <SelectValue />
+          </SelectTrigger>
           <SelectContent>
             <SelectItem value="service">Очный приём (услуга)</SelectItem>
             <SelectItem value="online">Онлайн</SelectItem>
@@ -184,7 +180,9 @@ export function BookingPrepaymentSection() {
                 if (id) applyService(id);
               }}
             >
-              <SelectTrigger displayLabel={serviceDisplayLabel || undefined} className="w-full" />
+              <SelectTrigger className="w-full">
+                <SelectValue />
+              </SelectTrigger>
               <SelectContent>
                 {services.map((s) => (
                   <SelectItem key={s.id} value={s.id}>
@@ -203,7 +201,9 @@ export function BookingPrepaymentSection() {
                 if (v === "rehab_lfk" || v === "nutrition" || v === "general") applyOnline(v);
               }}
             >
-              <SelectTrigger displayLabel={onlineDisplayLabel} className="w-full" />
+              <SelectTrigger className="w-full">
+                <SelectValue />
+              </SelectTrigger>
               <SelectContent>
                 {ONLINE_CATEGORIES.map((c) => (
                   <SelectItem key={c.value} value={c.value}>
@@ -217,7 +217,9 @@ export function BookingPrepaymentSection() {
         <div className="space-y-2">
           <Label>Режим</Label>
           <Select value={mode} onValueChange={(v) => setMode(v as PolicyRow["mode"])}>
-            <SelectTrigger displayLabel={MODE_LABELS[mode]} className="w-full" />
+            <SelectTrigger className="w-full">
+              <SelectValue />
+            </SelectTrigger>
             <SelectContent>
               {(Object.keys(MODE_LABELS) as PolicyRow["mode"][]).map((m) => (
                 <SelectItem key={m} value={m}>

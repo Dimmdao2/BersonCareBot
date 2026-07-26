@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState, useTransition } from "react";
+import { useCallback, useEffect, useState, useTransition } from "react";
 import { apiJson } from "@/shared/lib/apiJson";
 import { Card, CardContent, CardHeader, CardTitle } from "@/shared/ui/doctor/primitives/card";
 import { Button } from "@/shared/ui/doctor/primitives/button";
@@ -67,16 +67,6 @@ export function BookingWorkingHoursSection({ soloUx = false }: { soloUx?: boolea
   const [weekday, setWeekday] = useState("1");
   const [startTime, setStartTime] = useState("09:00");
   const [endTime, setEndTime] = useState("18:00");
-
-  const specialistLabel = useMemo(
-    () => catalog?.specialists.find((s) => s.id === specialistId)?.fullName,
-    [catalog, specialistId],
-  );
-  const branchLabel = useMemo(
-    () => catalog?.branches.find((b) => b.id === branchId)?.title,
-    [catalog, branchId],
-  );
-  const roomLabel = useMemo(() => catalog?.rooms.find((r) => r.id === roomId)?.title, [catalog, roomId]);
 
   const loadCatalog = useCallback(async () => {
     try {
@@ -187,7 +177,7 @@ export function BookingWorkingHoursSection({ soloUx = false }: { soloUx?: boolea
           <div className="flex flex-col gap-1">
             <Label>Специалист</Label>
             <Select value={specialistId || "__none__"} onValueChange={(v) => setSpecialistId(!v || v === "__none__" ? "" : v)}>
-              <SelectTrigger displayLabel={specialistId ? specialistLabel : "Вся клиника"}>
+              <SelectTrigger>
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -206,7 +196,7 @@ export function BookingWorkingHoursSection({ soloUx = false }: { soloUx?: boolea
           <div className="flex flex-col gap-1">
             <Label>{soloUx ? "Локация" : "Филиал"}</Label>
             <Select value={branchId || "__none__"} onValueChange={(v) => setBranchId(!v || v === "__none__" ? "" : v)}>
-              <SelectTrigger displayLabel={branchId ? branchLabel : "Все"}>
+              <SelectTrigger>
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -225,7 +215,7 @@ export function BookingWorkingHoursSection({ soloUx = false }: { soloUx?: boolea
           <div className="flex flex-col gap-1">
             <Label>Кабинет</Label>
             <Select value={roomId || "__none__"} onValueChange={(v) => setRoomId(!v || v === "__none__" ? "" : v)}>
-              <SelectTrigger displayLabel={roomId ? roomLabel : "Все"}>
+              <SelectTrigger>
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -246,7 +236,7 @@ export function BookingWorkingHoursSection({ soloUx = false }: { soloUx?: boolea
           <div className="flex flex-col gap-1">
             <Label>День</Label>
             <Select value={weekday} onValueChange={(v) => setWeekday(v ?? "1")}>
-              <SelectTrigger displayLabel={WEEKDAYS.find((d) => String(d.value) === weekday)?.label}>
+              <SelectTrigger>
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>

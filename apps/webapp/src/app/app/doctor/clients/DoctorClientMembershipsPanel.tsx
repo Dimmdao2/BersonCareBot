@@ -6,7 +6,7 @@ import toast from "react-hot-toast";
 import { Button } from "@/shared/ui/doctor/primitives/button";
 import { Input } from "@/shared/ui/doctor/primitives/input";
 import { Label } from "@/shared/ui/doctor/primitives/label";
-import { Select, SelectContent, SelectItem, SelectTrigger } from "@/shared/ui/doctor/primitives/select";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/shared/ui/doctor/primitives/select";
 import { PatientPackageCard, type PatientPackageCardRow } from "./PatientPackageCard";
 import { DoctorDatePicker } from "@/shared/ui/doctor/DoctorDatePicker";
 
@@ -344,9 +344,10 @@ export function DoctorClientMembershipsPanel({
                   >
                     <SelectTrigger
                       id="pkg-catalog"
-                      displayLabel={catalog.find((c) => c.id === catalogId)?.title ?? "—"}
                       className="w-full"
-                    />
+                    >
+                      <SelectValue />
+                    </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="">—</SelectItem>
                       {catalog.map((c) => (
@@ -402,11 +403,10 @@ export function DoctorClientMembershipsPanel({
                   >
                     <SelectTrigger
                       id="pkg-svc"
-                      displayLabel={
-                        services.find((s) => s.id === serviceId)?.title ?? "—"
-                      }
                       className="w-full"
-                    />
+                    >
+                      <SelectValue />
+                    </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="">—</SelectItem>
                       {services
@@ -470,9 +470,10 @@ export function DoctorClientMembershipsPanel({
             }}
           >
             <SelectTrigger
-              displayLabel={packages.find((p) => p.id === consumePackageId)?.title ?? "—"}
               className="w-full"
-            />
+            >
+              <SelectValue />
+            </SelectTrigger>
             <SelectContent>
               <SelectItem value="">—</SelectItem>
               {packages
@@ -492,16 +493,10 @@ export function DoctorClientMembershipsPanel({
                 onValueChange={(v) => setConsumeItemId(v ?? "")}
               >
                 <SelectTrigger
-                  displayLabel={
-                    selectedPkg.balance.items.find((it) => it.patientPackageItemId === consumeItemId)
-                      ? formatConsumeItemLabel(
-                          selectedPkg.balance.items.find((it) => it.patientPackageItemId === consumeItemId)!,
-                          selectedPkg,
-                        )
-                      : "—"
-                  }
                   className="w-full"
-                />
+                >
+                  <SelectValue />
+                </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="">—</SelectItem>
                   {selectedPkg.balance.items.map((it) => (
@@ -519,9 +514,10 @@ export function DoctorClientMembershipsPanel({
             onValueChange={(v) => setConsumeAppointmentId(v ?? "")}
           >
             <SelectTrigger
-              displayLabel={appointments.find((a) => a.id === consumeAppointmentId)?.label ?? "Без записи"}
               className="w-full"
-            />
+            >
+              <SelectValue />
+            </SelectTrigger>
             <SelectContent>
               <SelectItem value="">Без записи</SelectItem>
               {appointments.map((a) => (

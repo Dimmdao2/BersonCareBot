@@ -178,8 +178,6 @@ export function MaterialContentStatsClient() {
     void load(windowHours);
   }, [load, windowHours]);
 
-  const presetLabel = PRESETS.find((p) => p.hours === windowHours)?.label ?? String(windowHours);
-
   const practiceChartData = useMemo(
     () => topPagesToChartData(data?.practiceTopPages ?? []),
     [data?.practiceTopPages],
@@ -213,7 +211,7 @@ export function MaterialContentStatsClient() {
             if (Number.isFinite(n)) setWindowHours(n);
           }}
         >
-          <SelectTrigger className="w-[140px]" displayLabel={presetLabel}>
+          <SelectTrigger className="w-[140px]">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>

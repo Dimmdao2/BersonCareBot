@@ -110,7 +110,6 @@ export function ProductAnalyticsSection() {
     void load(windowHours);
   }, [load, windowHours]);
 
-  const presetLabel = PRESETS.find((p) => p.hours === windowHours)?.label ?? String(windowHours);
   const pushOpenRatePct = data ? Math.round(data.summary.pushOpenRate * 100) : 0;
   const sortedClientRows = useMemo(
     () =>
@@ -137,7 +136,7 @@ export function ProductAnalyticsSection() {
             if (Number.isFinite(n)) setWindowHours(n);
           }}
         >
-          <SelectTrigger className="w-[140px]" displayLabel={presetLabel}>
+          <SelectTrigger className="w-[140px]">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
