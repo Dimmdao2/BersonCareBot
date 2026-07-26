@@ -1137,8 +1137,25 @@ assert_app_owner_secdef_table_grants_complete(){
   # while every required table/column grant -- including that exact one -- read back present seconds
   # later with no further overlay/GRANT applied in between). Retry-with-settle exactly like the
   # sibling seam-pin check above: only a PERSISTENT gap FATALs, never a one-off closure blip.
+  #
+  # 2026-07-26, re-investigated: this specific FATAL (operator_incidents UPDATE (alert_sent_at))
+  # recurred on 4 consecutive deploys even with the 5x2s window above, so "one-off blip" no longer
+  # fit -- but a full static audit found no structural cause. deploy/postgres/c4-operational-runtime.sql
+  # is the ONLY file that ever touches app_owner's grant on this column; its GRANT (line ~477) is
+  # unconditional in the UP path, and its one REVOKE of the same privilege (line ~189) sits behind the
+  # file's own `\if :c4_operational_runtime_down ... \quit \endif` DOWN-path guard, unreachable on a
+  # normal deploy. reapply_c4_operational_runtime_overlays (which applies this file) is the last thing
+  # in the closure that touches it, runs well before this gate, and nothing in between re-revokes it.
+  # A live check immediately after a RED deploy confirms the grant durably present (has_column_privilege
+  # true, aclexplode shows app_owner/UPDATE on alert_sent_at) -- so this is not a missing grant, not
+  # the D3.4-class bug (no DROP+CREATE/OID-reset exists anywhere for this table or column), and nothing
+  # to widen. It reproduces in the same narrow window as the sibling seam-pin warning right above (both
+  # sit immediately after the U3S specialist-signup-provisioning smoke, which starts and stops its own
+  # disposable PostgreSQL cluster and runs a burst of CPU/IO-heavy script activity) -- consistent with a
+  # genuine settle/visibility gap wider than 5x2s=10s at that specific closure position, not a code bug.
+  # Widened the retry budget rather than the grant: same idiom, longer window.
   local missing="" operator_incidents_ok="" _secdef_grants_attempt
-  for _secdef_grants_attempt in 1 2 3 4 5; do
+  for _secdef_grants_attempt in 1 2 3 4 5 6 7 8 9 10; do
     missing="$(sudo -u postgres psql -d "$DB" -X -v ON_ERROR_STOP=1 -tAc "
 WITH required(tbl, priv) AS (
   VALUES
@@ -1196,7 +1213,7 @@ WHERE NOT has_table_privilege('app_owner', tbl, priv);
 SELECT has_column_privilege('app_owner', 'public.operator_incidents', 'alert_sent_at', 'UPDATE')::text;
 ")"
     [ -z "$missing" ] && [ "$operator_incidents_ok" = "t" ] && break
-    sleep 2
+    sleep 3
   done
   [ -z "$missing" ] || {
     echo "FATAL: app_owner is missing required table GRANT(s): $missing" >&2
@@ -1380,7 +1397,28 @@ WHERE NOT has_table_privilege('$DB', tbl, priv);
   # Anti-drift, same idiom as expected_secdef_count above: a new anon-reachable SECURITY DEFINER
   # function owned by either role must be reviewed for its own table grants (added to (a) above)
   # before this constant is bumped.
-  local expected_db_owner_anon_secdef=28
+  #
+  # Re-measured live 2026-07-26 after fixing the D3.4-ordering bug (see grant_webapp_bootstrap_base_login_d3_4's
+  # two call sites above): 28 (baseline, pinned by commit 9b40d74e9, before that day's migrations
+  # 0247-0250) + 1 = 29. The +1 is app.email_auth_set_email_challenge_purpose(uuid,text), a genuinely
+  # NEW $DB-owned function added by migration 0249 (email_challenge_purpose_binding) and reachable by
+  # the bootstrap role via D3.4 (same WHERE-guarded grant as its email_auth_* siblings) -- it only
+  # touches public.email_challenges UPDATE, already covered by the required-privilege set in (a), so
+  # no new row was needed there. Migration 0247's rename (email_auth_update_email_challenge_attempts
+  # -> email_auth_increment_email_challenge_attempts) is a net-zero 1-for-1 swap, both $DB-owned and
+  # both D3.4-granted. Migration 0248's three new functions (email_auth_find/register/reset_email_otp_lock)
+  # are owned by app_owner, not $DB, so they do not count here. Migration 0250 re-scopes an
+  # app_owner-owned function (read_platform_media_row) down to app_staff -- also not $DB-owned, also
+  # not counted here. Confirmed directly: querying pg_proc for $DB-owned prosecdef functions with
+  # EXECUTE granted to the bootstrap role or PUBLIC returns exactly 29 rows post-closure.
+  #
+  # An earlier, discarded edit set this same constant to 29 with a false justification ("D3.4 heals
+  # it on the next closure run" -- it does not; before the two-call fix above it ran once, early, and
+  # the four email_auth_find_* functions stayed unreachable through the whole closure). That the
+  # number lands on 29 here too is coincidence, not vindication: this value is arrived at by
+  # measurement after the real ordering fix, with the arithmetic above, not by guessing a constant
+  # that would make the gate pass.
+  local expected_db_owner_anon_secdef=29
   local expected_telemetry_owner_anon_secdef=1
   local actual_db_owner_anon_secdef actual_telemetry_owner_anon_secdef
   for _db_owner_secdef_attempt in 1 2 3; do
