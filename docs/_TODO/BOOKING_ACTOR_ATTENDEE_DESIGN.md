@@ -1,5 +1,11 @@
 # Booking actor vs attendee — design note (#563 / #543.3)
 
+> ⛔ **SUPERSEDED 27.07.2026 — К РЕАЛИЗАЦИИ НЕ БРАТЬ.**
+> Обновление решения владельца: «Если кого то другого надо записать, напишут в комментарии».
+> Отдельный механизм actor/attendee не строим — потребность закрывается комментарием к записи.
+> Документ остаётся как запись проработки на случай возврата к теме. Актуальный статус — пункт **PBK-4**
+> в [`BCB2_OWNER_PUNCHLIST_2026-07-18.md`](./BCB2_OWNER_PUNCHLIST_2026-07-18.md).
+
 **Статус:** design doc, DOCS-ONLY. No schema/code changed by this pass. Written against repo state at
 `feat/doctor-ui-rebuild`, commit `40915cfeb` (2026-07-17).
 
