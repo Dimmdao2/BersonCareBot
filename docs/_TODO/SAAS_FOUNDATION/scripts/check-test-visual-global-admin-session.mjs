@@ -7,8 +7,12 @@ const files = {
   cookie: "apps/webapp/src/modules/auth/sessionCookie.ts",
   cookieTest: "apps/webapp/src/modules/auth/sessionCookie.test.ts",
   types: "apps/webapp/src/shared/types/session.ts",
-  globalAdminLayout: "apps/webapp/src/app/app/(global-admin)/doctor/system-health/layout.tsx",
-  globalAdminPage: "apps/webapp/src/app/app/(global-admin)/doctor/system-health/page.tsx",
+  // PLAT-01…09 slice 1 (2026-07-26): system-health moved from `(global-admin)/doctor/` to its
+  // own `/app/platform/*` shell. `globalAdminLayout` now points at the layout that actually
+  // governs this page (`app/platform/layout.tsx`) — the old path this pointed at
+  // (`(global-admin)/doctor/system-health/layout.tsx`) never existed as a real file.
+  globalAdminLayout: "apps/webapp/src/app/app/platform/layout.tsx",
+  globalAdminPage: "apps/webapp/src/app/app/platform/system-health/page.tsx",
   runbook: "docs/_TODO/SAAS_FOUNDATION/OWNER_READY_TEST/TEST_VISUAL_GLOBAL_ADMIN_SESSION.md",
   package: "package.json",
 };
@@ -76,7 +80,7 @@ function validate(source) {
   requireFragments("capture", source.capture, [
     'const exactBase = "https://test.bersoncare.ru"',
     'const exactCookieHost = "test.bersoncare.ru"',
-    'const exactRoute = "/app/doctor/system-health"',
+    'const exactRoute = "/app/platform/system-health"',
     'const exactJar = "/run/bersoncarebot-visual/global-admin.cookies"',
     'fields[3] !== "TRUE"',
     'fields[0] !== exactCookieHost',

@@ -301,28 +301,28 @@ export function MaterialContentStatsClient() {
                   title="Выдач всего"
                   value={data.videoPlayback.totalResolutions}
                   hint="за период"
-                  href="/app/doctor/system-health"
+                  href="/app/platform/system-health"
                 />
                 <DoctorStatCard
                   id="content-stats-video-watch-minutes"
                   title="Минут просмотра"
                   value={data.videoPlaybackEstimatedWatchMinutes}
                   hint="оценка по длительности роликов"
-                  href="/app/doctor/system-health"
+                  href="/app/platform/system-health"
                 />
                 <DoctorStatCard
                   id="content-stats-video-pairs"
                   title="Уникальных пар"
                   value={data.videoPlayback.uniquePlaybackPairsFirstSeenInWindow}
                   hint="пользователь + видео"
-                  href="/app/doctor/system-health"
+                  href="/app/platform/system-health"
                 />
                 <DoctorStatCard
                   id="content-stats-video-fallback"
                   title="Fallback на MP4"
                   value={data.videoPlayback.fallbackTotal}
                   hint={data.videoPlayback.fallbackTotal > 0 ? "HLS → MP4" : "не потребовался"}
-                  href="/app/doctor/system-health"
+                  href="/app/platform/system-health"
                 />
                 <DoctorStatCard
                   id="content-stats-video-errors"
@@ -336,7 +336,7 @@ export function MaterialContentStatsClient() {
                         ? `за 1 ч: ${data.videoPlaybackClient.totalErrorsLast1h}`
                         : "за 1 ч: 0"
                   }
-                  href="/app/doctor/system-health"
+                  href="/app/platform/system-health"
                 />
               </div>
 

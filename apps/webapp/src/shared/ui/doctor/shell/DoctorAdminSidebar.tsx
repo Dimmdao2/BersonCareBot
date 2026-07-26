@@ -29,6 +29,8 @@ type DoctorAdminSidebarProps = {
    * mark when absent (account/global-admin/manage shells never pass it).
    */
   brand?: { displayName: string; logoUrl: string | null };
+  /** Which item source `DoctorMenuAccordion` renders. See `DoctorMenuAccordionProps.menuKind`. */
+  menuKind?: "doctor" | "platform";
 };
 
 /**
@@ -42,6 +44,7 @@ export function DoctorAdminSidebar({
   enableBadgePolling,
   homeHref = routePaths.doctor,
   brand,
+  menuKind = "doctor",
 }: DoctorAdminSidebarProps) {
   const pathname = usePathname() ?? "/app/doctor";
 
@@ -94,6 +97,7 @@ export function DoctorAdminSidebar({
           menuAccess={menuAccess}
           patientLabel={patientLabel}
           enableBadgePolling={enableBadgePolling}
+          menuKind={menuKind}
         />
         <form action="/api/auth/logout" method="post" className="w-full">
           <Button

@@ -35,6 +35,13 @@ export function doctorRouteRedirectResponse(
   }
 
   const legacyRedirects: Record<string, string> = {
+    // PLAT-01…09 slice 1 (2026-07-26): system-health moved out of the clinical/doctor URL space
+    // into its own platform shell at /app/platform/*. This is a single exact-path entry (like
+    // /app/doctor/clients below), not a prefix — see the /app/doctor/admin/booking note further
+    // down for why a *prefix* redirect here is dangerous (it ran ahead of any session/role and
+    // swallowed a live global-admin-only page for months). Slices 2-7 add sibling entries here
+    // as each remaining `(global-admin)/doctor/**` page physically moves to `/app/platform/*`.
+    "/app/doctor/system-health": "/app/platform/system-health",
     // Old /clients/ client-card list → new /patients/ card list (old client card removed).
     "/app/doctor/clients": "/app/doctor/patients",
     "/app/doctor/messages": "/app/doctor/communications?tab=chats",

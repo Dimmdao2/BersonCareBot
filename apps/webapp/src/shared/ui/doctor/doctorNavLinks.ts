@@ -43,7 +43,7 @@ export type DoctorMenuAccess = {
 };
 
 export function getDoctorShellHomeHref(access: DoctorMenuAccess): string {
-  if (hasLaunchCapability(access.capabilities, "platform.operations")) return "/app/doctor/system-health";
+  if (hasLaunchCapability(access.capabilities, "platform.operations")) return "/app/platform/system-health";
   if (hasLaunchCapability(access.capabilities, "clinical.workspace")) return routePaths.doctor;
   if (hasLaunchCapability(access.capabilities, "organization.management")) {
     return routePaths.settings;
@@ -119,74 +119,10 @@ const RAW_DOCTOR_MENU_ITEMS: DoctorMenuLinkItem[] = [
     accessTier: "clinic_admin",
   },
   { id: "account", label: "Аккаунт", href: routePaths.account, accessTier: "staff" },
-  {
-    id: "analytics",
-    label: "Аналитика",
-    href: "/app/doctor/analytics",
-    accessTier: "global_admin",
-  },
-  {
-    id: "system",
-    label: "Система",
-    accessTier: "global_admin",
-    items: [
-      {
-        id: "commercial",
-        label: "Тарифы и триал",
-        href: "/app/doctor/commercial",
-        accessTier: "global_admin",
-      },
-      {
-        id: "admin-app-settings",
-        label: "Настройки приложения",
-        href: "/app/doctor/admin/app-settings",
-        accessTier: "global_admin",
-      },
-      {
-        id: "admin-auth",
-        label: "Авторизация",
-        href: "/app/doctor/admin/auth",
-        accessTier: "global_admin",
-      },
-      {
-        id: "admin-booking",
-        label: "Бронирование",
-        href: "/app/doctor/admin/booking",
-        accessTier: "global_admin",
-      },
-      {
-        id: "admin-integrations",
-        label: "Интеграции",
-        href: "/app/doctor/admin/integrations",
-        accessTier: "global_admin",
-      },
-      {
-        id: "admin-technical",
-        label: "Технические режимы",
-        href: "/app/doctor/admin/technical",
-        accessTier: "global_admin",
-      },
-      {
-        id: "system-health",
-        label: "Здоровье системы",
-        href: "/app/doctor/system-health",
-        accessTier: "global_admin",
-      },
-      {
-        id: "health-archive",
-        label: "Архив сбоев",
-        href: "/app/doctor/health-archive",
-        accessTier: "global_admin",
-      },
-      {
-        id: "audit-log",
-        label: "Журнал операций",
-        href: "/app/doctor/audit-log",
-        badgeKey: "registrationSystemFailures",
-        accessTier: "global_admin",
-      },
-    ],
-  },
+  // NOTE: the platform operator's own destinations (analytics + the former "system" cluster)
+  // moved out to `platformNavLinks.ts` — the platform shell has its own dedicated, flat
+  // navigation now (owner ruling 2026-07-26: the global admin is not a doctor and does not
+  // share this menu).
 ];
 
 /**

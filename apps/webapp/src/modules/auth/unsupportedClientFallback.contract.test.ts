@@ -27,7 +27,7 @@ describe("unsupported-client F0 integration guards", () => {
 
   it("does not wire client compatibility into system health, registration failures or error audit", () => {
     const protectedSources = [
-      "../../app/app/settings/SystemHealthSection.tsx",
+      "../../app/app/platform/system-health/SystemHealthSection.tsx",
       "../../app-layer/product-analytics/loadAdminRegistrationFailureAttention.ts",
       "../../modules/operator-health/adminHealthThresholds.ts",
     ].map(read).join("\n");

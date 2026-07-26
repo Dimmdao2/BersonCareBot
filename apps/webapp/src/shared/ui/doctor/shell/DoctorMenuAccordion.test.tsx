@@ -218,11 +218,28 @@ describe("DoctorMenuAccordion", () => {
     expect(screen.queryByRole("button", { name: /Система/ })).not.toBeInTheDocument();
   });
 
-  it("shows settings, personal account and system links for platform admin role", () => {
+  it("shows settings and personal account links for a dual-capability actor (doctor menu kind, default)", () => {
     render(<DoctorMenuAccordion variant="sidebar" pathname="/app/doctor" menuAccess={adminAccess} />);
     expect(screen.getByRole("link", { name: "Настройки" })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Аккаунт" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /Система/ })).toBeInTheDocument();
+    // The platform-only cluster moved out to its own flat menu — the doctor menu kind never
+    // renders it, even for an actor who also holds platform.operations.
+    expect(screen.queryByRole("button", { name: /Система/ })).not.toBeInTheDocument();
+  });
+
+  it("menuKind=platform renders the flat platform menu — no group buttons, every item a direct link", () => {
+    render(
+      <DoctorMenuAccordion variant="sidebar" pathname="/app/doctor" menuAccess={adminAccess} menuKind="platform" />,
+    );
+    expect(screen.getByRole("link", { name: "Здоровье системы" })).toHaveAttribute(
+      "href",
+      "/app/platform/system-health",
+    );
+    expect(screen.getByRole("link", { name: "Аналитика" })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Журнал операций" })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Тарифы и триал" })).toBeInTheDocument();
+    // Flat by owner ruling 2026-07-26: no "Система" (or any other) group/accordion button exists.
+    expect(screen.queryByRole("button", { name: /Система/ })).not.toBeInTheDocument();
   });
 
   // Sheet (mobile) tests

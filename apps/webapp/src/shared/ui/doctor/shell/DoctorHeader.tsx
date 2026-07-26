@@ -43,6 +43,8 @@ type DoctorHeaderProps = {
   enableBadgePolling?: boolean;
   homeHref?: string;
   showClinicalShortcuts?: boolean;
+  /** Which item source `DoctorMenuAccordion` renders. See `DoctorMenuAccordionProps.menuKind`. */
+  menuKind?: "doctor" | "platform";
 };
 
 /** Touch target ≥ 44px; базовый `icon` = 32px — переопределение. */
@@ -57,6 +59,7 @@ export function DoctorHeader({
   enableBadgePolling,
   homeHref = routePaths.doctor,
   showClinicalShortcuts = true,
+  menuKind = "doctor",
 }: DoctorHeaderProps) {
   const router = useRouter();
   const pathname = usePathname() ?? "/app/doctor";
@@ -186,6 +189,7 @@ export function DoctorHeader({
                 patientLabel={patientLabel}
                 onNavigate={closeMenu}
                 enableBadgePolling={enableBadgePolling}
+                menuKind={menuKind}
               />
               <form action="/api/auth/logout" method="post" className="w-full">
                 <Button

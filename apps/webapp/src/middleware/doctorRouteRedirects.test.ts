@@ -36,6 +36,14 @@ describe("doctorRouteRedirectResponse — 308 redirects (old → new URLs)", () 
     },
   );
 
+  it("redirects /app/doctor/system-health to /app/platform/system-health (PLAT-01…09 slice 1)", () => {
+    const res = doctorRouteRedirectResponse(req("/app/doctor/system-health"));
+    expect(res?.status).toBe(308);
+    expect(res?.headers.get("location")).toBe(
+      "http://localhost/app/platform/system-health",
+    );
+  });
+
   it("does NOT redirect /app/doctor/admin/booking — it is a global-admin page, and middleware has no role", () => {
     // Regression guard. This path used to be in the legacy map, which runs before any session is
     // resolved, so the 308 applied to the global admin too. That made BookingOverviewPanel and

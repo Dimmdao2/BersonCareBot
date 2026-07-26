@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { ArrowLeft, ChevronRight, LayoutDashboard, Users, Calendar, MessageCircle, BookOpen, FileText, BarChart3, Settings, Server, FolderOpen, BriefcaseBusiness, UserRound } from "lucide-react";
+import { ArrowLeft, ChevronRight, LayoutDashboard, Users, Calendar, MessageCircle, BookOpen, FileText, BarChart3, Settings, Server, FolderOpen, BriefcaseBusiness, UserRound, CreditCard, KeyRound, Plug, Wrench, Activity, Archive, ScrollText } from "lucide-react";
 import type { ElementType } from "react";
 import { useCallback, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
@@ -19,6 +19,7 @@ import {
   type DoctorMenuBadgeKey,
   type DoctorMenuLinkItem,
 } from "@/shared/ui/doctor/doctorNavLinks";
+import { getPlatformMenuItems } from "@/shared/ui/doctor/platformNavLinks";
 import { hasLaunchCapability } from "@/app-layer/guards/workspaceCapabilities";
 import {
   DOCTOR_MENU_ITEM_RADIUS_CLASS,
@@ -73,6 +74,16 @@ function getIconForMenuId(id: string): ElementType | null {
     case "account": return UserRound;
     case "settings": return Settings;
     case "system": return Server;
+    // Platform (global admin) flat menu — former "system" cluster sub-items, now top-level.
+    case "commercial": return CreditCard;
+    case "admin-app-settings": return Settings;
+    case "admin-auth": return KeyRound;
+    case "admin-booking": return Calendar;
+    case "admin-integrations": return Plug;
+    case "admin-technical": return Wrench;
+    case "system-health": return Activity;
+    case "health-archive": return Archive;
+    case "audit-log": return ScrollText;
     default: return null;
   }
 }
@@ -114,6 +125,13 @@ export type DoctorMenuAccordionProps = {
   onNavigate?: () => void;
   /** Global-only surfaces have no tenant workspace and must not poll tenant badge APIs. */
   enableBadgePolling?: boolean;
+  /**
+   * Which item source to render. `"doctor"` (default) is the clinical/staff menu
+   * (`doctorNavLinks.ts`). `"platform"` is the global admin's own flat menu
+   * (`platformNavLinks.ts`) — it never carries nested `.items`, so it renders as plain links in
+   * both variants without any accordion/group behavior.
+   */
+  menuKind?: "doctor" | "platform";
 };
 
 /**
@@ -427,8 +445,12 @@ export function DoctorMenuAccordion({
   patientLabel,
   onNavigate,
   enableBadgePolling = true,
+  menuKind = "doctor",
 }: DoctorMenuAccordionProps) {
-  const items = useMemo(() => getDoctorMenuItems(menuAccess, patientLabel), [menuAccess, patientLabel]);
+  const items = useMemo(
+    () => (menuKind === "platform" ? getPlatformMenuItems(menuAccess) : getDoctorMenuItems(menuAccess, patientLabel)),
+    [menuKind, menuAccess, patientLabel],
+  );
 
   const messagesUnread = useDoctorSupportUnreadCount();
   const onlineIntakeNew = useDoctorOnlineIntakeNewCount(enableBadgePolling);

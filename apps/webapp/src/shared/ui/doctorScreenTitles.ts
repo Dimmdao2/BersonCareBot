@@ -14,7 +14,7 @@ export function getDoctorScreenTitle(pathname: string): string {
     "/app/doctor/analytics": "Аналитика",
     "/app/doctor/analytics/clients": "По клиентам",
     "/app/doctor/analytics/notifications": "По уведомлениям",
-    "/app/doctor/system-health": "Здоровье системы",
+    "/app/platform/system-health": "Здоровье системы",
     "/app/doctor/health-archive": "Архив сбоев",
     "/app/doctor/audit-log": "Журнал операций",
     "/app/doctor/admin/app-settings": "Настройки приложения",

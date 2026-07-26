@@ -7,7 +7,7 @@ import {
 } from "./deliveryEvidence";
 import { formatHeartbeatAge, isHeartbeatFailing, type OperatorHeartbeatVerdict } from "./heartbeat";
 
-export const OPERATOR_HEALTH_DIGEST_LINK = "/app/doctor/system-health";
+export const OPERATOR_HEALTH_DIGEST_LINK = "/app/platform/system-health";
 export const MAX_OPERATOR_HEALTH_DIGEST_LINES = 20;
 
 export type OperatorHealthDigestInput = {

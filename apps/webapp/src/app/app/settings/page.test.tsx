@@ -305,7 +305,12 @@ describe("legacy settings compatibility", () => {
   });
 
   it("keeps historical platform admin-tab redirects", async () => {
+    // system-health moved to /app/platform/* in PLAT-01…09 slice 1 (2026-07-26); the rest of
+    // ADMIN_TAB_REDIRECTS still target /app/doctor/* (unmoved this slice).
     await expect(SettingsPage({ searchParams: Promise.resolve({ adminTab: "system-health" }) })).rejects.toThrow(
+      "redirect:/app/platform/system-health",
+    );
+    await expect(SettingsPage({ searchParams: Promise.resolve({ adminTab: "health-archive" }) })).rejects.toThrow(
       /redirect:\/app\/doctor\//,
     );
     expect(requireWorkspaceMock).not.toHaveBeenCalled();

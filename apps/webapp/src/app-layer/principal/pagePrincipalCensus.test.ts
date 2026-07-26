@@ -608,7 +608,11 @@ describe("RSC page DB-principal census (night plan A-5, bug class of 19f52fed2)"
     const readers = pageEntries.filter(
       (entry) => scan(entry, [parse(entry)]).reads.length > 0 || firstUncoveredRead(entry, null) !== null,
     );
-    expect(pageEntries).toHaveLength(173);
+    // PLAT-01…09 slice 1 (2026-07-26): net +1 page entry. `system-health/page.tsx` moved from
+    // `(global-admin)/doctor/` to `app/platform/` (net 0: one entry removed, one added), plus the
+    // new `app/platform/layout.tsx` sibling of the pre-existing `(global-admin)/doctor/layout.tsx`
+    // (net +1 — both call `requirePlatformOperationsPage()`, neither is itself a DB read).
+    expect(pageEntries).toHaveLength(174);
     expect(readers).toHaveLength(12);
   });
 

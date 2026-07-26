@@ -18,7 +18,7 @@ import {
 } from "@/shared/ui/doctor/primitives/dialog";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/shared/ui/doctor/primitives/collapsible";
 import { cn } from "@/lib/utils";
-import { CopyForAiButton } from "./CopyForAiButton";
+import { CopyForAiButton } from "@/app/app/settings/CopyForAiButton";
 import {
   HEALTH_FAILURE_ARCHIVE_INTEGRATOR_OUTBOX_PROBE,
   HEALTH_FAILURE_ARCHIVE_OUTGOING_PROBE,

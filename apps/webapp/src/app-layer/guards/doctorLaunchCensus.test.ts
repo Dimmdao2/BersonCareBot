@@ -47,7 +47,7 @@ const launchManifest: readonly LaunchManifestEntry[] = [
   { route: "analytics/notifications/page.tsx", launchClass: "platform", capability: "platform-operations", objectPolicy: "platform-config" },
   { route: "audit-log/page.tsx", launchClass: "platform", capability: "platform-operations", objectPolicy: "platform-config" },
   { route: "health-archive/page.tsx", launchClass: "platform", capability: "platform-operations", objectPolicy: "platform-config" },
-  { route: "system-health/page.tsx", launchClass: "platform", capability: "platform-operations", objectPolicy: "platform-config" },
+  // system-health moved to app/platform/ in slice 1 (PLAT-01…09) — see newPlatformLaunchManifest.
   { route: "admin/app-settings/page.tsx", launchClass: "platform", capability: "platform-operations", objectPolicy: "platform-config" },
   { route: "admin/auth/page.tsx", launchClass: "platform", capability: "platform-operations", objectPolicy: "platform-config" },
   { route: "admin/booking/catalog/page.tsx", launchClass: "platform", capability: "platform-operations", objectPolicy: "platform-config" },
@@ -57,6 +57,15 @@ const launchManifest: readonly LaunchManifestEntry[] = [
   { route: "admin/booking/payments/page.tsx", launchClass: "platform", capability: "platform-operations", objectPolicy: "platform-config" },
   { route: "admin/integrations/page.tsx", launchClass: "platform", capability: "platform-operations", objectPolicy: "platform-config" },
   { route: "admin/technical/page.tsx", launchClass: "platform", capability: "platform-operations", objectPolicy: "platform-config" },
+];
+
+/**
+ * PLAT-01…09 slice 1 (2026-07-26): the platform shell's own route tree, disjoint from
+ * `(global-admin)/doctor/`. Slice 1 moves exactly one anchor page (`system-health`) here;
+ * slices 2-7 add the rest of `launchManifest` above as each page physically moves.
+ */
+const newPlatformLaunchManifest: readonly LaunchManifestEntry[] = [
+  { route: "system-health/page.tsx", launchClass: "platform", capability: "platform-operations", objectPolicy: "platform-config" },
 ];
 
 const mutableMediaManifest: readonly LaunchManifestEntry[] = [
@@ -111,6 +120,7 @@ const settingsServerActionPolicy = {
 describe("U1 finite doctor launch manifest", () => {
   const appRoot = new URL("../../app/", import.meta.url);
   const platformRoot = new URL("app/(global-admin)/doctor/", appRoot);
+  const newPlatformRoot = new URL("app/platform/", appRoot);
   const doctorRoot = new URL("app/doctor/", appRoot);
   const settingsRoot = new URL("app/settings/", appRoot);
   const mediaRoot = new URL("api/media/", appRoot);
@@ -132,6 +142,15 @@ describe("U1 finite doctor launch manifest", () => {
       "usage/page.tsx",
       "booking-merge/page.tsx",
     ]);
+  });
+
+  it("is exact for the new app/platform/ route tree (PLAT-01…09 slice 1: system-health only so far)", () => {
+    const discovered = new Set(
+      collectFiles(newPlatformRoot, "page.tsx").map((file) =>
+        fileURLToPath(file).replace(fileURLToPath(newPlatformRoot), ""),
+      ),
+    );
+    expect(discovered).toEqual(new Set(newPlatformLaunchManifest.map((entry) => entry.route)));
   });
 
   it("has an exact mutable-media manifest and keeps its workspace guard", () => {
@@ -200,8 +219,13 @@ describe("U1 finite doctor launch manifest", () => {
   it("keeps clinical and platform RSC trees physically disjoint at preserved URLs", () => {
     const doctorLayout = readFileSync(new URL("app/doctor/layout.tsx", appRoot), "utf8");
     const platformLayout = readFileSync(new URL("app/(global-admin)/doctor/layout.tsx", appRoot), "utf8");
-    expect(doctorLayout).toContain('redirect("/app/doctor/system-health")');
+    const newPlatformLayout = readFileSync(new URL("app/platform/layout.tsx", appRoot), "utf8");
+    expect(doctorLayout).toContain('redirect("/app/platform/system-health")');
     expect(platformLayout).toContain("requirePlatformOperationsPage()");
     expect(platformLayout).toContain("enableTenantRuntime={false}");
+    expect(platformLayout).toContain('menuKind="platform"');
+    expect(newPlatformLayout).toContain("requirePlatformOperationsPage()");
+    expect(newPlatformLayout).toContain("enableTenantRuntime={false}");
+    expect(newPlatformLayout).toContain('menuKind="platform"');
   });
 });

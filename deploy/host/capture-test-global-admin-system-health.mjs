@@ -16,13 +16,14 @@ import { deflateSync, inflateSync } from "node:zlib";
 
 const exactBase = "https://test.bersoncare.ru";
 const exactCookieHost = "test.bersoncare.ru";
-const exactRoute = "/app/doctor/system-health";
+// PLAT-01…09 slice 1 (2026-07-26): system-health moved to its own platform shell.
+const exactRoute = "/app/platform/system-health";
 const exactJar = "/run/bersoncarebot-visual/global-admin.cookies";
 const screenshotRoot = "/home/dev/dev-projects/BersonCareBot/.claude/screenshots/SAAS-S3-TEST-WALKTHROUGH";
 const shotEngine = "/home/dev/brain/host-orch/shot.mjs";
 const chromePath = "/home/dev/.cache/ms-playwright/chromium-1217/chrome-linux64/chrome";
 const sessionCookieName = "bersoncare_webapp_session";
-const expectedPngName = /^i0_app_doctor_system_health_\d{4}-\d{2}-\d{2}T\d{2}-\d{2}-\d{2}Z\.png$/;
+const expectedPngName = /^i0_app_platform_system_health_\d{4}-\d{2}-\d{2}T\d{2}-\d{2}-\d{2}Z\.png$/;
 const pngSignature = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
 const maxPngBytes = 256 * 1024 * 1024;
 const maxDecodedPngBytes = 512 * 1024 * 1024;
@@ -491,7 +492,7 @@ async function selfTest() {
 
     const validCapture = path.join(root, "valid-capture");
     mkdirSync(validCapture, { mode: 0o700 });
-    const validPngName = "i0_app_doctor_system_health_2026-07-16T12-34-56Z.png";
+    const validPngName = "i0_app_platform_system_health_2026-07-16T12-34-56Z.png";
     const minimalPng = Buffer.from(
       "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=",
       "base64",

@@ -12,18 +12,18 @@ vi.mock("@/shared/ui/doctor/shell/DoctorWorkspaceShell", () => ({
   DoctorWorkspaceShell: (props: unknown) => props,
 }));
 
-import GlobalAdminDoctorLayout from "./layout";
+import PlatformLayout from "./layout";
 
-describe("GlobalAdminDoctorLayout", () => {
+describe("PlatformLayout", () => {
   beforeEach(() => requirePlatformOperationsPageMock.mockReset());
 
-  it("renders a platform-only, tenantless shell for the adminMode landing", async () => {
+  it("renders a platform-only, tenantless, flat-menu shell for /app/platform/*", async () => {
     requirePlatformOperationsPageMock.mockResolvedValue({
       user: { userId: "53000000-0000-4000-8000-00000000d001", role: "admin", displayName: "Platform" },
       adminMode: true,
     });
 
-    const result = await GlobalAdminDoctorLayout({ children: "platform" });
+    const result = await PlatformLayout({ children: "platform" });
 
     expect(requirePlatformOperationsPageMock).toHaveBeenCalledOnce();
     expect(result.props).toMatchObject({

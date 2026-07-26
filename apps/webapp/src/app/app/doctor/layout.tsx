@@ -26,9 +26,10 @@ function getValueJson<T>(valueJson: unknown, fallback: T): T {
 }
 
 export default async function DoctorSectionLayout({ children }: { children: ReactNode }) {
-  // Platform URLs live in `(global-admin)/doctor/**`, outside this clinical layout.
-  // Keep the historical `/app/doctor` entry as a non-looping platform landing rather
-  // than allowing a platform principal to render a clinical child beneath this shell.
+  // Platform URLs live under `/app/platform/**` (and, until slices 2-7 finish moving them,
+  // still partly under `(global-admin)/doctor/**`), outside this clinical layout. Keep the
+  // historical `/app/doctor` entry as a non-looping platform landing rather than allowing a
+  // platform principal to render a clinical child beneath this shell.
   const currentSession = await getCurrentSession();
   if (
     currentSession &&
@@ -40,7 +41,7 @@ export default async function DoctorSectionLayout({ children }: { children: Reac
       "platform.operations",
     )
   ) {
-    redirect("/app/doctor/system-health");
+    redirect("/app/platform/system-health");
   }
   const workspaceAccess = await requireOrganizationWorkspaceContext();
   const session = workspaceAccess.session;

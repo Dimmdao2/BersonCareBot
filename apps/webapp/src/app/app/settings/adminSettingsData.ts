@@ -32,7 +32,7 @@ import {
 } from "@/modules/operator-health/operatorHealthProjectionThresholds";
 
 export const ADMIN_TAB_REDIRECTS: Record<string, string> = {
-  "system-health": "/app/doctor/system-health",
+  "system-health": "/app/platform/system-health",
   "health-archive": "/app/doctor/health-archive",
   "audit-log": "/app/doctor/audit-log",
   "product-analytics": "/app/doctor/analytics?tab=app",

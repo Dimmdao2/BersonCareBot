@@ -167,7 +167,7 @@ describe("requireOrganizationManagementContext", () => {
     getCurrentSessionMock.mockResolvedValueOnce({ ...session("admin"), adminMode: true });
 
     await expect(requireOrganizationManagementContext()).rejects.toThrow(
-      "redirect:/app/doctor/system-health",
+      "redirect:/app/platform/system-health",
     );
     expect(resolveOrganizationForUserMock).not.toHaveBeenCalled();
   });

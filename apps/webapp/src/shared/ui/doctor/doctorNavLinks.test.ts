@@ -88,14 +88,12 @@ describe("doctor menu structure", () => {
       "courses",
       "settings",
       "account",
-      "analytics",
-      "system",
     ]);
   });
 
-  it("shows a global platform operator only platform destinations", () => {
+  it("gives a global platform operator no doctor-menu destinations — its own menu is platformNavLinks.ts now", () => {
     const ids = getDoctorMenuItems(platformOnlyAccess).map((item) => item.id);
-    expect(ids).toEqual(["analytics", "system"]);
+    expect(ids).toEqual([]);
   });
 
   it("uses the same conservative capability result as server guards", () => {
@@ -107,7 +105,7 @@ describe("doctor menu structure", () => {
         specialistId: "specialist-1",
       }),
     );
-    expect(getDoctorMenuItems({ capabilities }).map((item) => item.id)).toEqual(["analytics", "system"]);
+    expect(getDoctorMenuItems({ capabilities }).map((item) => item.id)).toEqual([]);
   });
 
   it("keeps account visible for a plain doctor and hides management sections", () => {
@@ -161,61 +159,9 @@ describe("doctor menu structure", () => {
     }
   });
 
-  it("system does not have booking-merge (removed per SET-05), has system-health and audit-log", () => {
-    const items = getDoctorMenuItems(adminAccess);
-    const system = items.find((i) => i.id === "system");
-    expect(system?.accessTier).toBe("global_admin");
-    const ids = system!.items!.map((i) => i.id);
-    expect(ids).not.toContain("booking-merge");
-    expect(ids).toContain("system-health");
-    expect(ids).toContain("audit-log");
-  });
-
-  it("audit-log in system has registrationSystemFailures badge", () => {
-    const items = getDoctorMenuItems(adminAccess);
-    const system = items.find((i) => i.id === "system");
-    const auditLog = system!.items!.find((i) => i.id === "audit-log");
-    expect(auditLog?.badgeKey).toBe("registrationSystemFailures");
-  });
-
-  it("system links the previously-orphaned global-admin sub-pages (app-settings, auth, booking, integrations, technical)", () => {
-    const items = getDoctorMenuItems(adminAccess);
-    const system = items.find((i) => i.id === "system");
-    const byId = new Map(system!.items!.map((i) => [i.id, i]));
-
-    expect(byId.get("admin-app-settings")).toMatchObject({
-      label: "Настройки приложения",
-      href: "/app/doctor/admin/app-settings",
-      accessTier: "global_admin",
-    });
-    expect(byId.get("admin-auth")).toMatchObject({
-      label: "Авторизация",
-      href: "/app/doctor/admin/auth",
-      accessTier: "global_admin",
-    });
-    expect(byId.get("admin-booking")).toMatchObject({
-      label: "Бронирование",
-      href: "/app/doctor/admin/booking",
-      accessTier: "global_admin",
-    });
-    expect(byId.get("admin-integrations")).toMatchObject({
-      label: "Интеграции",
-      href: "/app/doctor/admin/integrations",
-      accessTier: "global_admin",
-    });
-    expect(byId.get("admin-technical")).toMatchObject({
-      label: "Технические режимы",
-      href: "/app/doctor/admin/technical",
-      accessTier: "global_admin",
-    });
-  });
-
-  it("hides the newly-linked global-admin sub-pages from plain doctors and clinic admins", () => {
-    for (const access of [doctorAccess, clinicAdminAccess]) {
-      const items = getDoctorMenuItems(access);
-      expect(items.find((i) => i.id === "system")).toBeUndefined();
-    }
-  });
+  // Platform-only destinations (analytics + the former "system" cluster, now flat) moved to
+  // platformNavLinks.ts / platformNavLinks.test.ts — the global admin does not share this menu
+  // (owner ruling 2026-07-26).
 
   it("communications is a direct link with communicationsTotal badge", () => {
     const items = getDoctorMenuItems(doctorAccess);
@@ -249,7 +195,8 @@ describe("doctor menu structure", () => {
 
   it("isDoctorMenuClusterId returns true for expandable items only", () => {
     expect(isDoctorMenuClusterId("library")).toBe(true);
-    expect(isDoctorMenuClusterId("system")).toBe(true);
+    // "system" moved out to platformNavLinks.ts, flattened — no longer a doctorNavLinks cluster.
+    expect(isDoctorMenuClusterId("system")).toBe(false);
     // analytics collapsed to a single page-shell link → no longer a cluster
     expect(isDoctorMenuClusterId("analytics")).toBe(false);
     expect(isDoctorMenuClusterId("settings")).toBe(false);
@@ -258,14 +205,6 @@ describe("doctor menu structure", () => {
     expect(isDoctorMenuClusterId("patients")).toBe(false);
     expect(isDoctorMenuClusterId("schedule")).toBe(false);
     expect(isDoctorMenuClusterId("unknown")).toBe(false);
-  });
-
-  it("Аналитика is a single admin-only top-level link to /app/doctor/analytics", () => {
-    const items = getDoctorMenuItems(adminAccess);
-    const analytics = items.find((i) => i.id === "analytics");
-    expect(analytics?.href).toBe("/app/doctor/analytics");
-    expect(analytics?.items).toBeUndefined();
-    expect(analytics?.accessTier).toBe("global_admin");
   });
 
   it("DOCTOR_MENU_DEFAULT_CLUSTER_ID is library and is a cluster", () => {
@@ -361,7 +300,7 @@ describe("doctor menu structure", () => {
 
 describe("getDoctorShellHomeHref", () => {
   it("keeps each launch persona in its own canonical shell", () => {
-    expect(getDoctorShellHomeHref(platformOnlyAccess)).toBe("/app/doctor/system-health");
+    expect(getDoctorShellHomeHref(platformOnlyAccess)).toBe("/app/platform/system-health");
     expect(getDoctorShellHomeHref(doctorAccess)).toBe("/app/doctor");
     expect(getDoctorShellHomeHref(clinicAdminAccess)).toBe("/app/settings");
     expect(getDoctorShellHomeHref({ capabilities: ["account.self"] })).toBe("/app/account");

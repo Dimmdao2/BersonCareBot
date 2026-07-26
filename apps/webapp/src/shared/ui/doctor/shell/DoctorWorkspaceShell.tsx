@@ -33,6 +33,13 @@ type DoctorWorkspaceShellProps = {
    * global-admin, manage), which keep the platform-default mark.
    */
   brand?: { displayName: string; logoUrl: string | null };
+  /**
+   * Which item source `DoctorMenuAccordion` renders: `"doctor"` (default) is the clinical/staff
+   * menu; `"platform"` is the global admin's own flat menu. Owner ruling 2026-07-26: the global
+   * admin is not a doctor, so its shell instances (`(global-admin)/doctor/layout.tsx`, the new
+   * `app/platform/layout.tsx`) pass `"platform"` explicitly.
+   */
+  menuKind?: "doctor" | "platform";
   children: ReactNode;
 };
 
@@ -54,6 +61,7 @@ export function DoctorWorkspaceShell({
   coursesEnabled = false,
   enableTenantRuntime = true,
   brand,
+  menuKind = "doctor",
   children,
 }: DoctorWorkspaceShellProps) {
   const capabilities = Array.from(
@@ -95,6 +103,7 @@ export function DoctorWorkspaceShell({
           enableBadgePolling={enableTenantRuntime}
           homeHref={homeHref}
           showClinicalShortcuts={showClinicalShortcuts}
+          menuKind={menuKind}
         />
         <div className={cn("flex min-h-0 flex-1", DOCTOR_WORKSPACE_TOP_PADDING_CLASS)}>
           {showDoctorDesktopNav ? (
@@ -105,6 +114,7 @@ export function DoctorWorkspaceShell({
               enableBadgePolling={enableTenantRuntime}
               homeHref={homeHref}
               brand={brand}
+              menuKind={menuKind}
             />
           ) : null}
           <div className="flex min-w-0 flex-1 flex-col">{children}</div>
