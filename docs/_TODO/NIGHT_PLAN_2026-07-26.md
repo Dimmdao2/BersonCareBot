@@ -225,8 +225,16 @@ finding that has no line here is a QUESTION for the owner, never work (see `docs
       - `patient-write-grants-role-pool-mismatch.sql` — patient INSERT on `reminder_journal`, UPDATE on the
         three `treatment_program_instance*` tables. **Never applied anywhere, not even by hand on DEV** —
         reminder done/snooze/skip and treatment-program item completion 500 with 42501 today. In flight.
-      - `patient-media-playback-telemetry-accessors.sql` (2026-07-16) — wired only into the PROD deploy
-        script, never the TEST path. In flight.
+      - ~~`patient-media-playback-telemetry-accessors.sql` — wired only into PROD~~ **REFUTED on
+        re-verification.** It IS applied on TEST — reached by `\ir` from
+        `deploy/postgres/test-strict-rls-finalizer.sql` (commit `0ee8418ac`), which
+        `apply_test_strict_rls_finalizer()` runs inside the same closure. The sweep's `grep <basename>`
+        could not see an `\ir` include, and its description of the file's contents was wrong too.
+        **Lesson for the next sweep of this class: grep for the basename AND follow `\ir` includes** —
+        a file can be wired without any shell script naming it.
+        Separate drift recorded, not acted on: on this one DEV is the STALE side — it still has direct
+        SELECT for `app_patient`/`app_staff` on the four raw telemetry tables that TEST has already
+        revoked in favour of a sealed definer accessor (`saas-system-health-diagnostics.sql:178-190`).
       **Verified clean by the same sweep** (so the coverage is known, not just the hits): journal integrity
       246/246 tags↔files after `2423509cc`; `d3-4-bootstrap-base-login-read-grants.sql`,
       `phase4-force-rls-cutover.sql`, `u9a-platform-settings-role.sql`,
