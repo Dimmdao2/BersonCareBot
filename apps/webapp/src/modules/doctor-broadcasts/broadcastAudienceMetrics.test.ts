@@ -9,6 +9,7 @@ import type { TestAccountIdentifiers } from "@/modules/system-settings/testAccou
 
 const spec: TestAccountIdentifiers = {
   phones: ["+79990000000"],
+  emails: [],
   telegramIds: ["111"],
   maxIds: ["m1"],
 };

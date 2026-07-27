@@ -11,7 +11,6 @@ type ProbeRunValues = {
     consecutiveFailures: Record<string, number>;
     lastRunAt: Record<string, string>;
     max: string;
-    rubitime: string;
     telegram: string;
     google_calendar: string;
   };
@@ -35,14 +34,12 @@ import { recordOperatorOutboundProbeRun } from './operatorHealthDrizzle.js';
 function probeRunInput(
   overrides: Partial<{
     max: string;
-    rubitime: string;
     telegram: string;
     google_calendar: string;
   }> = {},
 ) {
   return {
     max: 'ok',
-    rubitime: 'ok',
     telegram: 'skipped_not_configured',
     google_calendar: 'skipped_not_configured',
     ...overrides,
@@ -78,7 +75,7 @@ describe('recordOperatorOutboundProbeRun', () => {
   it('starts streak at 1 when no previous row', async () => {
     mockSelectLimit.mockResolvedValueOnce([]);
     const r = await recordOperatorOutboundProbeRun(
-      probeRunInput({ max: 'fail', rubitime: 'skipped_not_configured' }),
+      probeRunInput({ max: 'fail' }),
     );
     expect(r.consecutiveFailRuns).toBe(1);
   });

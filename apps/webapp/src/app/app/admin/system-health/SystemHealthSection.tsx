@@ -19,7 +19,6 @@ import {
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/shared/ui/doctor/primitives/collapsible";
 import { cn } from "@/lib/utils";
 import { CopyForAiButton } from "@/app/app/settings/CopyForAiButton";
-import { OperatorHealthProbeSettingsSection } from "./OperatorHealthProbeSettingsSection";
 import {
   HEALTH_FAILURE_ARCHIVE_INTEGRATOR_OUTBOX_PROBE,
   HEALTH_FAILURE_ARCHIVE_OUTGOING_PROBE,
@@ -290,7 +289,6 @@ type SystemHealthPayload = {
   saasIsolation?: SaasIsolationHealthPayload;
   probeOutbound?: { consecutiveFailRuns: number };
   integrations?: {
-    rubitime: IntegrationHealthEntryPayload;
     telegram: IntegrationHealthEntryPayload;
     max: IntegrationHealthEntryPayload;
     google_calendar: { outbound: IntegrationOutboundHealthPayload };
@@ -629,7 +627,6 @@ function operatorIncidentIntegrationHuman(code: string): string {
     telegram: "Telegram",
     max: "MAX",
     vk: "ВКонтакте",
-    rubitime: "Rubitime",
     google_calendar: "Google Календарь",
     gcal: "Google Календарь",
   };
@@ -659,7 +656,6 @@ function operatorIncidentSynopsisHuman(errorClass: string): string {
   const e = errorClass.trim();
   const known: Record<string, string> = {
     max_probe_failed: "проверка интеграции MAX завершилась с ошибкой",
-    rubitime_get_schedule_failed: "не удалось получить расписание Rubitime",
     telegram_probe_failed: "проверка Telegram завершилась с ошибкой",
     google_calendar_probe_failed: "проверка Google Calendar завершилась с ошибкой",
     webhook_auth_failed: "ошибка авторизации вебхука",
@@ -970,8 +966,6 @@ export function SystemHealthSection() {
           )}
         </CardContent>
       </Card>
-
-      <OperatorHealthProbeSettingsSection />
 
       <Card>
         <CardHeader>
@@ -1479,11 +1473,11 @@ export function SystemHealthSection() {
               name="Интеграции"
               status={
                 data?.integrations
-                  ? (["rubitime", "telegram", "max"] as const).some(
+                  ? (["telegram", "max"] as const).some(
                       (k) => integrationEntryAccordionStatus(data.integrations![k]) === "error",
                     )
                     ? "error"
-                    : (["rubitime", "telegram", "max"] as const).some(
+                    : (["telegram", "max"] as const).some(
                           (k) => integrationEntryAccordionStatus(data.integrations![k]) === "degraded",
                         )
                       ? "degraded"
@@ -1501,7 +1495,7 @@ export function SystemHealthSection() {
               ) : null}
               {data?.integrations ? (
                 <div className="space-y-2">
-                  {(["rubitime", "telegram", "max"] as const).map((key) => {
+                  {(["telegram", "max"] as const).map((key) => {
                     const entry = data.integrations![key];
                     return (
                       <div key={key} className="rounded border border-border/50 p-2 text-[11px] leading-snug">

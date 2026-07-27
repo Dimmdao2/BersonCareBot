@@ -95,8 +95,8 @@ function healthJson(overrides: Record<string, unknown> = {}) {
     },
     probeOutbound: { consecutiveFailRuns: 2 },
     integrations: {
-      rubitime: {
-        outbound: { status: "ok", lastFinishedAt: "2026-06-09T10:00:00.000Z" },
+      telegram: {
+        outbound: { status: "fail", lastFinishedAt: "2026-06-09T10:00:00.000Z" },
         inbound: {
           receivedAt: "2026-06-09T09:30:00.000Z",
           processedOk: false,
@@ -104,10 +104,6 @@ function healthJson(overrides: Record<string, unknown> = {}) {
           httpStatusReturned: 200,
           detail: "bad body",
         },
-      },
-      telegram: {
-        outbound: { status: "fail", lastFinishedAt: "2026-06-09T10:00:00.000Z" },
-        inbound: { receivedAt: null, processedOk: null, errorClass: null, httpStatusReturned: null, detail: null },
       },
       max: {
         outbound: { status: "skipped_not_configured", lastFinishedAt: null },
@@ -166,16 +162,6 @@ describe("SystemHealthSection integrations", () => {
               healthJson({
                 probeOutbound: { consecutiveFailRuns: 0 },
                 integrations: {
-                  rubitime: {
-                    outbound: { status: "skipped_not_configured", lastFinishedAt: "2026-06-09T10:00:00.000Z" },
-                    inbound: {
-                      receivedAt: "2026-06-09T09:30:00.000Z",
-                      processedOk: true,
-                      errorClass: null,
-                      httpStatusReturned: 200,
-                      detail: null,
-                    },
-                  },
                   telegram: {
                     outbound: { status: "ok", lastFinishedAt: "2026-06-09T10:00:00.000Z" },
                     inbound: {
