@@ -1,12 +1,9 @@
 import type { BookingAttribution } from "@/modules/booking-attribution/types";
-import type { CompatSyncQuality } from "./compatSyncQuality";
 
 export type PatientBookingChannel = "app" | "public_widget";
 
 export type BookingType = "in_person" | "online";
 export type BookingCategory = "rehab_lfk" | "nutrition" | "general";
-
-export type PatientBookingRowSource = "native" | "imported";
 
 /**
  * Canonical in-person context read from the linked `be_appointments` row and
@@ -52,7 +49,6 @@ export type BookingSlotsByDate = {
  */
 export type PatientBookingRecord = {
   id: string;
-  /** Null only for unlinked imported compat rows (phone not matched yet). */
   userId: string | null;
   bookingType: BookingType;
   city: string | null;
@@ -62,7 +58,6 @@ export type PatientBookingRecord = {
   status: PatientBookingStatus;
   cancelledAt: string | null;
   cancelReason: string | null;
-  rubitimeId: string | null;
   gcalEventId: string | null;
   contactPhone: string;
   contactEmail: string | null;
@@ -79,11 +74,6 @@ export type PatientBookingRecord = {
   serviceTitleSnapshot: string | null;
   durationMinutesSnapshot: number | null;
   priceMinorSnapshot: number | null;
-  rubitimeBranchIdSnapshot: string | null;
-  rubitimeCooperatorIdSnapshot: string | null;
-  rubitimeServiceIdSnapshot: string | null;
-  /** HTTPS URL to open this record in Rubitime (manage / reschedule); never bot/support fallback. */
-  rubitimeManageUrl: string | null;
   /** Canonical `be_appointments.id` when write path uses booking engine (stage 2+). */
   canonicalAppointmentId: string | null;
   /**
@@ -92,10 +82,6 @@ export type PatientBookingRecord = {
    * a substitute for it.
    */
   canonicalInPersonContext?: CanonicalInPersonBookingContext | null;
-  /** DB `source`: native webapp booking vs a row imported from a retired external system. */
-  bookingSource: PatientBookingRowSource;
-  /** Set for imported compatibility rows. */
-  compatQuality: CompatSyncQuality | null;
   provenanceCreatedBy: string | null;
   provenanceUpdatedBy: string | null;
 };
@@ -158,9 +144,4 @@ export type CancelPatientBookingInput = {
   userId: string;
   bookingId: string;
   reason?: string;
-};
-
-/** Partial success flags from patient cancel/reschedule API (subset shown in UI). */
-export type PatientBookingPartialOutcome = {
-  rubitimeMirrorFailed?: true;
 };

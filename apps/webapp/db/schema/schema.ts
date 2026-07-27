@@ -1705,8 +1705,6 @@ export const patientBookings = pgTable("patient_bookings", {
 	serviceTitleSnapshot: text("service_title_snapshot"),
 	durationMinutesSnapshot: integer("duration_minutes_snapshot"),
 	priceMinorSnapshot: integer("price_minor_snapshot"),
-	source: text().default('native').notNull(),
-	compatQuality: text("compat_quality"),
 	provenanceCreatedBy: text("provenance_created_by"),
 	provenanceUpdatedBy: text("provenance_updated_by"),
 	canonicalAppointmentId: uuid("canonical_appointment_id"),
@@ -1715,7 +1713,6 @@ export const patientBookings = pgTable("patient_bookings", {
 	index("idx_patient_bookings_branch_service_id").using("btree", table.branchServiceId.asc().nullsLast().op("uuid_ops")),
 	index("idx_patient_bookings_service_id").using("btree", table.serviceId.asc().nullsLast().op("uuid_ops")),
 	index("idx_patient_bookings_slot_start").using("btree", table.slotStart.asc().nullsLast().op("timestamptz_ops")),
-	index("idx_patient_bookings_source").using("btree", table.source.asc().nullsLast().op("text_ops")),
 	index("idx_patient_bookings_status").using("btree", table.status.asc().nullsLast().op("text_ops")),
 	index("idx_patient_bookings_user_id").using("btree", table.platformUserId.asc().nullsLast().op("uuid_ops")),
 	foreignKey({
@@ -1741,9 +1738,6 @@ export const patientBookings = pgTable("patient_bookings", {
 	check("patient_bookings_booking_type_check", sql`booking_type = ANY (ARRAY['in_person'::text, 'online'::text])`),
 	check("patient_bookings_category_check", sql`category = ANY (ARRAY['rehab_lfk'::text, 'nutrition'::text, 'general'::text])`),
 	check("patient_bookings_check", sql`slot_end > slot_start`),
-	check("patient_bookings_compat_quality_check", sql`compat_quality = ANY (ARRAY['full'::text, 'partial'::text, 'minimal'::text])`),
-	check("patient_bookings_platform_user_native_required", sql`(source <> 'native'::text) OR (platform_user_id IS NOT NULL)`),
-	check("patient_bookings_source_check", sql`source = ANY (ARRAY['native'::text, 'imported'::text])`),
 	check("patient_bookings_status_check", sql`status = ANY (ARRAY['creating'::text, 'awaiting_payment'::text, 'confirmed'::text, 'cancelling'::text, 'cancel_failed'::text, 'cancelled'::text, 'rescheduled'::text, 'completed'::text, 'no_show'::text, 'failed_sync'::text])`),
 ]);
 
@@ -2434,17 +2428,6 @@ export const messageRetryJobs = pgTable("message_retry_jobs", {
 	payloadJson: jsonb("payload_json"),
 }, (table) => [
 	index("idx_message_retry_jobs_due").using("btree", table.status.asc().nullsLast().op("text_ops"), table.nextTryAt.asc().nullsLast().op("text_ops")),
-]);
-
-export const bookingCalendarMap = pgTable("booking_calendar_map", {
-	id: bigserial({ mode: "bigint" }).primaryKey().notNull(),
-	rubitimeRecordId: text("rubitime_record_id").notNull(),
-	gcalEventId: text("gcal_event_id").notNull(),
-	createdAt: timestamp("created_at", { withTimezone: true, mode: 'string' }).defaultNow().notNull(),
-	updatedAt: timestamp("updated_at", { withTimezone: true, mode: 'string' }).defaultNow().notNull(),
-}, (table) => [
-	index("idx_booking_calendar_map_gcal_event_id").using("btree", table.gcalEventId.asc().nullsLast().op("text_ops")),
-	unique("booking_calendar_map_rubitime_record_id_key").on(table.rubitimeRecordId),
 ]);
 
 export const integrationDataQualityIncidents = pgTable("integration_data_quality_incidents", {

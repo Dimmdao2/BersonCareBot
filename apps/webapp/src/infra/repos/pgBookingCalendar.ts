@@ -363,8 +363,6 @@ export function createPgBookingCalendarPort(): BookingCalendarPort {
           patientName: linkedName ?? attrName,
           patientPhone: row.patientPhone ?? row.phoneNormalized ?? null,
           bookingStatus: bookingStatusByAppt.get(row.id) ?? null,
-          rubitimeId: null,
-          rubitimeManageUrl: null,
           paymentStatus,
           prepaymentPending: isPrepaymentPending(status, paymentStatus),
           packageUsageRef: row.packageUsageRef ?? null,
