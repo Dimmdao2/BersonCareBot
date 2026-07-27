@@ -33,6 +33,14 @@ export type OperatorHealthAlertConfig = {
   };
   digestTime: string;
   channels: Record<OperatorAlertBlock, OperatorAlertChannels>;
+  /**
+   * Server-declared locks for the admin form. Emergency delivery must remain
+   * visible as enabled, rather than looking like an unavailable channel.
+   */
+  locks: {
+    topics: { critical_enabled: true };
+    channels: { critical: Record<keyof OperatorAlertChannels, true> };
+  };
 };
 
 const IDENTITY_LEGACY_TOPICS: AdminIncidentTopicKey[] = [
@@ -51,6 +59,32 @@ const DEFAULT_CHANNELS: OperatorAlertChannels = {
   email: true,
 };
 
+const EMERGENCY_LOCKED_CHANNELS: Record<keyof OperatorAlertChannels, true> = {
+  telegram: true,
+  max: true,
+  web_push: true,
+  sms: true,
+  email: true,
+};
+
+type OperatorHealthAlertConfigPatchError =
+  | "invalid_operator_health_alert_config"
+  | "critical_alerts_must_remain_enabled"
+  | "critical_alert_email_must_remain_enabled"
+  | "critical_alert_channels_must_remain_enabled";
+
+type OperatorHealthAlertConfigPatchResult =
+  | { ok: true; value: OperatorHealthAlertConfig }
+  | { ok: false; error: OperatorHealthAlertConfigPatchError; message: string };
+
+function invalidOperatorHealthAlertConfig(): OperatorHealthAlertConfigPatchResult {
+  return {
+    ok: false,
+    error: "invalid_operator_health_alert_config",
+    message: "Некорректная настройка аварийных алертов. Проверьте значения и повторите сохранение.",
+  };
+}
+
 export function defaultOperatorHealthAlertConfig(): OperatorHealthAlertConfig {
   return {
     topics: {
@@ -65,6 +99,10 @@ export function defaultOperatorHealthAlertConfig(): OperatorHealthAlertConfig {
       digest: { ...DEFAULT_CHANNELS },
       account_conflicts: { ...DEFAULT_CHANNELS },
       support: { ...DEFAULT_CHANNELS },
+    },
+    locks: {
+      topics: { critical_enabled: true },
+      channels: { critical: { ...EMERGENCY_LOCKED_CHANNELS } },
     },
   };
 }
@@ -134,6 +172,11 @@ export function parseOperatorHealthAlertConfig(valueJson: unknown): OperatorHeal
     }
   }
 
+  // Stored values from before the emergency floor existed are repaired on
+  // read, so dispatch never observes an emergency class that can be silenced.
+  out.topics.critical_enabled = true;
+  out.channels.critical = { ...DEFAULT_CHANNELS };
+
   return out;
 }
 
@@ -185,15 +228,15 @@ export function adminIncidentTopicToAlertBlock(topic: AdminIncidentTopicKey): Op
 
 export function normalizeOperatorHealthAlertConfigForAdminPatch(
   inner: unknown,
-): { ok: true; value: OperatorHealthAlertConfig } | { ok: false } {
+): OperatorHealthAlertConfigPatchResult {
   if (inner === null || typeof inner !== "object" || Array.isArray(inner)) {
-    return { ok: false };
+    return invalidOperatorHealthAlertConfig();
   }
   const o = inner as Record<string, unknown>;
   const topicsIn = typeof o.topics === "object" && o.topics !== null && !Array.isArray(o.topics) ? o.topics : null;
   const channelsIn =
     typeof o.channels === "object" && o.channels !== null && !Array.isArray(o.channels) ? o.channels : null;
-  if (!topicsIn || !channelsIn) return { ok: false };
+  if (!topicsIn || !channelsIn) return invalidOperatorHealthAlertConfig();
 
   const defaults = defaultOperatorHealthAlertConfig();
   const topics = { ...defaults.topics };
@@ -201,7 +244,7 @@ export function normalizeOperatorHealthAlertConfigForAdminPatch(
   for (const k of ["critical_enabled", "digest_enabled", "account_conflicts", "support_enabled"] as const) {
     if (!(k in tObj)) continue;
     const v = tObj[k];
-    if (!isBool(v)) return { ok: false };
+    if (!isBool(v)) return invalidOperatorHealthAlertConfig();
     topics[k] = v;
   }
 
@@ -210,11 +253,13 @@ export function normalizeOperatorHealthAlertConfigForAdminPatch(
   for (const block of OPERATOR_ALERT_BLOCKS) {
     if (!(block in cObj)) continue;
     const blockRaw = cObj[block];
-    if (blockRaw === null || typeof blockRaw !== "object" || Array.isArray(blockRaw)) return { ok: false };
+    if (blockRaw === null || typeof blockRaw !== "object" || Array.isArray(blockRaw)) {
+      return invalidOperatorHealthAlertConfig();
+    }
     const b = blockRaw as Record<string, unknown>;
     for (const ch of ["telegram", "max", "web_push", "sms", "email"] as const) {
       if (!(ch in b)) continue;
-      if (!isBool(b[ch])) return { ok: false };
+      if (!isBool(b[ch])) return invalidOperatorHealthAlertConfig();
       channels[block][ch] = b[ch]!;
     }
   }
@@ -222,15 +267,40 @@ export function normalizeOperatorHealthAlertConfigForAdminPatch(
   let digestTime = defaults.digestTime;
   if ("digestTime" in o) {
     const s = typeof o.digestTime === "string" ? o.digestTime.trim() : "";
-    if (!/^([01]?\d|2[0-3]):([0-5]\d)$/.test(s)) return { ok: false };
+    if (!/^([01]?\d|2[0-3]):([0-5]\d)$/.test(s)) return invalidOperatorHealthAlertConfig();
     const [hs, ms] = s.split(":");
-    if (ms !== "00") return { ok: false };
+    if (ms !== "00") return invalidOperatorHealthAlertConfig();
     digestTime = `${hs!.padStart(2, "0")}:00`;
+  }
+
+  if (!topics.critical_enabled) {
+    return {
+      ok: false,
+      error: "critical_alerts_must_remain_enabled",
+      message: "Аварийные алерты нельзя отключить. Включите «Критичные сбои» и сохраните настройку снова.",
+    };
+  }
+  if (!channels.critical.email) {
+    return {
+      ok: false,
+      error: "critical_alert_email_must_remain_enabled",
+      message: "Почта для аварийных алертов всегда включена. Включите E-mail и сохраните настройку снова.",
+    };
+  }
+  const disabledEmergencyChannel = (Object.keys(channels.critical) as Array<keyof OperatorAlertChannels>).find(
+    (channel) => !channels.critical[channel],
+  );
+  if (disabledEmergencyChannel) {
+    return {
+      ok: false,
+      error: "critical_alert_channels_must_remain_enabled",
+      message: "Все доступные каналы аварийных алертов должны оставаться включёнными. Включите отключённый канал и сохраните настройку снова.",
+    };
   }
 
   return {
     ok: true,
-    value: { topics, digestTime, channels },
+    value: { topics, digestTime, channels, locks: defaults.locks },
   };
 }
 
