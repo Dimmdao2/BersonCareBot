@@ -240,11 +240,14 @@ describe("frozen webapp mutation census", () => {
     // 522 -> 523: clinic slug management added `api/clinic/slug/route.ts`. Its POST is called by
     // the organization settings UI and remains in the browser class, so the unsafe census moves
     // 357 -> 358 / 396 -> 397 and browser 321 -> 322 / 360 -> 361.
-    expect(routeFiles).toHaveLength(523);
-    expect(sha256Lines(routeInventory)).toBe("d00ea056fc0358b087d64ffe914338460d1c62e4dcf38c1ec05f343b5b0ed762");
-    expect(unsafeInventory).toHaveLength(358);
-    expect(unsafeInventory.reduce((count, entry) => count + entry.methods.length, 0)).toBe(397);
-    expect(sha256Lines(unsafeInventoryLines)).toBe("e6d9297a4b8ec567c47b9caaeabf4890da7a7abe46fce0e95c63c586a4e4c52c");
+    // 523 -> 524: mandatory specialist-signup slug availability added
+    // `api/auth/specialist-signup/slug/route.ts`. Its browser POST is intentionally not exempt, so
+    // unsafe moves 358 -> 359 / 397 -> 398 and browser 322 -> 323 / 361 -> 362.
+    expect(routeFiles).toHaveLength(524);
+    expect(sha256Lines(routeInventory)).toBe("98a43d644aaa210397238ddc568ae8ba3792964f95835ef1732bc6d5610673d6");
+    expect(unsafeInventory).toHaveLength(359);
+    expect(unsafeInventory.reduce((count, entry) => count + entry.methods.length, 0)).toBe(398);
+    expect(sha256Lines(unsafeInventoryLines)).toBe("3299c8f93e0cbe7c30e4597e70cc61e74f84d83764c05b784f1fec0918ff0cdb");
   });
 
   it("exhaustively classifies unsafe files as browser, integrator, internal, webhook, or Apple", () => {
@@ -252,8 +255,12 @@ describe("frozen webapp mutation census", () => {
     for (const file of specialFiles) expect(actualUnsafeFiles.has(file), file).toBe(true);
     expect(specialFiles.size).toBe(36);
     const browser = unsafeInventory.filter((entry) => !specialFiles.has(entry.file));
-    expect(browser).toHaveLength(322);
-    expect(browser.reduce((count, entry) => count + entry.methods.length, 0)).toBe(361);
+    expect(browser).toHaveLength(323);
+    expect(browser.reduce((count, entry) => count + entry.methods.length, 0)).toBe(362);
+    expect(browser).toContainEqual({
+      file: "auth/specialist-signup/slug/route.ts",
+      methods: ["POST"],
+    });
     expect([...integratorFiles]).toHaveLength(18);
     expect([...internalFiles]).toHaveLength(15);
     expect([...paymentFiles]).toHaveLength(2);

@@ -12,6 +12,10 @@ const reclaimMigrationPath = join(
   repoDir,
   '../../../db/drizzle-migrations/0255_organization_slug_same_org_reclaim.sql',
 );
+const signupReservationMigrationPath = join(
+  repoDir,
+  '../../../db/drizzle-migrations/0257_specialist_signup_slug_reservation.sql',
+);
 const schemaPath = join(repoDir, '../../../db/schema/clinicDirectory.ts');
 const journalPath = join(repoDir, '../../../db/drizzle-migrations/meta/_journal.json');
 const resolverPath = join(
@@ -22,6 +26,7 @@ const resolverPath = join(
 describe('0218 organization slug foundation', () => {
   const migration = readFileSync(migrationPath, 'utf8');
   const reclaimMigration = readFileSync(reclaimMigrationPath, 'utf8');
+  const signupReservationMigration = readFileSync(signupReservationMigrationPath, 'utf8');
   const schema = readFileSync(schemaPath, 'utf8');
   const resolver = readFileSync(resolverPath, 'utf8');
 
@@ -52,14 +57,64 @@ describe('0218 organization slug foundation', () => {
     expect(migration).toContain("'api', 'app', 'auth', 'book', 'booking'");
   });
 
-  it('binds reservations to an existing organization and gives every hot path an index', () => {
+  it('keeps durable claims organization-bound and permits only disposable signup reservations', () => {
     expect(migration).toContain('organization_id uuid NOT NULL');
     expect(migration).not.toContain('signup_intent_id');
     expect(migration).not.toContain('expires_at');
-    expect(schema).not.toContain('signupIntentId');
+    expect(signupReservationMigration).toContain('ALTER COLUMN organization_id DROP NOT NULL');
+    expect(signupReservationMigration).toContain('organization_slug_claims_owner_shape_check');
+    expect(signupReservationMigration).toContain(
+      "kind IN ('current', 'alias')\n        AND organization_id IS NOT NULL\n        AND signup_intent_id IS NULL",
+    );
+    expect(signupReservationMigration).toContain(
+      'uq_organization_slug_claims_reservation_signup_intent',
+    );
+    expect(signupReservationMigration).toContain(
+      'REFERENCES public.specialist_signup_intents(id)\n    ON DELETE CASCADE',
+    );
+    expect(schema).toContain('signupIntentId');
     expect(schema).not.toContain('expiresAt');
     expect(migration).toContain('idx_organization_slug_claims_org_kind');
     expect(migration).toContain('idx_organization_slug_rename_events_org_created');
+  });
+
+  it('reserves by signed signup intent and preserves global namespace ownership', () => {
+    expect(signupReservationMigration).toContain(
+      'CREATE OR REPLACE FUNCTION app.reserve_specialist_signup_slug',
+    );
+    expect(signupReservationMigration).toContain(
+      'v_user_id := app.require_staff_security_self_user_id()',
+    );
+    expect(signupReservationMigration).toContain("intent.status = 'pending'");
+    expect(signupReservationMigration).toContain(
+      "VALUES (p_slug, 'reservation', NULL, p_signup_intent_id, v_user_id)",
+    );
+    expect(signupReservationMigration).not.toMatch(
+      /DELETE FROM public\.organization_slug_claims/,
+    );
+    expect(signupReservationMigration).not.toMatch(
+      /DROP INDEX\s+uq_organization_slug_claims_slug/,
+    );
+  });
+
+  it('keeps anonymous availability on the reviewed bootstrap function surface', () => {
+    const bootstrapGrants = readFileSync(
+      join(repoDir, '../../../../../deploy/postgres/d3-4-bootstrap-base-login-read-grants.sql'),
+      'utf8',
+    );
+    const inviteOwnership = readFileSync(
+      join(repoDir, '../../../../../deploy/postgres/organization-member-invites-rls.sql'),
+      'utf8',
+    );
+
+    expect(bootstrapGrants).toContain(
+      'GRANT EXECUTE ON FUNCTION app.is_organization_slug_available(text) TO :"d3_4_bootstrap_base_role";',
+    );
+    expect(bootstrapGrants).toContain(
+      'REVOKE EXECUTE ON FUNCTION app.is_organization_slug_available(text) FROM :"d3_4_bootstrap_base_role";',
+    );
+    expect(inviteOwnership).not.toContain('is_organization_slug_available');
+    expect(inviteOwnership).not.toContain('reserve_specialist_signup_slug');
   });
 
   it('makes aliases and rename audit immutable and structurally prevents redirect chains', () => {
@@ -168,5 +223,7 @@ describe('0218 organization slug foundation', () => {
     expect(journal).toContain('"version": "7"');
     expect(journal).toContain('"when": 1793539200052');
     expect(journal).toContain('"tag": "0255_organization_slug_same_org_reclaim"');
+    expect(journal).toContain('"idx": 257');
+    expect(journal).toContain('"tag": "0257_specialist_signup_slug_reservation"');
   });
 });

@@ -11,6 +11,7 @@ function createPort(): OrganizationProvisioningPort {
       challengeId: "challenge-1",
       emailNormalized: "doctor@example.com",
       organizationTitle: "Clinic",
+      organizationSlug: "clinic",
       specialistFullName: "Doctor Owner",
       status: "pending" as const,
       provisionedOrganizationId: null,
@@ -41,12 +42,14 @@ describe("createOrganizationProvisioningService", () => {
       challengeId: "challenge-1",
       emailNormalized: "doctor@example.com",
       organizationTitle: "  Clinic   One ",
+      organizationSlug: "Clinic One",
       specialistFullName: "  Doctor   Owner ",
     });
 
     expect(port.createSpecialistSignupIntent).toHaveBeenCalledWith(
       expect.objectContaining({
         organizationTitle: "Clinic One",
+        organizationSlug: "clinic-one",
         specialistFullName: "Doctor Owner",
       }),
     );

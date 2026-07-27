@@ -126,7 +126,7 @@ describe("0254 auth rate-limit action accessors", () => {
 
   it("pins the four reviewed definers and their three app_owner table privileges", () => {
     const deploy = readFileSync(deployPath, "utf8");
-    expect(deploy).toContain("local expected_secdef_count=81");
+    expect(deploy).toContain("local expected_secdef_count=83");
     for (const row of [
       "('public.auth_rate_limit_events', 'SELECT')",
       "('public.auth_rate_limit_events', 'INSERT')",

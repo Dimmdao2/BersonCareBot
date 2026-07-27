@@ -2,6 +2,7 @@ import { sql } from "drizzle-orm";
 import { boolean, check, foreignKey, index, pgTable, text, timestamp, uniqueIndex, uuid } from "drizzle-orm/pg-core";
 import { beOrganizations } from "./bookingEngine";
 import { platformUsers } from "./schema";
+import { specialistSignupIntents } from "./specialistSignupIntents";
 
 /**
  * Minimal seed of the S6 `clinic_public_directory_entries` public-catalog projection
@@ -61,7 +62,8 @@ export const organizationSlugClaims = pgTable(
     id: uuid().defaultRandom().primaryKey().notNull(),
     slug: text().notNull(),
     kind: text().notNull(),
-    organizationId: uuid('organization_id').notNull(),
+    organizationId: uuid('organization_id'),
+    signupIntentId: uuid('signup_intent_id'),
     createdByPlatformUserId: uuid('created_by_platform_user_id'),
     createdAt: timestamp('created_at', { withTimezone: true, mode: 'string' })
       .defaultNow()
@@ -81,6 +83,9 @@ export const organizationSlugClaims = pgTable(
     uniqueIndex('uq_organization_slug_claims_reservation_org')
       .using('btree', table.organizationId.asc().nullsLast().op('uuid_ops'))
       .where(sql`${table.kind} = 'reservation' AND ${table.organizationId} IS NOT NULL`),
+    uniqueIndex('uq_organization_slug_claims_reservation_signup_intent')
+      .using('btree', table.signupIntentId.asc().nullsLast().op('uuid_ops'))
+      .where(sql`${table.kind} = 'reservation' AND ${table.signupIntentId} IS NOT NULL`),
     index('idx_organization_slug_claims_org_kind').using(
       'btree',
       table.organizationId.asc().nullsLast().op('uuid_ops'),
@@ -91,6 +96,11 @@ export const organizationSlugClaims = pgTable(
       foreignColumns: [beOrganizations.id],
       name: 'organization_slug_claims_organization_id_fkey',
     }),
+    foreignKey({
+      columns: [table.signupIntentId],
+      foreignColumns: [specialistSignupIntents.id],
+      name: 'organization_slug_claims_signup_intent_id_fkey',
+    }).onDelete('cascade'),
     foreignKey({
       columns: [table.createdByPlatformUserId],
       foreignColumns: [platformUsers.id],
@@ -112,6 +122,17 @@ export const organizationSlugClaims = pgTable(
     check(
       'organization_slug_claims_kind_check',
       sql`${table.kind} = ANY (ARRAY['reservation'::text, 'current'::text, 'alias'::text])`,
+    ),
+    check(
+      'organization_slug_claims_owner_shape_check',
+      sql`(
+        ${table.kind} = 'reservation'
+        AND ((${table.organizationId} IS NOT NULL)::int + (${table.signupIntentId} IS NOT NULL)::int) = 1
+      ) OR (
+        ${table.kind} IN ('current', 'alias')
+        AND ${table.organizationId} IS NOT NULL
+        AND ${table.signupIntentId} IS NULL
+      )`,
     ),
   ],
 );

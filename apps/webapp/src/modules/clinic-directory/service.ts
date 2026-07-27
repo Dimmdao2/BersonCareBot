@@ -15,6 +15,7 @@ export type ClinicDirectoryService = {
   getPublishedSlugForOrganization(organizationId: string): Promise<string | null>;
   getSlugManagementState(organizationId: string): Promise<OrganizationSlugManagementState>;
   resolveCanonicalSlug(slug: string): Promise<OrganizationSlugResolution | null>;
+  checkSlugAvailability(slug: string): Promise<OrganizationSlugMutationResult>;
   reserveSlug(input: ReserveOrganizationSlugInput): Promise<OrganizationSlugMutationResult>;
   claimReservedSlug(input: ClaimOrganizationSlugInput): Promise<OrganizationSlugMutationResult>;
   renameSlug(input: RenameOrganizationSlugInput): Promise<OrganizationSlugMutationResult>;
@@ -51,6 +52,14 @@ export function createClinicDirectoryService(port: ClinicDirectoryPort): ClinicD
       const validated = validateOrganizationSlugCandidate(slugRaw);
       if (!validated.ok) return null;
       return port.resolveCanonicalSlug(validated.slug);
+    },
+
+    async checkSlugAvailability(slugRaw) {
+      const validated = validatedSlug(slugRaw);
+      if (!validated.ok) return validated;
+      return (await port.isSlugAvailable(validated.slug))
+        ? validated
+        : { ok: false, code: 'slug_unavailable' };
     },
 
     async reserveSlug(input) {

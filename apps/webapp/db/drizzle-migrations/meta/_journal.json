@@ -1800,6 +1800,13 @@
       "when": 1793539200053,
       "tag": "0256_staff_security_self_password_hash",
       "breakpoints": true
+    },
+    {
+      "idx": 257,
+      "version": "7",
+      "when": 1793539200054,
+      "tag": "0257_specialist_signup_slug_reservation",
+      "breakpoints": true
     }
   ]
 }

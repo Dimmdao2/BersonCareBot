@@ -1272,6 +1272,12 @@ WITH required(tbl, priv) AS (
     ('public.platform_users', 'UPDATE'),
     ('public.specialist_signup_intents', 'SELECT'),
     ('public.specialist_signup_intents', 'UPDATE'),
+    -- 0257 mandatory signup slug: boolean availability reads claims; the self reservation inserts
+    -- or updates only a pending-intent reservation; provisioning promotes it and publishes one row.
+    ('public.organization_slug_claims', 'SELECT'),
+    ('public.organization_slug_claims', 'INSERT'),
+    ('public.organization_slug_claims', 'UPDATE'),
+    ('public.clinic_public_directory_entries', 'INSERT'),
     ('public.reference_categories', 'INSERT'),
     ('public.reference_categories', 'SELECT'),
     ('public.reference_items', 'INSERT'),
@@ -1486,7 +1492,14 @@ SELECT has_column_privilege('app_owner', 'public.operator_incidents', 'alert_sen
   # caller only through app.require_staff_security_self_user_id(), and updates the credentials row
   # only where user_password_credentials.user_id equals that derived self id. Its required SELECT
   # (predicate) and UPDATE (hash write) grants are pinned above.
-  local expected_secdef_count=81
+  # 81 -> 83 (2026-07-27, owner plan F-6): migration
+  # 0257_specialist_signup_slug_reservation adds exactly two reviewed app_owner SECURITY DEFINER
+  # functions. app.is_organization_slug_available(text) returns only a boolean after SELECT on
+  # organization_slug_claims. app.reserve_specialist_signup_slug(uuid,text) derives the signed self,
+  # then SELECT/UPDATEs the caller's pending intent and SELECT/INSERT/UPDATEs only its disposable
+  # reservation. Provisioning additionally needs claims SELECT/UPDATE and directory INSERT; all four
+  # new required table-grant rows are pinned above.
+  local expected_secdef_count=83
   local actual_secdef_count
   actual_secdef_count="$(sudo -u postgres psql -d "$DB" -X -v ON_ERROR_STOP=1 -tAc "
 SELECT count(*) FROM pg_proc p WHERE pg_get_userbyid(p.proowner) = 'app_owner' AND p.prosecdef;
@@ -1499,7 +1512,7 @@ SELECT count(*) FROM pg_proc p WHERE pg_get_userbyid(p.proowner) = 'app_owner' A
     exit 1
   }
 
-  echo "   app_owner SECURITY DEFINER table-grant completeness: OK (44 required table grants + 1 column grant present, $actual_secdef_count/$expected_secdef_count secdef functions pinned)"
+  echo "   app_owner SECURITY DEFINER table-grant completeness: OK (48 required table grants + 1 column grant present, $actual_secdef_count/$expected_secdef_count secdef functions pinned)"
 }
 
 assert_c5a_clinical_test_measure_kinds_closure(){

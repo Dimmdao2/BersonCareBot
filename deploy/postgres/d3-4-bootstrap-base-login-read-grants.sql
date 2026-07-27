@@ -66,6 +66,7 @@ SELECT 1 / (
   AND to_regprocedure('app.resolve_public_organization_slug(text)') IS NOT NULL
   AND to_regprocedure('app.resolve_public_organization_by_slug(text)') IS NOT NULL
   AND to_regprocedure('app.resolve_payment_webhook_organization(text,text,text)') IS NOT NULL
+  AND to_regprocedure('app.is_organization_slug_available(text)') IS NOT NULL
 )::int AS d3_4_webapp_runtime_accessors_exist;
 
 \if :d3_4_skip_media_worker
@@ -209,7 +210,8 @@ REVOKE EXECUTE ON FUNCTION app.email_password_register_pending(text, text, text,
 REVOKE EXECUTE ON FUNCTION app.email_password_delete_unverified_registration(uuid) FROM :"d3_4_bootstrap_base_role";
 REVOKE EXECUTE ON FUNCTION app.email_password_find_user_id_by_email_challenge(uuid) FROM :"d3_4_bootstrap_base_role";
 REVOKE EXECUTE ON FUNCTION app.email_password_find_login_candidate(text) FROM :"d3_4_bootstrap_base_role";
-REVOKE EXECUTE ON FUNCTION app.create_specialist_signup_intent(uuid, text, text, text) FROM :"d3_4_bootstrap_base_role";
+REVOKE EXECUTE ON FUNCTION app.is_organization_slug_available(text) FROM :"d3_4_bootstrap_base_role";
+REVOKE EXECUTE ON FUNCTION app.create_specialist_signup_intent(uuid, text, text, text, text) FROM :"d3_4_bootstrap_base_role";
 REVOKE EXECUTE ON FUNCTION app.get_pending_specialist_signup_intent(uuid, uuid) FROM :"d3_4_bootstrap_base_role";
 REVOKE EXECUTE ON FUNCTION app.get_specialist_signup_intent_by_challenge(uuid) FROM :"d3_4_bootstrap_base_role";
 REVOKE EXECUTE ON FUNCTION app.provision_specialist_owner(uuid) FROM :"d3_4_bootstrap_base_role";
@@ -550,7 +552,8 @@ GRANT EXECUTE ON FUNCTION app.email_password_register_pending(text, text, text, 
 GRANT EXECUTE ON FUNCTION app.email_password_delete_unverified_registration(uuid) TO :"d3_4_bootstrap_base_role";
 GRANT EXECUTE ON FUNCTION app.email_password_find_user_id_by_email_challenge(uuid) TO :"d3_4_bootstrap_base_role";
 GRANT EXECUTE ON FUNCTION app.email_password_find_login_candidate(text) TO :"d3_4_bootstrap_base_role";
-GRANT EXECUTE ON FUNCTION app.create_specialist_signup_intent(uuid, text, text, text) TO :"d3_4_bootstrap_base_role";
+GRANT EXECUTE ON FUNCTION app.is_organization_slug_available(text) TO :"d3_4_bootstrap_base_role";
+GRANT EXECUTE ON FUNCTION app.create_specialist_signup_intent(uuid, text, text, text, text) TO :"d3_4_bootstrap_base_role";
 GRANT EXECUTE ON FUNCTION app.get_pending_specialist_signup_intent(uuid, uuid) TO :"d3_4_bootstrap_base_role";
 GRANT EXECUTE ON FUNCTION app.get_specialist_signup_intent_by_challenge(uuid) TO :"d3_4_bootstrap_base_role";
 GRANT EXECUTE ON FUNCTION app.provision_specialist_owner(uuid) TO :"d3_4_bootstrap_base_role";

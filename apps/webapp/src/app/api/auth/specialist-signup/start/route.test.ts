@@ -69,6 +69,7 @@ describe("POST /api/auth/specialist-signup/start", () => {
             lastName: "Doctor",
             firstName: "Owner",
             organizationTitle: "Clinic One",
+            organizationSlug: "clinic-one",
           }),
         }),
       );
@@ -97,6 +98,7 @@ describe("POST /api/auth/specialist-signup/start", () => {
           lastName: "Doctor",
           firstName: "Owner",
           organizationTitle: "Clinic One",
+          organizationSlug: "clinic-one",
         }),
       }),
     );
@@ -128,6 +130,7 @@ describe("POST /api/auth/specialist-signup/start", () => {
           firstName: " owner ",
           patronymic: "  Ivanovich ",
           organizationTitle: "Clinic One",
+          organizationSlug: "Clinic One",
         }),
       }),
     );
@@ -144,6 +147,7 @@ describe("POST /api/auth/specialist-signup/start", () => {
       challengeId: "22222222-2222-4222-8222-222222222222",
       emailNormalized: "doctor@example.com",
       organizationTitle: "Clinic One",
+      organizationSlug: "clinic-one",
       specialistFullName: "Doctor Owner Ivanovich",
     });
     await expect(res.json()).resolves.toMatchObject({
@@ -166,6 +170,7 @@ describe("POST /api/auth/specialist-signup/start", () => {
           lastName: "Doctor",
           firstName: "Owner",
           organizationTitle: "Clinic One",
+          organizationSlug: "clinic-one",
         }),
       }),
     );
@@ -191,6 +196,7 @@ describe("POST /api/auth/specialist-signup/start", () => {
           lastName: "Doctor",
           firstName: "Owner",
           organizationTitle: "Clinic One",
+          organizationSlug: "clinic-one",
         }),
       }),
     );
@@ -222,6 +228,7 @@ describe("POST /api/auth/specialist-signup/start", () => {
           lastName: "Doctor",
           firstName: "Owner",
           organizationTitle: "Clinic One",
+          organizationSlug: "clinic-one",
         }),
       }),
     );
@@ -229,6 +236,7 @@ describe("POST /api/auth/specialist-signup/start", () => {
     expect(res.status).toBe(200);
     expect(replacePendingSpecialistSignupChallengeMock).toHaveBeenCalledWith({
       challengeId: "33333333-3333-4333-8333-333333333333",
+      organizationSlug: "clinic-one",
     });
     expect(createSpecialistSignupIntentMock).not.toHaveBeenCalled();
   });
@@ -247,11 +255,63 @@ describe("POST /api/auth/specialist-signup/start", () => {
           lastName,
           firstName,
           organizationTitle: "Clinic One",
+          organizationSlug: "clinic-one",
         }),
       }),
     );
 
     expect(res.status).toBe(400);
     expect(registerPendingSpecialistVerificationMock).not.toHaveBeenCalled();
+  });
+
+  it("refuses missing, invalid, and taken addresses with distinct errors before provisioning", async () => {
+    const base = {
+      email: "doctor@example.com",
+      password: "password12",
+      lastName: "Doctor",
+      firstName: "Owner",
+      organizationTitle: "Clinic One",
+    };
+
+    const missing = await POST(
+      new Request("http://localhost/api/auth/specialist-signup/start", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(base),
+      }),
+    );
+    expect(missing.status).toBe(400);
+    await expect(missing.json()).resolves.toEqual({ ok: false, error: "invalid_body" });
+
+    const invalid = await POST(
+      new Request("http://localhost/api/auth/specialist-signup/start", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ ...base, organizationSlug: "клиника!" }),
+      }),
+    );
+    expect(invalid.status).toBe(400);
+    await expect(invalid.json()).resolves.toEqual({
+      ok: false,
+      error: "slug_invalid_characters",
+    });
+
+    registerPendingSpecialistVerificationMock.mockResolvedValueOnce({ ok: true, userId: SELF_ID });
+    startEmailChallengeMock.mockResolvedValueOnce({
+      ok: true,
+      challengeId: "44444444-4444-4444-8444-444444444444",
+      retryAfterSeconds: 60,
+    });
+    createSpecialistSignupIntentMock.mockRejectedValueOnce(new Error("slug_unavailable"));
+    const taken = await POST(
+      new Request("http://localhost/api/auth/specialist-signup/start", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ ...base, organizationSlug: "taken-clinic" }),
+      }),
+    );
+    expect(taken.status).toBe(409);
+    await expect(taken.json()).resolves.toEqual({ ok: false, error: "slug_unavailable" });
+    expect(deleteUnverifiedEmailPasswordRegistrationMock).toHaveBeenCalledWith(SELF_ID);
   });
 });

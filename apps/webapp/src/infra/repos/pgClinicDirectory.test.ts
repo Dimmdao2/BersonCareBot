@@ -118,6 +118,17 @@ describe('pgClinicDirectory public slug resolver', () => {
     await expect(port.resolveOrganizationIdBySlug('clinic-a')).resolves.toBeNull();
   });
 
+  it('checks pre-signup availability through the boolean-only accessor', async () => {
+    runWebappPgTextMock.mockResolvedValue({ rows: [{ available: false }] });
+    const port = createPgClinicDirectoryPort();
+
+    await expect(port.isSlugAvailable('taken-clinic')).resolves.toBe(false);
+    expect(runWebappPgTextMock).toHaveBeenCalledWith(
+      expect.stringContaining('app.is_organization_slug_available'),
+      ['taken-clinic'],
+    );
+  });
+
   it("keeps a former slug resolving to the same organization before and after its reclaim", async () => {
     runWebappPgTextMock
       .mockResolvedValueOnce({

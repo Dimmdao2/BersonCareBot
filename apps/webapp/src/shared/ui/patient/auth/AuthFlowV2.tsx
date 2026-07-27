@@ -47,12 +47,34 @@ import {
 } from "@/shared/ui/patient/patientVisual";
 import { SupportContactLink } from "@/shared/ui/patient/SupportContactLink";
 import { PhoneMessengerAuthFlow } from "@/shared/ui/patient/auth/PhoneMessengerAuthFlow";
+import {
+  suggestOrganizationSlug,
+  validateOrganizationSlugCandidate,
+} from "@/modules/clinic-directory/organizationSlug";
+import type { OrganizationSlugMutationErrorCode } from "@/modules/clinic-directory/ports";
 
 const WEB_CHAT_ID_KEY = "bersoncare_web_chat_id";
 
 const SMS_DISABLED_WEB_MESSAGE =
   "SMS для входа с сайта отключён. Используйте код в Telegram, Max или на email.";
 const AUTH_NETWORK_ERROR_MESSAGE = "Нет связи с сервером. Проверьте интернет и повторите.";
+
+function specialistSignupSlugErrorMessage(error: OrganizationSlugMutationErrorCode | "invalid_body") {
+  switch (error) {
+    case "slug_unavailable":
+      return "Этот адрес уже занят. Выберите другой.";
+    case "slug_invalid_characters":
+      return "Используйте только латинские буквы, цифры и дефисы.";
+    case "slug_too_short":
+      return "Адрес должен содержать минимум 3 символа.";
+    case "slug_too_long":
+      return "Адрес должен быть не длиннее 63 символов.";
+    case "reserved_slug":
+      return "Этот адрес зарезервирован системой. Выберите другой.";
+    default:
+      return "Проверьте адрес публичной записи.";
+  }
+}
 
 type FetchJsonResult<T> =
   | { ok: true; response: Response; data: T }
@@ -251,6 +273,12 @@ export function AuthFlowV2({
   const [specialistSignupFirstName, setSpecialistSignupFirstName] = useState("");
   const [specialistSignupPatronymic, setSpecialistSignupPatronymic] = useState("");
   const [specialistSignupOrganizationTitle, setSpecialistSignupOrganizationTitle] = useState("");
+  const [specialistSignupOrganizationSlug, setSpecialistSignupOrganizationSlug] = useState("");
+  const [specialistSignupSlugStatus, setSpecialistSignupSlugStatus] =
+    useState<"idle" | "checking" | "available" | "error">("idle");
+  const [specialistSignupSlugMessage, setSpecialistSignupSlugMessage] = useState<string | null>(null);
+  const specialistSignupSlugEditedRef = useRef(false);
+  const specialistSignupSlugCheckRef = useRef(0);
   const [specialistSignupPassword, setSpecialistSignupPassword] = useState("");
   const [pwRecoveryPhase, setPwRecoveryPhase] = useState<"none" | "reset_code">("none");
   const [pwRecoveryPurpose, setPwRecoveryPurpose] = useState<"reset" | "setup">("reset");
@@ -354,6 +382,7 @@ export function AuthFlowV2({
       setSpecialistSignupFirstName(p.firstName ?? "");
       setSpecialistSignupPatronymic(p.patronymic ?? "");
       setSpecialistSignupOrganizationTitle(p.organizationTitle);
+      setSpecialistSignupOrganizationSlug(p.organizationSlug);
       setEmailRegChallengeId(p.challengeId);
       setEmailVerifyPurpose("specialist_signup");
       setEmailAuthMode("verify");
@@ -773,7 +802,53 @@ export function AuthFlowV2({
     setSpecialistSignupFirstName("");
     setSpecialistSignupPatronymic("");
     setSpecialistSignupOrganizationTitle("");
+    setSpecialistSignupOrganizationSlug("");
+    setSpecialistSignupSlugStatus("idle");
+    setSpecialistSignupSlugMessage(null);
+    specialistSignupSlugEditedRef.current = false;
+    specialistSignupSlugCheckRef.current += 1;
     setSpecialistSignupPassword("");
+  };
+
+  const checkSpecialistSignupSlugAvailability = async (): Promise<string | null> => {
+    const checkId = ++specialistSignupSlugCheckRef.current;
+    const validated = validateOrganizationSlugCandidate(specialistSignupOrganizationSlug);
+    if (!validated.ok) {
+      setSpecialistSignupSlugStatus("error");
+      setSpecialistSignupSlugMessage(specialistSignupSlugErrorMessage(validated.code));
+      return null;
+    }
+
+    setSpecialistSignupOrganizationSlug(validated.slug);
+    setSpecialistSignupSlugStatus("checking");
+    setSpecialistSignupSlugMessage("Проверяем адрес…");
+    const result = await fetchJsonSafe<{
+      ok?: boolean;
+      slug?: string;
+      available?: boolean;
+      error?: OrganizationSlugMutationErrorCode | "invalid_body";
+    }>("/api/auth/specialist-signup/slug", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ slug: validated.slug }),
+    });
+    if (checkId !== specialistSignupSlugCheckRef.current) return null;
+    if (!result.ok) {
+      setSpecialistSignupSlugStatus("error");
+      setSpecialistSignupSlugMessage(AUTH_NETWORK_ERROR_MESSAGE);
+      return null;
+    }
+    if (result.data.ok && result.data.available && result.data.slug) {
+      setSpecialistSignupOrganizationSlug(result.data.slug);
+      setSpecialistSignupSlugStatus("available");
+      setSpecialistSignupSlugMessage("Адрес свободен.");
+      return result.data.slug;
+    }
+    setSpecialistSignupSlugStatus("error");
+    setSpecialistSignupSlugMessage(
+      specialistSignupSlugErrorMessage(result.data.error ?? "invalid_body"),
+    );
+    return null;
   };
 
   const submitSpecialistSignupStart = async (e: FormEvent) => {
@@ -785,7 +860,7 @@ export function AuthFlowV2({
     const firstName = specialistSignupFirstName.trim();
     const patronymic = specialistSignupPatronymic.trim();
     const organizationTitle = specialistSignupOrganizationTitle.trim();
-    if (!email || !password || !lastName || !firstName || !organizationTitle) {
+    if (!email || !password || !lastName || !firstName || !organizationTitle || !specialistSignupOrganizationSlug.trim()) {
       toast.error("Заполните все поля");
       return;
     }
@@ -793,6 +868,8 @@ export function AuthFlowV2({
       toast.error("Пароль — не менее 8 символов.");
       return;
     }
+    const organizationSlug = await checkSpecialistSignupSlugAvailability();
+    if (!organizationSlug) return;
     setLoading(true);
     try {
       const result = await fetchJsonSafe<{
@@ -804,7 +881,15 @@ export function AuthFlowV2({
       }>("/api/auth/specialist-signup/start", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ email, password, lastName, firstName, patronymic: patronymic || undefined, organizationTitle }),
+        body: JSON.stringify({
+          email,
+          password,
+          lastName,
+          firstName,
+          patronymic: patronymic || undefined,
+          organizationTitle,
+          organizationSlug,
+        }),
       });
       if (!result.ok) {
         toast.error(AUTH_NETWORK_ERROR_MESSAGE);
@@ -824,11 +909,24 @@ export function AuthFlowV2({
           firstName,
           patronymic,
           organizationTitle,
+          organizationSlug,
         });
         return;
       }
-      if (res.status === 409 || data.error === "duplicate_email") {
+      if (data.error === "slug_unavailable") {
+        setSpecialistSignupSlugStatus("error");
+        setSpecialistSignupSlugMessage(specialistSignupSlugErrorMessage("slug_unavailable"));
+        return;
+      }
+      if (data.error === "duplicate_email") {
         toast.error("Аккаунт с этой почтой уже существует.");
+        return;
+      }
+      if (data.error?.startsWith("slug_") || data.error === "reserved_slug") {
+        setSpecialistSignupSlugStatus("error");
+        setSpecialistSignupSlugMessage(
+          specialistSignupSlugErrorMessage(data.error as OrganizationSlugMutationErrorCode),
+        );
         return;
       }
       if (res.status === 429 || data.error === "rate_limited") {
@@ -1447,10 +1545,65 @@ export function AuthFlowV2({
                     name="organizationTitle"
                     autoComplete="organization"
                     value={specialistSignupOrganizationTitle}
-                    onChange={(e) => setSpecialistSignupOrganizationTitle(e.target.value)}
+                    onChange={(e) => {
+                      const title = e.target.value;
+                      setSpecialistSignupOrganizationTitle(title);
+                      if (!specialistSignupSlugEditedRef.current) {
+                        specialistSignupSlugCheckRef.current += 1;
+                        setSpecialistSignupOrganizationSlug(suggestOrganizationSlug(title) ?? "");
+                        setSpecialistSignupSlugStatus("idle");
+                        setSpecialistSignupSlugMessage(null);
+                      }
+                    }}
                     disabled={loading}
                     className={authEmailInputClass}
                   />
+                </div>
+                <div className="flex flex-col gap-1">
+                  <label htmlFor="auth-specialist-organization-slug" className={authFormFieldLabelClass}>
+                    Публичный адрес
+                  </label>
+                  <Input
+                    id="auth-specialist-organization-slug"
+                    type="text"
+                    name="organizationSlug"
+                    autoComplete="off"
+                    autoCapitalize="none"
+                    spellCheck={false}
+                    required
+                    value={specialistSignupOrganizationSlug}
+                    onChange={(e) => {
+                      specialistSignupSlugEditedRef.current = true;
+                      specialistSignupSlugCheckRef.current += 1;
+                      const value = e.target.value;
+                      setSpecialistSignupOrganizationSlug(value);
+                      const validated = validateOrganizationSlugCandidate(value);
+                      setSpecialistSignupSlugStatus(validated.ok ? "idle" : "error");
+                      setSpecialistSignupSlugMessage(
+                        validated.ok ? null : specialistSignupSlugErrorMessage(validated.code),
+                      );
+                    }}
+                    onBlur={() => void checkSpecialistSignupSlugAvailability()}
+                    disabled={loading}
+                    aria-invalid={specialistSignupSlugStatus === "error"}
+                    className={authEmailInputClass}
+                  />
+                  <span className={cn(patientMutedTextClass, "text-xs")}>
+                    /book/{specialistSignupOrganizationSlug || "adres-kliniki"}
+                  </span>
+                  {specialistSignupSlugMessage ? (
+                    <span
+                      role={specialistSignupSlugStatus === "error" ? "alert" : "status"}
+                      className={cn(
+                        "text-xs",
+                        specialistSignupSlugStatus === "error"
+                          ? "text-destructive"
+                          : patientMutedTextClass,
+                      )}
+                    >
+                      {specialistSignupSlugMessage}
+                    </span>
+                  ) : null}
                 </div>
                 <Button
                   type="submit"
@@ -1621,8 +1774,9 @@ export function AuthFlowV2({
                   const firstName = specialistSignupFirstName.trim();
                   const patronymic = specialistSignupPatronymic.trim();
                   const organizationTitle = specialistSignupOrganizationTitle.trim();
-                  if (!email || !password || !lastName || !firstName || !organizationTitle) {
-                    return { kind: "error" as const, message: "Заполните email, пароль, фамилию, имя и организацию" };
+                  const organizationSlug = specialistSignupOrganizationSlug.trim();
+                  if (!email || !password || !lastName || !firstName || !organizationTitle || !organizationSlug) {
+                    return { kind: "error" as const, message: "Заполните email, пароль, фамилию, имя, организацию и публичный адрес" };
                   }
                   const r = await fetchJsonSafe<{
                     ok?: boolean;
@@ -1640,6 +1794,7 @@ export function AuthFlowV2({
                       firstName,
                       patronymic: patronymic || undefined,
                       organizationTitle,
+                      organizationSlug,
                     }),
                   });
                   if (!r.ok) return { kind: "error" as const, message: AUTH_NETWORK_ERROR_MESSAGE };
@@ -1655,6 +1810,7 @@ export function AuthFlowV2({
                       firstName,
                       patronymic,
                       organizationTitle,
+                      organizationSlug,
                     });
                     return { kind: "ok" as const };
                   }

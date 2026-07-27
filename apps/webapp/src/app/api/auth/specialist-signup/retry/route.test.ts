@@ -52,7 +52,7 @@ describe("POST /api/auth/specialist-signup/retry", () => {
     expect(provisionOwnerMock).not.toHaveBeenCalled();
   });
 
-  it("retries only the authenticated user's latest intent after factor and recovery acknowledgement", async () => {
+  it("retries the authenticated user's reserved intent without asking for another slug", async () => {
     getCurrentSessionMock.mockResolvedValue({
       user: { userId, role: "doctor" },
       staffSecurity: { assurance: "factor_verified" },
@@ -60,6 +60,7 @@ describe("POST /api/auth/specialist-signup/retry", () => {
     getLatestIntentMock.mockResolvedValue({
       userId,
       challengeId: "22222222-2222-4222-8222-222222222222",
+      organizationSlug: "clinic-one",
     });
     provisionOwnerMock.mockResolvedValue({
       organizationId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
@@ -71,6 +72,12 @@ describe("POST /api/auth/specialist-signup/retry", () => {
     expect(getLatestIntentMock).toHaveBeenCalledWith();
     expect(provisionOwnerMock).toHaveBeenCalledWith({
       challengeId: "22222222-2222-4222-8222-222222222222",
+    });
+    await expect(response.json()).resolves.toEqual({
+      ok: true,
+      redirectTo: "/app/account?tab=security",
+      organizationId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+      membershipId: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
     });
   });
 

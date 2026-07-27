@@ -14,6 +14,7 @@ export const specialistSignupIntents = pgTable(
     challengeId: uuid("challenge_id").notNull(),
     emailNormalized: text("email_normalized").notNull(),
     organizationTitle: text("organization_title").notNull(),
+    organizationSlug: text("organization_slug"),
     specialistFullName: text("specialist_full_name").notNull(),
     status: text().default("pending").notNull(),
     provisionedOrganizationId: uuid("provisioned_organization_id"),

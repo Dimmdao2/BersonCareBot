@@ -175,7 +175,7 @@ describe("0252 patient action accessors", () => {
 
   it("pins the reviewed count/grants without entering the deploy ownership trap", () => {
     const deploy = readFileSync(deployPath, "utf8");
-    expect(deploy).toContain("local expected_secdef_count=81");
+    expect(deploy).toContain("local expected_secdef_count=83");
     for (const row of [
       "('public.lfk_complexes', 'SELECT')",
       "('public.lfk_complex_exercises', 'SELECT')",

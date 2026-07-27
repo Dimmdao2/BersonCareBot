@@ -23,6 +23,8 @@ export type ClinicDirectoryPort = {
 
   /** Internal foundation resolver. Public callers must still require a published projection. */
   resolveCanonicalSlug(slug: string): Promise<OrganizationSlugResolution | null>;
+  /** Pre-signup availability signal. It never reveals the owning organization or reservation. */
+  isSlugAvailable(slug: string): Promise<boolean>;
 
   // Mutation repositories derive audit attribution from the trusted staff DB principal. The later
   // route/application layer must additionally enforce the organization-owner role; callers cannot

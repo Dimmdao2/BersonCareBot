@@ -869,6 +869,9 @@ describe("AuthFlowV2 — browser", () => {
     const user = userEvent.setup();
     const fetchMock = vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
       const url = typeof input === "string" ? input : input.toString();
+      if (url.includes("/api/auth/specialist-signup/slug")) {
+        return jsonRes({ ok: true, slug: "clinic-one", available: true });
+      }
       if (url.includes("/api/auth/specialist-signup/start")) {
         const body = init?.body ? JSON.parse(String(init.body)) : {};
         expect(body).toMatchObject({
@@ -878,6 +881,7 @@ describe("AuthFlowV2 — browser", () => {
           firstName: "Owner",
           patronymic: "Middle",
           organizationTitle: "Clinic One",
+          organizationSlug: "clinic-one",
         });
         return jsonRes({ ok: true, challengeId: "signup-ch-1", retryAfterSeconds: 60 });
       }
@@ -918,6 +922,56 @@ describe("AuthFlowV2 — browser", () => {
     await waitFor(() => expect(replace).toHaveBeenCalledWith("/app/doctor"));
   });
 
+  it("shows distinct invalid and taken public-address feedback before signup submit", async () => {
+    const user = userEvent.setup();
+    const fetchMock = vi.fn((input: RequestInfo | URL) => {
+      const url = typeof input === "string" ? input : input.toString();
+      if (url.includes("/api/auth/specialist-signup/slug")) {
+        return jsonRes(
+          { ok: false, error: "slug_unavailable" },
+          { ok: false, status: 409 },
+        );
+      }
+      return jsonRes({});
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(
+      <AuthFlowV2
+        nextParam={null}
+        prefetchedAuthConfig={{
+          oauthProviders: { yandex: false, google: false, apple: false },
+          telegramBotUsername: null,
+          maxBotOpenUrl: null,
+          specialistSignupEnabled: true,
+          fetchedAt: Date.now(),
+        }}
+      />,
+    );
+
+    await user.click(await screen.findByRole("button", { name: "Я специалист" }));
+    await user.type(screen.getByLabelText("Название организации"), "Clinic One");
+    const slug = screen.getByLabelText("Публичный адрес");
+    expect(slug).toHaveValue("clinic-one");
+
+    await user.clear(slug);
+    await user.type(slug, "клиника!");
+    expect(
+      screen.getByText("Используйте только латинские буквы, цифры и дефисы."),
+    ).toBeInTheDocument();
+
+    await user.clear(slug);
+    await user.type(slug, "taken-clinic");
+    await user.tab();
+    expect(
+      await screen.findByText("Этот адрес уже занят. Выберите другой."),
+    ).toBeInTheDocument();
+    expect(fetchMock).not.toHaveBeenCalledWith(
+      expect.stringContaining("/api/auth/specialist-signup/start"),
+      expect.anything(),
+    );
+  });
+
   it("retains structured specialist FIO for a resend", async () => {
     const user = userEvent.setup();
     const payloads: Record<string, unknown>[] = [];
@@ -925,6 +979,9 @@ describe("AuthFlowV2 — browser", () => {
       "fetch",
       vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
         const url = typeof input === "string" ? input : input.toString();
+        if (url.includes("/api/auth/specialist-signup/slug")) {
+          return jsonRes({ ok: true, slug: "clinic-one", available: true });
+        }
         if (url.includes("/api/auth/specialist-signup/start")) {
           payloads.push(JSON.parse(String(init?.body)) as Record<string, unknown>);
           return jsonRes({ ok: true, challengeId: `signup-ch-${payloads.length}`, retryAfterSeconds: 0 });
@@ -964,6 +1021,7 @@ describe("AuthFlowV2 — browser", () => {
         firstName: "Owner",
         patronymic: "Middle",
         organizationTitle: "Clinic One",
+        organizationSlug: "clinic-one",
       },
       {
         email: "doctor@example.com",
@@ -972,6 +1030,7 @@ describe("AuthFlowV2 — browser", () => {
         firstName: "Owner",
         patronymic: "Middle",
         organizationTitle: "Clinic One",
+        organizationSlug: "clinic-one",
       },
     ]);
   });
@@ -982,6 +1041,9 @@ describe("AuthFlowV2 — browser", () => {
       "fetch",
       vi.fn((input: RequestInfo | URL) => {
         const url = typeof input === "string" ? input : input.toString();
+        if (url.includes("/api/auth/specialist-signup/slug")) {
+          return jsonRes({ ok: true, slug: "clinic-one", available: true });
+        }
         if (url.includes("/api/auth/specialist-signup/start")) {
           return jsonRes({ ok: false, error: "duplicate_email" }, { ok: false, status: 409 });
         }
@@ -1021,6 +1083,9 @@ describe("AuthFlowV2 — browser", () => {
       "fetch",
       vi.fn((input: RequestInfo | URL) => {
         const url = typeof input === "string" ? input : input.toString();
+        if (url.includes("/api/auth/specialist-signup/slug")) {
+          return jsonRes({ ok: true, slug: "clinic-one", available: true });
+        }
         if (url.includes("/api/auth/specialist-signup/start")) {
           return jsonRes({ ok: true, challengeId: "signup-ch-1", retryAfterSeconds: 0 });
         }
@@ -1074,6 +1139,9 @@ describe("AuthFlowV2 — browser", () => {
       "fetch",
       vi.fn((input: RequestInfo | URL) => {
         const url = typeof input === "string" ? input : input.toString();
+        if (url.includes("/api/auth/specialist-signup/slug")) {
+          return jsonRes({ ok: true, slug: "clinic-one", available: true });
+        }
         if (url.includes("/api/auth/specialist-signup/start")) {
           return jsonRes({ ok: true, challengeId: "signup-ch-1", retryAfterSeconds: 60 });
         }

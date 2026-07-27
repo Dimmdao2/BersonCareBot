@@ -10,6 +10,7 @@ function buildPort(resolved: string | null): ClinicDirectoryPort {
       currentSlug: null,
     })),
     resolveCanonicalSlug: vi.fn(async () => null),
+    isSlugAvailable: vi.fn(async () => true),
     reserveSlug: vi.fn(async (input) => ({ ok: true as const, slug: input.slug })),
     claimReservedSlug: vi.fn(async (input) => ({ ok: true as const, slug: input.slug })),
     renameSlug: vi.fn(async (input) => ({ ok: true as const, slug: input.reservedSlug })),
@@ -96,6 +97,28 @@ describe('clinicDirectoryService', () => {
       }),
     ).resolves.toEqual({ ok: false, code: 'slug_invalid_characters' });
     expect(port.reserveSlug).not.toHaveBeenCalled();
+  });
+
+  it('returns per-cause validation and a distinct taken result for live availability', async () => {
+    const port = buildPort(null);
+    const service = createClinicDirectoryService(port);
+
+    await expect(service.checkSlugAvailability('ab')).resolves.toEqual({
+      ok: false,
+      code: 'slug_too_short',
+    });
+    await expect(service.checkSlugAvailability('клиника!')).resolves.toEqual({
+      ok: false,
+      code: 'slug_invalid_characters',
+    });
+    expect(port.isSlugAvailable).not.toHaveBeenCalled();
+
+    vi.mocked(port.isSlugAvailable).mockResolvedValueOnce(false);
+    await expect(service.checkSlugAvailability('taken-clinic')).resolves.toEqual({
+      ok: false,
+      code: 'slug_unavailable',
+    });
+    expect(port.isSlugAvailable).toHaveBeenCalledWith('taken-clinic');
   });
 
   it('claims an available slug through the existing reserve -> claim path', async () => {

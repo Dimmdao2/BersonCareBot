@@ -110,6 +110,14 @@ export function createPgClinicDirectoryPort(): ClinicDirectoryPort {
       };
     },
 
+    async isSlugAvailable(slug) {
+      const result = await runWebappPgText<{ available: boolean }>(
+        `SELECT app.is_organization_slug_available($1::text) AS available`,
+        [slug],
+      );
+      return result.rows[0]?.available === true;
+    },
+
     async reserveSlug(input) {
       const actorPlatformUserId = exactStaffOrganizationPrincipal(input.organizationId);
       try {

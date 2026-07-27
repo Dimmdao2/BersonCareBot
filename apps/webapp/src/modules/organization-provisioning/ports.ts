@@ -2,12 +2,15 @@ export type SpecialistSignupIntentInput = {
   challengeId: string;
   emailNormalized: string;
   organizationTitle: string;
+  organizationSlug: string;
   specialistFullName: string;
 };
 
-export type SpecialistSignupIntent = SpecialistSignupIntentInput & {
+export type SpecialistSignupIntent = Omit<SpecialistSignupIntentInput, "organizationSlug"> & {
   id: string;
   userId: string;
+  /** Null only for an unfinished intent created before mandatory signup slugs shipped. */
+  organizationSlug: string | null;
   status: "pending" | "provisioned";
   provisionedOrganizationId: string | null;
   provisionedSpecialistId: string | null;
@@ -44,7 +47,10 @@ export type OrganizationProvisioningPort = {
   }): Promise<SpecialistSignupIntent | null>;
   getSpecialistSignupIntentByChallengeId(challengeId: string): Promise<SpecialistSignupIntent | null>;
   getLatestSpecialistSignupIntentForUser(): Promise<SpecialistSignupIntent | null>;
-  replacePendingSpecialistSignupChallenge(input: { challengeId: string }): Promise<boolean>;
+  replacePendingSpecialistSignupChallenge(input: {
+    challengeId: string;
+    organizationSlug: string;
+  }): Promise<boolean>;
   provisionSpecialistOwner(input: SpecialistOwnerProvisioningInput): Promise<SpecialistOwnerProvisioningResult>;
   ensureOwnBookableSpecialist(
     input: EnsureOwnBookableSpecialistInput,

@@ -59,10 +59,16 @@ SELECT (to_regprocedure('app.require_staff_security_self_user_id()') IS NOT NULL
 \if :specialist_signup_has_self_helper
 REVOKE EXECUTE ON FUNCTION app.require_staff_security_self_user_id() FROM :specialist_signup_intents_owner_ident;
 \endif
+SELECT (to_regprocedure('app.reserve_specialist_signup_slug(uuid,text)') IS NOT NULL)::int AS specialist_signup_has_slug_reserve \gset
+\if :specialist_signup_has_slug_reserve
+REVOKE EXECUTE ON FUNCTION app.reserve_specialist_signup_slug(uuid, text) FROM :specialist_signup_intents_owner_ident;
+\endif
 DROP FUNCTION IF EXISTS app.get_specialist_signup_intent_by_challenge(uuid);
 DROP FUNCTION IF EXISTS app.get_pending_specialist_signup_intent(uuid, uuid);
+DROP FUNCTION IF EXISTS app.create_specialist_signup_intent(uuid, text, text, text, text);
 DROP FUNCTION IF EXISTS app.create_specialist_signup_intent(uuid, text, text, text);
 DROP FUNCTION IF EXISTS app.get_latest_specialist_signup_intent_for_user();
+DROP FUNCTION IF EXISTS app.replace_pending_specialist_signup_challenge(uuid, text);
 DROP FUNCTION IF EXISTS app.replace_pending_specialist_signup_challenge(uuid);
 DROP FUNCTION IF EXISTS app.revoke_staff_sessions();
 DROP FUNCTION IF EXISTS app.record_failed_staff_factor_attempt();
@@ -97,10 +103,15 @@ SELECT (
   AND to_regclass('public.user_oauth_bindings') IS NOT NULL
   AND to_regclass('public.email_challenges') IS NOT NULL
   AND to_regclass('public.specialist_signup_intents') IS NOT NULL
+  AND to_regclass('public.organization_slug_claims') IS NOT NULL
   AND to_regclass('public.staff_security_profiles') IS NOT NULL
-  AND to_regprocedure('app.replace_pending_specialist_signup_challenge(uuid)') IS NOT NULL
+  AND (
+    to_regprocedure('app.replace_pending_specialist_signup_challenge(uuid)') IS NOT NULL
+    OR to_regprocedure('app.replace_pending_specialist_signup_challenge(uuid,text)') IS NOT NULL
+  )
   AND to_regprocedure('app.get_latest_specialist_signup_intent_for_user()') IS NOT NULL
   AND to_regprocedure('app.require_staff_security_self_user_id()') IS NOT NULL
+  AND to_regprocedure('app.reserve_specialist_signup_slug(uuid,text)') IS NOT NULL
   AND to_regprocedure('app.ensure_staff_security_profile()') IS NOT NULL
   AND to_regprocedure('app.get_staff_security_profile()') IS NOT NULL
   AND to_regprocedure('app.get_staff_security_session_state()') IS NOT NULL
@@ -496,24 +507,31 @@ ALTER FUNCTION app.email_password_find_login_candidate(text) OWNER TO :specialis
 
 -- Retire the former caller-targeted overload before exposing the self-scoped replacement.
 DROP FUNCTION IF EXISTS app.create_specialist_signup_intent(uuid, uuid, text, text, text);
+DROP FUNCTION IF EXISTS app.create_specialist_signup_intent(uuid, text, text, text);
+DROP FUNCTION IF EXISTS app.create_specialist_signup_intent(uuid, text, text, text, text);
 
-CREATE OR REPLACE FUNCTION app.create_specialist_signup_intent(
+CREATE FUNCTION app.create_specialist_signup_intent(
   p_challenge_id uuid,
   p_email_normalized text,
   p_organization_title text,
-  p_specialist_full_name text
+  p_specialist_full_name text,
+  p_organization_slug text
 )
 RETURNS uuid
-LANGUAGE sql
+LANGUAGE plpgsql
 VOLATILE
 SECURITY DEFINER
 SET search_path = pg_catalog
 AS $$
+DECLARE
+  v_intent_id uuid;
+BEGIN
   INSERT INTO public.specialist_signup_intents (
     user_id,
     challenge_id,
     email_normalized,
     organization_title,
+    organization_slug,
     specialist_full_name
   )
   VALUES (
@@ -521,16 +539,22 @@ AS $$
     p_challenge_id,
     lower(btrim(p_email_normalized)),
     btrim(p_organization_title),
+    p_organization_slug,
     btrim(p_specialist_full_name)
   )
-  RETURNING id
+  RETURNING id INTO v_intent_id;
+
+  PERFORM app.reserve_specialist_signup_slug(v_intent_id, p_organization_slug);
+  RETURN v_intent_id;
+END
 $$;
 
-COMMENT ON FUNCTION app.create_specialist_signup_intent(uuid, text, text, text) IS
-  'Identity-self SECURITY DEFINER for specialist signup START intent creation under a signed app_patient principal.';
+COMMENT ON FUNCTION app.create_specialist_signup_intent(uuid, text, text, text, text) IS
+  'Identity-self specialist signup START: creates the intent and reserves its mandatory public slug in one transaction.';
 
-ALTER FUNCTION app.create_specialist_signup_intent(uuid, text, text, text) OWNER TO :specialist_signup_intents_owner_ident;
+ALTER FUNCTION app.create_specialist_signup_intent(uuid, text, text, text, text) OWNER TO :specialist_signup_intents_owner_ident;
 
+DROP FUNCTION IF EXISTS app.get_pending_specialist_signup_intent(uuid, uuid);
 CREATE OR REPLACE FUNCTION app.get_pending_specialist_signup_intent(
   p_user_id uuid,
   p_challenge_id uuid
@@ -541,6 +565,7 @@ RETURNS TABLE (
   challenge_id uuid,
   email_normalized text,
   organization_title text,
+  organization_slug text,
   specialist_full_name text,
   status text,
   provisioned_organization_id uuid,
@@ -558,6 +583,7 @@ AS $$
     i.challenge_id,
     i.email_normalized,
     i.organization_title,
+    i.organization_slug,
     i.specialist_full_name,
     i.status,
     i.provisioned_organization_id,
@@ -575,6 +601,7 @@ COMMENT ON FUNCTION app.get_pending_specialist_signup_intent(uuid, uuid) IS
 
 ALTER FUNCTION app.get_pending_specialist_signup_intent(uuid, uuid) OWNER TO :specialist_signup_intents_owner_ident;
 
+DROP FUNCTION IF EXISTS app.get_specialist_signup_intent_by_challenge(uuid);
 CREATE OR REPLACE FUNCTION app.get_specialist_signup_intent_by_challenge(p_challenge_id uuid)
 RETURNS TABLE (
   id uuid,
@@ -582,6 +609,7 @@ RETURNS TABLE (
   challenge_id uuid,
   email_normalized text,
   organization_title text,
+  organization_slug text,
   specialist_full_name text,
   status text,
   provisioned_organization_id uuid,
@@ -599,6 +627,7 @@ AS $$
     i.challenge_id,
     i.email_normalized,
     i.organization_title,
+    i.organization_slug,
     i.specialist_full_name,
     i.status,
     i.provisioned_organization_id,
@@ -614,11 +643,83 @@ COMMENT ON FUNCTION app.get_specialist_signup_intent_by_challenge(uuid) IS
 
 ALTER FUNCTION app.get_specialist_signup_intent_by_challenge(uuid) OWNER TO :specialist_signup_intents_owner_ident;
 
--- U3S functions are created by migration 0215. Reassert ownership here after the
--- role/table-owner hardening sequence so FORCE-RLS/runtime deployment cannot leave
--- their SECURITY DEFINER privilege path dependent on the migration login role.
-ALTER FUNCTION app.replace_pending_specialist_signup_challenge(uuid)
+DROP FUNCTION IF EXISTS app.replace_pending_specialist_signup_challenge(uuid);
+DROP FUNCTION IF EXISTS app.replace_pending_specialist_signup_challenge(uuid, text);
+CREATE FUNCTION app.replace_pending_specialist_signup_challenge(
+  p_challenge_id uuid,
+  p_organization_slug text
+)
+RETURNS boolean
+LANGUAGE plpgsql
+VOLATILE
+SECURITY DEFINER
+SET search_path = pg_catalog
+AS $$
+DECLARE
+  v_intent_id uuid;
+BEGIN
+  SELECT intent.id
+  INTO v_intent_id
+  FROM public.specialist_signup_intents AS intent
+  WHERE intent.user_id = app.require_staff_security_self_user_id()
+    AND intent.status = 'pending'
+  LIMIT 1
+  FOR UPDATE;
+
+  IF v_intent_id IS NULL THEN
+    RETURN false;
+  END IF;
+
+  PERFORM app.reserve_specialist_signup_slug(v_intent_id, p_organization_slug);
+
+  UPDATE public.specialist_signup_intents AS intent
+  SET challenge_id = p_challenge_id
+  WHERE intent.id = v_intent_id;
+  RETURN FOUND;
+END
+$$;
+
+ALTER FUNCTION app.replace_pending_specialist_signup_challenge(uuid, text)
   OWNER TO :specialist_signup_intents_owner_ident;
+
+DROP FUNCTION IF EXISTS app.get_latest_specialist_signup_intent_for_user();
+CREATE FUNCTION app.get_latest_specialist_signup_intent_for_user()
+RETURNS TABLE (
+  id uuid,
+  user_id uuid,
+  challenge_id uuid,
+  email_normalized text,
+  organization_title text,
+  organization_slug text,
+  specialist_full_name text,
+  status text,
+  provisioned_organization_id uuid,
+  provisioned_specialist_id uuid,
+  provisioned_membership_id uuid
+)
+LANGUAGE sql
+STABLE
+SECURITY DEFINER
+SET search_path = pg_catalog
+AS $$
+  SELECT
+    intent.id,
+    intent.user_id,
+    intent.challenge_id,
+    intent.email_normalized,
+    intent.organization_title,
+    intent.organization_slug,
+    intent.specialist_full_name,
+    intent.status,
+    intent.provisioned_organization_id,
+    intent.provisioned_specialist_id,
+    intent.provisioned_membership_id
+  FROM public.specialist_signup_intents AS intent
+  WHERE intent.user_id = app.require_staff_security_self_user_id()
+  ORDER BY intent.created_at DESC
+  LIMIT 1
+$$;
+
 ALTER FUNCTION app.get_latest_specialist_signup_intent_for_user()
   OWNER TO :specialist_signup_intents_owner_ident;
 ALTER FUNCTION app.require_staff_security_self_user_id()
@@ -655,10 +756,10 @@ REVOKE ALL ON FUNCTION app.email_password_register_pending(text, text, text, tex
 REVOKE ALL ON FUNCTION app.email_password_delete_unverified_registration(uuid) FROM PUBLIC;
 REVOKE ALL ON FUNCTION app.email_password_find_user_id_by_email_challenge(uuid) FROM PUBLIC;
 REVOKE ALL ON FUNCTION app.email_password_find_login_candidate(text) FROM PUBLIC;
-REVOKE ALL ON FUNCTION app.create_specialist_signup_intent(uuid, text, text, text) FROM PUBLIC;
+REVOKE ALL ON FUNCTION app.create_specialist_signup_intent(uuid, text, text, text, text) FROM PUBLIC;
 REVOKE ALL ON FUNCTION app.get_pending_specialist_signup_intent(uuid, uuid) FROM PUBLIC;
 REVOKE ALL ON FUNCTION app.get_specialist_signup_intent_by_challenge(uuid) FROM PUBLIC;
-REVOKE ALL ON FUNCTION app.replace_pending_specialist_signup_challenge(uuid) FROM PUBLIC;
+REVOKE ALL ON FUNCTION app.replace_pending_specialist_signup_challenge(uuid, text) FROM PUBLIC;
 REVOKE ALL ON FUNCTION app.get_latest_specialist_signup_intent_for_user() FROM PUBLIC;
 REVOKE ALL ON FUNCTION app.require_staff_security_self_user_id() FROM PUBLIC;
 REVOKE ALL ON FUNCTION app.ensure_staff_security_profile() FROM PUBLIC;
@@ -682,11 +783,12 @@ GRANT EXECUTE ON FUNCTION app.email_password_register_pending(text, text, text, 
 GRANT EXECUTE ON FUNCTION app.email_password_delete_unverified_registration(uuid) TO app_patient;
 GRANT EXECUTE ON FUNCTION app.email_password_find_user_id_by_email_challenge(uuid) TO app_patient;
 GRANT EXECUTE ON FUNCTION app.email_password_find_login_candidate(text) TO app_patient;
-GRANT EXECUTE ON FUNCTION app.create_specialist_signup_intent(uuid, text, text, text) TO app_patient;
+GRANT EXECUTE ON FUNCTION app.create_specialist_signup_intent(uuid, text, text, text, text) TO app_patient;
 GRANT EXECUTE ON FUNCTION app.get_pending_specialist_signup_intent(uuid, uuid) TO app_patient;
 GRANT EXECUTE ON FUNCTION app.get_specialist_signup_intent_by_challenge(uuid) TO app_patient;
-GRANT EXECUTE ON FUNCTION app.replace_pending_specialist_signup_challenge(uuid) TO app_patient;
+GRANT EXECUTE ON FUNCTION app.replace_pending_specialist_signup_challenge(uuid, text) TO app_patient;
 GRANT EXECUTE ON FUNCTION app.get_latest_specialist_signup_intent_for_user() TO app_patient;
+GRANT EXECUTE ON FUNCTION app.reserve_specialist_signup_slug(uuid, text) TO :specialist_signup_intents_owner_ident;
 GRANT EXECUTE ON FUNCTION app.ensure_staff_security_profile() TO app_patient;
 GRANT EXECUTE ON FUNCTION app.get_staff_security_profile() TO app_patient;
 GRANT EXECUTE ON FUNCTION app.get_staff_security_session_state() TO app_patient;

@@ -82,7 +82,7 @@ describe("0256 staff-security self password hash", () => {
 
   it("pins deploy grant completeness without entering the re-ownership trap", () => {
     const deploy = readFileSync(deployPath, "utf8");
-    expect(deploy).toContain("local expected_secdef_count=81");
+    expect(deploy).toContain("local expected_secdef_count=83");
     expect(deploy).toContain("('public.user_password_credentials', 'SELECT')");
     expect(deploy).toContain("('public.user_password_credentials', 'UPDATE')");
 

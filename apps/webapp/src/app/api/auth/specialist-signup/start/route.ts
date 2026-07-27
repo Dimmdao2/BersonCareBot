@@ -11,6 +11,7 @@ import { getSpecialistSignupEnabled } from "@/modules/auth/specialistSignupRollo
 import { enterStaffSecuritySelfPrincipal } from "@/app-layer/principal/staffSecuritySelfPrincipal";
 import { formatDoctorFio, normalizeFioPart } from "@/shared/lib/fio";
 import { jsonError, jsonOk } from "@/shared/http/apiResponse";
+import { validateOrganizationSlugCandidate } from "@/modules/clinic-directory/organizationSlug";
 
 const bodySchema = z.object({
   email: z.string().email(),
@@ -19,7 +20,13 @@ const bodySchema = z.object({
   firstName: z.string().trim().min(1).max(100),
   patronymic: z.string().trim().max(100).optional(),
   organizationTitle: z.string().trim().min(1).max(200),
+  organizationSlug: z.string().max(512),
 });
+
+function isSlugUnavailableError(error: unknown): boolean {
+  if (!(error instanceof Error)) return false;
+  return error.message.includes("slug_unavailable");
+}
 
 export async function POST(request: Request) {
   stampBootstrapPrincipal("api/auth/specialist-signup/start:POST", request);
@@ -42,8 +49,12 @@ export async function POST(request: Request) {
   const firstName = normalizeFioPart(parsed.data.firstName);
   const patronymic = normalizeFioPart(parsed.data.patronymic);
   const organizationTitle = parsed.data.organizationTitle.trim();
+  const organizationSlug = validateOrganizationSlugCandidate(parsed.data.organizationSlug);
   if (!lastName || !firstName) {
     return jsonError("invalid_body", {}, { status: 400 });
+  }
+  if (!organizationSlug.ok) {
+    return jsonError(organizationSlug.code, {}, { status: 400 });
   }
   const specialistFullName = formatDoctorFio({ lastName, firstName, patronymic });
   const deps = buildAppDeps();
@@ -74,9 +85,18 @@ export async function POST(request: Request) {
       );
     }
     enterStaffSecuritySelfPrincipal(resend.userId, "api/auth/specialist-signup/start:resend-self");
-    const replaced = await deps.organizationProvisioning.replacePendingSpecialistSignupChallenge({
-      challengeId: challenge.challengeId,
-    });
+    let replaced: boolean;
+    try {
+      replaced = await deps.organizationProvisioning.replacePendingSpecialistSignupChallenge({
+        challengeId: challenge.challengeId,
+        organizationSlug: organizationSlug.slug,
+      });
+    } catch (error) {
+      if (isSlugUnavailableError(error)) {
+        return jsonError("slug_unavailable", {}, { status: 409 });
+      }
+      throw error;
+    }
     if (!replaced) {
       return jsonError("signup_recovery_required", {}, { status: 409 });
     }
@@ -102,10 +122,14 @@ export async function POST(request: Request) {
       challengeId: challenge.challengeId,
       emailNormalized: emailNorm,
       organizationTitle,
+      organizationSlug: organizationSlug.slug,
       specialistFullName,
     });
-  } catch {
+  } catch (error) {
     await deps.userPasswordCredentials.deleteUnverifiedEmailPasswordRegistration(reg.userId);
+    if (isSlugUnavailableError(error)) {
+      return jsonError("slug_unavailable", {}, { status: 409 });
+    }
     return jsonError("server_error", {}, { status: 500 });
   }
 

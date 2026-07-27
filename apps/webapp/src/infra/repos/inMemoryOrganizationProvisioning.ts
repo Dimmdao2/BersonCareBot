@@ -43,10 +43,11 @@ export function createInMemoryOrganizationProvisioningPort(
       return intents.at(-1) ?? null;
     },
 
-    async replacePendingSpecialistSignupChallenge({ challengeId }) {
+    async replacePendingSpecialistSignupChallenge({ challengeId, organizationSlug }) {
       const intent = [...intents].reverse().find((candidate) => candidate.status === "pending");
       if (!intent) return false;
       intent.challengeId = challengeId;
+      intent.organizationSlug = organizationSlug;
       return true;
     },
 

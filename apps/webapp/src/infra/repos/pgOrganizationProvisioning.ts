@@ -13,12 +13,22 @@ type SpecialistSignupIntentDbRow = {
   challenge_id: string;
   email_normalized: string;
   organization_title: string;
+  organization_slug: string | null;
   specialist_full_name: string;
   status: string;
   provisioned_organization_id: string | null;
   provisioned_specialist_id: string | null;
   provisioned_membership_id: string | null;
 };
+
+function isSlugUnavailableDbError(error: unknown): boolean {
+  if (typeof error !== "object" || error === null) return false;
+  const value = error as { message?: unknown; cause?: unknown };
+  return (
+    (typeof value.message === "string" && value.message.includes("slug_unavailable")) ||
+    isSlugUnavailableDbError(value.cause)
+  );
+}
 
 function mapIntentDbRow(row: SpecialistSignupIntentDbRow): SpecialistSignupIntent {
   if (row.status !== "pending" && row.status !== "provisioned") {
@@ -30,6 +40,7 @@ function mapIntentDbRow(row: SpecialistSignupIntentDbRow): SpecialistSignupInten
     challengeId: row.challenge_id,
     emailNormalized: row.email_normalized,
     organizationTitle: row.organization_title,
+    organizationSlug: row.organization_slug,
     specialistFullName: row.specialist_full_name,
     status: row.status,
     provisionedOrganizationId: row.provisioned_organization_id,
@@ -41,18 +52,24 @@ function mapIntentDbRow(row: SpecialistSignupIntentDbRow): SpecialistSignupInten
 export function createPgOrganizationProvisioningPort(): OrganizationProvisioningPort {
   return {
     async createSpecialistSignupIntent(input) {
-      await runWebappTransaction(async (tx) => {
-        await runWebappPgText(
-          `SELECT app.create_specialist_signup_intent($1::uuid, $2, $3, $4)`,
-          [
-            input.challengeId,
-            input.emailNormalized,
-            input.organizationTitle,
-            input.specialistFullName,
-          ],
-          tx,
-        );
-      });
+      try {
+        await runWebappTransaction(async (tx) => {
+          await runWebappPgText(
+            `SELECT app.create_specialist_signup_intent($1::uuid, $2, $3, $4, $5)`,
+            [
+              input.challengeId,
+              input.emailNormalized,
+              input.organizationTitle,
+              input.specialistFullName,
+              input.organizationSlug,
+            ],
+            tx,
+          );
+        });
+      } catch (error) {
+        if (isSlugUnavailableDbError(error)) throw new Error("slug_unavailable");
+        throw error;
+      }
     },
 
     async getPendingSpecialistSignupIntent({ userId, challengeId }) {
@@ -64,6 +81,7 @@ export function createPgOrganizationProvisioningPort(): OrganizationProvisioning
              challenge_id::text,
              email_normalized,
              organization_title,
+             organization_slug,
              specialist_full_name,
              status,
              provisioned_organization_id::text,
@@ -86,6 +104,7 @@ export function createPgOrganizationProvisioningPort(): OrganizationProvisioning
              challenge_id::text,
              email_normalized,
              organization_title,
+             organization_slug,
              specialist_full_name,
              status,
              provisioned_organization_id::text,
@@ -103,7 +122,7 @@ export function createPgOrganizationProvisioningPort(): OrganizationProvisioning
       return runWebappTransaction(async (tx) => {
         const result = await runWebappPgText<SpecialistSignupIntentDbRow>(
           `SELECT id::text, user_id::text, challenge_id::text, email_normalized,
-                  organization_title, specialist_full_name, status,
+                  organization_title, organization_slug, specialist_full_name, status,
                   provisioned_organization_id::text, provisioned_specialist_id::text,
                   provisioned_membership_id::text
            FROM app.get_latest_specialist_signup_intent_for_user()`,
@@ -114,15 +133,20 @@ export function createPgOrganizationProvisioningPort(): OrganizationProvisioning
       });
     },
 
-    async replacePendingSpecialistSignupChallenge({ challengeId }) {
-      return runWebappTransaction(async (tx) => {
-        const result = await runWebappPgText<{ replaced: boolean }>(
-          "SELECT app.replace_pending_specialist_signup_challenge($1::uuid) AS replaced",
-          [challengeId],
-          tx,
-        );
-        return result.rows[0]?.replaced === true;
-      });
+    async replacePendingSpecialistSignupChallenge({ challengeId, organizationSlug }) {
+      try {
+        return await runWebappTransaction(async (tx) => {
+          const result = await runWebappPgText<{ replaced: boolean }>(
+            "SELECT app.replace_pending_specialist_signup_challenge($1::uuid, $2::text) AS replaced",
+            [challengeId, organizationSlug],
+            tx,
+          );
+          return result.rows[0]?.replaced === true;
+        });
+      } catch (error) {
+        if (isSlugUnavailableDbError(error)) throw new Error("slug_unavailable");
+        throw error;
+      }
     },
 
     async provisionSpecialistOwner({ challengeId }) {

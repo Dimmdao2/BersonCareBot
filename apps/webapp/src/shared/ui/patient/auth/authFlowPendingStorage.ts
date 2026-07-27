@@ -43,6 +43,7 @@ export type AuthFlowPendingStored =
       /** Old payloads keep confirming the existing challenge, but cannot resend via the structured API. */
       legacySpecialistName?: string;
       organizationTitle: string;
+      organizationSlug: string;
     };
 
 function readRaw(): AuthFlowPendingStored | null {
@@ -76,7 +77,8 @@ function readRaw(): AuthFlowPendingStored | null {
         typeof specialistPending.email !== "string" ||
         typeof specialistPending.challengeId !== "string" ||
         typeof specialistPending.retryAfterSeconds !== "number" ||
-        typeof specialistPending.organizationTitle !== "string"
+        typeof specialistPending.organizationTitle !== "string" ||
+        typeof specialistPending.organizationSlug !== "string"
       ) {
         return null;
       }
