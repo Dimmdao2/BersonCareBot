@@ -3,6 +3,8 @@
 
 # Master plan
 
+> **SUPERSEDED AS TARGET — 2026-07-27.** Все нижеописанные push-only/auth-only channel-topology results и DoD заменены строкой **«Уведомления»** в [`CURRENT_AUTHORITY_MAP.md`](../../CURRENT_AUTHORITY_MAP.md) (`OWNER_PRODUCT_RULES.md` §2, §15, §21–§25); исторический план сохраняется.
+
 Статус: `owner_activated_dev_execution` с 2026-07-19. План не меняет порядок текущих SaaS/Product UX работ.
 
 Taskdb: master `#898`; `PR-00/01 #899`; `SEC-02 #900`; `DR-01/02 #901`; `PR-03 #905`; `SEC-04 #906`;

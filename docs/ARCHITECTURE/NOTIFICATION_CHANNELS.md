@@ -1,5 +1,9 @@
 # Каналы уведомлений: Web Push — основной
 
+> **SUPERSEDED AS TARGET — 2026-07-27.** Этот документ сохраняет фактическое описание current runtime, но не является целевой политикой каналов/контента. Единственный источник — строка **«Уведомления»** в [`CURRENT_AUTHORITY_MAP.md`](../CURRENT_AUTHORITY_MAP.md), ведущая к `OWNER_PRODUCT_RULES.md` §2, §15, §18, §21–§24. В частности, не читать runtime fallback, topic-defaults или env-списки ниже как target.
+
+> **SUPERSEDED — 2026-07-27.** Цитата ниже отменена в части рассылки и уточнена по содержимому уведомлений; см. строку **«Уведомления»** в [`CURRENT_AUTHORITY_MAP.md`](../CURRENT_AUTHORITY_MAP.md).
+>
 > **ЧТО ВИДНО В САМОМ УВЕДОМЛЕНИИ — правило владельца 26.07, вопрос ЗАКРЫТ, повторно не спрашивать.**
 > Запись и напоминания о занятиях — **открыто, как было, ничего не прячем**. Личный чат — только
 > «новое сообщение от <имя>», без текста. Рассылка — тема открыто, содержание при переходе.
@@ -14,11 +18,15 @@ notifications должны перейти на app push, а Telegram/MAX — о�
 
 ## Принцип
 
+> **CURRENT-RUNTIME FACT, SUPERSEDED AS TARGET — 2026-07-27.** Описанная ниже модель primary/fallback channels заменена правилами из строки **«Уведомления»** в [`CURRENT_AUTHORITY_MAP.md`](../CURRENT_AUTHORITY_MAP.md).
+
 **Web Push (PWA) — основной канал доставки уведомлений** для пользователей с активной подпиской. Telegram, MAX, email и SMS — **дополнительные** каналы: дублируют или подстраховывают доставку, когда push недоступен (нет подписки, отказ ОС, нет VAPID) или явно включены в матрице настроек.
 
 Не проектировать новые сценарии как «сначала только бот» без push в дефолтах и observability.
 
 ## Пациент
+
+> **CURRENT-RUNTIME FACT, SUPERSEDED AS TARGET — 2026-07-27.** Порядок и жёсткий список каналов ниже не являются целевым контрактом; см. строку **«Уведомления»** в карте authority.
 
 | Область | Поведение |
 |---------|-----------|
@@ -28,6 +36,8 @@ notifications должны перейти на app push, а Telegram/MAX — о�
 | Напоминания / запись | Integrator запрашивает targets у webapp; push-copy и M2M `patient-notifications/web-push` передают подписанный `organizationId` и проверяют enrollment — см. [`INTEGRATOR_CONTRACT.md`](../../apps/webapp/INTEGRATOR_CONTRACT.md) |
 
 ## Специалист (врач / admin, Staff PWA)
+
+> **CURRENT-RUNTIME FACT, SUPERSEDED AS TARGET — 2026-07-27.** Per-topic defaults и env fallback ниже — только снимок runtime, не target; см. строку **«Уведомления»** в карте authority.
 
 | Тема | Дефолт каналов (без строк в `user_notification_topic_channels`) | Код |
 |------|------------------------------------------------------------------|-----|
@@ -45,6 +55,8 @@ notifications должны перейти на app push, а Telegram/MAX — о�
 
 ## Настройки и данные
 
+> **CURRENT-RUNTIME FACT, SUPERSEDED AS TARGET — 2026-07-27.** Семантика отсутствующих строк, push subscription и defaults ниже не заменяет актуальный расчёт из карты authority.
+
 - Матрица тем × каналов: `public.user_notification_topic_channels` (`user_id`, `topic_code`, `channel_code`, `is_enabled`).
 - Глобальный выключатель канала: `public.user_channel_preferences` (`is_enabled_for_notifications`).
 - Подписки: `public.user_web_push_subscriptions`.
@@ -54,6 +66,7 @@ notifications должны перейти на app push, а Telegram/MAX — о�
 
 ## Связанные документы
 
+- **SUPERSEDED AS AUTHORITY — 2026-07-27:** archived ADR below is historical, not authority; актуальную точку входа см. в [`CURRENT_AUTHORITY_MAP.md`](../CURRENT_AUTHORITY_MAP.md).
 - Staff PWA и install: [`DOCTOR_PATIENT_PWA_SPLIT_INITIATIVE/STAFF_PWA_ADR.md`](../_ARCHIVE/DOCTOR_PATIENT_PWA_SPLIT_INITIATIVE/STAFF_PWA_ADR.md)
 - Program note → врачу: [`DOCTOR_TELEGRAM_PROGRAM_NOTE_REPLY.md`](DOCTOR_TELEGRAM_PROGRAM_NOTE_REPLY.md)
 - Support chat M2M: [`INTEGRATOR_CONTRACT.md`](../../apps/webapp/INTEGRATOR_CONTRACT.md) §Support chat

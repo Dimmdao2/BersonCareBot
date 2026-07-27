@@ -1,5 +1,7 @@
 # Ответ врача на наблюдение пациента по упражнению (Telegram / MAX)
 
+> **SUPERSEDED AS TARGET — 2026-07-27.** Bot reply flow, per-topic channel defaults and any «preview + ссылка» delivery below are historical runtime only. See the **«Уведомления»** row in [`CURRENT_AUTHORITY_MAP.md`](../CURRENT_AUTHORITY_MAP.md): §15 limits doctor Telegram to two notifications and replies happen in the cabinet; §22 forbids text/preview in every channel, including email.
+
 Канон для потока **«комментарий к пункту программы»** → уведомление врачу в боте → ответ → сообщение в **PWA-чат** пациента (`/app/patient/messages`) и дублирование в Telegram/MAX по настройкам каналов.
 
 Связанные документы: [`PATIENT_SUPPORT_CHAT_INBOX.md`](PATIENT_SUPPORT_CHAT_INBOX.md), [`CONFIGURATION_ENV_VS_DATABASE.md`](CONFIGURATION_ENV_VS_DATABASE.md) (`doctor_telegram_ids`, `admin_telegram_ids`), [`apps/webapp/INTEGRATOR_CONTRACT.md`](../../apps/webapp/INTEGRATOR_CONTRACT.md) §Support chat M2M.

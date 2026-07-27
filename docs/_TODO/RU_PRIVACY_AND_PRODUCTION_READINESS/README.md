@@ -1,5 +1,7 @@
 # RU Privacy & Production Readiness
 
+> **SUPERSEDED AS TARGET — 2026-07-27.** Формулировка этой инициативы о messenger auth-only boundary не является текущим notification target; см. строку **«Уведомления»** в [`CURRENT_AUTHORITY_MAP.md`](../../CURRENT_AUTHORITY_MAP.md).
+
 Статус: **OWNER-ACTIVATED / DEV EXECUTION** с 2026-07-19. Технические, кодовые и безопасные DB-slices выполняются
 на DEV по реестру `PR-00`; production-host hardening, production data migration и любые production mutations
 остаются отдельным owner-gated cutover. Инициатива не меняет утверждённый порядок SaaS Foundation.

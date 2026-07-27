@@ -1,5 +1,7 @@
 # Массовые рассылки врача (`/app/doctor/broadcasts`)
 
+> **SUPERSEDED AS NOTIFICATION POLICY — 2026-07-27.** Sender-selected channels, absent-row consent, ignored prefs and the current DEV SMS gap below are historical runtime facts, not target. See the **«Уведомления»** row in [`CURRENT_AUTHORITY_MAP.md`](../CURRENT_AUTHORITY_MAP.md): §21 governs availability ∩ clinic ∩ recipient preference; §23 requires the DEV/TEST filter for every channel, including SMS/email.
+
 Канонический маршрут: **`/app/doctor/broadcasts`**. Индивидуальный чат с пациентами — **`/app/doctor/messages`** (журнал массовых рассылок там не дублируется).
 
 ## Назначение
@@ -26,10 +28,13 @@
 
 ## Преференсы каналов и изолированные аудитории
 
+- **SUPERSEDED 2026-07-27:** absent row = consent below conflicts with §21; see the **«Уведомления»** authority-map row.
 - Источник: **`public.user_channel_preferences.is_enabled_for_notifications`** для кодов **`telegram`**, **`max`**, **`sms`**. Если строки в БД для канала **нет**, рассылка трактует уведомления как **включённые** (как синтетический default в `getPreferences`).
 - **Общий** фильтр (`all`, `active_clients`, `with_upcoming_appointment`, …): при «сообщение в боте» задачи Telegram/MAX ставятся только при привязке **и** включённых уведомлениях этого канала. При включённом **SMS** — только при включённом SMS-pref и валидном E.164 номере (`normalizePhone` + `isValidPhoneE164`).
+- **SUPERSEDED 2026-07-27:** `with_telegram` cannot ignore recipient preferences under §21; see the **«Уведомления»** authority-map row.
 - **`with_telegram`**: только очередные задачи **Telegram**, настройки уведомлений **игнорируются**; MAX этой рассылкой не трогается даже если привязан.
 - **`with_max`**: только **MAX** по симметричным правилам.
+- **SUPERSEDED 2026-07-27:** SMS cannot bypass recipient preferences under §21; see the **«Уведомления»** authority-map row.
 - **`sms_only`**: при выбранном канале SMS — доставка по номеру **без** проверки SMS-prefs (изоляция как для узкого канала).
 
 Пер-топик настройки (`user_notification_topic_channels`) в рассылках врача **не** используются.
@@ -56,6 +61,7 @@
 
 При **`dev_mode` = true** (admin `system_settings`) расчёт доставки в мессенджер для канала «сообщение в боте» **пересекает** сегмент с **`test_account_identifiers.telegramIds` / `maxIds`** — ту же семантику, что guard исходящего relay: `systemSettingsService.shouldDispatchRelayToRecipient` (см. **`apps/webapp/INTEGRATOR_CONTRACT.md`**, раздел *dev_mode guard*).
 
+- **KNOWN GAP / SUPERSEDED AS TARGET — 2026-07-27:** DEV filter must cover SMS (and email) under §23; see the **«Уведомления»** authority-map row.
 - Только **SMS** при включённом `dev_mode`: relay-guard для SMS в текущем контракте не покрывает телефон как `recipient` → в превью **доставка 0** для этого сценария; **в очередь SMS-задачи не ставятся** (согласовано с превью тем же резолвером аудитории).
 - Каналы «скоро» (`push`, `home_banner`, …) в форме не активны; при попадании в расчёт без `bot_message`/`sms` **пересечение dev_mode не применяется** (список = весь сегмент).
 

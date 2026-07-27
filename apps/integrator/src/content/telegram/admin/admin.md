@@ -1,5 +1,7 @@
 # admin
 
+> **SUPERSEDED AS TARGET — 2026-07-27.** The patient-dialogue/reply scenarios below must not authorize a doctor to reply inside Telegram/MAX. Current authority is the **«Уведомления»** row in [`CURRENT_AUTHORITY_MAP.md`](../../../../../../docs/CURRENT_AUTHORITY_MAP.md): `OWNER_PRODUCT_RULES.md` §15 (doctor Telegram is notifications only; reply in cabinet).
+
 Сценарии и шаблоны для **админ-чата** в Telegram и MAX: диалоги с пользователями, ответы на вопросы поддержки, списки неотвеченных вопросов, ответ на **наблюдение пациента по упражнению** (program note).
 
 ## Кто считается admin в боте

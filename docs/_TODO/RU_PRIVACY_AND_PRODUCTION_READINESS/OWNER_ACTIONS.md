@@ -40,6 +40,7 @@
 - [ ] **`G-09/G-10`:** перед SEC-04 выбрать российский security-log sink/retention и правила break-glass.
 - [ ] **Payment/C5B:** после provider/reality packet утвердить реальный PSP, кассово-фискальный контур и допустимые
   cash/invoice/pay-link/QR/refund operations. До этого payment UI остаётся скрытым.
+- **SUPERSEDED 2026-07-27:** owner сам переоткрыл и заменил channel topology; см. строку **«Уведомления»** в [`CURRENT_AUTHORITY_MAP.md`](../../CURRENT_AUTHORITY_MAP.md), а не считать тему закрытой этой строкой.
 - [ ] **`G-15/MOB-O9`:** после event census принять точную field-level matrix push/email/SMS. Channel topology уже
   решён и повторно не обсуждается.
 
