@@ -20,7 +20,6 @@ const booking: PatientBookingRecord = {
   status: "cancelled",
   cancelledAt: "2026-07-22T09:00:00.000Z",
   cancelReason: "patient_request",
-  rubitimeId: "legacy-record-1",
   gcalEventId: null,
   contactPhone: "+79990001122",
   contactEmail: "synthetic@example.invalid",
@@ -37,14 +36,8 @@ const booking: PatientBookingRecord = {
   serviceTitleSnapshot: "Canonical title",
   durationMinutesSnapshot: 60,
   priceMinorSnapshot: 1000,
-  rubitimeBranchIdSnapshot: "10",
-  rubitimeCooperatorIdSnapshot: "20",
-  rubitimeServiceIdSnapshot: "30",
-  rubitimeManageUrl: null,
   canonicalAppointmentId: "a1111111-1111-4111-8111-111111111111",
   canonicalInPersonContext: null,
-  bookingSource: "imported",
-  compatQuality: null,
   provenanceCreatedBy: null,
   provenanceUpdatedBy: null,
 };
@@ -60,16 +53,18 @@ describe("emitBookingDeletedEvent", () => {
 
     await emitBookingDeletedEvent({
       deps: {
-        patientBooking: { getByRubitimeId: vi.fn().mockResolvedValue(booking) },
+        patientBooking: {
+          getBookingByCanonicalAppointment: vi.fn().mockResolvedValue(booking),
+        },
         appointmentProjection: null,
       } as never,
-      integratorRecordId: "legacy-record-1",
+      integratorRecordId: `be:${booking.canonicalAppointmentId}`,
     });
 
     expect(emitBookingEvent).toHaveBeenCalledWith(
       expect.objectContaining({
         eventType: "booking.deleted",
-        idempotencyKey: "booking.deleted:legacy-record-1",
+        idempotencyKey: `booking.deleted:be:${booking.canonicalAppointmentId}`,
       }),
     );
     const emittedPayload = emitBookingEvent.mock.calls[0]?.[0]?.payload as Record<string, unknown>;
