@@ -346,6 +346,13 @@ cancelled or superseded work and is excluded from both totals. Detail and eviden
       `0260_outgoing_delivery_scope_text_ids.sql` fixed the text/uuid comparison; the lead applied it to
       TEST and proved it on a real stuck row. `5af05df70` stops scope failures retrying forever. Full
       chronology and evidence are in [OUTBOUND_DELIVERY_ALERTING_PLAN.md](OUTBOUND_DELIVERY_ALERTING_PLAN.md#инцидент-2026-07-24--2026-07-27--напоминания-пациентам-не-уходили); do not duplicate it here.
+      **Owner ruling 27.07 closes the open half of the routing question** — `OWNER_PRODUCT_RULES.md` §28:
+      operator alerts are a separate class (all channels by default, past user preferences and past the
+      dev filter), ordinary admin notifications follow §21. Still to BUILD, none of it exists yet:
+      - [ ] the operator-alert destination list and channel switches in the global-admin cabinet;
+      - [ ] the undisableable floor — e-mail has no switch, at least one further channel must stay on,
+        enforced on the server and not only in the form;
+      - [ ] no early return on an empty recipient set: fall back, count, and let the counter alert.
 - [x] **D-2 DONE 2026-07-26 (`eb62b6544`) — and the defect was worse than this line said.**
       Both routes (`api/patient/support`, `api/public/support`) hardcoded `ADMIN_TELEGRAM_ID` and relayed
       to Telegram only: unset id → 503 before anything was attempted, relay failure → 502. **Neither route
