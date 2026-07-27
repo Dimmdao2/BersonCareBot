@@ -17,20 +17,31 @@ function position(fragment: string): number {
 }
 
 describe("0262 Rubitime data removal migration", () => {
-  it("rewrites provenance before constraints and physical drops", () => {
+  /**
+   * The first cut of this migration updated `source` BEFORE dropping the old CHECK, and this test
+   * pinned that order — i.e. the test encoded the bug. Against the live TEST database the update
+   * failed immediately: the old constraint does not allow 'imported'. Caught by a rolled-back dry
+   * run, not by review. The order below is the one that actually works, and it is pinned so nobody
+   * "tidies" it back.
+   */
+  it("drops the old CHECKs, then rewrites provenance, then re-adds them, then drops physically", () => {
+    const patientDropCheck = position("DROP CONSTRAINT IF EXISTS patient_bookings_source_check");
+    const appointmentDropCheck = position("DROP CONSTRAINT IF EXISTS be_appointments_source_check");
     const patientUpdate = position("UPDATE public.patient_bookings");
     const appointmentUpdate = position("UPDATE public.be_appointments");
-    const patientConstraint = position("DROP CONSTRAINT IF EXISTS patient_bookings_source_check");
-    const appointmentConstraint = position("DROP CONSTRAINT IF EXISTS be_appointments_source_check");
+    const patientAddCheck = position("ADD CONSTRAINT patient_bookings_source_check");
+    const appointmentAddCheck = position("ADD CONSTRAINT be_appointments_source_check");
     const capability = position("CREATE OR REPLACE FUNCTION app.read_current_patient_booking_rows");
     const firstIndex = position("DROP INDEX IF EXISTS public.patient_bookings_rubitime_id_key");
     const firstColumn = position("DROP COLUMN IF EXISTS rubitime_service_id");
     const firstTable = position("DROP TABLE IF EXISTS integrator.booking_calendar_map");
 
-    expect(patientUpdate).toBeLessThan(patientConstraint);
-    expect(appointmentUpdate).toBeLessThan(appointmentConstraint);
-    expect(patientConstraint).toBeLessThan(capability);
-    expect(appointmentConstraint).toBeLessThan(capability);
+    expect(patientDropCheck).toBeLessThan(patientUpdate);
+    expect(appointmentDropCheck).toBeLessThan(appointmentUpdate);
+    expect(patientUpdate).toBeLessThan(patientAddCheck);
+    expect(appointmentUpdate).toBeLessThan(appointmentAddCheck);
+    expect(patientAddCheck).toBeLessThan(capability);
+    expect(appointmentAddCheck).toBeLessThan(capability);
     expect(capability).toBeLessThan(firstIndex);
     expect(firstIndex).toBeLessThan(firstColumn);
     expect(firstColumn).toBeLessThan(firstTable);
