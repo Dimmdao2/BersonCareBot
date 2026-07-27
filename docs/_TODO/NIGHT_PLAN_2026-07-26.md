@@ -256,6 +256,22 @@ part of their own text is provably not done. Detail is inline on each item below
       open on this gap alone.
       ✅ **ЗАКРЫТО 27.07, полный CI зелёный** (10 919 тестов, 0 падений; единственная красная строка — известная
       уязвимость в dev-инструментах, #1014, решение владельца «деплоим с ней»). `fefa3bbad`, `ed7ab130b`, `913e140a6`, `256640c4f` — неделимый счётчик попыток, ограничение по адресу на восьми ручках, растущая блокировка, привязка кода к назначению, и закрыта дыра на втором факторе.
+      🔴 **ЧАСТЬ ГАЛОЧКИ СНЯТА 27.07 — «ограничение по адресу» в locked-режиме НЕ РАБОТАЕТ. taskdb #1055.**
+      Найдено независимым аудитом C-5, подтверждено прямым запросом к TEST. `public.auth_rate_limit_events`
+      выдана ТОЛЬКО `app_staff` (`deploy/postgres/p0-5b-grants.sql:85`); `relacl` — ровно
+      `{bersoncarebot_test, app_staff}`. У `bcb_test_nonstaff_login` — голой bootstrap-роли, под которой
+      исполняются ВСЕ восемь анонимных ручек подтверждения — `SELECT/INSERT/DELETE` = `f/f/f`.
+      Цепочка: bootstrap-принципал не делает `SET ROLE` (`packages/db-principal/src/index.ts:897-900`) →
+      запись лимитера падает по правам → исключение проглатывается в
+      `createSlidingWindowRateLimit.ts:78` в переменную замыкания `dbUnavailable=true`, которая **никогда
+      не сбрасывается и ничего не логирует** → общий лимитер `auth.confirm` обслуживает все ~10 ручек из
+      ПАМЯТИ ПРОЦЕССА: счётчик не общий для пяти юнитов и обнуляется на каждом рестарте и деплое.
+      Тесты этого не видят по построению — они мокают лимитер. Тот же класс, что три другие находки этой
+      ночи: написано, выглядит рабочим, молча не работает.
+      Остальные три шага C-2 под сомнение НЕ ставятся — неделимый счётчик, растущая блокировка и привязка
+      к назначению доказаны настоящими двухсоединительными тестами конкуренции против Postgres.
+      Лечение — узкая `SECURITY DEFINER`-процедура под bootstrap-роль по образцу `0252`, НЕ грант на
+      таблицу (§4 канона владельца; лишний грант роняет деплой — инцидент 24.07). Блокирует C-5.
 - [ ] **C-3 (#1005) Delivery-channel fallback.** Phone entered → SMS if enabled → web-push if subscribed →
       e-mail if bound. NIST 800-63B treats SMS as restricted and expects an alternative. Two hard edges:
       uniform response/timing so it cannot be used to test whether a phone has an e-mail; and a code
