@@ -75,7 +75,6 @@ describe("doctorRouteRedirectResponse — 308 redirects (old → new URLs)", () 
       ["/app/doctor/admin/booking", "/app/admin/booking"],
       ["/app/doctor/admin/booking/catalog", "/app/admin/booking/catalog"],
       ["/app/doctor/admin/booking/form-public", "/app/admin/booking/form-public"],
-      ["/app/doctor/admin/booking/integrations", "/app/admin/booking/integrations"],
       ["/app/doctor/admin/booking/payments", "/app/admin/booking/payments"],
       ["/app/doctor/admin/integrations", "/app/admin/integrations"],
       ["/app/doctor/admin/technical", "/app/admin/technical"],
@@ -110,7 +109,6 @@ describe("doctorRouteRedirectResponse — 308 redirects (old → new URLs)", () 
       ["/app/platform/admin/booking", "/app/admin/booking"],
       ["/app/platform/admin/booking/catalog", "/app/admin/booking/catalog"],
       ["/app/platform/admin/booking/form-public", "/app/admin/booking/form-public"],
-      ["/app/platform/admin/booking/integrations", "/app/admin/booking/integrations"],
       ["/app/platform/admin/booking/payments", "/app/admin/booking/payments"],
       ["/app/platform/admin/integrations", "/app/admin/integrations"],
       ["/app/platform/admin/technical", "/app/admin/technical"],
@@ -120,6 +118,14 @@ describe("doctorRouteRedirectResponse — 308 redirects (old → new URLs)", () 
       expect(res?.status, from).toBe(308);
       expect(res?.headers.get("location"), from).toBe(`http://localhost${to}`);
     }
+  });
+
+  it("does not invent replacement targets for the permanently removed Rubitime integrations page", () => {
+    // Rubitime retirement removed both the page and its final `/app/admin/booking/integrations`
+    // target. These two stale bookmarks must therefore fall through to 404 instead of receiving
+    // a misleading 308 to a different booking surface.
+    expect(doctorRouteRedirectResponse(req("/app/doctor/admin/booking/integrations"))).toBeNull();
+    expect(doctorRouteRedirectResponse(req("/app/platform/admin/booking/integrations"))).toBeNull();
   });
 
   // ── Communications legacy ─────────────────────────────────────────────────

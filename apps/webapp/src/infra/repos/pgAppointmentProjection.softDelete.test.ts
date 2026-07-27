@@ -49,12 +49,13 @@ describe("pgAppointmentProjection softDeleteByIntegratorId", () => {
     expect(ok).toBe(true);
     expect(clientQueryMock).toHaveBeenCalledWith("BEGIN");
     expect(clientQueryMock).toHaveBeenCalledWith("COMMIT");
-    expect(runWebappPgTextMock).toHaveBeenCalledTimes(3);
+    // 3 -> 2: Rubitime retirement removed the legacy patient_bookings.rubitime_id update;
+    // without a canonical appointment id, only the projection read + soft-delete remain.
+    expect(runWebappPgTextMock).toHaveBeenCalledTimes(2);
     const appointmentUpdateSql = String(runWebappPgTextMock.mock.calls[1]?.[0] ?? "");
     expect(appointmentUpdateSql).toContain("appointment_records");
-    const bookingUpdateSql = String(runWebappPgTextMock.mock.calls[2]?.[0] ?? "");
-    expect(bookingUpdateSql).toContain("patient_bookings");
-    expect(runWebappPgTextMock.mock.calls[2]?.[1]).toEqual(["rt-record-1", "admin_soft_delete"]);
+    expect(runWebappPgTextMock.mock.calls[1]?.[1]).toEqual(["rt-record-1"]);
+    expect(runWebappPgTextMock.mock.calls.map((call) => String(call[0])).join("\n")).not.toContain("patient_bookings");
   });
 
   it("returns false without patient_bookings update when appointment row missing", async () => {
@@ -130,7 +131,10 @@ describe("pgAppointmentProjection softDeleteByIntegratorId", () => {
       expect(runWebappPgTextMock).toHaveBeenCalledTimes(2);
       const orgResolveSql = String(runWebappPgTextMock.mock.calls[1]?.[0] ?? "");
       expect(orgResolveSql).toContain("be_appointments");
-      expect(orgResolveSql).toContain("be_external_entity_mappings");
+      // Rubitime retirement removed the external mapping branch; the destructive guard now
+      // accepts only the exact native `be:<uuid>` canonical id shape.
+      expect(orgResolveSql).not.toContain("be_external_entity_mappings");
+      expect(orgResolveSql).toContain("SUBSTRING($1 FROM 4)");
     });
 
     it("proceeds when the resolved canonical organization matches the caller", async () => {
@@ -169,7 +173,9 @@ describe("pgAppointmentProjection softDeleteByIntegratorId", () => {
 
       expect(ok).toBe(true);
       expect(clientQueryMock).toHaveBeenCalledWith("COMMIT");
-      expect(runWebappPgTextMock).toHaveBeenCalledTimes(4);
+      // 4 -> 3: no Rubitime mapping means there is no canonical id and therefore no legacy
+      // patient_bookings.rubitime_id mutation after the projection soft-delete.
+      expect(runWebappPgTextMock).toHaveBeenCalledTimes(3);
     });
 
     it("skips the organization resolution query entirely when no organizationId is supplied (unchanged legacy callers)", async () => {
@@ -182,7 +188,9 @@ describe("pgAppointmentProjection softDeleteByIntegratorId", () => {
       const ok = await port.softDeleteByIntegratorId("rt-record-legacy-caller");
 
       expect(ok).toBe(true);
-      expect(runWebappPgTextMock).toHaveBeenCalledTimes(3);
+      // 3 -> 2: Rubitime retirement removed the legacy patient_bookings.rubitime_id update;
+      // this caller now performs only the projection read + soft-delete.
+      expect(runWebappPgTextMock).toHaveBeenCalledTimes(2);
     });
   });
 });

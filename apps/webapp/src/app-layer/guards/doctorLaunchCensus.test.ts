@@ -70,7 +70,8 @@ const newPlatformLaunchManifest: readonly LaunchManifestEntry[] = [
   { route: "auth/page.tsx", launchClass: "platform", capability: "platform-operations", objectPolicy: "platform-config" },
   { route: "booking/catalog/page.tsx", launchClass: "platform", capability: "platform-operations", objectPolicy: "platform-config" },
   { route: "booking/form-public/page.tsx", launchClass: "platform", capability: "platform-operations", objectPolicy: "platform-config" },
-  { route: "booking/integrations/page.tsx", launchClass: "platform", capability: "platform-operations", objectPolicy: "platform-config" },
+  // Rubitime retirement permanently removed booking/integrations/page.tsx; it did not move to
+  // another platform route, so the finite launch manifest deliberately has no replacement entry.
   { route: "booking/page.tsx", launchClass: "platform", capability: "platform-operations", objectPolicy: "platform-config" },
   { route: "booking/payments/page.tsx", launchClass: "platform", capability: "platform-operations", objectPolicy: "platform-config" },
   { route: "integrations/page.tsx", launchClass: "platform", capability: "platform-operations", objectPolicy: "platform-config" },

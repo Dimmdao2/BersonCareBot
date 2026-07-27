@@ -175,7 +175,9 @@ describe("0252 patient action accessors", () => {
 
   it("pins the reviewed count/grants without entering the deploy ownership trap", () => {
     const deploy = readFileSync(deployPath, "utf8");
-    expect(deploy).toContain("local expected_secdef_count=105");
+    // 105 -> 106: migration 0261 adds the single reviewed
+    // app.is_platform_registration_analytics_user_excluded(uuid) SECURITY DEFINER.
+    expect(deploy).toContain("local expected_secdef_count=106");
     for (const row of [
       "('public.lfk_complexes', 'SELECT')",
       "('public.lfk_complex_exercises', 'SELECT')",

@@ -69,7 +69,9 @@ describe("0253 patient reminder occurrence actions", () => {
     const deploy = readFileSync(deployPath, "utf8");
     expect(deploy).toContain("('public.reminder_occurrence_history', 'SELECT')");
     expect(deploy).toContain("('public.reminder_occurrence_history', 'UPDATE')");
-    expect(deploy).toContain("local expected_secdef_count=105");
+    // 105 -> 106: migration 0261 adds the single reviewed
+    // app.is_platform_registration_analytics_user_excluded(uuid) SECURITY DEFINER.
+    expect(deploy).toContain("local expected_secdef_count=106");
 
     const ownershipOverlay = readFileSync(inviteOwnershipPath, "utf8");
     expect(ownershipOverlay).not.toContain("patient_snooze_reminder_occurrence");

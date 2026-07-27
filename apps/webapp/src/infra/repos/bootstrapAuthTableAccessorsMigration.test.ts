@@ -249,7 +249,9 @@ describe("0258 bootstrap auth table accessors", () => {
 
     const deploy = readFileSync(deployPath, "utf8");
     expect(deploy).toContain("83 -> 105 (2026-07-27, taskdb #1062)");
-    expect(deploy).toContain("local expected_secdef_count=105");
+    // 105 -> 106: migration 0261 adds the single reviewed
+    // app.is_platform_registration_analytics_user_excluded(uuid) SECURITY DEFINER.
+    expect(deploy).toContain("local expected_secdef_count=106");
     for (const row of [
       "('public.user_pins', 'SELECT')",
       "('public.user_pins', 'INSERT')",
