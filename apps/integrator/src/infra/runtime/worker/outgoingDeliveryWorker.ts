@@ -101,6 +101,25 @@ function queueReschedule(db: DbPort, id: string, delaySeconds: number, error: st
   return runWithDeliveryQueueCapability(() => rescheduleOutgoingDeliveryRetry(db, id, delaySeconds, error));
 }
 
+async function finalizeClaimedRowFailure(
+  db: DbPort,
+  row: OutgoingDeliveryQueueRow,
+  err: unknown,
+): Promise<void> {
+  const message = err instanceof Error ? err.message : String(err);
+  const safeError = truncateDeliveryErrorMessage(message);
+  if (row.attemptCount >= row.maxAttempts) {
+    await queueMarkDead(db, row.id, safeError);
+    return;
+  }
+  await queueReschedule(
+    db,
+    row.id,
+    retryDelaySecondsAfterFailure(row.attemptCount),
+    safeError,
+  );
+}
+
 function asChatIdFromRecipient(recipient: unknown): number | null {
   if (!recipient || typeof recipient !== 'object') return null;
   const c = (recipient as { chatId?: unknown }).chatId;
@@ -819,6 +838,14 @@ async function runOutgoingDeliveryWorkerTickInner(input: {
       } catch (err) {
         errors += 1;
         logger.error({ err, rowId: row.id, eventId: row.eventId }, 'outgoing_delivery_worker_row_failed');
+        try {
+          await finalizeClaimedRowFailure(input.db, row, err);
+        } catch (finalizeError) {
+          logger.error(
+            { err: finalizeError, rowId: row.id, eventId: row.eventId },
+            'outgoing_delivery_worker_row_failure_finalize_failed',
+          );
+        }
       }
     });
   }

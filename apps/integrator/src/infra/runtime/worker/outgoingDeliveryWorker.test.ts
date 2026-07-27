@@ -10,8 +10,11 @@ vi.mock('../../db/repos/outgoingDeliveryQueue.js', async (importOriginal) => {
   const mod = await importOriginal<typeof import('../../db/repos/outgoingDeliveryQueue.js')>();
   return {
     ...mod,
+    claimDueOutgoingDeliveries: vi.fn().mockResolvedValue([]),
     markOutgoingDeliverySent: vi.fn().mockResolvedValue(undefined),
     markOutgoingDeliveryDead: vi.fn().mockResolvedValue(undefined),
+    rescheduleOutgoingDeliveryRetry: vi.fn().mockResolvedValue(undefined),
+    resetStaleOutgoingDeliveryProcessing: vi.fn().mockResolvedValue(0),
   };
 });
 
@@ -37,8 +40,17 @@ vi.mock('../../db/repos/outgoingDeliveryScope.js', () => ({
 }));
 
 import type { OutgoingDeliveryQueueRow } from '../../db/repos/outgoingDeliveryQueue.js';
-import { processClaimedOutgoingDeliveryRow, processOutgoingDeliveryRow } from './outgoingDeliveryWorker.js';
-import { markOutgoingDeliveryDead, markOutgoingDeliverySent } from '../../db/repos/outgoingDeliveryQueue.js';
+import {
+  processClaimedOutgoingDeliveryRow,
+  processOutgoingDeliveryRow,
+  runOutgoingDeliveryWorkerTick,
+} from './outgoingDeliveryWorker.js';
+import {
+  claimDueOutgoingDeliveries,
+  markOutgoingDeliveryDead,
+  markOutgoingDeliverySent,
+  rescheduleOutgoingDeliveryRetry,
+} from '../../db/repos/outgoingDeliveryQueue.js';
 import { RecipientBlockedBotError } from '../../delivery/recipientBotBlocked.js';
 import * as doctorBroadcastIntentMenu from './doctorBroadcastIntentMenu.js';
 import { drizzleSqlFragmentToApproximateSql } from '../../db/drizzleSqlDebugText.js';
@@ -205,6 +217,63 @@ describe('claimed row tenant handoff', () => {
       '11111111-1111-4111-8111-111111111111',
       'TENANT_SCOPE_ORGANIZATION_MISSING',
     );
+  });
+});
+
+describe('claimed row infrastructure failures', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('marks a scope-resolution failure dead with last_error after max_attempts', async () => {
+    const row = baseRow({
+      id: '11111111-1111-4111-8111-111111111111',
+      attemptCount: 270,
+      maxAttempts: 6,
+    });
+    vi.mocked(claimDueOutgoingDeliveries).mockResolvedValue([row]);
+    vi.mocked(resolveOutgoingDeliveryScope).mockRejectedValue(
+      new Error('operator does not exist: text = uuid'),
+    );
+
+    await expect(runOutgoingDeliveryWorkerTick({
+      db: {} as DbPort,
+      writePort: { writeDb: vi.fn() } as never,
+      dispatchOutgoing: vi.fn(),
+      batchSize: 10,
+    })).resolves.toEqual({ claimed: 1, processed: 0, errors: 1 });
+
+    expect(markOutgoingDeliveryDead).toHaveBeenCalledWith(
+      expect.anything(),
+      row.id,
+      'operator does not exist: text = uuid',
+    );
+    expect(rescheduleOutgoingDeliveryRetry).not.toHaveBeenCalled();
+  });
+
+  it('records last_error and reschedules a scope-resolution failure below max_attempts', async () => {
+    const row = baseRow({
+      id: '22222222-2222-4222-8222-222222222222',
+      attemptCount: 2,
+      maxAttempts: 6,
+    });
+    vi.mocked(claimDueOutgoingDeliveries).mockResolvedValue([row]);
+    vi.mocked(resolveOutgoingDeliveryScope).mockRejectedValue(new Error('temporary scope lookup failure'));
+
+    await expect(runOutgoingDeliveryWorkerTick({
+      db: {} as DbPort,
+      writePort: { writeDb: vi.fn() } as never,
+      dispatchOutgoing: vi.fn(),
+      batchSize: 10,
+    })).resolves.toEqual({ claimed: 1, processed: 0, errors: 1 });
+
+    expect(rescheduleOutgoingDeliveryRetry).toHaveBeenCalledWith(
+      expect.anything(),
+      row.id,
+      300,
+      'temporary scope lookup failure',
+    );
+    expect(markOutgoingDeliveryDead).not.toHaveBeenCalled();
   });
 });
 

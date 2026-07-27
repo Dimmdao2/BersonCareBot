@@ -487,7 +487,7 @@ SET search_path = pg_catalog
 AS $function$
 DECLARE
   queue_payload jsonb;
-  v_occurrence_id uuid;
+  v_occurrence_id text;
   v_broadcast_audit_id uuid;
   v_incident_id uuid;
   occurrence_org uuid;
@@ -521,7 +521,7 @@ BEGIN
       RETURN QUERY SELECT queue_kind, NULL::uuid, 'invalid_occurrence_id'::text;
       RETURN;
     END IF;
-    v_occurrence_id := (queue_payload ->> 'occurrenceId')::uuid;
+    v_occurrence_id := queue_payload ->> 'occurrenceId';
     SELECT occurrence.organization_id, rule.organization_id
     INTO occurrence_org, rule_org
     FROM integrator.user_reminder_occurrences AS occurrence
