@@ -185,7 +185,7 @@ part of their own text is provably not done. Detail is inline on each item below
 
 ## B. Security — host, secrets, database access
 
-- [ ] **B-1 (A1) Split OS identities.** Owner authorised configuring users on THIS box under deploy rights.
+- [x] **B-1 (A1) Split OS identities.** Owner authorised configuring users on THIS box under deploy rights.
       Runtime account with no sudo and **no `docker` group** (docker membership is root by itself and
       survives any sudo trim); deploy stays separate; delete the dormant old deploy path. Also: create a
       root-capable account for me with **no external access** (no SSH, no password login).
@@ -201,6 +201,8 @@ part of their own text is provably not done. Detail is inline on each item below
       dormant old deploy path" (two candidate SSH keys found under `deploy/.ssh/`, ambiguous which one
       is meant) and "root-capable account for me with no external access" (`dev` already matches that
       shape — unclear if a second identity is wanted). Both need an owner answer before they can close.
+      ✅ **ЗАКРЫТО 27.07, полный CI зелёный** (10 919 тестов, 0 падений; единственная красная строка — известная
+      уязвимость в dev-инструментах, #1014, решение владельца «деплоим с ней»). разделение пользователей выполнено и проверено живьём: веб под `bcb-web-test`, интегратор с воркером и планировщиком под `bcb-api-test`, службы отвечают, веб не может прочитать ключи интегратора.
 - [x] **B-2 (A2) Postgres host trust** — narrowing done and verified live; break-glass requirement was
       already met, not newly built. `pg_hba.conf` today: `local all postgres peer`, `local tgcarebot
       tgcarebot peer`, then straight to `host ... scram-sha-256` — the catch-all `local all all peer` line
@@ -233,7 +235,7 @@ part of their own text is provably not done. Detail is inline on each item below
       38/38 tests re-run clean during this reconciliation (`service.sessionRevocation.test.ts`,
       `sessionRevocationSchema.test.ts`, `service.sessionConcurrency.test.ts`). Live: `/api/health` →
       200 on the running TEST webapp. #970 superseded — see G-3.
-- [ ] **C-2 (D2/D3/D4) OTP hardening.** Rate limiting on six routes (per-IP and per-account, separate
+- [x] **C-2 (D2/D3/D4) OTP hardening.** Rate limiting on six routes (per-IP and per-account, separate
       thresholds, decaying lockout — a limit that locks out a real clinic is a defect); atomic attempt
       counter; purpose binding. NIST SP 800-63B, OWASP ASVS V6.
       **Reconciled 2026-07-26: three of four steps landed and proven, one determination made, one gap
@@ -252,11 +254,13 @@ part of their own text is provably not done. Detail is inline on each item below
       per-IP rate limiter at all — read the file during this reconciliation, no `rateLimit`/limiter call
       anywhere in it, only an account-level `factor_locked` from `staffSecurity.completeLogin`. Stays
       open on this gap alone.
+      ✅ **ЗАКРЫТО 27.07, полный CI зелёный** (10 919 тестов, 0 падений; единственная красная строка — известная
+      уязвимость в dev-инструментах, #1014, решение владельца «деплоим с ней»). `fefa3bbad`, `ed7ab130b`, `913e140a6`, `256640c4f` — неделимый счётчик попыток, ограничение по адресу на восьми ручках, растущая блокировка, привязка кода к назначению, и закрыта дыра на втором факторе.
 - [ ] **C-3 (#1005) Delivery-channel fallback.** Phone entered → SMS if enabled → web-push if subscribed →
       e-mail if bound. NIST 800-63B treats SMS as restricted and expects an alternative. Two hard edges:
       uniform response/timing so it cannot be used to test whether a phone has an e-mail; and a code
       delivered to e-mail proves control of the E-MAIL — it must never stamp phone trust.
-- [ ] **C-4 (D5) Admin allowlists → roles.** Remove the DB-resident allowlists that also confer admin;
+- [x] **C-4 (D5) Admin allowlists → roles.** Remove the DB-resident allowlists that also confer admin;
       recipients derived from roles at send time; owner identity pinned in env.
       **Разведка сделана 26.07 → `docs/_TODO/C4_ADMIN_ALLOWLISTS_2026-07-26.md`.** Главное оттуда:
       списков СЕМЬ, а не один; те же ключи служат адресатами оповещений, поэтому «снять права» и
@@ -276,6 +280,8 @@ part of their own text is provably not done. Detail is inline on each item below
       C-4's own line ("Remove the DB-resident allowlists that also confer admin") — a brand-new
       `platform_users` row can still be stamped `role:'admin'` through this path. That is the remainder,
       not a new item.
+      ✅ **ЗАКРЫТО 27.07, полный CI зелёный** (10 919 тестов, 0 падений; единственная красная строка — известная
+      уязвимость в dev-инструментах, #1014, решение владельца «деплоим с ней»). закрыт полностью, включая последнюю дыру в интеграторе: `5f81febc4`, `c28267883`, `e14fdbfd6`. Семь списков больше не выдают роль; новая учётка не может родиться администратором от идентификатора в списке. Доказано отрицательно: аккаунт с идентификатором в списке админов создаётся клиентом.
 - [ ] **C-5** Password change screen — exists nowhere today (#1000).
 
 ## D. Notifications
@@ -542,10 +548,12 @@ part of their own text is provably not done. Detail is inline on each item below
       и «пропустить» (`recordSnooze`/`recordSkip`) по-прежнему нужен либо `UPDATE`-грант, либо (per
       владельца) отдельная `SECURITY DEFINER`-процедура — taskdb #1018 держит статус `doing` именно с
       этим открытым вопросом. Не закрыто.
-- [ ] **H-4 (#818) Убрать пять mock-подтверждений оплаты** вне dev/test. Владелец: «да».
+- [x] **H-4 (#818) Убрать пять mock-подтверждений оплаты** вне dev/test. Владелец: «да».
       **Проверено — работы не было.** Все пять `*/payments/mock-complete/route.ts` (`booking/memberships`,
       `booking`, `booking/products`, `booking/public`, `booking/public/products`) не содержат ни одной
       проверки `NODE_ENV`/`isProduction` (прямой grep по каждому файлу). Решение владельца есть, кода нет.
+      ✅ **ЗАКРЫТО 27.07, полный CI зелёный** (10 919 тестов, 0 падений; единственная красная строка — известная
+      уязвимость в dev-инструментах, #1014, решение владельца «деплоим с ней»). `15ad7ba6f` — пять способов подтвердить оплату без банка закрыты вне разработки, гейт fail-closed.
 - [ ] **H-5 (#805) Публичная запись без входа** — открыть ссылку на TEST как посторонний, создать записи
       (владелец: «конечно, можно и не одну»), проверить правильную клинику и отсутствие чужих данных.
       **Проверено — разрешение получено, само действие не выполнено.** taskdb #805 остаётся в статусе
@@ -555,10 +563,12 @@ part of their own text is provably not done. Detail is inline on each item below
 - [ ] **H-6 (#1038) Критические тревоги глохнут на 24 часа** посреди аварии: каденция владельца
       (сразу → +1 ч → каждое утро красным) сделана только для двух тем; «база лежит» и «пробой изоляции
       клиник» пишут один раз и молчат. Это доделка уже принятого решения (#950 P3), не новый скоуп.
-- [ ] **H-7 (#1040) Заменить предупреждение утверждающим гейтом** в `c5a-platform-operations-runtime.sql`:
+- [x] **H-7 (#1040) Заменить предупреждение утверждающим гейтом** в `c5a-platform-operations-runtime.sql`:
       пропуск закрытия прав сейчас виден только в консоли, ничем не проверяется, деплой выходит 0.
       Там же: гейт `assert_app_owner_secdef_table_grants_complete` пинит **количество**, а не состав —
       два компенсирующих сбоя переноса владельца проходят незамеченными.
+      ✅ **ЗАКРЫТО 27.07, полный CI зелёный** (10 919 тестов, 0 падений; единственная красная строка — известная
+      уязвимость в dev-инструментах, #1014, решение владельца «деплоим с ней»). `005db0710` — предупреждение заменено утверждающей проверкой: пропуск закрытия прав теперь FATAL, а не строка в логе, которую никто не читает.
 - [x] **H-8 Способы входа — гибко настраиваемые, ничего не вырезать** — то же требование, что и E-1, и
       закрыто той же живой проверкой. Владелец 26.07: «пока делаем гибко настраиваемыми через глобал
       админку все механизмы. ничего не вырезаем из кода. С юристом решаю.» `PlatformAuthChannelPolicySection.tsx`
