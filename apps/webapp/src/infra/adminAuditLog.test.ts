@@ -363,6 +363,9 @@ describe("listAdminAuditLog", () => {
   });
 
   it("list query joins platform_users for actor_display_name", async () => {
+    getCurrentDbPrincipalOrganizationIdMock.mockReturnValue(
+      "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+    );
     runWebappPgTextMock.mockImplementation(async (sql: string, params?: unknown[]) => {
       if (sql.includes("count(*)")) {
         return { rows: [{ n: "1" }], rowCount: 1 };
@@ -398,6 +401,25 @@ describe("listAdminAuditLog", () => {
     expect(listCall?.[1]).toEqual(expect.arrayContaining(["user_merge", 10, 0]));
     expect(page.items[0]?.actor_display_name).toBe("Dr A");
     expect(page.total).toBe(1);
+  });
+
+  it("platform-global list does not join platform_users, which the platform role cannot read", async () => {
+    getCurrentDbPrincipalOrganizationIdMock.mockReturnValue(undefined);
+    runWebappPgTextMock.mockImplementation(async (sql: string) => {
+      if (sql.includes("count(*)")) {
+        return { rows: [{ n: "0" }], rowCount: 1 };
+      }
+      return { rows: [], rowCount: 0 };
+    });
+
+    await listAdminAuditLog(poolStub, { page: 1, limit: 10 });
+
+    const listCall = runWebappPgTextMock.mock.calls.find((call) =>
+      String(call[0]).includes("ORDER BY l.created_at DESC"),
+    );
+    expect(listCall).toBeDefined();
+    expect(String(listCall?.[0])).toContain("NULL::text AS actor_display_name");
+    expect(String(listCall?.[0])).not.toContain("JOIN platform_users");
   });
 });
 

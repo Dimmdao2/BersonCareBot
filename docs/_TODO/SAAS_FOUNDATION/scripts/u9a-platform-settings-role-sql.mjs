@@ -20,9 +20,11 @@ REVOKE ALL PRIVILEGES ON ALL TABLES IN SCHEMA integrator FROM app_platform_setti
 REVOKE ALL PRIVILEGES ON TABLE public.system_settings, public.system_settings_audit,
   public.app_runtime_settings, public.app_runtime_settings_audit,
   public.integrator_push_outbox FROM app_platform_settings;
-GRANT SELECT, INSERT, UPDATE ON TABLE public.system_settings TO app_platform_settings;
+-- DELETE is the platform-only "reset to code default" operation. RLS below limits it to
+-- organization_id IS NULL; clinic staff never SET ROLE app_platform_settings.
+GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE public.system_settings TO app_platform_settings;
 GRANT INSERT ON TABLE public.system_settings_audit TO app_platform_settings;
-GRANT SELECT, INSERT, UPDATE ON TABLE public.app_runtime_settings TO app_platform_settings;
+GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE public.app_runtime_settings TO app_platform_settings;
 GRANT INSERT ON TABLE public.app_runtime_settings_audit TO app_platform_settings;
 
 -- HTTP mirror fallback stays reliable without granting the platform role any

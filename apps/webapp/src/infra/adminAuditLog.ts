@@ -475,6 +475,15 @@ export async function listAdminAuditLog(_pool: Pool, params: ListAdminAuditLogPa
 
   const whereSql = conditions.join(" AND ");
   const filterValues = [...values];
+  // app_platform_settings deliberately has no SELECT on platform_users (the C5A exact role
+  // wall asserts that invariant). A platform principal has no organization id, so keep the
+  // global audit query on admin_audit_log alone. Organization staff retain the actor-name join.
+  const actorDisplayNameSql = principalOrganizationId
+    ? "pu.display_name AS actor_display_name"
+    : "NULL::text AS actor_display_name";
+  const actorJoinSql = principalOrganizationId
+    ? "LEFT JOIN platform_users pu ON pu.id = l.actor_id"
+    : "";
 
   const countRes = await runWebappPgText<{ n: string }>(
     `SELECT count(*)::text AS n FROM admin_audit_log l WHERE ${whereSql}`,
@@ -495,9 +504,9 @@ export async function listAdminAuditLog(_pool: Pool, params: ListAdminAuditLogPa
       l.last_seen_at,
       l.resolved_at,
       l.created_at,
-      pu.display_name AS actor_display_name
+      ${actorDisplayNameSql}
     FROM admin_audit_log l
-    LEFT JOIN platform_users pu ON pu.id = l.actor_id
+    ${actorJoinSql}
     WHERE ${whereSql}
     ORDER BY l.created_at DESC
     LIMIT $${i} OFFSET $${i + 1}
