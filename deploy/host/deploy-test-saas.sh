@@ -1984,7 +1984,11 @@ SELECT (
     'SELECT,INSERT,UPDATE,REFERENCES'
   )
 )::text;
-\"")"
+\"" | tail -n 1)"
+  # `psql -tAc` with a multi-statement string also echoes the RESET/SET command tags, so the raw capture
+  # is "RESET\nSET\ntrue" and the equality below never matched. This gate was written but never run live
+  # (its author could not reach the DB from the sandbox); the first real deploy exposed it. Take the last
+  # line — the SELECT result — and keep comparing exactly, not with a substring match.
   [ "$ready" = "true" ] || {
     echo "FATAL: webapp TEST account-security self runtime ACL is not exact" >&2
     echo "       Expected nonstaff login -> SET ROLE app_patient -> four narrow functions, with no vault table privilege." >&2
