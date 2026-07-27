@@ -28,7 +28,7 @@ describe('handleIncomingEvent (v3)', () => {
 
     const buildBaseContext = vi.fn().mockResolvedValue(baseContext);
     const buildPlan = vi.fn().mockResolvedValue([
-      { id: 's1', kind: 'booking.upsert', mode: 'sync', payload: { externalRecordId: 'rec-1' } },
+      { id: 's1', kind: 'event.log', mode: 'sync', payload: { event: 'received' } },
       { id: 's2', kind: 'message.compose', mode: 'async', payload: { text: 'hello' } },
     ]) as unknown as () => Promise<Step[]>;
 
@@ -39,7 +39,7 @@ describe('handleIncomingEvent (v3)', () => {
         return {
           actionId: 's1',
           status: 'success',
-          writes: [{ type: 'booking.upsert', params: { externalRecordId: 'rec-1' } }],
+          writes: [{ type: 'event.log', params: { event: 'received' } }],
         };
       }
       return {

@@ -316,176 +316,6 @@
 		]
 	},
 	{
-		"id": "telegram.start.setrubitimerecord",
-		"source": "telegram",
-		"event": "message.received",
-		"match": {
-			"input": {
-				"action": "start.setrubitimerecord"
-			}
-		},
-		"conditions": [
-			{
-				"kind": "context.query",
-				"name": "bookingRecord",
-				"query": {
-					"type": "booking.recordByExternalId",
-					"recordId": "{{input.recordId}}"
-				}
-			},
-			{
-				"kind": "context.query",
-				"name": "bookings",
-				"query": {
-					"type": "bookings.forUser",
-					"userId": "{{queries.bookingRecord.record.phoneNormalized}}"
-				}
-			}
-		],
-		"steps": [
-			{
-				"action": "user.phone.link",
-				"mode": "sync",
-				"params": {
-					"_when": {
-						"path": "queries.bookingRecord.record.phoneNormalized",
-						"truthy": true
-					},
-					"channelUserId": "{{actor.channelUserId}}",
-					"phoneNormalized": "{{queries.bookingRecord.record.phoneNormalized}}"
-				}
-			},
-			{
-				"action": "user.state.set",
-				"mode": "sync",
-				"params": {
-					"_when": {
-						"path": "queries.bookingRecord.record.phoneNormalized",
-						"truthy": true
-					},
-					"channelUserId": "{{actor.channelUserId}}",
-					"state": "idle"
-				}
-			},
-			{
-				"action": "message.inlineKeyboard.show",
-				"mode": "async",
-				"params": {
-					"_when": {
-						"and": [
-							{
-								"path": "queries.bookingRecord.record.phoneNormalized",
-								"truthy": true
-							},
-							{
-								"path": "queries.bookings.items.length",
-								"equals": 0
-							}
-						]
-					},
-					"chatId": "{{actor.chatId}}",
-					"templateKey": "telegram:noBookings",
-					"vars": {
-						"queries": "{{queries}}"
-					},
-					"inlineKeyboard": [
-						[
-							{
-								"text": "⬅️ Назад",
-								"callbackData": "booking.menu"
-							}
-						],
-						[
-							{
-								"textTemplateKey": "telegram:bookingsScreen.prepare",
-								"callbackData": "info.prepare"
-							},
-							{
-								"textTemplateKey": "telegram:bookingsScreen.address",
-								"callbackData": "info.address"
-							}
-						]
-					]
-				}
-			},
-			{
-				"action": "message.inlineKeyboard.show",
-				"mode": "async",
-				"params": {
-					"_when": {
-						"and": [
-							{
-								"path": "queries.bookingRecord.record.phoneNormalized",
-								"truthy": true
-							},
-							{
-								"path": "queries.bookings.items.length",
-								"truthy": true
-							}
-						]
-					},
-					"chatId": "{{actor.chatId}}",
-					"templateKey": "telegram:bookingsList",
-					"vars": {
-						"queries": "{{queries}}"
-					},
-					"inlineKeyboard": [
-						[
-							{
-								"text": "⬅️ Назад",
-								"callbackData": "booking.menu"
-							}
-						],
-						[
-							{
-								"textTemplateKey": "telegram:bookingsScreen.prepare",
-								"callbackData": "info.prepare"
-							},
-							{
-								"textTemplateKey": "telegram:bookingsScreen.address",
-								"callbackData": "info.address"
-							}
-						]
-					]
-				}
-			},
-			{
-				"action": "user.state.set",
-				"mode": "sync",
-				"params": {
-					"_when": {
-						"path": "queries.bookingRecord.record.phoneNormalized",
-						"truthy": false
-					},
-					"channelUserId": "{{actor.channelUserId}}",
-					"state": "await_contact:subscription"
-				}
-			},
-			{
-				"action": "message.replyKeyboard.show",
-				"mode": "async",
-				"params": {
-					"_when": {
-						"path": "queries.bookingRecord.record.phoneNormalized",
-						"truthy": false
-					},
-					"chatId": "{{actor.chatId}}",
-					"templateKey": "telegram:confirmPhoneForBooking",
-					"keyboard": [
-						[
-							{
-								"textTemplateKey": "telegram:requestContact.button",
-								"requestPhone": true
-							}
-						]
-					],
-					"resizeKeyboard": true,
-					"oneTimeKeyboard": true
-				}
-			}
-		]
-	},
-	{
 		"id": "telegram.start.noticeme",
 		"source": "telegram",
 		"event": "message.received",
@@ -536,7 +366,6 @@
 				"excludeActions": [
 					"start.link",
 					"start.noticeme",
-					"start.setrubitimerecord",
 					"start.setphone",
 					"start.phoneauth",
 					"start.set"
@@ -587,7 +416,6 @@
 				"excludeActions": [
 					"start.link",
 					"start.noticeme",
-					"start.setrubitimerecord",
 					"start.setphone",
 					"start.phoneauth",
 					"start.set"
@@ -763,7 +591,6 @@
 					"menu.more",
 					"cabinet.open",
 					"diary.open",
-					"start.setrubitimerecord",
 					"start.noticeme",
 					"start.set",
 					"phone.request.cancel",
@@ -839,7 +666,6 @@
 					"menu.more",
 					"cabinet.open",
 					"diary.open",
-					"start.setrubitimerecord",
 					"start.noticeme",
 					"start.set",
 					"phone.request.cancel",
@@ -1172,7 +998,6 @@
 					"menu.more",
 					"cabinet.open",
 					"diary.open",
-					"start.setrubitimerecord",
 					"start.noticeme",
 					"start.set",
 					"phone.request.cancel",
@@ -3212,7 +3037,6 @@
 					"menu.more",
 					"cabinet.open",
 					"diary.open",
-					"start.setrubitimerecord",
 					"start.noticeme",
 					"start.set",
 					"phone.request.cancel",

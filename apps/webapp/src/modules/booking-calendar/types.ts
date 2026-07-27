@@ -10,7 +10,7 @@ import type { AppointmentStatus } from '@/modules/booking-engine/types';
  */
 export type CalendarViewMode = 'day' | 'week' | 'month' | '3days' | 'feed';
 
-export type CalendarReadSource = 'canonical' | 'rubitime_legacy';
+export type CalendarReadSource = 'canonical';
 
 export type CalendarFilters = {
   organizationId: string;
@@ -65,8 +65,6 @@ export type CalendarAppointmentEvent = {
   patientName: string | null;
   patientPhone: string | null;
   bookingStatus: string | null;
-  rubitimeId: string | null;
-  rubitimeManageUrl: string | null;
   paymentStatus: string | null;
   prepaymentPending: boolean;
   packageUsageRef: string | null;

@@ -41,33 +41,6 @@ function bookingEventInput() {
   };
 }
 
-describe("createBookingSyncPort retired provider methods", () => {
-  it("fails closed for legacy slots/create/update/cancel/delete operations", async () => {
-    const port = createBookingSyncPort();
-
-    await expect(port.fetchSlots({ type: "online", category: "general" })).rejects.toThrow(
-      "booking_provider_retired",
-    );
-    await expect(
-      port.createRecord({
-        type: "online",
-        category: "general",
-        slotStart: "2026-04-10T10:00:00.000Z",
-        slotEnd: "2026-04-10T11:00:00.000Z",
-        contactName: "Ivan",
-        contactPhone: "+79990001122",
-      }),
-    ).rejects.toThrow("booking_provider_retired");
-    await expect(port.cancelRecord("external-1")).rejects.toThrow("booking_provider_retired");
-    await expect(port.deleteRecord("external-1")).rejects.toThrow("booking_provider_retired");
-    await expect(
-      port.updateRecord?.({ rubitimeId: "external-1", slotStart: "2026-04-10T10:00:00.000Z" }),
-    ).rejects.toThrow("booking_provider_retired");
-
-    expect(globalFetchMock).not.toHaveBeenCalled();
-  });
-});
-
 describe("createBookingSyncPort.emitBookingEvent", () => {
   it("posts provider-neutral lifecycle events", async () => {
     let capturedUrl: string | undefined;

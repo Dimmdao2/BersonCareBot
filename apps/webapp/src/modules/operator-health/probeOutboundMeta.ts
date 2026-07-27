@@ -6,7 +6,7 @@ export function readProbeConsecutiveFailRuns(
   return typeof v === "number" && Number.isFinite(v) && v >= 0 ? Math.trunc(v) : 0;
 }
 
-export type ProbeIntegrationKey = "max" | "rubitime" | "telegram" | "google_calendar";
+export type ProbeIntegrationKey = "max" | "telegram" | "google_calendar";
 
 export type ProbeIntegrationOutcome = "ok" | "fail" | "skipped_not_configured" | "no_data";
 

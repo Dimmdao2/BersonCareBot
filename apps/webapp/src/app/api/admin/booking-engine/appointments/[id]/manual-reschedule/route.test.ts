@@ -75,7 +75,6 @@ describe("POST admin manual-reschedule", () => {
             serviceId: null,
             status: "confirmed",
           }),
-          getRubitimeAppointmentId: vi.fn().mockResolvedValue(null),
         },
       },
     });
@@ -128,7 +127,6 @@ describe("POST admin manual-reschedule", () => {
             serviceId: null,
             status: "confirmed",
           }),
-          getRubitimeAppointmentId: vi.fn().mockResolvedValue(null),
         },
       },
     });

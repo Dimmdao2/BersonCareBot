@@ -1,7 +1,6 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
-import { parseBookingSlotsReadSource } from "@/modules/patient-booking/slotsReadSource";
 import { requireAdminBookingEngine } from "../_requireAdminBookingEngine";
 
 const QuerySchema = z.object({
@@ -38,15 +37,10 @@ export async function GET(request: Request) {
   }
 
   const { organizationId } = gate.ctx;
-  const [branch, slotsReadSourceRow] = await Promise.all([
-    gate.ctx.service.catalog.getBranch(parsed.data.branchId),
-    deps.systemSettings?.getSetting("booking_slots_read_source", "admin"),
-  ]);
+  const branch = await gate.ctx.service.catalog.getBranch(parsed.data.branchId);
   if (!branch || branch.organizationId !== organizationId) {
     return NextResponse.json({ ok: false, error: "branch_not_found" }, { status: 404 });
   }
-
-  const bookingSlotsReadSource = parseBookingSlotsReadSource(slotsReadSourceRow?.valueJson ?? null);
 
   try {
     const byDate = await deps.patientBooking.getSlots({
@@ -63,7 +57,7 @@ export async function GET(request: Request) {
     return NextResponse.json({
       ok: true,
       date: parsed.data.date,
-      bookingSlotsReadSource,
+      bookingSlotsReadSource: "canonical",
       slots,
     });
   } catch (err) {

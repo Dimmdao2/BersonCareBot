@@ -1,8 +1,7 @@
 import { emitBookingDeletedEvent } from "@/app-layer/booking/emitBookingDeletedEvent";
-import { resolveRubitimeIdForAppointment } from "@/app-layer/booking/staffRubitimeMirrorOutbound";
 import type { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import { isStaffDeletableCancelledStatus } from "@/modules/booking-calendar/appointmentStatusLabels";
-import { resolveDoctorProjectionIntegratorRecordId } from "@/modules/patient-booking/projectCanonicalAppointment";
+import { nativeIntegratorRecordId } from "@/modules/patient-booking/projectCanonicalAppointment";
 
 export type StaffPurgeCancelledAppointmentResult =
   | { ok: true }
@@ -13,10 +12,6 @@ export async function staffPurgeCancelledAppointment(input: {
   organizationId: string;
   appointmentId: string;
   actorId: string;
-  getRubitimeAppointmentId?: (params: {
-    organizationId: string;
-    appointmentId: string;
-  }) => Promise<string | null>;
   runLocalPurge?: <T>(fn: () => Promise<T>) => Promise<T>;
 }): Promise<StaffPurgeCancelledAppointmentResult> {
   if (!input.deps.bookingEngine || !input.deps.appointmentProjection) {
@@ -31,30 +26,14 @@ export async function staffPurgeCancelledAppointment(input: {
     return { ok: false, error: "not_cancelled" };
   }
 
-  const bookingRow = input.deps.patientBooking
-    ? await input.deps.patientBooking.getBookingByCanonicalAppointment(input.appointmentId)
-    : null;
-  const rubitimeId = await resolveRubitimeIdForAppointment({
-    appointmentId: input.appointmentId,
-    organizationId: input.organizationId,
-    bookingRow,
-    getRubitimeAppointmentId: input.getRubitimeAppointmentId,
-  });
-
   const purge = () =>
-    input.deps.appointmentProjection!.softDeleteByCanonicalAppointmentId(
-      input.appointmentId,
-      rubitimeId,
-    );
+    input.deps.appointmentProjection!.softDeleteByCanonicalAppointmentId(input.appointmentId);
   const purged = input.runLocalPurge ? await input.runLocalPurge(purge) : await purge();
   if (!purged) {
     return { ok: false, error: "not_found" };
   }
 
-  const integratorRecordId = resolveDoctorProjectionIntegratorRecordId(
-    input.appointmentId,
-    rubitimeId,
-  );
+  const integratorRecordId = nativeIntegratorRecordId(input.appointmentId);
   try {
     await emitBookingDeletedEvent({
       deps: input.deps,

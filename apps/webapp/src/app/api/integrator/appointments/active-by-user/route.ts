@@ -28,7 +28,7 @@ export async function GET(request: Request) {
   }
   const rows = await deps.appointmentProjection.listActiveByPhoneNormalized(phoneNormalized);
   const records = rows.map((row) => ({
-    rubitimeRecordId: row.integratorRecordId,
+    externalRecordId: row.integratorRecordId,
     recordAt: row.recordAt,
     status: row.status,
     link: linkFromPayload(row.payloadJson),

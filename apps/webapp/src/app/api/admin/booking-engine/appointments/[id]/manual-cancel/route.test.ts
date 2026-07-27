@@ -103,7 +103,6 @@ describe("POST admin manual-cancel", () => {
         organizationId: "org-1",
         session: { user: { userId: "a1", role: "admin" } },
         service: {
-          getRubitimeAppointmentId: vi.fn().mockResolvedValue(null),
         },
       },
     });

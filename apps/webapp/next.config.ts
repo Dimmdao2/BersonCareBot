@@ -93,7 +93,6 @@ const nextConfig: NextConfig = {
   ],
   transpilePackages: [
     "react-phone-number-input",
-    "@bersoncare/booking-rubitime-sync",
     "@bersoncare/operator-db-schema",
   ],
   experimental: {

@@ -3,7 +3,6 @@ packages:
   - apps/media-worker
   - apps/integrator
   - packages/db-principal
-  - packages/booking-rubitime-sync
   - packages/platform-merge
   - packages/operator-db-schema
   - packages/error-tracking

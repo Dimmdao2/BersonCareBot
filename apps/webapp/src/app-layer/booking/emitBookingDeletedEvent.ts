@@ -6,7 +6,6 @@ function bookingPayloadFromRow(row: PatientBookingRecord) {
   return {
     bookingId: row.id,
     userId: row.userId as string,
-    rubitimeId: row.rubitimeId,
     bookingType: row.bookingType,
     city: row.city ?? undefined,
     category: row.category,
@@ -26,12 +25,10 @@ async function resolveBookingForIntegratorRecordId(
   deps: ReturnType<typeof buildAppDeps>,
 ): Promise<PatientBookingRecord | null> {
   if (!deps.patientBooking) return null;
-  if (integratorRecordId.startsWith("be:")) {
-    const canonicalId = integratorRecordId.slice(3).trim();
-    if (!canonicalId) return null;
-    return deps.patientBooking.getBookingByCanonicalAppointment(canonicalId);
-  }
-  return deps.patientBooking.getByRubitimeId(integratorRecordId);
+  if (!integratorRecordId.startsWith("be:")) return null;
+  const canonicalId = integratorRecordId.slice(3).trim();
+  if (!canonicalId) return null;
+  return deps.patientBooking.getBookingByCanonicalAppointment(canonicalId);
 }
 
 export async function emitBookingDeletedEvent(input: {
@@ -70,7 +67,6 @@ export async function emitBookingDeletedEvent(input: {
     payload: {
       bookingId: canonicalId ?? "00000000-0000-4000-8000-000000000001",
       userId: canonicalId ?? "00000000-0000-4000-8000-000000000001",
-      rubitimeId: id.startsWith("be:") ? null : id,
       bookingType: "in_person",
       category: "general",
       slotStart: slotIso,

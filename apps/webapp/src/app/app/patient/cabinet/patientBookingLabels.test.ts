@@ -18,7 +18,6 @@ function baseRow(over: Partial<PatientBookingRecord> = {}): PatientBookingRecord
     status: "confirmed",
     cancelledAt: null,
     cancelReason: null,
-    rubitimeId: "r1",
     gcalEventId: null,
     contactPhone: "+7000",
     contactEmail: null,
@@ -35,13 +34,7 @@ function baseRow(over: Partial<PatientBookingRecord> = {}): PatientBookingRecord
     serviceTitleSnapshot: null,
     durationMinutesSnapshot: null,
     priceMinorSnapshot: null,
-    rubitimeBranchIdSnapshot: null,
-    rubitimeCooperatorIdSnapshot: null,
-    rubitimeServiceIdSnapshot: null,
-    rubitimeManageUrl: null,
     canonicalAppointmentId: null,
-    bookingSource: "native",
-    compatQuality: null,
     provenanceCreatedBy: null,
     provenanceUpdatedBy: null,
     ...over,
@@ -49,12 +42,8 @@ function baseRow(over: Partial<PatientBookingRecord> = {}): PatientBookingRecord
 }
 
 describe("bookingProvenancePrefix", () => {
-  it("returns label for rubitime_projection rows", () => {
-    expect(bookingProvenancePrefix(baseRow({ bookingSource: "rubitime_projection" }))).toBe("Из расписания · ");
-  });
-
-  it("returns empty for native bookings", () => {
-    expect(bookingProvenancePrefix(baseRow({ bookingSource: "native" }))).toBe("");
+  it("returns empty for canonical bookings", () => {
+    expect(bookingProvenancePrefix(baseRow())).toBe("");
   });
 
   it("re-exports shared schedule prefix for doctor/projection UIs", () => {

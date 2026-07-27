@@ -50,23 +50,6 @@ const ctx: DomainContext = {
 };
 
 describe('executeAction', () => {
-  it('handles booking.upsert', async () => {
-    const writeDb = vi.fn().mockResolvedValue(undefined);
-    const action: Action = {
-      id: 'a1',
-      type: 'booking.upsert',
-      mode: 'sync',
-      params: { externalRecordId: 'rec-1' },
-    };
-
-    const result = await executeAction(action, ctx, {
-      writePort: { writeDb },
-    });
-
-    expect(result.status).toBe('success');
-    expect(writeDb).toHaveBeenCalledTimes(1);
-  });
-
   it('handles message.compose with template', async () => {
     const action: Action = {
       id: 'a2',

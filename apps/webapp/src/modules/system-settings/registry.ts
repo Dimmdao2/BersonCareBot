@@ -131,8 +131,6 @@ export const SYSTEM_SETTING_REGISTRY = {
   video_watermark_enabled: runtime("admin", "global", "server", "boolean", "false"),
   patient_booking_url: runtime("admin", "per_org", "authenticated_client", "url", ""),
   booking_default_organization_id: restricted("admin", "global", "uuid"),
-  booking_rubitime_bridge_enabled: runtime("admin", "global", "server", "boolean", "false"),
-  booking_doctor_appointments_read_source: runtime("admin", "global", "server", "string", "canonical"),
   booking_calendar_show_working_hours: runtime("admin", "per_org", "authenticated_client", "boolean", "false"),
   booking_calendar_default_window: runtime("doctor", "per_org", "authenticated_client", "structured", "absent"),
   booking_calendar_default_branch_id: runtime("doctor", "per_org", "authenticated_client", "uuid", "absent"),
@@ -144,7 +142,6 @@ export const SYSTEM_SETTING_REGISTRY = {
     "structured",
     '{"physicalPalette":["#2563EB","#16A34A","#F59E0B","#DC2626","#7C3AED"],"online":"#7C3AED"}',
   ),
-  booking_slots_read_source: runtime("admin", "global", "server", "string", "canonical"),
   booking_payment_enabled: runtime("admin", "per_org", "authenticated_client", "boolean", "false"),
   booking_payment_providers: restricted("admin", "per_org", "secret_envelope", "mock", "redacted", "booking_payment_public_config"),
   saas_billing_payment_provider: restricted(

@@ -27,7 +27,6 @@ function makeBooking(over: Partial<PatientBookingRecord> = {}): PatientBookingRe
     status: "confirmed",
     cancelledAt: null,
     cancelReason: null,
-    rubitimeId: "123",
     gcalEventId: null,
     contactPhone: "+79990001122",
     contactEmail: null,
@@ -44,13 +43,7 @@ function makeBooking(over: Partial<PatientBookingRecord> = {}): PatientBookingRe
     serviceTitleSnapshot: null,
     durationMinutesSnapshot: null,
     priceMinorSnapshot: null,
-    rubitimeBranchIdSnapshot: null,
-    rubitimeCooperatorIdSnapshot: null,
-    rubitimeServiceIdSnapshot: null,
-    rubitimeManageUrl: "https://rubitime.ru/record/123",
     canonicalAppointmentId: null,
-    bookingSource: "native",
-    compatQuality: null,
     provenanceCreatedBy: null,
     provenanceUpdatedBy: null,
     ...over,
@@ -80,7 +73,6 @@ describe("BookingUpcomingSection", () => {
           makeBooking({
             status: "cancel_failed",
             canonicalAppointmentId: null,
-            rubitimeManageUrl: "https://rubitime.ru/record/123",
           }),
         ]}
         appDisplayTimeZone="Europe/Moscow"

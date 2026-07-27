@@ -53,18 +53,6 @@ export type UserProjectionPort = {
     channelCode?: string;
     externalId?: string;
   }) => Promise<{ platformUserId: string }>;
-  /** Rubitime appointment projection: ensure canonical client row exists for phone (create/enrich/merge). */
-  ensureClientFromAppointmentProjection: (params: {
-    phoneNormalized: string;
-    integratorUserId?: string | null;
-    displayName?: string | null;
-    firstName?: string | null;
-    lastName?: string | null;
-    email?: string | null;
-  }) => Promise<{
-    platformUserId: string;
-    contactEmailSetup?: { emailNormalized: string };
-  }>;
   findByIntegratorId: (integratorUserId: string) => Promise<{
     platformUserId: string;
     phoneNormalized?: string | null;
@@ -109,17 +97,6 @@ export type UserProjectionPort = {
     canonicalId: string,
     phoneNormalized: string,
   ) => Promise<string | null>;
-  /** Rubitime webhook → user.email.autobind (USER_TODO_STAGE; см. AUDIT-BACKLOG-024). */
-  applyRubitimeEmailAutobind: (params: {
-    phoneNormalized: string;
-    email: string;
-  }) => Promise<
-    | { outcome: "applied"; platformUserId: string }
-    | {
-        outcome: "skipped_no_user" | "skipped_invalid_email" | "skipped_conflict";
-      }
-    | { outcome: "skipped_verified"; platformUserId: string }
-  >;
 };
 
 type PuRow = {
@@ -334,207 +311,6 @@ async function upsertFromProjectionTx(
   return userId;
 }
 
-function normalizeRubitimeContactEmail(email: string | null | undefined): string | null {
-  const trimmed = email?.trim();
-  if (!trimmed || trimmed.length > 320) return null;
-  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmed)) return null;
-  return trimmed;
-}
-
-function isActiveEmailNormalizedUniqueViolation(err: unknown): boolean {
-  if (typeof err !== "object" || err === null) return false;
-  const code = "code" in err ? String((err as { code?: unknown }).code ?? "") : "";
-  if (code !== "23505") return false;
-  const constraint =
-    "constraint" in err ? String((err as { constraint?: unknown }).constraint ?? "") : "";
-  const message = "message" in err ? String((err as { message?: unknown }).message ?? "") : "";
-  return (
-    constraint === "uq_platform_users_email_normalized_active" ||
-    message.includes("uq_platform_users_email_normalized_active")
-  );
-}
-
-async function ensureAppointmentClientTx(
-  client: PoolClient,
-  params: {
-    phoneNormalized: string;
-    integratorUserId?: string | null;
-    displayName?: string | null;
-    firstName?: string | null;
-    lastName?: string | null;
-    email?: string | null;
-  },
-): Promise<{
-  userId: string;
-  contactEmailSetup?: { emailNormalized: string };
-}> {
-  const ids: string[] = [];
-  const byPhone = await txPgText<{ id: string }>(
-    client,
-    `SELECT id FROM platform_users WHERE phone_normalized = $1 AND merged_into_id IS NULL LIMIT 2`,
-    [params.phoneNormalized],
-  );
-  if (byPhone.rows.length > 1) {
-    console.error("[ensureClientFromAppointmentProjection] duplicate canonical phone rows (redacted)", {
-      count: byPhone.rows.length,
-      ids: byPhone.rows.map((r) => r.id),
-    });
-    throw new MergeConflictError("multiple canonical users for phone", byPhone.rows.map(r => r.id));
-  }
-  if (byPhone.rows[0]) ids.push(byPhone.rows[0].id);
-
-  if (params.integratorUserId?.trim()) {
-    const byInt = await txPgText<{ id: string }>(
-    client,
-      `SELECT id FROM platform_users
-       WHERE integrator_user_id = $1::bigint AND merged_into_id IS NULL LIMIT 2`,
-      [params.integratorUserId.trim()],
-    );
-    if (byInt.rows.length > 1) {
-      throw new MergeConflictError("multiple canonical users for integrator id", byInt.rows.map(r => r.id));
-    }
-    if (byInt.rows[0]) ids.push(byInt.rows[0].id);
-  }
-
-  const emailNorm = normalizeRubitimeContactEmail(params.email);
-  if (ids.length === 0 && emailNorm) {
-    const byEmail = await txPgText<{ id: string }>(
-      client,
-      `SELECT id FROM platform_users
-       WHERE email_normalized = lower(btrim($1::text)) AND merged_into_id IS NULL
-       LIMIT 2`,
-      [emailNorm],
-    );
-    if (byEmail.rows.length > 1) {
-      throw new MergeConflictError("multiple canonical users for email", byEmail.rows.map((r) => r.id));
-    }
-    if (byEmail.rows[0]) ids.push(byEmail.rows[0].id);
-  }
-
-  const uniq = [...new Set(ids)];
-  const displayName =
-    params.displayName?.trim() ||
-    [params.lastName, params.firstName].filter(Boolean).join(" ").trim() ||
-    params.phoneNormalized;
-
-  if (uniq.length === 0) {
-    const ins = await txPgText<{ id: string }>(
-      client,
-      `INSERT INTO platform_users (
-         phone_normalized, display_name, first_name, last_name, email, email_normalized, role,
-         integrator_user_id, patient_phone_trust_at
-       ) VALUES (
-         $1, $2, $3, $4, $5,
-         CASE WHEN $5::text IS NOT NULL AND btrim($5::text) <> '' THEN lower(btrim($5::text)) ELSE NULL END,
-         'client', $6::bigint,
-         CASE WHEN $1::text IS NOT NULL AND btrim($1::text) <> '' THEN now() ELSE NULL END
-       )
-       RETURNING id`,
-      [
-        params.phoneNormalized,
-        displayName,
-        params.firstName ?? null,
-        params.lastName ?? null,
-        emailNorm,
-        params.integratorUserId?.trim() ? params.integratorUserId : null,
-      ],
-    );
-    const newUserId = ins.rows[0]!.id;
-    return {
-      userId: newUserId,
-      contactEmailSetup: emailNorm
-        ? { emailNormalized: emailNorm.trim().toLowerCase() }
-        : undefined,
-    };
-  }
-
-  const userId = await mergeCandidates(client, uniq, "projection");
-
-  let contactEmailSetup: { emailNormalized: string } | undefined;
-  let emailForUpdate: string | null = emailNorm;
-  if (emailNorm) {
-    const emailNormalized = emailNorm.trim().toLowerCase();
-    const prev = await txPgText<{ email_normalized: string | null }>(
-      client,
-      `SELECT email_normalized FROM platform_users WHERE id = $1::uuid`,
-      [userId],
-    );
-    const prevNorm = prev.rows[0]?.email_normalized ?? null;
-    if (prevNorm !== emailNormalized) {
-      const conflict = await txPgText<{ id: string }>(
-        client,
-        `SELECT id FROM platform_users
-         WHERE id <> $1::uuid
-           AND email_normalized = $2::text
-           AND merged_into_id IS NULL
-         LIMIT 1`,
-        [userId, emailNormalized],
-      );
-      if (conflict.rows[0]) {
-        emailForUpdate = null;
-        console.warn("[ensureClientFromAppointmentProjection] skip email update due active-email conflict", {
-          platformUserId: userId,
-          conflictingUserId: conflict.rows[0].id,
-        });
-      } else {
-        contactEmailSetup = { emailNormalized };
-      }
-    }
-  }
-
-  const updateSql = `UPDATE platform_users SET
-      email = CASE WHEN $2::text IS NOT NULL AND trim($2::text) <> '' THEN $2::text ELSE email END,
-       email_normalized = CASE
-         WHEN $2::text IS NOT NULL AND trim($2::text) <> ''
-              AND lower(trim($2::text)) IS DISTINCT FROM lower(trim(coalesce(email, '')))
-           THEN lower(trim($2::text))
-         WHEN $2::text IS NOT NULL AND trim($2::text) <> '' THEN email_normalized
-         ELSE email_normalized
-       END,
-       email_verified_at = CASE
-         WHEN $2::text IS NOT NULL AND trim($2::text) <> ''
-              AND lower(trim($2::text)) IS DISTINCT FROM lower(trim(coalesce(email, '')))
-           THEN NULL
-         ELSE email_verified_at
-       END,
-       integrator_user_id = COALESCE(integrator_user_id, $3::bigint),
-       phone_normalized = COALESCE(phone_normalized, $4::text),
-       patient_phone_trust_at = CASE
-         WHEN $4::text IS NOT NULL AND trim($4::text) <> '' THEN now()
-         ELSE patient_phone_trust_at
-       END,
-       updated_at = now()
-     WHERE id = $1::uuid`;
-  const updateParams: (string | null)[] = [
-    userId,
-    emailForUpdate,
-    params.integratorUserId?.trim() ?? null,
-    params.phoneNormalized,
-  ];
-  try {
-    // Existing user: enrich contact email / trusted Rubitime phone; never overwrite display/FIO from Rubitime.
-    await txPgText(client, updateSql, updateParams);
-  } catch (err) {
-    if (emailForUpdate && isActiveEmailNormalizedUniqueViolation(err)) {
-      contactEmailSetup = undefined;
-      emailForUpdate = null;
-      console.warn("[ensureClientFromAppointmentProjection] fallback skip email update after unique violation", {
-        platformUserId: userId,
-      });
-      await txPgText(client, updateSql, [
-        userId,
-        null,
-        params.integratorUserId?.trim() ?? null,
-        params.phoneNormalized,
-      ]);
-    } else {
-      throw err;
-    }
-  }
-
-  return { userId, contactEmailSetup };
-}
-
 export const pgUserProjectionPort: UserProjectionPort = {
   async upsertFromProjection(params) {
     const pool = getPool();
@@ -547,22 +323,6 @@ export const pgUserProjectionPort: UserProjectionPort = {
       trustedPatientPhoneWriteAnchor(TrustedPatientPhoneSource.IntegratorUpsertFromProjection);
     }
     return { platformUserId: id };
-  },
-
-  async ensureClientFromAppointmentProjection(params) {
-    const pool = getPool();
-    const ensured = await withPoolTransaction(pool, async (client) => {
-      await deferPlatformUserUniqueConstraints(client);
-      const ensured = await ensureAppointmentClientTx(client, params);
-      return ensured;
-    });
-    if (params.phoneNormalized?.trim()) {
-      trustedPatientPhoneWriteAnchor(TrustedPatientPhoneSource.IntegratorUpsertFromProjection);
-    }
-    return {
-      platformUserId: ensured.userId,
-      contactEmailSetup: ensured.contactEmailSetup,
-    };
   },
 
   async findByIntegratorId(integratorUserId) {
@@ -657,47 +417,6 @@ export const pgUserProjectionPort: UserProjectionPort = {
     if (result.rowCount === 0) {
       throw new Error(`updateRole: user ${platformUserId} not found`);
     }
-  },
-
-  async applyRubitimeEmailAutobind(params) {
-    const emailNorm = params.email.trim();
-    const basic =
-      /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(emailNorm) && emailNorm.length <= 320;
-    if (!basic) {
-      return { outcome: "skipped_invalid_email" as const };
-    }
-    const phone = params.phoneNormalized.trim();
-    const row = await runWebappPgText<{ id: string; email_verified_at: Date | string | null }>(
-      `SELECT id, email_verified_at FROM platform_users
-       WHERE phone_normalized = $1 AND merged_into_id IS NULL`,
-      [phone],
-    );
-    if (row.rows.length === 0) {
-      return { outcome: "skipped_no_user" as const };
-    }
-    const u = row.rows[0]!;
-    if (u.email_verified_at) {
-      return { outcome: "skipped_verified" as const, platformUserId: u.id };
-    }
-    const conflict = await runWebappPgText<{ id: string }>(
-      `SELECT id FROM platform_users
-       WHERE id <> $1 AND email IS NOT NULL AND lower(trim(email)) = lower(trim($2))`,
-      [u.id, emailNorm],
-    );
-    if (conflict.rows.length > 0) {
-      console.warn("[user.email.autobind:conflict]", {
-        phoneNormalized: phone,
-        email: emailNorm,
-        conflictingUserId: conflict.rows[0].id,
-      });
-      return { outcome: "skipped_conflict" as const };
-    }
-    await runWebappPgText(
-      `UPDATE platform_users SET email = $1, email_normalized = lower(btrim($1)), email_verified_at = NULL, updated_at = now()
-       WHERE id = $2`,
-      [emailNorm, u.id],
-    );
-    return { outcome: "applied" as const, platformUserId: u.id };
   },
 
   async getProfileEmailFields(platformUserId) {
@@ -851,7 +570,6 @@ export const pgUserProjectionPort: UserProjectionPort = {
 
 export const inMemoryUserProjectionPort: UserProjectionPort = {
   upsertFromProjection: async () => ({ platformUserId: "" }),
-  ensureClientFromAppointmentProjection: async () => ({ platformUserId: "" }),
   findByIntegratorId: async () => null,
   findByPhoneNormalized: async () => null,
   updatePhone: async () => {},
@@ -860,7 +578,6 @@ export const inMemoryUserProjectionPort: UserProjectionPort = {
   updateRole: async () => {},
   getProfileEmailFields: async () => ({ email: null, emailVerifiedAt: null }),
   clearStaffAccountEmail: async () => ({ ok: true as const }),
-  applyRubitimeEmailAutobind: async () => ({ outcome: "skipped_no_user" as const }),
   patchAdminClientProfile: async () => ({ ok: true as const }),
   findPlatformUserIdWithEmailConflict: async () => null,
   findPlatformUserIdWithPhoneConflict: async () => null,

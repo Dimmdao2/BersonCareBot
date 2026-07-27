@@ -15,15 +15,11 @@ import {
   projectCanonicalAppointmentRescheduled,
 } from "@/modules/patient-booking/projectCanonicalAppointment";
 
-import { resolveLegacyBranchIdForProjection } from "@/modules/patient-booking/resolveLegacyBranchIdForProjection";
-import type { LegacyBranchProjectionPort } from "@/modules/patient-booking/ports";
-
 type LifecycleService = ReturnType<typeof createBookingAppointmentLifecycleService>;
 
 async function projectionFromAppointment(
   appt: BeAppointment,
   bookingRow?: PatientBookingRecord | null,
-  branches?: LegacyBranchProjectionPort | null,
 ) {
   const attr = appt.attributionJson ?? {};
   const contactName =
@@ -38,18 +34,11 @@ async function projectionFromAppointment(
       : typeof attr.serviceTitle === "string"
         ? attr.serviceTitle
         : null;
-  const legacyBranchId = await resolveLegacyBranchIdForProjection(
-    branches,
-    bookingRow?.rubitimeBranchIdSnapshot ?? null,
-    bookingRow?.branchTitleSnapshot ?? null,
-  );
   return {
     phoneNormalized: appt.phoneNormalized,
     contactName,
     serviceTitle,
     branchTitle: bookingRow?.branchTitleSnapshot ?? null,
-    rubitimeRecordId: bookingRow?.rubitimeId ?? null,
-    legacyBranchId,
   };
 }
 
@@ -62,7 +51,6 @@ export async function applyStaffCancelSideEffects(opts: {
   syncPort?: BookingSyncPort | null;
   bookingRow?: PatientBookingRecord | null;
   lifecycleNotificationSettings?: BookingLifecycleNotificationsSettings | null;
-  branches?: LegacyBranchProjectionPort | null;
   /** R21: врач снял галочку «Уведомлять пациента» — подавить уведомление пациенту. */
   suppressPatientNotification?: boolean;
 }): Promise<void> {
@@ -70,7 +58,7 @@ export async function applyStaffCancelSideEffects(opts: {
     await projectCanonicalAppointmentCancelled(
       opts.projection,
       opts.appointment,
-      await projectionFromAppointment(opts.appointment, opts.bookingRow, opts.branches),
+      await projectionFromAppointment(opts.appointment, opts.bookingRow),
     );
   }
   const integratorStatus = await emitStaffCanonicalBookingEvent({
@@ -115,7 +103,6 @@ export async function applyStaffNoShowSideEffects(opts: {
   syncPort?: BookingSyncPort | null;
   bookingRow?: PatientBookingRecord | null;
   lifecycleNotificationSettings?: BookingLifecycleNotificationsSettings | null;
-  branches?: LegacyBranchProjectionPort | null;
   /** Suppress patient notification — same flag/mechanism as staff-cancel R21 suppression. */
   suppressPatientNotification?: boolean;
 }): Promise<void> {
@@ -123,7 +110,7 @@ export async function applyStaffNoShowSideEffects(opts: {
     await projectCanonicalAppointmentNoShow(
       opts.projection,
       opts.appointment,
-      await projectionFromAppointment(opts.appointment, opts.bookingRow, opts.branches),
+      await projectionFromAppointment(opts.appointment, opts.bookingRow),
     );
   }
   // Reuse booking.cancelled integrator event (no-show is a variant of appointment end without visit).
@@ -167,13 +154,12 @@ export async function applyStaffRescheduleSideEffects(opts: {
   syncPort?: BookingSyncPort | null;
   bookingRow?: PatientBookingRecord | null;
   lifecycleNotificationSettings?: BookingLifecycleNotificationsSettings | null;
-  branches?: LegacyBranchProjectionPort | null;
 }): Promise<void> {
   if (opts.projection) {
     await projectCanonicalAppointmentRescheduled(
       opts.projection,
       opts.appointment,
-      await projectionFromAppointment(opts.appointment, opts.bookingRow, opts.branches),
+      await projectionFromAppointment(opts.appointment, opts.bookingRow),
     );
   }
   const integratorStatus = await emitStaffCanonicalBookingEvent({

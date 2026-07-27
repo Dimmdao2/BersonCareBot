@@ -225,7 +225,6 @@ export function mapBodyToIncoming(body: TelegramWebhookBodyValidated): IncomingU
     const trimmedText = text.replace(/^\uFEFF+/, '').trim();
     const dictionaryAction = normalizeTelegramMessageAction(text);
     let action = dictionaryAction;
-    let recordIdFromStart: string | null = null;
     let linkSecretFromStart: string | null = null;
     let authSecretFromStart: string | null = null;
     let phoneFromSetphoneStart: string | null = null;
@@ -234,7 +233,6 @@ export function mapBodyToIncoming(body: TelegramWebhookBodyValidated): IncomingU
       action = p.action;
       if (p.linkSecret !== undefined) linkSecretFromStart = p.linkSecret;
       if (p.authSecret !== undefined) authSecretFromStart = p.authSecret;
-      if (p.recordId !== undefined) recordIdFromStart = p.recordId;
       if (p.phone !== undefined) phoneFromSetphoneStart = p.phone;
     }
     const relayMessageType = getMessageTypeFromTelegramMessage(body.message);
@@ -250,7 +248,6 @@ export function mapBodyToIncoming(body: TelegramWebhookBodyValidated): IncomingU
       ...(replyToMessageId !== undefined ? { replyToMessageId } : {}),
       text,
       action,
-      ...(recordIdFromStart ? { recordId: recordIdFromStart } : {}),
       ...(linkSecretFromStart ? { linkSecret: linkSecretFromStart } : {}),
       ...(authSecretFromStart ? { authSecret: authSecretFromStart } : {}),
       ...(phoneOut ? { phone: phoneOut } : {}),
@@ -311,7 +308,6 @@ export async function processTelegramUpdate(
         {
           telegramStart: {
             action: incoming.action ?? '',
-            recordIdPresent: typeof incoming.recordId === 'string' && incoming.recordId.length > 0,
             linkSecretPresent: typeof incoming.linkSecret === 'string' && incoming.linkSecret.length > 0,
             phoneFromDeepLink: incoming.action === 'start.setphone' && typeof incoming.phone === 'string',
           },

@@ -83,7 +83,6 @@ describe("POST admin manual appointment", () => {
           createAppointment: createAppointmentMock,
           transitionAppointmentStatus: transitionAppointmentStatusMock,
           deleteAppointmentHard: deleteAppointmentHardMock,
-          upsertRubitimeAppointmentMapping: vi.fn(),
         },
       },
     });
@@ -136,7 +135,6 @@ describe("POST admin manual appointment", () => {
           createAppointment: createAppointmentMock,
           transitionAppointmentStatus: transitionAppointmentStatusMock,
           deleteAppointmentHard: deleteAppointmentHardMock,
-          upsertRubitimeAppointmentMapping: vi.fn(),
         },
       },
     });
@@ -175,7 +173,6 @@ describe("POST admin manual appointment", () => {
           createAppointment: createAppointmentMock,
           transitionAppointmentStatus: transitionAppointmentStatusMock,
           deleteAppointmentHard: deleteAppointmentHardMock,
-          upsertRubitimeAppointmentMapping: vi.fn(),
           getAppointment: vi.fn(),
         },
       },

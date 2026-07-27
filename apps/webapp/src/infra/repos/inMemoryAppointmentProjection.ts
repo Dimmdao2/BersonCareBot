@@ -1,7 +1,4 @@
-import {
-  nativeIntegratorRecordId,
-  resolveDoctorProjectionIntegratorRecordId,
-} from "@/modules/patient-booking/projectCanonicalAppointment";
+import { nativeIntegratorRecordId } from "@/modules/patient-booking/projectCanonicalAppointment";
 import type {
   AppointmentProjectionPort,
   AppointmentRecordRow,
@@ -135,28 +132,14 @@ export const inMemoryAppointmentProjectionPort: AppointmentProjectionPort = {
     return true;
   },
 
-  async softDeleteByCanonicalAppointmentId(
-    appointmentId: string,
-    rubitimeFromMapping?: string | null,
-  ): Promise<boolean> {
-    const primaryId = resolveDoctorProjectionIntegratorRecordId(appointmentId, rubitimeFromMapping);
+  async softDeleteByCanonicalAppointmentId(appointmentId: string): Promise<boolean> {
+    const primaryId = nativeIntegratorRecordId(appointmentId);
     const ok = await inMemoryAppointmentProjectionPort.softDeleteByIntegratorId(primaryId, {
       canonicalAppointmentId: appointmentId,
       purgePatientBookings: true,
       cancelReason: "staff_delete",
     });
     if (ok) return true;
-    if (primaryId !== nativeIntegratorRecordId(appointmentId)) {
-      const fallbackOk = await inMemoryAppointmentProjectionPort.softDeleteByIntegratorId(
-        nativeIntegratorRecordId(appointmentId),
-        {
-          canonicalAppointmentId: appointmentId,
-          purgePatientBookings: true,
-          cancelReason: "staff_delete",
-        },
-      );
-      if (fallbackOk) return true;
-    }
     const now = new Date().toISOString();
     const tombstoneId = nativeIntegratorRecordId(appointmentId);
     recordsByIntegratorId.set(tombstoneId, {
@@ -172,8 +155,6 @@ export const inMemoryAppointmentProjectionPort: AppointmentProjectionPort = {
       deletedAt: now,
     });
     purgedPatientBookingKeys.add(`canonical:${appointmentId}`);
-    const rt = rubitimeFromMapping?.trim();
-    if (rt) purgedPatientBookingKeys.add(rt);
     return true;
   },
 

@@ -5,62 +5,17 @@
  */
 import type { ReminderProjectionPort } from "@/infra/repos/pgReminderProjection";
 import type { SupportCommunicationPort } from "@/infra/repos/pgSupportCommunication";
-import type { AppointmentProjectionPort } from "@/infra/repos/pgAppointmentProjection";
 import type { SubscriptionMailingProjectionPort } from "@/infra/repos/pgSubscriptionMailingProjection";
-import type { BranchesProjectionPort } from "@/infra/repos/pgBranches";
-import type { PatientBookingService } from "@/modules/patient-booking/ports";
-import type { RubitimeBridgePort } from "@/modules/booking-rubitime-bridge/ports";
-import { mapRubitimeStatusToPatientBookingStatus } from "@/infra/repos/pgPatientBookings";
-import { revalidatePath } from "next/cache";
-import { routePaths } from "@/app-layer/routes/paths";
 import { MergeConflictError, MergeDependentConflictError } from "@/infra/repos/platformUserMergeErrors";
 import { normalizeRuPhoneE164 } from "@/shared/phone/normalizeRuPhoneE164";
-import { normalizeEmail } from "@/modules/auth/emailAuth";
-import type { EmailSetupAccessService } from "@/modules/auth/emailSetupAccess/service";
-import { fireAndForgetContactEmailSetup } from "@/modules/auth/emailSetupAccess/enqueueContactEmailSetup";
 
 const REMINDER_RULE_UPSERTED = "reminder.rule.upserted";
 const REMINDER_OCCURRENCE_FINALIZED = "reminder.occurrence.finalized";
 const REMINDER_DELIVERY_LOGGED = "reminder.delivery.logged";
 const CONTENT_ACCESS_GRANTED = "content.access.granted";
-const APPOINTMENT_RECORD_UPSERTED = "appointment.record.upserted";
 const MAILING_TOPIC_UPSERTED = "mailing.topic.upserted";
 const USER_SUBSCRIPTION_UPSERTED = "user.subscription.upserted";
 const MAILING_LOG_SENT = "mailing.log.sent";
-
-type EmailAutobindConflictContext = {
-  phoneNormalized: string;
-  email: string;
-};
-
-type EmailAutobindSkipContext = EmailAutobindConflictContext & {
-  reason: "verified_email_unchanged" | "email_taken_by_other_user";
-  platformUserId?: string;
-};
-
-/**
- * TODO(AUDIT-BACKLOG-020): connect to admin/user notifications pipeline (legacy E-R3.2).
- * For now we keep structured warning to avoid silent conflicts.
- */
-let reportEmailAutobindConflict: (ctx: EmailAutobindConflictContext) => void = (ctx) => {
-  console.warn("[user.email.autobind:conflict]", ctx);
-};
-
-let reportEmailAutobindSkip: (ctx: EmailAutobindSkipContext) => void = (ctx) => {
-  console.warn("[user.email.autobind:skipped]", ctx);
-};
-
-export function setEmailAutobindConflictReporter(
-  fn: (ctx: EmailAutobindConflictContext) => void
-): void {
-  reportEmailAutobindConflict = fn;
-}
-
-export function setEmailAutobindSkipReporter(
-  fn: (ctx: EmailAutobindSkipContext) => void
-): void {
-  reportEmailAutobindSkip = fn;
-}
 
 export type IntegratorEventBody = {
   eventType: string;
@@ -153,32 +108,9 @@ export type IntegratorEventsDeps = {
       lastName?: string | null;
       email?: string | null;
     }) => Promise<void>;
-    /** Rubitime: ensure `platform_users` row exists for appointment phone (create / enrich / merge). */
-    ensureClientFromAppointmentProjection?: (params: {
-      phoneNormalized: string;
-      integratorUserId?: string | null;
-      displayName?: string | null;
-      firstName?: string | null;
-      lastName?: string | null;
-      email?: string | null;
-    }) => Promise<{
-      platformUserId: string;
-      contactEmailSetup?: { emailNormalized: string };
-    }>;
-    applyRubitimeEmailAutobind?: (params: {
-      phoneNormalized: string;
-      email: string;
-    }) => Promise<
-      | { outcome: "applied"; platformUserId: string }
-      | { outcome: "skipped_no_user" | "skipped_invalid_email" | "skipped_conflict" }
-      | { outcome: "skipped_verified"; platformUserId: string }
-    >;
     /** Follow `merged_into_id` so diary writes attach to canonical `platform_users.id` after merge. */
     resolveCanonicalPlatformUserId?: (platformUserId: string) => Promise<string>;
   };
-  /** PHASE_02+: enqueue setup link after contact email (Rubitime / doctor). */
-  emailSetupAccess?: Pick<EmailSetupAccessService, "requestContactEmailSetup">;
-  branches?: BranchesProjectionPort;
   preferences?: {
     upsertNotificationTopics: (params: {
       platformUserId: string;
@@ -187,26 +119,6 @@ export type IntegratorEventsDeps = {
   };
   supportCommunication?: SupportCommunicationPort;
   reminderProjection?: ReminderProjectionPort;
-  appointmentProjection?: AppointmentProjectionPort;
-  /**
-   * F1b: inbound Rubitime delete → also soft-delete the CANONICAL `be_appointments` row
-   * (legacy soft-delete via `appointmentProjection.softDeleteByIntegratorId` does not touch canonical).
-   * Best-effort + silent: no events/notifications; missing mapping is fine.
-   */
-  bookingEngineCanonicalSoftDelete?: {
-    softDeleteAppointmentByRubitimeExternalId: (input: {
-      organizationId: string;
-      rubitimeId: string;
-    }) => Promise<boolean>;
-    getDefaultOrganizationId: () => Promise<string>;
-  };
-  patientBooking?: Pick<PatientBookingService, "applyRubitimeUpdate">;
-  rubitimeCanonicalProjection?: Pick<RubitimeBridgePort, "upsertCanonicalFromRubitimeRecord"> & {
-    getDefaultOrganizationId: () => Promise<string>;
-  };
-  appointmentMirrorSync?: import("@/modules/booking-appointment-sync/ports").AppointmentMirrorSyncService & {
-    getDefaultOrganizationId: () => Promise<string>;
-  };
   subscriptionMailingProjection?: SubscriptionMailingProjectionPort;
 };
 
@@ -229,14 +141,6 @@ function coerceToFiniteInt(value: unknown): number | null {
     if (Number.isFinite(n)) return Math.trunc(n);
   }
   return null;
-}
-
-/** Bigint-safe numeric string (for ids persisted as BIGINT in DB), otherwise null. */
-function coerceToBigintString(value: unknown): string | null {
-  const s = coerceToString(value);
-  if (!s) return null;
-  const t = s.trim();
-  return /^-?\d+$/.test(t) ? t : null;
 }
 
 function isMergeDomainConflict(err: unknown): err is MergeConflictError | MergeDependentConflictError {
@@ -271,30 +175,6 @@ function withPgMeta(reason: string, err: unknown): string {
   if (code && constraint) return `${reason} [pg:${code}/${constraint}]`;
   if (code) return `${reason} [pg:${code}]`;
   return `${reason} [pg:${constraint}]`;
-}
-
-/**
- * appointment_records deterministic DB errors should not be retried forever:
- * - 23503 appointment_records_branch_id_fkey (branch mapping/data mismatch)
- * - 23514 appointment_records_status_check (unsupported status payload)
- */
-function isNonRetryableAppointmentProjectionError(err: unknown): boolean {
-  const code = readPgCode(err);
-  const constraint = readPgConstraint(err);
-  return (
-    (code === "23503" && constraint === "appointment_records_branch_id_fkey") ||
-    (code === "23514" && constraint === "appointment_records_status_check")
-  );
-}
-
-function isNonRetryableCanonicalAppointmentProjectionError(err: unknown): boolean {
-  const code = readPgCode(err);
-  const constraint = readPgConstraint(err);
-  return (
-    code === "23P01"
-    || constraint === "be_appointments_specialist_no_overlap"
-    || (code === "23514" && constraint === "be_appointments_status_check")
-  );
 }
 
 function extractIntegratorUserIdsFromPayload(payload: Record<string, unknown>): string[] {
@@ -907,305 +787,6 @@ export async function handleIntegratorEvent(
     }
   }
 
-  const ap = deps.appointmentProjection;
-  if (ap && event.eventType === APPOINTMENT_RECORD_UPSERTED) {
-    const p = event.payload ?? {};
-    const integratorRecordId = coerceToString(p.integratorRecordId);
-    const status = typeof p.status === "string" ? p.status : "";
-    if (!integratorRecordId || !status) {
-      return {
-        accepted: false,
-        reason: "appointment.record.upserted: required payload fields missing",
-        retryable: false,
-      };
-    }
-
-    // Inbound Rubitime delete/remove → silent soft-delete (NO `booking.cancelled`, NO patient/staff
-    // notification). Distinct from a Rubitime CANCEL (status 4 → `cancelled`), which is upserted below.
-    // Cascades to patient_bookings / canonical via softDeleteByIntegratorId.
-    if (status === "deleted") {
-      try {
-        await ap.softDeleteByIntegratorId(integratorRecordId);
-        // Also soft-delete the CANONICAL be_appointments row (legacy soft-delete above does not
-        // touch canonical, which drives calendar / slot-availability / KPI). Best-effort + silent:
-        // no events/notifications; if no canonical mapping exists, that's fine.
-        if (deps.bookingEngineCanonicalSoftDelete) {
-          try {
-            const organizationId =
-              await deps.bookingEngineCanonicalSoftDelete.getDefaultOrganizationId();
-            await deps.bookingEngineCanonicalSoftDelete.softDeleteAppointmentByRubitimeExternalId({
-              organizationId,
-              rubitimeId: integratorRecordId,
-            });
-          } catch (canonErr) {
-            console.warn("[integrator-events] canonical soft-delete best-effort failed", {
-              integratorRecordId,
-              error: canonErr instanceof Error ? canonErr.message : String(canonErr),
-            });
-          }
-        }
-        revalidatePath(routePaths.cabinet);
-        revalidatePath(routePaths.patient);
-        return { accepted: true, reason: "soft_deleted" };
-      } catch (err) {
-        const reason = err instanceof Error ? err.message : "unknown error";
-        return {
-          accepted: false,
-          reason: withPgMeta(`appointment.record.upserted (deleted): ${reason}`, err),
-        };
-      }
-    }
-
-    const purgedRow = await ap.getRecordByIntegratorId(integratorRecordId);
-    if (purgedRow?.deletedAt) {
-      return { accepted: true, reason: "skipped_purged" };
-    }
-    const recordAt = typeof p.recordAt === "string" ? p.recordAt : null;
-    const payloadJson =
-      typeof p.payloadJson === "object" && p.payloadJson !== null
-        ? (p.payloadJson as Record<string, unknown>)
-        : {};
-    const phoneRaw =
-      coerceToString(p.phoneNormalized) ??
-      coerceToString(payloadJson.phone) ??
-      coerceToString(payloadJson.phoneNormalized) ??
-      coerceToString(payloadJson.phone_normalized) ??
-      null;
-    const phoneNormalized = phoneRaw ? normalizeRuPhoneE164(phoneRaw.trim()) : null;
-    const lastEvent = typeof p.lastEvent === "string" ? p.lastEvent : "";
-    const updatedAt = typeof p.updatedAt === "string" ? p.updatedAt : new Date().toISOString();
-    const patientFirstName = coerceToString(p.patientFirstName) ?? null;
-    const patientLastName = coerceToString(p.patientLastName) ?? null;
-    // Rubitime may provide patronymic as patientPatronymic or patronymic (fallback from payload.name parse)
-    const patientPatronymic = coerceToString(p.patientPatronymic) ?? coerceToString(p.patronymic) ?? null;
-    const patientEmail = coerceToString(p.patientEmail) ?? null;
-    const integratorBranchId = coerceToString(p.integratorBranchId) ?? null;
-    const branchName = coerceToString(p.branchName) ?? null;
-
-    const auditPayload: Record<string, unknown> = { ...p, payloadJson };
-    try {
-      let branchId: string | null = null;
-      if (deps.branches && integratorBranchId) {
-        const { branchId: id } = await deps.branches.upsertFromProjection({
-          integratorBranchId,
-          name: branchName,
-        });
-        branchId = id;
-      }
-
-      const fullNameFromPayload =
-        typeof payloadJson.name === "string" && payloadJson.name.trim().length > 0
-          ? payloadJson.name.trim()
-          : null;
-
-      let ensuredPlatformUserId: string | null = null;
-      let appointmentMergeConflict = false;
-      if (phoneNormalized && deps.users?.ensureClientFromAppointmentProjection) {
-        const integratorUserIdTop =
-          coerceToBigintString(p.integratorUserId) ??
-          coerceToBigintString(payloadJson.integratorUserId) ??
-          coerceToBigintString(payloadJson.integrator_user_id);
-        const displayNameForEnsure =
-          fullNameFromPayload ||
-          [patientLastName, patientFirstName].filter(Boolean).join(" ").trim() ||
-          null;
-        try {
-          const ensured = await deps.users.ensureClientFromAppointmentProjection({
-            phoneNormalized,
-            integratorUserId: integratorUserIdTop,
-            displayName: displayNameForEnsure,
-            firstName: patientFirstName,
-            lastName: patientLastName,
-            email: patientEmail,
-          });
-          ensuredPlatformUserId = ensured.platformUserId;
-          if (ensured.contactEmailSetup && deps.emailSetupAccess) {
-            fireAndForgetContactEmailSetup(
-              deps.emailSetupAccess,
-              {
-                userId: ensured.platformUserId,
-                emailNormalized: ensured.contactEmailSetup.emailNormalized,
-                source: "rubitime",
-              },
-              { hook: "appointment.record.upserted" },
-            );
-          }
-        } catch (err) {
-          if (isMergeDomainConflict(err)) {
-            await logMergeClassConflict(deps, err, "appointment.record.upserted", auditPayload);
-            appointmentMergeConflict = true;
-          } else {
-            throw err;
-          }
-        }
-      }
-
-      const inboundFanout = {
-        dateTimeEnd: coerceToString(p.dateTimeEnd),
-        serviceId: coerceToString(p.serviceId),
-        rubitimeCooperatorId: coerceToString(p.rubitimeCooperatorId),
-        integratorBranchId,
-      };
-
-      if (deps.appointmentMirrorSync) {
-        const organizationId = await deps.appointmentMirrorSync.getDefaultOrganizationId();
-        const mirrorResult = await deps.appointmentMirrorSync.applyInboundFromRubitime({
-          organizationId,
-          externalId: integratorRecordId,
-          platformUserId: ensuredPlatformUserId,
-          phoneNormalized,
-          recordAt,
-          legacyStatus: status,
-          lastEvent,
-          payloadJson,
-          fanout: inboundFanout,
-        });
-        if (
-          mirrorResult.action === "skipped_echo_guard"
-          || mirrorResult.action === "stale_mapping_missing_canonical"
-        ) {
-          console.info("[integrator-events] inbound mirror skip legacy fanout", {
-            action: mirrorResult.action,
-            integratorRecordId,
-            appointmentId: mirrorResult.appointmentId,
-          });
-          revalidatePath(routePaths.cabinet);
-          revalidatePath(routePaths.patient);
-          return { accepted: true, reason: mirrorResult.action };
-        }
-        const recordProjection = mirrorResult.appointmentRecordProjection ?? {
-          integratorRecordId,
-          phoneNormalized,
-          recordAt,
-          status,
-          payloadJson,
-          lastEvent,
-          updatedAt,
-          branchId,
-        };
-        await ap.upsertRecordFromProjection({
-          ...recordProjection,
-          branchId: branchId ?? recordProjection.branchId ?? null,
-        });
-      } else {
-        await ap.upsertRecordFromProjection({
-          integratorRecordId,
-          phoneNormalized,
-          recordAt,
-          status,
-          payloadJson,
-          lastEvent,
-          updatedAt,
-          branchId,
-        });
-        if (deps.rubitimeCanonicalProjection) {
-          const organizationId = await deps.rubitimeCanonicalProjection.getDefaultOrganizationId();
-          await deps.rubitimeCanonicalProjection.upsertCanonicalFromRubitimeRecord({
-            organizationId,
-            externalId: integratorRecordId,
-            platformUserId: ensuredPlatformUserId,
-            phoneNormalized,
-            recordAt,
-            legacyStatus: status,
-            lastEvent,
-            payloadJson,
-          });
-        }
-      }
-
-      const rubitimeId = integratorRecordId;
-      // Extract enriched fields for compat-sync create path (Stage 11).
-      // Top-level fields from projection payload take precedence over payloadJson fallbacks.
-      const payloadServiceTitle =
-        coerceToString(p.serviceName) ??
-        coerceToString(payloadJson.service_name) ??
-        coerceToString(payloadJson.service_title);
-      const payloadSlotEnd =
-        coerceToString(p.dateTimeEnd) ??
-        coerceToString(payloadJson.datetime_end) ??
-        coerceToString(payloadJson.date_time_end);
-      const payloadPhone = phoneNormalized;
-      const payloadContactName =
-        coerceToString(p.patientFirstName) ??
-        coerceToString(payloadJson.name) ??
-        ([coerceToString(p.patientLastName), coerceToString(p.patientFirstName)].filter(Boolean).join(" ") || null);
-
-      // Resolve userId for compat-create linking (best-effort). Skip ambiguous fallbacks after merge-class conflict.
-      let resolvedUserId: string | null = appointmentMergeConflict ? null : ensuredPlatformUserId;
-      if (!appointmentMergeConflict && !resolvedUserId && deps.users && payloadPhone) {
-        try {
-          const foundByPhone = await deps.users.findByPhone?.(payloadPhone);
-          resolvedUserId = foundByPhone?.platformUserId ?? null;
-        } catch {
-          // best-effort
-        }
-      }
-      if (!appointmentMergeConflict && !resolvedUserId && deps.users) {
-        const integratorUserId =
-          coerceToBigintString(p.integratorUserId) ??
-          coerceToBigintString(payloadJson.integratorUserId) ??
-          coerceToBigintString(payloadJson.integrator_user_id);
-        if (integratorUserId) {
-          try {
-            const foundByIntegratorId = await deps.users.findByIntegratorId(integratorUserId);
-            resolvedUserId = foundByIntegratorId?.platformUserId ?? null;
-          } catch {
-            // best-effort
-          }
-        }
-      }
-
-      const rubitimeCooperatorId =
-        coerceToString(p.rubitimeCooperatorId) ??
-        coerceToString(payloadJson.cooperator_id) ??
-        (payloadJson.cooperator_id != null ? String(payloadJson.cooperator_id) : null) ??
-        coerceToString(payloadJson.specialist_id) ??
-        (payloadJson.specialist_id != null ? String(payloadJson.specialist_id) : null);
-
-      const rubitimeManageUrl =
-        coerceToString(p.rubitimeManageUrl) ??
-        coerceToString(payloadJson.url) ??
-        coerceToString(payloadJson.link) ??
-        coerceToString(payloadJson.record_url);
-
-      await deps.patientBooking?.applyRubitimeUpdate({
-        rubitimeId,
-        status: mapRubitimeStatusToPatientBookingStatus(status, {
-          legacyEventStatus: status,
-          payloadJson,
-        }),
-        slotStart: recordAt ?? null,
-        slotEnd: payloadSlotEnd,
-        userId: resolvedUserId,
-        contactPhone: payloadPhone ?? "",
-        contactName: payloadContactName,
-        branchTitle: branchName,
-        serviceTitle: payloadServiceTitle,
-        rubitimeBranchId: integratorBranchId,
-        rubitimeServiceId: coerceToString(p.serviceId) ?? coerceToString(payloadJson.service_id),
-        rubitimeCooperatorId,
-        rubitimeManageUrl,
-      });
-      revalidatePath(routePaths.cabinet);
-      revalidatePath(routePaths.patient);
-      return { accepted: true };
-    } catch (err) {
-      const deferred = await acceptAfterMergeConflict(deps, err, "appointment.record.upserted", auditPayload);
-      if (deferred) return deferred;
-      const reason = err instanceof Error ? err.message : "unknown error";
-      return {
-        accepted: false,
-        reason: withPgMeta(`appointment.record.upserted: ${reason}`, err),
-        retryable:
-          isNonRetryableProjectionUpsertError(err)
-          || isNonRetryableAppointmentProjectionError(err)
-          || isNonRetryableCanonicalAppointmentProjectionError(err)
-            ? false
-            : true,
-      };
-    }
-  }
-
   // --- Stage 11: subscription/mailing projection ingest ---
   const smp = deps.subscriptionMailingProjection;
 
@@ -1259,47 +840,6 @@ export async function handleIntegratorEvent(
     }
   }
 
-  if (event.eventType === "user.email.autobind") {
-    const payload = event.payload ?? {};
-    const phoneNormalized =
-      typeof payload.phoneNormalized === "string" ? payload.phoneNormalized.trim() : "";
-    const email = typeof payload.email === "string" ? payload.email.trim() : "";
-    if (!phoneNormalized || !email) {
-      return { accepted: false, reason: "user.email.autobind: phoneNormalized and email required" };
-    }
-    if (!deps.users?.applyRubitimeEmailAutobind) {
-      return { accepted: false, reason: "user.email.autobind: applyRubitimeEmailAutobind not configured" };
-    }
-    const result = await deps.users.applyRubitimeEmailAutobind({ phoneNormalized, email });
-    if (result.outcome === "skipped_conflict") {
-      reportEmailAutobindSkip({
-        phoneNormalized,
-        email,
-        reason: "email_taken_by_other_user",
-      });
-      reportEmailAutobindConflict({ phoneNormalized, email });
-    }
-    if (result.outcome === "skipped_verified") {
-      reportEmailAutobindSkip({
-        phoneNormalized,
-        email,
-        reason: "verified_email_unchanged",
-        platformUserId: result.platformUserId,
-      });
-    }
-    if (result.outcome === "applied" && deps.emailSetupAccess) {
-      fireAndForgetContactEmailSetup(
-        deps.emailSetupAccess,
-        {
-          userId: result.platformUserId,
-          emailNormalized: normalizeEmail(email),
-          source: "rubitime",
-        },
-        { hook: "user.email.autobind" },
-      );
-    }
-    return { accepted: true };
-  }
 
   if (smp && event.eventType === MAILING_LOG_SENT) {
     const p = event.payload ?? {};

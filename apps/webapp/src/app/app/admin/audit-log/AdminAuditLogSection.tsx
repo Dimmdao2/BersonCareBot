@@ -79,7 +79,7 @@ function actionTierLabel(action: string): string {
   ]);
   if (tier1.has(action)) return "Высокий риск";
   if (tier2.has(action)) return "Конфигурация";
-  if (action.startsWith("catalog_") || action.startsWith("rubitime_mapping_")) return "Каталог";
+  if (action.startsWith("catalog_")) return "Каталог";
   if (
     action.startsWith("user_") ||
     action === "intake_status_change" ||

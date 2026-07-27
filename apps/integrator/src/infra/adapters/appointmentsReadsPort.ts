@@ -26,7 +26,7 @@ type WebappRecord = {
 };
 
 type WebappRecordListItem = {
-  rubitimeRecordId?: string;
+  externalRecordId?: string;
   recordAt?: string | null;
   status?: string;
   link?: string | null;
@@ -107,7 +107,7 @@ export function createAppointmentsReadsPort(deps: { db: DbPort }): AppointmentsR
       if (!result.ok || !result.data?.records) return [];
       const rows = Array.isArray(result.data.records) ? result.data.records : [];
       return rows.map((row) => ({
-        rubitimeRecordId: typeof row.rubitimeRecordId === 'string' ? row.rubitimeRecordId : '',
+        externalRecordId: typeof row.externalRecordId === 'string' ? row.externalRecordId : '',
         recordAt: typeof row.recordAt === 'string' ? row.recordAt : (row.recordAt == null ? null : String(row.recordAt)),
         status: typeof row.status === 'string' ? row.status : 'updated',
         link: typeof row.link === 'string' ? row.link : null,

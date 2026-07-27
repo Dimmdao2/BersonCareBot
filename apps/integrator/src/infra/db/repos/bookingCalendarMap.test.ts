@@ -5,8 +5,7 @@ import { drizzleSqlFragmentToApproximateSql } from '../drizzleSqlDebugText.js';
 import { runIntegratorSql } from '../runIntegratorSql.js';
 import {
   deleteBookingCalendarMap,
-  deleteBookingCalendarMapRowOnly,
-  getGoogleEventIdByRubitimeRecordId,
+  getGoogleEventIdByAppointmentKey,
   upsertBookingCalendarMap,
 } from './bookingCalendarMap.js';
 
@@ -30,23 +29,23 @@ describe('bookingCalendarMap (Drizzle + public.patient_bookings sync)', () => {
     const select = vi.fn().mockReturnValue({ from });
     vi.mocked(getIntegratorDrizzleSession).mockReturnValue({ select } as never);
 
-    const id = await getGoogleEventIdByRubitimeRecordId({} as DbPort, 'rub-1');
+    const id = await getGoogleEventIdByAppointmentKey({} as DbPort, 'be:appt-1');
     expect(id).toBe('gcal-99');
     expect(select).toHaveBeenCalledTimes(1);
   });
 
-  it("returns null when rubitime record has no calendar map row", async () => {
+  it("returns null when an appointment has no calendar map row", async () => {
     const limit = vi.fn().mockResolvedValue([]);
     const where = vi.fn().mockReturnValue({ limit });
     const from = vi.fn().mockReturnValue({ where });
     const select = vi.fn().mockReturnValue({ from });
     vi.mocked(getIntegratorDrizzleSession).mockReturnValue({ select } as never);
 
-    const id = await getGoogleEventIdByRubitimeRecordId({} as DbPort, 'missing');
+    const id = await getGoogleEventIdByAppointmentKey({} as DbPort, 'missing');
     expect(id).toBeNull();
   });
 
-  it('upsertBookingCalendarMap writes map then updates public.patient_bookings by rubitime_id', async () => {
+  it('upsertBookingCalendarMap writes map then updates the canonical patient booking', async () => {
     const onConflictDoUpdate = vi.fn().mockResolvedValue(undefined);
     const values = vi.fn().mockReturnValue({ onConflictDoUpdate });
     const insert = vi.fn().mockReturnValue({ values });
@@ -56,11 +55,11 @@ describe('bookingCalendarMap (Drizzle + public.patient_bookings sync)', () => {
     } as never);
 
     const db = {} as DbPort;
-    await upsertBookingCalendarMap(db, { rubitimeRecordId: 'r-1', gcalEventId: 'g-1' });
+    await upsertBookingCalendarMap(db, { appointmentKey: 'be:appt-1', gcalEventId: 'g-1' });
 
     expect(insert).toHaveBeenCalledTimes(1);
     expect(values).toHaveBeenCalledWith({
-      rubitimeRecordId: 'r-1',
+      appointmentKey: 'be:appt-1',
       gcalEventId: 'g-1',
     });
     expect(runIntegratorSql).toHaveBeenCalledTimes(1);
@@ -68,7 +67,7 @@ describe('bookingCalendarMap (Drizzle + public.patient_bookings sync)', () => {
     const flat = drizzleSqlFragmentToApproximateSql(frag);
     expect(flat).toContain('public.patient_bookings');
     expect(flat).toContain('gcal_event_id');
-    expect(flat).toContain('rubitime_id');
+    expect(flat).toContain('canonical_appointment_id');
   });
 
   it('deleteBookingCalendarMap clears map and nulls patient_bookings.gcal_event_id', async () => {
@@ -80,7 +79,7 @@ describe('bookingCalendarMap (Drizzle + public.patient_bookings sync)', () => {
     } as never);
 
     const db = {} as DbPort;
-    await deleteBookingCalendarMap(db, 'r-del');
+    await deleteBookingCalendarMap(db, 'be:appt-del');
 
     expect(del).toHaveBeenCalledTimes(1);
     expect(runIntegratorSql).toHaveBeenCalledTimes(1);
@@ -90,17 +89,4 @@ describe('bookingCalendarMap (Drizzle + public.patient_bookings sync)', () => {
     expect(flat).toMatch(/gcal_event_id\s*=\s*NULL/i);
   });
 
-  it('removes stale map key without touching patient_bookings', async () => {
-    const where = vi.fn().mockResolvedValue(undefined);
-    const del = vi.fn().mockReturnValue({ where });
-    vi.mocked(getIntegratorDrizzleSession).mockReturnValue({
-      delete: del,
-      execute: vi.fn(),
-    } as never);
-
-    await deleteBookingCalendarMapRowOnly({} as DbPort, 'r-old');
-
-    expect(del).toHaveBeenCalledTimes(1);
-    expect(runIntegratorSql).not.toHaveBeenCalled();
-  });
 });

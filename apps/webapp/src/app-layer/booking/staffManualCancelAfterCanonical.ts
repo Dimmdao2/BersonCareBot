@@ -75,7 +75,6 @@ export async function runStaffManualCancelAfterCanonical(input: {
       syncPort,
       bookingRow,
       lifecycleNotificationSettings,
-      branches: input.deps.branches,
       suppressPatientNotification: input.notifyPatient === false,
     });
   } catch {

@@ -11,7 +11,7 @@ describe("runContactEmailSetupEnqueue", () => {
     const requestContactEmailSetup = vi.fn().mockResolvedValue({ ok: true, status: "enqueued" });
     await runContactEmailSetupEnqueue(
       { requestContactEmailSetup },
-      { userId: "u1", emailNormalized: "a@b.com", source: "rubitime" },
+      { userId: "u1", emailNormalized: "a@b.com", source: "doctor_profile" },
       { hook: "test" },
     );
     expect(console.warn).not.toHaveBeenCalled();

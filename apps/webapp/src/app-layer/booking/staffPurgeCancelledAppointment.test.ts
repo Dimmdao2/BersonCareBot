@@ -148,7 +148,7 @@ describe("staffPurgeCancelledAppointment", () => {
       lastEvent: "native.cancelled",
       updatedAt: new Date().toISOString(),
     });
-    await inMemoryAppointmentProjectionPort.softDeleteByCanonicalAppointmentId(APPT_ID, null);
+    await inMemoryAppointmentProjectionPort.softDeleteByCanonicalAppointmentId(APPT_ID);
 
     const result = await staffPurgeCancelledAppointment({
       deps: deps(),

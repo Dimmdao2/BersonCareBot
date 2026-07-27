@@ -9,8 +9,6 @@ import {
 import {
   appointmentRecords,
   contentAccessGrants,
-  rubitimeEvents,
-  rubitimeRecords,
   userReminderDeliveryLogs,
   userReminderOccurrences,
   userReminderRules,
@@ -31,7 +29,5 @@ export const integratorDrizzleSchema = {
   userReminderOccurrences,
   userReminderDeliveryLogs,
   contentAccessGrants,
-  rubitimeRecords,
-  rubitimeEvents,
   appointmentRecords,
 } as const;

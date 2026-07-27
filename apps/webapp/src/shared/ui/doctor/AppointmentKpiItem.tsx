@@ -19,7 +19,7 @@ export type AppointmentKpiItemData = {
   statusLabel: string | null;
   /** Branch / location name. */
   branchName: string | null;
-  /** Secondary name note (e.g. «Имя в Rubitime: …»). */
+  /** Optional secondary name note. */
   altNameNote: string | null;
   /** Whether this appointment is cancelled. Controls destructive styling. */
   cancelled: boolean;

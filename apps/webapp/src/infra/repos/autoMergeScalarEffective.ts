@@ -54,7 +54,7 @@ type PuDupNames = AutoMergeNameSideInput & {
   patronymic?: string | null;
 };
 
-/** Rubitime / phone-owner row wins for full display string when only one side holds the phone. */
+/** The phone-owner row wins for the full display string when only one side holds the phone. */
 export function effectiveAutoMergedDisplayName(pu: PuDupNames, dup: PuDupNames): string {
   const pp = normPhone(pu.phone_normalized);
   const pd = normPhone(dup.phone_normalized);

@@ -261,7 +261,6 @@ export function fromMax(body: MaxUpdateValidated, botToken?: string): IncomingUp
     let action: string;
     let linkSecret: string | undefined;
     let authSecret: string | undefined;
-    let recordId: string | undefined;
     let phoneFromStart: string | undefined;
     if (trimmedStart.startsWith('/start')) {
       const dictAction = getActionFromText(text);
@@ -269,7 +268,6 @@ export function fromMax(body: MaxUpdateValidated, botToken?: string): IncomingUp
       action = p.action;
       if (p.linkSecret !== undefined) linkSecret = p.linkSecret;
       if (p.authSecret !== undefined) authSecret = p.authSecret;
-      if (p.recordId !== undefined) recordId = p.recordId;
       if (p.phone !== undefined) phoneFromStart = p.phone;
     } else {
       action = getActionFromText(text);
@@ -285,7 +283,6 @@ export function fromMax(body: MaxUpdateValidated, botToken?: string): IncomingUp
       action,
       ...(linkSecret !== undefined ? { linkSecret } : {}),
       ...(authSecret !== undefined ? { authSecret } : {}),
-      ...(recordId !== undefined ? { recordId } : {}),
       ...(phoneOut ? { phone: phoneOut } : {}),
       ...(replyToMid ? { replyToMessageId: replyToMid } : {}),
       ...(getRelayMessageTypeFromMaxMessage(msg) ? { relayMessageType: getRelayMessageTypeFromMaxMessage(msg) as SupportRelayMessageType } : {}),
@@ -323,7 +320,6 @@ export function fromMax(body: MaxUpdateValidated, botToken?: string): IncomingUp
       action: p.action,
       ...(p.linkSecret !== undefined ? { linkSecret: p.linkSecret } : {}),
       ...(p.authSecret !== undefined ? { authSecret: p.authSecret } : {}),
-      ...(p.recordId !== undefined ? { recordId: p.recordId } : {}),
       ...(p.phone !== undefined ? { phone: p.phone } : {}),
       ...(typeof (msg?.sender?.username ?? body.user?.username) === 'string' ? { channelUsername: (msg?.sender?.username ?? body.user?.username) as string } : {}),
       ...(typeof (msg?.sender?.first_name ?? body.user?.first_name) === 'string' ? { channelFirstName: (msg?.sender?.first_name ?? body.user?.first_name) as string } : {}),

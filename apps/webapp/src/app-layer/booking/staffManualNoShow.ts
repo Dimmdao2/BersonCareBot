@@ -42,7 +42,6 @@ export async function runStaffManualNoShowAfterCanonical(input: {
       syncPort,
       bookingRow,
       lifecycleNotificationSettings,
-      branches: input.deps.branches,
       suppressPatientNotification: input.notifyPatient === false,
     });
   } catch {

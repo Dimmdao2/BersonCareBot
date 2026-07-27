@@ -23,7 +23,6 @@ function makeAppointment(overrides: Partial<AppointmentRow> = {}): AppointmentRo
     cancellationCountForClient: 0,
     branchName: "Клиника",
     scheduleProvenancePrefix: undefined,
-    rubitimeNameIfDifferent: null,
     packageUsageRef: null,
     packageTitle: null,
     packageDisplayNumber: null,

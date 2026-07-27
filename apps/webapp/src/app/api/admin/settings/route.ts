@@ -102,9 +102,6 @@ const ADMIN_SCOPE_KEYS = [
   "video_watermark_enabled",
   "patient_booking_url",
   "booking_default_organization_id",
-  "booking_rubitime_bridge_enabled",
-  "booking_doctor_appointments_read_source",
-  "booking_slots_read_source",
   "booking_calendar_show_working_hours",
   "booking_min_notice_hours",
   "booking_payment_enabled",
@@ -464,24 +461,6 @@ export async function PATCH(request: Request) {
     const inner = normalizedValue.value;
     const raw = typeof inner === "string" ? inner.trim().toLowerCase() : "";
     if (raw !== "mp4" && raw !== "hls" && raw !== "auto") {
-      return NextResponse.json({ ok: false, error: "invalid_value" }, { status: 400 });
-    }
-    normalizedValue = { value: raw };
-  }
-
-  if (parsed.data.key === "booking_doctor_appointments_read_source") {
-    const inner = normalizedValue.value;
-    const raw = typeof inner === "string" ? inner.trim() : "";
-    if (raw !== "canonical") {
-      return NextResponse.json({ ok: false, error: "invalid_value" }, { status: 400 });
-    }
-    normalizedValue = { value: raw };
-  }
-
-  if (parsed.data.key === "booking_slots_read_source") {
-    const inner = normalizedValue.value;
-    const raw = typeof inner === "string" ? inner.trim() : "";
-    if (raw !== "canonical") {
       return NextResponse.json({ ok: false, error: "invalid_value" }, { status: 400 });
     }
     normalizedValue = { value: raw };

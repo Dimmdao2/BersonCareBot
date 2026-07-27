@@ -3,7 +3,7 @@
   "admin.menu": "📊 Панель администратора",
   "admin.menu.hint": "Используйте кнопку меню (☰) для выбора раздела.",
   "admin.stats.bookings": "📅 Активных записей: {{activeBookings}}",
-  "admin.stats.users": "👥 Пользователи по интеграциям\n\nTelegram: {{telegramTotal}} всего, {{telegramWithPhone}} с телефоном\nRubiTime: {{rubitimeTotal}} всего",
+  "admin.stats.users": "👥 Пользователи по интеграциям\n\nTelegram: {{telegramTotal}} всего, {{telegramWithPhone}} с телефоном",
   "admin.reply.prompt": "Напишите ответ пользователю следующим сообщением.",
   "admin.reply.hintUnmatched": "Чтобы ответить пациенту, нажмите «Ответить» под его сообщением. Команды: /dialogs, /admin_bookings, /admin_users, /unanswered, /show_my_id",
   "admin.reply.sent": "Сообщение отправлено.",

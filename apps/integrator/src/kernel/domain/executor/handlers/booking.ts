@@ -7,12 +7,6 @@ export async function handleBooking(
   ctx: DomainContext,
   deps: ExecutorDeps,
 ): Promise<ActionResult> {
-  if (action.type === 'booking.upsert') {
-    const writes = [{ type: 'booking.upsert' as const, params: action.params }];
-    await persistWrites(deps.writePort, writes);
-    return { actionId: action.id, status: 'success', writes };
-  }
-
   if (action.type === 'booking.event.insert') {
     const writes = [{
       type: 'event.log' as const,

@@ -120,7 +120,6 @@ function mapListRow(row: ListRow): AppointmentRow {
     id: row.id,
     clientUserId: row.platformUserId ?? "",
     clientLabel,
-    rubitimeNameIfDifferent: null,
     time: "",
     recordAtIso: row.startAt,
     dateKey: "",

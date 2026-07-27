@@ -107,7 +107,7 @@ export type BeAppointment = {
   durationMinutes: number;
   chainId?: string | null;
   chainPosition?: number | null;
-  source: "native" | "rubitime_projection" | "admin_manual" | "public_widget";
+  source: "native" | "admin_manual" | "public_widget";
   status: AppointmentStatus;
   originalStartAt: string | null;
   rescheduleCount: number;
@@ -203,12 +203,4 @@ export type TransitionAppointmentStatusInput = {
   toStatus: AppointmentStatus;
   actorId?: string | null;
   payload?: Record<string, unknown>;
-};
-
-export type BridgeProjectionStats = {
-  projectedAppointments: number;
-  updatedAppointments: number;
-  skippedExisting: number;
-  /** Mapping восстановлен для уже существующей `rubitime_projection` без дубля insert. */
-  recoveredMappings: number;
 };

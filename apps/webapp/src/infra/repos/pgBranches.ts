@@ -1,5 +1,5 @@
 /**
- * Branches projection (Rubitime branch_id). Wave 3 phase 13C — `runWebappPgText`.
+ * Branches projection. Wave 3 phase 13C — `runWebappPgText`.
  */
 
 import { runWebappPgText } from "@/infra/db/runWebappSql";

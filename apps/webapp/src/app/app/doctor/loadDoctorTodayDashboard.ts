@@ -130,8 +130,6 @@ export type TodayAppointmentItem = {
   /** UTC ISO-момент записи (`record_at`); используется для точного позиционирования в FullCalendar. */
   recordAtIso: string | null;
   clientLabel: string;
-  /** Имя из Rubitime при расхождении с профилем; иначе `null`. */
-  rubitimeNameIfDifferent: string | null;
   clientUserId: string | null;
   type: string;
   status: string;
@@ -224,7 +222,6 @@ export function mapAppointmentToTodayItem(row: AppointmentRow): TodayAppointment
     time: row.time,
     recordAtIso: row.recordAtIso,
     clientLabel: row.clientLabel,
-    rubitimeNameIfDifferent: row.rubitimeNameIfDifferent,
     clientUserId: hasClient ? uid : null,
     type: row.type,
     status: row.status,

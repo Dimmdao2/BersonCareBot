@@ -21,13 +21,6 @@ export type AppSettings = {
       pollIntervalMs: number;
     };
   };
-  rubitime: {
-    createRecordDelivery: {
-      firstAttemptDelaySeconds: number;
-      retryDelaySeconds: number;
-      maxAttemptsBeforeSms: number;
-    };
-  };
 };
 
 const DEFAULT_ALLOWED_USER_TO_ADMIN: SupportRelayMessageType[] = ['text', 'photo', 'document'];
@@ -55,13 +48,6 @@ export const appSettings: AppSettings = {
     },
     scheduler: {
       pollIntervalMs: 5000,
-    },
-  },
-  rubitime: {
-    createRecordDelivery: {
-      firstAttemptDelaySeconds: 60,
-      retryDelaySeconds: 60,
-      maxAttemptsBeforeSms: 2,
     },
   },
 };

@@ -117,7 +117,6 @@ describe("POST manual-reschedule", () => {
 
   it("reschedules canonically despite legacy bridge enablement and a failing Rubitime port", async () => {
     getBookingByCanonicalAppointmentMock.mockResolvedValue({
-      rubitimeId: "rt-1",
     });
     updateRecordMock.mockRejectedValue(new Error("slot_already_taken"));
     staffRescheduleMock.mockResolvedValue({
@@ -165,7 +164,6 @@ describe("POST manual-reschedule", () => {
 
   it("returns canonical slot_overlap without any Rubitime rollback", async () => {
     getBookingByCanonicalAppointmentMock.mockResolvedValue({
-      rubitimeId: "rt-1",
     });
     staffRescheduleMock.mockImplementation(async () => {
       expect(principalState.inside).toBe(true);

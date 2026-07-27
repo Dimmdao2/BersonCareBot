@@ -43,62 +43,6 @@ export type AppointmentProjectionPort = {
   }): Promise<void>;
 };
 
-/** Legacy branch id for compatibility projection (not `be_branches.id`). */
-export type LegacyBranchProjectionPort = {
-  upsertFromProjection(params: {
-    integratorBranchId: number | string;
-    name?: string | null;
-  }): Promise<{ branchId: string }>;
-};
-
-/**
- * Payload to integrator `/rubitime/slots`.
- * v1: online only. v2: explicit Rubitime IDs + slot duration to expand `times[]`.
- */
-export type BookingSlotsIntegratorQuery =
-  | {
-      version?: undefined;
-      type: "online";
-      category: BookingCategory;
-      city?: string;
-      date?: string;
-    }
-  | {
-      version: "v2";
-      rubitimeBranchId: string;
-      rubitimeCooperatorId: string;
-      rubitimeServiceId: string;
-      slotDurationMinutes: number;
-      /** IANA zone for Rubitime wall-clock times[] (from booking catalog branch). */
-      branchTimezone: string;
-      date?: string;
-    };
-
-export type CreateBookingSyncInput =
-  | {
-      version?: undefined;
-      type: BookingType;
-      city?: string;
-      category: BookingCategory;
-      slotStart: string;
-      slotEnd: string;
-      contactName: string;
-      contactFio?: BookingContactFioInput;
-      contactPhone: string;
-      contactEmail?: string;
-    }
-  | {
-      version: "v2";
-      rubitimeBranchId: string;
-      rubitimeCooperatorId: string;
-      rubitimeServiceId: string;
-      slotStart: string;
-      contactName: string;
-      contactPhone: string;
-      contactEmail?: string;
-      localBookingId: string;
-    };
-
 /** Flat row written by `createPending` (service maps from API + catalog). */
 export type CreatePendingPatientBookingInput = {
   userId: string;
@@ -118,25 +62,9 @@ export type CreatePendingPatientBookingInput = {
   serviceTitleSnapshot: string | null;
   durationMinutesSnapshot: number | null;
   priceMinorSnapshot: number | null;
-  rubitimeBranchIdSnapshot: string | null;
-  rubitimeCooperatorIdSnapshot: string | null;
-  rubitimeServiceIdSnapshot: string | null;
 };
 
 export type BookingSyncPort = {
-  fetchSlots(query: BookingSlotsIntegratorQuery): Promise<BookingSlotsByDate[]>;
-  createRecord(input: CreateBookingSyncInput): Promise<{ rubitimeId: string | null; raw: Record<string, unknown> }>;
-  /** Отмена в Rubitime (status canceled), не удаление записи. */
-  cancelRecord(rubitimeId: string): Promise<void>;
-  /** Удаление записи в Rubitime (освобождение слота / откат create). */
-  deleteRecord(rubitimeId: string): Promise<void>;
-  updateRecord?(input: {
-    rubitimeId: string;
-    slotStart: string;
-    slotEnd?: string;
-    /** Normalized Rubitime API2 fields (record, datetime_end, branch_id, …). */
-    rubitimePatch?: Record<string, unknown>;
-  }): Promise<void>;
   emitBookingEvent(input: {
     eventType:
       | "booking.created"
@@ -152,7 +80,6 @@ export type BookingSyncPort = {
       organizationId?: string;
       bookingId: string;
       userId: string;
-      rubitimeId?: string | null;
       bookingType: BookingType;
       city?: string;
       category: BookingCategory;
@@ -175,17 +102,14 @@ export type PatientBookingsPort = {
   createPending(input: CreatePendingPatientBookingInput): Promise<PatientBookingRecord>;
   markConfirmed(
     bookingId: string,
-    rubitimeId: string | null,
-    options?: { rubitimeManageUrl?: string | null; canonicalAppointmentId?: string | null },
+    options?: { canonicalAppointmentId?: string | null },
   ): Promise<PatientBookingRecord | null>;
   markAwaitingPayment(
     bookingId: string,
     canonicalAppointmentId: string,
-    options?: { rubitimeId?: string | null; rubitimeManageUrl?: string | null },
   ): Promise<PatientBookingRecord | null>;
   markConfirmedByCanonicalAppointment(
     canonicalAppointmentId: string,
-    rubitimeId?: string | null,
   ): Promise<PatientBookingRecord | null>;
   markFailedSync(bookingId: string): Promise<void>;
   markCancelling(bookingId: string): Promise<PatientBookingRecord | null>;
@@ -195,25 +119,6 @@ export type PatientBookingsPort = {
     status?: PatientBookingStatus;
   }): Promise<PatientBookingRecord | null>;
   getByIdForUser(bookingId: string, userId: string): Promise<PatientBookingRecord | null>;
-  getByRubitimeId(rubitimeId: string): Promise<PatientBookingRecord | null>;
-  upsertFromRubitime(input: {
-    rubitimeId: string;
-    status: PatientBookingStatus;
-    slotStart?: string | null;
-    slotEnd?: string | null;
-    /** Enriched fields from Rubitime webhook payload for compat-sync create path. */
-    userId?: string | null;
-    contactPhone?: string | null;
-    contactName?: string | null;
-    branchTitle?: string | null;
-    serviceTitle?: string | null;
-    rubitimeBranchId?: string | null;
-    rubitimeServiceId?: string | null;
-    /** Disambiguates `booking_branch_services` when multiple specialists share branch+service. */
-    rubitimeCooperatorId?: string | null;
-    /** Exact Rubitime HTTPS URL for the record (webhook / projection). */
-    rubitimeManageUrl?: string | null;
-  }): Promise<void>;
   getById(bookingId: string): Promise<PatientBookingRecord | null>;
   getByCanonicalAppointmentId(canonicalAppointmentId: string): Promise<PatientBookingRecord | null>;
   listUpcomingByUser(userId: string, nowIso: string): Promise<PatientBookingRecord[]>;
@@ -259,12 +164,10 @@ export type PatientBookingService = {
     canonicalAppointmentId: string;
     reason?: string;
   }): Promise<void>;
-  getByRubitimeId(rubitimeId: string): Promise<PatientBookingRecord | null>;
   cancelBooking(input: CancelPatientBookingInput): Promise<
     | {
         ok: true;
         lateCancellation?: boolean;
-        rubitimeMirrorFailed?: boolean;
         notificationOutcomeFailed?: boolean;
         paymentOutcomeFailed?: boolean;
         membershipOutcomeFailed?: boolean;
@@ -295,7 +198,6 @@ export type PatientBookingService = {
     | {
         ok: true;
         booking: PatientBookingRecord;
-        rubitimeMirrorFailed?: boolean;
         notificationOutcomeFailed?: boolean;
         paymentOutcomeFailed?: boolean;
       }
@@ -321,19 +223,4 @@ export type PatientBookingService = {
     upcoming: PatientBookingRecord[];
     history: PatientBookingRecord[];
   }>;
-  applyRubitimeUpdate(input: {
-    rubitimeId: string;
-    status: PatientBookingStatus;
-    slotStart?: string | null;
-    slotEnd?: string | null;
-    userId?: string | null;
-    contactPhone?: string | null;
-    contactName?: string | null;
-    branchTitle?: string | null;
-    serviceTitle?: string | null;
-    rubitimeBranchId?: string | null;
-    rubitimeServiceId?: string | null;
-    rubitimeCooperatorId?: string | null;
-    rubitimeManageUrl?: string | null;
-  }): Promise<void>;
 };

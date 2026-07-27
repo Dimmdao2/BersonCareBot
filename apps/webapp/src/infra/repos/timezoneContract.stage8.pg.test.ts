@@ -92,9 +92,6 @@ describe("Stage 8 timezone contract (webapp PG repos)", () => {
       serviceTitleSnapshot: null,
       durationMinutesSnapshot: null,
       priceMinorSnapshot: null,
-      rubitimeBranchIdSnapshot: null,
-      rubitimeCooperatorIdSnapshot: null,
-      rubitimeServiceIdSnapshot: null,
     });
     expect(queryMock).toHaveBeenCalledTimes(4);
     const params = queryMock.mock.calls[3][1] as unknown[];

@@ -4,7 +4,6 @@ const BookingLifecyclePayloadSchema = z.object({
   organizationId: z.string().uuid().optional(),
   bookingId: z.string().uuid(),
   userId: z.string().min(1),
-  rubitimeId: z.string().nullable().optional(),
   bookingType: z.enum(['in_person', 'online']),
   city: z.string().nullable().optional(),
   category: z.enum(['rehab_lfk', 'nutrition', 'general']),

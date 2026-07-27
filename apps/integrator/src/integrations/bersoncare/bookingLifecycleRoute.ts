@@ -435,8 +435,6 @@ async function trySyncCanonicalBookingToGoogleCalendar(
   dispatchPort: DispatchPort,
 ): Promise<void> {
   const appointmentId = payload.canonicalAppointmentId;
-  const rubitimeRecordId = asNonEmptyString(payload.rubitimeId);
-
   if (eventType === 'booking.deleted') {
     if (appointmentId) {
       try {
@@ -444,7 +442,6 @@ async function trySyncCanonicalBookingToGoogleCalendar(
           {
             action: 'canceled',
             appointmentId,
-            rubitimeRecordId,
             startAt: payload.slotStart,
             endAt: payload.slotEnd,
             clientName: payload.contactName,
@@ -458,8 +455,6 @@ async function trySyncCanonicalBookingToGoogleCalendar(
       }
       return;
     }
-    if (!rubitimeRecordId) return;
-    logger.warn({ rubitimeRecordId, eventType }, 'skip GCal delete without canonical appointment id');
     return;
   }
 
@@ -484,7 +479,6 @@ async function trySyncCanonicalBookingToGoogleCalendar(
       {
         action,
         appointmentId,
-        rubitimeRecordId,
         startAt: payload.slotStart,
         endAt: payload.slotEnd,
         clientName: payload.contactName,
@@ -666,7 +660,7 @@ async function handleBookingLifecycleEvent(
 export async function handleBookingEventRequest(
   request: FastifyRequest,
   reply: FastifyReply,
-  routeLabel: 'booking lifecycle-event' | 'rubitime booking-event',
+  routeLabel: 'booking lifecycle-event',
   guard: SignedRequestGuard,
   dispatchPort: DispatchPort,
   deps: Pick<BookingLifecycleRouteDeps, 'idempotencyPort' | 'webappEventsPort'>,

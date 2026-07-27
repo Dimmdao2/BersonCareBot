@@ -152,10 +152,9 @@ async function handleDeliveryInner(
       }
     }
 
-    const source = asString(ctx.event.meta.source);
     const incoming = asRecord((ctx.event.payload as { incoming?: unknown })?.incoming);
     const phone = asString(incoming?.phone) ?? asString(asRecord(resolvedParams.recipient).phoneNormalized);
-    if (source === 'rubitime' && deps.deliveryTargetsPort && phone) {
+    if (deps.deliveryTargetsPort && phone) {
       const fetched = await deps.deliveryTargetsPort.getTargetsByPhone(phone);
       const targets = channelBindingsToTargets(fetched?.channelBindings);
       if (targets.length > 0) {

@@ -288,7 +288,6 @@ export async function registerMaxWebhookRoutes(
             {
               maxStart: {
                 action: incoming.action ?? '',
-                recordIdPresent: typeof incoming.recordId === 'string' && incoming.recordId.length > 0,
                 linkSecretPresent: typeof incoming.linkSecret === 'string' && incoming.linkSecret.length > 0,
                 phoneFromDeepLink: incoming.action === 'start.setphone' && typeof incoming.phone === 'string',
               },

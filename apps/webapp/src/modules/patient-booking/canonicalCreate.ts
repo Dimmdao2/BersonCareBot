@@ -22,12 +22,9 @@ import type {
   BookingSyncPort,
   PatientBookingsPort,
   CreatePendingPatientBookingInput,
-  LegacyBranchProjectionPort,
 } from "./ports";
 import type { CreatePatientBookingInput, PatientBookingRecord } from "./types";
-import type { BookingSlotsReadSource } from "./slotsReadSource";
 import { projectCanonicalAppointmentForDoctor } from "./projectCanonicalAppointment";
-import { resolveLegacyBranchIdForProjection } from "./resolveLegacyBranchIdForProjection";
 import {
   resolveBookingNotifyTargets,
   type BookingLifecycleNotificationsSettings,
@@ -64,10 +61,7 @@ export type CanonicalBookingDeps = {
   clientHistory: ClientHistoryService | null;
   platformUserContacts?: PlatformUserContactsService | null;
   getPlatformUserIdentityContacts?: (userId: string) => Promise<IdentityContactFields | null>;
-  isRubitimeBridgeEnabled: () => Promise<boolean>;
-  resolveSlotsReadSource?: () => Promise<BookingSlotsReadSource>;
   getBookingLifecycleNotificationSettings?: () => Promise<BookingLifecycleNotificationsSettings | null>;
-  branches?: LegacyBranchProjectionPort | null;
 };
 
 function toPendingRowOnline(
@@ -91,9 +85,6 @@ function toPendingRowOnline(
     serviceTitleSnapshot: null,
     durationMinutesSnapshot: 60,
     priceMinorSnapshot: null,
-    rubitimeBranchIdSnapshot: null,
-    rubitimeCooperatorIdSnapshot: null,
-    rubitimeServiceIdSnapshot: null,
   };
 }
 
@@ -126,9 +117,6 @@ function toPendingRowInPerson(
     serviceTitleSnapshot: service.title,
     durationMinutesSnapshot: context.durationMinutes,
     priceMinorSnapshot: service.priceMinor,
-    rubitimeBranchIdSnapshot: null,
-    rubitimeCooperatorIdSnapshot: null,
-    rubitimeServiceIdSnapshot: null,
   };
 }
 
@@ -331,9 +319,6 @@ export async function createBookingOnCanonicalEngine(
   const initialAppointmentStatus = needsPrepayment ? "awaiting_payment" : "confirmed";
 
   const phoneNormalized = normalizeRuPhoneE164(createInput.contactPhone) ?? createInput.contactPhone.trim();
-  const rubitimeId: string | null = null;
-  const rubitimeManageUrl: string | null = null;
-
   const chainId = slotCount > 1 ? randomUUID() : null;
   const appointmentSource: CreateAppointmentInput["source"] =
     createInput.bookingChannel === "public_widget" ? "public_widget" : "native";
@@ -410,10 +395,7 @@ export async function createBookingOnCanonicalEngine(
     try {
       awaitingRows = await Promise.all(
         pendingRows.map((row, index) =>
-          deps.bookingsPort.markAwaitingPayment(row.id, appointments[index]!.id, {
-            rubitimeId,
-            rubitimeManageUrl,
-          }),
+          deps.bookingsPort.markAwaitingPayment(row.id, appointments[index]!.id),
         ),
       );
     } catch {
@@ -477,8 +459,7 @@ export async function createBookingOnCanonicalEngine(
   try {
     confirmedRows = await Promise.all(
       pendingRows.map((row, index) =>
-        deps.bookingsPort.markConfirmed(row.id, rubitimeId, {
-          rubitimeManageUrl,
+        deps.bookingsPort.markConfirmed(row.id, {
           canonicalAppointmentId: appointments[index]!.id,
         }),
       ),
@@ -493,14 +474,8 @@ export async function createBookingOnCanonicalEngine(
     throw new Error("booking_confirm_failed");
   }
 
-  // Rubitime post-create projection already fills the compatibility projection; skip native `be:` row.
-  if (deps.appointmentProjection && !rubitimeId) {
+  if (deps.appointmentProjection) {
     try {
-      const legacyBranchId = await resolveLegacyBranchIdForProjection(
-        deps.branches,
-        pendingRow.rubitimeBranchIdSnapshot,
-        pendingRow.branchTitleSnapshot,
-      );
       await Promise.all(
         appointments.map((item, index) =>
           projectCanonicalAppointmentForDoctor(deps.appointmentProjection!, item, {
@@ -508,7 +483,7 @@ export async function createBookingOnCanonicalEngine(
             contactName: createInput.contactName,
             serviceTitle: pendingRows[index]!.serviceTitleSnapshot,
             branchTitle: pendingRows[index]!.branchTitleSnapshot,
-            legacyBranchId,
+            legacyBranchId: null,
           }),
         ),
       );
@@ -552,7 +527,6 @@ export async function createBookingOnCanonicalEngine(
               organizationId: item.organizationId,
               bookingId: row.id,
               userId: createInput.userId,
-              rubitimeId,
               bookingType: row.bookingType,
               city: row.city ?? undefined,
               category: row.category,

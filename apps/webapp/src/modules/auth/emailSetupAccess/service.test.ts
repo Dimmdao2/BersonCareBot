@@ -25,7 +25,7 @@ describe("emailSetupAccess service", () => {
     await svc.requestContactEmailSetup({
       userId: "u1",
       emailNormalized: "  User@Example.COM ",
-      source: "rubitime",
+      source: "doctor_profile",
     });
     expect(port.requestContactEmailSetup).toHaveBeenCalledWith({
       userId: "u1",

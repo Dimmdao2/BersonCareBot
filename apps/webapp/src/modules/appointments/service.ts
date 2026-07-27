@@ -1,6 +1,6 @@
 /**
  * Предстоящие записи пациента. Сейчас — расширенный мок с разными статусами для UI кабинета.
- * TODO(AUDIT-BACKLOG-021): заменить на мост Rubitime / integrator при готовности API.
+ * TODO(AUDIT-BACKLOG-021): заменить на канонический integrator API.
  */
 
 export type AppointmentRecordStatus = "created" | "confirmed" | "rescheduled" | "cancelled";

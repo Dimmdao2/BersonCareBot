@@ -1466,7 +1466,6 @@ export const bookingBranches = pgTable("booking_branches", {
 	cityId: uuid("city_id").notNull(),
 	title: text().notNull(),
 	address: text(),
-	rubitimeBranchId: text("rubitime_branch_id").notNull(),
 	isActive: boolean("is_active").default(true).notNull(),
 	sortOrder: integer("sort_order").default(0).notNull(),
 	createdAt: timestamp("created_at", { withTimezone: true, mode: 'string' }).defaultNow().notNull(),
@@ -1475,7 +1474,6 @@ export const bookingBranches = pgTable("booking_branches", {
 }, (table) => [
 	index("idx_booking_branches_city_id").using("btree", table.cityId.asc().nullsLast().op("uuid_ops")),
 	index("idx_booking_branches_is_active").using("btree", table.isActive.asc().nullsLast().op("bool_ops")),
-	uniqueIndex("idx_booking_branches_rubitime_id").using("btree", table.rubitimeBranchId.asc().nullsLast().op("text_ops")),
 	foreignKey({
 			columns: [table.cityId],
 			foreignColumns: [bookingCities.id],
@@ -1594,7 +1592,6 @@ export const bookingSpecialists = pgTable("booking_specialists", {
 	branchId: uuid("branch_id").notNull(),
 	fullName: text("full_name").notNull(),
 	description: text(),
-	rubitimeCooperatorId: text("rubitime_cooperator_id").notNull(),
 	isActive: boolean("is_active").default(true).notNull(),
 	sortOrder: integer("sort_order").default(0).notNull(),
 	createdAt: timestamp("created_at", { withTimezone: true, mode: 'string' }).defaultNow().notNull(),
@@ -1602,7 +1599,6 @@ export const bookingSpecialists = pgTable("booking_specialists", {
 }, (table) => [
 	index("idx_booking_specialists_branch_id").using("btree", table.branchId.asc().nullsLast().op("uuid_ops")),
 	index("idx_booking_specialists_is_active").using("btree", table.isActive.asc().nullsLast().op("bool_ops")),
-	uniqueIndex("idx_booking_specialists_rubitime_id").using("btree", table.rubitimeCooperatorId.asc().nullsLast().op("text_ops"), table.branchId.asc().nullsLast().op("uuid_ops")),
 	foreignKey({
 			columns: [table.branchId],
 			foreignColumns: [bookingBranches.id],
@@ -1615,7 +1611,6 @@ export const bookingBranchServices = pgTable("booking_branch_services", {
 	branchId: uuid("branch_id").notNull(),
 	serviceId: uuid("service_id").notNull(),
 	specialistId: uuid("specialist_id").notNull(),
-	rubitimeServiceId: text("rubitime_service_id").notNull(),
 	isActive: boolean("is_active").default(true).notNull(),
 	sortOrder: integer("sort_order").default(0).notNull(),
 	createdAt: timestamp("created_at", { withTimezone: true, mode: 'string' }).defaultNow().notNull(),
@@ -1694,7 +1689,6 @@ export const patientBookings = pgTable("patient_bookings", {
 	status: text().notNull(),
 	cancelledAt: timestamp("cancelled_at", { withTimezone: true, mode: 'string' }),
 	cancelReason: text("cancel_reason"),
-	rubitimeId: text("rubitime_id"),
 	gcalEventId: text("gcal_event_id"),
 	contactPhone: text("contact_phone").notNull(),
 	contactEmail: text("contact_email"),
@@ -1711,22 +1705,14 @@ export const patientBookings = pgTable("patient_bookings", {
 	serviceTitleSnapshot: text("service_title_snapshot"),
 	durationMinutesSnapshot: integer("duration_minutes_snapshot"),
 	priceMinorSnapshot: integer("price_minor_snapshot"),
-	rubitimeBranchIdSnapshot: text("rubitime_branch_id_snapshot"),
-	rubitimeCooperatorIdSnapshot: text("rubitime_cooperator_id_snapshot"),
-	rubitimeServiceIdSnapshot: text("rubitime_service_id_snapshot"),
-	source: text().default('native').notNull(),
-	compatQuality: text("compat_quality"),
 	provenanceCreatedBy: text("provenance_created_by"),
 	provenanceUpdatedBy: text("provenance_updated_by"),
-	rubitimeManageUrl: text("rubitime_manage_url"),
 	canonicalAppointmentId: uuid("canonical_appointment_id"),
 }, (table) => [
 	index("idx_patient_bookings_branch_id").using("btree", table.branchId.asc().nullsLast().op("uuid_ops")),
 	index("idx_patient_bookings_branch_service_id").using("btree", table.branchServiceId.asc().nullsLast().op("uuid_ops")),
-	index("idx_patient_bookings_rubitime_id").using("btree", table.rubitimeId.asc().nullsLast().op("text_ops")),
 	index("idx_patient_bookings_service_id").using("btree", table.serviceId.asc().nullsLast().op("uuid_ops")),
 	index("idx_patient_bookings_slot_start").using("btree", table.slotStart.asc().nullsLast().op("timestamptz_ops")),
-	index("idx_patient_bookings_source").using("btree", table.source.asc().nullsLast().op("text_ops")),
 	index("idx_patient_bookings_status").using("btree", table.status.asc().nullsLast().op("text_ops")),
 	index("idx_patient_bookings_user_id").using("btree", table.platformUserId.asc().nullsLast().op("uuid_ops")),
 	foreignKey({
@@ -1749,13 +1735,9 @@ export const patientBookings = pgTable("patient_bookings", {
 			foreignColumns: [bookingServices.id],
 			name: "patient_bookings_service_id_fkey"
 		}),
-	unique("patient_bookings_rubitime_id_key").on(table.rubitimeId),
 	check("patient_bookings_booking_type_check", sql`booking_type = ANY (ARRAY['in_person'::text, 'online'::text])`),
 	check("patient_bookings_category_check", sql`category = ANY (ARRAY['rehab_lfk'::text, 'nutrition'::text, 'general'::text])`),
 	check("patient_bookings_check", sql`slot_end > slot_start`),
-	check("patient_bookings_compat_quality_check", sql`compat_quality = ANY (ARRAY['full'::text, 'partial'::text, 'minimal'::text])`),
-	check("patient_bookings_platform_user_native_required", sql`(source <> 'native'::text) OR (platform_user_id IS NOT NULL)`),
-	check("patient_bookings_source_check", sql`source = ANY (ARRAY['native'::text, 'rubitime_projection'::text])`),
 	check("patient_bookings_status_check", sql`status = ANY (ARRAY['creating'::text, 'awaiting_payment'::text, 'confirmed'::text, 'cancelling'::text, 'cancel_failed'::text, 'cancelled'::text, 'rescheduled'::text, 'completed'::text, 'no_show'::text, 'failed_sync'::text])`),
 ]);
 
@@ -2446,17 +2428,6 @@ export const messageRetryJobs = pgTable("message_retry_jobs", {
 	payloadJson: jsonb("payload_json"),
 }, (table) => [
 	index("idx_message_retry_jobs_due").using("btree", table.status.asc().nullsLast().op("text_ops"), table.nextTryAt.asc().nullsLast().op("text_ops")),
-]);
-
-export const bookingCalendarMap = pgTable("booking_calendar_map", {
-	id: bigserial({ mode: "bigint" }).primaryKey().notNull(),
-	rubitimeRecordId: text("rubitime_record_id").notNull(),
-	gcalEventId: text("gcal_event_id").notNull(),
-	createdAt: timestamp("created_at", { withTimezone: true, mode: 'string' }).defaultNow().notNull(),
-	updatedAt: timestamp("updated_at", { withTimezone: true, mode: 'string' }).defaultNow().notNull(),
-}, (table) => [
-	index("idx_booking_calendar_map_gcal_event_id").using("btree", table.gcalEventId.asc().nullsLast().op("text_ops")),
-	unique("booking_calendar_map_rubitime_record_id_key").on(table.rubitimeRecordId),
 ]);
 
 export const integrationDataQualityIncidents = pgTable("integration_data_quality_incidents", {

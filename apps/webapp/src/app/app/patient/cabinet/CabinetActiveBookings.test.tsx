@@ -21,7 +21,6 @@ function makeBooking(over: Partial<PatientBookingRecord> = {}): PatientBookingRe
     status: "confirmed",
     cancelledAt: null,
     cancelReason: null,
-    rubitimeId: "123",
     gcalEventId: null,
     contactPhone: "+79990001122",
     contactEmail: null,
@@ -38,14 +37,8 @@ function makeBooking(over: Partial<PatientBookingRecord> = {}): PatientBookingRe
     serviceTitleSnapshot: "Услуга",
     durationMinutesSnapshot: 60,
     priceMinorSnapshot: 0,
-    rubitimeBranchIdSnapshot: "10",
-    rubitimeCooperatorIdSnapshot: "20",
-    rubitimeServiceIdSnapshot: "30",
-    rubitimeManageUrl: null,
     canonicalAppointmentId: null,
     canonicalInPersonContext: null,
-    bookingSource: "native",
-    compatQuality: null,
     provenanceCreatedBy: null,
     provenanceUpdatedBy: null,
     ...over,
@@ -63,7 +56,6 @@ describe("CabinetActiveBookings", () => {
             canonicalAppointmentId: "00000000-0000-4000-8000-0000000000a1",
             branchId: "00000000-0000-4000-8000-0000000000d1",
             serviceId: "00000000-0000-4000-8000-0000000000e1",
-            rubitimeManageUrl: "https://rubitime.ru/record/123",
             canonicalInPersonContext: {
               branchId: canonicalBranchId,
               serviceId: canonicalServiceId,
@@ -101,8 +93,6 @@ describe("CabinetActiveBookings", () => {
           makeBooking({
             id: "00000000-0000-4000-8000-0000000000f1",
             canonicalAppointmentId: "00000000-0000-4000-8000-0000000000a2",
-            bookingSource: "rubitime_projection",
-            rubitimeManageUrl: "https://rubitime.ru/record/123",
             canonicalInPersonContext: {
               branchId: "00000000-0000-4000-8000-0000000000b2",
               serviceId: "00000000-0000-4000-8000-0000000000c2",
@@ -124,15 +114,14 @@ describe("CabinetActiveBookings", () => {
     expect(screen.queryByRole("button", { name: "Изменить" })).not.toBeInTheDocument();
   });
 
-  it("fails closed for legacy-only and incomplete canonical rows even if Rubitime exposed a manage URL", () => {
+  it("fails closed for legacy-only and incomplete canonical rows", () => {
     render(
       <CabinetActiveBookings
         bookings={[
-          makeBooking({ rubitimeManageUrl: "https://rubitime.ru/record/legacy" }),
+          makeBooking(),
           makeBooking({
             id: "00000000-0000-4000-8000-0000000000f2",
             canonicalAppointmentId: "00000000-0000-4000-8000-0000000000a3",
-            rubitimeManageUrl: "https://rubitime.ru/record/incomplete",
             canonicalInPersonContext: null,
           }),
         ]}
@@ -144,14 +133,13 @@ describe("CabinetActiveBookings", () => {
     expect(screen.queryByRole("button", { name: "Изменить" })).not.toBeInTheDocument();
   });
 
-  it("keeps canonical online navigation while never exposing Rubitime manage", () => {
+  it("keeps canonical online navigation", () => {
     render(
       <CabinetActiveBookings
         bookings={[
           makeBooking({
             bookingType: "online",
             canonicalAppointmentId: "00000000-0000-4000-8000-0000000000a4",
-            rubitimeManageUrl: "https://rubitime.ru/record/online",
           }),
         ]}
         appDisplayTimeZone="Europe/Moscow"

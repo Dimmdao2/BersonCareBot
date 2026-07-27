@@ -71,10 +71,9 @@ const DEFAULT_WINDOW_MAX = DEFAULT_CALENDAR_WINDOW_MAX; // 1140 мин = 19:00
 // R34: понятные подписи ошибок переноса для диалога подтверждения.
 function rescheduleErrorLabel(error: string | undefined): string {
   if (!error) return "Не удалось перенести запись.";
-  if (error === "external_slot_taken") return "Время уже занято во внешней записи (Rubitime).";
+  if (error === "external_slot_taken") return "Время уже занято.";
   if (error === "slot_overlap") return "Слот уже занят другой записью этого специалиста.";
   if (error === "not_found") return "Запись не найдена.";
-  if (error === "rubitime_sync_failed") return "Сбой синхронизации с Rubitime.";
   if (error.startsWith("load_failed")) return "Не удалось сохранить перенос. Попробуйте ещё раз.";
   return error;
 }

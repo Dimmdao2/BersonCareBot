@@ -65,7 +65,7 @@ export async function resolveCanonicalUserIdFromIdentityId(db: DbPort, identityI
 const APPOINTMENT_PAYLOAD_USER_ID_KEYS = ['integratorUserId', 'integrator_user_id'] as const;
 
 /**
- * Replaces numeric integrator user id fields in a plain object (e.g. Rubitime `payloadJson` clone)
+ * Replaces numeric integrator user id fields in a plain event payload clone
  * with canonical `users.id` strings. Unknown / non-numeric values are left unchanged.
  */
 export async function canonicalizeIntegratorUserIdKeysInObject(

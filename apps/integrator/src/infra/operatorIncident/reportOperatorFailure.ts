@@ -55,7 +55,6 @@ function buildRecipientDigest(channel: 'telegram' | 'max', recipientId: string):
 /** Probe fails: incident only; critical push follows the configured streak gate in the webapp tick. */
 const PROBE_ERROR_CLASSES_NO_IMMEDIATE_CRITICAL = new Set([
   'max_probe_failed',
-  'rubitime_get_schedule_failed',
   'telegram_probe_failed',
   'google_calendar_probe_failed',
 ]);

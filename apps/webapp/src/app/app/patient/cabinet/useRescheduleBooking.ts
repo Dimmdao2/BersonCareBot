@@ -3,14 +3,10 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { routePaths } from "@/app-layer/routes/paths";
-import type { PatientBookingPartialOutcome } from "@/modules/patient-booking/types";
-import {
-  parsePatientBookingPartialOutcome,
-} from "@/shared/booking/bookingPartialOutcomeToast";
 import { redirectIfPatientActivationRequired } from "./bookingPatientActivation";
 
 export type RescheduleBookingResult =
-  | { ok: true; partial?: PatientBookingPartialOutcome }
+  | { ok: true }
   | { ok: false };
 
 const ERROR_RU: Record<string, string> = {
@@ -62,7 +58,7 @@ export function useRescheduleBooking() {
         setError(mapRescheduleErrorCodeToRu(json.error));
         return { ok: false };
       }
-      return { ok: true, partial: parsePatientBookingPartialOutcome(json) };
+      return { ok: true };
     } catch {
       setError("Ошибка сети при переносе");
       return { ok: false };

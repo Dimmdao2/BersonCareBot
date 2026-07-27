@@ -26,15 +26,8 @@ import { apiJson } from "@/shared/lib/apiJson";
 
 const BASE = "/api/admin/booking-engine";
 
-type DoctorAppointmentsReadSource = "canonical";
-type BookingSlotsReadSource = "canonical";
-
 type Overview = {
   organizationId: string;
-  bridgeEnabled: boolean;
-  doctorAppointmentsReadSource: DoctorAppointmentsReadSource;
-  bookingSlotsReadSource: BookingSlotsReadSource;
-  calendarReadSource: DoctorAppointmentsReadSource;
   organization: { id: string; title: string } | null;
   branches: { id: string; title: string; cityCode: string; isActive: boolean }[];
   rooms: { id: string; branchId: string; title: string; isActive: boolean }[];
@@ -56,21 +49,13 @@ type Overview = {
   }[];
   locationAvailability: { id: string; serviceId: string; branchId: string }[];
   specialistRooms: { id: string; specialistId: string; roomId: string; isActive: boolean }[];
-  mapping: {
-    branches: number;
-    specialists: number;
-    services: number;
-    availabilities: number;
-    appointments: number;
-  };
 };
 
-export type BookingEngineSectionMode = "catalog" | "availability" | "integrations";
+export type BookingEngineSectionMode = "catalog" | "availability";
 
 const MODE_TITLES: Record<BookingEngineSectionMode, string> = {
   catalog: "Каталог записи",
   availability: "Доступность",
-  integrations: "Режим и интеграция",
 };
 
 export function BookingEngineSection({ mode = "catalog" }: { mode?: BookingEngineSectionMode }) {
@@ -107,11 +92,7 @@ export function BookingEngineSection({ mode = "catalog" }: { mode?: BookingEngin
     setUnavailable(false);
     try {
       const res = await apiJson<{ ok: boolean; error?: string } & Partial<Overview>>(`${BASE}/overview`);
-      setData({
-        ...(res as Overview),
-        doctorAppointmentsReadSource: "canonical",
-        bookingSlotsReadSource: "canonical",
-      });
+      setData(res as Overview);
       setOrgTitle(res.organization?.title ?? "");
       if (res.branches?.[0]) {
         setRoomBranchId((prev) => prev || res.branches![0]!.id);
@@ -180,63 +161,6 @@ export function BookingEngineSection({ mode = "catalog" }: { mode?: BookingEngin
 
         {data && (
           <>
-            {mode === "integrations" ? (
-            <div className="space-y-3">
-              <p className="text-sm text-muted-foreground">
-                Rubitime legacy-настройки заморожены для retirement и остаются внутренним техническим контуром до полного перехода записи на канон.
-              </p>
-              <div className="flex flex-wrap items-end gap-4">
-              <div className="flex flex-col gap-1">
-                <Label>Список записей врача</Label>
-                <Input className="w-[10rem]" value="Канон" readOnly disabled={isPending} />
-              </div>
-              <div className="flex flex-col gap-1">
-                <Label>Свободные слоты пациента</Label>
-                <Input className="w-[10rem]" value="Канон" readOnly disabled={isPending} />
-              </div>
-              <p className="text-sm text-muted-foreground">
-                Календарь сейчас:{" "}
-                {data.calendarReadSource === "canonical" ? "Канон" : "Rubitime"}
-              </p>
-              <div className="flex items-center gap-2">
-                <Switch
-                  checked={data.bridgeEnabled}
-                  disabled={isPending}
-                  onCheckedChange={(enabled) =>
-                    run(async () => {
-                      const res = await apiJson<{ ok: boolean }>(`${BASE}/bridge`, {
-                        method: "PATCH",
-                        headers: { "Content-Type": "application/json" },
-                        body: JSON.stringify({ enabled }),
-                      });
-                      if (!res.ok) throw new Error("bridge_toggle_failed");
-                    })
-                  }
-                />
-                <span className="text-sm">Rubitime-мост (legacy/internal)</span>
-              </div>
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                disabled={isPending || !data.bridgeEnabled}
-                onClick={() =>
-                  run(async () => {
-                    await apiJson<{ ok: boolean }>(`${BASE}/bridge`, { method: "POST" });
-                  })
-                }
-              >
-                Проецировать записи
-              </Button>
-              <span className="text-sm text-muted-foreground">
-                маппинг: филиалы {data.mapping.branches}, специалисты {data.mapping.specialists}, услуги{" "}
-                {data.mapping.services}, доступность {data.mapping.availabilities}, записи{" "}
-                {data.mapping.appointments}
-              </span>
-              </div>
-            </div>
-            ) : null}
-
             {mode === "catalog" ? (
             <div className={BOOKING_CARD_GRID_CLASS}>
               <div className="space-y-2">

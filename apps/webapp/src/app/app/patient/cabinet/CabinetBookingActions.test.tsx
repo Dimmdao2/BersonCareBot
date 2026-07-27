@@ -40,7 +40,6 @@ function sampleRow(overrides: Partial<PatientBookingRecord> = {}): PatientBookin
     status: "confirmed",
     cancelledAt: null,
     cancelReason: null,
-    rubitimeId: "r1",
     gcalEventId: null,
     contactPhone: "+79001234567",
     contactEmail: null,
@@ -57,13 +56,7 @@ function sampleRow(overrides: Partial<PatientBookingRecord> = {}): PatientBookin
     serviceTitleSnapshot: null,
     durationMinutesSnapshot: 60,
     priceMinorSnapshot: null,
-    rubitimeBranchIdSnapshot: null,
-    rubitimeCooperatorIdSnapshot: null,
-    rubitimeServiceIdSnapshot: null,
-    rubitimeManageUrl: null,
     canonicalAppointmentId: "00000000-0000-4000-8000-0000000000a1",
-    bookingSource: "native",
-    compatQuality: null,
     provenanceCreatedBy: null,
     provenanceUpdatedBy: null,
     ...overrides,
@@ -144,7 +137,6 @@ describe("CabinetBookingActions", () => {
   it("allows a linked historical row only through its proven canonical context", () => {
     const row = sampleRow({
       bookingType: "in_person",
-      bookingSource: "rubitime_projection",
       canonicalInPersonContext: {
         branchId: "00000000-0000-4000-8000-0000000000b2",
         serviceId: "00000000-0000-4000-8000-0000000000c2",

@@ -374,8 +374,8 @@ export async function deleteIntegratorPhoneData(
       await clearMessengerAttributedPhonesForBindings(client, messengerBindings);
     }
 
-    // R7 (rubitime retirement): the two raw Rubitime provider-history tables formerly purged here
-    // are dropped from the schema (see docs/_TODO/SAAS_FOUNDATION/RUBITIME_RETIREMENT_R7_TABLE_DISPOSITION.md).
+    // R7 retirement: the two raw provider-history tables formerly purged here
+    // are already dropped from the schema.
     // Purging them is moot once the tables no longer exist -- the data is gone with the table itself.
 
     await runPurgeClientPgText(

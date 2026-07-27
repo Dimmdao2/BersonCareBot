@@ -50,7 +50,7 @@ export type ExecutorDeps = {
   executeAction?: (action: Action, ctx: DomainContext, deps: ExecutorDeps) => Promise<ActionResult>;
   /** Optional: emit signed events to webapp (e.g. diary.symptom.*). */
   webappEventsPort?: WebappEventsPort;
-  /** Optional: resolve delivery targets by phone/channel for multi-channel fan-out (e.g. Rubitime/booking). */
+  /** Optional: resolve delivery targets by phone/channel for multi-channel booking fan-out. */
   deliveryTargetsPort?: DeliveryTargetsPort;
   /** Optional: webapp journal + occurrence_history for reminder snooze/skip from bot callbacks. */
   remindersWebappWritesPort?: RemindersWebappWritesPort;

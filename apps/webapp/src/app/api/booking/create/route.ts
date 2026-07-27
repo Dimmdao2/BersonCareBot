@@ -85,8 +85,6 @@ const BOOKING_CREATE_ERROR_RULES = {
   product_purchase_not_found: { status: 409, code: "product_purchase_not_found" },
   product_service_mismatch: { status: 409, code: "product_service_mismatch" },
   required_field_missing: { status: 400, code: "required_field_missing" },
-  rubitime_branch_not_found: { status: 422, code: "rubitime_branch_not_found" },
-  rubitime_projection_not_ready: { status: 503, code: "rubitime_projection_not_ready" },
   slot_already_taken: { status: 409, code: "slot_already_taken" },
   slot_overlap: { status: 409, code: "slot_overlap" },
 } as const satisfies ApiErrorLiteralRules;

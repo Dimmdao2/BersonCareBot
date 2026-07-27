@@ -59,8 +59,6 @@ const baseEvent: CalendarAppointmentEvent = {
   patientName: "Иванов Иван",
   patientPhone: null,
   bookingStatus: null,
-  rubitimeId: null,
-  rubitimeManageUrl: null,
   paymentStatus: null,
   prepaymentPending: false,
   packageUsageRef: null,
@@ -110,8 +108,6 @@ describe("DoctorCalendarEventPanel patient heading", () => {
           branchTitle: "Филиал на Невском",
           serviceTitle: "Реабилитация",
           specialistName: "Петров Пётр",
-          rubitimeId: "legacy-42",
-          rubitimeManageUrl: "https://legacy.example.test/manage/42",
         }}
         filterMeta={{
           specialists: [

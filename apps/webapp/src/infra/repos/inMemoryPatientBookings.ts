@@ -1,9 +1,10 @@
 import { randomUUID } from "node:crypto";
-import type { PatientBookingsPort, CreatePendingPatientBookingInput } from "@/modules/patient-booking/ports";
-import { computeCompatSyncQuality } from "@/modules/patient-booking/compatSyncQuality";
-import type { PatientBookingRecord, PatientBookingStatus } from "@/modules/patient-booking/types";
+import type {
+  CreatePendingPatientBookingInput,
+  PatientBookingsPort,
+} from "@/modules/patient-booking/ports";
+import type { PatientBookingRecord } from "@/modules/patient-booking/types";
 import { intervalsOverlap } from "@/modules/patient-booking/slotOverlap";
-import { normalizeRuPhoneE164 } from "@/shared/phone/normalizeRuPhoneE164";
 
 const byId = new Map<string, PatientBookingRecord>();
 
@@ -21,38 +22,18 @@ const BLOCKING_STATUSES = [
   "cancel_failed",
 ] as const;
 
-/** Matches pgPatientBookings `upsertFromRubitime` fallback filter. */
-const FALLBACK_NATIVE_STATUSES: readonly PatientBookingStatus[] = ["creating", "confirmed", "failed_sync"];
-
-function isFallbackNativeStatus(status: PatientBookingStatus): boolean {
-  return (FALLBACK_NATIVE_STATUSES as readonly string[]).includes(status);
+function isAbandonedCreating(row: PatientBookingRecord): boolean {
+  return row.status === "creating" && row.canonicalAppointmentId == null;
 }
 
-function slotMatchesRowAndInput(rowSlot: string, inputSlot: string): boolean {
-  if (rowSlot === inputSlot) return true;
-  const a = Date.parse(rowSlot);
-  const b = Date.parse(inputSlot);
-  if (Number.isNaN(a) || Number.isNaN(b)) return false;
-  return a === b;
-}
-
-function isAbandonedNativeCreating(row: PatientBookingRecord): boolean {
-  return (
-    row.status === "creating" &&
-    row.bookingSource === "native" &&
-    row.rubitimeId == null &&
-    row.canonicalAppointmentId == null
-  );
-}
-
-function reconcileAbandonedNativeCreating(input: {
+function reconcileAbandonedCreating(input: {
   userId: string;
   slotStart: string;
   slotEnd: string;
 }): void {
   const cutoff = Date.now() - 15 * 60_000;
   for (const [id, row] of byId) {
-    if (!isAbandonedNativeCreating(row)) continue;
+    if (!isAbandonedCreating(row)) continue;
     const sameUserRetry =
       row.userId === input.userId &&
       intervalsOverlap(input.slotStart, input.slotEnd, row.slotStart, row.slotEnd);
@@ -63,85 +44,30 @@ function reconcileAbandonedNativeCreating(input: {
   }
 }
 
-function hasGlobalSlotOverlap(input: {
+function hasUserSlotOverlap(input: {
   slotStart: string;
   slotEnd: string;
   userId: string | null;
-  rubitimeCooperatorIdSnapshot: string | null;
   excludeBookingId?: string;
 }): boolean {
-  const cooperatorId = input.rubitimeCooperatorIdSnapshot?.trim() || null;
   for (const row of byId.values()) {
     if (input.excludeBookingId !== undefined && row.id === input.excludeBookingId) continue;
     if (!BLOCKING_STATUSES.includes(row.status as (typeof BLOCKING_STATUSES)[number])) continue;
-    if (isAbandonedNativeCreating(row)) continue;
-    if (cooperatorId != null) {
-      if (row.rubitimeCooperatorIdSnapshot !== cooperatorId) continue;
-    } else if (row.userId !== input.userId) {
-      continue;
-    }
+    if (isAbandonedCreating(row)) continue;
+    if (row.userId !== input.userId) continue;
     if (intervalsOverlap(input.slotStart, input.slotEnd, row.slotStart, row.slotEnd)) return true;
   }
   return false;
 }
 
-function applyUpsertFromRubitimeToRow(id: string, row: PatientBookingRecord, input: Parameters<PatientBookingsPort["upsertFromRubitime"]>[0]): void {
-  const slotStartIso = input.slotStart ?? row.slotStart;
-  const explicitSlotEnd = input.slotEnd != null && String(input.slotEnd).trim() !== "";
-  const slotEnd =
-    explicitSlotEnd
-      ? (input.slotEnd as string)
-      : new Date(new Date(slotStartIso).getTime() + 60 * 60_000).toISOString();
-  const rb = input.rubitimeBranchId?.trim() || null;
-  const rs = input.rubitimeServiceId?.trim() || null;
-  const compatQuality = computeCompatSyncQuality({
-    branchServiceId: null,
-    cityCodeSnapshot: null,
-    serviceTitleSnapshot: input.serviceTitle ?? row.serviceTitleSnapshot,
-    branchTitleSnapshot: input.branchTitle ?? row.branchTitleSnapshot,
-    rubitimeBranchId: rb,
-    rubitimeServiceId: rs,
-    slotEndExplicitFromWebhook: explicitSlotEnd,
-    slotEndFromCatalogDuration: false,
-  });
-  const cancelledAt =
-    input.status === "cancelled"
-      ? new Date().toISOString()
-      : input.status === "rescheduled"
-        ? null
-        : row.cancelledAt;
-  byId.set(id, {
-    ...row,
-    status: input.status,
-    slotStart: row.bookingSource === "rubitime_projection" ? slotStartIso : row.slotStart,
-    slotEnd: row.bookingSource === "rubitime_projection" ? slotEnd : row.slotEnd,
-    branchTitleSnapshot: input.branchTitle ?? row.branchTitleSnapshot,
-    serviceTitleSnapshot: input.serviceTitle ?? row.serviceTitleSnapshot,
-    rubitimeBranchIdSnapshot: input.rubitimeBranchId ?? row.rubitimeBranchIdSnapshot,
-    rubitimeServiceIdSnapshot: input.rubitimeServiceId ?? row.rubitimeServiceIdSnapshot,
-    rubitimeCooperatorIdSnapshot: input.rubitimeCooperatorId ?? row.rubitimeCooperatorIdSnapshot,
-    rubitimeManageUrl: input.rubitimeManageUrl?.trim() || row.rubitimeManageUrl,
-    compatQuality: row.bookingSource === "rubitime_projection" ? compatQuality : row.compatQuality,
-    provenanceUpdatedBy:
-      row.bookingSource === "rubitime_projection" ? "rubitime_external" : row.provenanceUpdatedBy,
-    cancelledAt,
-    updatedAt: new Date().toISOString(),
-  });
-}
-
 export const inMemoryPatientBookingsPort: PatientBookingsPort = {
   async createPending(input: CreatePendingPatientBookingInput) {
-    reconcileAbandonedNativeCreating({
-      userId: input.userId,
-      slotStart: input.slotStart,
-      slotEnd: input.slotEnd,
-    });
+    reconcileAbandonedCreating(input);
     if (
-      hasGlobalSlotOverlap({
+      hasUserSlotOverlap({
         slotStart: input.slotStart,
         slotEnd: input.slotEnd,
         userId: input.userId,
-        rubitimeCooperatorIdSnapshot: input.rubitimeCooperatorIdSnapshot,
       })
     ) {
       throw new Error("slot_overlap");
@@ -158,7 +84,6 @@ export const inMemoryPatientBookingsPort: PatientBookingsPort = {
       status: "creating",
       cancelledAt: null,
       cancelReason: null,
-      rubitimeId: null,
       gcalEventId: null,
       contactPhone: input.contactPhone,
       contactEmail: input.contactEmail,
@@ -175,13 +100,7 @@ export const inMemoryPatientBookingsPort: PatientBookingsPort = {
       serviceTitleSnapshot: input.serviceTitleSnapshot,
       durationMinutesSnapshot: input.durationMinutesSnapshot,
       priceMinorSnapshot: input.priceMinorSnapshot,
-      rubitimeBranchIdSnapshot: input.rubitimeBranchIdSnapshot,
-      rubitimeCooperatorIdSnapshot: input.rubitimeCooperatorIdSnapshot,
-      rubitimeServiceIdSnapshot: input.rubitimeServiceIdSnapshot,
-      rubitimeManageUrl: null,
       canonicalAppointmentId: null,
-      bookingSource: "native",
-      compatQuality: null,
       provenanceCreatedBy: null,
       provenanceUpdatedBy: null,
     };
@@ -189,52 +108,46 @@ export const inMemoryPatientBookingsPort: PatientBookingsPort = {
     return row;
   },
 
-  async markAwaitingPayment(bookingId, canonicalAppointmentId, options) {
+  async markAwaitingPayment(bookingId, canonicalAppointmentId) {
     const row = byId.get(bookingId);
     if (!row) return null;
     const next = {
       ...row,
       status: "awaiting_payment" as const,
       canonicalAppointmentId,
-      rubitimeId: options?.rubitimeId?.trim() || row.rubitimeId,
-      rubitimeManageUrl: options?.rubitimeManageUrl?.trim() || row.rubitimeManageUrl,
       updatedAt: new Date().toISOString(),
     };
     byId.set(bookingId, next);
     return next;
   },
 
-  async markConfirmedByCanonicalAppointment(canonicalAppointmentId, rubitimeId = null) {
+  async markConfirmedByCanonicalAppointment(canonicalAppointmentId) {
     for (const [id, row] of byId) {
       if (row.canonicalAppointmentId === canonicalAppointmentId && row.status === "awaiting_payment") {
-        return this.markConfirmed(id, rubitimeId, { canonicalAppointmentId });
+        return this.markConfirmed(id, { canonicalAppointmentId });
       }
     }
     return null;
   },
 
-  async markConfirmed(bookingId, rubitimeId, options) {
+  async markConfirmed(bookingId, options) {
     const row = byId.get(bookingId);
     if (!row) return null;
     if (
-      hasGlobalSlotOverlap({
+      hasUserSlotOverlap({
         slotStart: row.slotStart,
         slotEnd: row.slotEnd,
         userId: row.userId,
-        rubitimeCooperatorIdSnapshot: row.rubitimeCooperatorIdSnapshot,
         excludeBookingId: bookingId,
       })
     ) {
       throw new Error("slot_overlap");
     }
-    const manage = options?.rubitimeManageUrl?.trim() || null;
-    const canonicalId = options?.canonicalAppointmentId?.trim() || row.canonicalAppointmentId;
     const next = {
       ...row,
       status: "confirmed" as const,
-      rubitimeId: rubitimeId ?? row.rubitimeId,
-      rubitimeManageUrl: manage ?? row.rubitimeManageUrl,
-      canonicalAppointmentId: canonicalId,
+      canonicalAppointmentId:
+        options?.canonicalAppointmentId?.trim() || row.canonicalAppointmentId,
       updatedAt: new Date().toISOString(),
     };
     byId.set(bookingId, next);
@@ -263,30 +176,9 @@ export const inMemoryPatientBookingsPort: PatientBookingsPort = {
       status: input.status ?? "cancelled",
       cancelReason: input.reason ?? row.cancelReason,
       cancelledAt: new Date().toISOString(),
-      rubitimeManageUrl: null,
       updatedAt: new Date().toISOString(),
     };
     byId.set(input.bookingId, next);
-    if (row.rubitimeId) {
-      for (const [id, other] of byId.entries()) {
-        if (
-          id !== input.bookingId &&
-          other.rubitimeId === row.rubitimeId &&
-          other.status !== "cancelled" &&
-          other.status !== "failed_sync" &&
-          other.status !== "completed" &&
-          other.status !== "no_show"
-        ) {
-          byId.set(id, {
-            ...other,
-            status: "cancelled",
-            cancelledAt: new Date().toISOString(),
-            rubitimeManageUrl: null,
-            updatedAt: new Date().toISOString(),
-          });
-        }
-      }
-    }
     return next;
   },
 
@@ -317,127 +209,7 @@ export const inMemoryPatientBookingsPort: PatientBookingsPort = {
 
   async getByIdForUser(bookingId, userId) {
     const row = byId.get(bookingId);
-    if (!row || row.userId !== userId) return null;
-    return row;
-  },
-
-  async getByRubitimeId(rubitimeId) {
-    for (const row of byId.values()) {
-      if (row.rubitimeId === rubitimeId) return row;
-    }
-    return null;
-  },
-
-  async upsertFromRubitime(input) {
-    let targetId: string | undefined;
-    let row: PatientBookingRecord | undefined;
-
-    for (const [id, r] of byId.entries()) {
-      if (r.rubitimeId === input.rubitimeId) {
-        targetId = id;
-        row = r;
-        break;
-      }
-    }
-
-    if (!targetId || !row) {
-      const phoneRaw = input.contactPhone?.trim() ?? "";
-      const slotStartIso = input.slotStart?.trim() ?? "";
-      const userId = input.userId?.trim() || null;
-      if ((phoneRaw || userId) && slotStartIso) {
-        const phoneNorm = phoneRaw ? normalizeRuPhoneE164(phoneRaw) : null;
-        type Cand = { id: string; row: PatientBookingRecord; createdMs: number };
-        const candidates: Cand[] = [];
-        for (const [id, r] of byId.entries()) {
-          if (r.bookingSource !== "native") continue;
-          if (r.rubitimeId != null) continue;
-          if (!isFallbackNativeStatus(r.status)) continue;
-          const matchesUser = userId != null && r.userId === userId;
-          const rowPhoneNorm = normalizeRuPhoneE164(r.contactPhone.trim());
-          const matchesPhone = phoneNorm != null && rowPhoneNorm === phoneNorm;
-          if (!matchesUser && !matchesPhone) continue;
-          if (!slotMatchesRowAndInput(r.slotStart, slotStartIso)) continue;
-          candidates.push({ id, row: r, createdMs: Date.parse(r.createdAt) });
-        }
-        if (candidates.length > 0) {
-          const best = candidates.reduce((a, b) => (a.createdMs >= b.createdMs ? a : b));
-          targetId = best.id;
-          const nowIso = new Date().toISOString();
-          const linked: PatientBookingRecord = { ...best.row, rubitimeId: input.rubitimeId, updatedAt: nowIso };
-          byId.set(targetId, linked);
-          row = linked;
-        }
-      }
-    }
-
-    if (targetId && row) {
-      if (row.bookingSource === "rubitime_projection" && input.status === "cancelled") {
-        byId.delete(targetId);
-        return;
-      }
-      applyUpsertFromRubitimeToRow(targetId, row, input);
-      return;
-    }
-
-    // Compat-create path: external Rubitime record without a native booking row.
-    if (input.status === "cancelled") return;
-    if (!input.slotStart) return;
-    const now = new Date().toISOString();
-    const explicitSlotEnd = input.slotEnd != null && String(input.slotEnd).trim() !== "";
-    const slotEnd = explicitSlotEnd
-      ? (input.slotEnd as string)
-      : new Date(new Date(input.slotStart).getTime() + 60 * 60_000).toISOString();
-    const rb = input.rubitimeBranchId?.trim() || null;
-    const rs = input.rubitimeServiceId?.trim() || null;
-    const compatQuality = computeCompatSyncQuality({
-      branchServiceId: null,
-      cityCodeSnapshot: null,
-      serviceTitleSnapshot: input.serviceTitle ?? null,
-      branchTitleSnapshot: input.branchTitle ?? null,
-      rubitimeBranchId: rb,
-      rubitimeServiceId: rs,
-      slotEndExplicitFromWebhook: explicitSlotEnd,
-      slotEndFromCatalogDuration: false,
-    });
-    const newRow: PatientBookingRecord = {
-      id: randomUUID(),
-      userId: input.userId ?? null,
-      bookingType: "in_person",
-      city: null,
-      category: "general",
-      slotStart: input.slotStart,
-      slotEnd,
-      status: input.status,
-      cancelledAt: null,
-      cancelReason: null,
-      rubitimeId: input.rubitimeId,
-      gcalEventId: null,
-      contactPhone: input.contactPhone ?? "",
-      contactEmail: null,
-      contactName: input.contactName ?? "",
-      reminder24hSent: false,
-      reminder2hSent: false,
-      createdAt: now,
-      updatedAt: now,
-      branchServiceId: null,
-      branchId: null,
-      serviceId: null,
-      cityCodeSnapshot: null,
-      branchTitleSnapshot: input.branchTitle ?? null,
-      serviceTitleSnapshot: input.serviceTitle ?? null,
-      durationMinutesSnapshot: null,
-      priceMinorSnapshot: null,
-      rubitimeBranchIdSnapshot: input.rubitimeBranchId ?? null,
-      rubitimeCooperatorIdSnapshot: input.rubitimeCooperatorId ?? null,
-      rubitimeServiceIdSnapshot: input.rubitimeServiceId ?? null,
-      rubitimeManageUrl: input.rubitimeManageUrl?.trim() || null,
-      canonicalAppointmentId: null,
-      bookingSource: "rubitime_projection",
-      compatQuality,
-      provenanceCreatedBy: "rubitime_external",
-      provenanceUpdatedBy: null,
-    };
-    byId.set(newRow.id, newRow);
+    return row?.userId === userId ? row : null;
   },
 
   async listUpcomingByUser(userId, nowIso) {
@@ -449,7 +221,7 @@ export const inMemoryPatientBookingsPort: PatientBookingsPort = {
           row.status,
         ),
       )
-      .filter((row) => !isAbandonedNativeCreating(row))
+      .filter((row) => !isAbandonedCreating(row))
       .filter((row) => new Date(row.slotStart).getTime() >= nowMs)
       .sort((a, b) => a.slotStart.localeCompare(b.slotStart));
   },

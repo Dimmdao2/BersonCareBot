@@ -75,7 +75,6 @@ function deps() {
     memberships: null,
     products: null,
     clientHistory: null,
-    isRubitimeBridgeEnabled: async () => false,
   };
 }
 

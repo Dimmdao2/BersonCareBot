@@ -8,8 +8,7 @@ import {
 } from '../infra/db/publicSystemSettings.js';
 
 /**
- * Единая IANA-таймзона «бизнес-времени» интегратора: букинг, напоминания, формат сообщений,
- * интерпретация наивных дат Rubitime (канонический парсинг — `shared/normalizeToUtcInstant`; см. {@link resolveRubitimeRecordAtUtcOffsetMinutes}).
+ * Единая IANA-таймзона «бизнес-времени» интегратора: букинг, напоминания и формат сообщений.
  * Источник: `system_settings` key `app_display_timezone`, scope `admin` (как в webapp).
  */
 export const DEFAULT_APP_DISPLAY_TIMEZONE = 'Europe/Moscow';
@@ -213,55 +212,4 @@ export function getAppDisplayTimezoneSync(): string {
   if (rawApp.length > 0 && IANA_LIKE.test(rawApp)) return rawApp;
   if (rawBooking.length > 0 && IANA_LIKE.test(rawBooking)) return rawBooking;
   return DEFAULT_APP_DISPLAY_TIMEZONE;
-}
-
-/**
- * Минуты смещения UTC для наивных меток Rubitime (`YYYY-MM-DD HH:mm:ss` без зоны):
- * из IANA `displayTimeZone` для переданного instant (DST через ICU `longOffset`).
- */
-export function resolveRubitimeRecordAtUtcOffsetMinutes(instant: Date, displayTimeZone: string): number {
-  return utcOffsetMinutesFromLongOffset(displayTimeZone, instant);
-}
-
-export async function getRubitimeRecordAtUtcOffsetMinutesForInstant(input: {
-  db: DbPort;
-  instant: Date;
-  dispatchPort?: DispatchPort;
-}): Promise<number> {
-  const tz = await getAppDisplayTimezone(
-    input.dispatchPort
-      ? { db: input.db, dispatchPort: input.dispatchPort }
-      : { db: input.db },
-  );
-  return resolveRubitimeRecordAtUtcOffsetMinutes(input.instant, tz);
-}
-
-/**
- * ISO instant (UTC or offset) → Rubitime `record` string: `YYYY-MM-DD HH:mm:ss` in business IANA zone.
- * Used for api2 `create-record` (Rubitime expects naive local wall time, not UTC hours from ISO slice).
- */
-export function formatIsoInstantAsRubitimeRecordLocal(slotStartIso: string, timeZone: string): string {
-  const d = new Date(slotStartIso);
-  if (Number.isNaN(d.getTime())) {
-    throw new Error('invalid_slot_start');
-  }
-  const fmt = new Intl.DateTimeFormat('en-CA', {
-    timeZone,
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-    hour: '2-digit',
-    minute: '2-digit',
-    second: '2-digit',
-    hourCycle: 'h23',
-  });
-  const parts = fmt.formatToParts(d);
-  const get = (type: Intl.DateTimeFormatPart['type']) => parts.find((p) => p.type === type)?.value ?? '';
-  const y = get('year');
-  const mo = get('month');
-  const da = get('day');
-  const h = get('hour');
-  const mi = get('minute');
-  const s = get('second');
-  return `${y}-${mo}-${da} ${h}:${mi}:${s}`;
 }

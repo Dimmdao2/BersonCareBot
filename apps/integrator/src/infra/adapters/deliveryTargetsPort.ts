@@ -1,6 +1,6 @@
 /**
  * Resolves delivery targets (channel bindings) via webapp GET /api/integrator/delivery-targets.
- * Used for Rubitime/booking and reminder fan-out to all linked channels.
+ * Used for booking and reminder fan-out to all linked channels.
  */
 import { createHmac } from 'node:crypto';
 import { integratorWebhookSecret } from '../../config/env.js';

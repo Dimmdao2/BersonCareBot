@@ -39,15 +39,11 @@ if (envFile) {
   dotenv.config({ override: false });
 }
 
-// `BOOKING_URL` is required by env schema but unused by `migrate`; Rubitime is not contacted.
-// When only webapp dev env is loaded, supply a local dev default (same host as integrator in .env.example).
-const booking = process.env.BOOKING_URL?.trim();
-if (!booking) {
+// Generic booking link used by menu rendering. In local development the
+// canonical webapp cabinet is a safe default.
+if (!process.env.BOOKING_URL?.trim()) {
   const relaxDev =
-    process.env.NODE_ENV === 'development' ||
-    process.env.NODE_ENV === 'test' ||
+    process.env.NODE_ENV !== 'production' ||
     process.env.ALLOW_DEV_AUTH_BYPASS === 'true';
-  if (relaxDev) {
-    process.env.BOOKING_URL = 'http://127.0.0.1:4200';
-  }
+  if (relaxDev) process.env.BOOKING_URL = 'http://127.0.0.1:4200/app/patient/cabinet';
 }

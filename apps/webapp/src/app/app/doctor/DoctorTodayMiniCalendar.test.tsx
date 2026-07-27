@@ -65,7 +65,6 @@ function makeAppt(id: string, time: string, clientLabel = 'Пациент'): Tod
     status: 'created',
     branchName: null,
     scheduleProvenancePrefix: null,
-    rubitimeNameIfDifferent: null,
     href: `/app/doctor/clients/user-1?scope=appointments`,
     ctaLabel: 'Открыть',
   };
@@ -94,8 +93,6 @@ function makeCanonicalAppt(id: string, patientName = 'Пациент'): Calendar
     patientName,
     patientPhone: '+79990000001',
     bookingStatus: null,
-    rubitimeId: null,
-    rubitimeManageUrl: null,
     paymentStatus: null,
     prepaymentPending: false,
     packageUsageRef: null,

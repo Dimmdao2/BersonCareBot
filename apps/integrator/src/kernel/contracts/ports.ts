@@ -69,7 +69,6 @@ export type DbWriteMutationType =
   | 'reminders.occurrence.markSkippedLocal'
   | 'reminders.delivery.log'
   | 'content.access.grant.create'
-  | 'booking.upsert'
   | 'message.retry.enqueue'
   | 'delivery.attempt.log'
   | 'event.log'
@@ -655,7 +654,7 @@ export type BookingRecordForLinking = {
 
 /** Active (non-canceled) booking record for list; compatible with readPort booking.activeByUser. */
 export type ActiveBookingRecord = {
-  rubitimeRecordId: string;
+  externalRecordId: string;
   recordAt: string | null;
   status: string;
   link?: string | null;
