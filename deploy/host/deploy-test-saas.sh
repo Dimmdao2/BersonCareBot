@@ -969,6 +969,7 @@ compute_locked_smoke_scenario_ids(){
 
 run_locked_product_smoke(){
   local fixture_path
+  local local_smoke_failed=0
   assert_locked_product_smoke_fixture_ready
   fixture_path="$LOCKED_PRODUCT_SMOKE_FIXTURE_CANONICAL"
   local smoke_dir
@@ -1012,6 +1013,7 @@ run_locked_product_smoke(){
     echo "   A2 product smoke gate: OK"
   else
     PRODUCT_SMOKE_GATE_FAILED=1
+    local_smoke_failed=1
     echo "   ⚠️  FAIL [TEST]: A2 product smoke gate did NOT pass — TEST units stay UP (see cleanup precedent above)." >&2
     echo "   ⚠️  This deploy WILL still exit non-zero once the strict closure finishes; it is not silenced." >&2
     echo "   ⚠️  Triage:  cat $smoke_dir/saas-product-smoke.json" >&2
@@ -1028,9 +1030,27 @@ run_locked_product_smoke(){
     echo "   A2 global-admin clinical-write denial smoke: OK"
   else
     PRODUCT_SMOKE_GATE_FAILED=1
+    local_smoke_failed=1
     echo "   ⚠️  FAIL [TEST]: A2 global-admin clinical-write denial smoke did NOT pass — TEST units stay UP." >&2
     echo "   ⚠️  Triage:  cat $smoke_dir/saas-product-smoke-global-admin-denial.json" >&2
   fi
+
+  # Report through the EXIT STATUS, not through PRODUCT_SMOKE_GATE_FAILED alone.
+  # run_closure_gate (:1687-1696) invokes every gate as `if ( "$@" )` — a SUBSHELL. That subshell is
+  # load-bearing: several gates call `exit 1` on FATAL, and the subshell turns that into a return code
+  # instead of killing the whole deploy. But it also means any variable this function assigns dies with
+  # the child process. So PRODUCT_SMOKE_GATE_FAILED never reached the parent, the fold-in at the end of
+  # run_strict_post_migration_closure could not see it, and — because this function's last statement was
+  # an if/else that yields 0 — run_closure_gate saw SUCCESS too. Both detection paths missed, and a
+  # deploy whose mandatory product smoke failed 13 of 21 scenarios exited 0 while printing
+  # "This deploy WILL still exit non-zero ... it is not silenced". Proven 2026-07-27 on
+  # deploy-test-20260727T010909Z-2796669.log: smoke FAIL at :5553, exit 0 at :6073.
+  # This was masked until 2026-07-27 because every prior deploy already exited red on a different gate
+  # (the operator_incidents false FATAL, fixed in 6ac7c2af4), so the smoke's own exit path never had to
+  # work. Same class as taskdb #1016 (deploy reported units healthy while all five were down): a deploy
+  # that reports success with a failed mandatory gate is worse than one that reports failure.
+  [ "${local_smoke_failed:-0}" = "1" ] && return 1
+  return 0
 }
 
 run_specialist_signup_provisioning_smoke(){
