@@ -13,6 +13,7 @@ describe("operatorHealthAlertConfig", () => {
   it("defaults digestTime to 09:00", () => {
     expect(defaultOperatorHealthAlertConfig().digestTime).toBe("09:00");
     expect(defaultOperatorHealthAlertConfig().channels.critical.sms).toBe(true);
+    expect(defaultOperatorHealthAlertConfig().channels.critical.email).toBe(true);
   });
 
   it("merges legacy identity topics into account_conflicts", () => {
@@ -54,6 +55,14 @@ describe("operatorHealthAlertConfig", () => {
     expect(cfg.digestTime).toBe("10:00");
     expect(cfg.channels.critical.max).toBe(false);
     expect(cfg.channels.critical.sms).toBe(false);
+    expect(cfg.channels.critical.email).toBe(true);
+  });
+
+  it("keeps email enabled when a stored pre-email config has no email key", () => {
+    const cfg = parseOperatorHealthAlertConfig({
+      value: { channels: { critical: { telegram: false, max: false, web_push: false, sms: false } } },
+    });
+    expect(cfg.channels.critical.email).toBe(true);
   });
 
   it("parseOperatorHealthAlertConfig normalizes digestTime", () => {
@@ -90,7 +99,7 @@ describe("operatorHealthAlertConfig", () => {
       const cfg = defaultOperatorHealthAlertConfig();
       expect(cfg.topics.support_enabled).toBe(true);
       expect(isOperatorAlertBlockEnabled(cfg, "support")).toBe(true);
-      expect(cfg.channels.support).toEqual({ telegram: true, max: true, web_push: true, sms: true });
+      expect(cfg.channels.support).toEqual({ telegram: true, max: true, web_push: true, sms: true, email: true });
     });
 
     it("parses a stored support_enabled=false and per-channel toggles", () => {
@@ -111,7 +120,7 @@ describe("operatorHealthAlertConfig", () => {
     it("legacy-only config (no operator_health_alert_config yet) still defaults support to enabled", () => {
       const cfg = mergeOperatorHealthAlertConfigFromLegacy(null, null);
       expect(cfg.topics.support_enabled).toBe(true);
-      expect(cfg.channels.support).toEqual({ telegram: true, max: true, web_push: true, sms: true });
+      expect(cfg.channels.support).toEqual({ telegram: true, max: true, web_push: true, sms: true, email: true });
     });
 
     it("normalizeOperatorHealthAlertConfigForAdminPatch accepts support_enabled and support channels", () => {
@@ -119,14 +128,14 @@ describe("operatorHealthAlertConfig", () => {
         topics: { critical_enabled: true, digest_enabled: true, account_conflicts: true, support_enabled: false },
         channels: {
           ...defaultOperatorHealthAlertConfig().channels,
-          support: { telegram: false, max: false, web_push: false, sms: false },
+          support: { telegram: false, max: false, web_push: false, sms: false, email: false },
         },
         digestTime: "09:00",
       });
       expect(r.ok).toBe(true);
       if (r.ok) {
         expect(r.value.topics.support_enabled).toBe(false);
-        expect(r.value.channels.support).toEqual({ telegram: false, max: false, web_push: false, sms: false });
+        expect(r.value.channels.support).toEqual({ telegram: false, max: false, web_push: false, sms: false, email: false });
       }
     });
   });

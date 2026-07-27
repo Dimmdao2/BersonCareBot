@@ -8,6 +8,7 @@ import {
 const getConfigValueMock = vi.hoisted(() => vi.fn());
 const loadAdminNotificationTargetsFromDbMock = vi.hoisted(() => vi.fn());
 const relayOutboundMock = vi.hoisted(() => vi.fn());
+const emailRelayOutboundMock = vi.hoisted(() => vi.fn());
 const getAdminIncidentStaffPushDepsMock = vi.hoisted(() => vi.fn());
 const sendAdminIncidentStaffWebPushMock = vi.hoisted(() => vi.fn());
 
@@ -27,6 +28,10 @@ vi.mock("./relayOperatorAlert", () => ({
   relayOperatorAlert: relayOutboundMock,
 }));
 
+vi.mock("@/modules/messaging/relayOutbound", () => ({
+  relayOutbound: emailRelayOutboundMock,
+}));
+
 vi.mock("@/modules/admin-incidents/adminIncidentStaffPushRuntime", () => ({
   getAdminIncidentStaffPushDeps: getAdminIncidentStaffPushDepsMock,
 }));
@@ -40,6 +45,7 @@ import { dispatchOperatorAlert } from "./dispatchOperatorAlert";
 function operatorConfig(overrides?: {
   critical?: boolean;
   telegram?: boolean;
+  email?: boolean;
   accountConflicts?: boolean;
 }) {
   return JSON.stringify({
@@ -51,7 +57,7 @@ function operatorConfig(overrides?: {
       },
       digestTime: "09:00",
       channels: {
-        critical: { telegram: overrides?.telegram ?? true, max: false, web_push: false },
+        critical: { telegram: overrides?.telegram ?? true, max: false, web_push: false, email: overrides?.email ?? true },
         digest: { telegram: true, max: false, web_push: false },
         account_conflicts: { telegram: true, max: false, web_push: false },
       },
@@ -65,6 +71,7 @@ describe("dispatchOperatorAlert", () => {
     resetInMemoryOperatorHealthAlertSent();
     registerOperatorAlertDedupPort(inMemoryOperatorHealthAlertSentPort);
     relayOutboundMock.mockResolvedValue({ ok: true });
+    emailRelayOutboundMock.mockResolvedValue({ ok: true, status: "accepted" });
     sendAdminIncidentStaffWebPushMock.mockResolvedValue(1);
     getAdminIncidentStaffPushDepsMock.mockReturnValue(null);
     getConfigValueMock.mockImplementation(async (key: string) => {
@@ -76,6 +83,7 @@ describe("dispatchOperatorAlert", () => {
       telegram: ["111", "222"],
       max: [],
       sms: [],
+      email: [],
     });
   });
 
@@ -127,7 +135,7 @@ describe("dispatchOperatorAlert", () => {
   });
 
   it("does not dedup when no recipients so a later retry can send", async () => {
-    loadAdminNotificationTargetsFromDbMock.mockResolvedValue({ telegram: [], max: [], sms: [] });
+    loadAdminNotificationTargetsFromDbMock.mockResolvedValue({ telegram: [], max: [], sms: [], email: [] });
     const r1 = await dispatchOperatorAlert({
       block: "critical",
       topic: "test",
@@ -136,7 +144,7 @@ describe("dispatchOperatorAlert", () => {
     });
     expect(r1.reason).toBe("no_recipients");
 
-    loadAdminNotificationTargetsFromDbMock.mockResolvedValue({ telegram: ["111"], max: [], sms: [] });
+    loadAdminNotificationTargetsFromDbMock.mockResolvedValue({ telegram: ["111"], max: [], sms: [], email: [] });
     const r2 = await dispatchOperatorAlert({
       block: "critical",
       topic: "test",
@@ -148,7 +156,7 @@ describe("dispatchOperatorAlert", () => {
   });
 
   it("returns no_recipients when channels on but lists empty", async () => {
-    loadAdminNotificationTargetsFromDbMock.mockResolvedValue({ telegram: [], max: [], sms: [] });
+    loadAdminNotificationTargetsFromDbMock.mockResolvedValue({ telegram: [], max: [], sms: [], email: [] });
     const r = await dispatchOperatorAlert({
       block: "critical",
       topic: "test",
@@ -159,7 +167,7 @@ describe("dispatchOperatorAlert", () => {
     expect(r.reason).toBe("no_recipients");
   });
 
-  it("fans out to all four channels and isolates a channel rejection", async () => {
+  it("fans out to all five channels and isolates an email rejection", async () => {
     getConfigValueMock.mockImplementation(async (key: string) => {
       if (key === "operator_health_alert_config") {
         return JSON.stringify({
@@ -167,9 +175,9 @@ describe("dispatchOperatorAlert", () => {
             topics: { critical_enabled: true, digest_enabled: true, account_conflicts: true },
             digestTime: "09:00",
             channels: {
-              critical: { telegram: true, max: true, web_push: true, sms: true },
-              digest: { telegram: true, max: true, web_push: true, sms: true },
-              account_conflicts: { telegram: true, max: true, web_push: true, sms: true },
+              critical: { telegram: true, max: true, web_push: true, sms: true, email: true },
+              digest: { telegram: true, max: true, web_push: true, sms: true, email: true },
+              account_conflicts: { telegram: true, max: true, web_push: true, sms: true, email: true },
             },
           },
         });
@@ -181,12 +189,10 @@ describe("dispatchOperatorAlert", () => {
       telegram: ["111"],
       max: ["222"],
       sms: ["+79990001122"],
+      email: ["admin@example.test"],
     });
     getAdminIncidentStaffPushDepsMock.mockReturnValue({});
-    relayOutboundMock.mockImplementation(async (input: { channel: string }) => {
-      if (input.channel === "telegram") throw new Error("telegram_down");
-      return { ok: true };
-    });
+    emailRelayOutboundMock.mockRejectedValue(new Error("email_down"));
 
     const result = await dispatchOperatorAlert({
       organizationId: "11111111-1111-4111-8111-111111111111",
@@ -200,7 +206,24 @@ describe("dispatchOperatorAlert", () => {
     expect(relayOutboundMock).toHaveBeenCalledWith(expect.objectContaining({ channel: "telegram" }));
     expect(relayOutboundMock).toHaveBeenCalledWith(expect.objectContaining({ channel: "max" }));
     expect(relayOutboundMock).toHaveBeenCalledWith(expect.objectContaining({ channel: "sms" }));
+    expect(emailRelayOutboundMock).toHaveBeenCalledWith(expect.objectContaining({ channel: "email", recipient: "admin@example.test" }));
     expect(sendAdminIncidentStaffWebPushMock).toHaveBeenCalledOnce();
+  });
+
+  it("does not send email when the channel is disabled", async () => {
+    getConfigValueMock.mockImplementation(async (key: string) => {
+      if (key === "operator_health_alert_config") return operatorConfig({ email: false });
+      if (key === "admin_incident_alert_config") return "";
+      return "";
+    });
+    loadAdminNotificationTargetsFromDbMock.mockResolvedValue({
+      telegram: ["111"], max: [], sms: [], email: ["admin@example.test"],
+    });
+
+    await dispatchOperatorAlert({ block: "critical", topic: "test", dedupKey: "email-disabled", lines: ["line"] });
+
+    expect(emailRelayOutboundMock).not.toHaveBeenCalled();
+    expect(relayOutboundMock).toHaveBeenCalledWith(expect.objectContaining({ channel: "telegram" }));
   });
 
   describe("support block (D-2, night plan 2026-07-26)", () => {
@@ -224,6 +247,7 @@ describe("dispatchOperatorAlert", () => {
         telegram: ["111"],
         max: ["222"],
         sms: [],
+        email: [],
       });
       // Telegram unreachable — exactly the scenario D-2 is designed against.
       relayOutboundMock.mockImplementation(async (input: { channel: string }) => {
@@ -258,7 +282,7 @@ describe("dispatchOperatorAlert", () => {
         if (key === "admin_incident_alert_config") return "";
         return "";
       });
-      loadAdminNotificationTargetsFromDbMock.mockResolvedValue({ telegram: [], max: [], sms: [] });
+      loadAdminNotificationTargetsFromDbMock.mockResolvedValue({ telegram: [], max: [], sms: [], email: [] });
       getAdminIncidentStaffPushDepsMock.mockReturnValue(null);
 
       const result = await dispatchOperatorAlert({
@@ -293,6 +317,7 @@ describe("dispatchOperatorAlert", () => {
       telegram: ["111"],
       max: ["222"],
       sms: ["+79990001122"],
+      email: [],
     });
     let releaseTelegram: ((value: { ok: false; reason: string }) => void) | undefined;
     relayOutboundMock.mockImplementation((value: { channel: string }) => {

@@ -143,6 +143,11 @@ export function OperatorHealthAlertsSection({ initialConfig }: OperatorHealthAle
                   checked={channels[def.block].sms}
                   onCheckedChange={(v) => setBlockChannels(def.block, { sms: v })}
                 />
+                <ChannelRow
+                  label="E-mail"
+                  checked={channels[def.block].email}
+                  onCheckedChange={(v) => setBlockChannels(def.block, { email: v })}
+                />
               </tbody>
             </table>
           </section>

@@ -974,7 +974,7 @@ registerOperatorAlertDedupPort(
 registerAdminNotificationTargetsPort({
   loadTargets: !inMemoryRepos
     ? loadAdminNotificationTargetsFromDb
-    : async () => ({ telegram: [], max: [], sms: [] }),
+    : async () => ({ telegram: [], max: [], sms: [], email: [] }),
 });
 // D-b: счётчик пустой аудитории и env-fallback подключаются на краю, домен их не импортирует.
 registerEmptyAudienceReporter(emptyAudienceReporter);

@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
 import { logger } from "@/infra/logging/logger";
 import { relayOperatorAlert } from "./relayOperatorAlert";
+import { relayOutbound } from "@/modules/messaging/relayOutbound";
 import { getConfigValue } from "@/modules/system-settings/configAdapter";
 import { getAdminNotificationTargetsPort } from "./adminNotificationTargetsRuntime";
 import { getAdminIncidentStaffPushDeps } from "@/modules/admin-incidents/adminIncidentStaffPushRuntime";
@@ -55,14 +56,14 @@ async function loadConfig(): Promise<OperatorHealthAlertConfig> {
  * failed DB read degrades to an empty audience (never throws): `dispatchOperatorAlert`'s own
  * empty-audience path already counts and alerts that on its own.
  */
-async function loadAdminRelayTargets(): Promise<{ telegram: string[]; max: string[]; sms: string[] }> {
+async function loadAdminRelayTargets(): Promise<{ telegram: string[]; max: string[]; sms: string[]; email: string[] }> {
   const port = getAdminNotificationTargetsPort();
-  if (!port) return { telegram: [], max: [], sms: [] };
+  if (!port) return { telegram: [], max: [], sms: [], email: [] };
   try {
     return await port.loadTargets();
   } catch (err) {
     logger.warn({ err, scope: "operator_alert" }, "[operator_alert] load admin notification targets failed");
-    return { telegram: [], max: [], sms: [] };
+    return { telegram: [], max: [], sms: [], email: [] };
   }
 }
 
@@ -122,8 +123,45 @@ async function fireOperatorRelay(input: {
   }
 }
 
+async function fireOperatorEmail(input: {
+  messageId: string;
+  recipient: string;
+  recipientRef: string;
+  text: string;
+  subject: string;
+  block: OperatorAlertBlock;
+  topic: string;
+}): Promise<boolean> {
+  try {
+    const result = await relayOutbound({
+      messageId: input.messageId,
+      channel: "email",
+      recipient: input.recipient,
+      text: input.text,
+      metadata: { subject: input.subject },
+    });
+    if (result.ok) return result.status !== "skipped";
+    logger.warn(
+      {
+        scope: "operator_alert",
+        event: "operator_alert_relay_failed",
+        block: input.block,
+        topic: input.topic,
+        channel: "email",
+        recipientRef: input.recipientRef,
+        reason: result.reason,
+      },
+      "relay failed",
+    );
+    return false;
+  } catch (err: unknown) {
+    logger.warn({ err, block: input.block, topic: input.topic, channel: "email" }, "relay failed");
+    return false;
+  }
+}
+
 /**
- * Единый диспетчер операторских алертов (TG / Max / staff Web Push / SMS).
+ * Единый диспетчер операторских алертов (TG / Max / staff Web Push / SMS / email).
  * Каналы изолированы; успех фиксируется только после accepted/duplicate хотя бы одного канала.
  */
 export async function dispatchOperatorAlert(input: DispatchOperatorAlertInput): Promise<DispatchOperatorAlertResult> {
@@ -204,6 +242,28 @@ export async function dispatchOperatorAlert(input: DispatchOperatorAlertInput): 
           recipient: phone,
           recipientRef: `sms:…${phone.slice(-4)}`,
           text,
+          block: input.block,
+          topic: input.topic,
+        }));
+      }
+    }
+  }
+
+  if (channels.email) {
+    if (targets.email.length === 0) {
+      logger.info({ scope: "operator_alert", event: "operator_alert_skipped_no_recipients", channel: "email" });
+    } else {
+      for (const emailAddress of targets.email) {
+        const recipientDigest = createHash("sha256").update(emailAddress).digest("hex").slice(0, 16);
+        const messageId = `operator-alert:${input.deliveryIdentity ?? dk}:email:${recipientDigest}`;
+        // relay-outbound is the sanctioned email chokepoint: it reaches the integrator's
+        // redirect/allowlist-covered EmailDeliveryAdapter rather than creating an SMTP client here.
+        attempts.push(fireOperatorEmail({
+          messageId,
+          recipient: emailAddress,
+          recipientRef: `email:${recipientDigest}`,
+          text,
+          subject: pushTitle,
           block: input.block,
           topic: input.topic,
         }));

@@ -4,10 +4,12 @@ export type AdminNotificationTargets = {
   telegram: string[];
   max: string[];
   sms: string[];
+  email: string[];
 };
 
 type AdminNotificationTargetRow = {
   phone_normalized: string | null;
+  email_normalized: string | null;
   channel_code: string | null;
   external_id: string | null;
 };
@@ -26,7 +28,7 @@ type AdminNotificationTargetRow = {
  */
 export async function loadAdminNotificationTargetsFromDb(): Promise<AdminNotificationTargets> {
   const result = await runWebappPgText<AdminNotificationTargetRow>(
-    `SELECT pu.phone_normalized, ucb.channel_code, ucb.external_id
+    `SELECT pu.phone_normalized, pu.email_normalized, ucb.channel_code, ucb.external_id
        FROM platform_users pu
        LEFT JOIN user_channel_bindings ucb
          ON ucb.user_id = pu.id AND ucb.channel_code IN ('telegram', 'max')
@@ -38,6 +40,7 @@ export async function loadAdminNotificationTargetsFromDb(): Promise<AdminNotific
   const telegram = new Set<string>();
   const max = new Set<string>();
   const sms = new Set<string>();
+  const email = new Set<string>();
 
   for (const row of result.rows) {
     const externalId = row.external_id?.trim();
@@ -47,7 +50,9 @@ export async function loadAdminNotificationTargetsFromDb(): Promise<AdminNotific
     }
     const phone = row.phone_normalized?.trim();
     if (phone) sms.add(phone);
+    const emailAddress = row.email_normalized?.trim();
+    if (emailAddress) email.add(emailAddress);
   }
 
-  return { telegram: [...telegram], max: [...max], sms: [...sms] };
+  return { telegram: [...telegram], max: [...max], sms: [...sms], email: [...email] };
 }

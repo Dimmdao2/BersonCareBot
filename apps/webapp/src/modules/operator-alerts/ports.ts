@@ -13,5 +13,5 @@ export type OperatorAlertDedupPort = {
  * admin_phones DB-resident address lists.
  */
 export type AdminNotificationTargetsPort = {
-  loadTargets(): Promise<{ telegram: string[]; max: string[]; sms: string[] }>;
+  loadTargets(): Promise<{ telegram: string[]; max: string[]; sms: string[]; email: string[] }>;
 };
