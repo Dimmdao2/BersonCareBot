@@ -9,6 +9,7 @@ import type {
   SystemSettingsWriteOptions,
 } from "./ports";
 import { SYSTEM_SETTING_REGISTRY } from "./registry";
+import { assertOperatorHealthProbeConfig, OPERATOR_HEALTH_PROBE_CONFIG_KEY } from "./operatorHealthProbeConfig";
 import type { ModesFormKey } from "./modesFormKeys";
 import {
   allowsPlatformGlobalFallbackWrite,
@@ -345,6 +346,7 @@ export function createSystemSettingsService(port: SystemSettingsPort, dependenci
       if (!isAllowedKey(key)) {
         throw new Error(`unknown_setting_key: ${key}`);
       }
+      if (key === OPERATOR_HEALTH_PROBE_CONFIG_KEY) assertOperatorHealthProbeConfig(value);
       const valueToStore = await valueForWrite(key, scope, value, options);
       const organizationId = resolveWriteOrganizationId(key, options);
       const [result] = await writeRows([{ key, scope, valueJson: valueToStore, updatedBy, organizationId }]);
@@ -369,6 +371,7 @@ export function createSystemSettingsService(port: SystemSettingsPort, dependenci
       options: SystemSettingsWriteOptions = {},
     ): Promise<SystemSetting | null> {
       if (!isAllowedKey(key)) throw new Error(`unknown_setting_key: ${key}`);
+      if (key === OPERATOR_HEALTH_PROBE_CONFIG_KEY) assertOperatorHealthProbeConfig(value);
       const valueToStore = await valueForWrite(key, scope, value, options);
       const organizationId = resolveWriteOrganizationId(key, options);
       const result = await compareAndSwapRow(

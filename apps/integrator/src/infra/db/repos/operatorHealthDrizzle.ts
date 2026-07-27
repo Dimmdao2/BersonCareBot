@@ -92,6 +92,8 @@ export async function getOperatorIncidentAlertState(
  */
 const OPERATOR_HEALTH_JOB_FAMILY = 'health';
 const OPERATOR_OUTBOUND_PROBE_JOB_KEY = 'health.outbound_probe.run';
+const OPERATOR_OUTBOUND_PROBE_CHANNELS = ['max', 'rubitime', 'telegram', 'google_calendar'] as const;
+type OperatorOutboundProbeChannel = (typeof OPERATOR_OUTBOUND_PROBE_CHANNELS)[number];
 
 /**
  * Записать результат синтетических проб (MAX/Rubitime) в `operator_job_status` для 3-strike critical tick.
@@ -101,8 +103,8 @@ export async function recordOperatorOutboundProbeRun(input: {
   rubitime: string;
   telegram: string;
   google_calendar: string;
-  anyFail: boolean;
-}): Promise<{ consecutiveFailRuns: number }> {
+  probed?: readonly OperatorOutboundProbeChannel[];
+}): Promise<{ consecutiveFailRuns: number; consecutiveFailures: Record<string, number>; lastRunAt: Record<string, string> }> {
   const db = getIntegratorDrizzle();
   const existing = await db
     .select({ metaJson: operatorJobStatus.metaJson })
@@ -114,21 +116,37 @@ export async function recordOperatorOutboundProbeRun(input: {
     existing[0]?.metaJson && typeof existing[0].metaJson === 'object' && !Array.isArray(existing[0].metaJson)
       ? (existing[0].metaJson as Record<string, unknown>)
       : {};
-  const prevStreak =
-    typeof prevMeta.consecutiveFailRuns === 'number' && Number.isFinite(prevMeta.consecutiveFailRuns)
-      ? Math.max(0, Math.trunc(prevMeta.consecutiveFailRuns))
-      : 0;
-  const consecutiveFailRuns = input.anyFail ? prevStreak + 1 : 0;
+  const probed: readonly OperatorOutboundProbeChannel[] = input.probed ?? OPERATOR_OUTBOUND_PROBE_CHANNELS;
   const finishedIso = new Date().toISOString();
+  const previousFailures = prevMeta.consecutiveFailures && typeof prevMeta.consecutiveFailures === 'object'
+    ? prevMeta.consecutiveFailures as Record<string, unknown> : {};
+  const previousLastRunAt = prevMeta.lastRunAt && typeof prevMeta.lastRunAt === 'object'
+    ? prevMeta.lastRunAt as Record<string, unknown> : {};
+  const consecutiveFailures: Record<string, number> = {};
+  const lastRunAt: Record<string, string> = {};
+  for (const channel of OPERATOR_OUTBOUND_PROBE_CHANNELS) {
+    const outcome = input[channel];
+    const previous = typeof previousFailures[channel] === 'number' && Number.isFinite(previousFailures[channel])
+      ? Math.max(0, Math.trunc(previousFailures[channel] as number)) : 0;
+    consecutiveFailures[channel] = probed.includes(channel)
+      ? outcome === 'fail' ? previous + 1 : outcome === 'ok' ? 0 : previous
+      : previous;
+    const previousAt = previousLastRunAt[channel];
+    lastRunAt[channel] = probed.includes(channel) ? finishedIso : typeof previousAt === 'string' ? previousAt : '';
+  }
+  const anyFail = probed.some((channel) => input[channel] === 'fail');
+  const consecutiveFailRuns = Math.max(...Object.values(consecutiveFailures));
   const metaJson = {
     max: input.max,
     rubitime: input.rubitime,
     telegram: input.telegram,
     google_calendar: input.google_calendar,
     consecutiveFailRuns,
+    consecutiveFailures,
+    lastRunAt,
   };
 
-  const conflictSet = input.anyFail
+  const conflictSet = anyFail
     ? {
         jobFamily: OPERATOR_HEALTH_JOB_FAMILY,
         lastStatus: 'failure' as const,
@@ -154,13 +172,13 @@ export async function recordOperatorOutboundProbeRun(input: {
     .values({
       jobKey: OPERATOR_OUTBOUND_PROBE_JOB_KEY,
       jobFamily: OPERATOR_HEALTH_JOB_FAMILY,
-      lastStatus: input.anyFail ? 'failure' : 'success',
+      lastStatus: anyFail ? 'failure' : 'success',
       lastStartedAt: finishedIso,
       lastFinishedAt: finishedIso,
-      lastSuccessAt: input.anyFail ? null : finishedIso,
-      lastFailureAt: input.anyFail ? finishedIso : null,
+      lastSuccessAt: anyFail ? null : finishedIso,
+      lastFailureAt: anyFail ? finishedIso : null,
       lastDurationMs: 0,
-      lastError: input.anyFail ? 'probe_fail' : null,
+      lastError: anyFail ? 'probe_fail' : null,
       metaJson,
     })
     .onConflictDoUpdate({
@@ -168,7 +186,17 @@ export async function recordOperatorOutboundProbeRun(input: {
       set: conflictSet,
     });
 
-  return { consecutiveFailRuns };
+  return { consecutiveFailRuns, consecutiveFailures, lastRunAt };
+}
+
+export async function getOperatorOutboundProbeLastRunAt(): Promise<Record<string, string | null>> {
+  const db = getIntegratorDrizzle();
+  const rows = await db.select({ metaJson: operatorJobStatus.metaJson }).from(operatorJobStatus)
+    .where(eq(operatorJobStatus.jobKey, OPERATOR_OUTBOUND_PROBE_JOB_KEY)).limit(1);
+  const meta = rows[0]?.metaJson && typeof rows[0].metaJson === 'object' && !Array.isArray(rows[0].metaJson)
+    ? rows[0].metaJson as Record<string, unknown> : {};
+  const lastRunAt = meta.lastRunAt && typeof meta.lastRunAt === 'object' ? meta.lastRunAt as Record<string, unknown> : {};
+  return Object.fromEntries(OPERATOR_OUTBOUND_PROBE_CHANNELS.map((channel) => [channel, typeof lastRunAt[channel] === 'string' && lastRunAt[channel] ? lastRunAt[channel] : null]));
 }
 
 export async function resolveOpenOperatorIncidentsByDedupKeyPrefix(prefix: string): Promise<number> {

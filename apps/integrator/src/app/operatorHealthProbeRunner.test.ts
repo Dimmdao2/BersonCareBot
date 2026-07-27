@@ -46,7 +46,7 @@ describe('runOperatorHealthProbes', () => {
     vi.clearAllMocks();
     telegramConfigMock.botToken = '';
     resolvePrefixMock.mockResolvedValue(0);
-    recordProbeRunMock.mockResolvedValue({ consecutiveFailRuns: 0 });
+    recordProbeRunMock.mockResolvedValue({ consecutiveFailRuns: 0, consecutiveFailures: {} });
     reportOperatorFailureMock.mockResolvedValue(undefined);
     getMeMock.mockResolvedValue({ id: 1 });
     getBotInstanceMock.mockReturnValue({ api: { getMe: getMeMock } });
@@ -65,21 +65,16 @@ describe('runOperatorHealthProbes', () => {
     expect(resolvePrefixMock).not.toHaveBeenCalledWith('outbound:rubitime:');
   });
 
-  it('Telegram getMe fail reports telegram_probe_failed', async () => {
+  it('Telegram first failure is recorded but does not raise an incident', async () => {
     getMaxBotInfoMock.mockResolvedValue({ id: 1 });
     telegramConfigMock.botToken = 'tg-token';
     getMeMock.mockRejectedValue(new Error('telegram_down'));
     const r = await runOperatorHealthProbes({ dispatchPort });
     expect(r.telegram).toBe('fail');
-    expect(reportOperatorFailureMock).toHaveBeenCalledWith(
-      expect.objectContaining({
-        integration: 'telegram',
-        errorClass: 'telegram_probe_failed',
-      }),
-    );
+    expect(reportOperatorFailureMock).not.toHaveBeenCalled();
   });
 
-  it('Google Calendar probe fail reports google_calendar_probe_failed', async () => {
+  it('Google Calendar second failure raises an incident', async () => {
     getMaxBotInfoMock.mockResolvedValue({ id: 1 });
     getGoogleCalendarConfigMock.mockResolvedValue({
       enabled: true,
@@ -90,6 +85,7 @@ describe('runOperatorHealthProbes', () => {
       redirectUri: 'http://localhost',
     });
     probeGoogleCalendarAccessMock.mockRejectedValue(new Error('GOOGLE_CALENDAR_HTTP_403'));
+    recordProbeRunMock.mockResolvedValue({ consecutiveFailRuns: 2, consecutiveFailures: { google_calendar: 2 } });
     const r = await runOperatorHealthProbes({ dispatchPort });
     expect(r.google_calendar).toBe('fail');
     expect(reportOperatorFailureMock).toHaveBeenCalledWith(
@@ -105,15 +101,10 @@ describe('runOperatorHealthProbes', () => {
     try {
       getMaxBotInfoMock.mockImplementation(() => new Promise(() => {}));
       const p = runOperatorHealthProbes({ dispatchPort });
-      await vi.advanceTimersByTimeAsync(15_000);
+      await vi.advanceTimersByTimeAsync(5_000);
       const r = await p;
       expect(r.max).toBe('fail');
-      expect(reportOperatorFailureMock).toHaveBeenCalledWith(
-        expect.objectContaining({
-          integration: 'max',
-          errorClass: 'max_probe_failed',
-        }),
-      );
+      expect(reportOperatorFailureMock).not.toHaveBeenCalled();
     } finally {
       vi.useRealTimers();
     }
@@ -121,22 +112,17 @@ describe('runOperatorHealthProbes', () => {
 
   it('MAX fail reports failure and does not resolve', async () => {
     getMaxBotInfoMock.mockResolvedValue(null);
-    recordProbeRunMock.mockResolvedValue({ consecutiveFailRuns: 1 });
+    recordProbeRunMock.mockResolvedValue({ consecutiveFailRuns: 1, consecutiveFailures: { max: 1 } });
     const r = await runOperatorHealthProbes({ dispatchPort });
     expect(r.max).toBe('fail');
-    expect(reportOperatorFailureMock).toHaveBeenCalledWith(
-      expect.objectContaining({
-        integration: 'max',
-        errorClass: 'max_probe_failed',
-      }),
-    );
+    expect(reportOperatorFailureMock).not.toHaveBeenCalled();
     expect(resolvePrefixMock).not.toHaveBeenCalledWith('outbound:max:');
     expect(recordProbeRunMock).toHaveBeenCalledWith(
       expect.objectContaining({
         max: 'fail',
         rubitime: 'skipped_not_configured',
         telegram: 'skipped_not_configured',
-        anyFail: true,
+        probed: expect.any(Array),
       }),
     );
     expect(r.details.consecutiveFailRuns).toBe('1');

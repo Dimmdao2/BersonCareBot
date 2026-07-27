@@ -167,6 +167,13 @@ export const SYSTEM_SETTING_REGISTRY = {
   web_push_vapid: restricted("admin", "global", "secret_envelope", "absent", "redacted", "web_push_vapid_public_key"),
   admin_incident_alert_config: restricted("admin", "global", "structured"),
   operator_health_alert_config: restricted("admin", "global", "structured"),
+  operator_health_probe_config: runtime(
+    "admin",
+    "global",
+    "server",
+    "structured",
+    '{"max":{"enabled":true,"intervalMs":600000,"timeoutMs":5000,"consecutiveFailures":2},"telegram":{"enabled":true,"intervalMs":600000,"timeoutMs":5000,"consecutiveFailures":2},"rubitime":{"enabled":true,"intervalMs":600000,"timeoutMs":5000,"consecutiveFailures":2},"google_calendar":{"enabled":true,"intervalMs":600000,"timeoutMs":5000,"consecutiveFailures":2},"quietUntil":null}',
+  ),
   operator_health_projection_thresholds: runtime("admin", "global", "server", "structured", "absent"),
   "notif_template:created:patient": runtime("admin", "per_org", "server", "string", "hardcoded fallback"),
   "notif_template:created:doctor": runtime("admin", "per_org", "server", "string", "hardcoded fallback"),
