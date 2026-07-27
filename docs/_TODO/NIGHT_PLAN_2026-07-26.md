@@ -4,7 +4,8 @@
 finding that has no line here is a QUESTION for the owner, never work (see `docs/ORCHESTRATION_BINDINGS.md`).
 
 **Reconciliation pass 2026-07-27.** Markers were re-counted in this file after the audit corrections:
-**32 closed / 15 open / 5 cancelled or superseded**. `[x]` is used only for work that is done; `[-]` records
+**36 closed / 20 open / 5 cancelled or superseded** (пересчитано 27.07 после сверки коммитов с планом; прошлая
+строка «32 closed / 15 open» устарела — числа считаны `grep`, а не оценены). `[x]` is used only for work that is done; `[-]` records
 cancelled or superseded work and is excluded from both totals. Detail and evidence are inline on each item.
 
 ## Standing rules the owner restated tonight
@@ -80,6 +81,16 @@ cancelled or superseded work and is excluded from both totals. Detail and eviden
       on all three playback-analytics tables is restored. Group B (the patient's delivery telemetry) has the
       owner's decision in `OWNER_PRODUCT_RULES.md` §18 — revoke the grant — but that revocation is **not
       implemented**. Group D is only partly done. These closures do not complete A-1 stages 2–3.
+      **Same-day sweep continues 27.07 on the patient-facing side** (not a separate box — same A-1 pattern,
+      migration `0252_patient_action_accessors.sql`): `7907b84bd` moves LFK-diary complex-cover reads
+      (`pgLfkDiary.ts`), the phone-challenge store (`pgPhoneChallengeStore.ts`) and platform LFK media access
+      (`pgPlatformLfkMediaAccess.ts`) off direct bootstrap-role table grants onto narrow `app`-schema
+      accessors; `e3949e113` does the same for the phone-OTP lockout/lock-check path
+      (`pgPhoneOtpLimits.ts` → `app.phone_auth_find_otp_lock` / `..._register_otp_lockout` / `..._reset_otp_lockout`).
+      Scoped tests green: `pgPhoneOtpLimits.test.ts`, `pgLfkDiary.test.ts`, `pgPhoneChallengeStore.test.ts`,
+      `pgPlatformLfkMediaAccess.test.ts`, `patientActionAccessorsMigration.test.ts` — 20/20, re-run during
+      this reconciliation. Still does not complete A-1 stages 2–3 (the structural owner-split and allowlist
+      gate remain open).
 - [ ] **A-2 (C2) Public read surface.** Owner: study which actions genuinely need it; do not serve public
       data under system roles. External research says a policy over a mixed table is NOT enough (RLS is
       row-granular; covert channels are documented by PostgreSQL itself) — the shape is a **separate public
@@ -359,15 +370,29 @@ cancelled or superseded work and is excluded from both totals. Detail and eviden
       never a share of recipients. The probe machinery already exists (`runOperatorHealthProbes`: MAX,
       Telegram, Rubitime, Google Calendar) and **nothing schedules it** — no cron, no timer, no in-process
       job. Open work:
-      - [~] the probes are now driven from the leader-elected scheduler with per-channel interval, timeout,
-        consecutive-failure threshold and a quiet window (`14e88c606`) — **but an independent audit returned
+      - [x] the probes are now driven from the leader-elected scheduler with per-channel interval, timeout,
+        consecutive-failure threshold and a quiet window (`14e88c606`) — **an independent audit returned
         FAIL and the lead confirmed the three worst findings by reading the code**: the new DB reads carry no
         principal context, so on TEST every tick throws before reaching the probes; the configured threshold
         does not drive paging (hardcoded `PROBE_CRITICAL_CONSECUTIVE_FAIL_RUNS = 3`); an unbounded quiet
-        window can silence the probes forever. Fixes in flight — this line closes only when they land;
+        window can silence the probes forever.
+        **All three fixed in `cefd66fb6`, confirmed by re-reading the code, not the worker's report:**
+        (1) `operatorHealthProbeTick.ts` wraps config load + last-run read + probe run in
+        `runWithInfraPrincipal` — no more bare DB call outside a principal; (2) the hardcoded 3-strike
+        constant is deleted from `criticalHealthSignals.ts`; the banner and the critical-signal classifier
+        now fire on `probeIncidentsOpenCount > 0` (an incident the integrator only opens after each probe's
+        *configured* `consecutiveFailures`), proven by a new test asserting `reportOperatorFailure` is
+        NOT called below a raised per-channel threshold; (3) `quietWindowMaxDurationMs` (default 24h, capped
+        60s–7d by schema) bounds `isOperatorHealthProbeQuiet` so a stored `quietUntil` can no longer silence
+        probes indefinitely. `25479901a` re-aligned the banner test to the new incident-based threshold and
+        added the `DELETE /api/admin/settings` census/exemption entry for the probe-config reset route.
+        Integrator scoped tests 11/11 green (`operatorHealthProbeTick.test.ts`,
+        `operatorHealthProbeRunner.test.ts`, `operatorHealthProbeSettings.test.ts`), webapp scoped tests
+        66/66 (+1 skipped) green (`criticalHealthSignals`, `adminDoctorTodayHealthBanner`,
+        `dispatchOperatorAlert`, `operatorHealthAlertConfig`, `csrfOrigin`), re-run during this reconciliation.
       - [ ] add the missing probes: SMTP connect+AUTH, a daily real test send, SMS balance, web push;
-      - [~] per-channel timeouts replaced the single 15 s constant, and the threshold is configurable — but
-        see the audit findings above: the threshold is not yet wired to what actually pages;
+      - [x] per-channel timeouts replaced the single 15 s constant, and the threshold is configurable —
+        **and now wired to what actually pages**, per the `cefd66fb6` fix above.
       - [ ] an external heartbeat whose silence is the alert, on a transport we do not own.
       - [x] the admin form for the probes (§28.3): enable, interval, timeout, consecutive failures, each field
         showing its default, with a reset control — and the settings service gained the delete path a reset
@@ -535,12 +560,17 @@ cancelled or superseded work and is excluded from both totals. Detail and eviden
       **Владелец занял адрес `dmitryberson` для «Точки Здоровья» 27.07 через новый экран** — это и
       подтвердило первую половину живьём, и сделало возможным сценарий публичных слотов.
       **Снята пометка «известное исключение»** с `public.booking.slots`: она держалась на том, что publish-
-      потока нет и слага нет. Оба условия отпали. Смоук стал 22/22, сценарий теперь в обязательном гейте.
+      потока нет и слага нет. Оба условия отпали. Смоук стал 22/22 (`5c6c37192`), сценарий теперь в
+      обязательном гейте.
       **Ложная тревога, записанная честно:** я сообщил владельцу, что публичная запись сломана — 400
       `ambiguous_booking_tenant`. Это было НЕВЕРНО, поправлено ему в течение часа. Ручка работает: две
       активные услуги отдают слоты анонимно. Падала одна услуга, «Сеанс 40 мин», деактивированная
       владельцем 01.06, — и отказ был ПРАВИЛЬНЫМ. В фикстуре смоука стоял идентификатор именно этой мёртвой
-      услуги. Урок: я сообщил вывод, проверив симптом и не проверив причину.
+      услуги. Урок: я сообщил вывод, проверив симптом и не проверив причину. Диагностика самой ошибки
+      усилена по ходу разбора: `93d16e1eb` пишет причину отказа резолвера в приватный лог (публичный код
+      ответа остаётся нейтральным, чтобы не давать анониму перечислять клиники/услуги через сообщение об
+      ошибке), `5597edb61` сузил discriminated union перед чтением полей бронирования для этого же
+      диагностического лога — без него TypeScript не давал читать поля, которых нет на всех ветках union.
       **Разбор той тревоги вскрыл настоящий дефект (taskdb #1059, НЕ чинил — нет строки в плане, меняет
       поведение записи):** авторизованный путь `/api/booking/slots` не проверяет активность услуги вовсе,
       поэтому залогиненный пациент может записаться на услугу, которую клиника отключила. Публичный путь
