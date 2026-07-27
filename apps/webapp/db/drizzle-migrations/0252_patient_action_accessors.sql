@@ -1,7 +1,7 @@
 -- 0252: restore two patient-facing actions without granting either caller direct table access.
 --
--- Phone auth runs as the NOINHERIT bootstrap base login (it never SET ROLEs), so its five store
--- operations are granted to the dynamically discovered login by
+-- Phone auth runs as the NOINHERIT bootstrap base login (it never SET ROLEs), so its nine exact
+-- challenge-store and login-limit operations are granted to the dynamically discovered login by
 -- deploy/postgres/d3-4-bootstrap-base-login-read-grants.sql. Patient LFK runs as app_patient; its
 -- three read accessors re-state the organization/patient or platform-global predicate because their
 -- app_owner definer bypasses RLS.
@@ -181,6 +181,59 @@ AS $function$
   RETURNING challenge.verify_attempts::integer
 $function$;
 
+CREATE OR REPLACE FUNCTION app.phone_auth_find_otp_lock(p_phone text)
+RETURNS TABLE (locked_until bigint)
+LANGUAGE sql
+STABLE
+SECURITY DEFINER
+SET search_path = pg_catalog
+AS $function$
+  SELECT lock_row.locked_until
+  FROM public.phone_otp_locks AS lock_row
+  WHERE lock_row.phone_normalized = p_phone
+$function$;
+
+CREATE OR REPLACE FUNCTION app.phone_auth_find_latest_challenge_created_at(p_phone text)
+RETURNS TABLE (max_created timestamptz)
+LANGUAGE sql
+STABLE
+SECURITY DEFINER
+SET search_path = pg_catalog
+AS $function$
+  SELECT max(challenge.created_at) AS max_created
+  FROM public.phone_challenges AS challenge
+  WHERE challenge.phone = p_phone
+$function$;
+
+CREATE OR REPLACE FUNCTION app.phone_auth_register_otp_lockout(
+  p_phone text,
+  p_now_sec bigint
+)
+RETURNS TABLE (locked_until bigint)
+LANGUAGE sql
+VOLATILE
+SECURITY DEFINER
+SET search_path = pg_catalog
+AS $function$
+  INSERT INTO public.phone_otp_locks (phone_normalized, lockout_cycle, locked_until)
+  VALUES (p_phone, 1, p_now_sec + 120)
+  ON CONFLICT (phone_normalized) DO UPDATE SET
+    lockout_cycle = phone_otp_locks.lockout_cycle + 1,
+    locked_until = p_now_sec + LEAST(1800, (120 * power(2, LEAST(phone_otp_locks.lockout_cycle, 10)))::bigint)
+  RETURNING phone_otp_locks.locked_until
+$function$;
+
+CREATE OR REPLACE FUNCTION app.phone_auth_reset_otp_lockout(p_phone text)
+RETURNS void
+LANGUAGE sql
+VOLATILE
+SECURITY DEFINER
+SET search_path = pg_catalog
+AS $function$
+  DELETE FROM public.phone_otp_locks AS lock_row
+  WHERE lock_row.phone_normalized = p_phone
+$function$;
+
 CREATE OR REPLACE FUNCTION app.read_patient_lfk_complex_cover(p_complex_id uuid)
 RETURNS TABLE (
   cover_image_url text,
@@ -358,6 +411,10 @@ BEGIN
     ALTER FUNCTION app.phone_challenge_store_delete(text) OWNER TO app_owner;
     ALTER FUNCTION app.phone_challenge_store_delete_by_phone(text) OWNER TO app_owner;
     ALTER FUNCTION app.phone_challenge_store_increment_attempts(text, bigint) OWNER TO app_owner;
+    ALTER FUNCTION app.phone_auth_find_otp_lock(text) OWNER TO app_owner;
+    ALTER FUNCTION app.phone_auth_find_latest_challenge_created_at(text) OWNER TO app_owner;
+    ALTER FUNCTION app.phone_auth_register_otp_lockout(text, bigint) OWNER TO app_owner;
+    ALTER FUNCTION app.phone_auth_reset_otp_lockout(text) OWNER TO app_owner;
     ALTER FUNCTION app.read_patient_lfk_complex_cover(uuid) OWNER TO app_owner;
     ALTER FUNCTION app.read_patient_lfk_complex_exercise_lines(uuid[]) OWNER TO app_owner;
     ALTER FUNCTION app.read_platform_lfk_media_entitlement_refs(uuid) OWNER TO app_owner;
@@ -370,6 +427,10 @@ REVOKE ALL ON FUNCTION app.phone_challenge_store_read(text) FROM PUBLIC;
 REVOKE ALL ON FUNCTION app.phone_challenge_store_delete(text) FROM PUBLIC;
 REVOKE ALL ON FUNCTION app.phone_challenge_store_delete_by_phone(text) FROM PUBLIC;
 REVOKE ALL ON FUNCTION app.phone_challenge_store_increment_attempts(text, bigint) FROM PUBLIC;
+REVOKE ALL ON FUNCTION app.phone_auth_find_otp_lock(text) FROM PUBLIC;
+REVOKE ALL ON FUNCTION app.phone_auth_find_latest_challenge_created_at(text) FROM PUBLIC;
+REVOKE ALL ON FUNCTION app.phone_auth_register_otp_lockout(text, bigint) FROM PUBLIC;
+REVOKE ALL ON FUNCTION app.phone_auth_reset_otp_lockout(text) FROM PUBLIC;
 REVOKE ALL ON FUNCTION app.read_patient_lfk_complex_cover(uuid) FROM PUBLIC;
 REVOKE ALL ON FUNCTION app.read_patient_lfk_complex_exercise_lines(uuid[]) FROM PUBLIC;
 REVOKE ALL ON FUNCTION app.read_platform_lfk_media_entitlement_refs(uuid) FROM PUBLIC;
@@ -391,6 +452,14 @@ $patient_lfk_accessor_grants$;
 
 COMMENT ON FUNCTION app.phone_challenge_store_read(text) IS
   'Bootstrap phone-auth bearer read: returns only the exact opaque challenge id supplied; never scans phone_challenges.';
+COMMENT ON FUNCTION app.phone_auth_find_otp_lock(text) IS
+  'Bootstrap phone-auth lock gate: returns locked_until only for the exact normalized phone supplied.';
+COMMENT ON FUNCTION app.phone_auth_find_latest_challenge_created_at(text) IS
+  'Bootstrap phone-auth resend gate: returns only max(created_at) for the exact normalized phone supplied.';
+COMMENT ON FUNCTION app.phone_auth_register_otp_lockout(text, bigint) IS
+  'Bootstrap phone-auth decaying lockout: atomically escalates only the exact normalized phone supplied and returns locked_until.';
+COMMENT ON FUNCTION app.phone_auth_reset_otp_lockout(text) IS
+  'Bootstrap phone-auth successful verification reset: deletes only the exact normalized phone lock supplied.';
 COMMENT ON FUNCTION app.read_patient_lfk_complex_cover(uuid) IS
   'Patient LFK cover read: exact current organization + current patient complex only.';
 COMMENT ON FUNCTION app.read_patient_lfk_complex_exercise_lines(uuid[]) IS

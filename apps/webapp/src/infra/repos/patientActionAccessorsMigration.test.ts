@@ -25,6 +25,14 @@ function functionStatement(migration: string, signature: string): string {
   return migration.slice(start, bodyEnd + "$function$".length);
 }
 
+function guardedPsqlStatement(source: string, statement: string): string {
+  const start = source.indexOf(`'${statement}'`);
+  expect(start).toBeGreaterThan(-1);
+  const end = source.indexOf("\\gexec", start);
+  expect(end).toBeGreaterThan(start);
+  return source.slice(start, end + "\\gexec".length);
+}
+
 describe("0252 patient action accessors", () => {
   const migration = readFileSync(migrationPath, "utf8");
 
@@ -43,6 +51,10 @@ describe("0252 patient action accessors", () => {
       "app.phone_challenge_store_delete(",
       "app.phone_challenge_store_delete_by_phone(",
       "app.phone_challenge_store_increment_attempts(",
+      "app.phone_auth_find_otp_lock(",
+      "app.phone_auth_find_latest_challenge_created_at(",
+      "app.phone_auth_register_otp_lockout(",
+      "app.phone_auth_reset_otp_lockout(",
       "app.read_patient_lfk_complex_cover(",
       "app.read_patient_lfk_complex_exercise_lines(",
       "app.read_platform_lfk_media_entitlement_refs(",
@@ -52,8 +64,8 @@ describe("0252 patient action accessors", () => {
       expect(fn).toContain("SECURITY DEFINER");
       expect(fn).toContain("SET search_path = pg_catalog");
     }
-    expect(migration.match(/OWNER TO app_owner;/g)).toHaveLength(8);
-    expect(migration.match(/REVOKE ALL ON FUNCTION app\./g)).toHaveLength(8);
+    expect(migration.match(/OWNER TO app_owner;/g)).toHaveLength(12);
+    expect(migration.match(/REVOKE ALL ON FUNCTION app\./g)).toHaveLength(12);
   });
 
   it("lets app_patient read only its current tenant and user LFK rows", () => {
@@ -109,26 +121,61 @@ describe("0252 patient action accessors", () => {
       migration,
       "app.phone_challenge_store_upsert(",
     )).toContain("WHERE challenge.phone = EXCLUDED.phone");
+    expect(functionStatement(
+      migration,
+      "app.phone_auth_find_otp_lock(p_phone text)",
+    )).toContain("lock_row.phone_normalized = p_phone");
+    expect(functionStatement(
+      migration,
+      "app.phone_auth_find_latest_challenge_created_at(p_phone text)",
+    )).toContain("challenge.phone = p_phone");
+    const registerLockout = functionStatement(
+      migration,
+      "app.phone_auth_register_otp_lockout(",
+    );
+    expect(registerLockout).toContain("VALUES (p_phone, 1, p_now_sec + 120)");
+    expect(registerLockout).toContain(
+      "p_now_sec + LEAST(1800, (120 * power(2, LEAST(phone_otp_locks.lockout_cycle, 10)))::bigint)",
+    );
+    expect(functionStatement(
+      migration,
+      "app.phone_auth_reset_otp_lockout(p_phone text)",
+    )).toContain("lock_row.phone_normalized = p_phone");
 
     const grants = readFileSync(bootstrapGrantsPath, "utf8");
-    for (const accessor of [
-      "phone_challenge_store_upsert",
-      "phone_challenge_store_read",
-      "phone_challenge_store_delete",
-      "phone_challenge_store_delete_by_phone",
-      "phone_challenge_store_increment_attempts",
+    for (const signature of [
+      "phone_challenge_store_upsert(text, text, bigint, text, jsonb, integer)",
+      "phone_challenge_store_read(text)",
+      "phone_challenge_store_delete(text)",
+      "phone_challenge_store_delete_by_phone(text)",
+      "phone_challenge_store_increment_attempts(text, bigint)",
+      "phone_auth_find_otp_lock(text)",
+      "phone_auth_find_latest_challenge_created_at(text)",
+      "phone_auth_register_otp_lockout(text, bigint)",
+      "phone_auth_reset_otp_lockout(text)",
     ]) {
-      expect(grants).toContain(`GRANT EXECUTE ON FUNCTION app.${accessor}`);
-      expect(grants).toContain(`REVOKE EXECUTE ON FUNCTION app.${accessor}`);
+      const grant = guardedPsqlStatement(
+        grants,
+        `GRANT EXECUTE ON FUNCTION app.${signature} TO %I`,
+      );
+      expect(grant).toContain(":'d3_4_bootstrap_base_role'");
+      const revoke = guardedPsqlStatement(
+        grants,
+        `REVOKE EXECUTE ON FUNCTION app.${signature} FROM %I`,
+      );
+      expect(revoke).toContain(":'d3_4_bootstrap_base_role'");
     }
     expect(grants).not.toMatch(
       /GRANT\s+[^;]*ON TABLE public\.phone_challenges TO :"d3_4_bootstrap_base_role"/,
+    );
+    expect(grants).not.toMatch(
+      /GRANT\s+[^;]*ON TABLE public\.phone_otp_locks TO :"d3_4_bootstrap_base_role"/,
     );
   });
 
   it("pins the reviewed count/grants without entering the deploy ownership trap", () => {
     const deploy = readFileSync(deployPath, "utf8");
-    expect(deploy).toContain("local expected_secdef_count=70");
+    expect(deploy).toContain("local expected_secdef_count=74");
     for (const row of [
       "('public.lfk_complexes', 'SELECT')",
       "('public.lfk_complex_exercises', 'SELECT')",
@@ -143,6 +190,7 @@ describe("0252 patient action accessors", () => {
     const ownershipOverlay = readFileSync(inviteOwnershipPath, "utf8");
     for (const accessor of [
       "phone_challenge_store_",
+      "phone_auth_",
       "read_patient_lfk_complex_",
       "read_platform_lfk_media_entitlement_refs",
     ]) {

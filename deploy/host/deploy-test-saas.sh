@@ -1409,7 +1409,13 @@ SELECT has_column_privilege('app_owner', 'public.operator_incidents', 'alert_sen
   # public.lfk_exercise_media, public.lfk_exercises, public.lfk_complex_templates and
   # public.lfk_complex_template_exercises). The six newly required LFK SELECT rows are in the VALUES
   # set above; public.media_files SELECT was already reviewed for app_owner.
-  local expected_secdef_count=70
+  # 70 -> 74 (2026-07-27, taskdb #1033 correction): migration 0252 also adds the four phone login-limit
+  # operations omitted from the first pass: app.phone_auth_find_otp_lock(text),
+  # app.phone_auth_find_latest_challenge_created_at(text),
+  # app.phone_auth_register_otp_lockout(text,bigint), and app.phone_auth_reset_otp_lockout(text).
+  # They re-state exact-phone predicates and touch only public.phone_challenges / public.phone_otp_locks;
+  # all eight SELECT/INSERT/UPDATE/DELETE required-grant rows are already pinned above from migration 0245.
+  local expected_secdef_count=74
   local actual_secdef_count
   actual_secdef_count="$(sudo -u postgres psql -d "$DB" -X -v ON_ERROR_STOP=1 -tAc "
 SELECT count(*) FROM pg_proc p WHERE pg_get_userbyid(p.proowner) = 'app_owner' AND p.prosecdef;

@@ -219,7 +219,9 @@ describe("0238 organization brand publication", () => {
     // only reads public.media_files, already covered by app_owner's existing SELECT grant there.
     // 62 -> 70 (2026-07-27): migration 0252 adds five phone-challenge actions and three patient-LFK
     // reads. The live-corrected baseline is 62; the new accessors are reviewed in their focused test.
-    expect(deploy).toContain("local expected_secdef_count=70");
+    // 70 -> 74 (2026-07-27): #1033 correction adds the four phone login-limit actions omitted from
+    // the first 0252 pass; their two tables' required grants were already pinned by migration 0245.
+    expect(deploy).toContain("local expected_secdef_count=74");
     expect(deploy).toContain("('public.org_enrollments', 'SELECT')");
     expect(deploy).toContain("('public.phone_challenges', 'INSERT')");
     expect(deploy).toContain("('public.phone_otp_locks', 'UPDATE')");

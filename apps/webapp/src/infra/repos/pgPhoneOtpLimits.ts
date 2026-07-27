@@ -4,7 +4,7 @@ export async function findPhoneOtpLock(
   phoneNormalized: string,
 ): Promise<{ locked_until: string | number } | null> {
   const lockRow = await runWebappPgText<{ locked_until: string | number }>(
-    "SELECT locked_until FROM phone_otp_locks WHERE phone_normalized = $1",
+    "SELECT locked_until FROM app.phone_auth_find_otp_lock($1::text)",
     [phoneNormalized],
   );
   return lockRow.rows[0] ?? null;
@@ -14,7 +14,7 @@ export async function findLatestPhoneChallengeCreatedAt(
   phoneNormalized: string,
 ): Promise<Date | null> {
   const lastCh = await runWebappPgText<{ max_created: Date | string | null }>(
-    "SELECT max(created_at) AS max_created FROM phone_challenges WHERE phone = $1",
+    "SELECT max_created FROM app.phone_auth_find_latest_challenge_created_at($1::text)",
     [phoneNormalized],
   );
   const raw = lastCh.rows[0]?.max_created;
@@ -26,7 +26,8 @@ export async function findLatestPhoneChallengeCreatedAt(
 
 /**
  * Decaying OTP lockout (night plan C-2 step 3), same formula/citations as
- * app.email_auth_register_email_otp_lockout (0248_otp_decaying_lockout.sql) and
+ * app.phone_auth_register_otp_lockout (0252_patient_action_accessors.sql),
+ * app.email_auth_register_email_otp_lockout (0248_otp_decaying_lockout.sql), and
  * otpConstants.ts:nextOtpLockoutDurationSeconds: 120 * 2^cycle seconds, cycle taken from the row's
  * value BEFORE this statement (Postgres reads the pre-update row for every expression in a SET
  * clause), capped at 1800s. `ON CONFLICT ... DO UPDATE` is Postgres's own serialization point for
@@ -40,12 +41,7 @@ export async function findLatestPhoneChallengeCreatedAt(
  */
 export async function registerPhoneOtpLockout(phoneNormalized: string, nowSec: number): Promise<number> {
   const r = await runWebappPgText<{ locked_until: string | number }>(
-    `INSERT INTO phone_otp_locks (phone_normalized, lockout_cycle, locked_until)
-     VALUES ($1, 1, $2 + 120)
-     ON CONFLICT (phone_normalized) DO UPDATE SET
-       lockout_cycle = phone_otp_locks.lockout_cycle + 1,
-       locked_until = $2 + LEAST(1800, (120 * power(2, LEAST(phone_otp_locks.lockout_cycle, 10)))::bigint)
-     RETURNING locked_until`,
+    "SELECT locked_until FROM app.phone_auth_register_otp_lockout($1::text, $2::bigint)",
     [phoneNormalized, nowSec],
   );
   return Number(r.rows[0]!.locked_until);
@@ -53,7 +49,7 @@ export async function registerPhoneOtpLockout(phoneNormalized: string, nowSec: n
 
 /** NIST SP 800-63B §5.2.2: disregard previous failed attempts after a successful verification. */
 export async function resetPhoneOtpLockout(phoneNormalized: string): Promise<void> {
-  await runWebappPgText("DELETE FROM phone_otp_locks WHERE phone_normalized = $1", [phoneNormalized]);
+  await runWebappPgText("SELECT app.phone_auth_reset_otp_lockout($1::text)", [phoneNormalized]);
 }
 
 export const pgPhoneOtpLimitsPort = {

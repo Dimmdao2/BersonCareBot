@@ -78,6 +78,12 @@ describe.skipIf(!enabled)("decaying OTP lockout atomic escalation (explicit muta
       if (!phoneColumn.rows[0]?.exists) {
         throw new Error("0248_otp_decaying_lockout's phone_otp_locks.lockout_cycle column is missing");
       }
+      const phoneAccessor = await client.query<{ exists: boolean }>(
+        "SELECT to_regprocedure('app.phone_auth_register_otp_lockout(text,bigint)') IS NOT NULL AS exists",
+      );
+      if (!phoneAccessor.rows[0]?.exists) {
+        throw new Error("0252_patient_action_accessors's phone lockout accessor is not installed");
+      }
     } finally {
       client.release();
     }
@@ -154,14 +160,10 @@ describe.skipIf(!enabled)("decaying OTP lockout atomic escalation (explicit muta
     const second = await pool.connect();
     const observer = await pool.connect();
 
-    // Same raw SQL text as pgPhoneOtpLimits.ts:registerPhoneOtpLockout -- this proves the ACTUAL
-    // query the application sends, not a paraphrase of it.
-    const registerLockoutSql = `INSERT INTO phone_otp_locks (phone_normalized, lockout_cycle, locked_until)
-       VALUES ($1, 1, $2 + 120)
-       ON CONFLICT (phone_normalized) DO UPDATE SET
-         lockout_cycle = phone_otp_locks.lockout_cycle + 1,
-         locked_until = $2 + LEAST(1800, (120 * power(2, LEAST(phone_otp_locks.lockout_cycle, 10)))::bigint)
-       RETURNING locked_until`;
+    // The same narrow accessor pgPhoneOtpLimits.ts calls. This executes the migration body itself,
+    // rather than a paraphrased copy of its escalation arithmetic.
+    const registerLockoutSql =
+      "SELECT locked_until FROM app.phone_auth_register_otp_lockout($1::text, $2::bigint)";
 
     try {
       await assertExactDevOrScratchDb(setup);

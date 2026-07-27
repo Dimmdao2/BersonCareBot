@@ -261,6 +261,26 @@ SELECT format(
   :'d3_4_bootstrap_base_role'
 )
 WHERE to_regprocedure('app.phone_challenge_store_increment_attempts(text, bigint)') IS NOT NULL \gexec
+SELECT format(
+  'REVOKE EXECUTE ON FUNCTION app.phone_auth_find_otp_lock(text) FROM %I',
+  :'d3_4_bootstrap_base_role'
+)
+WHERE to_regprocedure('app.phone_auth_find_otp_lock(text)') IS NOT NULL \gexec
+SELECT format(
+  'REVOKE EXECUTE ON FUNCTION app.phone_auth_find_latest_challenge_created_at(text) FROM %I',
+  :'d3_4_bootstrap_base_role'
+)
+WHERE to_regprocedure('app.phone_auth_find_latest_challenge_created_at(text)') IS NOT NULL \gexec
+SELECT format(
+  'REVOKE EXECUTE ON FUNCTION app.phone_auth_register_otp_lockout(text, bigint) FROM %I',
+  :'d3_4_bootstrap_base_role'
+)
+WHERE to_regprocedure('app.phone_auth_register_otp_lockout(text, bigint)') IS NOT NULL \gexec
+SELECT format(
+  'REVOKE EXECUTE ON FUNCTION app.phone_auth_reset_otp_lockout(text) FROM %I',
+  :'d3_4_bootstrap_base_role'
+)
+WHERE to_regprocedure('app.phone_auth_reset_otp_lockout(text)') IS NOT NULL \gexec
 REVOKE EXECUTE ON FUNCTION app.email_auth_find_email_send_cooldown(uuid, text) FROM :"d3_4_bootstrap_base_role";
 REVOKE EXECUTE ON FUNCTION app.email_auth_delete_email_challenges_for_user(uuid) FROM :"d3_4_bootstrap_base_role";
 REVOKE EXECUTE ON FUNCTION app.email_auth_insert_email_challenge(uuid, text, text, bigint) FROM :"d3_4_bootstrap_base_role";
@@ -569,6 +589,26 @@ SELECT format(
   :'d3_4_bootstrap_base_role'
 )
 WHERE to_regprocedure('app.phone_challenge_store_increment_attempts(text, bigint)') IS NOT NULL \gexec
+SELECT format(
+  'GRANT EXECUTE ON FUNCTION app.phone_auth_find_otp_lock(text) TO %I',
+  :'d3_4_bootstrap_base_role'
+)
+WHERE to_regprocedure('app.phone_auth_find_otp_lock(text)') IS NOT NULL \gexec
+SELECT format(
+  'GRANT EXECUTE ON FUNCTION app.phone_auth_find_latest_challenge_created_at(text) TO %I',
+  :'d3_4_bootstrap_base_role'
+)
+WHERE to_regprocedure('app.phone_auth_find_latest_challenge_created_at(text)') IS NOT NULL \gexec
+SELECT format(
+  'GRANT EXECUTE ON FUNCTION app.phone_auth_register_otp_lockout(text, bigint) TO %I',
+  :'d3_4_bootstrap_base_role'
+)
+WHERE to_regprocedure('app.phone_auth_register_otp_lockout(text, bigint)') IS NOT NULL \gexec
+SELECT format(
+  'GRANT EXECUTE ON FUNCTION app.phone_auth_reset_otp_lockout(text) TO %I',
+  :'d3_4_bootstrap_base_role'
+)
+WHERE to_regprocedure('app.phone_auth_reset_otp_lockout(text)') IS NOT NULL \gexec
 GRANT EXECUTE ON FUNCTION app.email_auth_find_email_send_cooldown(uuid, text) TO :"d3_4_bootstrap_base_role";
 GRANT EXECUTE ON FUNCTION app.email_auth_delete_email_challenges_for_user(uuid) TO :"d3_4_bootstrap_base_role";
 GRANT EXECUTE ON FUNCTION app.email_auth_insert_email_challenge(uuid, text, text, bigint) TO :"d3_4_bootstrap_base_role";
