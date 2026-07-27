@@ -147,6 +147,12 @@ export async function dispatchOperatorAlert(input: DispatchOperatorAlertInput): 
 
   const channels = cfg.channels[input.block];
   const targets = await loadAdminRelayTargets();
+  // Ports deployed before a newly added channel may omit that list; an absent
+  // list is equivalent to an empty recipient audience for every relay channel.
+  const telegramTargets = targets.telegram ?? [];
+  const maxTargets = targets.max ?? [];
+  const smsTargets = targets.sms ?? [];
+  const emailTargets = targets.email ?? [];
   const pushTitle = input.pushTitle ?? input.topic;
   const pushBody = clip(input.lines.find((line) => line.trim().length > 0) ?? text, 160);
   const pushUrl = input.pushUrl ?? "/app/admin/technical";
@@ -154,10 +160,10 @@ export async function dispatchOperatorAlert(input: DispatchOperatorAlertInput): 
   const attempts: Array<Promise<boolean>> = [];
 
   if (channels.telegram) {
-    if (targets.telegram.length === 0) {
+    if (telegramTargets.length === 0) {
       logger.info({ scope: "operator_alert", event: "operator_alert_skipped_no_recipients", channel: "telegram" });
     } else {
-      for (const id of targets.telegram) {
+      for (const id of telegramTargets) {
         const messageId = `operator-alert:${input.deliveryIdentity ?? dk}:telegram:${id}`;
         attempts.push(fireOperatorRelay({
           messageId,
@@ -173,10 +179,10 @@ export async function dispatchOperatorAlert(input: DispatchOperatorAlertInput): 
   }
 
   if (channels.max) {
-    if (targets.max.length === 0) {
+    if (maxTargets.length === 0) {
       logger.info({ scope: "operator_alert", event: "operator_alert_skipped_no_recipients", channel: "max" });
     } else {
-      for (const id of targets.max) {
+      for (const id of maxTargets) {
         const messageId = `operator-alert:${input.deliveryIdentity ?? dk}:max:${id}`;
         attempts.push(fireOperatorRelay({
           messageId,
@@ -192,10 +198,10 @@ export async function dispatchOperatorAlert(input: DispatchOperatorAlertInput): 
   }
 
   if (channels.sms) {
-    if (targets.sms.length === 0) {
+    if (smsTargets.length === 0) {
       logger.info({ scope: "operator_alert", event: "operator_alert_skipped_no_recipients", channel: "sms" });
     } else {
-      for (const phone of targets.sms) {
+      for (const phone of smsTargets) {
         const recipientDigest = createHash("sha256").update(phone).digest("hex").slice(0, 16);
         const messageId = `operator-alert:${input.deliveryIdentity ?? dk}:sms:${recipientDigest}`;
         // The signed integrator relay checks SMSC readiness and returns a no-op success
@@ -214,10 +220,10 @@ export async function dispatchOperatorAlert(input: DispatchOperatorAlertInput): 
   }
 
   if (channels.email) {
-    if (targets.email.length === 0) {
+    if (emailTargets.length === 0) {
       logger.info({ scope: "operator_alert", event: "operator_alert_skipped_no_recipients", channel: "email" });
     } else {
-      for (const emailAddress of targets.email) {
+      for (const emailAddress of emailTargets) {
         const recipientDigest = createHash("sha256").update(emailAddress).digest("hex").slice(0, 16);
         const messageId = `operator-alert:${input.deliveryIdentity ?? dk}:email:${recipientDigest}`;
         attempts.push(fireOperatorRelay({

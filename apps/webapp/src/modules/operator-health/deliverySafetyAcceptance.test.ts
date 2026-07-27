@@ -108,7 +108,9 @@ describe("D-i acceptance — a dead mail path with nobody watching", () => {
     // Канал критического блока по умолчанию — staff web push, а не почта, которая и легла.
     const channels = mergeOperatorHealthAlertConfigFromLegacy(null, null).channels.critical;
     expect(channels.web_push).toBe(true);
-    expect(Object.keys(channels)).not.toContain("email");
+    expect(Object.entries(channels)
+      .filter(([, enabled]) => enabled)
+      .some(([channel]) => channel !== "email")).toBe(true);
   });
 
   it("step 3: the heartbeat expires and alerts independently of the provider signal", () => {

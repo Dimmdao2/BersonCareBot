@@ -135,7 +135,7 @@ describe("runOperatorHealthCriticalTick", () => {
     });
     // C-4: fixed fake recipient — whoever currently holds the admin role, resolved through the
     // registered port (not config keys anymore, see the module mock above).
-    loadAdminNotificationTargetsMock.mockResolvedValue({ telegram: ["4242"], max: [], sms: [] });
+    loadAdminNotificationTargetsMock.mockResolvedValue({ telegram: ["4242"], max: [], sms: [], email: [] });
     collectWithWebappDb("down");
   });
 
