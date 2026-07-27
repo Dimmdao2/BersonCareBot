@@ -11,17 +11,12 @@ import {
   pgSessionAdvisoryLock,
   pgSessionAdvisoryUnlock,
   pgTrySessionAdvisoryLock,
-  RUBITIME_API_ADVISORY_LOCK_KEY,
 } from './pgAdvisoryLock.js';
 
 describe('pgAdvisoryLock (integrator)', () => {
   beforeEach(() => {
     execute.mockClear();
     execute.mockResolvedValue({ rows: [] });
-  });
-
-  it('exports stable Rubitime advisory int key', () => {
-    expect(RUBITIME_API_ADVISORY_LOCK_KEY).toBe(58220114);
   });
 
   it('pgSessionAdvisoryLock issues pg_advisory_lock with int param', async () => {

@@ -25,7 +25,6 @@ import {
 import { formatDoctorFio, type StructuredFio } from "@/shared/lib/fio";
 import { isBuiltInOnlineLocationCityCode } from "@/modules/booking-engine/onlineLocation";
 import toast from "react-hot-toast";
-import { showBookingPartialOutcomeToast } from "@/shared/booking/bookingPartialOutcomeToast";
 import { cn } from "@/lib/utils";
 import {
   patientButtonPrimaryClass,
@@ -411,7 +410,6 @@ export function ConfirmStepClient({
               .then((result) => {
                 if (!result.ok) return;
                 toast.success("Запись перенесена");
-                showBookingPartialOutcomeToast(result.partial);
                 router.push(successRedirectPath);
               });
             return;

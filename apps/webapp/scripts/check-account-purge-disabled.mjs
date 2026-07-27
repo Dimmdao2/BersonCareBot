@@ -102,12 +102,6 @@ forbidPattern(
   /\bDELETE\s+FROM\s+(?:integrator\.)?users\b/i,
   "reachable_integrator_account_delete",
 );
-forbidPattern(
-  "operations",
-  operations,
-  /\bDELETE\s+FROM\s+(?:integrator\.)?rubitime_(?:records|events)\b/i,
-  "reachable_integrator_history_delete",
-);
 forbidText("operations", operations, "await resetUser(arg1)", "reachable_reset_user_delete");
 forbidText("operations", operations, "await purgeUserByPlatformId(arg1)", "reachable_purge_by_id");
 forbidText("operations", operations, "await integratorClearPhone(arg1)", "reachable_integrator_clear_phone");

@@ -96,7 +96,7 @@ describe('appointmentsReadsPort', () => {
         ok: true,
         records: [
           {
-            rubitimeRecordId: 'rec-1',
+            externalRecordId: 'rec-1',
             recordAt: '2025-06-01T10:00:00.000Z',
             status: 'created',
             link: 'https://example.com/rec',
@@ -111,7 +111,7 @@ describe('appointmentsReadsPort', () => {
     expect(url).toContain('/api/integrator/appointments/active-by-user');
     expect(new URL(url).searchParams.get('phoneNormalized')).toBe('+79991234567');
     expect(list).toHaveLength(1);
-    expect(list[0]!.rubitimeRecordId).toBe('rec-1');
+    expect(list[0]!.externalRecordId).toBe('rec-1');
     expect(list[0]!.recordAt).toBe('2025-06-01T10:00:00.000Z');
     expect(list[0]!.status).toBe('created');
     expect(list[0]!.link).toBe('https://example.com/rec');

@@ -7,7 +7,6 @@ export type StructuredFio = {
 export type FioSource =
   | "manual"
   | "booking"
-  | "rubitime"
   | "native_booking"
   | "profile_structured"
   | "oauth"
@@ -56,12 +55,11 @@ type TokenMark = {
   isPatronymic: boolean;
 };
 
-const STRONG_SOURCES = new Set<FioSource>(["manual", "booking", "rubitime", "native_booking", "profile_structured"]);
+const STRONG_SOURCES = new Set<FioSource>(["manual", "booking", "native_booking", "profile_structured"]);
 
 const SOURCE_SCORE: Record<FioSource, number> = {
   manual: 600,
   booking: 520,
-  rubitime: 500,
   native_booking: 480,
   profile_structured: 430,
   oauth: 180,

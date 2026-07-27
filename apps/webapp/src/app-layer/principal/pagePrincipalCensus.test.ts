@@ -638,7 +638,7 @@ describe("RSC page DB-principal census (night plan A-5, bug class of 19f52fed2)"
     // new entries appear in their place. Readers stay at 12: the moved step pages already counted
     // as readers by their old (shim) path, so the DB-reading page COUNT is unchanged — only the
     // path each one is reached under moved (see the surface assertion below).
-    expect(pageEntries).toHaveLength(164);
+    expect(pageEntries).toHaveLength(163);
     expect(readers).toHaveLength(12);
   });
 

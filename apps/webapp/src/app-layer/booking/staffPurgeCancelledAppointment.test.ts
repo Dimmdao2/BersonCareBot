@@ -6,19 +6,9 @@ import {
 import { staffPurgeCancelledAppointment } from "./staffPurgeCancelledAppointment";
 
 const emitBookingDeletedEventMock = vi.hoisted(() => vi.fn());
-const createBookingSyncPortMock = vi.hoisted(() => vi.fn());
-const resolveRubitimeIdForAppointmentMock = vi.hoisted(() => vi.fn());
 
 vi.mock("@/app-layer/booking/emitBookingDeletedEvent", () => ({
   emitBookingDeletedEvent: emitBookingDeletedEventMock,
-}));
-
-vi.mock("@/app-layer/booking/staffRubitimeMirrorOutbound", () => ({
-  resolveRubitimeIdForAppointment: resolveRubitimeIdForAppointmentMock,
-}));
-
-vi.mock("@/modules/integrator/bookingM2mApi", () => ({
-  createBookingSyncPort: createBookingSyncPortMock,
 }));
 
 const getAppointmentMock = vi.fn();
@@ -40,12 +30,9 @@ describe("staffPurgeCancelledAppointment", () => {
   beforeEach(() => {
     resetInMemoryAppointmentProjectionState();
     emitBookingDeletedEventMock.mockReset();
-    createBookingSyncPortMock.mockReset();
-    resolveRubitimeIdForAppointmentMock.mockReset();
     getAppointmentMock.mockReset();
     getBookingByCanonicalAppointmentMock.mockReset();
 
-    resolveRubitimeIdForAppointmentMock.mockImplementation(async () => "rt-1");
     getBookingByCanonicalAppointmentMock.mockResolvedValue(null);
     emitBookingDeletedEventMock.mockResolvedValue(undefined);
   });
@@ -66,7 +53,6 @@ describe("staffPurgeCancelledAppointment", () => {
     });
 
     expect(result).toEqual({ ok: false, error: "not_cancelled" });
-    expect(createBookingSyncPortMock).not.toHaveBeenCalled();
     expect(emitBookingDeletedEventMock).not.toHaveBeenCalled();
   });
 
@@ -97,7 +83,7 @@ describe("staffPurgeCancelledAppointment", () => {
       startAt: "2026-06-01T10:00:00.000Z",
     });
     await inMemoryAppointmentProjectionPort.upsertRecordFromProjection({
-      integratorRecordId: "rt-1",
+      integratorRecordId: `be:${APPT_ID}`,
       phoneNormalized: "+79990000000",
       recordAt: "2026-06-01T10:00:00.000Z",
       status: "cancelled",
@@ -126,9 +112,8 @@ describe("staffPurgeCancelledAppointment", () => {
 
     expect(result).toEqual({ ok: true });
     expect(principalState.inside).toBe(false);
-    expect(createBookingSyncPortMock).not.toHaveBeenCalled();
     expect(emitBookingDeletedEventMock).toHaveBeenCalledTimes(1);
-    const purged = await inMemoryAppointmentProjectionPort.isIntegratorRecordPurged("rt-1");
+    const purged = await inMemoryAppointmentProjectionPort.isIntegratorRecordPurged(`be:${APPT_ID}`);
     expect(purged).toBe(true);
   });
 
@@ -148,7 +133,7 @@ describe("staffPurgeCancelledAppointment", () => {
       lastEvent: "native.cancelled",
       updatedAt: new Date().toISOString(),
     });
-    await inMemoryAppointmentProjectionPort.softDeleteByCanonicalAppointmentId(APPT_ID, null);
+    await inMemoryAppointmentProjectionPort.softDeleteByCanonicalAppointmentId(APPT_ID);
 
     const result = await staffPurgeCancelledAppointment({
       deps: deps(),
@@ -195,32 +180,4 @@ describe("staffPurgeCancelledAppointment", () => {
     ).toBe(true);
   });
 
-  it("does not call Rubitime when purging a cancelled appointment", async () => {
-    getAppointmentMock.mockResolvedValue({
-      id: APPT_ID,
-      organizationId: "org-1",
-      status: "late_cancellation",
-      startAt: "2026-06-01T10:00:00.000Z",
-    });
-    resolveRubitimeIdForAppointmentMock.mockResolvedValue("rt-2");
-    await inMemoryAppointmentProjectionPort.upsertRecordFromProjection({
-      integratorRecordId: "rt-2",
-      phoneNormalized: "+79990000000",
-      recordAt: "2026-06-01T10:00:00.000Z",
-      status: "cancelled",
-      payloadJson: {},
-      lastEvent: "native.cancelled",
-      updatedAt: new Date().toISOString(),
-    });
-
-    const result = await staffPurgeCancelledAppointment({
-      deps: deps(),
-      organizationId: "org-1",
-      appointmentId: APPT_ID,
-      actorId: "u1",
-    });
-
-    expect(result).toEqual({ ok: true });
-    expect(createBookingSyncPortMock).not.toHaveBeenCalled();
-  });
 });

@@ -673,24 +673,6 @@ describe('max mapIn', () => {
     expect(fromMax({ ...row, timestamp: 1 })).toBeNull();
   });
 
-  it('maps message_created /start setrubitimerecord_recX to start.setrubitimerecord + recordId', () => {
-    const body = {
-      update_type: 'message_created' as const,
-      timestamp: 1,
-      message: {
-        recipient: { chat_id: 701 },
-        body: { text: '/start setrubitimerecord_recX_y-1' },
-        sender: { user_id: 701 },
-      },
-    };
-    const incoming = fromMax(body);
-    expect(incoming?.kind).toBe('message');
-    if (incoming?.kind === 'message') {
-      expect(incoming.action).toBe('start.setrubitimerecord');
-      expect(incoming.recordId).toBe('recX_y-1');
-    }
-  });
-
   it('maps bot_started setphone_* payload to start.setphone + phone (canonicalize path)', () => {
     const body = {
       update_type: 'bot_started' as const,

@@ -1,5 +1,5 @@
 /**
- * Защищённый trigger для синтетических проб MAX + Rubitime (подпись как у M2M webapp → integrator).
+ * Защищённый trigger для синтетической пробы MAX (подпись как у M2M webapp → integrator).
  */
 import { createHmac, timingSafeEqual } from 'node:crypto';
 import type { FastifyInstance, FastifyRequest } from 'fastify';

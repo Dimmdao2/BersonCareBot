@@ -3,9 +3,8 @@ import type {
   PatientBookingsPort,
   BookingSyncPort,
   BookingSlotsQuery,
-  LegacyBranchProjectionPort,
 } from "./ports";
-import type { CreatePatientBookingInput } from "./types";
+import type { BookingSlotsByDate, CreatePatientBookingInput } from "./types";
 import type { createBookingEngineService } from "@/modules/booking-engine/service";
 import type { createBookingSchedulingService } from "@/modules/booking-scheduling/service";
 import type { createBookingFormService } from "@/modules/booking-form/service";
@@ -30,18 +29,12 @@ import {
   type BookingLifecycleNotificationsSettings,
 } from "./bookingLifecycleNotifications";
 import {
-  mirrorPatientCancelToRubitime,
-  mirrorPatientRescheduleToRubitime,
-} from "./patientMirrorOutbound";
-import {
   projectCanonicalAppointmentCancelled,
   projectCanonicalAppointmentRescheduled,
 } from "./projectCanonicalAppointment";
-import { resolveLegacyBranchIdForProjection } from "./resolveLegacyBranchIdForProjection";
 import { normalizeRuPhoneE164 } from "@/shared/phone/normalizeRuPhoneE164";
 import type { PatientBookingRecord } from "./types";
 import { prepaymentContextFromBooking } from "@/modules/payments/prepaymentContextFromBooking";
-import type { BookingSlotsReadSource } from "./slotsReadSource";
 import type { BeAppointment } from "@/modules/booking-engine/types";
 
 function isPostgresExclusionViolation(err: unknown): boolean {
@@ -98,20 +91,11 @@ function rowToProjectionInput(row: PatientBookingRecord) {
     contactName: row.contactName,
     serviceTitle: row.serviceTitleSnapshot,
     branchTitle: row.branchTitleSnapshot,
-    rubitimeRecordId: row.rubitimeId,
   };
 }
 
-async function buildProjectionInput(
-  row: PatientBookingRecord,
-  branches: LegacyBranchProjectionPort | null | undefined,
-) {
-  const legacyBranchId = await resolveLegacyBranchIdForProjection(
-    branches,
-    row.rubitimeBranchIdSnapshot,
-    row.branchTitleSnapshot,
-  );
-  return { ...rowToProjectionInput(row), legacyBranchId };
+function buildProjectionInput(row: PatientBookingRecord) {
+  return { ...rowToProjectionInput(row), legacyBranchId: null };
 }
 
 function cacheKey(query: BookingSlotsQuery): string {
@@ -146,17 +130,13 @@ export function createPatientBookingService(input: {
   clientHistory?: ClientHistoryService | null;
   platformUserContacts?: PlatformUserContactsService | null;
   getPlatformUserIdentityContacts?: (userId: string) => Promise<IdentityContactFields | null>;
-  resolveSlotsReadSource?: () => Promise<BookingSlotsReadSource>;
-  isRubitimeBridgeEnabled?: () => Promise<boolean>;
   getBookingLifecycleNotificationSettings?: () => Promise<BookingLifecycleNotificationsSettings | null>;
-  appointmentMirrorSync?: import("@/modules/booking-appointment-sync/ports").AppointmentMirrorSyncService | null;
-  branches?: LegacyBranchProjectionPort | null;
   slotsTtlMs?: number;
 }): PatientBookingService {
   const slotsTtlMs = input.slotsTtlMs ?? 60 * 1000;
   const slotsCache = new Map<
     string,
-    { fetchedAt: number; expiresAt: number; value: Awaited<ReturnType<BookingSyncPort["fetchSlots"]>> }
+    { fetchedAt: number; expiresAt: number; value: BookingSlotsByDate[] }
   >();
   let lastSlotsMutationAt = 0;
   const inFlightCreateBySlot = new Set<string>();
@@ -164,10 +144,6 @@ export function createPatientBookingService(input: {
   function invalidateSlotsCache(): void {
     lastSlotsMutationAt = Date.now();
     slotsCache.clear();
-  }
-
-  async function isRubitimeOutboundMirrorEnabled(): Promise<boolean> {
-    return input.isRubitimeBridgeEnabled ? input.isRubitimeBridgeEnabled() : false;
   }
 
   const canonicalDeps: CanonicalBookingDeps | null =
@@ -185,11 +161,8 @@ export function createPatientBookingService(input: {
           clientHistory: input.clientHistory ?? null,
           platformUserContacts: input.platformUserContacts ?? null,
           getPlatformUserIdentityContacts: input.getPlatformUserIdentityContacts,
-          isRubitimeBridgeEnabled: input.isRubitimeBridgeEnabled ?? (async () => false),
-          resolveSlotsReadSource: input.resolveSlotsReadSource,
           getBookingLifecycleNotificationSettings:
             input.getBookingLifecycleNotificationSettings ?? (async () => null),
-          branches: input.branches ?? null,
         }
       : null;
 
@@ -202,11 +175,10 @@ export function createPatientBookingService(input: {
         return cached.value;
       }
 
-      void input.resolveSlotsReadSource;
       if (!input.bookingScheduling || !input.bookingEngine) {
         throw new Error("canonical_booking_unavailable");
       }
-      let value: Awaited<ReturnType<BookingSyncPort["fetchSlots"]>>;
+      let value: BookingSlotsByDate[];
       if (query.type === "online") {
         const orgId = query.organizationId?.trim();
         if (!orgId) throw new Error("ambiguous_booking_tenant");
@@ -301,10 +273,6 @@ export function createPatientBookingService(input: {
       });
     },
 
-    async getByRubitimeId(rubitimeId: string) {
-      return input.bookingsPort.getByRubitimeId(rubitimeId);
-    },
-
     async previewCancel(previewInput) {
       const row = await input.bookingsPort.getByIdForUser(previewInput.bookingId, previewInput.userId);
       if (!row?.canonicalAppointmentId || !input.bookingEngine || !input.appointmentLifecycle) {
@@ -377,7 +345,6 @@ export function createPatientBookingService(input: {
         ),
       );
 
-      void input.resolveSlotsReadSource;
       try {
         await input.bookingScheduling.assertSlotAvailable({
           organizationId: orgId,
@@ -415,7 +382,6 @@ export function createPatientBookingService(input: {
                 organizationId: orgId,
                 bookingId: row.id,
                 userId: row.userId as string,
-                rubitimeId: row.rubitimeId,
                 bookingType: row.bookingType,
                 city: row.city ?? undefined,
                 category: row.category,
@@ -444,25 +410,6 @@ export function createPatientBookingService(input: {
         }
         return { ok: false, error: "not_found" };
       }
-
-      const rubitimeMirrorStatus =
-        row.rubitimeId && row.canonicalAppointmentId && (await isRubitimeOutboundMirrorEnabled())
-          ? await mirrorPatientRescheduleToRubitime({
-              bookingId: row.id,
-              rubitimeId: row.rubitimeId,
-              canonicalAppointmentId: row.canonicalAppointmentId,
-              appointment: {
-                startAt: rescheduleInput.slotStart,
-                endAt: rescheduleInput.slotEnd,
-                branchId: result.appointment.branchId,
-                specialistId: result.appointment.specialistId,
-                serviceId: result.appointment.serviceId,
-                status: result.appointment.status,
-              },
-              appointmentMirrorSync: input.appointmentMirrorSync,
-              syncPort: input.syncPort,
-            })
-          : ("skipped" as const);
 
       const updatedRow = await input.bookingsPort.updateSlotsAfterReschedule({
         bookingId: row.id,
@@ -496,14 +443,11 @@ export function createPatientBookingService(input: {
           await projectCanonicalAppointmentRescheduled(
             input.appointmentProjection,
             result.appointment,
-            await buildProjectionInput(
-              {
-                ...row,
-                slotStart: rescheduleInput.slotStart,
-                slotEnd: rescheduleInput.slotEnd,
-              },
-              input.branches,
-            ),
+            buildProjectionInput({
+              ...row,
+              slotStart: rescheduleInput.slotStart,
+              slotEnd: rescheduleInput.slotEnd,
+            }),
           );
         } catch (err) {
           console.error("[patient-booking] doctor projection reschedule failed (reschedule already committed)", {
@@ -524,7 +468,6 @@ export function createPatientBookingService(input: {
             organizationId: orgId,
             bookingId: row.id,
             userId: row.userId as string,
-            rubitimeId: row.rubitimeId,
             bookingType: row.bookingType,
             city: row.city ?? undefined,
             category: row.category,
@@ -573,7 +516,6 @@ export function createPatientBookingService(input: {
       return {
         ok: true,
         booking: updatedRow ?? row,
-        ...(rubitimeMirrorStatus === "failed" ? { rubitimeMirrorFailed: true as const } : {}),
         ...(notificationOutcomeFailed ? { notificationOutcomeFailed: true as const } : {}),
         ...(paymentOutcomeFailed ? { paymentOutcomeFailed: true as const } : {}),
       };
@@ -618,17 +560,6 @@ export function createPatientBookingService(input: {
           }
           return { ok: false, error: "lifecycle_failed" };
         }
-
-        const rubitimeMirrorStatus =
-          row.rubitimeId && row.canonicalAppointmentId && (await isRubitimeOutboundMirrorEnabled())
-            ? await mirrorPatientCancelToRubitime({
-                bookingId: row.id,
-                rubitimeId: row.rubitimeId,
-                canonicalAppointmentId: row.canonicalAppointmentId,
-                appointmentMirrorSync: input.appointmentMirrorSync,
-                syncPort: input.syncPort,
-              })
-            : "skipped";
 
         let paymentOutcomeFailed = false;
         let membershipOutcomeFailed = false;
@@ -716,7 +647,7 @@ export function createPatientBookingService(input: {
             await projectCanonicalAppointmentCancelled(
               input.appointmentProjection,
               lifecycleResult.appointment,
-              await buildProjectionInput(row, input.branches),
+              buildProjectionInput(row),
             );
           } catch (err) {
             console.error("[patient-booking] doctor projection cancel failed (cancel already committed)", {
@@ -737,7 +668,6 @@ export function createPatientBookingService(input: {
               organizationId: orgId,
               bookingId: row.id,
               userId: row.userId as string,
-              rubitimeId: row.rubitimeId,
               bookingType: row.bookingType,
               city: row.city ?? undefined,
               category: row.category,
@@ -772,7 +702,6 @@ export function createPatientBookingService(input: {
               notifyPatient: cancelNotify.notifyPatient,
               notifyStaff: cancelNotify.notifyStaff,
               integratorStatus,
-              rubitimeMirrorStatus,
             }),
           );
         } catch (err) {
@@ -789,7 +718,6 @@ export function createPatientBookingService(input: {
           lateCancellation:
             lifecycleResult.eligibility.reasonCode === "late" ||
             lifecycleResult.eligibility.reasonCode === "forfeited_by_reschedule",
-          ...(rubitimeMirrorStatus === "failed" ? { rubitimeMirrorFailed: true as const } : {}),
           ...(notificationOutcomeFailed ? { notificationOutcomeFailed: true as const } : {}),
           ...(paymentOutcomeFailed ? { paymentOutcomeFailed: true as const } : {}),
           ...(membershipOutcomeFailed ? { membershipOutcomeFailed: true as const } : {}),
@@ -797,63 +725,7 @@ export function createPatientBookingService(input: {
         };
       }
 
-      await input.bookingsPort.markCancelling(row.id);
-      const legacyRubitimeMirror = row.rubitimeId && (await isRubitimeOutboundMirrorEnabled())
-        ? await mirrorPatientCancelToRubitime({
-            bookingId: row.id,
-            rubitimeId: row.rubitimeId,
-            canonicalAppointmentId: row.canonicalAppointmentId ?? row.id,
-            appointmentMirrorSync: input.appointmentMirrorSync,
-            syncPort: input.syncPort,
-          })
-        : "skipped";
-      await input.bookingsPort.markCancelled({
-        bookingId: row.id,
-        reason: cancelInput.reason,
-        status: "cancelled",
-      });
-      invalidateSlotsCache();
-      const legacyEventOrganizationId = row.canonicalAppointmentId
-        ? await resolveCanonicalAppointmentOrganizationId(input.bookingEngine, row.canonicalAppointmentId)
-            .catch(() => null)
-        : null;
-      let notificationOutcomeFailed = false;
-      if (legacyEventOrganizationId) {
-        try {
-          await input.syncPort.emitBookingEvent({
-            eventType: "booking.cancelled",
-            idempotencyKey: `booking.cancelled:${row.id}`,
-            payload: {
-              organizationId: legacyEventOrganizationId,
-              bookingId: row.id,
-              userId: row.userId as string,
-              rubitimeId: row.rubitimeId,
-              bookingType: row.bookingType,
-              city: row.city ?? undefined,
-              category: row.category,
-              slotStart: row.slotStart,
-              slotEnd: row.slotEnd,
-              contactName: row.contactName,
-              contactPhone: row.contactPhone,
-              contactEmail: row.contactEmail ?? undefined,
-              reason: cancelInput.reason,
-              cityCodeSnapshot: row.cityCodeSnapshot,
-              serviceTitleSnapshot: row.serviceTitleSnapshot,
-            },
-          });
-        } catch {
-          notificationOutcomeFailed = true;
-        }
-      } else {
-        // Legacy rows without a canonical appointment have no trustworthy tenant source.
-        // Fail closed instead of emitting an unscoped signed M2M notification.
-        notificationOutcomeFailed = true;
-      }
-      return {
-        ok: true,
-        ...(legacyRubitimeMirror === "failed" ? { rubitimeMirrorFailed: true as const } : {}),
-        ...(notificationOutcomeFailed ? { notificationOutcomeFailed: true as const } : {}),
-      };
+      return { ok: false, error: "not_found" };
     },
 
     async listMyBookings(userId) {
@@ -865,9 +737,5 @@ export function createPatientBookingService(input: {
       return { upcoming, history };
     },
 
-    async applyRubitimeUpdate(update) {
-      await input.bookingsPort.upsertFromRubitime(update);
-      invalidateSlotsCache();
-    },
   };
 }

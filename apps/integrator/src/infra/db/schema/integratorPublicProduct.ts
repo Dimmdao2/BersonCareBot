@@ -47,12 +47,12 @@ export const userSubscriptions = pgTable(
 
 export const bookingCalendarMap = pgTable('booking_calendar_map', {
   id: bigserial({ mode: 'number' }).primaryKey().notNull(),
-  rubitimeRecordId: text('rubitime_record_id').notNull(),
+  appointmentKey: text('appointment_key').notNull(),
   gcalEventId: text('gcal_event_id').notNull(),
   createdAt: timestamp('created_at', { withTimezone: true, mode: 'string' }).defaultNow().notNull(),
   updatedAt: timestamp('updated_at', { withTimezone: true, mode: 'string' }).defaultNow().notNull(),
 }, (table) => [
-  unique('booking_calendar_map_rubitime_record_id_key').on(table.rubitimeRecordId),
+  unique('booking_calendar_map_appointment_key_key').on(table.appointmentKey),
 ]);
 
 export const mailingLogs = pgTable(

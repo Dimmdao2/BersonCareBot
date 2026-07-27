@@ -48,7 +48,7 @@ The downloader verifies the Zenodo-published MD5 checksum before extraction.
 
 Use the extracted JSONL files only for dry-run scoring of existing names:
 
-1. collect candidate names from Rubitime/booking records and current
+1. collect candidate names from historical booking records and current
    `platform_users`;
 2. parse into `last_name`, `first_name`, `patronymic`;
 3. assign confidence and source priority;
@@ -63,10 +63,12 @@ fields.
 ## Reviewed apply status and safety gate
 
 The exact owner-reviewed artifact was successfully reapplied and checked on TEST on 2026-07-19 under taskdb `#849`,
-after the fresh production-dump rehearsal and canonical Rubitime/history normalization. Aggregate result: 165
+after the fresh production-dump rehearsal and canonical history normalization. Aggregate result: 165
 updated, 3 already matched, 1 expected missing, and 1 preserve-current row intentionally not overwritten.
 Production was not changed. The manual decisions and the two exact exceptions remain authoritative; never
 recalculate them with the parser.
+
+Historical source note: Rubitime was one input to that completed rehearsal and was retired on 2026-07-27.
 
 Structured registration task `#855` is completed and integrated at `50eba2619`. Remaining-writers/display task
 `#856` has implementation at `c8492fec5` and completion/closeout at `2718fe68b`. Production task `#857` is not an
@@ -115,7 +117,7 @@ The operation requires all of the following simultaneously:
 - a durable mode `0600` rollback artifact written and fsynced before the first conditional update.
 
 Commands below are operator building blocks; the canonical clean-dump TEST reset invokes the apply command itself
-after Rubitime/history normalization and before fixtures/service restart:
+after history normalization and before fixtures/service restart:
 
 ```bash
 # One-time no-DB sealing of the exact owner-decision payload. Output is created as 0600 and never overwritten.
@@ -156,7 +158,7 @@ or deleted.
 ## Source audit
 
 The source audit is read-only. It scans current client profiles, booking names,
-Rubitime payload names, appointment projections, and booking-origin contacts.
+historical payload names, appointment projections, and booking-origin contacts.
 Reports contain patient data and are written only to `.tmp/fio-backfill/reports/`.
 
 From the repository root:

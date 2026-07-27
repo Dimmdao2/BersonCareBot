@@ -63,18 +63,6 @@ import {
 import { logger } from '../observability/logger.js';
 import { insertMailingLog } from './repos/mailingLogs.js';
 import { normalizeRuPhoneE164 } from '../phone/normalizeRuPhoneE164.js';
-import { isExplicitZonedIsoInstant } from '../../shared/explicitZonedIsoInstant.js';
-import {
-  enrichPayloadWithRubitimeStatus,
-  findExistingPatientBookingForRubitime,
-  mapRubitimeStatusToPatientBookingStatus,
-  resolveRubitimeStatusFromBookingUpsert,
-  shouldSkipNativeReviveUpdate,
-  upsertPatientBookingFromRubitime,
-} from '@bersoncare/booking-rubitime-sync';
-import { upsertAppointmentRecordFromBookingMutation } from './repos/publicAppointmentRecordSync.js';
-import { resolvePlatformUserIdForRubitimeBooking } from './repos/resolvePlatformUserIdForRubitimeBooking.js';
-import { buildAppointmentRecordUpsertedFanout } from './buildAppointmentRecordUpsertedFanout.js';
 import { isAuthChannelEnabled as readAuthChannelPolicy } from './authChannelPolicy.js';
 import {
   writeIdentityAndPreferencesDirect,
@@ -143,33 +131,6 @@ function runDirectPublicWriteWithOrgPrincipal<T>(fn: () => Promise<T>): Promise<
   return organizationId ? runWithOrganizationPrincipal(organizationId, fn) : fn();
 }
 
-type BookingUpsertParams = {
-  externalRecordId?: unknown;
-  phoneNormalized?: unknown;
-  recordAt?: unknown;
-  /** ISO datetime end of the appointment slot (Stage 11 compat-sync). */
-  dateTimeEnd?: unknown;
-  status?: unknown;
-  payloadJson?: unknown;
-  lastEvent?: unknown;
-  patientFirstName?: unknown;
-  patientLastName?: unknown;
-  patientEmail?: unknown;
-  integratorBranchId?: unknown;
-  branchName?: unknown;
-  /** Rubitime service metadata (Stage 11 compat-sync). */
-  serviceId?: unknown;
-  serviceName?: unknown;
-  /** Specialist/cooperator id for catalog branch_service lookup (Stage 2 F-04). */
-  rubitimeCooperatorId?: unknown;
-  gcalEventId?: unknown;
-  timeNormalizationStatus?: unknown;
-  timeNormalizationFieldErrors?: unknown;
-  integratorUserId?: unknown;
-  rubitimeStatusCode?: unknown;
-  rubitimeNormalizedStatus?: unknown;
-};
-
 function asNonEmptyString(value: unknown): string | null {
   return typeof value === 'string' && value.trim().length > 0 ? value : null;
 }
@@ -184,36 +145,12 @@ function asNullableIntegerMinute(value: unknown): number | null {
   return null;
 }
 
-/**
- * Split name into first/last only when unambiguous (exactly 2 words).
- * With 3+ words (e.g. Russian ФИО with patronymic, or swapped order)
- * we cannot reliably distinguish first/last, so we skip the split.
- */
-function parseNameToFirstLast(name: string): { firstName: string | null; lastName: string | null } {
-  const parts = name.trim().split(/\s+/).filter(Boolean);
-  if (parts.length === 0) return { firstName: null, lastName: null };
-  if (parts.length === 1) return { firstName: parts[0] ?? null, lastName: null };
-  if (parts.length === 2) return { lastName: parts[0] ?? null, firstName: parts[1] ?? null };
-  return { firstName: null, lastName: null };
-}
-
 function asFiniteNumber(value: unknown): number | null {
   if (typeof value === 'number' && Number.isFinite(value)) return Math.trunc(value);
   const stringValue = asNonEmptyString(value);
   if (!stringValue) return null;
   const parsed = Number(stringValue);
   return Number.isFinite(parsed) ? Math.trunc(parsed) : null;
-}
-
-/** Rejects naive / session-dependent datetimes so `::timestamptz` never interprets wall time without offset. */
-function bookingTimestamptzOrNull(label: 'recordAt' | 'dateTimeEnd', externalRecordId: string, raw: string | null): string | null {
-  if (!raw) return null;
-  if (isExplicitZonedIsoInstant(raw)) return raw;
-  logger.warn(
-    { externalRecordId, [label]: raw.slice(0, 120) },
-    `booking.upsert: ${label} rejected (not explicit Z/offset ISO), treating as null`,
-  );
-  return null;
 }
 
 function readChannelUserId(params: Record<string, unknown>): string | null {
@@ -343,225 +280,6 @@ export function createDbWritePort(input: {
       }
 
       switch (mutation.type) {
-        case 'booking.upsert': {
-          const params = mutation.params as BookingUpsertParams;
-          const externalRecordId = asNonEmptyString(params.externalRecordId);
-          if (!externalRecordId) {
-            logger.warn({ mutationType: mutation.type }, 'skip booking.upsert: missing externalRecordId');
-            return;
-          }
-          const statusRaw = asNonEmptyString(params.status);
-          const status: 'created' | 'updated' | 'canceled' | 'deleted' =
-            statusRaw === 'created'
-            || statusRaw === 'updated'
-            || statusRaw === 'canceled'
-            || statusRaw === 'deleted'
-              ? statusRaw
-              : 'updated';
-          const rawPhone = asNullableString(params.phoneNormalized);
-          const phoneNormalized = rawPhone ? normalizeRuPhoneE164(rawPhone) : null;
-          const recordAtRaw = asNonEmptyString(params.recordAt);
-          const recordAt = bookingTimestamptzOrNull('recordAt', externalRecordId, recordAtRaw);
-          const payloadJson = typeof params.payloadJson === 'object' && params.payloadJson !== null
-            ? (params.payloadJson as Record<string, unknown>)
-            : {};
-          const lastEvent = asNonEmptyString(params.lastEvent) ?? 'unknown';
-          const updatedAt = new Date().toISOString();
-
-          // Rubitime delete/remove → silent soft-delete in webapp. Do NOT upsert/revive the local
-          // appointment_records / patient_bookings row (we are deleting it); just fan out the
-          // `deleted` signal so webapp events.ts calls softDeleteByIntegratorId (no notifications).
-          if (status === 'deleted') {
-            const payloadJsonForDelete =
-              typeof params.payloadJson === 'object' && params.payloadJson !== null
-                ? (params.payloadJson as Record<string, unknown>)
-                : {};
-            await fanoutProjectionsAfterTx([
-              buildAppointmentRecordUpsertedFanout({
-                externalRecordId,
-                phoneNormalized:
-                  asNullableString(params.phoneNormalized) ? normalizeRuPhoneE164(asNullableString(params.phoneNormalized) as string) : null,
-                recordAt,
-                status: 'deleted',
-                payloadJson: payloadJsonForDelete,
-                lastEvent,
-                updatedAt,
-                patientFirstName: null,
-                patientLastName: null,
-                patientEmail: null,
-                integratorBranchId: null,
-                branchName: null,
-                dateTimeEnd: null,
-                serviceId: null,
-                serviceName: null,
-                rubitimeCooperatorId: null,
-                integratorUserId: null,
-              }),
-            ]);
-            return;
-          }
-
-          const patientEmail = asNullableString(params.patientEmail)?.trim() || null;
-          const rawBranchId =
-            asNullableString(params.integratorBranchId) ??
-            asNullableString(payloadJson.branch_id) ??
-            (payloadJson.branch_id != null ? String(payloadJson.branch_id) : null);
-          const rawBranchName =
-            asNullableString(params.branchName) ??
-            asNullableString(payloadJson.branch_name) ??
-            asNullableString(payloadJson.branch_title);
-          // Stage 11 compat-sync enrichment fields.
-          const rawServiceId =
-            asNullableString(params.serviceId) ??
-            asNullableString(payloadJson.service_id) ??
-            (payloadJson.service_id != null ? String(payloadJson.service_id) : null);
-          const rawServiceName =
-            asNullableString(params.serviceName) ??
-            asNullableString(payloadJson.service_name) ??
-            asNullableString(payloadJson.service_title);
-          let rawDateTimeEnd =
-            asNonEmptyString(params.dateTimeEnd) ??
-            asNonEmptyString(
-              typeof payloadJson.datetime_end === 'string' ? payloadJson.datetime_end : undefined,
-            ) ??
-            asNonEmptyString(
-              typeof payloadJson.date_time_end === 'string' ? payloadJson.date_time_end : undefined,
-            );
-          rawDateTimeEnd = bookingTimestamptzOrNull('dateTimeEnd', externalRecordId, rawDateTimeEnd);
-          const rawCooperatorId =
-            asNullableString(params.rubitimeCooperatorId) ??
-            asNullableString(payloadJson.cooperator_id) ??
-            (payloadJson.cooperator_id != null ? String(payloadJson.cooperator_id) : null) ??
-            asNullableString(payloadJson.specialist_id) ??
-            (payloadJson.specialist_id != null ? String(payloadJson.specialist_id) : null);
-          const nameFromPayload = asNullableString(payloadJson.name);
-          const parsedFromName = nameFromPayload
-            ? parseNameToFirstLast(nameFromPayload)
-            : { firstName: null, lastName: null };
-          const patientFirstName: string | null =
-            asNullableString(params.patientFirstName) ?? parsedFromName.firstName;
-          const patientLastName: string | null =
-            asNullableString(params.patientLastName) ?? parsedFromName.lastName;
-          const integratorUserIdTop =
-            asNullableString(params.integratorUserId) ??
-            asNullableString(payloadJson.integratorUserId) ??
-            asNullableString(payloadJson.integrator_user_id) ??
-            null;
-          const payloadJsonForFanout: Record<string, unknown> =
-            typeof payloadJson === 'object' && payloadJson !== null && !Array.isArray(payloadJson)
-              ? (JSON.parse(JSON.stringify(payloadJson)) as Record<string, unknown>)
-              : {};
-          let enrichedPayloadJson: Record<string, unknown> = payloadJsonForFanout;
-          let patientBookingStatus = mapRubitimeStatusToPatientBookingStatus(status, {
-            legacyEventStatus: status,
-            payloadJson: payloadJsonForFanout,
-          });
-          await db.tx(async (txDb) => {
-            await canonicalizeIntegratorUserIdKeysInObject(txDb, payloadJsonForFanout);
-            const rubitimeNormalizedStatus = resolveRubitimeStatusFromBookingUpsert({
-              rubitimeNormalizedStatus: params.rubitimeNormalizedStatus,
-              rubitimeStatusCode: params.rubitimeStatusCode,
-              payloadJson: payloadJsonForFanout,
-              legacyEventStatus: status,
-            });
-            const rubitimeStatusCode =
-              asNullableString(params.rubitimeStatusCode) ??
-              (payloadJsonForFanout.status != null ? String(payloadJsonForFanout.status) : null);
-            enrichedPayloadJson = enrichPayloadWithRubitimeStatus(
-              payloadJsonForFanout,
-              rubitimeNormalizedStatus,
-              rubitimeStatusCode,
-            );
-            patientBookingStatus = mapRubitimeStatusToPatientBookingStatus(
-              rubitimeNormalizedStatus ?? status,
-              { legacyEventStatus: status, payloadJson: enrichedPayloadJson },
-            );
-            await upsertAppointmentRecordFromBookingMutation(txDb, {
-              integratorRecordId: externalRecordId,
-              phoneNormalized,
-              recordAt,
-              status,
-              payloadJson: enrichedPayloadJson,
-              lastEvent,
-              updatedAt,
-              branchId: null,
-            });
-            const fullNameFromPayload =
-              typeof payloadJson.name === 'string' && payloadJson.name.trim().length > 0
-                ? payloadJson.name.trim()
-                : null;
-            const payloadContactName =
-              patientFirstName ??
-              fullNameFromPayload ??
-              ([patientLastName, patientFirstName].filter(Boolean).join(' ').trim() || null);
-            const resolvedUserId = await resolvePlatformUserIdForRubitimeBooking(
-              txDb,
-              phoneNormalized,
-              integratorUserIdTop,
-            );
-            const rubitimeManageUrl =
-              asNullableString(payloadJson.url) ??
-              asNullableString(payloadJson.link) ??
-              asNullableString(payloadJson.record_url);
-            const rubitimePatientUpsertInput = {
-              rubitimeId: externalRecordId,
-              status: patientBookingStatus,
-              slotStart: recordAt,
-              slotEnd: rawDateTimeEnd,
-              userId: resolvedUserId,
-              contactPhone: phoneNormalized ?? '',
-              contactName: payloadContactName,
-              branchTitle: rawBranchName,
-              serviceTitle: rawServiceName,
-              rubitimeBranchId: rawBranchId,
-              rubitimeServiceId: rawServiceId,
-              rubitimeCooperatorId: rawCooperatorId,
-              rubitimeManageUrl,
-            };
-            const existingPatientBooking = await findExistingPatientBookingForRubitime(
-              txDb,
-              normalizeRuPhoneE164,
-              rubitimePatientUpsertInput,
-            );
-            const skipPatientBookingRevive =
-              existingPatientBooking != null
-              && (await shouldSkipNativeReviveUpdate(txDb, existingPatientBooking, rubitimePatientUpsertInput));
-            if (!skipPatientBookingRevive) {
-              await upsertPatientBookingFromRubitime(
-                txDb,
-                normalizeRuPhoneE164,
-                rubitimePatientUpsertInput,
-                {
-                  existingRow: existingPatientBooking,
-                  logCompat: (msg: string, meta: Record<string, unknown>) =>
-                    logger.warn({ msg, ...meta }, '[booking.upsert] compat-sync'),
-                },
-              );
-            }
-          });
-          await fanoutProjectionsAfterTx([
-            buildAppointmentRecordUpsertedFanout({
-              externalRecordId,
-              phoneNormalized,
-              recordAt,
-              status,
-              payloadJson: enrichedPayloadJson,
-              lastEvent,
-              updatedAt,
-              patientFirstName,
-              patientLastName,
-              patientEmail,
-              integratorBranchId: rawBranchId,
-              branchName: rawBranchName,
-              dateTimeEnd: rawDateTimeEnd,
-              serviceId: rawServiceId,
-              serviceName: rawServiceName,
-              rubitimeCooperatorId: rawCooperatorId,
-              integratorUserId: integratorUserIdTop,
-            }),
-          ]);
-          return;
-        }
         case 'event.log': {
           await appendMessageLog(db, mutation);
           return;

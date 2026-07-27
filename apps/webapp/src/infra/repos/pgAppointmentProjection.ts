@@ -7,10 +7,7 @@ import { getPool } from "@/infra/db/client";
 import { nullableToIsoStringSafe, toIsoStringSafe } from "@/shared/lib/toIsoStringSafe";
 import { getWebappSqlFromPgClient, runWebappPgText } from "@/infra/db/runWebappSql";
 import { withPoolTransaction } from "@/infra/db/withClient";
-import {
-  nativeIntegratorRecordId,
-  resolveDoctorProjectionIntegratorRecordId,
-} from "@/modules/patient-booking/projectCanonicalAppointment";
+import { nativeIntegratorRecordId } from "@/modules/patient-booking/projectCanonicalAppointment";
 
 export type SoftDeleteByIntegratorIdOpts = {
   cancelReason?: string;
@@ -19,13 +16,10 @@ export type SoftDeleteByIntegratorIdOpts = {
   purgePatientBookings?: boolean;
   /**
    * Caller's resolved admin/doctor workspace organization. `appointment_records` and
-   * `patient_bookings` are LEGACY-tier compatibility projections with no `organization_id`
-   * column (see `docs/_TODO/SAAS_FOUNDATION/T0_4_RUBITIME_APPOINTMENT_ORG_AUDIT.md` — T0.4
-   * intentionally does not stamp organization onto these legacy writes). When provided, and
-   * the target record resolves to a canonical `be_appointments` organization (via a `be:<uuid>`
-   * integrator id or a `be_external_entity_mappings` row), the delete is refused unless that
-   * canonical organization matches. Records with no canonical lineage (pure legacy rows) are
-   * unaffected — single-organization dormant behavior is unchanged.
+   * `patient_bookings` are compatibility projections with no `organization_id`
+   * column. When provided, and the target record resolves to a canonical
+   * `be_appointments` organization via a `be:<uuid>` integrator id, the delete is refused unless that
+   * canonical organization matches.
    */
   organizationId?: string;
 };
@@ -38,11 +32,7 @@ class AppointmentProjectionOrganizationMismatchError extends Error {
 }
 
 /**
- * Resolves the canonical `be_appointments.organization_id` for a legacy `integrator_record_id`,
- * if one can be derived — either directly (`be:<uuid>` ids) or via `be_external_entity_mappings`
- * (Rubitime-sourced ids). Mirrors the read-side derivation in
- * `pgDoctorAppointments.legacyAppointmentOrganizationClause`; used here only to guard destructive
- * writes, never to stamp organization onto the legacy tables themselves.
+ * Resolves the canonical `be_appointments.organization_id` for a `be:<uuid>` projection id.
  */
 async function resolveLegacyAppointmentCanonicalTarget(
   integratorRecordId: string,
@@ -53,13 +43,6 @@ async function resolveLegacyAppointmentCanonicalTarget(
        FROM be_appointments bea
       WHERE $1 ~ '^be:[0-9a-fA-F-]{36}$'
         AND bea.id = (SUBSTRING($1 FROM 4))::uuid
-     UNION ALL
-     SELECT bea2.id::text AS id, bea2.organization_id AS organization_id
-       FROM be_external_entity_mappings m
-       JOIN be_appointments bea2 ON bea2.id = m.canonical_id
-      WHERE m.external_id = $1
-        AND m.entity_type = 'appointment'
-        AND m.external_system = 'rubitime'
      LIMIT 1`,
     [integratorRecordId],
     tx,
@@ -127,10 +110,7 @@ export type AppointmentProjectionPort = {
     integratorRecordId: string,
     opts?: SoftDeleteByIntegratorIdOpts,
   ): Promise<boolean>;
-  softDeleteByCanonicalAppointmentId(
-    appointmentId: string,
-    rubitimeFromMapping?: string | null,
-  ): Promise<boolean>;
+  softDeleteByCanonicalAppointmentId(appointmentId: string): Promise<boolean>;
   isIntegratorRecordPurged(integratorRecordId: string): Promise<boolean>;
 };
 
@@ -168,11 +148,9 @@ function mapRow(r: {
 /** Staff delete when cancel left no projection row — tombstone + DELETE patient_bookings. */
 async function purgeCanonicalStaffDeleteTombstone(
   appointmentId: string,
-  rubitimeFromMapping?: string | null,
 ): Promise<boolean> {
   const pool = getPool();
   const tombstoneId = nativeIntegratorRecordId(appointmentId);
-  const rubitimeId = rubitimeFromMapping?.trim() || null;
   await withPoolTransaction(pool, async (client) => {
     const tx = getWebappSqlFromPgClient(client);
     await runWebappPgText(
@@ -193,9 +171,6 @@ async function purgeCanonicalStaffDeleteTombstone(
       [appointmentId],
       tx,
     );
-    if (rubitimeId) {
-      await runWebappPgText(`DELETE FROM patient_bookings WHERE rubitime_id = $1`, [rubitimeId], tx);
-    }
     await runWebappPgText(
       `DELETE FROM patient_bookings WHERE canonical_appointment_id = $1::uuid`,
       [appointmentId],
@@ -396,11 +371,6 @@ export function createPgAppointmentProjectionPort(): AppointmentProjectionPort {
           }
 
           if (purgePatientBookings) {
-            await runWebappPgText(
-              `DELETE FROM patient_bookings WHERE rubitime_id = $1`,
-              [integratorRecordId],
-              tx,
-            );
             if (canonicalAppointmentId) {
               await runWebappPgText(
                 `DELETE FROM patient_bookings WHERE canonical_appointment_id = $1::uuid`,
@@ -408,7 +378,7 @@ export function createPgAppointmentProjectionPort(): AppointmentProjectionPort {
                 tx,
               );
             }
-          } else if (!row.deleted_at) {
+          } else if (!row.deleted_at && canonicalAppointmentId) {
             await runWebappPgText(
               `UPDATE patient_bookings
                SET status = 'cancelled',
@@ -418,7 +388,7 @@ export function createPgAppointmentProjectionPort(): AppointmentProjectionPort {
                      ELSE cancel_reason
                    END,
                    updated_at = now()
-               WHERE rubitime_id = $1
+               WHERE canonical_appointment_id = $1::uuid
                  AND status IN (
                    'creating',
                    'confirmed',
@@ -427,7 +397,7 @@ export function createPgAppointmentProjectionPort(): AppointmentProjectionPort {
                    'cancel_failed',
                    'failed_sync'
                  )`,
-              [integratorRecordId, cancelReason],
+              [canonicalAppointmentId, cancelReason],
               tx,
             );
           }
@@ -444,26 +414,16 @@ export function createPgAppointmentProjectionPort(): AppointmentProjectionPort {
       }
     },
 
-    async softDeleteByCanonicalAppointmentId(
-      appointmentId: string,
-      rubitimeFromMapping?: string | null,
-    ): Promise<boolean> {
+    async softDeleteByCanonicalAppointmentId(appointmentId: string): Promise<boolean> {
       const purgeOpts = {
         canonicalAppointmentId: appointmentId,
         purgePatientBookings: true as const,
         cancelReason: "staff_delete",
       };
-      const primaryId = resolveDoctorProjectionIntegratorRecordId(appointmentId, rubitimeFromMapping);
+      const primaryId = nativeIntegratorRecordId(appointmentId);
       const ok = await this.softDeleteByIntegratorId(primaryId, purgeOpts);
       if (ok) return true;
-      if (primaryId !== nativeIntegratorRecordId(appointmentId)) {
-        const fallbackOk = await this.softDeleteByIntegratorId(
-          nativeIntegratorRecordId(appointmentId),
-          purgeOpts,
-        );
-        if (fallbackOk) return true;
-      }
-      return purgeCanonicalStaffDeleteTombstone(appointmentId, rubitimeFromMapping);
+      return purgeCanonicalStaffDeleteTombstone(appointmentId);
     },
 
     async isIntegratorRecordPurged(integratorRecordId: string): Promise<boolean> {

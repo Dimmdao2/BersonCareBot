@@ -5,13 +5,10 @@ import { describe, expect, it } from 'vitest';
 import { ensureNoDuplicateScriptIds, getContentBundle, getEffectiveBundleKey, loadContentRegistry } from './index.js';
 
 describe('contentRegistry', () => {
-  it('loads telegram/user, telegram/admin bundles from workspace content root and keeps rubitime retired (no resurrection)', async () => {
+  it('loads telegram/user and telegram/admin bundles from workspace content root', async () => {
     const root = path.resolve(process.cwd(), 'src/content');
     const registry = await loadContentRegistry({ rootDir: root });
 
-    const rubitimeBundle = getContentBundle(registry, 'rubitime');
-    expect(rubitimeBundle?.scripts ?? []).toEqual([]);
-    expect(Object.keys(rubitimeBundle?.templates ?? {})).toEqual([]);
     expect(getContentBundle(registry, 'telegram/user')).not.toBeNull();
     expect(getContentBundle(registry, 'telegram/admin')).not.toBeNull();
   });
@@ -268,10 +265,8 @@ describe('contentRegistry', () => {
     const registry = {
       'telegram/user': { scripts: [], templates: {} },
       'telegram/admin': { scripts: [], templates: {} },
-      rubitime: { scripts: [], templates: {} },
     };
     expect(getEffectiveBundleKey(registry, 'telegram', 'user')).toBe('telegram/user');
     expect(getEffectiveBundleKey(registry, 'telegram', 'admin')).toBe('telegram/admin');
-    expect(getEffectiveBundleKey(registry, 'rubitime', 'user')).toBe('rubitime');
   });
 });

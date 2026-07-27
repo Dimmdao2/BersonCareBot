@@ -24,7 +24,6 @@ export type IntegrationHealthEntry = {
 };
 
 export type IntegrationsHealthSnapshot = {
-  rubitime: IntegrationHealthEntry;
   telegram: IntegrationHealthEntry;
   max: IntegrationHealthEntry;
   google_calendar: { outbound: IntegrationOutboundHealth };
@@ -78,10 +77,6 @@ export function buildIntegrationsHealthSnapshot(input: {
   const meta = input.probeMetaJson;
 
   return {
-    rubitime: {
-      outbound: outboundFromProbe(meta, "rubitime", lastFinishedAt),
-      inbound: inboundFromRow(bySource.get("rubitime")),
-    },
     telegram: {
       outbound: outboundFromProbe(meta, "telegram", lastFinishedAt),
       inbound: inboundFromRow(bySource.get("telegram")),

@@ -101,10 +101,6 @@ import { createPgAdminPlatformUserStatsPort } from "@/infra/repos/pgAdminPlatfor
 import { createInMemoryAdminPlatformUserStatsPort } from "@/infra/repos/inMemoryAdminPlatformUserStats";
 import { createPgDoctorAnalyticsMetricAccountsPort } from "@/infra/repos/pgDoctorAnalyticsMetricAccounts";
 import { inMemoryDoctorAnalyticsMetricAccountsPort } from "@/infra/repos/inMemoryDoctorAnalyticsMetricAccounts";
-import {
-  createDoctorAppointmentsReadSwitchPort,
-  parseDoctorAppointmentsReadSource,
-} from "@/infra/repos/doctorAppointmentsReadSwitch";
 import { createPgDoctorCanonicalAppointmentsPort } from "@/infra/repos/pgDoctorCanonicalAppointments";
 import { getPurchaseSectionState } from "@/modules/purchases/service";
 import {
@@ -322,7 +318,6 @@ import { reconcileDbRoleWithEnvRole, resolveRoleFromEnv } from "@/modules/auth/e
 import { getRedirectPathForRole } from "@/modules/auth/redirectPolicy";
 import { getDeliveryTargetsForIntegrator } from "@/modules/integrator/deliveryTargetsApi";
 import { createPatientBookingService } from "@/modules/patient-booking/service";
-import { parseBookingSlotsReadSource } from "@/modules/patient-booking/slotsReadSource";
 import { createBookingSyncPort } from "@/modules/integrator/bookingM2mApi";
 import { createAppointmentPaymentConfirmedHandler } from "@/app-layer/booking/appointmentPaymentConfirmedHandler";
 import { loadBookingLifecycleNotificationsFromSystemSettings } from "@/modules/booking-notifications/settings";
@@ -331,7 +326,6 @@ import { inMemoryPatientBookingsPort } from "@/infra/repos/inMemoryPatientBookin
 import { createPgPatientMaintenanceHistoryPort } from "@/infra/repos/pgPatientMaintenanceHistory";
 import { inMemoryPatientMaintenanceHistoryPort } from "@/infra/repos/inMemoryPatientMaintenanceHistory";
 import { createPatientMaintenanceHistoryService } from "@/modules/patient-booking/maintenanceHistory";
-import { createPgBookingCatalogPort } from "@/infra/repos/pgBookingCatalog";
 import { createPgClinicDirectoryPort } from "@/infra/repos/pgClinicDirectory";
 import { createClinicDirectoryService } from "@/modules/clinic-directory/service";
 import { createPgOrganizationMembershipPort } from "@/infra/repos/pgOrganizationMembership";
@@ -363,18 +357,9 @@ import { createPatientInvitesService } from "@/modules/patient-invites/service";
 import { createClinicSeatsService } from "@/modules/clinic-seats/service";
 import { createDoctorWorkspaceDirectoryService } from "@/modules/doctor-workspace/service";
 import { createPgBookingEnginePort } from "@/infra/repos/pgBookingEngine";
-import {
-  createPgBookingRubitimeBridgePort,
-  loadExternalMappingLookup,
-  loadReverseMappingLookup,
-  stampBeAppointmentMirrorAttribution,
-} from "@/infra/repos/pgBookingRubitimeBridge";
-import { createAppointmentMirrorSyncService } from "@/modules/booking-appointment-sync/service";
 import { createBookingEngineService } from "@/modules/booking-engine/service";
 import { createPgBookingSchedulingPort } from "@/infra/repos/pgBookingScheduling";
 import { createBookingSchedulingService } from "@/modules/booking-scheduling/service";
-import { createPgRubitimeMappingPort } from "@/infra/repos/pgRubitimeMapping";
-import { createRubitimeMappingService } from "@/modules/rubitime-mapping/service";
 import { createBookingCalendarService } from "@/modules/booking-calendar/service";
 import { createPgBookingCalendarPort } from "@/infra/repos/pgBookingCalendar";
 import { createClientHistoryService } from "@/modules/client-history/service";
@@ -589,7 +574,6 @@ const clinicSeatsService = createClinicSeatsService({
   invitesPort: organizationInvitesPort,
   orgEntitlementsPort,
 });
-const bookingCatalogPort = !inMemoryRepos ? createPgBookingCatalogPort() : null;
 const clinicDirectoryService = !inMemoryRepos
   ? createClinicDirectoryService(createPgClinicDirectoryPort())
   : null;
@@ -598,23 +582,7 @@ const doctorAppointmentsCanonicalPort =
   !inMemoryRepos && bookingEngineCorePort
     ? createPgDoctorCanonicalAppointmentsPort(() => bookingEngineCorePort.getDefaultOrganizationId())
     : inMemoryDoctorAppointmentsPort;
-const bookingRubitimeBridgePort = !inMemoryRepos ? createPgBookingRubitimeBridgePort() : null;
-const appointmentMirrorSync =
-  bookingRubitimeBridgePort && bookingEngineCorePort
-    ? createAppointmentMirrorSyncService({
-        bridge: bookingRubitimeBridgePort,
-        syncPort: createBookingSyncPort(),
-        getDefaultOrganizationId: () => bookingEngineCorePort.getDefaultOrganizationId(),
-        loadForwardMapping: loadExternalMappingLookup,
-        loadReverseMapping: loadReverseMappingLookup,
-        stampCanonicalOutbound: (appointmentId) =>
-          stampBeAppointmentMirrorAttribution(appointmentId, "canonical"),
-      })
-    : null;
-const bookingEnginePort =
-  bookingEngineCorePort && bookingRubitimeBridgePort
-    ? { ...bookingEngineCorePort, ...bookingRubitimeBridgePort }
-    : null;
+const bookingEnginePort = bookingEngineCorePort;
 const bookingEngineService = bookingEnginePort
   ? createBookingEngineService(bookingEnginePort, {
       getLocationPaletteSetting: () =>
@@ -629,18 +597,6 @@ const bookingSchedulingPort =
     : null;
 const bookingSchedulingService = bookingSchedulingPort
   ? createBookingSchedulingService(bookingSchedulingPort)
-  : null;
-const rubitimeMappingPort =
-  bookingCatalogPort && bookingSchedulingPort && bookingEngineCorePort && !inMemoryRepos
-    ? createPgRubitimeMappingPort({
-        bookingCatalogPort,
-        resolveLegacyBranchServiceId: (input) => bookingSchedulingPort.resolveLegacyBranchServiceId(input),
-        upsertSpecialistServiceAvailability: (input) =>
-          bookingEngineCorePort.upsertSpecialistServiceAvailability(input),
-      })
-    : null;
-const rubitimeMappingService = rubitimeMappingPort
-  ? createRubitimeMappingService(rubitimeMappingPort)
   : null;
 const bookingCalendarPort = !inMemoryRepos ? createPgBookingCalendarPort() : null;
 const bookingCalendarService =
@@ -753,20 +709,11 @@ const runtimeConfig = createRuntimeConfigProvider(
   appRuntimeSettingsPort,
 );
 const notifTemplatesService = createNotifTemplatesService(systemSettingsService);
-const resolveDoctorAppointmentsReadSource = async () => {
-  if (inMemoryRepos) return "rubitime_legacy" as const;
-  const row = await systemSettingsService.getSetting("booking_doctor_appointments_read_source", "admin");
-  return parseDoctorAppointmentsReadSource(row?.valueJson ?? null);
-};
-const doctorAppointmentsPort = createDoctorAppointmentsReadSwitchPort({
-  canonicalPort: doctorAppointmentsCanonicalPort,
-  resolveReadSource: resolveDoctorAppointmentsReadSource,
-});
+const doctorAppointmentsPort = doctorAppointmentsCanonicalPort;
 const doctorAnalyticsMetricAccountsPort =
   !inMemoryRepos && bookingEngineCorePort
     ? createPgDoctorAnalyticsMetricAccountsPort(
         () => bookingEngineCorePort.getDefaultOrganizationId(),
-        resolveDoctorAppointmentsReadSource,
       )
     : inMemoryDoctorAnalyticsMetricAccountsPort;
 const membershipsPort = !inMemoryRepos ? createPgMembershipsPort() : null;
@@ -1154,7 +1101,6 @@ productsServiceResolved =
 patientBookingService = createPatientBookingService({
   bookingsPort: patientBookingsPort,
   syncPort: createBookingSyncPort(),
-  appointmentMirrorSync: appointmentMirrorSync ?? undefined,
   bookingEngine: bookingEngineService,
   bookingScheduling: bookingSchedulingService,
   bookingForm: bookingFormService,
@@ -1170,14 +1116,6 @@ patientBookingService = createPatientBookingService({
     if (!identity) return null;
     return { phone: identity.phone, email: identity.email ?? null };
   },
-  resolveSlotsReadSource: async () => {
-    if (inMemoryRepos) return "canonical";
-    const row = await systemSettingsService.getSetting("booking_slots_read_source", "admin");
-    return parseBookingSlotsReadSource(row?.valueJson ?? null);
-  },
-  isRubitimeBridgeEnabled: bookingRubitimeBridgePort
-    ? () => bookingRubitimeBridgePort.isBridgeEnabled()
-    : undefined,
   getBookingLifecycleNotificationSettings: async () => {
     const row = await systemSettingsService.getSetting("booking_lifecycle_notifications", "admin");
     const { parseBookingLifecycleNotificationsSettings } = await import(
@@ -1185,7 +1123,6 @@ patientBookingService = createPatientBookingService({
     );
     return parseBookingLifecycleNotificationsSettings(row?.valueJson ?? null);
   },
-  branches: branchesProjectionPort ?? undefined,
 });
 
 const patientHomeBlocksService = createPatientHomeBlocksService({
@@ -1690,7 +1627,6 @@ function _buildAppDeps() {
     patientNotificationTopics: patientNotificationTopicsPort,
     userProjection: {
       upsertFromProjection: userProjectionPort.upsertFromProjection,
-      ensureClientFromAppointmentProjection: userProjectionPort.ensureClientFromAppointmentProjection,
       findByIntegratorId: userProjectionPort.findByIntegratorId,
       findByPhoneNormalized: userProjectionPort.findByPhoneNormalized,
       updatePhone: userProjectionPort.updatePhone,
@@ -1699,7 +1635,6 @@ function _buildAppDeps() {
       updateRole: userProjectionPort.updateRole,
       getProfileEmailFields: userProjectionPort.getProfileEmailFields,
       clearStaffAccountEmail: userProjectionPort.clearStaffAccountEmail,
-      applyRubitimeEmailAutobind: userProjectionPort.applyRubitimeEmailAutobind,
       patchAdminClientProfile: userProjectionPort.patchAdminClientProfile,
       findPlatformUserIdWithEmailConflict: userProjectionPort.findPlatformUserIdWithEmailConflict,
       findPlatformUserIdWithPhoneConflict: userProjectionPort.findPlatformUserIdWithPhoneConflict,
@@ -1793,17 +1728,12 @@ function _buildAppDeps() {
     },
     lfkTemplates: lfkTemplatesService,
     lfkAssignments: lfkAssignmentsService,
-    /** Raw PG port for admin booking-catalog API (null only in Vitest without DB). */
-    bookingCatalogPort,
     /** `/book/{publicSlug}` bootstrap resolver (owner canon OWNER_RULINGS_2026-07-17.md §1). */
     clinicDirectory: clinicDirectoryService,
     bookingEngine: bookingEngineService,
     /** Raw PG port for admin booking-engine API (null only in Vitest without DB). */
     bookingEnginePort,
-    rubitimeCanonicalProjection: bookingRubitimeBridgePort ?? undefined,
-    appointmentMirrorSync: appointmentMirrorSync ?? undefined,
     bookingScheduling: bookingSchedulingService,
-    rubitimeMapping: rubitimeMappingService,
     bookingCalendar: bookingCalendarService,
     clientHistory: clientHistoryService,
     bookingForm: bookingFormService,

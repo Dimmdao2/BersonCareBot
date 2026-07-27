@@ -690,73 +690,6 @@ describe('orchestrator buildPlan', () => {
     expect(plan).toHaveLength(0);
   });
 
-  it('selects deep-link start handler when start.setrubitimerecord is excluded from default send', async () => {
-    const event: IncomingEvent = {
-      type: 'message.received',
-      meta: {
-        eventId: 'evt-start-rubitime',
-        occurredAt: '2026-03-05T12:00:00.000Z',
-        source: 'telegram',
-      },
-      payload: {
-        incoming: {
-          action: 'start.setrubitimerecord',
-          text: '/start setrubitimerecord_7967313',
-          chatId: 123,
-          channelUserId: 123,
-        },
-      },
-    };
-
-    const baseContext: BaseContext = {
-      actor: { isAdmin: false },
-      identityLinks: [],
-      hasOpenConversation: false,
-    };
-
-    const contentPort: ContentPort = {
-      getScriptsBySource: vi.fn().mockResolvedValue([
-        {
-          id: 'telegram.menu.default',
-          source: 'telegram',
-          event: 'message.received',
-          match: {
-            actor: { isAdmin: false },
-            context: {
-              conversationState: { $notIn: ['diary.symptom.awaiting_title', 'diary.lfk.awaiting_title'] },
-            },
-            input: {
-              textPresent: true,
-              excludeActions: ['booking.open', 'menu.more', 'cabinet.open', 'diary.open', 'start.setrubitimerecord'],
-              excludeTexts: ['/start'],
-            },
-          },
-          steps: [{ action: 'message.send', mode: 'async', params: { templateKey: 'telegram:questionAccepted' } }],
-        },
-        {
-          id: 'telegram.start.setrubitimerecord',
-          source: 'telegram',
-          event: 'message.received',
-          match: { input: { action: 'start.setrubitimerecord' } },
-          steps: [{ action: 'message.inlineKeyboard.show', mode: 'async', params: { templateKey: 'telegram:bookingsList' } }],
-        },
-      ]),
-      getTemplate: vi.fn().mockResolvedValue(null),
-    };
-
-    const contextQueryPort: ContextQueryPort = {
-      request: vi.fn().mockResolvedValue({}),
-    };
-
-    const plan = await buildPlan({ event, context: baseContext }, { contentPort, contextQueryPort });
-
-    expect(plan).toHaveLength(1);
-    expect(plan[0]).toMatchObject({
-      kind: 'message.inlineKeyboard.show',
-      payload: { templateKey: 'telegram:bookingsList' },
-    });
-  });
-
   it('selects telegram.start.onboarding for /start when linkedPhone is false', async () => {
     const event: IncomingEvent = {
       type: 'message.received',
@@ -871,7 +804,7 @@ describe('orchestrator buildPlan', () => {
           match: {
             input: {
               text: { $startsWith: '/start' },
-              excludeActions: ['start.link', 'start.noticeme', 'start.setrubitimerecord', 'start.setphone', 'start.set'],
+              excludeActions: ['start.link', 'start.noticeme', 'start.setphone', 'start.set'],
             },
             context: { linkedPhone: false },
           },

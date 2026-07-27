@@ -52,12 +52,6 @@ describe('messengerStartParse', () => {
     expect(p.action).toBe('start.noticeme');
   });
 
-  it('parseMessengerStartCommand extracts rubitime recordId', () => {
-    const p = parseMessengerStartCommand('/start setrubitimerecord_rec1_x', '');
-    expect(p.action).toBe('start.setrubitimerecord');
-    expect(p.recordId).toBe('rec1_x');
-  });
-
   it('parseMessengerStartCommand extracts setphone when dictionary action empty', () => {
     const startArg = '/start setphone_' + String.fromCharCode(43) + '79001234567';
     const p = parseMessengerStartCommand(startArg, '');

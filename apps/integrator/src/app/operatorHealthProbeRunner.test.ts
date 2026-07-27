@@ -59,7 +59,7 @@ describe('runOperatorHealthProbes', () => {
     probeGoogleCalendarAccessMock.mockResolvedValue(undefined);
   });
 
-  it('MAX ok resolves probe prefix; Rubitime is retired/skipped', async () => {
+  it('MAX ok resolves probe prefix', async () => {
     getMaxBotInfoMock.mockResolvedValue({ id: 1 });
     const r = await runOperatorHealthProbes({ dispatchPort });
     expect(r.max).toBe('ok');

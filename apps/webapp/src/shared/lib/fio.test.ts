@@ -15,14 +15,14 @@ const dictionaries: RussianNameDictionaries = {
 
 describe("fio helpers", () => {
   it("parses canonical Russian last first patronymic", () => {
-    const candidate = parseFioCandidate("Иванов Иван Иванович", "rubitime", dictionaries);
+    const candidate = parseFioCandidate("Иванов Иван Иванович", "booking", dictionaries);
 
     expect(candidate.value).toEqual({ lastName: "Иванов", firstName: "Иван", patronymic: "Иванович" });
     expect(candidate.confidence).toBe("high");
   });
 
   it("parses non-canonical first patronymic last order", () => {
-    const candidate = parseFioCandidate("Карина Викторовна Прокопенкова", "rubitime", dictionaries);
+    const candidate = parseFioCandidate("Карина Викторовна Прокопенкова", "booking", dictionaries);
 
     expect(candidate.value).toEqual({
       lastName: "Прокопенкова",
@@ -64,7 +64,7 @@ describe("fio helpers", () => {
   });
 
   it("recognizes patronymics by suffix without dictionary entry", () => {
-    const candidate = parseFioCandidate("Сидоров Александр Сергеевич", "rubitime", {
+    const candidate = parseFioCandidate("Сидоров Александр Сергеевич", "booking", {
       firstNames: dictionaries.firstNames,
       patronymics: new Set(),
     });

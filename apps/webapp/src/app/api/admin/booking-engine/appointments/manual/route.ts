@@ -100,7 +100,6 @@ export async function POST(request: Request) {
           organizationId: appointment.organizationId,
           bookingId: bookingRow?.id ?? appointment.id,
           userId: bookingRow?.userId ?? appointment.platformUserId ?? appointment.id,
-          rubitimeId: bookingRow?.rubitimeId ?? null,
           bookingType: bookingRow?.bookingType ?? "in_person",
           city: bookingRow?.city ?? undefined,
           category: bookingRow?.category ?? "general",

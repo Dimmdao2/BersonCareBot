@@ -37,7 +37,7 @@ export type IncomingEventPipelineDeps = {
   supportRelayPolicy?: SupportRelayPolicy | null;
   /** Optional: emit signed events to webapp (e.g. diary.symptom.*). */
   webappEventsPort?: WebappEventsPort;
-  /** Optional: resolve delivery targets for multi-channel fan-out (e.g. Rubitime/booking). */
+  /** Optional: resolve delivery targets for multi-channel booking fan-out. */
   deliveryTargetsPort?: DeliveryTargetsPort;
   remindersWebappWritesPort?: RemindersWebappWritesPort;
   /**

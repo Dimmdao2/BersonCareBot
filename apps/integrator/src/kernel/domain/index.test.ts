@@ -31,19 +31,6 @@ describe('domain executeStep', () => {
     expect(result.data?.writes).toEqual([{ type: 'event.log', params: step.payload }]);
   });
 
-  it('returns booking.upsert write mutation', async () => {
-    const step: Step = {
-      id: 'step-2',
-      kind: 'booking.upsert',
-      mode: 'sync',
-      payload: { externalRecordId: 'rec-1' },
-    };
-
-    const result = await executeStep(step, ctx);
-    expect(result.status).toBe('success');
-    expect(result.data?.writes).toEqual([{ type: 'booking.upsert', params: step.payload }]);
-  });
-
   it('builds message.send outgoing with provided delivery defaults', async () => {
     const step: Step = {
       id: 'step-3',

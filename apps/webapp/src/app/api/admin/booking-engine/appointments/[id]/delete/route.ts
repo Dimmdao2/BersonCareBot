@@ -19,7 +19,6 @@ export async function POST(_request: Request, context: RouteContext) {
     organizationId: gate.ctx.organizationId,
     appointmentId,
     actorId: gate.ctx.session.user.userId,
-    getRubitimeAppointmentId: gate.ctx.service.getRubitimeAppointmentId,
     runLocalPurge: (fn) =>
       withDoctorWorkspacePrincipal(gate.ctx, "admin.booking-engine.appointments.cancelled-purge", fn),
   });

@@ -100,8 +100,7 @@
 					"templateKey": "telegram:admin.stats.users",
 					"vars": {
 						"telegramTotal": "{{queries.adminStats.userCountsByIntegration.telegram.total}}",
-						"telegramWithPhone": "{{queries.adminStats.userCountsByIntegration.telegram.withPhone}}",
-						"rubitimeTotal": "{{queries.adminStats.userCountsByIntegration.rubitime.total}}"
+						"telegramWithPhone": "{{queries.adminStats.userCountsByIntegration.telegram.withPhone}}"
 					},
 					"delivery": { "channels": ["telegram"], "maxAttempts": 1 }
 				}

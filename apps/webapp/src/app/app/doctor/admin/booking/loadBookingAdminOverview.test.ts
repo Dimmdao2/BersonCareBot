@@ -5,7 +5,6 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const bridgeEnabledMock = vi.hoisted(() => vi.fn());
 const mappingSummaryMock = vi.hoisted(() => vi.fn());
 const getSettingMock = vi.hoisted(() => vi.fn());
-const listMappingsMock = vi.hoisted(() => vi.fn());
 const getDefaultOrganizationIdMock = vi.hoisted(() => vi.fn());
 const listBranchesMock = vi.hoisted(() => vi.fn());
 const listServicesMock = vi.hoisted(() => vi.fn());
@@ -39,9 +38,6 @@ vi.mock("@/app-layer/di/buildAppDeps", () => ({
     },
     systemSettings: {
       getSetting: getSettingMock,
-    },
-    rubitimeMapping: {
-      listMappings: listMappingsMock,
     },
   }),
 }));
@@ -92,7 +88,6 @@ describe("loadBookingAdminOverview", () => {
   });
 
   it("keeps clinic staff stats scoped to their explicit organization", async () => {
-    listMappingsMock.mockResolvedValue({ total: 2, mappedOk: 0, problems: 2, rows: [] });
     bridgeEnabledMock.mockResolvedValue(true);
     mappingSummaryMock.mockResolvedValue({ availabilities: 0 });
     const data = await loadBookingAdminOverview(ORGANIZATION_ID);
@@ -124,6 +119,5 @@ describe("loadBookingAdminOverview", () => {
     expect(bridgeEnabledMock).not.toHaveBeenCalled();
     expect(mappingSummaryMock).not.toHaveBeenCalled();
     expect(getSettingMock).not.toHaveBeenCalled();
-    expect(listMappingsMock).not.toHaveBeenCalled();
   });
 });

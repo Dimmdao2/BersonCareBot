@@ -78,7 +78,7 @@ describe("emailSetupTokens service", () => {
     const second = await svc.issueEmailSetupToken({
       userId: "u1",
       emailNormalized: "a@b.com",
-      source: "rubitime",
+      source: "doctor_profile",
     });
     expect(second.ok).toBe(true);
     if (!second.ok) return;

@@ -110,29 +110,4 @@ describe("patchAdminClientProfile (PHASE_02 contact email)", () => {
     expect(updateSql).toContain("$1::text");
   });
 
-  it("applyRubitimeEmailAutobind sets unverified contact email without password row", async () => {
-    const sqlLog: string[] = [];
-    runWebappPgTextMock.mockImplementation(async (queryText: string, values?: readonly unknown[]) => {
-      sqlLog.push(queryText);
-      if (queryText.includes("FROM platform_users") && queryText.includes("phone_normalized")) {
-        return { rows: [{ id: "rubitime-user", email_verified_at: null }] };
-      }
-      if (queryText.includes("id <> $1 AND email")) return { rows: [] };
-      if (queryText.includes("UPDATE platform_users SET email")) {
-        expect(values).toEqual(["client@rubitime.test", "rubitime-user"]);
-        return { rows: [], rowCount: 1 };
-      }
-      return { rows: [] };
-    });
-
-    const result = await pgUserProjectionPort.applyRubitimeEmailAutobind({
-      phoneNormalized: "+79990001122",
-      email: "client@rubitime.test",
-    });
-
-    expect(result).toEqual({ outcome: "applied", platformUserId: "rubitime-user" });
-    const updateSql = sqlLog.find((s) => s.includes("email_verified_at = NULL"))!;
-    expect(updateSql).toBeTruthy();
-    expect(sqlLog.some((s) => s.includes("user_password_credentials"))).toBe(false);
-  });
 });

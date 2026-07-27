@@ -3,10 +3,8 @@ import type { DbPort } from '../kernel/contracts/index.js';
 import { formatBookingRuDateTime } from '../integrations/bersoncare/bookingNotificationFormat.js';
 import { logger } from '../infra/observability/logger.js';
 import {
-  formatIsoInstantAsRubitimeRecordLocal,
   getAppDisplayTimezone,
   getAppDisplayTimezoneSync,
-  getRubitimeRecordAtUtcOffsetMinutesForInstant,
   resetAppDisplayTimezoneCacheForTests,
   resetAppDisplayTimezoneSyncWarnForTests,
 } from './appTimezone.js';
@@ -26,24 +24,6 @@ function mockDb(query: DbPort['query']): DbPort {
   };
   return db;
 }
-
-describe('Rubitime record local time formatting', () => {
-  it('maps UTC instant to Europe/Moscow wall time (incident: 08:00Z → 11:00 local)', () => {
-    expect(formatIsoInstantAsRubitimeRecordLocal('2026-04-07T08:00:00.000Z', 'Europe/Moscow')).toBe(
-      '2026-04-07 11:00:00',
-    );
-  });
-
-  it('does not double-shift when ISO already has offset (same instant as UTC)', () => {
-    expect(formatIsoInstantAsRubitimeRecordLocal('2026-04-07T11:00:00+03:00', 'Europe/Moscow')).toBe(
-      '2026-04-07 11:00:00',
-    );
-  });
-
-  it('throws on invalid input', () => {
-    expect(() => formatIsoInstantAsRubitimeRecordLocal('not-a-date', 'Europe/Moscow')).toThrow('invalid_slot_start');
-  });
-});
 
 describe('getAppDisplayTimezone (DB source)', () => {
   afterEach(() => {
@@ -129,16 +109,6 @@ describe('getAppDisplayTimezone (DB source)', () => {
     );
   });
 
-  it('Rubitime UTC offset follows DB-backed display IANA zone', async () => {
-    resetAppDisplayTimezoneCacheForTests();
-    const query = vi.fn().mockResolvedValue({
-      rows: [{ value_json: { value: 'Europe/Samara' } }],
-    });
-    const db = mockDb(query);
-    const instant = new Date('2026-06-01T12:00:00.000Z');
-    const minutes = await getRubitimeRecordAtUtcOffsetMinutesForInstant({ db, instant });
-    expect(minutes).toBe(240);
-  });
 });
 
 describe('legacy env display timezone helper', () => {

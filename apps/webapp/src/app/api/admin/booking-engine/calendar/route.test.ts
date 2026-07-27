@@ -29,13 +29,13 @@ describe("GET /api/admin/booking-engine/calendar", () => {
         {
           kind: "appointment",
           id: "legacy-1",
-          source: "rubitime_legacy",
+          source: "canonical",
           startAt: "2026-05-01T10:00:00.000Z",
           endAt: "2026-05-01T11:00:00.000Z",
         },
       ],
       freeSlots: [],
-      readSource: "rubitime_legacy",
+      readSource: "canonical",
       freeSlotsEnabled: false,
     });
 
@@ -50,9 +50,9 @@ describe("GET /api/admin/booking-engine/calendar", () => {
     };
     expect(res.status).toBe(200);
     expect(json.ok).toBe(true);
-    expect(json.readSource).toBe("rubitime_legacy");
+    expect(json.readSource).toBe("canonical");
     expect(json.freeSlotsEnabled).toBe(false);
-    expect(json.events?.[0]?.source).toBe("rubitime_legacy");
+    expect(json.events?.[0]?.source).toBe("canonical");
     expect(getCalendarMock).toHaveBeenCalled();
   });
 });

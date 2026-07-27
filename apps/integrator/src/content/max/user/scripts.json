@@ -451,7 +451,6 @@
 				"excludeActions": [
 					"start.link",
 					"start.noticeme",
-					"start.setrubitimerecord",
 					"start.setphone",
 					"start.phoneauth",
 					"start.set"
@@ -508,7 +507,6 @@
 				"excludeActions": [
 					"start.link",
 					"start.noticeme",
-					"start.setrubitimerecord",
 					"start.setphone",
 					"start.phoneauth",
 					"start.set"
@@ -2089,7 +2087,6 @@
 					"diary.open",
 					"start.link",
 					"start.noticeme",
-					"start.setrubitimerecord",
 					"start.setphone",
 					"start.phoneauth",
 					"start.set",
@@ -2427,7 +2424,6 @@
 					"diary.open",
 					"start.link",
 					"start.noticeme",
-					"start.setrubitimerecord",
 					"start.setphone",
 					"start.phoneauth",
 					"start.set"
@@ -2554,7 +2550,6 @@
 					"diary.open",
 					"start.link",
 					"start.noticeme",
-					"start.setrubitimerecord",
 					"start.setphone",
 					"start.phoneauth",
 					"start.set",

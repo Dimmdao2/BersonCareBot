@@ -7,7 +7,6 @@ import {
   beAppointments,
   beBranches,
   beClinicServices,
-  beExternalEntityMappings,
   beServiceLocationAvailability,
   beSpecialists,
   beSpecialistServiceAvailability,
@@ -27,11 +26,7 @@ import {
   workingIntervalsForDate,
   type BusyInterval,
 } from "@/modules/booking-scheduling/computeSlots";
-import {
-  legacyBranchServiceIdBySsaFromMappings,
-  legacyBranchServiceIdForSsaId,
-  pickPreferredSsaId,
-} from "@/modules/booking-scheduling/ssaResolve";
+import { pickPreferredSsaId } from "@/modules/booking-scheduling/ssaResolve";
 import type {
   BookingSchedulingPort,
   CanonicalBookingContext,
@@ -212,7 +207,6 @@ export function createPgBookingSchedulingPort(_getDefaultOrgId?: () => Promise<s
       if (organizations.size !== 1) throw new Error("ambiguous_booking_tenant");
       const availabilityId = pickPreferredSsaId(
         rows.map((row) => ({ id: row.id, createdAt: row.createdAt, isActive: true })),
-        new Map(),
       );
       if (!availabilityId) return null;
       return resolveCanonicalAvailabilityContext(availabilityId);
@@ -246,28 +240,10 @@ export function createPgBookingSchedulingPort(_getDefaultOrgId?: () => Promise<s
         .where(and(...ssaConds));
       if (ssaRows.length === 0) return null;
 
-      const mapRows = await db
-        .select({
-          canonicalId: beExternalEntityMappings.canonicalId,
-          metadata: beExternalEntityMappings.metadata,
-        })
-        .from(beExternalEntityMappings)
-        .where(
-          and(
-            eq(beExternalEntityMappings.organizationId, organizationId),
-            eq(beExternalEntityMappings.entityType, "availability"),
-            inArray(
-              beExternalEntityMappings.canonicalId,
-              ssaRows.map((r) => r.id),
-            ),
-          ),
-        );
-      const legacyBySsa = legacyBranchServiceIdBySsaFromMappings(mapRows);
       const pickedId = pickPreferredSsaId(
         ssaRows.map((r) => ({ id: r.id, createdAt: r.createdAt, isActive: true })),
-        legacyBySsa,
       );
-      return legacyBranchServiceIdForSsaId(pickedId, legacyBySsa) ?? pickedId;
+      return pickedId;
     },
 
     async listServicesByCityCode(organizationId, cityCode) {

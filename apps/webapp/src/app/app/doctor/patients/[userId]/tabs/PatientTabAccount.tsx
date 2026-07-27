@@ -886,10 +886,6 @@ export function PatientTabAccount({ userId, header, active = false, initialSuppl
                   </Button>
                 </span>
               </KVRow>
-              <KVRow label="Rubitime ID">
-                {/* TODO(backend): rubitime_id not in PatientCardHeader; would come from ClientIdentity */}
-                <span className="font-mono text-[11px] text-muted-foreground">—</span>
-              </KVRow>
               {telegramId && (
                 <KVRow label="Telegram ID">
                   <span className="font-mono text-[11px]">{telegramId}</span>

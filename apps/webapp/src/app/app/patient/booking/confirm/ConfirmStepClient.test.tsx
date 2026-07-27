@@ -18,7 +18,6 @@ const mockBooking = {
   userId: "user-1",
   cancelledAt: null,
   cancelReason: null,
-  rubitimeId: null,
   gcalEventId: null,
   contactPhone: "+79990000000",
   contactEmail: null,
@@ -35,13 +34,7 @@ const mockBooking = {
   serviceTitleSnapshot: "Сеанс",
   durationMinutesSnapshot: null,
   priceMinorSnapshot: null,
-  rubitimeBranchIdSnapshot: null,
-  rubitimeCooperatorIdSnapshot: null,
-  rubitimeServiceIdSnapshot: null,
-  rubitimeManageUrl: null,
   canonicalAppointmentId: null,
-  bookingSource: "native" as const,
-  compatQuality: null,
   provenanceCreatedBy: null,
   provenanceUpdatedBy: null,
 };
@@ -297,26 +290,4 @@ describe("ConfirmStepClient", () => {
     });
   });
 
-  it("shows partial outcome toast on reschedule when rubitime mirror failed", async () => {
-    rescheduleBooking.mockResolvedValue({
-      ok: true,
-      partial: { rubitimeMirrorFailed: true },
-    });
-    const user = userEvent.setup();
-    render(
-      <ConfirmStepClient
-        type="online"
-        category="general"
-        rescheduleBookingId="550e8400-e29b-41d4-a716-446655440099"
-        {...baseProps}
-      />,
-    );
-
-    await user.click(screen.getByRole("button", { name: /Подтвердить запись/i }));
-
-    await waitFor(() => {
-      expect(rescheduleBooking).toHaveBeenCalledTimes(1);
-      expect(partialToast).toHaveBeenCalledWith({ rubitimeMirrorFailed: true });
-    });
-  });
 });

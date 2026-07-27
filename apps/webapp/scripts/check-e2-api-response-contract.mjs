@@ -101,8 +101,7 @@ export function analyzeSources(sources) {
     if (
       /jsonError\s*\(\s*(?:error\s*\.\s*message|message)\b/.test(source) ||
       /error\s*:\s*(?:error\s*\.\s*message|message)\b/.test(source) ||
-      /payment_provider_unavailable:\s*\$\{/.test(source) ||
-      /\.startsWith\s*\(\s*["']rubitime_/.test(source)
+      /payment_provider_unavailable:\s*\$\{/.test(source)
     ) {
       issues.push(`raw_or_derived_error_message:${route}`);
     }

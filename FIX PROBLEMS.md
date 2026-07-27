@@ -8,12 +8,8 @@ src/integrations/telegram/webhook.ts принимает /start setphone_<number>
 Последствие: захват чужих записей, напоминаний, диалогов.
 Покрытие: есть тесты на SQL-форму записи, но нет hostile-path тестов на takeover/relink.
 
-High: legacy Rubitime callback GET /api/rubitime?record_success=... фактически не аутентифицирован.
-В src/integrations/rubitime/webhook.ts GET-роут не проверяет ни подпись, ни shared secret. Он сразу тянет запись через fetchRubitimeRecordById() и скармливает её в pipeline. Любой внешний вызов с валидным recordId может инициировать внутренние side effects.
-Покрытие: негативных тестов на auth/abuse не видно.
-
 High: ошибки pipeline/webhook маскируются как успех, что ведёт к тихой потере событий.
-src/kernel/eventGateway/index.ts, src/integrations/telegram/webhook.ts и src/integrations/rubitime/webhook.ts в ошибках возвращают accepted/200 ok вместо fail-fast. Для провайдера это означает “всё обработано”, хотя update мог упасть в середине сценария.
+src/kernel/eventGateway/index.ts и src/integrations/telegram/webhook.ts в ошибках возвращают accepted/200 ok вместо fail-fast. Для провайдера это означает “всё обработано”, хотя update мог упасть в середине сценария.
 Последствие: нет ретраев, трудно ловить регрессии, высокая цена диагностики.
 Покрытие: тестов на failure-path и корректную propagation не хватает.
 
@@ -61,7 +57,6 @@ Feature taxonomy дублируется по слоям.
 Security Risks
 Fallback secrets в webapp/src/config/env.ts недопустимы для production-grade системы.
 Перепривязка телефона через setUserPhone() и start.setphone выглядит как реальная account takeover уязвимость.
-Неаутентифицированный GET /api/rubitime даёт внешний триггер внутренних действий.
 Ошибки webhook/event processing скрываются под 200 ok, что облегчает silent failure exploitation.
 В логах оркестратора и webhook-слоя уходит слишком много runtime-данных для callback/user flows.
 validateTelegramInitData() в webapp/src/modules/auth/service.ts использует обычное сравнение hash, а не timing-safe; это не главный риск репо, но показатель непоследовательной security discipline.
@@ -74,7 +69,7 @@ menu.ask и связанные шаблоны остались после изм
 В webapp рядом сосуществуют DI/Repo-подход и page-local/mock-подход, что плодит два стиля реализации в одной кодовой базе.
 Priority Fix Plan
 Закрыть уязвимости доступа и подписи.
-Убрать insecure defaults для секретов, закрыть/удалить неаутентифицированный GET /api/rubitime, запретить перепривязку телефона без строгой верификации владельца.
+Убрать insecure defaults для секретов и запретить перепривязку телефона без строгой верификации владельца.
 
 Прекратить silent success на ошибках интеграций.
 Для webhook/event paths сделать честную политику ошибок: либо retryable fail, либо явный dead-letter/logging contract.

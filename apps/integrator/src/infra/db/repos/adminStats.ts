@@ -7,7 +7,6 @@ export type AdminStats = {
   activeBookings: number;
   userCountsByIntegration: {
     telegram?: { total: number; withPhone: number };
-    rubitime?: { total: number };
     [key: string]: { total: number; withPhone?: number } | undefined;
   };
 };
@@ -66,23 +65,6 @@ async function getUserCountsByIntegration(db: DbPort): Promise<AdminStats['userC
     }
   } catch (err) {
     logger.error({ err }, 'get telegram user counts failed');
-  }
-
-  // RubiTime: уникальные телефоны в проекции webapp (`public.appointment_records`)
-  try {
-    const rubitimeRes = await runIntegratorSql<{ cnt: number }>(
-      db,
-      sql`SELECT COUNT(DISTINCT phone_normalized)::int AS cnt
-          FROM public.appointment_records
-          WHERE phone_normalized IS NOT NULL AND TRIM(phone_normalized) != ''
-            AND deleted_at IS NULL`,
-    );
-    const row = rubitimeRes.rows[0];
-    if (row != null) {
-      result.rubitime = { total: row.cnt ?? 0 };
-    }
-  } catch (err) {
-    logger.error({ err }, 'get rubitime user counts failed');
   }
 
   return result;

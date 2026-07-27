@@ -133,9 +133,7 @@ function renderAppointmentItem(item: TodayAppointmentItem): ReactNode {
         typeLabel: item.type,
         statusLabel: item.status,
         branchName: item.branchName,
-        altNameNote: item.rubitimeNameIfDifferent
-          ? `Имя в Rubitime: ${item.rubitimeNameIfDifferent}`
-          : null,
+        altNameNote: null,
         cancelled: isCancelledItem(item),
         href: item.href,
         ctaLabel: item.ctaLabel,

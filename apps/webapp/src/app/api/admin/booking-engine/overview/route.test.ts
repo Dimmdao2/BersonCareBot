@@ -1,7 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 
 const requireClinicManagementBookingEngineMock = vi.hoisted(() => vi.fn());
-const getSettingMock = vi.hoisted(() => vi.fn());
 const getPublishedSlugForOrganizationMock = vi.hoisted(() => vi.fn());
 
 vi.mock("../_requireAdminBookingEngine", () => ({
@@ -10,7 +9,6 @@ vi.mock("../_requireAdminBookingEngine", () => ({
 
 vi.mock("@/app-layer/di/buildAppDeps", () => ({
   buildAppDeps: () => ({
-    systemSettings: { getSetting: getSettingMock },
     clinicDirectory: { getPublishedSlugForOrganization: getPublishedSlugForOrganizationMock },
   }),
 }));
@@ -18,7 +16,7 @@ vi.mock("@/app-layer/di/buildAppDeps", () => ({
 import { GET } from "./route";
 
 describe("GET /api/admin/booking-engine/overview", () => {
-  it("returns canonical doctor read source even when the retired setting row is legacy", async () => {
+  it("returns canonical booking read sources", async () => {
     getPublishedSlugForOrganizationMock.mockResolvedValue("clinic-a");
     const bridge = {
       getMappingSummary: vi.fn().mockResolvedValue({
@@ -51,29 +49,13 @@ describe("GET /api/admin/booking-engine/overview", () => {
         },
       },
     });
-    getSettingMock.mockImplementation(async (key: string) => {
-      if (key === "booking_doctor_appointments_read_source") {
-        return { valueJson: { value: "rubitime_legacy" } };
-      }
-      if (key === "booking_slots_read_source") {
-        return { valueJson: { value: "rubitime" } };
-      }
-      return null;
-    });
-
     const res = await GET();
     const json = (await res.json()) as {
       ok?: boolean;
-      doctorAppointmentsReadSource?: string;
-      bookingSlotsReadSource?: string;
-      calendarReadSource?: string;
       publicWidget?: { publicSlug?: string | null };
     };
     expect(res.status).toBe(200);
     expect(json.ok).toBe(true);
-    expect(json.doctorAppointmentsReadSource).toBe("canonical");
-    expect(json.bookingSlotsReadSource).toBe("canonical");
-    expect(json.calendarReadSource).toBe("canonical");
     expect(json.publicWidget).toEqual({ publicSlug: "clinic-a", specialists: [], specialistAvailability: [] });
     expect(getPublishedSlugForOrganizationMock).toHaveBeenCalledWith("org-1");
   });

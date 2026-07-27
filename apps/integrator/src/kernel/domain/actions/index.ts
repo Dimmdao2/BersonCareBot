@@ -43,12 +43,6 @@ async function handleEventLog(step: Step): Promise<StepResult> {
   });
 }
 
-async function handleBookingUpsert(step: Step): Promise<StepResult> {
-  return success(step.id, {
-    writes: [{ type: 'booking.upsert', params: step.payload }],
-  });
-}
-
 async function handleMessageRetryEnqueue(step: Step): Promise<StepResult> {
   return success(step.id, {
     writes: [{ type: 'message.retry.enqueue', params: step.payload }],
@@ -87,7 +81,6 @@ async function handleMessageSend(step: Step, ctx: ScriptContext): Promise<StepRe
 /** Регистр обработчиков domain action. */
 export const domainActionRegistry: Record<string, ActionHandler> = {
   'event.log': handleEventLog,
-  'booking.upsert': handleBookingUpsert,
   'message.retry.enqueue': handleMessageRetryEnqueue,
   'message.send': handleMessageSend,
 };

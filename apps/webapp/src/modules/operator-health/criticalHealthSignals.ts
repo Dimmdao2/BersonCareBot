@@ -27,7 +27,6 @@ export const OUTBOUND_PROVIDER_FAILURE_MIN_INCIDENTS = 1;
 export const OUTBOUND_PROVIDER_STOP_PREFIX = "🛑 !";
 const OPERATOR_PROBE_FAILURE_ERROR_CLASSES = new Set([
   "max_probe_failed",
-  "rubitime_get_schedule_failed",
   "telegram_probe_failed",
   "google_calendar_probe_failed",
 ]);

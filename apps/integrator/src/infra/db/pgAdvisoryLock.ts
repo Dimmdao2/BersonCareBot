@@ -3,7 +3,7 @@ import { drizzle } from 'drizzle-orm/node-postgres';
 import type { PoolClient } from 'pg';
 
 /**
- * Dedicated `PoolClient` from the integrator checkout helper (Rubitime throttle, scheduler slots).
+ * Dedicated `PoolClient` from the integrator checkout helper (scheduler slots).
  * Same mechanism as `getIntegratorDrizzleSession(port).execute(sql)` on a TX port, but
  * without `DbPort` — session locks are not held inside `createDbPort().tx`.
  */
@@ -18,7 +18,6 @@ function rowsFromExecute(raw: unknown): Record<string, unknown>[] {
 }
 
 /** Exported for tests — must not collide with other app advisory int keys. */
-export const RUBITIME_API_ADVISORY_LOCK_KEY = 58220114;
 
 export async function pgSessionAdvisoryLock(client: PoolClient, key: number): Promise<void> {
   await integratorDrizzleOnPgClient(client).execute(sql`SELECT pg_advisory_lock(${key})`);

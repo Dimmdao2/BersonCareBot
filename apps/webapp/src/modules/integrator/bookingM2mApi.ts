@@ -1,12 +1,7 @@
 import { createHmac } from "node:crypto";
 import { getCurrentCorrelationIdHeader } from "@bersoncare/db-principal";
 import { getIntegratorApiUrl, getIntegratorWebhookSecret } from "@/modules/system-settings/integrationRuntime";
-import type { BookingSlotsByDate } from "@/modules/patient-booking/types";
-import type {
-  BookingSlotsIntegratorQuery,
-  BookingSyncPort,
-  CreateBookingSyncInput,
-} from "@/modules/patient-booking/ports";
+import type { BookingSyncPort } from "@/modules/patient-booking/ports";
 
 async function normalizeBaseUrl(): Promise<string | null> {
   const base = (await getIntegratorApiUrl()).trim();
@@ -38,7 +33,6 @@ async function postSigned(path: string, body: Record<string, unknown>): Promise<
 }
 
 const POST_SIGNED_RETRY_BACKOFF_MS = [1000, 2000, 4000] as const;
-const BOOKING_PROVIDER_RETIRED_ERROR = "booking_provider_retired";
 
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -86,37 +80,8 @@ function integratorErrorCode(json: Record<string, unknown>): string {
   return "booking_lifecycle_event_failed";
 }
 
-async function failRetiredProvider<T>(_input?: unknown): Promise<T> {
-  throw new Error(BOOKING_PROVIDER_RETIRED_ERROR);
-}
-
 export function createBookingSyncPort(): BookingSyncPort {
   return {
-    fetchSlots(_query: BookingSlotsIntegratorQuery): Promise<BookingSlotsByDate[]> {
-      return failRetiredProvider();
-    },
-
-    createRecord(_input: CreateBookingSyncInput): Promise<{ rubitimeId: string | null; raw: Record<string, unknown> }> {
-      return failRetiredProvider();
-    },
-
-    cancelRecord(_externalRecordId: string): Promise<void> {
-      return failRetiredProvider();
-    },
-
-    deleteRecord(_externalRecordId: string): Promise<void> {
-      return failRetiredProvider();
-    },
-
-    updateRecord(_input: {
-      rubitimeId: string;
-      slotStart: string;
-      slotEnd?: string;
-      rubitimePatch?: Record<string, unknown>;
-    }): Promise<void> {
-      return failRetiredProvider();
-    },
-
     async emitBookingEvent(input): Promise<void> {
       const { status, json } = await postSignedWithRetry("/api/bersoncare/booking/lifecycle-event", {
         eventType: input.eventType,

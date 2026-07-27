@@ -57,7 +57,7 @@ import { DoctorCalendarCreateFormField } from "./DoctorCalendarCreateFormField";
 import { DoctorDateTimePicker } from "@/shared/ui/doctor/DoctorDateTimePicker";
 import { formatPatientPackageShortLabel } from "@/modules/memberships/display";
 
-// R21: причины отмены в стиле Rubitime (отправляются как reason в API).
+// R21: причины отмены, отправляемые как reason в API.
 const CANCEL_REASONS = [
   { value: "Пациент перенёс", label: "Пациент перенёс" },
   { value: "Пациент отменил", label: "Пациент отменил" },

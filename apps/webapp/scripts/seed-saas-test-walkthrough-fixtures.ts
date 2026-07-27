@@ -1138,7 +1138,7 @@ async function reconcileFixtures(db: FixtureDb, config: SaasTestFixtureConfig): 
         organizationId: ids.organizationA,
         entityType: 'availability',
         canonicalId: ids.specialistServiceAvailability[0],
-        externalSystem: 'rubitime',
+        externalSystem: 'saas_test_fixture',
         externalId: `saas-fixture:${ids.legacyBranchServices[0]}`,
         metadata: {
           fixture: SAAS_TEST_FIXTURE_MANIFEST.namespace,
@@ -1151,7 +1151,7 @@ async function reconcileFixtures(db: FixtureDb, config: SaasTestFixtureConfig): 
         organizationId: ids.organizationB,
         entityType: 'availability',
         canonicalId: ids.specialistServiceAvailability[1],
-        externalSystem: 'rubitime',
+        externalSystem: 'saas_test_fixture',
         externalId: `saas-fixture:${ids.legacyBranchServices[1]}`,
         metadata: {
           fixture: SAAS_TEST_FIXTURE_MANIFEST.namespace,

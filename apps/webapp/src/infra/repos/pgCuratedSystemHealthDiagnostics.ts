@@ -24,7 +24,6 @@ const safeMetaSchema = z
     failed: nonNegativeNumber.optional(),
     consecutiveCronFailures: nonNegativeNumber.optional(),
     consecutiveFailRuns: nonNegativeNumber.optional(),
-    rubitime: z.enum(["ok", "fail", "skipped_not_configured", "no_data"]).optional(),
     telegram: z.enum(["ok", "fail", "skipped_not_configured", "no_data"]).optional(),
     max: z.enum(["ok", "fail", "skipped_not_configured", "no_data"]).optional(),
     google_calendar: z.enum(["ok", "fail", "skipped_not_configured", "no_data"]).optional(),
@@ -206,7 +205,7 @@ export const curatedSystemHealthSnapshotSchema = z
       .array(
         z
           .object({
-            source: z.enum(["rubitime", "telegram", "max"]),
+            source: z.enum(["telegram", "max"]),
             receivedAt: nullableIso.unwrap(),
             processedOk: z.boolean(),
             httpStatusReturned: z.number().int().min(100).max(599).nullable(),

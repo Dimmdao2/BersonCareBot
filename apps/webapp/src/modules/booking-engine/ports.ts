@@ -1,4 +1,3 @@
-import type { RubitimeBridgePort } from "@/modules/booking-rubitime-bridge/ports";
 import type {
   AppointmentStatus,
   BeAppointment,
@@ -14,8 +13,6 @@ import type {
   CreateManualPatientVisitResult,
   TransitionAppointmentStatusInput,
 } from "./types";
-
-export type { RubitimeBridgePort } from "@/modules/booking-rubitime-bridge/ports";
 
 export type OrganizationPort = {
   getDefaultOrganizationId(): Promise<string>;
@@ -157,12 +154,6 @@ export type BookingEnginePort = {
   getAppointment(id: string): Promise<BeAppointment | null>;
   /** Chain rows are ordered by their zero-based position. */
   listAppointmentsByChainId(input: { organizationId: string; chainId: string }): Promise<BeAppointment[]>;
-  getRubitimeAppointmentId?(input: { organizationId: string; appointmentId: string }): Promise<string | null>;
-  /** Reverse lookup after integrator postCreateProjection (rubitime-first patient create). */
-  getAppointmentIdByRubitimeExternalId?(input: {
-    organizationId: string;
-    rubitimeId: string;
-  }): Promise<string | null>;
   /** Status immediately before transition to `charged_to_package` (for package refund revert). */
   getStatusBeforePackageCharge(appointmentId: string): Promise<AppointmentStatus | null>;
   createAppointment(input: CreateAppointmentInput): Promise<BeAppointment>;
@@ -177,25 +168,9 @@ export type BookingEnginePort = {
   transitionAppointmentStatus(input: TransitionAppointmentStatusInput): Promise<BeAppointment>;
   /** Hard delete is used only for immediate create rollback before side-effects. */
   deleteAppointmentHard?(input: { organizationId: string; appointmentId: string }): Promise<boolean>;
-  /**
-   * F1b: silent canonical soft-delete from an inbound Rubitime delete/remove. Resolves the
-   * canonical appointment via `be_external_entity_mappings` (external_id → canonical_id) and sets
-   * `deleted_at`. No events/notifications. Returns true if a canonical row was soft-deleted.
-   */
-  softDeleteAppointmentByRubitimeExternalId?(input: {
-    organizationId: string;
-    rubitimeId: string;
-  }): Promise<boolean>;
-  upsertRubitimeAppointmentMapping(input: {
-    organizationId: string;
-    appointmentId: string;
-    rubitimeId: string;
-  }): Promise<void>;
 };
 
 export type BookingEngineCorePort = OrganizationPort &
   OrganizationCatalogPort &
   ServiceAvailabilityPort &
   BookingEnginePort;
-
-export type BookingEngineBundlePort = BookingEngineCorePort & RubitimeBridgePort;

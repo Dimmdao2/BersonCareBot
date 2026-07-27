@@ -355,12 +355,8 @@ describe("doctor support/task workspace principal cutover", () => {
     expect(attention).toContain("organizationId?: string");
     expect(attention).toContain("instance.organizationId === deps.organizationId");
 
-    const appointmentsRepo = readSource("src/infra/repos/pgDoctorAppointments.ts");
-    expect(appointmentsRepo).toContain("legacyAppointmentOrganizationClause");
-    expect(appointmentsRepo).toContain("be_external_entity_mappings m_scope");
-    expect(appointmentsRepo).toContain("m_scope.entity_type = 'appointment'");
-    expect(appointmentsRepo).toContain("m_scope.organization_id");
-    expect(appointmentsRepo).toContain("bea_scope.organization_id");
+    const appointmentsRepo = readSource("src/infra/repos/pgDoctorCanonicalAppointments.ts");
+    expect(appointmentsRepo).toContain("eq(beAppointments.organizationId, organizationId)");
     expect(appointmentsRepo).toContain("audience?.organizationId");
     const clientsRepo = readSource("src/infra/repos/pgDoctorClients.ts");
     expect(clientsRepo).toContain("canonicalAppointmentOrgPredicate");

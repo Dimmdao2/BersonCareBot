@@ -13,7 +13,7 @@ Core-слой хранит универсальную модель пользо�
 - `identities`
   - `id` PK
   - `user_id` FK -> `users.id`
-  - `resource` (telegram/rubitime/max/email/...)
+  - `resource` (telegram/max/email/...)
   - `external_id`
   - `created_at`, `updated_at`
   - уникальность: `UNIQUE(resource, external_id)`

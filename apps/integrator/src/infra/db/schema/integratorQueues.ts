@@ -1,7 +1,7 @@
 /**
  * Очереди integrator: projection_outbox, message retry jobs.
  * `messageRetryJobs` maps to the `message_retry_jobs` physical table (renamed from the legacy
- * Rubitime-named `rubitime_create_retry_jobs` by the 2026-07-24 core migration; see
+ * Provider-specific retry queue renamed by the 2026-07-24 core migration; see
  * `apps/integrator/src/infra/db/migrations/core/` for the exact file).
  * Сверено с `apps/webapp/db/schema/schema.ts` (колонки, индексы; без FK).
  */

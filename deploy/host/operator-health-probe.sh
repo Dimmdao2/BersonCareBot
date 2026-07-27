@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Periodic trigger for integrator synthetic probes (MAX + Rubitime).
+# Periodic trigger for integrator synthetic probes.
 # Endpoint: POST /internal/operator-health-probe (signed with INTEGRATOR_WEBHOOK_SECRET or INTEGRATOR_SHARED_SECRET).
 #
 # Production: source /opt/env/bersoncarebot/api.prod (see docs/ARCHITECTURE/SERVER CONVENTIONS.md), then run from cron/systemd.

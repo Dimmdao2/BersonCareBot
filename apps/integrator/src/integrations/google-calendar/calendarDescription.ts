@@ -1,26 +1,7 @@
 import { sql } from 'drizzle-orm';
 import type { DbPort } from '../../kernel/contracts/index.js';
 import { normalizeRuPhoneE164 } from '../../infra/phone/normalizeRuPhoneE164.js';
-import { resolvePlatformUserIdForRubitimeBooking } from '../../infra/db/repos/resolvePlatformUserIdForRubitimeBooking.js';
 import { runIntegratorSql } from '../../infra/db/runIntegratorSql.js';
-
-const RUBITIME_CLIENT_COMMENT_KEYS = ['comment'] as const;
-
-function asString(value: unknown): string | undefined {
-  return typeof value === 'string' && value.trim().length > 0 ? value.trim() : undefined;
-}
-
-function firstNonEmptyFromRecord(
-  record: Record<string, unknown> | undefined,
-  keys: readonly string[],
-): string | undefined {
-  if (!record) return undefined;
-  for (const k of keys) {
-    const s = asString(record[k]);
-    if (s) return s;
-  }
-  return undefined;
-}
 
 export type GoogleCalendarDescriptionInput = {
   phoneNormalized?: string | null;
@@ -31,7 +12,6 @@ export type GoogleCalendarDescriptionInput = {
   packageSessionLine?: string | null;
 };
 
-/** Первая строка описания: `#+79001234567`. */
 export function formatPhoneHashtag(phoneNormalized: string | null | undefined): string | null {
   const raw = phoneNormalized?.trim();
   if (!raw) return null;
@@ -74,40 +54,27 @@ export function buildGoogleCalendarDescription(input: GoogleCalendarDescriptionI
   return lines.join('\n');
 }
 
-async function resolveCanonicalAppointmentId(
-  db: DbPort,
-  rubRecordId: string,
-): Promise<string | null> {
-  if (rubRecordId.startsWith('be:')) {
-    const id = rubRecordId.slice(3).trim();
-    return id.length > 0 ? id : null;
-  }
-  const mapped = await runIntegratorSql<{ canonical_id: string }>(
-    db,
-    sql`SELECT canonical_id::text
-        FROM be_external_entity_mappings
-        WHERE entity_type = 'appointment'
-          AND external_system = 'rubitime'
-          AND external_id = ${rubRecordId}
-        LIMIT 1`,
-  );
-  return mapped.rows[0]?.canonical_id ?? null;
-}
-
 export async function resolveGoogleCalendarDescriptionContext(
   db: DbPort,
   input: {
-    rubRecordId: string;
+    appointmentId: string;
     phoneNormalized?: string | null;
   },
 ): Promise<Omit<GoogleCalendarDescriptionInput, 'clientComment'>> {
   const phone = input.phoneNormalized?.trim() || null;
-  const platformUserId = await resolvePlatformUserIdForRubitimeBooking(db, phone, null);
-  if (!platformUserId) {
-    return { phoneNormalized: phone };
-  }
+  const normalizedPhone = phone ? normalizeRuPhoneE164(phone) : null;
+  if (!normalizedPhone) return { phoneNormalized: phone };
 
-  const appointmentId = await resolveCanonicalAppointmentId(db, input.rubRecordId);
+  const userRes = await runIntegratorSql<{ id: string }>(
+    db,
+    sql`SELECT id::text
+        FROM platform_users
+        WHERE phone_normalized = ${normalizedPhone}
+          AND merged_into_id IS NULL
+        LIMIT 1`,
+  );
+  const platformUserId = userRes.rows[0]?.id;
+  if (!platformUserId) return { phoneNormalized: normalizedPhone };
 
   const [profileRes, supportRes, staffCommentRes] = await Promise.all([
     runIntegratorSql<{ is_problematic: boolean; problematic_note: string | null }>(
@@ -129,26 +96,23 @@ export async function resolveGoogleCalendarDescriptionContext(
           ORDER BY tpi.updated_at DESC NULLS LAST
           LIMIT 1`,
     ),
-    appointmentId
-      ? runIntegratorSql<{ body: string }>(
-          db,
-          sql`SELECT body
-              FROM be_appointment_staff_comments
-              WHERE appointment_id = ${appointmentId}::uuid
-              ORDER BY updated_at DESC
-              LIMIT 1`,
-        )
-      : Promise.resolve({ rows: [] as { body: string }[] }),
+    runIntegratorSql<{ body: string }>(
+      db,
+      sql`SELECT body
+          FROM be_appointment_staff_comments
+          WHERE appointment_id = ${input.appointmentId}::uuid
+          ORDER BY updated_at DESC
+          LIMIT 1`,
+    ),
   ]);
 
   const profile = profileRes.rows[0];
-  const appointmentStaff = staffCommentRes.rows[0]?.body?.trim() || null;
-  const profileNote = profile?.problematic_note?.trim() || null;
-  const staffComment = appointmentStaff ?? profileNote;
-
   return {
-    phoneNormalized: phone,
-    staffComment,
+    phoneNormalized: normalizedPhone,
+    staffComment:
+      staffCommentRes.rows[0]?.body?.trim()
+      || profile?.problematic_note?.trim()
+      || null,
     isProblematic: profile?.is_problematic === true,
     supportProgramTitle: supportRes.rows[0]?.title?.trim() || null,
   };
@@ -157,33 +121,30 @@ export async function resolveGoogleCalendarDescriptionContext(
 export async function buildGoogleCalendarDescriptionForSync(
   db: DbPort | undefined,
   input: {
-    rubRecordId: string;
-    record?: Record<string, unknown>;
+    appointmentId: string;
     phoneNormalized?: string | null;
+    clientComment?: string | null;
     packageSessionLine?: string | null;
   },
 ): Promise<string> {
-  const recordPhone = asString(input.record?.phone);
-  const phone =
-    input.phoneNormalized?.trim()
-    || (recordPhone ? normalizeRuPhoneE164(recordPhone) : null);
-  const clientComment = firstNonEmptyFromRecord(input.record, RUBITIME_CLIENT_COMMENT_KEYS);
-
-  let enriched: Omit<GoogleCalendarDescriptionInput, 'clientComment'> = { phoneNormalized: phone };
+  const phone = input.phoneNormalized?.trim() || null;
+  let enriched: Omit<GoogleCalendarDescriptionInput, 'clientComment'> = {
+    phoneNormalized: phone,
+  };
   if (db) {
     try {
       enriched = await resolveGoogleCalendarDescriptionContext(db, {
-        rubRecordId: input.rubRecordId,
+        appointmentId: input.appointmentId,
         phoneNormalized: phone,
       });
     } catch {
-      // Enrichment is best-effort; Rubitime record fields still apply.
+      // Enrichment is best-effort.
     }
   }
 
   return buildGoogleCalendarDescription({
     phoneNormalized: enriched.phoneNormalized ?? phone,
-    clientComment: clientComment ?? null,
+    clientComment: input.clientComment ?? null,
     staffComment: enriched.staffComment ?? null,
     ...(enriched.isProblematic !== undefined ? { isProblematic: enriched.isProblematic } : {}),
     supportProgramTitle: enriched.supportProgramTitle ?? null,

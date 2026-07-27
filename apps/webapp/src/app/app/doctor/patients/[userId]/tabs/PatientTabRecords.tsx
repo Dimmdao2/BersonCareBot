@@ -338,7 +338,7 @@ export function PatientTabRecords({ userId, header, onCreateVisitFromAppointment
             ))}
           </div>
           <p className={cn(doctorSectionSubtitleClass, "text-[11px] leading-relaxed")}>
-            Неявка — не отдельный статус, а причина отмены (как в Rubitime).
+            Неявка — не отдельный статус, а причина отмены.
           </p>
         </div>
       )}

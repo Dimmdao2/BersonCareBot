@@ -99,13 +99,13 @@ describe("buildOperatorHealthDigest", () => {
   it("includes incidents opened and job failures in window", () => {
     const result = buildOperatorHealthDigest(
       baseInput({
-        incidentsOpened: [{ integration: "rubitime", errorClass: "probe_failed" }],
+        incidentsOpened: [{ integration: "max", errorClass: "probe_failed" }],
         jobFailures: [
           { jobFamily: "health", jobKey: "health.operator_health_critical.tick", lastFailureAt: "x" },
         ],
       }),
     );
-    expect(result.lines.some((l) => l.includes("Инцидент: rubitime"))).toBe(true);
+    expect(result.lines.some((l) => l.includes("Инцидент: max"))).toBe(true);
     expect(result.lines.some((l) => l.includes("health.operator_health_critical.tick"))).toBe(true);
   });
 

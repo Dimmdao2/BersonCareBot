@@ -42,7 +42,7 @@ describe("pgEmailSetupAccessPort", () => {
     const r = await port.requestContactEmailSetup({
       userId: "u1",
       emailNormalized: "user@example.com",
-      source: "rubitime",
+      source: "doctor_profile",
     });
     expect(r).toEqual({ ok: false, reason: "not_configured" });
     expect(tokensPort.deleteTokenById).not.toHaveBeenCalled();

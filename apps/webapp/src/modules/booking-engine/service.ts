@@ -1,10 +1,9 @@
 import { assertValidAppointmentStatusTransition } from "./appointmentStatusFsm";
 import type {
-  BookingEngineBundlePort,
+  BookingEngineCorePort,
   BookingEnginePort,
   OrganizationCatalogPort,
   OrganizationPort,
-  RubitimeBridgePort,
   ServiceAvailabilityPort,
 } from "./ports";
 import type {
@@ -48,7 +47,7 @@ type BookingEngineServiceDependencies = {
 };
 
 export function createBookingEngineService(
-  port: BookingEngineBundlePort,
+  port: BookingEngineCorePort,
   dependencies: BookingEngineServiceDependencies = {},
 ) {
   const engine: BookingEnginePort = {
@@ -61,21 +60,6 @@ export function createBookingEngineService(
       assertUuid(input.organizationId, "organizationId");
       assertUuid(input.chainId, "chainId");
       return port.listAppointmentsByChainId(input);
-    },
-
-    async getRubitimeAppointmentId(input) {
-      assertUuid(input.organizationId, "organizationId");
-      assertUuid(input.appointmentId, "appointmentId");
-      if (!port.getRubitimeAppointmentId) return null;
-      return port.getRubitimeAppointmentId(input);
-    },
-
-    async getAppointmentIdByRubitimeExternalId(input) {
-      assertUuid(input.organizationId, "organizationId");
-      const rubitimeId = input.rubitimeId.trim();
-      if (!rubitimeId) return null;
-      if (!port.getAppointmentIdByRubitimeExternalId) return null;
-      return port.getAppointmentIdByRubitimeExternalId({ organizationId: input.organizationId, rubitimeId });
     },
 
     async getStatusBeforePackageCharge(appointmentId) {
@@ -197,12 +181,6 @@ export function createBookingEngineService(
       return port.deleteAppointmentHard(input);
     },
 
-    async upsertRubitimeAppointmentMapping(input) {
-      assertUuid(input.organizationId, "organizationId");
-      assertUuid(input.appointmentId, "appointmentId");
-      if (!input.rubitimeId.trim()) throw new Error("rubitime_id_required");
-      return port.upsertRubitimeAppointmentMapping(input);
-    },
   };
 
   return {
@@ -210,7 +188,6 @@ export function createBookingEngineService(
     organization: createOrganizationFacade(port),
     catalog: createCatalogFacade(port, dependencies),
     services: createServiceAvailabilityFacade(port),
-    bridge: createBridgeFacade(port),
   };
 }
 
@@ -289,31 +266,5 @@ function createServiceAvailabilityFacade(port: ServiceAvailabilityPort) {
     upsertServiceLocationAvailability: port.upsertServiceLocationAvailability.bind(port),
     setSoloServiceLocationAvailability: port.setSoloServiceLocationAvailability.bind(port),
     listServiceLocationAvailability: port.listServiceLocationAvailability.bind(port),
-  };
-}
-
-function createBridgeFacade(port: RubitimeBridgePort) {
-  const emptyProjection = {
-    projectedAppointments: 0,
-    updatedAppointments: 0,
-    skippedExisting: 0,
-    recoveredMappings: 0,
-  };
-
-  return {
-    isBridgeEnabled: () => port.isBridgeEnabled(),
-    projectAll: async (organizationId: string) => {
-      assertUuid(organizationId);
-      const enabled = await port.isBridgeEnabled();
-      if (!enabled) {
-        return { appointmentRecords: emptyProjection };
-      }
-      const appointmentRecords = await port.projectAppointmentRecords(organizationId);
-      return { appointmentRecords };
-    },
-    getMappingSummary: (organizationId: string) => {
-      assertUuid(organizationId);
-      return port.getMappingSummary(organizationId);
-    },
   };
 }

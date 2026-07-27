@@ -42,12 +42,10 @@ export type AppointmentRow = {
   status: string;
   link: string | null;
   cancellationCountForClient: number;
-  /** Branch name from Rubitime (if linked). */
+  /** Branch name attached to the appointment. */
   branchName: string | null;
   /** Optional schedule source marker for compatibility/import provenance. */
   scheduleProvenancePrefix?: string;
-  /** Имя из Rubitime (`payload_json.name`), если отличается от профильной подписи; иначе `null`. */
-  rubitimeNameIfDifferent: string | null;
   /** Linked package usage id for appointments paid by membership. */
   packageUsageRef: string | null;
   /** Human title of the linked patient package, for tooltip/fallback context. */

@@ -1,18 +1,13 @@
 import { describe, expect, it } from "vitest";
-import { legacyBranchServiceIdBySsaFromMappings, pickPreferredSsaId } from "./ssaResolve";
+import { pickPreferredSsaId } from "./ssaResolve";
 
 describe("ssaResolve", () => {
-  const legacyBySsa = legacyBranchServiceIdBySsaFromMappings([
-    { canonicalId: "ssa-new", metadata: { legacy_branch_service_id: "bs-2" } },
-  ]);
-
-  it("prefers SSA with availability mapping over older row without mapping", () => {
+  it("prefers the newest active SSA", () => {
     const picked = pickPreferredSsaId(
       [
         { id: "ssa-old", createdAt: "2026-01-01T00:00:00.000Z", isActive: true },
         { id: "ssa-new", createdAt: "2026-06-04T12:00:00.000Z", isActive: true },
       ],
-      legacyBySsa,
     );
     expect(picked).toBe("ssa-new");
   });
@@ -23,18 +18,16 @@ describe("ssaResolve", () => {
         { id: "ssa-inactive", createdAt: "2026-06-05T00:00:00.000Z", isActive: false },
         { id: "ssa-active", createdAt: "2026-01-01T00:00:00.000Z", isActive: true },
       ],
-      legacyBySsa,
     );
     expect(picked).toBe("ssa-active");
   });
 
-  it("returns newest when none have mapping", () => {
+  it("returns newest when all rows are active", () => {
     const picked = pickPreferredSsaId(
       [
         { id: "ssa-a", createdAt: "2026-01-01T00:00:00.000Z", isActive: true },
         { id: "ssa-b", createdAt: "2026-06-01T00:00:00.000Z", isActive: true },
       ],
-      new Map(),
     );
     expect(picked).toBe("ssa-b");
   });

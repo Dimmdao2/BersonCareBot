@@ -19,7 +19,6 @@ export function buildBookingNotificationsSent(input: {
   notifyPatient: boolean;
   notifyStaff: boolean;
   integratorStatus: "sent" | "failed" | "skipped";
-  rubitimeMirrorStatus?: "ok" | "failed" | "skipped";
 }): Record<string, unknown> {
   const out: Record<string, unknown> = {
     policy: {
@@ -33,12 +32,5 @@ export function buildBookingNotificationsSent(input: {
       at: new Date().toISOString(),
     },
   };
-  if (input.rubitimeMirrorStatus) {
-    out.rubitime_mirror = {
-      action: input.eventType === "booking.cancelled" ? "cancel_record" : "update_record",
-      status: input.rubitimeMirrorStatus,
-      at: new Date().toISOString(),
-    };
-  }
   return out;
 }

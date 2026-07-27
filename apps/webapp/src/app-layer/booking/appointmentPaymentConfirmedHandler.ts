@@ -21,10 +21,7 @@ export function createAppointmentPaymentConfirmedHandler(deps: {
   bookingSync: Pick<BookingSyncPort, "emitBookingEvent">;
 }) {
   return async (input: AppointmentPaymentConfirmedInput): Promise<void> => {
-    const updated = await deps.patientBookings.markConfirmedByCanonicalAppointment(
-      input.appointmentId,
-      null,
-    );
+    const updated = await deps.patientBookings.markConfirmedByCanonicalAppointment(input.appointmentId);
     const row =
       updated ??
       (await deps.patientBookings.getByCanonicalAppointmentId(input.appointmentId));
@@ -48,7 +45,6 @@ export function createAppointmentPaymentConfirmedHandler(deps: {
         organizationId: appointment.organizationId,
         bookingId: row.id,
         userId: input.platformUserId ?? row.userId ?? row.id,
-        rubitimeId: row.rubitimeId,
         bookingType: row.bookingType,
         city: row.city ?? undefined,
         category: row.category,

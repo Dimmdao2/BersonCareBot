@@ -5,7 +5,7 @@ import { upsertIntegrationDataQualityIncident } from "./repos/integrationDataQua
 
 /**
  * Upsert data-quality incident; on first deduped insert, best-effort Telegram to admin.
- * Shared by Rubitime ingest normalization and branch timezone fallback paths.
+ * Shared by ingest normalization and branch timezone fallback paths.
  */
 export async function recordDataQualityIncidentAndMaybeTelegram(input: {
   db: DbPort;

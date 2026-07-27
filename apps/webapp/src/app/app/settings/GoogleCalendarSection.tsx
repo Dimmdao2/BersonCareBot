@@ -265,7 +265,7 @@ export function GoogleCalendarSection({
           <div className="flex flex-col gap-1">
             <LabeledSwitch
               label="Синхронизация включена"
-              hint="Записи из Rubitime будут создаваться/обновляться в выбранном Google Calendar"
+              hint="Записи будут создаваться и обновляться в выбранном Google Calendar"
               checked={enabled}
               onCheckedChange={toggleEnabled}
               disabled={isPending}

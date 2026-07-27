@@ -112,7 +112,7 @@ Admin-only (обеспечено на уровне nav и шелла). Под-н
 |-------------|-----------|
 | `calendar` (default) | `ScheduleCalendarDefaultsSection` |
 | `locations` | `BookingSoloLocationsSection` + `BookingSoloAvailabilitySection` |
-| `services` | `BookingSoloServicesSection` — canonical booking catalog (create/edit/deactivate), без Rubitime |
+| `services` | `BookingSoloServicesSection` — canonical booking catalog (create/edit/deactivate) |
 | `specialists` | `BookingSoloSpecialistsSection` — canonical booking-engine specialists (owner/себя + сотрудники); отдельно от личных «Настроек специалиста» аккаунта |
 | `form` | `BookingSoloFormFieldsSection` + `BookingPublicWidgetSection` + `BookingPublicAttributionSection` |
 | `payments` | `BookingPaymentsSectionLoader` + `BookingPrepaymentSection` |
@@ -125,10 +125,6 @@ Admin-only (обеспечено на уровне nav и шелла). Под-н
 Включённая локация появляется отдельной колонкой в матрице доступности услуг; новые услуги в ней
 по умолчанию выключены. Выключение скрывает колонку и публичный выбор, но сохраняет назначения для
 последующего повторного включения.
-
-**Rubitime tab отсутствует** (owner-review §4, п.4-5; C0 already retired). `BookingRubitimeMappingSection` /
-`BookingEngineSection mode="integrations"` больше не смонтированы ни в одном табе — backend/data retirement
-остаётся отдельным Rubitime retirement runbook, не частью этого таба.
 
 ## Per-date модель графика (бэкенд)
 

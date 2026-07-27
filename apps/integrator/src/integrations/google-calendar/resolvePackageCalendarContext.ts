@@ -6,26 +6,6 @@ import {
   formatPackageSessionDescriptionLine,
 } from './packageSessionIndex.js';
 
-async function resolveCanonicalAppointmentId(
-  db: DbPort,
-  rubRecordId: string,
-): Promise<string | null> {
-  if (rubRecordId.startsWith('be:')) {
-    const id = rubRecordId.slice(3).trim();
-    return id.length > 0 ? id : null;
-  }
-  const mapped = await runIntegratorSql<{ canonical_id: string }>(
-    db,
-    sql`SELECT canonical_id::text
-        FROM be_external_entity_mappings
-        WHERE entity_type = 'appointment'
-          AND external_system = 'rubitime'
-          AND external_id = ${rubRecordId}
-        LIMIT 1`,
-  );
-  return mapped.rows[0]?.canonical_id ?? null;
-}
-
 export type PackageCalendarContext = {
   packageLinked: boolean;
   packageSessionLine: string | null;
@@ -33,11 +13,8 @@ export type PackageCalendarContext = {
 
 export async function resolvePackageCalendarContext(
   db: DbPort,
-  rubRecordId: string,
+  appointmentId: string,
 ): Promise<PackageCalendarContext> {
-  const appointmentId = await resolveCanonicalAppointmentId(db, rubRecordId);
-  if (!appointmentId) return { packageLinked: false, packageSessionLine: null };
-
   const apptRes = await runIntegratorSql<{ package_usage_ref: string | null }>(
     db,
     sql`SELECT package_usage_ref::text

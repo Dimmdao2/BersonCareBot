@@ -204,11 +204,3 @@ export type TransitionAppointmentStatusInput = {
   actorId?: string | null;
   payload?: Record<string, unknown>;
 };
-
-export type BridgeProjectionStats = {
-  projectedAppointments: number;
-  updatedAppointments: number;
-  skippedExisting: number;
-  /** Mapping восстановлен для уже существующей импортированной записи без дубля insert. */
-  recoveredMappings: number;
-};

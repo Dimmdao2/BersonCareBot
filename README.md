@@ -1,9 +1,9 @@
 # BersonCareBot
 
-Монорепозиторий платформы BersonCare: PWA webapp (кабинеты пациента и врача, CMS, программы лечения, запись), integrator (Telegram/MAX, webhook, доставка, Rubitime) и media-worker (HLS-транскод).
+Монорепозиторий платформы BersonCare: PWA webapp (кабинеты пациента и врача, CMS, программы лечения, запись), integrator (Telegram/MAX, webhook, доставка) и media-worker (HLS-транскод).
 
 - **Стек:** TypeScript (ESM), Next.js, Fastify, PostgreSQL (Drizzle + SQL-migrations integrator), grammY, Vitest
-- **Каналы:** PWA (`/app`) — основной UI; **Web Push — основной канал уведомлений**; Telegram, MAX, SMS, email — дополнительные; запись — собственный движок + legacy Rubitime (см. [`docs/ARCHITECTURE/NOTIFICATION_CHANNELS.md`](docs/ARCHITECTURE/NOTIFICATION_CHANNELS.md))
+- **Каналы:** PWA (`/app`) — основной UI; **Web Push — основной канал уведомлений**; Telegram, MAX, SMS, email — дополнительные; запись — собственный движок (см. [`docs/ARCHITECTURE/NOTIFICATION_CHANNELS.md`](docs/ARCHITECTURE/NOTIFICATION_CHANNELS.md))
 - **Инфраструктура:** host deploy (systemd, nginx, cron) + GitHub Actions
 
 Суть продукта (пациент / специалист): [`docs/PRODUCT_OVERVIEW.md`](docs/PRODUCT_OVERVIEW.md). Оглавление документации: [`docs/README.md`](docs/README.md). **Инструкции для AI-агентов:** [`AGENTS.md`](AGENTS.md) (дублирует `.cursor/rules/`). Контракт слоёв integrator: [`ARCHITECTURE.md`](ARCHITECTURE.md). Эксплуатация на хосте: [`docs/ARCHITECTURE/SERVER CONVENTIONS.md`](docs/ARCHITECTURE/SERVER%20CONVENTIONS.md). В каталогах `apps/*/src/**` лежат файлы `имя_папки.md` с кратким назначением модуля — при изменении модуля их стоит дополнять.
@@ -15,7 +15,7 @@
 | [`apps/webapp`](apps/webapp) | Next.js: patient/doctor UI, API routes, Drizzle-миграции схемы `public` |
 | [`apps/integrator`](apps/integrator) | Fastify API, webhooks, worker, scheduler; схема `integrator` |
 | [`apps/media-worker`](apps/media-worker) | FFmpeg/HLS-транскод медиатеки |
-| [`packages/*`](packages) | Shared: `operator-db-schema`, `booking-rubitime-sync`, `platform-merge` |
+| [`packages/*`](packages) | Shared: `operator-db-schema`, `db-principal`, `error-tracking`, `platform-merge` |
 
 ## Локальный запуск
 
@@ -66,7 +66,6 @@ pnpm run build && pnpm run build:webapp
 Обязательный минимум для старта:
 
 - `DATABASE_URL` — в production **один** URL у webapp и integrator (схемы `public` + `integrator`; см. [`docs/ARCHITECTURE/DATABASE_UNIFIED_POSTGRES.md`](docs/ARCHITECTURE/DATABASE_UNIFIED_POSTGRES.md))
-- `BOOKING_URL` — для integrator (Rubitime / legacy booking surface)
 - webapp: `SESSION_COOKIE_SECRET`, `INTEGRATOR_WEBAPP_ENTRY_SECRET` / `INTEGRATOR_WEBHOOK_SECRET` (или `INTEGRATOR_SHARED_SECRET`)
 
 Ручные ops webapp, затрагивающие телефон и tier patient: [`apps/webapp/scripts/PLATFORM_IDENTITY_OPS.md`](apps/webapp/scripts/PLATFORM_IDENTITY_OPS.md) · [`apps/webapp/scripts/README.md`](apps/webapp/scripts/README.md).
@@ -103,19 +102,7 @@ pnpm run build && pnpm run build:webapp
 
 - `GET /health`
 - `POST /webhook/telegram`
-- `POST /webhook/rubitime/:token`
-- `GET /api/rubitime?record_success=<record_id>`
-
 **Webapp** (dev `:5200`, prod `https://bersoncare.ru`): основной продуктовый API и UI под `/app/*`, публичная запись `/book/*`, реестр маршрутов — [`apps/webapp/src/app/api/api.md`](apps/webapp/src/app/api/api.md).
-
-## Rubitime: уведомления о записи
-
-Кратко (подробнее — [`docs/ARCHITECTURE/RUBITIME_BOOKING_PIPELINE.md`](docs/ARCHITECTURE/RUBITIME_BOOKING_PIPELINE.md)):
-
-- `event-create-record`: при привязке Telegram/MAX — сразу в мессенджер; иначе delayed job (2 проверки/мин) → SMS fallback
-- `event-remove-record`, `event-update-record`: без ожидания, в доступный канал (мессенджер или SMS)
-
-**Собственный движок записи** (этапы 1–9 закрыты; Rubitime — зеркало/legacy) — см. [`docs/OWN_BOOKING_ENGINE_INITIATIVE/README.md`](docs/OWN_BOOKING_ENGINE_INITIATIVE/README.md).
 
 ## Деплой
 

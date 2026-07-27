@@ -14,7 +14,7 @@ export function createPgEmailSetupAccessPort(tokensPort: EmailSetupTokensPort): 
     async requestContactEmailSetup(
       params: RequestContactEmailSetupParams,
     ): Promise<RequestContactEmailSetupResult> {
-      // Contact-only email setup access (doctor/admin-created client or Rubitime contact) is
+      // Contact-only email setup access for a doctor/admin-created client is
       // confirmed through the same POST /api/auth/email-password/setup-code/complete as
       // email-password/setup-access and email-password/forgot's needs_email_setup branch --
       // "password_setup" purpose (C-2 step 4).

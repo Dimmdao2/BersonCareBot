@@ -18,9 +18,8 @@ describe("readProbeConsecutiveFailRuns", () => {
 
 describe("readProbeIntegrationOutcome", () => {
   it("reads per-integration probe status from meta", () => {
-    const meta = { max: "ok", rubitime: "fail", telegram: "skipped_not_configured" };
+    const meta = { max: "ok", telegram: "skipped_not_configured" };
     expect(readProbeIntegrationOutcome(meta, "max")).toBe("ok");
-    expect(readProbeIntegrationOutcome(meta, "rubitime")).toBe("fail");
     expect(readProbeIntegrationOutcome(meta, "google_calendar")).toBe("no_data");
   });
 });

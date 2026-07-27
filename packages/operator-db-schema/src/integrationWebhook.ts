@@ -1,6 +1,6 @@
 import { index, integer, pgTable, text, timestamp, uuid } from "drizzle-orm/pg-core";
 
-export const INTEGRATION_WEBHOOK_SOURCES = ["rubitime", "telegram", "max"] as const;
+export const INTEGRATION_WEBHOOK_SOURCES = ["telegram", "max"] as const;
 export type IntegrationWebhookSource = (typeof INTEGRATION_WEBHOOK_SOURCES)[number];
 
 /** Последний статус обработки входящего вебхука (одна строка на source). */

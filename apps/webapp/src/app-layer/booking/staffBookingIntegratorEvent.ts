@@ -54,7 +54,6 @@ export async function emitStaffCanonicalBookingEvent(opts: {
         organizationId: opts.appointment.organizationId,
         bookingId,
         userId,
-        rubitimeId: bookingRow?.rubitimeId ?? null,
         bookingType: bookingRow?.bookingType ?? "in_person",
         city: bookingRow?.city ?? undefined,
         category: bookingRow?.category ?? "general",

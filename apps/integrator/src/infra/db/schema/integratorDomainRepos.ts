@@ -1,11 +1,10 @@
 /**
- * Таблицы домена P3 (reminders, rubitime booking, public.appointment_records).
+ * Таблицы домена P3 (reminders, public.appointment_records).
  * Колонки и ограничения сверены с миграциями integrator + `apps/webapp/db/schema/schema.ts`
  * (FK в Drizzle не тянем — только уникальные индексы/CHECK, как в P1).
  */
 import { sql } from 'drizzle-orm';
 import {
-  bigserial,
   bigint,
   boolean,
   check,
@@ -127,45 +126,6 @@ export const contentAccessGrants = pgTable(
     ),
   ],
 );
-
-export const rubitimeRecords = pgTable(
-  'rubitime_records',
-  {
-    id: bigserial({ mode: 'number' }).primaryKey().notNull(),
-    rubitimeRecordId: text('rubitime_record_id').notNull(),
-    phoneNormalized: text('phone_normalized'),
-    recordAt: timestamp('record_at', { withTimezone: true, mode: 'string' }),
-    status: text().notNull(),
-    payloadJson: jsonb('payload_json').notNull(),
-    lastEvent: text('last_event').notNull(),
-    createdAt: timestamp('created_at', { withTimezone: true, mode: 'string' }).defaultNow().notNull(),
-    updatedAt: timestamp('updated_at', { withTimezone: true, mode: 'string' }).defaultNow().notNull(),
-    gcalEventId: text('gcal_event_id'),
-  },
-  (table) => [
-    unique('rubitime_records_rubitime_record_id_key').on(table.rubitimeRecordId),
-    check(
-      'rubitime_records_status_check',
-      sql`status = ANY (ARRAY['created'::text, 'updated'::text, 'canceled'::text])`,
-    ),
-    index('idx_rubitime_records_phone_normalized').using(
-      'btree',
-      table.phoneNormalized.asc().nullsLast().op('text_ops'),
-    ),
-    index('idx_rubitime_records_record_at').using(
-      'btree',
-      table.recordAt.asc().nullsLast().op('timestamptz_ops'),
-    ),
-  ],
-);
-
-export const rubitimeEvents = pgTable('rubitime_events', {
-  id: bigserial({ mode: 'number' }).primaryKey().notNull(),
-  rubitimeRecordId: text('rubitime_record_id'),
-  event: text().notNull(),
-  payloadJson: jsonb('payload_json').notNull(),
-  receivedAt: timestamp('received_at', { withTimezone: true, mode: 'string' }).defaultNow().notNull(),
-});
 
 /** `public.appointment_records` — default schema в Drizzle = `public`. */
 export const appointmentRecords = pgTable(

@@ -2,7 +2,6 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const requireAdminBookingEngineMock = vi.hoisted(() => vi.fn());
 const staffRescheduleMock = vi.hoisted(() => vi.fn());
-const updateRecordMock = vi.hoisted(() => vi.fn());
 const principalState = vi.hoisted(() => ({ inside: false }));
 const withDoctorWorkspacePrincipalMock = vi.hoisted(() =>
   vi.fn(async <T,>(
@@ -31,18 +30,11 @@ vi.mock("@/app-layer/principal/withOrganizationPrincipal", () => ({
   withDoctorWorkspacePrincipal: withDoctorWorkspacePrincipalMock,
 }));
 
-vi.mock("@/modules/integrator/bookingM2mApi", () => ({
-  createBookingSyncPort: () => ({ updateRecord: updateRecordMock, emitBookingEvent: vi.fn() }),
-}));
-
 vi.mock("@/app-layer/di/buildAppDeps", () => ({
   buildAppDeps: () => ({
     bookingAppointmentLifecycle: { staffReschedule: staffRescheduleMock },
     appointmentProjection: null,
     appointmentMirrorSync: null,
-    rubitimeCanonicalProjection: {
-      isBridgeEnabled: async () => true,
-    },
     patientBooking: null,
     payments: null,
     systemSettings: { getSetting: vi.fn().mockResolvedValue(null) },
@@ -58,7 +50,6 @@ describe("POST admin manual-reschedule", () => {
   });
 
   it("returns ok when lifecycle accepts reschedule", async () => {
-    updateRecordMock.mockRejectedValue(new Error("rubitime unavailable"));
     requireAdminBookingEngineMock.mockResolvedValue({
       ok: true,
       ctx: {
@@ -75,7 +66,6 @@ describe("POST admin manual-reschedule", () => {
             serviceId: null,
             status: "confirmed",
           }),
-          getRubitimeAppointmentId: vi.fn().mockResolvedValue(null),
         },
       },
     });
@@ -108,7 +98,6 @@ describe("POST admin manual-reschedule", () => {
       "admin.booking-engine.appointments.manual-reschedule",
       expect.any(Function),
     );
-    expect(updateRecordMock).not.toHaveBeenCalled();
   });
 
   it("returns slot_overlap when lifecycle throws overlap error", async () => {
@@ -128,7 +117,6 @@ describe("POST admin manual-reschedule", () => {
             serviceId: null,
             status: "confirmed",
           }),
-          getRubitimeAppointmentId: vi.fn().mockResolvedValue(null),
         },
       },
     });

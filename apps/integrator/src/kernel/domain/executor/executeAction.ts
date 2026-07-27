@@ -76,7 +76,7 @@ import {
   phoneLinkSaveFailedUserMessage,
 } from '../../../shared/phoneLinkUserMessages.js';
 
-const BOOKING_TYPES = new Set<string>(['booking.upsert', 'booking.event.insert']);
+const BOOKING_TYPES = new Set<string>(['booking.event.insert']);
 const NOTIFICATION_TYPES = new Set<string>(['notifications.get', 'notifications.toggle']);
 const REMINDER_TYPES = new Set<string>([
   'reminders.rules.get',
@@ -1123,12 +1123,6 @@ export async function executeAction(
         ...(appliedChannelLinkWrites.length > 0 ? { writes: appliedChannelLinkWrites } : {}),
         ...(intents !== undefined && intents.length > 0 ? { intents } : {}),
       };
-    }
-
-    case 'booking.upsert': {
-      const writes: DbWriteMutation[] = [{ type: 'booking.upsert', params: action.params }];
-      await persistWrites(deps.writePort, writes);
-      return { actionId: action.id, status: 'success', writes };
     }
 
     case 'booking.event.insert': {

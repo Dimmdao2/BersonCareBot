@@ -27,7 +27,6 @@ export function BookingScheduleSlotsProbeSection() {
   const [serviceId, setServiceId] = useState("");
   const [date, setDate] = useState(() => new Date().toISOString().slice(0, 10));
   const [slots, setSlots] = useState<string[]>([]);
-  const [slotsReadSource, setSlotsReadSource] = useState<"canonical" | "rubitime">("canonical");
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
 
@@ -37,15 +36,11 @@ export function BookingScheduleSlotsProbeSection() {
         ok: boolean;
         branches?: BranchRow[];
         services?: ServiceRow[];
-        bookingSlotsReadSource?: "canonical" | "rubitime";
       }>(OVERVIEW);
       const activeBranches = (json.branches ?? []).filter((b) => b.isActive);
       const activeServices = (json.services ?? []).filter((s) => s.isActive);
       setBranches(activeBranches);
       setServices(activeServices);
-      if (json.bookingSlotsReadSource === "canonical" || json.bookingSlotsReadSource === "rubitime") {
-        setSlotsReadSource(json.bookingSlotsReadSource);
-      }
       if (activeBranches[0]) setBranchId((prev) => prev || activeBranches[0]!.id);
       if (activeServices[0]) setServiceId((prev) => prev || activeServices[0]!.id);
     } catch (e) {
@@ -68,11 +63,7 @@ export function BookingScheduleSlotsProbeSection() {
         const json = await apiJson<{
           ok: boolean;
           slots?: string[];
-          bookingSlotsReadSource?: "canonical" | "rubitime";
         }>(`${SLOTS_PROBE}?${qs.toString()}`);
-        if (json.bookingSlotsReadSource === "canonical" || json.bookingSlotsReadSource === "rubitime") {
-          setSlotsReadSource(json.bookingSlotsReadSource);
-        }
         setSlots(json.slots ?? []);
       } catch (e) {
         setError(e instanceof Error ? e.message : "probe_failed");
@@ -88,7 +79,7 @@ export function BookingScheduleSlotsProbeSection() {
       </CardHeader>
       <CardContent className="space-y-3">
         <p className="text-sm text-muted-foreground">
-          Слоты считаются тем же путём, что и для пациента при записи ({slotsReadSource === "canonical" ? "ваше расписание" : "Rubitime"}).
+          Слоты считаются тем же каноническим расписанием, что и для пациента при записи.
         </p>
         <div className="grid gap-3 sm:grid-cols-3">
           <div className="space-y-2">
@@ -132,7 +123,7 @@ export function BookingScheduleSlotsProbeSection() {
         {error ? (
           <p className="text-sm text-destructive">
             {error === "branch_service_mapping_missing"
-              ? "Нет сопоставления локации и услуги для patient API — проверьте доступность и Rubitime-маппинг."
+              ? "Нет сопоставления локации и услуги для patient API — проверьте доступность."
               : error}
           </p>
         ) : null}

@@ -1,9 +1,9 @@
 import { describe, expect, it, vi } from "vitest";
 import { createBookingEngineService } from "./service";
-import type { BookingEngineBundlePort } from "./ports";
+import type { BookingEngineCorePort } from "./ports";
 import type { BeAppointment } from "./types";
 
-function mockPort(overrides: Partial<BookingEngineBundlePort> = {}): BookingEngineBundlePort {
+function mockPort(overrides: Partial<BookingEngineCorePort> = {}): BookingEngineCorePort {
   const appointment: BeAppointment = {
     id: "11111111-1111-4111-8111-111111111111",
     organizationId: "a0000000-0000-4000-8000-000000000001",
@@ -80,22 +80,6 @@ function mockPort(overrides: Partial<BookingEngineBundlePort> = {}): BookingEngi
     transitionAppointmentStatus: vi
       .fn()
       .mockImplementation(async (input) => ({ ...appointment, status: input.toStatus })),
-    isBridgeEnabled: vi.fn().mockResolvedValue(true),
-    upsertCanonicalFromRubitimeRecord: vi.fn().mockResolvedValue({ action: "skipped_native_integrator_id" }),
-    projectAppointmentRecords: vi.fn().mockResolvedValue({
-      projectedAppointments: 0,
-      updatedAppointments: 0,
-      skippedExisting: 0,
-      recoveredMappings: 0,
-    }),
-    getMappingSummary: vi.fn().mockResolvedValue({
-      branches: 0,
-      specialists: 0,
-      services: 0,
-      availabilities: 0,
-      appointments: 0,
-    }),
-    upsertRubitimeAppointmentMapping: vi.fn().mockResolvedValue(undefined),
     ...overrides,
   };
 }
@@ -259,14 +243,6 @@ describe("createBookingEngineService", () => {
         toStatus: "confirmed",
       }),
     ).rejects.toThrow(/Недопустимый переход/);
-  });
-
-  it("bridge.projectAll skips when disabled", async () => {
-    const port = mockPort({ isBridgeEnabled: vi.fn().mockResolvedValue(false) });
-    const svc = createBookingEngineService(port);
-    const result = await svc.bridge.projectAll("a0000000-0000-4000-8000-000000000001");
-    expect(result.appointmentRecords.projectedAppointments).toBe(0);
-    expect(port.projectAppointmentRecords).not.toHaveBeenCalled();
   });
 
   it("forwards the atomic solo service-location command to one port operation", async () => {

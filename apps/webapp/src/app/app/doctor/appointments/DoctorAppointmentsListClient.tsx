@@ -155,11 +155,6 @@ export function DoctorAppointmentsListClient({ appointments, view }: Props) {
                         {a.branchName ? (
                           <span className="text-xs text-muted-foreground">{a.branchName}</span>
                         ) : null}
-                        {a.rubitimeNameIfDifferent ? (
-                          <span className="text-xs text-muted-foreground">
-                            В Rubitime: {a.rubitimeNameIfDifferent}
-                          </span>
-                        ) : null}
                       </div>
                     </Button>
                     {expandedId === a.id ? (

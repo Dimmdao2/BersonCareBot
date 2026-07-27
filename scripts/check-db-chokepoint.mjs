@@ -36,8 +36,6 @@ const allowedConnectFiles = new Set([
   "apps/webapp/src/infra/db/configReaderPoolProvider.ts",
   "apps/integrator/src/infra/db/integratorPoolProvider.ts",
   "apps/media-worker/src/poolProvider.ts",
-  // One-off ops backfill keeps paired sessions + SAVEPOINT flow by ADR Class C.
-  "apps/integrator/src/infra/scripts/stage6-historical-time-backfill.ts",
 ]);
 
 const allowedRoleSwitchFiles = new Set([
@@ -48,7 +46,6 @@ const allowedRoleSwitchFiles = new Set([
 const allowedLayerRawSqlFiles = new Set([
   // S1 residual: SQL fragments intentionally kept until dedicated cleanup/guard allowlist decision.
   "apps/webapp/src/modules/analytics/analyticsAudience.ts",
-  "apps/webapp/src/modules/booking-rubitime-bridge/recoverExistingProjection.ts",
   "apps/webapp/src/modules/doctor-clients/activeMessengerBindingSql.ts",
   // D1 (C-1, 2026-07-26): same boot-time-before-DI probe as the new-Pool allowlist entry above.
   // The `information_schema.columns` SELECT is the entire probe; there is no DI-wired query

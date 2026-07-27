@@ -33,7 +33,6 @@ function makeAppt(overrides: Partial<TodayAppointmentItem> = {}): TodayAppointme
     status: "created",
     branchName: null,
     scheduleProvenancePrefix: null,
-    rubitimeNameIfDifferent: null,
     href: "/app/doctor/clients/user-1?scope=appointments",
     ctaLabel: "Открыть карточку",
     ...overrides,

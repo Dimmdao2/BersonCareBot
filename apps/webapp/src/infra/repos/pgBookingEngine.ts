@@ -34,10 +34,7 @@ import {
 } from "../../../db/schema/bookingEngine";
 import { clinicalVisit } from "../../../db/schema/patientClinical";
 import { platformUsers } from "../../../db/schema/schema";
-import {
-  legacyBranchServiceIdBySsaFromMappings,
-  pickPreferredSsaId,
-} from "@/modules/booking-scheduling/ssaResolve";
+import { pickPreferredSsaId } from "@/modules/booking-scheduling/ssaResolve";
 import { isChainFree } from "@/modules/booking-scheduling/computeSlots";
 import { listBookingBusyIntervals } from "@/infra/repos/pgBookingScheduling";
 import type { BookingEngineCorePort } from "@/modules/booking-engine/ports";
@@ -868,35 +865,13 @@ export function createPgBookingEnginePort(): BookingEngineCorePort {
           .from(beSpecialistServiceAvailability)
           .where(and(...scopeConds, eq(beSpecialistServiceAvailability.isActive, true)));
 
-        let targetId: string | null = null;
-        if (existingRows.length > 0) {
-          const mapRows = await tx
-            .select({
-              canonicalId: beExternalEntityMappings.canonicalId,
-              metadata: beExternalEntityMappings.metadata,
-            })
-            .from(beExternalEntityMappings)
-            .where(
-              and(
-                eq(beExternalEntityMappings.organizationId, input.organizationId),
-                eq(beExternalEntityMappings.entityType, "availability"),
-                eq(beExternalEntityMappings.externalSystem, "rubitime"),
-                inArray(
-                  beExternalEntityMappings.canonicalId,
-                  existingRows.map((r) => r.id),
-                ),
-              ),
-            );
-          const legacyBySsa = legacyBranchServiceIdBySsaFromMappings(mapRows);
-          targetId = pickPreferredSsaId(
-            existingRows.map((r) => ({
-              id: r.id,
-              createdAt: r.createdAt,
-              isActive: r.isActive,
-            })),
-            legacyBySsa,
-          );
-        }
+        const targetId = pickPreferredSsaId(
+          existingRows.map((r) => ({
+            id: r.id,
+            createdAt: r.createdAt,
+            isActive: r.isActive,
+          })),
+        );
 
         if (targetId) {
           const updated = await tx
@@ -1083,33 +1058,12 @@ export function createPgBookingEnginePort(): BookingEngineCorePort {
               isNull(beSpecialistServiceAvailability.cityCode),
             ),
           );
-        const mappingRows =
-          exactSpecialistRows.length > 0
-            ? await tx
-                .select({
-                  canonicalId: beExternalEntityMappings.canonicalId,
-                  metadata: beExternalEntityMappings.metadata,
-                })
-                .from(beExternalEntityMappings)
-                .where(
-                  and(
-                    eq(beExternalEntityMappings.organizationId, input.organizationId),
-                    eq(beExternalEntityMappings.entityType, "availability"),
-                    eq(beExternalEntityMappings.externalSystem, "rubitime"),
-                    inArray(
-                      beExternalEntityMappings.canonicalId,
-                      exactSpecialistRows.map((row) => row.id),
-                    ),
-                  ),
-                )
-            : [];
         const preferredSpecialistRowId = pickPreferredSsaId(
           exactSpecialistRows.map((row) => ({
             id: row.id,
             createdAt: row.createdAt,
             isActive: row.isActive,
           })),
-          legacyBranchServiceIdBySsaFromMappings(mappingRows),
         );
         const now = new Date().toISOString();
         const specialistAvailabilityRows = preferredSpecialistRowId
@@ -1214,44 +1168,6 @@ export function createPgBookingEnginePort(): BookingEngineCorePort {
         )
         .orderBy(asc(beAppointments.chainPosition), asc(beAppointments.startAt));
       return rows.map(mapAppointment);
-    },
-
-    async getRubitimeAppointmentId(input: { organizationId: string; appointmentId: string }) {
-      const db = getDrizzle();
-      const rows = await db
-        .select({ externalId: beExternalEntityMappings.externalId })
-        .from(beExternalEntityMappings)
-        .where(
-          and(
-            eq(beExternalEntityMappings.organizationId, input.organizationId),
-            eq(beExternalEntityMappings.entityType, "appointment"),
-            eq(beExternalEntityMappings.externalSystem, "rubitime"),
-            eq(beExternalEntityMappings.canonicalId, input.appointmentId),
-          ),
-        )
-        .orderBy(desc(beExternalEntityMappings.updatedAt))
-        .limit(1);
-      return rows[0]?.externalId?.trim() || null;
-    },
-
-    async getAppointmentIdByRubitimeExternalId(input: { organizationId: string; rubitimeId: string }) {
-      const rubitimeId = input.rubitimeId.trim();
-      if (!rubitimeId) return null;
-      const db = getDrizzle();
-      const rows = await db
-        .select({ canonicalId: beExternalEntityMappings.canonicalId })
-        .from(beExternalEntityMappings)
-        .where(
-          and(
-            eq(beExternalEntityMappings.organizationId, input.organizationId),
-            eq(beExternalEntityMappings.entityType, "appointment"),
-            eq(beExternalEntityMappings.externalSystem, "rubitime"),
-            eq(beExternalEntityMappings.externalId, rubitimeId),
-          ),
-        )
-        .limit(1);
-      const id = rows[0]?.canonicalId?.trim();
-      return id || null;
     },
 
     async getStatusBeforePackageCharge(appointmentId) {
@@ -1753,41 +1669,6 @@ export function createPgBookingEnginePort(): BookingEngineCorePort {
       });
     },
 
-    async softDeleteAppointmentByRubitimeExternalId(input: {
-      organizationId: string;
-      rubitimeId: string;
-    }) {
-      const rubitimeId = input.rubitimeId.trim();
-      if (!rubitimeId) return false;
-      const db = getDrizzle();
-      const mapped = await db
-        .select({ canonicalId: beExternalEntityMappings.canonicalId })
-        .from(beExternalEntityMappings)
-        .where(
-          and(
-            eq(beExternalEntityMappings.organizationId, input.organizationId),
-            eq(beExternalEntityMappings.entityType, "appointment"),
-            eq(beExternalEntityMappings.externalSystem, "rubitime"),
-            eq(beExternalEntityMappings.externalId, rubitimeId),
-          ),
-        )
-        .limit(1);
-      const canonicalId = mapped[0]?.canonicalId?.trim();
-      if (!canonicalId) return false;
-      const updated = await db
-        .update(beAppointments)
-        .set({ deletedAt: sql`now()`, updatedAt: sql`now()` })
-        .where(
-          and(
-            eq(beAppointments.organizationId, input.organizationId),
-            eq(beAppointments.id, canonicalId),
-            isNull(beAppointments.deletedAt),
-          ),
-        )
-        .returning({ id: beAppointments.id });
-      return updated.length > 0;
-    },
-
     async listSpecialistRooms(organizationId) {
       const db = getDrizzle();
       const rows = await db
@@ -1802,32 +1683,5 @@ export function createPgBookingEnginePort(): BookingEngineCorePort {
       return rows;
     },
 
-    async upsertRubitimeAppointmentMapping(input) {
-      const db = getDrizzle();
-      const now = new Date().toISOString();
-      await db
-        .insert(beExternalEntityMappings)
-        .values({
-          organizationId: input.organizationId,
-          entityType: "appointment",
-          canonicalId: input.appointmentId,
-          externalSystem: "rubitime",
-          externalId: input.rubitimeId.trim(),
-          metadata: { patient_booking_sync: true },
-          createdAt: now,
-          updatedAt: now,
-        })
-        .onConflictDoUpdate({
-          target: [
-            beExternalEntityMappings.externalSystem,
-            beExternalEntityMappings.entityType,
-            beExternalEntityMappings.externalId,
-          ],
-          set: {
-            canonicalId: input.appointmentId,
-            updatedAt: now,
-          },
-        });
-    },
   };
 }

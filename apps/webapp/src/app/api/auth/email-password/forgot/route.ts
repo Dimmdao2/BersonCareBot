@@ -25,7 +25,7 @@ function forgotPasswordNeutralResponse(challengeRetryAfter?: number) {
  * Ответ **одинаковый** при отсутствии учётки, ошибке отправки и rate limit — без `challengeId` и без перечисления email.
  * Подтверждение: {@link consumeLatestEmailChallengeCodeForUser} или `POST …/reset` с `challengeId`.
  *
- * Contact-only email (врач/Rubitime, `email_verified_at` NULL, нет `user_password_credentials`) получает
+ * Contact-only email (созданный врачом, `email_verified_at` NULL, нет `user_password_credentials`) получает
  * setup-код через тот же email challenge; явный UI lookup уже перевёл пользователя в setup-password flow.
  */
 export async function POST(request: Request) {

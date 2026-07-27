@@ -862,11 +862,7 @@ async function assertPatientBookingsSafeToMerge(
       AND pb1.id <> pb2.id
       AND tstzrange(pb1.slot_start, pb1.slot_end, '[)') && tstzrange(pb2.slot_start, pb2.slot_end, '[)')
       AND pb1.status IN ('confirmed', 'rescheduled', 'creating', 'cancelling', 'cancel_failed')
-      AND pb2.status IN ('confirmed', 'rescheduled', 'creating', 'cancelling', 'cancel_failed')
-      AND (
-        (pb1.rubitime_cooperator_id_snapshot IS NOT NULL AND pb1.rubitime_cooperator_id_snapshot = pb2.rubitime_cooperator_id_snapshot)
-        OR (pb1.rubitime_cooperator_id_snapshot IS NULL AND pb2.rubitime_cooperator_id_snapshot IS NULL)
-      )`,
+      AND pb2.status IN ('confirmed', 'rescheduled', 'creating', 'cancelling', 'cancel_failed')`,
     [targetId, duplicateId],
   );
   const n = parseInt(overlap.rows[0]?.c ?? "0", 10);

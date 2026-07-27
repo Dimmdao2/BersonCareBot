@@ -1,6 +1,5 @@
 /** Источник выпуска setup-кода (legacy token-link остаётся только для старых ссылок). */
 export type EmailSetupAccessSource =
-  | "rubitime"
   | "doctor_profile"
   | "manual_resend"
   | "registration_claim";

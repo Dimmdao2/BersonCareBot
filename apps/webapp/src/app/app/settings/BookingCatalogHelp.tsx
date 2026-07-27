@@ -22,9 +22,6 @@ export function BookingCatalogHelp() {
           — ссылка для пациентов после настройки каталога.
         </li>
       </ol>
-      <p className="mt-3 text-xs text-muted-foreground">
-        Связь с Rubitime — только на вкладке Rubitime, если включена интеграция.
-      </p>
     </div>
   );
 }

@@ -1,6 +1,6 @@
 /**
  * IANA zones for admin «display timezone» select. Prefer engine list; fallback matches
- * Rubitime offset → IANA mapping (TIMEZONE_UTC_NORMALIZATION).
+ * Supported IANA zones for timezone-normalized scheduling.
  */
 const FALLBACK_IANA_ZONES = [
   "UTC",

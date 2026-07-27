@@ -26,8 +26,6 @@ describe('booking-calendar service', () => {
         patientName: 'Иван',
         patientPhone: '+79001234567',
         bookingStatus: 'confirmed',
-        rubitimeId: null,
-        rubitimeManageUrl: null,
         paymentStatus: null,
         prepaymentPending: false,
         packageUsageRef: null,

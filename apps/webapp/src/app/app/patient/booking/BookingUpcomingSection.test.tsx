@@ -9,12 +9,6 @@ vi.mock("@/app/app/patient/cabinet/CabinetBookingActions", () => ({
   CabinetBookingActions: () => <div data-testid="native-booking-actions">native-actions</div>,
 }));
 
-const openExternalLinkInMessenger = vi.hoisted(() => vi.fn());
-
-vi.mock("@/shared/lib/openExternalLinkInMessenger", () => ({
-  openExternalLinkInMessenger,
-}));
-
 function makeBooking(over: Partial<PatientBookingRecord> = {}): PatientBookingRecord {
   return {
     id: "b1111111-1111-4111-8111-111111111111",
@@ -27,7 +21,6 @@ function makeBooking(over: Partial<PatientBookingRecord> = {}): PatientBookingRe
     status: "confirmed",
     cancelledAt: null,
     cancelReason: null,
-    rubitimeId: "123",
     gcalEventId: null,
     contactPhone: "+79990001122",
     contactEmail: null,
@@ -44,13 +37,7 @@ function makeBooking(over: Partial<PatientBookingRecord> = {}): PatientBookingRe
     serviceTitleSnapshot: null,
     durationMinutesSnapshot: null,
     priceMinorSnapshot: null,
-    rubitimeBranchIdSnapshot: null,
-    rubitimeCooperatorIdSnapshot: null,
-    rubitimeServiceIdSnapshot: null,
-    rubitimeManageUrl: "https://rubitime.ru/record/123",
     canonicalAppointmentId: null,
-    bookingSource: "native",
-    compatQuality: null,
     provenanceCreatedBy: null,
     provenanceUpdatedBy: null,
     ...over,
@@ -62,7 +49,7 @@ describe("BookingUpcomingSection", () => {
     vi.clearAllMocks();
   });
 
-  it("shows native actions for canonical booking and hides Rubitime manage", () => {
+  it("shows canonical actions for a canonical booking", () => {
     render(
       <BookingUpcomingSection
         bookings={[makeBooking({ canonicalAppointmentId: "appt-1" })]}
@@ -73,14 +60,13 @@ describe("BookingUpcomingSection", () => {
     expect(screen.queryByRole("button", { name: "Управлять" })).not.toBeInTheDocument();
   });
 
-  it("hides Rubitime manage for cancel_failed without canonical appointment", () => {
+  it("hides actions for cancel_failed without canonical appointment", () => {
     render(
       <BookingUpcomingSection
         bookings={[
           makeBooking({
             status: "cancel_failed",
             canonicalAppointmentId: null,
-            rubitimeManageUrl: "https://rubitime.ru/record/123",
           }),
         ]}
         appDisplayTimeZone="Europe/Moscow"
@@ -89,7 +75,7 @@ describe("BookingUpcomingSection", () => {
     expect(screen.queryByRole("button", { name: "Управлять" })).not.toBeInTheDocument();
   });
 
-  it("shows Rubitime manage only without canonical appointment", () => {
+  it("does not expose actions without a canonical appointment", () => {
     render(
       <BookingUpcomingSection
         bookings={[makeBooking({ canonicalAppointmentId: null })]}
@@ -97,6 +83,6 @@ describe("BookingUpcomingSection", () => {
       />,
     );
     expect(screen.queryByTestId("native-booking-actions")).not.toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Управлять" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Управлять" })).not.toBeInTheDocument();
   });
 });

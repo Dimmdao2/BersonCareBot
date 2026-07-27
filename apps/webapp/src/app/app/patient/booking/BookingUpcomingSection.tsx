@@ -2,11 +2,8 @@
 
 import Link from "next/link";
 import { Badge } from "@/shared/ui/patient/primitives/badge";
-import { Button } from "@/shared/ui/patient/primitives/button";
-import { isSafeExternalHref } from "@/lib/url/isSafeExternalHref";
 import type { PatientBookingRecord } from "@/modules/patient-booking/types";
 import { formatBookingDateTimeMediumRu } from "@/shared/lib/formatBusinessDateTime";
-import { openExternalLinkInMessenger } from "@/shared/lib/openExternalLinkInMessenger";
 import { CabinetBookingActions } from "@/app/app/patient/cabinet/CabinetBookingActions";
 import { bookingProvenancePrefix, nativeBookingSubtitle } from "@/app/app/patient/cabinet/patientBookingLabels";
 import { cn } from "@/lib/utils";
@@ -67,15 +64,7 @@ export function BookingUpcomingSection({ bookings, appDisplayTimeZone }: Props) 
       <h3 className={patientSectionTitleClass}>Предстоящие записи</h3>
       <div className="flex flex-col gap-2">
         {bookings.map((row) => {
-          const rubitimeUrl = row.rubitimeManageUrl?.trim() ?? "";
-          const safeRubitime = rubitimeUrl !== "" && isSafeExternalHref(rubitimeUrl);
           const hasNativeActions = Boolean(row.canonicalAppointmentId);
-          const canManageRubitime =
-            !hasNativeActions && safeRubitime && showManageLink(row.status);
-
-          const openRubitime = () => {
-            if (safeRubitime && rubitimeUrl) openExternalLinkInMessenger(rubitimeUrl);
-          };
 
           return (
             <div
@@ -103,11 +92,6 @@ export function BookingUpcomingSection({ bookings, appDisplayTimeZone }: Props) 
                 ) : null}
                 {hasNativeActions && showManageLink(row.status) ? (
                   <CabinetBookingActions row={row} />
-                ) : null}
-                {canManageRubitime ? (
-                  <Button type="button" className={bookingReminderManageCtaClass} onClick={openRubitime}>
-                    Управлять
-                  </Button>
                 ) : null}
               </div>
             </div>

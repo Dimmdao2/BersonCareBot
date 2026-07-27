@@ -29,7 +29,7 @@ export const routePaths = {
   lessons: "/app/patient/sections/lessons",
   emergency: "/app/patient/sections/emergency",
   cabinet: "/app/patient/cabinet",
-  /** Запись на приём (Rubitime), без обязательного телефона. */
+  /** Запись на приём без обязательного телефона. */
   patientBooking: "/app/patient/booking",
   /** Wizard: шаг 1 — формат. */
   bookingNew: "/app/patient/booking",

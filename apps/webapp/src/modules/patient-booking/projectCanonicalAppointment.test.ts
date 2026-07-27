@@ -18,13 +18,12 @@ describe("projectCanonicalAppointment", () => {
         contactName: "Test",
         serviceTitle: "Сеанс",
         branchTitle: "СПб",
-        rubitimeRecordId: "8442451",
         legacyBranchId: "legacy-branch-1",
       },
     );
     expect(upsertRecordFromProjection).toHaveBeenCalledWith(
       expect.objectContaining({
-        integratorRecordId: "8442451",
+        integratorRecordId: "be:appt-1",
         status: "canceled",
         lastEvent: "native.cancelled",
         branchId: "legacy-branch-1",
@@ -48,7 +47,6 @@ describe("projectCanonicalAppointment", () => {
         contactName: "Test",
         serviceTitle: "Сеанс",
         branchTitle: "СПб",
-        rubitimeRecordId: "8442451",
         legacyBranchId: null,
       },
     );

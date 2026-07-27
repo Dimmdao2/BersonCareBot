@@ -9,7 +9,6 @@ export type MessengerStartParseResult = {
   action: string;
   linkSecret?: string;
   authSecret?: string;
-  recordId?: string;
   phone?: string;
 };
 
@@ -46,14 +45,13 @@ export function canonicalizeMessengerStartText(raw: string): string {
   if (/^link_[A-Za-z0-9_-]+$/.test(trimmed)) return `/start ${trimmed}`;
   if (/^auth_[A-Za-z0-9_-]+$/.test(trimmed)) return `/start ${trimmed}`;
   if (/^noticeme$/i.test(trimmed)) return '/start noticeme';
-  if (/^setrubitimerecord_/i.test(trimmed)) return `/start ${trimmed}`;
   if (/^setphone_/i.test(trimmed)) return `/start ${trimmed}`;
   if (/^set\w+/i.test(trimmed)) return `/start ${trimmed}`;
   return trimmed;
 }
 
 /**
- * Те же правила, что в `mapBodyToIncoming` (Telegram): noticeme, link, rubitime, setphone, start.set.
+ * Те же правила, что в `mapBodyToIncoming` (Telegram): noticeme, link, setphone, start.set.
  * @param trimmedText — уже без BOM, желательно после {@link canonicalizeMessengerStartText} если источник Max.
  * @param dictionaryAction — действие из словаря текста (Telegram: normalizeTelegramMessageAction; Max: обычно '' для /start).
  */
@@ -64,7 +62,6 @@ export function parseMessengerStartCommand(
   let action = dictionaryAction;
   let linkSecret: string | undefined;
   let authSecret: string | undefined;
-  let recordId: string | undefined;
   let phone: string | undefined;
 
   if (/^\/start\s+noticeme$/i.test(trimmedText)) {
@@ -81,15 +78,6 @@ export function parseMessengerStartCommand(
   if (authStart?.[1]) {
     action = 'start.phoneauth';
     authSecret = authStart[1];
-  }
-
-  const setrubitimerecordPrefix = /^\/start\s+setrubitimerecord_/i;
-  if (setrubitimerecordPrefix.test(trimmedText)) {
-    action = 'start.setrubitimerecord';
-    const suffix = trimmedText.replace(setrubitimerecordPrefix, '').trim().slice(0, 120);
-    if (/^[A-Za-z0-9_-]+$/.test(suffix)) {
-      recordId = suffix;
-    }
   }
 
   if (!action) {
@@ -111,7 +99,6 @@ export function parseMessengerStartCommand(
     action,
     ...(linkSecret !== undefined ? { linkSecret } : {}),
     ...(authSecret !== undefined ? { authSecret } : {}),
-    ...(recordId !== undefined ? { recordId } : {}),
     ...(phone !== undefined ? { phone } : {}),
   };
 }

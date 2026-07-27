@@ -10,7 +10,7 @@ describe('google calendar description format', () => {
     expect(formatPhoneHashtag('79991234567')).toBe('#+79991234567');
   });
 
-  it('builds description blocks in order without rubitime id', () => {
+  it('builds description blocks in order', () => {
     expect(
       buildGoogleCalendarDescription({
         phoneNormalized: '+79189000792',

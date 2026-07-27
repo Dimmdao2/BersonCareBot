@@ -2,7 +2,6 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const requireDoctorBookingEngineMock = vi.hoisted(() => vi.fn());
 const staffRescheduleMock = vi.hoisted(() => vi.fn());
-const updateRecordMock = vi.hoisted(() => vi.fn());
 const getBookingByCanonicalAppointmentMock = vi.hoisted(() => vi.fn());
 const principalState = vi.hoisted(() => ({ inside: false }));
 const withDoctorWorkspacePrincipalMock = vi.hoisted(() =>
@@ -32,18 +31,11 @@ vi.mock("@/app-layer/principal/withOrganizationPrincipal", () => ({
   withDoctorWorkspacePrincipal: withDoctorWorkspacePrincipalMock,
 }));
 
-vi.mock("@/modules/integrator/bookingM2mApi", () => ({
-  createBookingSyncPort: () => ({ updateRecord: updateRecordMock, emitBookingEvent: vi.fn() }),
-}));
-
 vi.mock("@/app-layer/di/buildAppDeps", () => ({
   buildAppDeps: () => ({
     bookingAppointmentLifecycle: { staffReschedule: staffRescheduleMock },
     appointmentProjection: null,
     appointmentMirrorSync: null,
-    rubitimeCanonicalProjection: {
-      isBridgeEnabled: async () => true,
-    },
     patientBooking: {
       getBookingByCanonicalAppointment: getBookingByCanonicalAppointmentMock,
     },
@@ -112,14 +104,11 @@ describe("POST manual-reschedule", () => {
       "doctor.booking-engine.appointments.manual-reschedule",
       expect.any(Function),
     );
-    expect(updateRecordMock).not.toHaveBeenCalled();
   });
 
-  it("reschedules canonically despite legacy bridge enablement and a failing Rubitime port", async () => {
+  it("reschedules a linked patient booking canonically", async () => {
     getBookingByCanonicalAppointmentMock.mockResolvedValue({
-      rubitimeId: "rt-1",
     });
-    updateRecordMock.mockRejectedValue(new Error("slot_already_taken"));
     staffRescheduleMock.mockResolvedValue({
       ok: true,
       appointment: { id: "appt-1", platformUserId: "u1" },
@@ -160,12 +149,10 @@ describe("POST manual-reschedule", () => {
     expect(res.status).toBe(200);
     expect(json.ok).toBe(true);
     expect(staffRescheduleMock).toHaveBeenCalled();
-    expect(updateRecordMock).not.toHaveBeenCalled();
   });
 
-  it("returns canonical slot_overlap without any Rubitime rollback", async () => {
+  it("returns canonical slot_overlap", async () => {
     getBookingByCanonicalAppointmentMock.mockResolvedValue({
-      rubitimeId: "rt-1",
     });
     staffRescheduleMock.mockImplementation(async () => {
       expect(principalState.inside).toBe(true);
@@ -206,6 +193,5 @@ describe("POST manual-reschedule", () => {
     expect(res.status).toBe(409);
     expect(json.ok).toBe(false);
     expect(json.error).toBe("slot_overlap");
-    expect(updateRecordMock).not.toHaveBeenCalled();
   });
 });
