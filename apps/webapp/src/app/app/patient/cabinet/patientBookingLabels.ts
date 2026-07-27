@@ -4,11 +4,11 @@ import { SCHEDULE_RECORD_PROVENANCE_PREFIX } from "@/shared/lib/scheduleRecordPr
 export { SCHEDULE_RECORD_PROVENANCE_PREFIX };
 
 /**
- * Prefix for cards sourced from Rubitime projection (compat-sync), not from native webapp booking.
+ * Prefix for cards imported from a retired external booking system, not created in the webapp.
  * DB columns `provenance_created_by` / `provenance_updated_by` hold the actor hint; extend mapping when new values appear.
  */
 export function bookingProvenancePrefix(row: PatientBookingRecord): string {
-  if (row.bookingSource !== "rubitime_projection") return "";
+  if (row.bookingSource !== "imported") return "";
   return SCHEDULE_RECORD_PROVENANCE_PREFIX;
 }
 

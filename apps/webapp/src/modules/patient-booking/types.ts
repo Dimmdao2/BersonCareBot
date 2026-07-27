@@ -6,7 +6,7 @@ export type PatientBookingChannel = "app" | "public_widget";
 export type BookingType = "in_person" | "online";
 export type BookingCategory = "rehab_lfk" | "nutrition" | "general";
 
-export type PatientBookingRowSource = "native" | "rubitime_projection";
+export type PatientBookingRowSource = "native" | "imported";
 
 /**
  * Canonical in-person context read from the linked `be_appointments` row and
@@ -52,7 +52,7 @@ export type BookingSlotsByDate = {
  */
 export type PatientBookingRecord = {
   id: string;
-  /** Null only for unlinked `source=rubitime_projection` compat rows (phone not matched yet). */
+  /** Null only for unlinked imported compat rows (phone not matched yet). */
   userId: string | null;
   bookingType: BookingType;
   city: string | null;
@@ -92,9 +92,9 @@ export type PatientBookingRecord = {
    * a substitute for it.
    */
   canonicalInPersonContext?: CanonicalInPersonBookingContext | null;
-  /** DB `source`: native webapp booking vs Rubitime projection compat row. */
+  /** DB `source`: native webapp booking vs a row imported from a retired external system. */
   bookingSource: PatientBookingRowSource;
-  /** Set for `rubitime_projection` rows; recomputed on each compat upsert. */
+  /** Set for imported compatibility rows. */
   compatQuality: CompatSyncQuality | null;
   provenanceCreatedBy: string | null;
   provenanceUpdatedBy: string | null;

@@ -43,7 +43,7 @@ const booking: PatientBookingRecord = {
   rubitimeManageUrl: null,
   canonicalAppointmentId: "a1111111-1111-4111-8111-111111111111",
   canonicalInPersonContext: null,
-  bookingSource: "rubitime_projection",
+  bookingSource: "imported",
   compatQuality: null,
   provenanceCreatedBy: null,
   provenanceUpdatedBy: null,

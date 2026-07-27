@@ -92,7 +92,7 @@ describe("locked patient runtime capabilities", () => {
 
   it("keeps branch/service booking enrichment inside the signed capability, not a direct app_patient join (taskdb #1046)", () => {
     const migration = text(
-      "../../../db/drizzle-migrations/0251_current_patient_booking_rows_branch_enrichment.sql",
+      "../../../db/drizzle-migrations/0262_remove_rubitime_data.sql",
     );
     const bookings = text("./pgPatientBookings.ts");
 
@@ -107,6 +107,8 @@ describe("locked patient runtime capabilities", () => {
       "availability.specialist_id = appointment.specialist_id",
     );
     expect(migration).toContain("'canonical_in_person_context', row.canonical_in_person_context");
+    expect(migration).not.toContain("'rubitime_id', row.rubitime_id");
+    expect(migration).not.toContain("'rubitime_manage_url', row.rubitime_manage_url");
 
     // The webapp connection runs as app_patient, which
     // deploy/postgres/public-booking-bootstrap-resolver.sql deliberately denies direct SELECT on

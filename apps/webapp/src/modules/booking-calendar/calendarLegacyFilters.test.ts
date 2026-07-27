@@ -69,7 +69,7 @@ describe('calendarLegacyFilters', () => {
     const legacy = legacyEvent({ id: 'legacy-1', source: 'rubitime_legacy' });
     const projection = legacyEvent({
       id: 'canonical-1',
-      source: 'rubitime_projection',
+      source: 'imported',
     });
     const result = dedupeCalendarAppointmentsPreferLegacy([projection, legacy]);
     expect(result).toHaveLength(1);

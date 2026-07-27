@@ -34,7 +34,9 @@ DELETE FROM public.saas_isolation_events;
 \ir ../../apps/webapp/db/drizzle-migrations/0195_e1_patient_maintenance_history.sql
 \ir ../../apps/webapp/db/drizzle-migrations/0197_patient_plan_opened_capability.sql
 \ir ../../apps/webapp/db/drizzle-migrations/0198_patient_visible_catalog_reads.sql
-\ir ../../apps/webapp/db/drizzle-migrations/0199_current_patient_booking_rows.sql
+-- Replay the current booking capability definition. Migration 0262 is repeat-safe and also keeps
+-- the retired Rubitime data surface absent before the capability ACL is re-pinned below.
+\ir ../../apps/webapp/db/drizzle-migrations/0262_remove_rubitime_data.sql
 \ir ../../apps/webapp/db/drizzle-migrations/0200_current_patient_product_analytics.sql
 \ir ../../apps/webapp/db/drizzle-migrations/0201_e1_webapp_auth_role_runtime_config.sql
 \ir ../../apps/webapp/db/drizzle-migrations/0202_current_patient_ui_capabilities.sql

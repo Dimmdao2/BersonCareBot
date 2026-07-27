@@ -1,4 +1,4 @@
 /**
- * F-04: единый префикс для записей из проекции Rubitime (`appointment_records`, compat-sync).
+ * Единый нейтральный префикс для записей, импортированных из внешнего расписания.
  */
 export const SCHEDULE_RECORD_PROVENANCE_PREFIX = "Из расписания · ";

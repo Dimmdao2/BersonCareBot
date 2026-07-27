@@ -101,7 +101,7 @@ describe("CabinetActiveBookings", () => {
           makeBooking({
             id: "00000000-0000-4000-8000-0000000000f1",
             canonicalAppointmentId: "00000000-0000-4000-8000-0000000000a2",
-            bookingSource: "rubitime_projection",
+            bookingSource: "imported",
             rubitimeManageUrl: "https://rubitime.ru/record/123",
             canonicalInPersonContext: {
               branchId: "00000000-0000-4000-8000-0000000000b2",

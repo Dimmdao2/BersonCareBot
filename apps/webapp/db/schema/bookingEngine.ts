@@ -496,7 +496,7 @@ export const beAppointments = pgTable(
     check("be_appointments_time_check", sql`end_at > start_at`),
     check("be_appointments_source_check", sql`source = ANY (ARRAY[
       'native'::text,
-      'rubitime_projection'::text,
+      'imported'::text,
       'admin_manual'::text,
       'public_widget'::text
     ])`),

@@ -45,7 +45,7 @@ const e1MigrationPaths = [
   "apps/webapp/db/drizzle-migrations/0195_e1_patient_maintenance_history.sql",
   "apps/webapp/db/drizzle-migrations/0197_patient_plan_opened_capability.sql",
   "apps/webapp/db/drizzle-migrations/0198_patient_visible_catalog_reads.sql",
-  "apps/webapp/db/drizzle-migrations/0199_current_patient_booking_rows.sql",
+  "apps/webapp/db/drizzle-migrations/0262_remove_rubitime_data.sql",
   "apps/webapp/db/drizzle-migrations/0200_current_patient_product_analytics.sql",
   "apps/webapp/db/drizzle-migrations/0201_e1_webapp_auth_role_runtime_config.sql",
   "apps/webapp/db/drizzle-migrations/0202_current_patient_ui_capabilities.sql",

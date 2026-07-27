@@ -1835,6 +1835,13 @@
       "when": 1793539200058,
       "tag": "0261_platform_registration_events_read",
       "breakpoints": true
+    },
+    {
+      "idx": 262,
+      "version": "7",
+      "when": 1793539200059,
+      "tag": "0262_remove_rubitime_data",
+      "breakpoints": true
     }
   ]
 }

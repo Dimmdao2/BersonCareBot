@@ -113,17 +113,17 @@ function applyUpsertFromRubitimeToRow(id: string, row: PatientBookingRecord, inp
   byId.set(id, {
     ...row,
     status: input.status,
-    slotStart: row.bookingSource === "rubitime_projection" ? slotStartIso : row.slotStart,
-    slotEnd: row.bookingSource === "rubitime_projection" ? slotEnd : row.slotEnd,
+    slotStart: row.bookingSource === "imported" ? slotStartIso : row.slotStart,
+    slotEnd: row.bookingSource === "imported" ? slotEnd : row.slotEnd,
     branchTitleSnapshot: input.branchTitle ?? row.branchTitleSnapshot,
     serviceTitleSnapshot: input.serviceTitle ?? row.serviceTitleSnapshot,
     rubitimeBranchIdSnapshot: input.rubitimeBranchId ?? row.rubitimeBranchIdSnapshot,
     rubitimeServiceIdSnapshot: input.rubitimeServiceId ?? row.rubitimeServiceIdSnapshot,
     rubitimeCooperatorIdSnapshot: input.rubitimeCooperatorId ?? row.rubitimeCooperatorIdSnapshot,
     rubitimeManageUrl: input.rubitimeManageUrl?.trim() || row.rubitimeManageUrl,
-    compatQuality: row.bookingSource === "rubitime_projection" ? compatQuality : row.compatQuality,
+    compatQuality: row.bookingSource === "imported" ? compatQuality : row.compatQuality,
     provenanceUpdatedBy:
-      row.bookingSource === "rubitime_projection" ? "rubitime_external" : row.provenanceUpdatedBy,
+      row.bookingSource === "imported" ? "rubitime_external" : row.provenanceUpdatedBy,
     cancelledAt,
     updatedAt: new Date().toISOString(),
   });
@@ -371,7 +371,7 @@ export const inMemoryPatientBookingsPort: PatientBookingsPort = {
     }
 
     if (targetId && row) {
-      if (row.bookingSource === "rubitime_projection" && input.status === "cancelled") {
+      if (row.bookingSource === "imported" && input.status === "cancelled") {
         byId.delete(targetId);
         return;
       }
@@ -432,7 +432,7 @@ export const inMemoryPatientBookingsPort: PatientBookingsPort = {
       rubitimeServiceIdSnapshot: input.rubitimeServiceId ?? null,
       rubitimeManageUrl: input.rubitimeManageUrl?.trim() || null,
       canonicalAppointmentId: null,
-      bookingSource: "rubitime_projection",
+      bookingSource: "imported",
       compatQuality,
       provenanceCreatedBy: "rubitime_external",
       provenanceUpdatedBy: null,

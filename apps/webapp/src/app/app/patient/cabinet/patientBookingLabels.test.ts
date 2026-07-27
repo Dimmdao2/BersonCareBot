@@ -49,8 +49,8 @@ function baseRow(over: Partial<PatientBookingRecord> = {}): PatientBookingRecord
 }
 
 describe("bookingProvenancePrefix", () => {
-  it("returns label for rubitime_projection rows", () => {
-    expect(bookingProvenancePrefix(baseRow({ bookingSource: "rubitime_projection" }))).toBe("Из расписания · ");
+  it("returns a neutral label for imported rows", () => {
+    expect(bookingProvenancePrefix(baseRow({ bookingSource: "imported" }))).toBe("Из расписания · ");
   });
 
   it("returns empty for native bookings", () => {

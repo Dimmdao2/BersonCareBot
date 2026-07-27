@@ -144,7 +144,7 @@ describe("CabinetBookingActions", () => {
   it("allows a linked historical row only through its proven canonical context", () => {
     const row = sampleRow({
       bookingType: "in_person",
-      bookingSource: "rubitime_projection",
+      bookingSource: "imported",
       canonicalInPersonContext: {
         branchId: "00000000-0000-4000-8000-0000000000b2",
         serviceId: "00000000-0000-4000-8000-0000000000c2",

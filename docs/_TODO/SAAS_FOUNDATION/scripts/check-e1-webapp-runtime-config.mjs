@@ -8,7 +8,7 @@ const files = {
   planOpenedMigration: "apps/webapp/db/drizzle-migrations/0197_patient_plan_opened_capability.sql",
   visibleCatalogMigration: "apps/webapp/db/drizzle-migrations/0198_patient_visible_catalog_reads.sql",
   visibleCatalogOverlay: "deploy/postgres/patient-visible-catalog-rls.sql",
-  bookingRowsMigration: "apps/webapp/db/drizzle-migrations/0199_current_patient_booking_rows.sql",
+  bookingRowsMigration: "apps/webapp/db/drizzle-migrations/0262_remove_rubitime_data.sql",
   productAnalyticsMigration: "apps/webapp/db/drizzle-migrations/0200_current_patient_product_analytics.sql",
   authRoleMigration: "apps/webapp/db/drizzle-migrations/0201_e1_webapp_auth_role_runtime_config.sql",
   adminEmailRoleMigration:
@@ -384,7 +384,7 @@ function runChecks(overrides = {}) {
   requireText(files.overlay, loaded.overlay, [
     "0193_e1_safe_runtime_config.sql", "0194_e1_patient_identity_exception.sql",
     "0195_e1_patient_maintenance_history.sql", "0197_patient_plan_opened_capability.sql",
-    "0198_patient_visible_catalog_reads.sql", "0199_current_patient_booking_rows.sql",
+    "0198_patient_visible_catalog_reads.sql", "0262_remove_rubitime_data.sql",
     "0200_current_patient_product_analytics.sql", "0201_e1_webapp_auth_role_runtime_config.sql",
     "0202_current_patient_ui_capabilities.sql", "e1-current-patient-organization-entitlements.sql",
     "e1_webapp_runtime_role",

@@ -80,7 +80,7 @@ function makeCanonicalAppt(id: string, patientName = 'Пациент'): Calendar
     startAt: '2026-06-17T08:00:00Z',
     endAt: '2026-06-17T09:00:00Z',
     status: 'confirmed',
-    source: 'rubitime_projection',
+    source: 'imported',
     specialistId: 'spec-1',
     specialistName: 'Доктор',
     branchId: null,
