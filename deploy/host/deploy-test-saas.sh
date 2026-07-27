@@ -1271,7 +1271,12 @@ WITH required(tbl, priv) AS (
     ('public.lfk_complex_templates', 'SELECT'),
     ('public.lfk_complex_template_exercises', 'SELECT'),
     ('public.lfk_exercises', 'SELECT'),
-    ('public.lfk_exercise_media', 'SELECT')
+    ('public.lfk_exercise_media', 'SELECT'),
+    -- 0253 patient reminder occurrence actions: both repeat the current-patient platform_users bridge
+    -- and update only the snooze/skip columns on the matched reminder occurrence. platform_users
+    -- SELECT is already required above.
+    ('public.reminder_occurrence_history', 'SELECT'),
+    ('public.reminder_occurrence_history', 'UPDATE')
 )
 SELECT coalesce(string_agg(tbl || ' ' || priv, ', ' ORDER BY tbl, priv), '')
 FROM required
@@ -1415,7 +1420,12 @@ SELECT has_column_privilege('app_owner', 'public.operator_incidents', 'alert_sen
   # app.phone_auth_register_otp_lockout(text,bigint), and app.phone_auth_reset_otp_lockout(text).
   # They re-state exact-phone predicates and touch only public.phone_challenges / public.phone_otp_locks;
   # all eight SELECT/INSERT/UPDATE/DELETE required-grant rows are already pinned above from migration 0245.
-  local expected_secdef_count=74
+  # 74 -> 76 (2026-07-27, taskdb #1018 H-3): migration
+  # 0253_patient_reminder_occurrence_actions adds app.patient_snooze_reminder_occurrence(uuid,text,integer)
+  # and app.patient_skip_reminder_occurrence(uuid,text,text). Both read public.platform_users and
+  # public.reminder_occurrence_history, and UPDATE only public.reminder_occurrence_history; the two
+  # newly required reminder-occurrence SELECT/UPDATE rows are in the VALUES set above.
+  local expected_secdef_count=76
   local actual_secdef_count
   actual_secdef_count="$(sudo -u postgres psql -d "$DB" -X -v ON_ERROR_STOP=1 -tAc "
 SELECT count(*) FROM pg_proc p WHERE pg_get_userbyid(p.proowner) = 'app_owner' AND p.prosecdef;
@@ -1428,7 +1438,7 @@ SELECT count(*) FROM pg_proc p WHERE pg_get_userbyid(p.proowner) = 'app_owner' A
     exit 1
   }
 
-  echo "   app_owner SECURITY DEFINER table-grant completeness: OK (37 required table grants + 1 column grant present, $actual_secdef_count/$expected_secdef_count secdef functions pinned)"
+  echo "   app_owner SECURITY DEFINER table-grant completeness: OK (39 required table grants + 1 column grant present, $actual_secdef_count/$expected_secdef_count secdef functions pinned)"
 }
 
 assert_c5a_clinical_test_measure_kinds_closure(){

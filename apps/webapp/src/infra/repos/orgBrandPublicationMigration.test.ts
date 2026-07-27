@@ -221,7 +221,9 @@ describe("0238 organization brand publication", () => {
     // reads. The live-corrected baseline is 62; the new accessors are reviewed in their focused test.
     // 70 -> 74 (2026-07-27): #1033 correction adds the four phone login-limit actions omitted from
     // the first 0252 pass; their two tables' required grants were already pinned by migration 0245.
-    expect(deploy).toContain("local expected_secdef_count=74");
+    // 74 -> 76 (2026-07-27): #1018 H-3 adds the two patient reminder-occurrence actions; their
+    // focused migration test pins both exact signatures and the two newly required table grants.
+    expect(deploy).toContain("local expected_secdef_count=76");
     expect(deploy).toContain("('public.org_enrollments', 'SELECT')");
     expect(deploy).toContain("('public.phone_challenges', 'INSERT')");
     expect(deploy).toContain("('public.phone_otp_locks', 'UPDATE')");

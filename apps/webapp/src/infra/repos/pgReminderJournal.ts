@@ -262,32 +262,17 @@ export function createPgReminderJournalPort(): ReminderJournalPort {
             tx.rollback();
             return { ok: false, error: "not_found" } as const;
           }
-          const untilR = await runWebappSql<{ until: string }>(
+          const snoozeAction = await runWebappSql<{ snoozed_until: string }>(
             tx,
-            sql`SELECT (now() + make_interval(mins => ${minutes})) AS until`,
+            sql`SELECT snoozed_until::text
+                FROM app.patient_snooze_reminder_occurrence(
+                  ${platformUserId}::uuid,
+                  ${integratorOccurrenceId}::text,
+                  ${minutes}::integer
+                )`,
           );
-          const snoozedUntil = untilR.rows[0]?.until;
+          const snoozedUntil = snoozeAction.rows[0]?.snoozed_until;
           if (!snoozedUntil) {
-            tx.rollback();
-            return { ok: false, error: "not_found" } as const;
-          }
-
-          const existingUntil = own.rows[0]!.snoozed_until;
-          if (
-            existingUntil &&
-            new Date(existingUntil).getTime() === new Date(snoozedUntil).getTime()
-          ) {
-            return { ok: true, occurrenceId: integratorOccurrenceId, snoozedUntil: existingUntil };
-          }
-
-          const snoozeUpd = await runWebappSql(
-            tx,
-            sql`UPDATE reminder_occurrence_history
-           SET snoozed_at = now(), snoozed_until = ${snoozedUntil}::timestamptz
-           WHERE integrator_occurrence_id = ${integratorOccurrenceId}
-             AND skipped_at IS NULL`,
-          );
-          if ((snoozeUpd.rowCount ?? 0) === 0) {
             tx.rollback();
             return { ok: false, error: "not_found" } as const;
           }
@@ -326,18 +311,16 @@ export function createPgReminderJournalPort(): ReminderJournalPort {
             return { ok: false, error: "not_found" } as const;
           }
           const rulePk = own.rows[0]!.rule_pk;
-          const upd = await runWebappSql<{ skipped_at: string }>(
+          const skipAction = await runWebappSql<{ skipped_at: string }>(
             tx,
-            sql`UPDATE reminder_occurrence_history roh
-           SET skipped_at = COALESCE(roh.skipped_at, now()),
-               skip_reason = CASE WHEN roh.skipped_at IS NULL THEN ${reason} ELSE roh.skip_reason END
-           FROM platform_users pu
-           WHERE roh.integrator_occurrence_id = ${integratorOccurrenceId}
-             AND roh.integrator_user_id = pu.integrator_user_id
-             AND pu.id = ${platformUserId}::uuid
-           RETURNING roh.skipped_at`,
+            sql`SELECT skipped_at::text
+                FROM app.patient_skip_reminder_occurrence(
+                  ${platformUserId}::uuid,
+                  ${integratorOccurrenceId}::text,
+                  ${reason}::text
+                )`,
           );
-          const skippedAt = upd.rows[0]?.skipped_at;
+          const skippedAt = skipAction.rows[0]?.skipped_at;
           if (!skippedAt) {
             tx.rollback();
             return { ok: false, error: "not_found" } as const;
