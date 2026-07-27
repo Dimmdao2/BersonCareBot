@@ -1,5 +1,12 @@
 # SaaS PROD deploy — single consolidated process (scripts + instructions)
 
+> 🟢 **РАМКА ВСЕГО ЭТОГО ДОКУМЕНТА — решение владельца 27.07.** Здесь описан переезд на **НОВЫЙ** сервер, а
+> не обновление работающего. Дословно: «мы не будем обновлять тот прод что работает сейчас — мы создадим
+> новый и обновим БД, которую возьмём из нынешнего прода в момент переезда». Канонная формулировка 15.07
+> «переключения прода не будет никогда» относится к обновлению **текущего** хоста `adelaide` на месте и
+> этому документу не противоречит. Единственное действие над нынешним продом — снять свежий дамп.
+> Полностью: [`docs/ARCHITECTURE/OWNER_PRODUCT_RULES.md` §6](../../ARCHITECTURE/OWNER_PRODUCT_RULES.md).
+
 > **Purpose (owner 2026-07-24):** ONE place with the full SaaS production cutover process — every script and every
 > manual instruction, in order. Pragmatic rule (owner): if a step is easy to script → the script is named here; if
 > scripting is hard/brittle → the exact one-off commands are written here as a MANUAL instruction (what/when/how).
