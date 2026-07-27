@@ -56,13 +56,11 @@ import type { ProjectionFanoutInput } from './repos/projectionFanout.js';
 import { tryEmitWebappProjectionThenEnqueue } from './repos/projectionFanout.js';
 import { projectionIdempotencyKey, hashPayload, hashPayloadExcludingKeys } from './repos/projectionKeys.js';
 import {
-  canonicalizeIntegratorUserIdKeysInObject,
   resolveCanonicalIntegratorUserId,
   resolveCanonicalUserIdFromIdentityId,
 } from './repos/canonicalUserId.js';
 import { logger } from '../observability/logger.js';
 import { insertMailingLog } from './repos/mailingLogs.js';
-import { normalizeRuPhoneE164 } from '../phone/normalizeRuPhoneE164.js';
 import { isAuthChannelEnabled as readAuthChannelPolicy } from './authChannelPolicy.js';
 import {
   writeIdentityAndPreferencesDirect,
