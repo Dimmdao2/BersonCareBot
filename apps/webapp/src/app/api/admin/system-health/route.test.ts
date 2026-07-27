@@ -509,9 +509,6 @@ describe("GET /api/admin/system-health", () => {
     expect(body.integratorApi).toEqual({ status: "ok", db: "up" });
     expect(body.projection.status).toBe("degraded");
     expect(body.projection.snapshot?.deadCount).toBe(1);
-    expect((body as { integrations?: { rubitime: { outbound: { status: string } } } }).integrations?.rubitime.outbound.status).toBe(
-      "no_data",
-    );
     expect(body.meta?.probes?.projection?.status).toBe("degraded");
     expect(typeof body.meta?.probes?.projection?.durationMs).toBe("number");
     expect(typeof body.fetchedAt).toBe("string");

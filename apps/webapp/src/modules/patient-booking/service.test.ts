@@ -128,60 +128,6 @@ describe("createPatientBookingService", () => {
     vi.clearAllMocks();
   });
 
-  it("cancelBooking: markCancelling then cancelRecord then markCancelled on success (legacy)", async () => {
-    const row = sampleRow({ status: "confirmed"});
-    bookingsPort.getByIdForUser.mockResolvedValue(row);
-    bookingsPort.markCancelling.mockResolvedValue({ ...row, status: "cancelling" });
-    bookingsPort.markCancelled.mockResolvedValue({ ...row, status: "cancelled" });
-    syncPort.cancelRecord.mockResolvedValue(undefined);
-    syncPort.emitBookingEvent.mockResolvedValue(undefined);
-
-    const svc = createPatientBookingService({
-      bookingsPort: bookingsPort as never,
-      syncPort: syncPort as never,
-    });
-    const result = await svc.cancelBooking({
-      userId: row.userId!,
-      bookingId: row.id,
-      reason: "busy",
-    });
-    expect(result).toEqual({ ok: true, notificationOutcomeFailed: true });
-    expect(syncPort.emitBookingEvent).not.toHaveBeenCalled();
-    expect(bookingsPort.markCancelling).toHaveBeenCalledWith(row.id);
-    expect(syncPort.cancelRecord).toHaveBeenCalledWith("r1");
-    expect(bookingsPort.markCancelled).toHaveBeenCalledWith({
-      bookingId: row.id,
-      reason: "busy",
-      status: "cancelled",
-    });
-  });
-
-  it("cancelBooking: skips Rubitime cancel when bridge is disabled", async () => {
-    const row = sampleRow({ status: "confirmed"});
-    bookingsPort.getByIdForUser.mockResolvedValue(row);
-    bookingsPort.markCancelling.mockResolvedValue({ ...row, status: "cancelling" });
-    bookingsPort.markCancelled.mockResolvedValue({ ...row, status: "cancelled" });
-    syncPort.emitBookingEvent.mockResolvedValue(undefined);
-
-    const svc = createPatientBookingService({
-      bookingsPort: bookingsPort as never,
-      syncPort: syncPort as never,
-    });
-    const result = await svc.cancelBooking({
-      userId: row.userId!,
-      bookingId: row.id,
-      reason: "busy",
-    });
-    expect(result).toEqual({ ok: true, notificationOutcomeFailed: true });
-    expect(syncPort.emitBookingEvent).not.toHaveBeenCalled();
-    expect(syncPort.cancelRecord).not.toHaveBeenCalled();
-    expect(bookingsPort.markCancelled).toHaveBeenCalledWith({
-      bookingId: row.id,
-      reason: "busy",
-      status: "cancelled",
-    });
-  });
-
   it("createBooking without canonical deps fails instead of calling Rubitime create", async () => {
     const svc = createPatientBookingService({
       bookingsPort: bookingsPort as never,
@@ -199,64 +145,6 @@ describe("createPatientBookingService", () => {
     })).rejects.toThrow("canonical_booking_unavailable");
     expect(syncPort.createRecord).not.toHaveBeenCalled();
     expect(bookingsPort.createPending).not.toHaveBeenCalled();
-  });
-
-  it("cancelBooking: Rubitime sync failure still completes legacy cancel", async () => {
-    const row = sampleRow({ status: "confirmed"});
-    bookingsPort.getByIdForUser.mockResolvedValue(row);
-    bookingsPort.markCancelling.mockResolvedValue({ ...row, status: "cancelling" });
-    bookingsPort.markCancelled.mockResolvedValue({ ...row, status: "cancelled" });
-    syncPort.cancelRecord.mockRejectedValue(new Error("network"));
-
-    const svc = createPatientBookingService({
-      bookingsPort: bookingsPort as never,
-      syncPort: syncPort as never,
-    });
-    const result = await svc.cancelBooking({ userId: row.userId!, bookingId: row.id });
-    expect(result).toEqual({
-      ok: true,
-      rubitimeMirrorFailed: true,
-      notificationOutcomeFailed: true,
-    });
-    expect(bookingsPort.markCancelled).toHaveBeenCalledWith({
-      bookingId: row.id,
-      reason: undefined,
-      status: "cancelled",
-    });
-  });
-
-  it("cancelBooking: Rubitime sync failure invalidates canonical slots cache so next getSlots refetches", async () => {
-    const row = sampleRow({ status: "confirmed"});
-    bookingsPort.getByIdForUser.mockResolvedValue(row);
-    bookingsPort.markCancelling.mockResolvedValue({ ...row, status: "cancelling" });
-    syncPort.cancelRecord.mockRejectedValue(new Error("network"));
-    bookingsPort.markCancelled.mockResolvedValue({ ...row, status: "cancelled" });
-    const getOnlineSlots = vi.fn().mockResolvedValue([{ date: "2026-05-01", slots: [] }]);
-    const bookingEngine = {
-      organization: { getDefaultOrganizationId: vi.fn().mockResolvedValue("org-1") },
-      getAppointment: vi.fn().mockResolvedValue({ id: "appt-1", organizationId: "org-1" }),
-    };
-
-    const svc = createPatientBookingService({
-      bookingsPort: bookingsPort as never,
-      syncPort: syncPort as never,
-      bookingEngine: bookingEngine as never,
-      bookingScheduling: { getOnlineSlots } as never,
-      slotsTtlMs: 60_000,
-    });
-    await svc.getSlots({ type: "online", organizationId: "org-1", category: "general" });
-    await svc.getSlots({ type: "online", organizationId: "org-1", category: "general" });
-    expect(getOnlineSlots).toHaveBeenCalledTimes(1);
-
-    const result = await svc.cancelBooking({ userId: row.userId!, bookingId: row.id });
-    expect(result).toEqual({
-      ok: true,
-      rubitimeMirrorFailed: true,
-      notificationOutcomeFailed: true,
-    });
-
-    await svc.getSlots({ type: "online", organizationId: "org-1", category: "general" });
-    expect(getOnlineSlots).toHaveBeenCalledTimes(2);
   });
 
   it("cancelBooking: canonical path succeeds when doctor projection cancel fails", async () => {
@@ -852,7 +740,7 @@ describe("createPatientBookingService", () => {
     expect(result).toMatchObject({ ok: true, productOutcomeFailed: true });
   });
 
-  it("rescheduleBooking: canonical path returns rubitimeMirrorFailed when mirror update fails", async () => {
+  it("rescheduleBooking: canonical path no longer calls the retired mirror", async () => {
     const row = sampleRow({
       status: "confirmed",
       canonicalAppointmentId: "appt-1",
@@ -865,7 +753,6 @@ describe("createPatientBookingService", () => {
       slotStart: newStart,
       slotEnd: newEnd,
     });
-    syncPort.updateRecord.mockRejectedValue(new Error("network"));
     syncPort.emitBookingEvent.mockResolvedValue(undefined);
 
     const appointmentLifecycle = {
@@ -903,7 +790,8 @@ describe("createPatientBookingService", () => {
       slotStart: newStart,
       slotEnd: newEnd,
     });
-    expect(result).toMatchObject({ ok: true, rubitimeMirrorFailed: true });
+    expect(result).toMatchObject({ ok: true });
+    expect(syncPort.updateRecord).not.toHaveBeenCalled();
   });
 
   it("rescheduleBooking: skips Rubitime update when bridge is disabled", async () => {
@@ -1073,7 +961,7 @@ describe("createPatientBookingService", () => {
     expect(result).toMatchObject({ ok: true, notificationOutcomeFailed: true });
   });
 
-  it("cancelBooking: canonical path completes when Rubitime cancel fails", async () => {
+  it("cancelBooking: canonical path no longer calls the retired mirror", async () => {
     const row = sampleRow({
       status: "confirmed",
       canonicalAppointmentId: "appt-1",
@@ -1081,7 +969,6 @@ describe("createPatientBookingService", () => {
     bookingsPort.getByIdForUser.mockResolvedValue(row);
     bookingsPort.markCancelling.mockResolvedValue({ ...row, status: "cancelling" });
     bookingsPort.markCancelled.mockResolvedValue({ ...row, status: "cancelled" });
-    syncPort.cancelRecord.mockRejectedValue(new Error("network"));
     syncPort.emitBookingEvent.mockResolvedValue(undefined);
 
     const appointmentLifecycle = {
@@ -1114,7 +1001,8 @@ describe("createPatientBookingService", () => {
       bookingId: row.id,
       reason: "busy",
     });
-    expect(result).toMatchObject({ ok: true, rubitimeMirrorFailed: true });
+    expect(result).toMatchObject({ ok: true });
+    expect(syncPort.cancelRecord).not.toHaveBeenCalled();
     expect(appointmentLifecycle.patientCancel).toHaveBeenCalled();
     expect(bookingsPort.markCancelled).toHaveBeenCalledWith(
       expect.objectContaining({ status: "cancelled" }),
@@ -1122,9 +1010,7 @@ describe("createPatientBookingService", () => {
     expect(appointmentLifecycle.patchLatestCancellationNotifications).toHaveBeenCalledWith(
       "appt-1",
       "org-1",
-      expect.objectContaining({
-        rubitime_mirror: expect.objectContaining({ status: "failed" }),
-      }),
+      expect.anything(),
     );
   });
 
@@ -1165,27 +1051,6 @@ describe("createPatientBookingService", () => {
     const result = await svc.cancelBooking({ userId: row.userId!, bookingId: row.id });
     expect(result).toEqual({ ok: false, error: "lifecycle_failed" });
     expect(appointmentLifecycle.patchLatestCancellationNotifications).not.toHaveBeenCalled();
-  });
-
-  it("cancelBooking: repeated call is idempotent and returns already_cancelled", async () => {
-    const row = sampleRow({ status: "confirmed"});
-    bookingsPort.getByIdForUser
-      .mockResolvedValueOnce(row)
-      .mockResolvedValueOnce({ ...row, status: "cancelled" });
-    bookingsPort.markCancelling.mockResolvedValue({ ...row, status: "cancelling" });
-    bookingsPort.markCancelled.mockResolvedValue({ ...row, status: "cancelled" });
-    syncPort.cancelRecord.mockResolvedValue(undefined);
-    syncPort.emitBookingEvent.mockResolvedValue(undefined);
-
-    const svc = createPatientBookingService({
-      bookingsPort: bookingsPort as never,
-      syncPort: syncPort as never,
-    });
-
-    const first = await svc.cancelBooking({ userId: row.userId!, bookingId: row.id });
-    const second = await svc.cancelBooking({ userId: row.userId!, bookingId: row.id });
-    expect(first).toEqual({ ok: true, notificationOutcomeFailed: true });
-    expect(second).toEqual({ ok: false, error: "already_cancelled" });
   });
 
   it("cancelBooking: already cancelled returns already_cancelled", async () => {
@@ -1229,48 +1094,6 @@ describe("createPatientBookingService", () => {
       slotCount: undefined,
     });
     expect(syncPort.fetchSlots).not.toHaveBeenCalled();
-  });
-
-  it("cancelBooking: emit booking.cancelled includes passive v2 snapshot fields but not branchServiceId", async () => {
-    const row = sampleRow({
-      status: "confirmed",
-      bookingType: "in_person",
-      branchServiceId: "bbbbbbbb-bbbb-4bbb-bbbb-bbbbbbbbbbbb",
-      cityCodeSnapshot: "moscow",
-      serviceTitleSnapshot: "Сеанс",
-      canonicalAppointmentId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
-    });
-    bookingsPort.getByIdForUser.mockResolvedValue(row);
-    bookingsPort.markCancelling.mockResolvedValue({ ...row, status: "cancelling" });
-    bookingsPort.markCancelled.mockResolvedValue({ ...row, status: "cancelled" });
-    syncPort.cancelRecord.mockResolvedValue(undefined);
-    syncPort.emitBookingEvent.mockResolvedValue(undefined);
-
-    const svc = createPatientBookingService({
-      bookingsPort: bookingsPort as never,
-      syncPort: syncPort as never,
-      bookingEngine: {
-        getAppointment: vi.fn().mockResolvedValue({ organizationId: "org-1" }),
-      } as never,
-    });
-    const result = await svc.cancelBooking({
-      userId: row.userId!,
-      bookingId: row.id,
-      reason: "plan changed",
-    });
-    expect(result).toEqual({ ok: true });
-    expect(syncPort.emitBookingEvent).toHaveBeenCalledWith(
-      expect.objectContaining({
-        eventType: "booking.cancelled",
-        payload: expect.objectContaining({
-          organizationId: "org-1",
-          cityCodeSnapshot: "moscow",
-          serviceTitleSnapshot: "Сеанс",
-        }),
-      }),
-    );
-    const event = syncPort.emitBookingEvent.mock.calls[0]?.[0] as { payload: Record<string, unknown> };
-    expect(event.payload).not.toHaveProperty("branchServiceId");
   });
 
   it("createBooking: inactive branch service (not found) propagates", async () => {
