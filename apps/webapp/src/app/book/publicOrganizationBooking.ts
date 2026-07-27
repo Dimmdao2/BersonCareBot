@@ -51,13 +51,23 @@ export type LoadPublicInPersonSlotContextResult =
  * unknown slug, an unpublished directory entry, and an inactive organization, so callers must
  * render a single fail-closed 404 without leaking which case occurred (no clinic enumeration).
  */
-export async function resolvePublicOrganizationBySlugRsc(slugRaw: string): Promise<{ organizationId: string } | null> {
+export async function resolvePublicOrganizationBySlugRsc(
+  slugRaw: string,
+): Promise<{
+  organizationId: string;
+  canonicalSlug: string;
+  disposition: "current" | "redirect";
+} | null> {
   stampBootstrapPrincipal("app/book/[slug]:resolve-organization");
   const deps = buildAppDeps();
   if (!deps.clinicDirectory) return null;
-  const organizationId = await deps.clinicDirectory.resolveOrganizationIdBySlug(slugRaw);
-  if (!organizationId) return null;
-  return { organizationId };
+  const resolved = await deps.clinicDirectory.resolveCanonicalSlug(slugRaw);
+  if (!resolved) return null;
+  return {
+    organizationId: resolved.organizationId,
+    canonicalSlug: resolved.canonicalSlug,
+    disposition: resolved.disposition,
+  };
 }
 
 /** RSC: canonical catalog cities for a slug-resolved, trusted organization. */

@@ -10,6 +10,7 @@ import { getDrizzle } from '@/app-layer/db/drizzle';
 import { runWebappPgText } from '@/infra/db/runWebappSql';
 import type { ClinicDirectoryPort } from '@/modules/clinic-directory/ports';
 import {
+  beOrganizations,
   clinicPublicDirectoryEntries,
   organizationSlugClaims,
   organizationSlugRenameEvents,
@@ -72,6 +73,30 @@ export function createPgClinicDirectoryPort(): ClinicDirectoryPort {
         )
         .limit(1);
       return rows[0]?.slug ?? null;
+    },
+
+    async getSlugManagementState(organizationId) {
+      exactStaffOrganizationPrincipal(organizationId);
+      const db = getDrizzle();
+      const [current] = await db
+        .select({ slug: organizationSlugClaims.slug })
+        .from(organizationSlugClaims)
+        .where(
+          and(
+            eq(organizationSlugClaims.organizationId, organizationId),
+            eq(organizationSlugClaims.kind, 'current'),
+          ),
+        )
+        .limit(1);
+      const [renameEvent] = await db
+        .select({ id: organizationSlugRenameEvents.id })
+        .from(organizationSlugRenameEvents)
+        .where(eq(organizationSlugRenameEvents.organizationId, organizationId))
+        .limit(1);
+      return {
+        currentSlug: current?.slug ?? null,
+        selfServiceRenameAvailable: renameEvent === undefined,
+      };
     },
 
     async resolveCanonicalSlug(slug) {
@@ -172,15 +197,30 @@ export function createPgClinicDirectoryPort(): ClinicDirectoryPort {
           if (current) {
             return { ok: false as const, code: 'current_slug_already_exists' as const };
           }
+          const [organization] = await tx
+            .select({ title: beOrganizations.title })
+            .from(beOrganizations)
+            .where(eq(beOrganizations.id, input.organizationId))
+            .limit(1);
+          if (!organization) throw new Error('organization_not_found');
+          const now = new Date().toISOString();
           await tx
             .update(organizationSlugClaims)
             .set({
               kind: 'current',
               organizationId: input.organizationId,
               createdByPlatformUserId: actorPlatformUserId,
-              updatedAt: new Date().toISOString(),
+              updatedAt: now,
             })
             .where(eq(organizationSlugClaims.id, reservation.id));
+          await tx.insert(clinicPublicDirectoryEntries).values({
+            organizationId: input.organizationId,
+            slug: input.slug,
+            displayName: organization.title,
+            isPublished: true,
+            publishedAt: now,
+            updatedAt: now,
+          });
           return { ok: true as const, slug: input.slug };
         });
       } catch (error) {
@@ -206,6 +246,15 @@ export function createPgClinicDirectoryPort(): ClinicDirectoryPort {
             .limit(1)
             .for('update');
           if (!current) return { ok: false as const, code: 'current_slug_not_found' as const };
+
+          const [existingRename] = await tx
+            .select({ id: organizationSlugRenameEvents.id })
+            .from(organizationSlugRenameEvents)
+            .where(eq(organizationSlugRenameEvents.organizationId, input.organizationId))
+            .limit(1);
+          if (existingRename) {
+            return { ok: false as const, code: 'rename_limit_reached' as const };
+          }
 
           const [reservation] = await tx
             .select()

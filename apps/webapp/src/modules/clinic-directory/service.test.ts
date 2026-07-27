@@ -6,6 +6,10 @@ function buildPort(resolved: string | null): ClinicDirectoryPort {
   return {
     resolveOrganizationIdBySlug: vi.fn(async () => resolved),
     getPublishedSlugForOrganization: vi.fn(async () => null),
+    getSlugManagementState: vi.fn(async () => ({
+      currentSlug: null,
+      selfServiceRenameAvailable: true,
+    })),
     resolveCanonicalSlug: vi.fn(async () => null),
     reserveSlug: vi.fn(async (input) => ({ ok: true as const, slug: input.slug })),
     claimReservedSlug: vi.fn(async (input) => ({ ok: true as const, slug: input.slug })),
@@ -91,7 +95,95 @@ describe('clinicDirectoryService', () => {
         slug: 'клиника',
         organizationId,
       }),
-    ).resolves.toEqual({ ok: false, code: 'invalid_slug' });
+    ).resolves.toEqual({ ok: false, code: 'slug_invalid_characters' });
+    expect(port.reserveSlug).not.toHaveBeenCalled();
+  });
+
+  it('claims an available slug through the existing reserve -> claim path', async () => {
+    const port = buildPort(null);
+    const service = createClinicDirectoryService(port);
+    const organizationId = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
+
+    await expect(
+      service.setOrganizationSlug({
+        organizationId,
+        slug: ' First Clinic ',
+        irreversibleRenameConfirmed: false,
+      }),
+    ).resolves.toEqual({ ok: true, slug: 'first-clinic' });
+
+    expect(port.reserveSlug).toHaveBeenCalledWith({
+      organizationId,
+      slug: 'first-clinic',
+    });
+    expect(port.claimReservedSlug).toHaveBeenCalledWith({
+      organizationId,
+      slug: 'first-clinic',
+    });
+    expect(port.renameSlug).not.toHaveBeenCalled();
+  });
+
+  it('refuses a taken slug without attempting claim or rename', async () => {
+    const port = buildPort(null);
+    vi.mocked(port.reserveSlug).mockResolvedValue({
+      ok: false,
+      code: 'slug_unavailable',
+    });
+    const service = createClinicDirectoryService(port);
+
+    await expect(
+      service.setOrganizationSlug({
+        organizationId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+        slug: 'taken-clinic',
+        irreversibleRenameConfirmed: false,
+      }),
+    ).resolves.toEqual({ ok: false, code: 'slug_unavailable' });
+    expect(port.claimReservedSlug).not.toHaveBeenCalled();
+    expect(port.renameSlug).not.toHaveBeenCalled();
+  });
+
+  it('requires irreversible confirmation and allows exactly one self-service rename', async () => {
+    const organizationId = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
+    const port = buildPort(null);
+    vi.mocked(port.getSlugManagementState).mockResolvedValue({
+      currentSlug: 'old-clinic',
+      selfServiceRenameAvailable: true,
+    });
+    const service = createClinicDirectoryService(port);
+
+    await expect(
+      service.setOrganizationSlug({
+        organizationId,
+        slug: 'new-clinic',
+        irreversibleRenameConfirmed: false,
+      }),
+    ).resolves.toEqual({ ok: false, code: 'rename_confirmation_required' });
+    expect(port.reserveSlug).not.toHaveBeenCalled();
+
+    await expect(
+      service.setOrganizationSlug({
+        organizationId,
+        slug: 'new-clinic',
+        irreversibleRenameConfirmed: true,
+      }),
+    ).resolves.toEqual({ ok: true, slug: 'new-clinic' });
+    expect(port.renameSlug).toHaveBeenCalledWith({
+      organizationId,
+      reservedSlug: 'new-clinic',
+    });
+
+    vi.mocked(port.getSlugManagementState).mockResolvedValue({
+      currentSlug: 'new-clinic',
+      selfServiceRenameAvailable: false,
+    });
+    vi.mocked(port.reserveSlug).mockClear();
+    await expect(
+      service.setOrganizationSlug({
+        organizationId,
+        slug: 'third-clinic',
+        irreversibleRenameConfirmed: true,
+      }),
+    ).resolves.toEqual({ ok: false, code: 'rename_limit_reached' });
     expect(port.reserveSlug).not.toHaveBeenCalled();
   });
 

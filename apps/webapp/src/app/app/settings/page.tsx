@@ -14,12 +14,15 @@ import { AppointmentReminderSettingsSection } from "./AppointmentReminderSetting
 import { BillingSection, type BillingMechanicRow } from "./BillingSection";
 import { describeCommercialAccessState } from "./billingCommercialState";
 import { DoctorTodayPreferencesSection } from "./DoctorTodayPreferencesSection";
+import { ClinicSlugSection } from "./ClinicSlugSection";
 import { OrgBrandingSection } from "./OrgBrandingSection";
 import { SettingsForm } from "./SettingsForm";
 import { SettingsTabsNav } from "./SettingsTabsNav";
 import type { SettingsTabId } from "./settingsTabs";
 import { TeamSection } from "./TeamSection";
 import { parseDoctorTodayPreferences } from "@/modules/system-settings/doctorTodayPreferences";
+import { getAppBaseUrl } from "@/modules/system-settings/integrationRuntime";
+import { getSupportContactUrl } from "@/modules/system-settings/supportContactUrl";
 
 type LegacySettingsTab = "specialist" | "organization" | "team" | "billing" | "install";
 
@@ -85,9 +88,14 @@ export default async function SettingsPage({
       actorPlatformUserId: workspace.session.user.userId,
       hasOrganizationManagementCapability: true,
     };
-    const [doctorSettings, brandingState] = await Promise.all([
+    const [doctorSettings, brandingState, slugState, appBaseUrl, supportContactUrl] = await Promise.all([
       deps.systemSettings.listSettingsByScope("doctor", { organizationId: workspace.organizationId }),
       deps.orgBranding.getManagementState(brandingCtx),
+      workspace.canManageOrganization && deps.clinicDirectory
+        ? deps.clinicDirectory.getSlugManagementState(workspace.organizationId)
+        : Promise.resolve(null),
+      getAppBaseUrl(),
+      getSupportContactUrl(),
     ]);
     const publishedBrand = brandingState.published;
     const publishedLogoUrl =
@@ -121,6 +129,13 @@ export default async function SettingsPage({
           publishedLogoMediaId={publishedBrand?.logoMediaId ?? null}
           publishedLogoUrl={publishedLogoUrl}
         />
+        {slugState ? (
+          <ClinicSlugSection
+            initialState={slugState}
+            appBaseUrl={appBaseUrl}
+            supportContactUrl={supportContactUrl}
+          />
+        ) : null}
         <SettingsForm
           patientLabel={String(patientLabel)}
           smsFallbackEnabled={false}

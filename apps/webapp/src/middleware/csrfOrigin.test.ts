@@ -237,11 +237,14 @@ describe("frozen webapp mutation census", () => {
     // 521 -> 522: C-5 added `api/account/security/password/change/route.ts`. Its POST is called
     // by the account UI with the session cookie and is not in any exemption set, so it is a browser
     // mutation: the unsafe census moves 356 -> 357 / 395 -> 396 and browser 320 -> 321.
-    expect(routeFiles).toHaveLength(522);
-    expect(sha256Lines(routeInventory)).toBe("5f598b096ee311913747363ee23432019bd35da43ff2a5decdc4c0a2adc3ce1d");
-    expect(unsafeInventory).toHaveLength(357);
-    expect(unsafeInventory.reduce((count, entry) => count + entry.methods.length, 0)).toBe(396);
-    expect(sha256Lines(unsafeInventoryLines)).toBe("bf5c7aba2d70dbe44b4b639f6cdbd3f4759ac5c99f6137f69a84994d08a6f016");
+    // 522 -> 523: clinic slug management added `api/clinic/slug/route.ts`. Its POST is called by
+    // the organization settings UI and remains in the browser class, so the unsafe census moves
+    // 357 -> 358 / 396 -> 397 and browser 321 -> 322 / 360 -> 361.
+    expect(routeFiles).toHaveLength(523);
+    expect(sha256Lines(routeInventory)).toBe("d00ea056fc0358b087d64ffe914338460d1c62e4dcf38c1ec05f343b5b0ed762");
+    expect(unsafeInventory).toHaveLength(358);
+    expect(unsafeInventory.reduce((count, entry) => count + entry.methods.length, 0)).toBe(397);
+    expect(sha256Lines(unsafeInventoryLines)).toBe("e6d9297a4b8ec567c47b9caaeabf4890da7a7abe46fce0e95c63c586a4e4c52c");
   });
 
   it("exhaustively classifies unsafe files as browser, integrator, internal, webhook, or Apple", () => {
@@ -249,8 +252,8 @@ describe("frozen webapp mutation census", () => {
     for (const file of specialFiles) expect(actualUnsafeFiles.has(file), file).toBe(true);
     expect(specialFiles.size).toBe(36);
     const browser = unsafeInventory.filter((entry) => !specialFiles.has(entry.file));
-    expect(browser).toHaveLength(321);
-    expect(browser.reduce((count, entry) => count + entry.methods.length, 0)).toBe(360);
+    expect(browser).toHaveLength(322);
+    expect(browser.reduce((count, entry) => count + entry.methods.length, 0)).toBe(361);
     expect([...integratorFiles]).toHaveLength(18);
     expect([...internalFiles]).toHaveLength(15);
     expect([...paymentFiles]).toHaveLength(2);

@@ -8,6 +8,8 @@
 - `?tab=install` → `/app/account?tab=install`;
 - `?tab=organization` сохраняет единственный guarded writer терминологии и organization reminders и является
   канонической поверхностью **«Настройки»** для владельца кабинета/организации;
+- здесь же management-capable member видит и создаёт публичный адрес `/book/{slug}`, копирует полную ссылку
+  и может один раз самостоятельно переименовать slug через browser-protected `POST /api/clinic/slug`;
 - `?tab=team` сохраняет существующую C4A-поверхность только для organization manager с активным
   `clinic_team`; без capability переход безопасно возвращается на `/app/settings?tab=organization`;
 - `?tab=billing` сохраняет честный owner-only placeholder до C5 и не объявляется личной настройкой.

@@ -15,12 +15,16 @@ const {
   listSettingsMock,
   getOrgEntitlementsSnapshotMock,
   getOrgBrandingManagementStateMock,
+  getSlugManagementStateMock,
+  getAppBaseUrlMock,
+  getSupportContactUrlMock,
   settingsFormMock,
   appointmentReminderMock,
   teamSectionMock,
   billingSectionMock,
   settingsTabsNavMock,
   orgBrandingSectionMock,
+  clinicSlugSectionMock,
 } = vi.hoisted(() => ({
   redirectMock: vi.fn((url: string) => { throw new Error(`redirect:${url}`); }),
   requireWorkspaceMock: vi.fn(),
@@ -32,6 +36,9 @@ const {
   listSettingsMock: vi.fn(),
   getOrgEntitlementsSnapshotMock: vi.fn(),
   getOrgBrandingManagementStateMock: vi.fn(),
+  getSlugManagementStateMock: vi.fn(),
+  getAppBaseUrlMock: vi.fn(),
+  getSupportContactUrlMock: vi.fn(),
   settingsFormMock: vi.fn(() => <section data-testid="organization-settings" />),
   appointmentReminderMock: vi.fn(() => <section data-testid="appointment-reminders" />),
   teamSectionMock: vi.fn(() => <section data-testid="team" />),
@@ -42,6 +49,7 @@ const {
     ),
   ),
   orgBrandingSectionMock: vi.fn(() => <section data-testid="org-branding" />),
+  clinicSlugSectionMock: vi.fn(() => <section data-testid="clinic-slug" />),
 }));
 
 vi.mock("next/navigation", () => ({ redirect: redirectMock }));
@@ -63,7 +71,14 @@ vi.mock("@/app-layer/di/buildAppDeps", () => ({
     systemSettings: { listSettingsByScope: listSettingsMock },
     orgEntitlements: { getSnapshot: getOrgEntitlementsSnapshotMock },
     orgBranding: { getManagementState: getOrgBrandingManagementStateMock },
+    clinicDirectory: { getSlugManagementState: getSlugManagementStateMock },
   }),
+}));
+vi.mock("@/modules/system-settings/integrationRuntime", () => ({
+  getAppBaseUrl: getAppBaseUrlMock,
+}));
+vi.mock("@/modules/system-settings/supportContactUrl", () => ({
+  getSupportContactUrl: getSupportContactUrlMock,
 }));
 vi.mock("@/modules/org-branding/service", () => ({
   orgBrandLogoUrl: (mediaId: string) => `/api/media/${mediaId}`,
@@ -76,6 +91,7 @@ vi.mock("./AppointmentReminderSettingsSection", () => ({
 vi.mock("./BillingSection", () => ({ BillingSection: billingSectionMock }));
 vi.mock("./SettingsTabsNav", () => ({ SettingsTabsNav: settingsTabsNavMock }));
 vi.mock("./OrgBrandingSection", () => ({ OrgBrandingSection: orgBrandingSectionMock }));
+vi.mock("./ClinicSlugSection", () => ({ ClinicSlugSection: clinicSlugSectionMock }));
 vi.mock("@/shared/ui/doctor/DoctorAppShell", () => ({
   DoctorAppShell: ({ children }: { children: ReactNode }) => <main>{children}</main>,
 }));
@@ -130,6 +146,12 @@ describe("legacy settings compatibility", () => {
       draft: null,
       published: null,
     });
+    getSlugManagementStateMock.mockResolvedValue({
+      currentSlug: "tochka-zdorovya",
+      selfServiceRenameAvailable: true,
+    });
+    getAppBaseUrlMock.mockResolvedValue("https://app.example");
+    getSupportContactUrlMock.mockResolvedValue("https://support.example");
   });
 
   it("routes the explicit old personal and install entries to the one account area", async () => {
@@ -153,6 +175,18 @@ describe("legacy settings compatibility", () => {
 
     expect(screen.getByRole("heading", { name: "Настройки" })).toBeInTheDocument();
     expect(screen.getByTestId("organization-settings")).toBeInTheDocument();
+    expect(screen.getByTestId("clinic-slug")).toBeInTheDocument();
+    expect(clinicSlugSectionMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        initialState: {
+          currentSlug: "tochka-zdorovya",
+          selfServiceRenameAvailable: true,
+        },
+        appBaseUrl: "https://app.example",
+        supportContactUrl: "https://support.example",
+      }),
+      undefined,
+    );
   });
 
   it("keeps the canonical Settings root out of a plain specialist account", async () => {

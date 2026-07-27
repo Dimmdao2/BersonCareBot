@@ -2,19 +2,23 @@ import type {
   ClaimOrganizationSlugInput,
   ClinicDirectoryPort,
   OrganizationSlugMutationResult,
+  OrganizationSlugManagementState,
   OrganizationSlugResolution,
   RenameOrganizationSlugInput,
   ReserveOrganizationSlugInput,
+  SetOrganizationSlugInput,
 } from './ports';
 import { suggestOrganizationSlug, validateOrganizationSlugCandidate } from './organizationSlug';
 
 export type ClinicDirectoryService = {
   resolveOrganizationIdBySlug(slug: string): Promise<string | null>;
   getPublishedSlugForOrganization(organizationId: string): Promise<string | null>;
+  getSlugManagementState(organizationId: string): Promise<OrganizationSlugManagementState>;
   resolveCanonicalSlug(slug: string): Promise<OrganizationSlugResolution | null>;
   reserveSlug(input: ReserveOrganizationSlugInput): Promise<OrganizationSlugMutationResult>;
   claimReservedSlug(input: ClaimOrganizationSlugInput): Promise<OrganizationSlugMutationResult>;
   renameSlug(input: RenameOrganizationSlugInput): Promise<OrganizationSlugMutationResult>;
+  setOrganizationSlug(input: SetOrganizationSlugInput): Promise<OrganizationSlugMutationResult>;
   suggestSlug(title: string): string | null;
 };
 
@@ -39,6 +43,10 @@ export function createClinicDirectoryService(port: ClinicDirectoryPort): ClinicD
       return port.getPublishedSlugForOrganization(organizationId);
     },
 
+    async getSlugManagementState(organizationId) {
+      return port.getSlugManagementState(organizationId);
+    },
+
     async resolveCanonicalSlug(slugRaw) {
       const validated = validateOrganizationSlugCandidate(slugRaw);
       if (!validated.ok) return null;
@@ -61,6 +69,38 @@ export function createClinicDirectoryService(port: ClinicDirectoryPort): ClinicD
       const validated = validatedSlug(input.reservedSlug);
       if (!validated.ok) return validated;
       return port.renameSlug({ ...input, reservedSlug: validated.slug });
+    },
+
+    async setOrganizationSlug(input) {
+      const validated = validatedSlug(input.slug);
+      if (!validated.ok) return validated;
+
+      const state = await port.getSlugManagementState(input.organizationId);
+      if (state.currentSlug === validated.slug) {
+        return { ok: false, code: 'slug_unchanged' };
+      }
+      if (state.currentSlug && !state.selfServiceRenameAvailable) {
+        return { ok: false, code: 'rename_limit_reached' };
+      }
+      if (state.currentSlug && !input.irreversibleRenameConfirmed) {
+        return { ok: false, code: 'rename_confirmation_required' };
+      }
+
+      const reserved = await port.reserveSlug({
+        organizationId: input.organizationId,
+        slug: validated.slug,
+      });
+      if (!reserved.ok) return reserved;
+
+      return state.currentSlug
+        ? port.renameSlug({
+            organizationId: input.organizationId,
+            reservedSlug: reserved.slug,
+          })
+        : port.claimReservedSlug({
+            organizationId: input.organizationId,
+            slug: reserved.slug,
+          });
     },
 
     suggestSlug: suggestOrganizationSlug,

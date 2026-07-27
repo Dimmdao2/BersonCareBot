@@ -1,4 +1,4 @@
-import { notFound } from "next/navigation";
+import { notFound, permanentRedirect } from "next/navigation";
 import { PublicFormatStepClient } from "../PublicFormatStepClient";
 import { PublicBookingShell } from "../PublicBookingShell";
 import { loadPublicOrganizationCitiesRsc, resolvePublicOrganizationBySlugRsc } from "../publicOrganizationBooking";
@@ -23,6 +23,9 @@ export default async function PublicBookOrganizationPage({ params }: Props) {
   const { slug } = await params;
   const resolved = await resolvePublicOrganizationBySlugRsc(slug);
   if (!resolved) notFound();
+  if (resolved.disposition === "redirect") {
+    permanentRedirect(`/book/${encodeURIComponent(resolved.canonicalSlug)}`);
+  }
 
   const citiesResult = await loadPublicOrganizationCitiesRsc(resolved.organizationId);
   const cities = citiesResult.ok ? citiesResult.cities : [];
@@ -35,7 +38,7 @@ export default async function PublicBookOrganizationPage({ params }: Props) {
         cities={cities}
         onlineLocation={onlineLocation}
         catalogError={catalogError}
-        orgSlug={slug}
+        orgSlug={resolved.canonicalSlug}
       />
     </PublicBookingShell>
   );

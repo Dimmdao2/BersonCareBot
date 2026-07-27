@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const resolveOrganizationIdBySlugMock = vi.hoisted(() => vi.fn());
+const resolveCanonicalSlugMock = vi.hoisted(() => vi.fn());
 const stampBootstrapPrincipalMock = vi.hoisted(() => vi.fn());
 const listBranchesMock = vi.hoisted(() => vi.fn());
 const getBranchMock = vi.hoisted(() => vi.fn());
@@ -21,7 +21,7 @@ vi.mock("@/app-layer/principal/bootstrapPrincipal", () => ({
 vi.mock("@/app-layer/di/buildAppDeps", () => ({
   buildAppDeps: () => ({
     clinicDirectory: {
-      resolveOrganizationIdBySlug: resolveOrganizationIdBySlugMock,
+      resolveCanonicalSlug: resolveCanonicalSlugMock,
     },
     bookingEngine: {
       catalog: {
@@ -68,17 +68,24 @@ describe("public /book/{slug} chokepoint", () => {
 
   describe("resolvePublicOrganizationBySlugRsc", () => {
     it("stamps the bootstrap principal before resolving, and returns the organization on success", async () => {
-      resolveOrganizationIdBySlugMock.mockResolvedValue(ORGANIZATION_A);
+      resolveCanonicalSlugMock.mockResolvedValue({
+        organizationId: ORGANIZATION_A,
+        requestedSlug: "saas-test-clinic-a",
+        canonicalSlug: "saas-test-clinic-a",
+        disposition: "current",
+      });
 
       await expect(resolvePublicOrganizationBySlugRsc("saas-test-clinic-a")).resolves.toEqual({
         organizationId: ORGANIZATION_A,
+        canonicalSlug: "saas-test-clinic-a",
+        disposition: "current",
       });
       expect(stampBootstrapPrincipalMock).toHaveBeenCalledWith("app/book/[slug]:resolve-organization");
-      expect(resolveOrganizationIdBySlugMock).toHaveBeenCalledWith("saas-test-clinic-a");
+      expect(resolveCanonicalSlugMock).toHaveBeenCalledWith("saas-test-clinic-a");
     });
 
     it("fails closed (null) for an unknown/unpublished/inactive slug — no enumeration", async () => {
-      resolveOrganizationIdBySlugMock.mockResolvedValue(null);
+      resolveCanonicalSlugMock.mockResolvedValue(null);
       await expect(resolvePublicOrganizationBySlugRsc("no-such-clinic")).resolves.toBeNull();
     });
   });
@@ -277,7 +284,12 @@ describe("public /book/{slug} chokepoint", () => {
       const branchId = "33333333-3333-4333-8333-333333333333";
       const serviceId = "44444444-4444-4444-8444-444444444444";
       const specialistId = "55555555-5555-4555-8555-555555555555";
-      resolveOrganizationIdBySlugMock.mockResolvedValue(ORGANIZATION_A);
+      resolveCanonicalSlugMock.mockResolvedValue({
+        organizationId: ORGANIZATION_A,
+        requestedSlug: "clinic-a",
+        canonicalSlug: "clinic-a",
+        disposition: "current",
+      });
       getBranchMock.mockResolvedValue({
         id: branchId,
         organizationId: ORGANIZATION_A,
@@ -320,7 +332,12 @@ describe("public /book/{slug} chokepoint", () => {
     });
 
     it("fails closed when the canonical availability is absent", async () => {
-      resolveOrganizationIdBySlugMock.mockResolvedValue(ORGANIZATION_A);
+      resolveCanonicalSlugMock.mockResolvedValue({
+        organizationId: ORGANIZATION_A,
+        requestedSlug: "clinic-a",
+        canonicalSlug: "clinic-a",
+        disposition: "current",
+      });
       getBranchMock.mockResolvedValue(null);
       await expect(
         loadPublicInPersonSlotContextForSlugRsc({

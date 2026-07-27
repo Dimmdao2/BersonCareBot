@@ -18,6 +18,9 @@ export type ClinicDirectoryPort = {
   /** Staff-only management read. Returns no value until the organization is explicitly published. */
   getPublishedSlugForOrganization(organizationId: string): Promise<string | null>;
 
+  /** Exact-organization management state for the clinic settings surface. */
+  getSlugManagementState(organizationId: string): Promise<OrganizationSlugManagementState>;
+
   /** Internal foundation resolver. Public callers must still require a published projection. */
   resolveCanonicalSlug(slug: string): Promise<OrganizationSlugResolution | null>;
 
@@ -51,16 +54,33 @@ export type RenameOrganizationSlugInput = {
   reservedSlug: string;
 };
 
+export type OrganizationSlugManagementState = {
+  currentSlug: string | null;
+  /** Owner policy 2026-07-27: exactly one self-service rename after the initial claim. */
+  selfServiceRenameAvailable: boolean;
+};
+
+export type SetOrganizationSlugInput = {
+  organizationId: string;
+  slug: string;
+  irreversibleRenameConfirmed: boolean;
+};
+
+export type OrganizationSlugMutationErrorCode =
+  | 'slug_unavailable'
+  | 'reservation_not_found'
+  | 'reservation_owner_mismatch'
+  | 'current_slug_not_found'
+  | 'current_slug_already_exists'
+  | 'invalid_slug'
+  | 'slug_invalid_characters'
+  | 'slug_too_short'
+  | 'slug_too_long'
+  | 'slug_unchanged'
+  | 'reserved_slug'
+  | 'rename_confirmation_required'
+  | 'rename_limit_reached';
+
 export type OrganizationSlugMutationResult =
   | { ok: true; slug: string }
-  | {
-      ok: false;
-      code:
-        | 'slug_unavailable'
-        | 'reservation_not_found'
-        | 'reservation_owner_mismatch'
-        | 'current_slug_not_found'
-        | 'current_slug_already_exists'
-        | 'invalid_slug'
-        | 'reserved_slug';
-    };
+  | { ok: false; code: OrganizationSlugMutationErrorCode };

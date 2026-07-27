@@ -71,7 +71,14 @@ const CYRILLIC_TRANSLITERATION: Readonly<Record<string, string>> = {
 
 export type OrganizationSlugValidation =
   | { ok: true; slug: string }
-  | { ok: false; code: 'invalid_slug' | 'reserved_slug' };
+  | {
+      ok: false;
+      code:
+        | 'slug_invalid_characters'
+        | 'slug_too_short'
+        | 'slug_too_long'
+        | 'reserved_slug';
+    };
 
 /**
  * Normalizes an owner-confirmed ASCII candidate. It intentionally does not transliterate or
@@ -79,9 +86,15 @@ export type OrganizationSlugValidation =
  */
 export function validateOrganizationSlugCandidate(raw: string): OrganizationSlugValidation {
   const lowered = raw.normalize('NFKC').trim().toLowerCase();
-  if (/[^a-z0-9 _-]/.test(lowered)) return { ok: false, code: 'invalid_slug' };
+  if (/[^a-z0-9 _-]/.test(lowered)) {
+    return { ok: false, code: 'slug_invalid_characters' };
+  }
   const slug = lowered.replace(/[ _-]+/g, '-').replace(/^-+|-+$/g, '');
-  if (!ORGANIZATION_SLUG_PATTERN.test(slug)) return { ok: false, code: 'invalid_slug' };
+  if (slug.length < 3) return { ok: false, code: 'slug_too_short' };
+  if (slug.length > 63) return { ok: false, code: 'slug_too_long' };
+  if (!ORGANIZATION_SLUG_PATTERN.test(slug)) {
+    return { ok: false, code: 'slug_invalid_characters' };
+  }
   if (RESERVED_ORGANIZATION_SLUGS.has(slug)) return { ok: false, code: 'reserved_slug' };
   return { ok: true, slug };
 }

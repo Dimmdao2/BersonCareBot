@@ -2,11 +2,15 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const resolvePublicOrganizationBySlugRscMock = vi.hoisted(() => vi.fn());
 const loadPublicOrganizationCitiesRscMock = vi.hoisted(() => vi.fn());
+const permanentRedirectMock = vi.hoisted(() => vi.fn((url: string) => {
+  throw new Error(`NEXT_REDIRECT_308:${url}`);
+}));
 
 vi.mock("next/navigation", () => ({
   notFound: vi.fn(() => {
     throw new Error("NEXT_NOT_FOUND");
   }),
+  permanentRedirect: permanentRedirectMock,
 }));
 
 vi.mock("../publicOrganizationBooking", () => ({
@@ -24,7 +28,11 @@ describe("PublicBookOrganizationPage (/book/[slug])", () => {
   });
 
   it("renders the org-scoped format step for a published, active clinic slug", async () => {
-    resolvePublicOrganizationBySlugRscMock.mockResolvedValue({ organizationId: ORGANIZATION_A });
+    resolvePublicOrganizationBySlugRscMock.mockResolvedValue({
+      organizationId: ORGANIZATION_A,
+      canonicalSlug: "saas-test-clinic-a",
+      disposition: "current",
+    });
     loadPublicOrganizationCitiesRscMock.mockResolvedValue({
       ok: true,
       cities: [{ id: "1", code: "moscow", title: "Москва", isActive: true, sortOrder: 0, createdAt: "", updatedAt: "" }],
@@ -35,6 +43,20 @@ describe("PublicBookOrganizationPage (/book/[slug])", () => {
     expect(resolvePublicOrganizationBySlugRscMock).toHaveBeenCalledWith("saas-test-clinic-a");
     expect(loadPublicOrganizationCitiesRscMock).toHaveBeenCalledWith(ORGANIZATION_A);
     expect(element).toBeTruthy();
+  });
+
+  it("issues a permanent 308 redirect from an alias to the canonical clinic slug", async () => {
+    resolvePublicOrganizationBySlugRscMock.mockResolvedValue({
+      organizationId: ORGANIZATION_A,
+      canonicalSlug: "clinic-new",
+      disposition: "redirect",
+    });
+
+    await expect(
+      PublicBookOrganizationPage({ params: Promise.resolve({ slug: "clinic-old" }) }),
+    ).rejects.toThrow("NEXT_REDIRECT_308:/book/clinic-new");
+    expect(permanentRedirectMock).toHaveBeenCalledWith("/book/clinic-new");
+    expect(loadPublicOrganizationCitiesRscMock).not.toHaveBeenCalled();
   });
 
   it("fails closed with a uniform 404 for an unknown slug (no clinic enumeration)", async () => {

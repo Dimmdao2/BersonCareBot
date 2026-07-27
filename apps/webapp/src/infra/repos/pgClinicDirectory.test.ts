@@ -270,10 +270,15 @@ describe('pgClinicDirectory public slug resolver', () => {
       organizationId: ORG,
     };
     const events: string[] = [];
-    const { select } = selectSequence([[reservation], []], events);
+    const { select } = selectSequence([[reservation], [], [{ title: 'Clinic A' }]], events);
     const updateWhere = vi.fn(async () => undefined);
     const updateSet = vi.fn(() => ({ where: updateWhere }));
-    const tx = { select, update: vi.fn(() => ({ set: updateSet })) };
+    const insertValues = vi.fn(async () => undefined);
+    const tx = {
+      select,
+      update: vi.fn(() => ({ set: updateSet })),
+      insert: vi.fn(() => ({ values: insertValues })),
+    };
     mutationTransactionWithLock(tx, events);
     const port = createPgClinicDirectoryPort();
 
@@ -290,7 +295,15 @@ describe('pgClinicDirectory public slug resolver', () => {
         createdByPlatformUserId: ACTOR,
       }),
     );
-    expect(events).toEqual(['organization-lock', 'row-lock', 'row-lock']);
+    expect(insertValues).toHaveBeenCalledWith(
+      expect.objectContaining({
+        organizationId: ORG,
+        slug: 'clinic-a',
+        displayName: 'Clinic A',
+        isPublished: true,
+      }),
+    );
+    expect(events).toEqual(['organization-lock', 'row-lock', 'row-lock', 'plain-read']);
   });
 
   it('renames atomically, retains the old slug as an alias and appends audit', async () => {
@@ -307,7 +320,7 @@ describe('pgClinicDirectory public slug resolver', () => {
       organizationId: ORG,
     };
     const events: string[] = [];
-    const { select } = selectSequence([[current], [reservation]], events);
+    const { select } = selectSequence([[current], [], [reservation]], events);
     const deleteWhere = vi.fn(async () => undefined);
     const updateWhere = vi
       .fn()
@@ -353,6 +366,36 @@ describe('pgClinicDirectory public slug resolver', () => {
         actorPlatformUserId: ACTOR,
       }),
     );
-    expect(events).toEqual(['organization-lock', 'row-lock', 'row-lock']);
+    expect(events).toEqual(['organization-lock', 'row-lock', 'plain-read', 'row-lock']);
+  });
+
+  it('enforces the one self-service rename limit at the repository seam', async () => {
+    const current = {
+      id: 'dddddddd-dddd-4ddd-8ddd-dddddddddddd',
+      slug: 'current-clinic',
+      kind: 'current',
+      organizationId: ORG,
+    };
+    const events: string[] = [];
+    const { select } = selectSequence([[current], [{ id: 'rename-event-1' }]], events);
+    const tx = {
+      select,
+      delete: vi.fn(),
+      update: vi.fn(),
+      insert: vi.fn(),
+    };
+    mutationTransactionWithLock(tx, events);
+    const port = createPgClinicDirectoryPort();
+
+    await expect(
+      port.renameSlug({
+        organizationId: ORG,
+        reservedSlug: 'third-clinic',
+      }),
+    ).resolves.toEqual({ ok: false, code: 'rename_limit_reached' });
+    expect(tx.delete).not.toHaveBeenCalled();
+    expect(tx.update).not.toHaveBeenCalled();
+    expect(tx.insert).not.toHaveBeenCalled();
+    expect(events).toEqual(['organization-lock', 'row-lock', 'plain-read']);
   });
 });
