@@ -312,10 +312,20 @@ Per `patient-booking.md:34` source feedback ("После выбора одног
       владельцем было **дано устно и не записано**. Тот же класс ошибки, что инцидент с SCH-G1: отсутствие
       записи прочитали как отсутствие решения. Канон: `docs/ARCHITECTURE/OWNER_PRODUCT_RULES.md` §7.
 - [ ] **Confirm cancel/reschedule semantics for a partial chain (§3) — genuine open product question.** —
-      **Галочка СНЯТА независимым аудитом 27.07.** Была поставлена по слову `cancel-single` в сообщении
-      коммита `ae12c2964`, без чтения кода отмены — автор сам это признал в примечании. Сообщение коммита не
-      является доказательством поведения. Закроется построчной проверкой cancel-flow против §3 (что происходит
-      с остальными слотами цепочки при отмене одного) либо решением владельца о желаемой семантике.
+      ПРОВЕРЕНО ПО КОДУ 27.07 (по прямому вопросу владельца). Результат раздвоился:
+      **(1) По записям владелец ПРАВ — доп. кода не нужно.** Цепочка = N независимых `be_appointments` с общим
+      `chain_id` (`pgBookingEngine.ts:1610-1661`); `cancelBooking` / `runStaffManualCancelAfterCanonical` /
+      `rescheduleBooking` работают по одной `canonicalAppointmentId`, `chain_id` нигде не читают, остальные
+      слоты цепочки переживают отмену одного нетронутыми. Абонементы тоже корректны: резерв и списание
+      идут per-appointment, реверс при отмене — по своему `appointmentId`.
+      **(2) По ОПЛАТЕ — 🔴 живой денежный баг, `#1056`.** Объединённый платёж физически привязан к
+      `appointments[0].id` (`canonicalCreate.ts:397-403`), а `findPaymentByAppointment` ищет по
+      `bePayments.appointmentId` (`pgPayments.ts:333-340`) — при отмене НЕ первого слота платёж не находится
+      и не происходит вообще никакого финансового события; при отмене ПЕРВОГО обрабатывается вся сумма за все
+      слоты. Поле `beAppointments.paymentRef` проставляется во все N строк корректно, но его никто не читает.
+      **Пункт остаётся открытым:** нужен фикс потребителей + продуктовое решение владельца, что происходит с
+      объединённым платежом при отмене части цепочки (пропорциональный возврат / удержание / запрет частичной
+      отмены оплаченной цепочки).
 - [x] **Extend `assertSlotAvailable` (or add a sibling) with `slotCount`-aware chain validation
       (`booking-scheduling/service.ts:180-218`).** — `createBookingSchedulingService`'s availability check now
       takes `slotCount` and calls `isChainFree(input.slotStart, slotCount, durationMinutes, busy)` instead of
