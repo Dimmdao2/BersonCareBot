@@ -118,17 +118,28 @@ describe('pgClinicDirectory public slug resolver', () => {
     await expect(port.resolveOrganizationIdBySlug('clinic-a')).resolves.toBeNull();
   });
 
-  it("resolves aliases directly to the organization's single published current slug", async () => {
-    runWebappPgTextMock.mockResolvedValue({
-      rows: [
-        {
-          organization_id: ORG,
-          requested_slug: 'old-clinic',
-          requested_kind: 'alias',
-          canonical_slug: 'new-clinic',
-        },
-      ],
-    });
+  it("keeps a former slug resolving to the same organization before and after its reclaim", async () => {
+    runWebappPgTextMock
+      .mockResolvedValueOnce({
+        rows: [
+          {
+            organization_id: ORG,
+            requested_slug: 'old-clinic',
+            requested_kind: 'alias',
+            canonical_slug: 'new-clinic',
+          },
+        ],
+      })
+      .mockResolvedValueOnce({
+        rows: [
+          {
+            organization_id: ORG,
+            requested_slug: 'old-clinic',
+            requested_kind: 'current',
+            canonical_slug: 'old-clinic',
+          },
+        ],
+      });
 
     const port = createPgClinicDirectoryPort();
     await expect(port.resolveCanonicalSlug('old-clinic')).resolves.toEqual({
@@ -137,7 +148,19 @@ describe('pgClinicDirectory public slug resolver', () => {
       canonicalSlug: 'new-clinic',
       disposition: 'redirect',
     });
-    expect(runWebappPgTextMock).toHaveBeenCalledWith(
+    await expect(port.resolveCanonicalSlug('old-clinic')).resolves.toEqual({
+      organizationId: ORG,
+      requestedSlug: 'old-clinic',
+      canonicalSlug: 'old-clinic',
+      disposition: 'current',
+    });
+    expect(runWebappPgTextMock).toHaveBeenNthCalledWith(
+      1,
+      expect.stringContaining('app.resolve_public_organization_slug'),
+      ['old-clinic'],
+    );
+    expect(runWebappPgTextMock).toHaveBeenNthCalledWith(
+      2,
       expect.stringContaining('app.resolve_public_organization_slug'),
       ['old-clinic'],
     );
@@ -197,13 +220,14 @@ describe('pgClinicDirectory public slug resolver', () => {
     expect(events).toEqual(['organization-lock', 'row-lock', 'plain-read']);
   });
 
-  it('does not row-lock a foreign collision, preventing cross-org reservation swap deadlocks', async () => {
+  it('refuses a former alias owned by a different organization without row-locking it', async () => {
     const ownReservation = {
       id: 'dddddddd-dddd-4ddd-8ddd-dddddddddddd',
       organizationId: ORG,
     };
     const foreignCollision = {
       id: 'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee',
+      kind: 'alias',
       organizationId: OTHER_ORG,
     };
     const events: string[] = [];
@@ -217,13 +241,45 @@ describe('pgClinicDirectory public slug resolver', () => {
     const port = createPgClinicDirectoryPort();
 
     await expect(
-      port.reserveSlug({ slug: 'foreign-reservation', organizationId: ORG }),
+      port.reserveSlug({ slug: 'former-org-alias', organizationId: ORG }),
     ).resolves.toEqual({ ok: false, code: 'slug_unavailable' });
 
     expect(forUpdate).toHaveBeenCalledOnce();
     expect(events).toEqual(['organization-lock', 'row-lock', 'plain-read']);
     expect(update).not.toHaveBeenCalled();
     expect(insert).not.toHaveBeenCalled();
+  });
+
+  it('accepts its own alias as a durable reservation without interrupting old-link resolution', async () => {
+    const existingReservation = {
+      id: 'dddddddd-dddd-4ddd-8ddd-dddddddddddd',
+      organizationId: ORG,
+    };
+    const ownAlias = {
+      id: 'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee',
+      kind: 'alias',
+      organizationId: ORG,
+    };
+    const events: string[] = [];
+    const { select } = selectSequence([[existingReservation], [ownAlias]], events);
+    const deleteWhere = vi.fn(async () => undefined);
+    const tx = {
+      select,
+      delete: vi.fn(() => ({ where: deleteWhere })),
+      update: vi.fn(),
+      insert: vi.fn(),
+    };
+    mutationTransactionWithLock(tx, events);
+    const port = createPgClinicDirectoryPort();
+
+    await expect(
+      port.reserveSlug({ slug: 'former-own-alias', organizationId: ORG }),
+    ).resolves.toEqual({ ok: true, slug: 'former-own-alias' });
+
+    expect(deleteWhere).toHaveBeenCalledOnce();
+    expect(tx.update).not.toHaveBeenCalled();
+    expect(tx.insert).not.toHaveBeenCalled();
+    expect(events).toEqual(['organization-lock', 'row-lock', 'plain-read']);
   });
 
   it('updates its own locked reservation when the requested slug is already that same claim', async () => {
@@ -253,13 +309,19 @@ describe('pgClinicDirectory public slug resolver', () => {
     expect(updateWhere).toHaveBeenCalledOnce();
   });
 
-  it('maps a global unique-index race to slug_unavailable', async () => {
-    runMutationMock.mockRejectedValue({ code: '23505' });
+  it("maps the DB global-unique refusal of another organization's former slug to slug_unavailable", async () => {
+    runMutationMock.mockRejectedValue({
+      code: '23505',
+      constraint: 'uq_organization_slug_claims_slug',
+    });
     const port = createPgClinicDirectoryPort();
 
     await expect(
-      port.reserveSlug({ slug: 'racing-slug', organizationId: ORG }),
-    ).resolves.toEqual({ ok: false, code: 'slug_unavailable' });
+      port.reserveSlug({ slug: 'former-other-org-slug', organizationId: ORG }),
+    ).resolves.toEqual({
+      ok: false,
+      code: 'slug_unavailable',
+    });
   });
 
   it('claims an exact-org reservation as the single current slug', async () => {
@@ -320,7 +382,7 @@ describe('pgClinicDirectory public slug resolver', () => {
       organizationId: ORG,
     };
     const events: string[] = [];
-    const { select } = selectSequence([[current], [], [reservation]], events);
+    const { select } = selectSequence([[current], [reservation]], events);
     const deleteWhere = vi.fn(async () => undefined);
     const updateWhere = vi
       .fn()
@@ -366,23 +428,32 @@ describe('pgClinicDirectory public slug resolver', () => {
         actorPlatformUserId: ACTOR,
       }),
     );
-    expect(events).toEqual(['organization-lock', 'row-lock', 'plain-read', 'row-lock']);
+    expect(events).toEqual(['organization-lock', 'row-lock', 'row-lock']);
   });
 
-  it('enforces the one self-service rename limit at the repository seam', async () => {
+  it('reclaims its own alias atomically, retains the released current slug and appends audit', async () => {
     const current = {
       id: 'dddddddd-dddd-4ddd-8ddd-dddddddddddd',
       slug: 'current-clinic',
       kind: 'current',
       organizationId: ORG,
     };
+    const formerAlias = {
+      id: 'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee',
+      slug: 'former-clinic',
+      kind: 'alias',
+      organizationId: ORG,
+    };
     const events: string[] = [];
-    const { select } = selectSequence([[current], [{ id: 'rename-event-1' }]], events);
+    const { select } = selectSequence([[current], [formerAlias]], events);
+    const updateWhere = vi.fn(async () => undefined);
+    const updateSet = vi.fn(() => ({ where: updateWhere }));
+    const insertValues = vi.fn(async () => undefined);
     const tx = {
       select,
       delete: vi.fn(),
-      update: vi.fn(),
-      insert: vi.fn(),
+      update: vi.fn(() => ({ set: updateSet })),
+      insert: vi.fn(() => ({ values: insertValues })),
     };
     mutationTransactionWithLock(tx, events);
     const port = createPgClinicDirectoryPort();
@@ -390,12 +461,32 @@ describe('pgClinicDirectory public slug resolver', () => {
     await expect(
       port.renameSlug({
         organizationId: ORG,
-        reservedSlug: 'third-clinic',
+        reservedSlug: 'former-clinic',
       }),
-    ).resolves.toEqual({ ok: false, code: 'rename_limit_reached' });
+    ).resolves.toEqual({ ok: true, slug: 'former-clinic' });
+
     expect(tx.delete).not.toHaveBeenCalled();
-    expect(tx.update).not.toHaveBeenCalled();
-    expect(tx.insert).not.toHaveBeenCalled();
-    expect(events).toEqual(['organization-lock', 'row-lock', 'plain-read']);
+    expect(updateSet).toHaveBeenNthCalledWith(
+      1,
+      expect.objectContaining({ kind: 'alias' }),
+    );
+    expect(updateSet).toHaveBeenNthCalledWith(
+      2,
+      expect.objectContaining({ kind: 'current' }),
+    );
+    expect(updateSet).toHaveBeenNthCalledWith(
+      3,
+      expect.objectContaining({ slug: 'former-clinic' }),
+    );
+    expect(insertValues).toHaveBeenCalledOnce();
+    expect(insertValues).toHaveBeenCalledWith(
+      expect.objectContaining({
+        previousSlug: 'current-clinic',
+        nextSlug: 'former-clinic',
+        organizationId: ORG,
+        actorPlatformUserId: ACTOR,
+      }),
+    );
+    expect(events).toEqual(['organization-lock', 'row-lock', 'row-lock']);
   });
 });

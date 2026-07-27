@@ -8,6 +8,10 @@ const migrationPath = join(
   repoDir,
   '../../../db/drizzle-migrations/0218_u6b_organization_slug_claims.sql',
 );
+const reclaimMigrationPath = join(
+  repoDir,
+  '../../../db/drizzle-migrations/0255_organization_slug_same_org_reclaim.sql',
+);
 const schemaPath = join(repoDir, '../../../db/schema/clinicDirectory.ts');
 const journalPath = join(repoDir, '../../../db/drizzle-migrations/meta/_journal.json');
 const resolverPath = join(
@@ -17,6 +21,7 @@ const resolverPath = join(
 
 describe('0218 organization slug foundation', () => {
   const migration = readFileSync(migrationPath, 'utf8');
+  const reclaimMigration = readFileSync(reclaimMigrationPath, 'utf8');
   const schema = readFileSync(schemaPath, 'utf8');
   const resolver = readFileSync(resolverPath, 'utf8');
 
@@ -73,6 +78,33 @@ describe('0218 organization slug foundation', () => {
     );
     expect(schema).not.toContain('targetSlug');
     expect(schema).not.toContain('target_slug: text("target_slug")');
+  });
+
+  it('refuses a different organization at the DB seam while allowing only same-owner alias reclaim', () => {
+    expect(migration).toMatch(
+      /CREATE UNIQUE INDEX uq_organization_slug_claims_slug\s+ON public\.organization_slug_claims USING btree \(slug\)/,
+    );
+    expect(reclaimMigration).not.toMatch(/DROP INDEX\s+uq_organization_slug_claims_slug/);
+    expect(reclaimMigration).toContain("OLD.kind = 'alias'");
+    expect(reclaimMigration).toContain("NEW.kind <> 'current'");
+    expect(reclaimMigration).toContain(
+      'NEW.organization_id IS DISTINCT FROM OLD.organization_id',
+    );
+    expect(reclaimMigration).toContain(
+      "NEW.kind = 'alias' AND NEW.slug IS DISTINCT FROM OLD.slug",
+    );
+    expect(reclaimMigration).toContain(
+      'OLD.organization_id IS NOT DISTINCT FROM NEW.organization_id',
+    );
+  });
+
+  it('requires the reclaim swap to retain the released alias, synchronize the directory and append audit', () => {
+    expect(reclaimMigration).toContain("current_claim.kind = 'current'");
+    expect(reclaimMigration).toContain("alias_claim.kind = 'alias'");
+    expect(reclaimMigration).toContain('rename_event.previous_slug = OLD.slug');
+    expect(reclaimMigration).toContain('rename_event.next_slug = v_next_slug');
+    expect(reclaimMigration).toContain('directory.slug <> v_next_slug');
+    expect(reclaimMigration).toContain('DEFERRABLE INITIALLY DEFERRED');
   });
 
   it('allows an absent directory projection but prevents any existing row from diverging from current', () => {
@@ -132,5 +164,9 @@ describe('0218 organization slug foundation', () => {
     expect(journal).toContain('"tag": "0217_platform_lfk_ownership"');
     expect(journal).toContain('"idx": 218');
     expect(journal).toContain('"tag": "0218_u6b_organization_slug_claims"');
+    expect(journal).toContain('"idx": 255');
+    expect(journal).toContain('"version": "7"');
+    expect(journal).toContain('"when": 1793539200052');
+    expect(journal).toContain('"tag": "0255_organization_slug_same_org_reclaim"');
   });
 });

@@ -88,14 +88,8 @@ export function createPgClinicDirectoryPort(): ClinicDirectoryPort {
           ),
         )
         .limit(1);
-      const [renameEvent] = await db
-        .select({ id: organizationSlugRenameEvents.id })
-        .from(organizationSlugRenameEvents)
-        .where(eq(organizationSlugRenameEvents.organizationId, organizationId))
-        .limit(1);
       return {
         currentSlug: current?.slug ?? null,
-        selfServiceRenameAvailable: renameEvent === undefined,
       };
     },
 
@@ -134,12 +128,29 @@ export function createPgClinicDirectoryPort(): ClinicDirectoryPort {
           // cross-org A->B / B->A lock cycle; the global unique index closes concurrent empty-slug
           // races and maps the losing write to slug_unavailable below.
           const [collision] = await tx
-            .select({ id: organizationSlugClaims.id })
+            .select({
+              id: organizationSlugClaims.id,
+              kind: organizationSlugClaims.kind,
+              organizationId: organizationSlugClaims.organizationId,
+            })
             .from(organizationSlugClaims)
             .where(eq(organizationSlugClaims.slug, input.slug))
             .limit(1);
 
           if (collision && collision.id !== existingReservation?.id) {
+            if (
+              collision.kind === 'alias' &&
+              collision.organizationId === input.organizationId
+            ) {
+              if (existingReservation) {
+                await tx
+                  .delete(organizationSlugClaims)
+                  .where(eq(organizationSlugClaims.id, existingReservation.id));
+              }
+              // The alias itself is the durable reservation. Leaving it untouched keeps the old
+              // public link resolving until renameSlug atomically promotes it back to current.
+              return { ok: true as const, slug: input.slug };
+            }
             return { ok: false as const, code: 'slug_unavailable' as const };
           }
 
@@ -247,47 +258,54 @@ export function createPgClinicDirectoryPort(): ClinicDirectoryPort {
             .for('update');
           if (!current) return { ok: false as const, code: 'current_slug_not_found' as const };
 
-          const [existingRename] = await tx
-            .select({ id: organizationSlugRenameEvents.id })
-            .from(organizationSlugRenameEvents)
-            .where(eq(organizationSlugRenameEvents.organizationId, input.organizationId))
-            .limit(1);
-          if (existingRename) {
-            return { ok: false as const, code: 'rename_limit_reached' as const };
-          }
-
-          const [reservation] = await tx
+          const [targetClaim] = await tx
             .select()
             .from(organizationSlugClaims)
             .where(eq(organizationSlugClaims.slug, input.reservedSlug))
             .limit(1)
             .for('update');
-          if (!reservation || reservation.kind !== 'reservation') {
+          if (
+            !targetClaim ||
+            (targetClaim.kind !== 'reservation' && targetClaim.kind !== 'alias')
+          ) {
             return { ok: false as const, code: 'reservation_not_found' as const };
           }
-          if (reservation.organizationId !== input.organizationId) {
+          if (targetClaim.organizationId !== input.organizationId) {
             return { ok: false as const, code: 'reservation_owner_mismatch' as const };
           }
 
           const now = new Date().toISOString();
-          await tx
-            .delete(organizationSlugClaims)
-            .where(eq(organizationSlugClaims.id, reservation.id));
-          await tx
-            .update(organizationSlugClaims)
-            .set({ slug: input.reservedSlug, updatedAt: now })
-            .where(eq(organizationSlugClaims.id, current.id));
+          if (targetClaim.kind === 'alias') {
+            await tx
+              .update(organizationSlugClaims)
+              .set({ kind: 'alias', updatedAt: now })
+              .where(eq(organizationSlugClaims.id, current.id));
+            await tx
+              .update(organizationSlugClaims)
+              .set({ kind: 'current', updatedAt: now })
+              .where(eq(organizationSlugClaims.id, targetClaim.id));
+          } else {
+            await tx
+              .delete(organizationSlugClaims)
+              .where(eq(organizationSlugClaims.id, targetClaim.id));
+            await tx
+              .update(organizationSlugClaims)
+              .set({ slug: input.reservedSlug, updatedAt: now })
+              .where(eq(organizationSlugClaims.id, current.id));
+          }
           await tx
             .update(clinicPublicDirectoryEntries)
             .set({ slug: input.reservedSlug, updatedAt: now })
             .where(eq(clinicPublicDirectoryEntries.organizationId, input.organizationId));
-          await tx.insert(organizationSlugClaims).values({
-            slug: current.slug,
-            kind: 'alias',
-            organizationId: input.organizationId,
-            createdByPlatformUserId: actorPlatformUserId,
-            updatedAt: now,
-          });
+          if (targetClaim.kind === 'reservation') {
+            await tx.insert(organizationSlugClaims).values({
+              slug: current.slug,
+              kind: 'alias',
+              organizationId: input.organizationId,
+              createdByPlatformUserId: actorPlatformUserId,
+              updatedAt: now,
+            });
+          }
           await tx.insert(organizationSlugRenameEvents).values({
             organizationId: input.organizationId,
             actorPlatformUserId,

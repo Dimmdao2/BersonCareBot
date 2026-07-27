@@ -56,8 +56,6 @@ export type RenameOrganizationSlugInput = {
 
 export type OrganizationSlugManagementState = {
   currentSlug: string | null;
-  /** Owner policy 2026-07-27: exactly one self-service rename after the initial claim. */
-  selfServiceRenameAvailable: boolean;
 };
 
 export type SetOrganizationSlugInput = {
@@ -78,8 +76,7 @@ export type OrganizationSlugMutationErrorCode =
   | 'slug_too_long'
   | 'slug_unchanged'
   | 'reserved_slug'
-  | 'rename_confirmation_required'
-  | 'rename_limit_reached';
+  | 'rename_confirmation_required';
 
 export type OrganizationSlugMutationResult =
   | { ok: true; slug: string }

@@ -45,7 +45,6 @@ describe("POST /api/clinic/slug", () => {
     });
     getSlugManagementStateMock.mockResolvedValue({
       currentSlug: "clinic-new",
-      selfServiceRenameAvailable: false,
     });
   });
 
@@ -89,7 +88,7 @@ describe("POST /api/clinic/slug", () => {
     await expect(accepted.json()).resolves.toEqual({
       ok: true,
       slug: "clinic-new",
-      state: { currentSlug: "clinic-new", selfServiceRenameAvailable: false },
+      state: { currentSlug: "clinic-new" },
     });
   });
 

@@ -10,14 +10,12 @@ const bodySchema = z.object({
 }).strict();
 
 function statusForError(code: OrganizationSlugMutationErrorCode): number {
-  return code === "slug_unavailable" ||
-    code === "rename_limit_reached" ||
-    code === "slug_unchanged"
+  return code === "slug_unavailable" || code === "slug_unchanged"
     ? 409
     : 400;
 }
 
-/** POST /api/clinic/slug — claim or perform the one allowed self-service organization slug rename. */
+/** POST /api/clinic/slug — claim or rename the organization's durable public slug. */
 export async function POST(request: Request) {
   const gate = await requireClinicManagementApiContext();
   if (!gate.ok) return gate.response;

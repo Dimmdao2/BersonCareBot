@@ -22,7 +22,6 @@ import type { SettingsTabId } from "./settingsTabs";
 import { TeamSection } from "./TeamSection";
 import { parseDoctorTodayPreferences } from "@/modules/system-settings/doctorTodayPreferences";
 import { getAppBaseUrl } from "@/modules/system-settings/integrationRuntime";
-import { getSupportContactUrl } from "@/modules/system-settings/supportContactUrl";
 
 type LegacySettingsTab = "specialist" | "organization" | "team" | "billing" | "install";
 
@@ -88,14 +87,13 @@ export default async function SettingsPage({
       actorPlatformUserId: workspace.session.user.userId,
       hasOrganizationManagementCapability: true,
     };
-    const [doctorSettings, brandingState, slugState, appBaseUrl, supportContactUrl] = await Promise.all([
+    const [doctorSettings, brandingState, slugState, appBaseUrl] = await Promise.all([
       deps.systemSettings.listSettingsByScope("doctor", { organizationId: workspace.organizationId }),
       deps.orgBranding.getManagementState(brandingCtx),
       workspace.canManageOrganization && deps.clinicDirectory
         ? deps.clinicDirectory.getSlugManagementState(workspace.organizationId)
         : Promise.resolve(null),
       getAppBaseUrl(),
-      getSupportContactUrl(),
     ]);
     const publishedBrand = brandingState.published;
     const publishedLogoUrl =
@@ -133,7 +131,6 @@ export default async function SettingsPage({
           <ClinicSlugSection
             initialState={slugState}
             appBaseUrl={appBaseUrl}
-            supportContactUrl={supportContactUrl}
           />
         ) : null}
         <SettingsForm

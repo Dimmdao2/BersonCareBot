@@ -8,7 +8,6 @@ function buildPort(resolved: string | null): ClinicDirectoryPort {
     getPublishedSlugForOrganization: vi.fn(async () => null),
     getSlugManagementState: vi.fn(async () => ({
       currentSlug: null,
-      selfServiceRenameAvailable: true,
     })),
     resolveCanonicalSlug: vi.fn(async () => null),
     reserveSlug: vi.fn(async (input) => ({ ok: true as const, slug: input.slug })),
@@ -142,12 +141,11 @@ describe('clinicDirectoryService', () => {
     expect(port.renameSlug).not.toHaveBeenCalled();
   });
 
-  it('requires irreversible confirmation and allows exactly one self-service rename', async () => {
+  it('requires irreversible-alias confirmation and allows repeated self-service renames', async () => {
     const organizationId = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
     const port = buildPort(null);
     vi.mocked(port.getSlugManagementState).mockResolvedValue({
       currentSlug: 'old-clinic',
-      selfServiceRenameAvailable: true,
     });
     const service = createClinicDirectoryService(port);
 
@@ -174,17 +172,22 @@ describe('clinicDirectoryService', () => {
 
     vi.mocked(port.getSlugManagementState).mockResolvedValue({
       currentSlug: 'new-clinic',
-      selfServiceRenameAvailable: false,
     });
-    vi.mocked(port.reserveSlug).mockClear();
     await expect(
       service.setOrganizationSlug({
         organizationId,
         slug: 'third-clinic',
         irreversibleRenameConfirmed: true,
       }),
-    ).resolves.toEqual({ ok: false, code: 'rename_limit_reached' });
-    expect(port.reserveSlug).not.toHaveBeenCalled();
+    ).resolves.toEqual({ ok: true, slug: 'third-clinic' });
+    expect(port.reserveSlug).toHaveBeenLastCalledWith({
+      organizationId,
+      slug: 'third-clinic',
+    });
+    expect(port.renameSlug).toHaveBeenLastCalledWith({
+      organizationId,
+      reservedSlug: 'third-clinic',
+    });
   });
 
   it('keeps transliteration suggestion separate from persistence confirmation', () => {

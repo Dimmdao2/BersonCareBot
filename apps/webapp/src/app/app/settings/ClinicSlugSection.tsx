@@ -6,7 +6,6 @@ import type {
   OrganizationSlugMutationErrorCode,
 } from "@/modules/clinic-directory/ports";
 import { DoctorSection, DoctorSectionHeader, DoctorSectionTitle } from "@/shared/ui/doctor/DoctorSection";
-import { SupportContactLink } from "@/shared/ui/doctor/SupportContactLink";
 import { Button } from "@/shared/ui/doctor/primitives/button";
 import { Checkbox } from "@/shared/ui/doctor/primitives/checkbox";
 import {
@@ -23,7 +22,6 @@ import { Input } from "@/shared/ui/doctor/primitives/input";
 type ClinicSlugSectionProps = {
   initialState: OrganizationSlugManagementState;
   appBaseUrl: string;
-  supportContactUrl: string;
 };
 
 type SlugApiResponse =
@@ -51,8 +49,6 @@ export function clinicSlugErrorMessage(error: SlugApiErrorCode) {
       return "Введите адрес, отличный от текущего.";
     case "rename_confirmation_required":
       return "Подтвердите необратимое переименование.";
-    case "rename_limit_reached":
-      return "Самостоятельно изменить адрес можно только один раз. Обратитесь в поддержку.";
     default:
       return "Не удалось сохранить адрес. Повторите попытку.";
   }
@@ -61,7 +57,6 @@ export function clinicSlugErrorMessage(error: SlugApiErrorCode) {
 export function ClinicSlugSection({
   initialState,
   appBaseUrl,
-  supportContactUrl,
 }: ClinicSlugSectionProps) {
   const fieldId = useId();
   const confirmId = useId();
@@ -168,67 +163,54 @@ export function ClinicSlugSection({
             </p>
           ) : null}
 
-          {state.selfServiceRenameAvailable ? (
-            <Dialog
-              open={renameOpen}
-              onOpenChange={(open) => {
-                setRenameOpen(open);
-                setError(null);
-                if (!open) setConfirmed(false);
-              }}
-            >
-              <DialogTrigger render={<Button type="button" size="sm" variant="outline" className="self-start" />}>
-                Изменить адрес
-              </DialogTrigger>
-              <DialogContent className="sm:max-w-md" showCloseButton>
-                <DialogHeader>
-                  <DialogTitle>Изменить адрес публичной записи</DialogTitle>
-                  <DialogDescription>
-                    Переименование необратимо. Старый адрес будет работать всегда, но его нельзя будет
-                    использовать повторно.
-                  </DialogDescription>
-                </DialogHeader>
-                <div className="flex flex-col gap-3">
-                  {slugField}
-                  <label className="flex items-start gap-2 text-sm" htmlFor={confirmId}>
-                    <Checkbox
-                      id={confirmId}
-                      checked={confirmed}
-                      onCheckedChange={(checked) => setConfirmed(checked === true)}
-                      disabled={pending}
-                      className="mt-0.5"
-                    />
-                    <span>Я понимаю, что вернуть старый адрес нельзя.</span>
-                  </label>
-                  {error ? (
-                    <p role="alert" className="text-sm text-destructive">
-                      {error}
-                    </p>
-                  ) : null}
-                  <DialogFooter className="border-0 bg-transparent p-0 sm:justify-end">
-                    <Button
-                      type="button"
-                      size="sm"
-                      onClick={() => void saveSlug(true)}
-                      disabled={pending || !confirmed}
-                    >
-                      {pending ? "Сохранение…" : "Переименовать"}
-                    </Button>
-                  </DialogFooter>
-                </div>
-              </DialogContent>
-            </Dialog>
-          ) : (
-            <p className="text-sm text-muted-foreground">
-              Следующее изменение — только через поддержку.{" "}
-              <SupportContactLink
-                href={supportContactUrl}
-                className="text-primary underline underline-offset-2"
-              >
-                Обратиться в поддержку
-              </SupportContactLink>
-            </p>
-          )}
+          <Dialog
+            open={renameOpen}
+            onOpenChange={(open) => {
+              setRenameOpen(open);
+              setError(null);
+              if (!open) setConfirmed(false);
+            }}
+          >
+            <DialogTrigger render={<Button type="button" size="sm" variant="outline" className="self-start" />}>
+              Изменить адрес
+            </DialogTrigger>
+            <DialogContent className="sm:max-w-md" showCloseButton>
+              <DialogHeader>
+                <DialogTitle>Изменить адрес публичной записи</DialogTitle>
+                <DialogDescription>
+                  Старый адрес будет работать всегда и навсегда останется привязан к этой клинике.
+                </DialogDescription>
+              </DialogHeader>
+              <div className="flex flex-col gap-3">
+                {slugField}
+                <label className="flex items-start gap-2 text-sm" htmlFor={confirmId}>
+                  <Checkbox
+                    id={confirmId}
+                    checked={confirmed}
+                    onCheckedChange={(checked) => setConfirmed(checked === true)}
+                    disabled={pending}
+                    className="mt-0.5"
+                  />
+                  <span>Я понимаю, что старый адрес навсегда останется привязан к этой клинике.</span>
+                </label>
+                {error ? (
+                  <p role="alert" className="text-sm text-destructive">
+                    {error}
+                  </p>
+                ) : null}
+                <DialogFooter className="border-0 bg-transparent p-0 sm:justify-end">
+                  <Button
+                    type="button"
+                    size="sm"
+                    onClick={() => void saveSlug(true)}
+                    disabled={pending || !confirmed}
+                  >
+                    {pending ? "Сохранение…" : "Переименовать"}
+                  </Button>
+                </DialogFooter>
+              </div>
+            </DialogContent>
+          </Dialog>
         </div>
       ) : (
         <div className="flex flex-col gap-3">

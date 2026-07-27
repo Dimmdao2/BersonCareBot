@@ -79,9 +79,6 @@ export function createClinicDirectoryService(port: ClinicDirectoryPort): ClinicD
       if (state.currentSlug === validated.slug) {
         return { ok: false, code: 'slug_unchanged' };
       }
-      if (state.currentSlug && !state.selfServiceRenameAvailable) {
-        return { ok: false, code: 'rename_limit_reached' };
-      }
       if (state.currentSlug && !input.irreversibleRenameConfirmed) {
         return { ok: false, code: 'rename_confirmation_required' };
       }

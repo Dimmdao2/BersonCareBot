@@ -17,7 +17,6 @@ const {
   getOrgBrandingManagementStateMock,
   getSlugManagementStateMock,
   getAppBaseUrlMock,
-  getSupportContactUrlMock,
   settingsFormMock,
   appointmentReminderMock,
   teamSectionMock,
@@ -38,7 +37,6 @@ const {
   getOrgBrandingManagementStateMock: vi.fn(),
   getSlugManagementStateMock: vi.fn(),
   getAppBaseUrlMock: vi.fn(),
-  getSupportContactUrlMock: vi.fn(),
   settingsFormMock: vi.fn(() => <section data-testid="organization-settings" />),
   appointmentReminderMock: vi.fn(() => <section data-testid="appointment-reminders" />),
   teamSectionMock: vi.fn(() => <section data-testid="team" />),
@@ -76,9 +74,6 @@ vi.mock("@/app-layer/di/buildAppDeps", () => ({
 }));
 vi.mock("@/modules/system-settings/integrationRuntime", () => ({
   getAppBaseUrl: getAppBaseUrlMock,
-}));
-vi.mock("@/modules/system-settings/supportContactUrl", () => ({
-  getSupportContactUrl: getSupportContactUrlMock,
 }));
 vi.mock("@/modules/org-branding/service", () => ({
   orgBrandLogoUrl: (mediaId: string) => `/api/media/${mediaId}`,
@@ -148,10 +143,8 @@ describe("legacy settings compatibility", () => {
     });
     getSlugManagementStateMock.mockResolvedValue({
       currentSlug: "tochka-zdorovya",
-      selfServiceRenameAvailable: true,
     });
     getAppBaseUrlMock.mockResolvedValue("https://app.example");
-    getSupportContactUrlMock.mockResolvedValue("https://support.example");
   });
 
   it("routes the explicit old personal and install entries to the one account area", async () => {
@@ -180,10 +173,8 @@ describe("legacy settings compatibility", () => {
       expect.objectContaining({
         initialState: {
           currentSlug: "tochka-zdorovya",
-          selfServiceRenameAvailable: true,
         },
         appBaseUrl: "https://app.example",
-        supportContactUrl: "https://support.example",
       }),
       undefined,
     );

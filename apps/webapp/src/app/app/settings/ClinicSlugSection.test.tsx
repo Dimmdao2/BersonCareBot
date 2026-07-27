@@ -21,9 +21,8 @@ describe("clinicSlugErrorMessage", () => {
   it("shows the full canonical public URL and an explicit copy affordance", () => {
     render(
       <ClinicSlugSection
-        initialState={{ currentSlug: "clinic-a", selfServiceRenameAvailable: true }}
+        initialState={{ currentSlug: "clinic-a" }}
         appBaseUrl="https://app.example/"
-        supportContactUrl="https://support.example"
       />,
     );
 
@@ -38,9 +37,8 @@ describe("clinicSlugErrorMessage", () => {
     const user = userEvent.setup();
     render(
       <ClinicSlugSection
-        initialState={{ currentSlug: "clinic-a", selfServiceRenameAvailable: true }}
+        initialState={{ currentSlug: "clinic-a" }}
         appBaseUrl="https://app.example"
-        supportContactUrl="https://support.example"
       />,
     );
 
@@ -48,7 +46,7 @@ describe("clinicSlugErrorMessage", () => {
 
     expect(
       screen.getByText(
-        "Переименование необратимо. Старый адрес будет работать всегда, но его нельзя будет использовать повторно.",
+        "Старый адрес будет работать всегда и навсегда останется привязан к этой клинике.",
       ),
     ).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Переименовать" })).toBeDisabled();
