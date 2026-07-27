@@ -63,9 +63,17 @@ const paths = {
     repoRoot,
     'apps/webapp/db/drizzle-migrations/0184_reference_catalog_org_insert_hook.sql',
   ),
+  migration0203: path.join(
+    repoRoot,
+    'apps/webapp/db/drizzle-migrations/0203_clinic_public_directory_slug.sql',
+  ),
   migration0215: path.join(
     repoRoot,
     'apps/webapp/db/drizzle-migrations/0215_staff_security_profiles.sql',
+  ),
+  migration0218: path.join(
+    repoRoot,
+    'apps/webapp/db/drizzle-migrations/0218_u6b_organization_slug_claims.sql',
   ),
   migration0212: path.join(
     repoRoot,
@@ -78,6 +86,10 @@ const paths = {
   migration0225: path.join(
     repoRoot,
     'apps/webapp/db/drizzle-migrations/0225_saas_tariff_quotas_trial.sql',
+  ),
+  migration0257: path.join(
+    repoRoot,
+    'apps/webapp/db/drizzle-migrations/0257_specialist_signup_slug_reservation.sql',
   ),
   c5aPlatformOperations: path.join(
     repoRoot,
@@ -115,23 +127,29 @@ const trialTariffId = '30000000-0000-4000-8000-000000000001';
 const users = {
   first: {
     userId: '31000000-0000-4000-8000-000000000001',
+    intentId: '31000000-0000-4000-8000-000000000021',
     challengeId: '31000000-0000-4000-8000-000000000011',
     email: 'owner-one@example.invalid',
     organizationTitle: 'U3S Scratch Cabinet One',
+    organizationSlug: 'u3s-scratch-cabinet-one',
     fullName: 'Owner One',
   },
   concurrent: {
     userId: '32000000-0000-4000-8000-000000000002',
+    intentId: '32000000-0000-4000-8000-000000000022',
     challengeId: '32000000-0000-4000-8000-000000000012',
     email: 'owner-two@example.invalid',
     organizationTitle: 'U3S Scratch Cabinet Two',
+    organizationSlug: 'u3s-scratch-cabinet-two',
     fullName: 'Owner Two',
   },
   existingMember: {
     userId: '33000000-0000-4000-8000-000000000003',
+    intentId: '33000000-0000-4000-8000-000000000023',
     challengeId: '33000000-0000-4000-8000-000000000013',
     email: 'existing-owner@example.invalid',
     organizationTitle: 'U3S Must Not Be Created',
+    organizationSlug: 'u3s-must-not-be-created',
     fullName: 'Existing Owner',
     organizationId: '33000000-0000-4000-8000-000000000033',
   },
@@ -340,10 +358,13 @@ function installCanonicalSchema() {
     paths.migration0182,
     paths.migration0183,
     paths.migration0184,
+    paths.migration0203,
     paths.migration0212,
     paths.migration0213,
     paths.migration0215,
+    paths.migration0218,
     paths.migration0225,
+    paths.migration0257,
   ]) {
     psqlFile(migrationPath, {
       prefix: `BEGIN;\nSET ROLE ${quoteIdent(appOwnerRole)};`,
@@ -606,7 +627,13 @@ function seedFixtures() {
   const intents = Object.values(users)
     .map(
       (user) =>
-        `(${quoteLiteral(user.userId)}::uuid, ${quoteLiteral(user.challengeId)}::uuid, ${quoteLiteral(user.email)}, ${quoteLiteral(user.organizationTitle)}, ${quoteLiteral(user.fullName)})`,
+        `(${quoteLiteral(user.intentId)}::uuid, ${quoteLiteral(user.userId)}::uuid, ${quoteLiteral(user.challengeId)}::uuid, ${quoteLiteral(user.email)}, ${quoteLiteral(user.organizationTitle)}, ${quoteLiteral(user.organizationSlug)}, ${quoteLiteral(user.fullName)})`,
+    )
+    .join(',\n');
+  const reservations = Object.values(users)
+    .map(
+      (user) =>
+        `(${quoteLiteral(user.organizationSlug)}, 'reservation', NULL, ${quoteLiteral(user.intentId)}::uuid, ${quoteLiteral(user.userId)}::uuid)`,
     )
     .join(',\n');
   psql(`
@@ -647,9 +674,13 @@ VALUES (
   'active'
 );
 INSERT INTO public.specialist_signup_intents (
-  user_id, challenge_id, email_normalized, organization_title, specialist_full_name
+  id, user_id, challenge_id, email_normalized, organization_title, organization_slug, specialist_full_name
 ) VALUES
 ${intents};
+INSERT INTO public.organization_slug_claims (
+  slug, kind, organization_id, signup_intent_id, created_by_platform_user_id
+) VALUES
+${reservations};
 RESET ROLE;
 `);
 }
@@ -860,6 +891,9 @@ SELECT json_build_object(
   'receipts', (SELECT count(*) FROM public.reference_catalog_snapshot_receipts WHERE organization_id = ${quoteLiteral(receipt.organizationId)}::uuid),
   'intent_status', (SELECT status FROM public.specialist_signup_intents WHERE challenge_id = ${quoteLiteral(seed.challengeId)}::uuid),
   'intent_specialist', (SELECT provisioned_specialist_id FROM public.specialist_signup_intents WHERE challenge_id = ${quoteLiteral(seed.challengeId)}::uuid),
+  'current_slug_claims', (SELECT count(*) FROM public.organization_slug_claims WHERE slug = ${quoteLiteral(seed.organizationSlug)} AND kind = 'current' AND organization_id = ${quoteLiteral(receipt.organizationId)}::uuid AND signup_intent_id IS NULL),
+  'pending_slug_reservations', (SELECT count(*) FROM public.organization_slug_claims WHERE signup_intent_id = ${quoteLiteral(seed.intentId)}::uuid),
+  'directory_slug', (SELECT slug FROM public.clinic_public_directory_entries WHERE organization_id = ${quoteLiteral(receipt.organizationId)}::uuid),
   'organization_tariff', (SELECT tariff_id FROM public.be_organizations WHERE id = ${quoteLiteral(receipt.organizationId)}::uuid),
   'commercial_access_state', (SELECT commercial_access_state FROM public.be_organizations WHERE id = ${quoteLiteral(receipt.organizationId)}::uuid),
   'trials', (SELECT count(*) FROM public.saas_organization_trials WHERE organization_id = ${quoteLiteral(receipt.organizationId)}::uuid),
@@ -884,6 +918,9 @@ SELECT json_build_object(
     row.intent_specialist === receipt.specialistId,
     'intent specialist receipt must record the specialist bound by this same provisioning call',
   );
+  assert(row.current_slug_claims === 1, 'signup reservation must promote to one current slug claim');
+  assert(row.pending_slug_reservations === 0, 'promoted slug claim must release the signup intent');
+  assert(row.directory_slug === seed.organizationSlug, 'signup must publish the reserved slug');
   assert(row.organization_tariff === trialTariffId, 'organization must receive the trial tariff');
   assert(row.commercial_access_state === 'active', 'trial must activate commercial access');
   assert(row.trials === 1, 'provisioning replay must retain exactly one trial');

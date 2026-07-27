@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const confirmEmailChallengeMock = vi.fn();
 const provisionSpecialistOwnerMock = vi.fn();
+const replacePendingSpecialistSignupChallengeMock = vi.fn();
 const getSpecialistSignupIntentByChallengeIdMock = vi.fn();
 const findUserIdByEmailChallengeIdMock = vi.fn();
 const findByUserIdMock = vi.fn();
@@ -17,6 +18,7 @@ vi.mock("@/app-layer/di/buildAppDeps", () => ({
     },
     organizationProvisioning: {
       provisionSpecialistOwner: provisionSpecialistOwnerMock,
+      replacePendingSpecialistSignupChallenge: replacePendingSpecialistSignupChallengeMock,
       getSpecialistSignupIntentByChallengeId: getSpecialistSignupIntentByChallengeIdMock,
     },
     userByPhone: {
@@ -54,7 +56,21 @@ describe("POST /api/auth/specialist-signup/confirm", () => {
   beforeEach(() => {
     confirmEmailChallengeMock.mockReset();
     provisionSpecialistOwnerMock.mockReset();
+    replacePendingSpecialistSignupChallengeMock.mockReset();
     getSpecialistSignupIntentByChallengeIdMock.mockReset();
+    getSpecialistSignupIntentByChallengeIdMock.mockResolvedValue({
+      id: "intent-1",
+      userId: "11111111-1111-4111-8111-111111111111",
+      challengeId: "22222222-2222-4222-8222-222222222222",
+      emailNormalized: "doctor@example.com",
+      organizationTitle: "Clinic One",
+      organizationSlug: "clinic-one",
+      specialistFullName: "Doctor Owner",
+      status: "pending",
+      provisionedOrganizationId: null,
+      provisionedSpecialistId: null,
+      provisionedMembershipId: null,
+    });
     findUserIdByEmailChallengeIdMock.mockReset();
     findByUserIdMock.mockReset();
     setSessionFromUserMock.mockReset();
@@ -216,6 +232,96 @@ describe("POST /api/auth/specialist-signup/confirm", () => {
     expect(res.status).toBe(400);
     expect(provisionSpecialistOwnerMock).not.toHaveBeenCalled();
     expect(setSessionFromUserMock).not.toHaveBeenCalled();
+  });
+
+  it("asks a pre-cutover NULL-slug intent for an address before consuming its email code", async () => {
+    findUserIdByEmailChallengeIdMock.mockResolvedValueOnce("11111111-1111-4111-8111-111111111111");
+    getSpecialistSignupIntentByChallengeIdMock.mockResolvedValueOnce({
+      id: "intent-before-slug-cutover",
+      userId: "11111111-1111-4111-8111-111111111111",
+      challengeId: "22222222-2222-4222-8222-222222222222",
+      emailNormalized: "doctor@example.com",
+      organizationTitle: "Clinic Before Cutover",
+      organizationSlug: null,
+      specialistFullName: "Doctor Owner",
+      status: "pending",
+      provisionedOrganizationId: null,
+      provisionedSpecialistId: null,
+      provisionedMembershipId: null,
+    });
+
+    const res = await POST(
+      new Request("http://localhost/api/auth/specialist-signup/confirm", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          challengeId: "22222222-2222-4222-8222-222222222222",
+          code: "123456",
+        }),
+      }),
+    );
+
+    expect(res.status).toBe(409);
+    await expect(res.json()).resolves.toEqual({
+      ok: false,
+      error: "organization_slug_required",
+      message: "Выберите публичный адрес клиники и повторите подтверждение. Код ещё действует.",
+    });
+    expect(confirmEmailChallengeMock).not.toHaveBeenCalled();
+    expect(replacePendingSpecialistSignupChallengeMock).not.toHaveBeenCalled();
+    expect(provisionSpecialistOwnerMock).not.toHaveBeenCalled();
+  });
+
+  it("reserves a supplied address for a pre-cutover NULL-slug intent and finishes signup", async () => {
+    findUserIdByEmailChallengeIdMock.mockResolvedValueOnce("11111111-1111-4111-8111-111111111111");
+    getSpecialistSignupIntentByChallengeIdMock.mockResolvedValueOnce({
+      id: "intent-before-slug-cutover",
+      userId: "11111111-1111-4111-8111-111111111111",
+      challengeId: "22222222-2222-4222-8222-222222222222",
+      emailNormalized: "doctor@example.com",
+      organizationTitle: "Clinic Before Cutover",
+      organizationSlug: null,
+      specialistFullName: "Doctor Owner",
+      status: "pending",
+      provisionedOrganizationId: null,
+      provisionedSpecialistId: null,
+      provisionedMembershipId: null,
+    });
+    replacePendingSpecialistSignupChallengeMock.mockResolvedValueOnce(true);
+    confirmEmailChallengeMock.mockResolvedValueOnce({ ok: true });
+    provisionSpecialistOwnerMock.mockResolvedValueOnce({
+      organizationId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+      specialistId: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+      membershipId: "cccccccc-cccc-4ccc-8ccc-cccccccccccc",
+    });
+    findByUserIdMock.mockResolvedValue({
+      userId: "11111111-1111-4111-8111-111111111111",
+      role: "client",
+      displayName: "Doctor Owner",
+      bindings: {},
+    });
+
+    const res = await POST(
+      new Request("http://localhost/api/auth/specialist-signup/confirm", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          challengeId: "22222222-2222-4222-8222-222222222222",
+          code: "123456",
+          organizationSlug: "clinic-before-cutover",
+        }),
+      }),
+    );
+
+    expect(res.status).toBe(200);
+    expect(replacePendingSpecialistSignupChallengeMock).toHaveBeenCalledWith({
+      challengeId: "22222222-2222-4222-8222-222222222222",
+      organizationSlug: "clinic-before-cutover",
+    });
+    expect(confirmEmailChallengeMock).toHaveBeenCalledTimes(1);
+    expect(provisionSpecialistOwnerMock).toHaveBeenCalledWith({
+      challengeId: "22222222-2222-4222-8222-222222222222",
+    });
   });
 
   it("fails closed after email verification when protected staff setup is temporarily unavailable", async () => {

@@ -77,9 +77,14 @@ function readRaw(): AuthFlowPendingStored | null {
         typeof specialistPending.email !== "string" ||
         typeof specialistPending.challengeId !== "string" ||
         typeof specialistPending.retryAfterSeconds !== "number" ||
-        typeof specialistPending.organizationTitle !== "string" ||
-        typeof specialistPending.organizationSlug !== "string"
+        typeof specialistPending.organizationTitle !== "string"
       ) {
+        return null;
+      }
+      if (specialistPending.organizationSlug === undefined) {
+        // Payloads saved before mandatory clinic slugs shipped remain recoverable after cutover.
+        Object.assign(specialistPending, { organizationSlug: "" });
+      } else if (typeof specialistPending.organizationSlug !== "string") {
         return null;
       }
       if (

@@ -274,6 +274,7 @@ export function AuthFlowV2({
   const [specialistSignupPatronymic, setSpecialistSignupPatronymic] = useState("");
   const [specialistSignupOrganizationTitle, setSpecialistSignupOrganizationTitle] = useState("");
   const [specialistSignupOrganizationSlug, setSpecialistSignupOrganizationSlug] = useState("");
+  const [specialistSignupSlugRecovery, setSpecialistSignupSlugRecovery] = useState(false);
   const [specialistSignupSlugStatus, setSpecialistSignupSlugStatus] =
     useState<"idle" | "checking" | "available" | "error">("idle");
   const [specialistSignupSlugMessage, setSpecialistSignupSlugMessage] = useState<string | null>(null);
@@ -383,6 +384,7 @@ export function AuthFlowV2({
       setSpecialistSignupPatronymic(p.patronymic ?? "");
       setSpecialistSignupOrganizationTitle(p.organizationTitle);
       setSpecialistSignupOrganizationSlug(p.organizationSlug);
+      setSpecialistSignupSlugRecovery(!p.organizationSlug);
       setEmailRegChallengeId(p.challengeId);
       setEmailVerifyPurpose("specialist_signup");
       setEmailAuthMode("verify");
@@ -803,6 +805,7 @@ export function AuthFlowV2({
     setSpecialistSignupPatronymic("");
     setSpecialistSignupOrganizationTitle("");
     setSpecialistSignupOrganizationSlug("");
+    setSpecialistSignupSlugRecovery(false);
     setSpecialistSignupSlugStatus("idle");
     setSpecialistSignupSlugMessage(null);
     specialistSignupSlugEditedRef.current = false;
@@ -897,6 +900,7 @@ export function AuthFlowV2({
       }
       const { response: res, data } = result;
       if (data.ok && data.challengeId) {
+        setSpecialistSignupSlugRecovery(false);
         setEmailRegChallengeId(data.challengeId);
         setEmailRegRetrySec(data.retryAfterSeconds ?? 60);
         setEmailVerifyPurpose("specialist_signup");
@@ -1633,6 +1637,52 @@ export function AuthFlowV2({
 
         {emailAuthMode === "verify" && emailRegChallengeId ? (
           <div className="mt-2">
+            {emailVerifyPurpose === "specialist_signup" && specialistSignupSlugRecovery ? (
+              <div className="mb-3 flex flex-col gap-1">
+                <label htmlFor="auth-specialist-recovery-slug" className={authFormFieldLabelClass}>
+                  Публичный адрес
+                </label>
+                <Input
+                  id="auth-specialist-recovery-slug"
+                  type="text"
+                  autoComplete="off"
+                  autoCapitalize="none"
+                  spellCheck={false}
+                  value={specialistSignupOrganizationSlug}
+                  onChange={(e) => {
+                    specialistSignupSlugEditedRef.current = true;
+                    specialistSignupSlugCheckRef.current += 1;
+                    const value = e.target.value;
+                    setSpecialistSignupOrganizationSlug(value);
+                    const validated = validateOrganizationSlugCandidate(value);
+                    setSpecialistSignupSlugStatus(validated.ok ? "idle" : "error");
+                    setSpecialistSignupSlugMessage(
+                      validated.ok ? null : specialistSignupSlugErrorMessage(validated.code),
+                    );
+                  }}
+                  onBlur={() => void checkSpecialistSignupSlugAvailability()}
+                  disabled={loading}
+                  aria-invalid={specialistSignupSlugStatus === "error"}
+                  className={authEmailInputClass}
+                />
+                <span className={cn(patientMutedTextClass, "text-xs")}>
+                  /book/{specialistSignupOrganizationSlug || "adres-kliniki"}
+                </span>
+                {specialistSignupSlugMessage ? (
+                  <span
+                    role={specialistSignupSlugStatus === "error" ? "alert" : "status"}
+                    className={cn(
+                      "text-xs",
+                      specialistSignupSlugStatus === "error"
+                        ? "text-destructive"
+                        : patientMutedTextClass,
+                    )}
+                  >
+                    {specialistSignupSlugMessage}
+                  </span>
+                ) : null}
+              </div>
+            ) : null}
             <OtpCodeForm
               challengeId={emailRegChallengeId}
               retryAfterSeconds={emailRegRetrySec}
@@ -1640,12 +1690,21 @@ export function AuthFlowV2({
               submitLabel="Продолжить"
               description={
                 emailVerifyPurpose === "specialist_signup"
-                  ? "Введите код из письма, чтобы завершить регистрацию кабинета."
+                  ? specialistSignupSlugRecovery
+                    ? "Укажите публичный адрес и введите код из письма."
+                    : "Введите код из письма, чтобы завершить регистрацию кабинета."
                   : "Введите код из письма."
               }
               onConfirm={async (code) => {
                 engageInteractive();
                 if (emailVerifyPurpose === "specialist_signup") {
+                  let organizationSlug: string | undefined;
+                  if (specialistSignupSlugRecovery) {
+                    organizationSlug = await checkSpecialistSignupSlugAvailability() ?? undefined;
+                    if (!organizationSlug) {
+                      return { ok: false as const, message: "Укажите свободный публичный адрес." };
+                    }
+                  }
                   const r = await fetchJsonSafe<{
                     ok?: boolean;
                     redirectTo?: string;
@@ -1655,7 +1714,11 @@ export function AuthFlowV2({
                   }>("/api/auth/specialist-signup/confirm", {
                     method: "POST",
                     headers: { "content-type": "application/json" },
-                    body: JSON.stringify({ challengeId: emailRegChallengeId, code }),
+                    body: JSON.stringify({
+                      challengeId: emailRegChallengeId,
+                      code,
+                      ...(organizationSlug ? { organizationSlug } : {}),
+                    }),
                   });
                   if (!r.ok) return { ok: false as const, message: AUTH_NETWORK_ERROR_MESSAGE };
                   const { response: res, data } = r;
@@ -1673,6 +1736,19 @@ export function AuthFlowV2({
                     setEmailAuthMode("login");
                     toast.error(data.message ?? "Войдите с паролем ещё раз, чтобы продолжить защищённую настройку.");
                     return { ok: false as const, message: data.message ?? "Повторите вход." };
+                  }
+                  if (data.error === "organization_slug_required") {
+                    setSpecialistSignupSlugRecovery(true);
+                    return {
+                      ok: false as const,
+                      message: data.message ?? "Выберите публичный адрес клиники и повторите подтверждение.",
+                    };
+                  }
+                  if (data.error === "slug_unavailable") {
+                    setSpecialistSignupSlugRecovery(true);
+                    setSpecialistSignupSlugStatus("error");
+                    setSpecialistSignupSlugMessage(specialistSignupSlugErrorMessage("slug_unavailable"));
+                    return { ok: false as const, message: specialistSignupSlugErrorMessage("slug_unavailable") };
                   }
                   if (res.status === 429 || data.error === "too_many_attempts") {
                     return {

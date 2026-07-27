@@ -362,6 +362,69 @@ describe("AuthFlowV2 — browser", () => {
     expect(screen.getByLabelText("Код подтверждения")).toBeInTheDocument();
   });
 
+  it("restores a pre-cutover specialist signup without a slug and submits the recovery address", async () => {
+    const user = userEvent.setup();
+    const confirmBodies: Record<string, unknown>[] = [];
+    vi.stubGlobal(
+      "fetch",
+      vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
+        const url = typeof input === "string" ? input : input.toString();
+        if (url.includes("/api/auth/specialist-signup/slug")) {
+          return jsonRes({ ok: true, slug: "clinic-before-cutover", available: true });
+        }
+        if (url.includes("/api/auth/specialist-signup/confirm")) {
+          confirmBodies.push(JSON.parse(String(init?.body)) as Record<string, unknown>);
+          return jsonRes({ ok: false, error: "invalid_code" }, { ok: false, status: 400 });
+        }
+        return jsonRes({});
+      }),
+    );
+    sessionStorage.setItem(
+      "bc_auth_flow_pending_v1",
+      JSON.stringify({
+        v: 1,
+        mode: "specialist_signup_verify",
+        email: "doctor@example.com",
+        challengeId: "22222222-2222-4222-8222-222222222222",
+        retryAfterSeconds: 60,
+        savedAt: Date.now(),
+        lastName: "Doctor",
+        firstName: "Owner",
+        patronymic: "",
+        organizationTitle: "Clinic Before Cutover",
+      }),
+    );
+
+    render(
+      <AuthFlowV2
+        nextParam={null}
+        prefetchedAuthConfig={{
+          oauthProviders: { yandex: false, google: false, apple: false },
+          telegramBotUsername: null,
+          maxBotOpenUrl: null,
+          specialistSignupEnabled: true,
+          fetchedAt: Date.now(),
+        }}
+      />,
+    );
+
+    const slugInput = await screen.findByLabelText("Публичный адрес");
+    await user.type(slugInput, "clinic-before-cutover");
+    const codeInput = screen.getByLabelText("Код подтверждения");
+    await user.type(codeInput, "123456");
+    await user.click(screen.getByRole("button", { name: "Продолжить" }));
+
+    await waitFor(() =>
+      expect(confirmBodies).toEqual([
+        {
+          challengeId: "22222222-2222-4222-8222-222222222222",
+          code: "123456",
+          organizationSlug: "clinic-before-cutover",
+        },
+      ]),
+    );
+  });
+
   it("email flow shows OTP email form after opening email from oauth-first", async () => {
     const user = userEvent.setup();
     vi.stubGlobal("fetch", vi.fn(() => jsonRes({})));

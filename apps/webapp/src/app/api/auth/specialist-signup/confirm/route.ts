@@ -13,6 +13,7 @@ import { confirmEmailChallenge } from "@/modules/auth/emailAuth";
 import { getSpecialistSignupEnabled } from "@/modules/auth/specialistSignupRollout";
 import { getCurrentSession, setSessionFromUser } from "@/modules/auth/service";
 import { enterStaffSecuritySelfPrincipal } from "@/app-layer/principal/staffSecuritySelfPrincipal";
+import { validateOrganizationSlugCandidate } from "@/modules/clinic-directory/organizationSlug";
 import {
   jsonError,
   jsonOk,
@@ -23,11 +24,20 @@ import {
 const bodySchema = z.object({
   challengeId: z.string().uuid(),
   code: z.string().min(4).max(12),
+  organizationSlug: z.string().max(512).optional(),
 });
+
+const ORGANIZATION_SLUG_REQUIRED_MESSAGE =
+  "Выберите публичный адрес клиники и повторите подтверждение. Код ещё действует.";
 
 const PROVISIONING_ERROR_RULES = {
   specialist_signup_intent_not_found: { status: 400, code: "signup_intent_not_found" },
   specialist_signup_user_not_verified: { status: 400, code: "expired_code" },
+  specialist_signup_slug_reservation_not_found: {
+    status: 409,
+    code: "organization_slug_required",
+    publicFields: { message: ORGANIZATION_SLUG_REQUIRED_MESSAGE },
+  },
 } as const satisfies ApiErrorLiteralRules;
 
 export async function POST(request: Request) {
@@ -62,9 +72,11 @@ export async function POST(request: Request) {
 
   const deps = buildAppDeps();
   let userId = await deps.userPasswordCredentials.findUserIdByEmailChallengeId(parsed.data.challengeId);
+  let intent = await deps.organizationProvisioning.getSpecialistSignupIntentByChallengeId(
+    parsed.data.challengeId,
+  );
   let establishedSession = false;
   if (!userId) {
-    const intent = await deps.organizationProvisioning.getSpecialistSignupIntentByChallengeId(parsed.data.challengeId);
     if (!intent) {
       return jsonError("expired_code", {}, { status: 400 });
     }
@@ -79,6 +91,39 @@ export async function POST(request: Request) {
     }
     userId = intent.userId;
     establishedSession = true;
+  }
+
+  if (!intent) {
+    return jsonError("expired_code", {}, { status: 400 });
+  }
+
+  if (intent.organizationSlug === null) {
+    if (!parsed.data.organizationSlug) {
+      return jsonError(
+        "organization_slug_required",
+        { message: ORGANIZATION_SLUG_REQUIRED_MESSAGE },
+        { status: 409 },
+      );
+    }
+    const organizationSlug = validateOrganizationSlugCandidate(parsed.data.organizationSlug);
+    if (!organizationSlug.ok) {
+      return jsonError(organizationSlug.code, {}, { status: 400 });
+    }
+    enterStaffSecuritySelfPrincipal(userId, "api/auth/specialist-signup/confirm:slug-recovery-self");
+    try {
+      const recovered = await deps.organizationProvisioning.replacePendingSpecialistSignupChallenge({
+        challengeId: parsed.data.challengeId,
+        organizationSlug: organizationSlug.slug,
+      });
+      if (!recovered) {
+        return jsonError("signup_intent_not_found", {}, { status: 400 });
+      }
+    } catch (error) {
+      if (error instanceof Error && error.message === "slug_unavailable") {
+        return jsonError("slug_unavailable", {}, { status: 409 });
+      }
+      throw error;
+    }
   }
 
   if (!establishedSession) {
