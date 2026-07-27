@@ -7,6 +7,19 @@ export function BookingOverviewPanel({ data }: { data: BookingAdminOverviewData 
     return <p className="text-sm text-muted-foreground">Запись недоступна без подключения к базе данных.</p>;
   }
 
+  if (data.organizationRequired) {
+    return (
+      <Card>
+        <CardHeader className="pb-2">
+          <CardTitle className="text-base">Клиника не выбрана</CardTitle>
+        </CardHeader>
+        <CardContent className="text-sm text-muted-foreground">
+          Данные записи, расписание, правила и абонементы доступны только в контексте клиники.
+        </CardContent>
+      </Card>
+    );
+  }
+
   const { stats, warnings } = data;
 
   return (
