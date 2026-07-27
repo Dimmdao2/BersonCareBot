@@ -353,6 +353,15 @@ cancelled or superseded work and is excluded from both totals. Detail and eviden
       - [ ] the undisableable floor — e-mail has no switch, at least one further channel must stay on,
         enforced on the server and not only in the form;
       - [ ] no early return on an empty recipient set: fall back, count, and let the counter alert.
+      **What counts as an emergency is now decided too** — §28.1: a failed precondition/channel self-test,
+      never a share of recipients. The probe machinery already exists (`runOperatorHealthProbes`: MAX,
+      Telegram, Rubitime, Google Calendar) and **nothing schedules it** — no cron, no timer, no in-process
+      job. Open work:
+      - [ ] schedule the existing probe endpoint (the documented `deploy/host/operator-health-probe.sh`);
+      - [ ] add the missing probes: SMTP connect+AUTH, a daily real test send, SMS balance, web push;
+      - [ ] per-channel timeouts instead of the single 15 s constant (§28.2), and alert on the second
+        consecutive failure, not the first;
+      - [ ] an external heartbeat whose silence is the alert, on a transport we do not own.
 - [x] **D-2 DONE 2026-07-26 (`eb62b6544`) — and the defect was worse than this line said.**
       Both routes (`api/patient/support`, `api/public/support`) hardcoded `ADMIN_TELEGRAM_ID` and relayed
       to Telegram only: unset id → 503 before anything was attempted, relay failure → 502. **Neither route
