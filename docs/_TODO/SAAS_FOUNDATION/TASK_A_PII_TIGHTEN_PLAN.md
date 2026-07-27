@@ -163,14 +163,27 @@ OR
       входит и `pgUserByPhone.createOrBind.test.ts`, ранее не посчитанный).
 
 ### 5. Independent audit + acceptance
-- [ ] **Independent adversarial audit by a DIFFERENT model (reality-check: predicate correctness, dormant trap,
-      integrator/bootstrap write paths, no clinic #1 lockout, checker coverage).** — **Галочка СНЯТА
-      независимым аудитом 27.07.** Была поставлена ссылкой на аудит от **2026-07-12**, но этот же файл выше
-      фиксирует, что шаги 1-3 (RLS-split, `bootstrap_hybrid_org_gated`) были **REOPENED 2026-07-23** как
-      «never added» и пересобраны заново к 07-24/27. Аудит 07-12 физически не мог проверить предикат, которого
-      на 07-23 в репозитории не было — значит текущая реализация независимой проверки НЕ проходила.
-      Закроется свежим adversarial-аудитом другой модели против `rls-descriptor-model.mjs` /
-      `rls-sql-renderer.mjs` в состоянии на 27.07 и позже.
+- [x] **Independent adversarial audit by a DIFFERENT model (reality-check: predicate correctness, dormant trap,
+      integrator/bootstrap write paths, no clinic #1 lockout, checker coverage).** — ✅ **PASS. Свежий
+      адверсарный аудит 2026-07-27 против ЖИВОГО кода** (не против отчёта и не по цитате прошлого аудита).
+      Проверено и совпало: (1) отрендеренный предикат `rls-sql-renderer.mjs:523` посимвольно равен целевому
+      из §"Target predicate (strict)"; тот же SQL лежит в задеплоенном артефакте
+      `deploy/postgres/phase4-locked-helper-rls-policies.sql:1151,1520`. Разобраны все ветки: staff клиники A
+      NULL-строку не читает, staff без org-контекста режется через `NOT is_staff()`, обойти в рамках текущей
+      архитектуры сессий не удалось. (2) Ловушка dormant НЕ сработала: `bootstrap_hybrid_org_gated` намеренно
+      отсутствует в списке short-circuit `phase4-locked-policy-artifact.mjs:121-126`, обе таблицы идут общим
+      путём `(dormantCompat OR strict)`. (3) Запись интегратора проходит: org-match ветка не содержит
+      `is_staff()`. (4) Запись при bootstrap (OTP/мессенджер/публичная запись) проходит WITH CHECK через
+      NULL-ветку. (5) Чекеры проверяют СТРОГУЮ форму, а не «политика существует»:
+      `check-p0-8-sql-renderer.mjs:123-127` делает `assert.equal` на точную строку предиката,
+      `check-phase4-locked-policy-artifact.mjs` регенерирует артефакт и диффит с закоммиченным `.sql`.
+      Прогнано сейчас: 5 чекеров + `check-saas-db-regression` зелёные, webapp typecheck чистый,
+      `pgUserByPhone`/`createOrBind`/`pgPhoneMessengerBind` — 3 файла, 21/21.
+      **История этой галочки — урок, а не формальность.** 27.07 её сняли, рассуждая о датах: аудит от 12.07
+      не мог проверить код, переписанный 23.07. Логика верная, вывод неверный — владелец: «надо проверить
+      было в коде прежде чем снимать. Врать может подпись». Проверили код — реализация корректна.
+      Не закрыто и остаётся открытым отдельно (сам план это и так честно держит): 4c — живая репетиция на
+      disposable-копии, и FLIP-BLOCKERS для enforce/locked-режима.
 - [ ] Owner live acceptance. Update taskdb #708 with commit_ref. — no evidence of a live owner walkthrough or a
       taskdb #708 `commit_ref` found in this pass; left open.
 
