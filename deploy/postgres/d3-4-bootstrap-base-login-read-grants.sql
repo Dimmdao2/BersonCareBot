@@ -234,6 +234,33 @@ SELECT format(
   :'d3_4_bootstrap_base_role'
 )
 WHERE to_regprocedure('app.phone_otp_public_booking_consume_challenge(text, text, integer, integer)') IS NOT NULL \gexec
+-- 0252 phone auth/profile-bind store seam. These paths remain on this NOINHERIT login because their
+-- bootstrap principal never SET ROLEs; app_patient-only EXECUTE would therefore be unreachable.
+SELECT format(
+  'REVOKE EXECUTE ON FUNCTION app.phone_challenge_store_upsert(text, text, bigint, text, jsonb, integer) FROM %I',
+  :'d3_4_bootstrap_base_role'
+)
+WHERE to_regprocedure('app.phone_challenge_store_upsert(text, text, bigint, text, jsonb, integer)') IS NOT NULL \gexec
+SELECT format(
+  'REVOKE EXECUTE ON FUNCTION app.phone_challenge_store_read(text) FROM %I',
+  :'d3_4_bootstrap_base_role'
+)
+WHERE to_regprocedure('app.phone_challenge_store_read(text)') IS NOT NULL \gexec
+SELECT format(
+  'REVOKE EXECUTE ON FUNCTION app.phone_challenge_store_delete(text) FROM %I',
+  :'d3_4_bootstrap_base_role'
+)
+WHERE to_regprocedure('app.phone_challenge_store_delete(text)') IS NOT NULL \gexec
+SELECT format(
+  'REVOKE EXECUTE ON FUNCTION app.phone_challenge_store_delete_by_phone(text) FROM %I',
+  :'d3_4_bootstrap_base_role'
+)
+WHERE to_regprocedure('app.phone_challenge_store_delete_by_phone(text)') IS NOT NULL \gexec
+SELECT format(
+  'REVOKE EXECUTE ON FUNCTION app.phone_challenge_store_increment_attempts(text, bigint) FROM %I',
+  :'d3_4_bootstrap_base_role'
+)
+WHERE to_regprocedure('app.phone_challenge_store_increment_attempts(text, bigint)') IS NOT NULL \gexec
 REVOKE EXECUTE ON FUNCTION app.email_auth_find_email_send_cooldown(uuid, text) FROM :"d3_4_bootstrap_base_role";
 REVOKE EXECUTE ON FUNCTION app.email_auth_delete_email_challenges_for_user(uuid) FROM :"d3_4_bootstrap_base_role";
 REVOKE EXECUTE ON FUNCTION app.email_auth_insert_email_challenge(uuid, text, text, bigint) FROM :"d3_4_bootstrap_base_role";
@@ -516,6 +543,32 @@ SELECT format(
   :'d3_4_bootstrap_base_role'
 )
 WHERE to_regprocedure('app.phone_otp_public_booking_consume_challenge(text, text, integer, integer)') IS NOT NULL \gexec
+-- 0252: same bootstrap/base-login reachability rule as the booking OTP pair immediately above.
+SELECT format(
+  'GRANT EXECUTE ON FUNCTION app.phone_challenge_store_upsert(text, text, bigint, text, jsonb, integer) TO %I',
+  :'d3_4_bootstrap_base_role'
+)
+WHERE to_regprocedure('app.phone_challenge_store_upsert(text, text, bigint, text, jsonb, integer)') IS NOT NULL \gexec
+SELECT format(
+  'GRANT EXECUTE ON FUNCTION app.phone_challenge_store_read(text) TO %I',
+  :'d3_4_bootstrap_base_role'
+)
+WHERE to_regprocedure('app.phone_challenge_store_read(text)') IS NOT NULL \gexec
+SELECT format(
+  'GRANT EXECUTE ON FUNCTION app.phone_challenge_store_delete(text) TO %I',
+  :'d3_4_bootstrap_base_role'
+)
+WHERE to_regprocedure('app.phone_challenge_store_delete(text)') IS NOT NULL \gexec
+SELECT format(
+  'GRANT EXECUTE ON FUNCTION app.phone_challenge_store_delete_by_phone(text) TO %I',
+  :'d3_4_bootstrap_base_role'
+)
+WHERE to_regprocedure('app.phone_challenge_store_delete_by_phone(text)') IS NOT NULL \gexec
+SELECT format(
+  'GRANT EXECUTE ON FUNCTION app.phone_challenge_store_increment_attempts(text, bigint) TO %I',
+  :'d3_4_bootstrap_base_role'
+)
+WHERE to_regprocedure('app.phone_challenge_store_increment_attempts(text, bigint)') IS NOT NULL \gexec
 GRANT EXECUTE ON FUNCTION app.email_auth_find_email_send_cooldown(uuid, text) TO :"d3_4_bootstrap_base_role";
 GRANT EXECUTE ON FUNCTION app.email_auth_delete_email_challenges_for_user(uuid) TO :"d3_4_bootstrap_base_role";
 GRANT EXECUTE ON FUNCTION app.email_auth_insert_email_challenge(uuid, text, text, bigint) TO :"d3_4_bootstrap_base_role";

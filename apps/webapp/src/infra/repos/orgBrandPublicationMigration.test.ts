@@ -217,7 +217,9 @@ describe("0238 organization brand publication", () => {
     // (lfk_exercises, lfk_exercise_regions, lfk_exercise_media, lfk_complex_templates,
     // lfk_complex_template_exercises, media_files) `TO app_staff`. No new required-grant row: it
     // only reads public.media_files, already covered by app_owner's existing SELECT grant there.
-    expect(deploy).toContain("local expected_secdef_count=63");
+    // 62 -> 70 (2026-07-27): migration 0252 adds five phone-challenge actions and three patient-LFK
+    // reads. The live-corrected baseline is 62; the new accessors are reviewed in their focused test.
+    expect(deploy).toContain("local expected_secdef_count=70");
     expect(deploy).toContain("('public.org_enrollments', 'SELECT')");
     expect(deploy).toContain("('public.phone_challenges', 'INSERT')");
     expect(deploy).toContain("('public.phone_otp_locks', 'UPDATE')");

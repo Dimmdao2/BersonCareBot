@@ -1,9 +1,14 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const runWebappPgTextMock = vi.hoisted(() => vi.fn());
+const getCurrentDbPrincipalMock = vi.hoisted(() => vi.fn());
 
 vi.mock("@/infra/db/runWebappSql", () => ({
   runWebappPgText: runWebappPgTextMock,
+}));
+vi.mock("@bersoncare/db-principal", () => ({
+  getCurrentDbPrincipal: getCurrentDbPrincipalMock,
+  getCurrentDbPrincipalOrganizationId: vi.fn(),
 }));
 
 import { pgLfkDiaryPort } from "./pgLfkDiary";
@@ -11,6 +16,12 @@ import { pgLfkDiaryPort } from "./pgLfkDiary";
 describe("pgLfkDiaryPort", () => {
   beforeEach(() => {
     runWebappPgTextMock.mockReset();
+    getCurrentDbPrincipalMock.mockReset();
+    getCurrentDbPrincipalMock.mockReturnValue({
+      kind: "patient",
+      organizationId: "a0000000-0000-4000-8000-000000000001",
+      platformUserId: "00000000-0000-4000-8000-000000000099",
+    });
   });
 
   it("listSessions scopes by user_id and limit", async () => {
@@ -53,6 +64,45 @@ describe("pgLfkDiaryPort", () => {
     const sql = String(runWebappPgTextMock.mock.calls[0]?.[0] ?? "");
     expect(sql).toContain("platform_user_id");
     expect(sql).toContain("c.id = $1");
+    expect(sql).toContain("app.read_patient_lfk_complex_cover(c.id)");
+    expect(sql).not.toContain("JOIN lfk_exercise_media");
+  });
+
+  it("reads exercise lines only through the current-principal accessor", async () => {
+    runWebappPgTextMock.mockResolvedValueOnce({ rows: [] });
+    const complexIds = [
+      "00000000-0000-4000-8000-000000000001",
+      "00000000-0000-4000-8000-000000000002",
+    ];
+    await pgLfkDiaryPort.listLfkComplexExerciseLinesForUser({
+      userId: "00000000-0000-4000-8000-000000000099",
+      complexIds,
+    });
+    const sql = String(runWebappPgTextMock.mock.calls[0]?.[0] ?? "");
+    expect(sql).toContain("FROM app.read_patient_lfk_complex_exercise_lines($1::uuid[])");
+    expect(sql).not.toContain("JOIN lfk_exercises");
+    expect(runWebappPgTextMock.mock.calls[0]?.[1]).toEqual([complexIds]);
+  });
+
+  it("keeps the existing staff-only catalog joins for a doctor reading a client card", async () => {
+    getCurrentDbPrincipalMock.mockReturnValue({
+      kind: "organization",
+      organizationId: "a0000000-0000-4000-8000-000000000001",
+      actorPlatformUserId: "00000000-0000-4000-8000-000000000010",
+    });
+    runWebappPgTextMock.mockResolvedValueOnce({ rows: [] });
+    const complexIds = ["00000000-0000-4000-8000-000000000001"];
+    await pgLfkDiaryPort.listLfkComplexExerciseLinesForUser({
+      userId: "00000000-0000-4000-8000-000000000099",
+      complexIds,
+    });
+    const sql = String(runWebappPgTextMock.mock.calls[0]?.[0] ?? "");
+    expect(sql).toContain("INNER JOIN lfk_exercises e");
+    expect(sql).toContain("platform_user_id = $2::uuid");
+    expect(runWebappPgTextMock.mock.calls[0]?.[1]).toEqual([
+      complexIds,
+      "00000000-0000-4000-8000-000000000099",
+    ]);
   });
 
   it("addSession inserts session and enriches with complex title", async () => {

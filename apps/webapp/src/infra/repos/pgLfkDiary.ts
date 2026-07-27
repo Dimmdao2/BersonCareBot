@@ -2,7 +2,10 @@
  * PostgreSQL implementation of LfkDiaryPort.
  * Tables: lfk_complexes, lfk_sessions (see webapp/migrations/005_lfk_complexes_and_sessions.sql).
  */
-import { getCurrentDbPrincipalOrganizationId } from "@bersoncare/db-principal";
+import {
+  getCurrentDbPrincipal,
+  getCurrentDbPrincipalOrganizationId,
+} from "@bersoncare/db-principal";
 import { runWebappPgText } from "@/infra/db/runWebappSql";
 import { nullableToIsoStringSafe, toIsoStringSafe } from "@/shared/lib/toIsoStringSafe";
 import type { MediaPreviewStatus } from "@/modules/media/types";
@@ -121,6 +124,31 @@ const COMPLEX_RETURNING = `id, user_id, title,
 const SESSION_SELECT = `s.id, s.user_id, s.complex_id, s.completed_at, s.source, s.created_at, c.title AS complex_title,
   s.recorded_at, s.duration_minutes, s.difficulty_0_10, s.pain_0_10, s.comment`;
 
+const PATIENT_COMPLEX_COVER_JOIN =
+  "LEFT JOIN LATERAL app.read_patient_lfk_complex_cover(c.id) AS cover ON TRUE";
+
+const STAFF_COMPLEX_COVER_JOIN = `LEFT JOIN LATERAL (
+  SELECT em.media_url AS cover_image_url,
+         em.media_type AS cover_media_type,
+         mf.id AS cover_media_id,
+         mf.preview_sm_key, mf.preview_md_key, mf.preview_status
+  FROM lfk_complex_exercises ce
+  INNER JOIN lfk_exercise_media em ON em.exercise_id = ce.exercise_id
+  LEFT JOIN media_files mf ON mf.id = NULLIF(
+    substring(trim(em.media_url) from '^/api/media/([0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12})'),
+    ''
+  )::uuid
+  WHERE ce.complex_id = c.id
+  ORDER BY ce.sort_order ASC, em.sort_order ASC, em.created_at ASC
+  LIMIT 1
+) cover ON TRUE`;
+
+function complexCoverJoinForCurrentPrincipal(): string {
+  return getCurrentDbPrincipal()?.kind === "patient"
+    ? PATIENT_COMPLEX_COVER_JOIN
+    : STAFF_COMPLEX_COVER_JOIN;
+}
+
 function userMatchSql(tableAlias: string, userParamIndex: number): string {
   return `(${tableAlias}.platform_user_id = $${userParamIndex}::uuid OR (${tableAlias}.platform_user_id IS NULL AND ${tableAlias}.user_id = $${userParamIndex}::text))`;
 }
@@ -154,23 +182,7 @@ export const pgLfkDiaryPort: LfkDiaryPort = {
     const result = await runWebappPgText<LfkComplexDbRow>(
       `SELECT ${COMPLEX_SELECT}
        FROM lfk_complexes c
-       LEFT JOIN LATERAL (
-         -- cover_image_url: не использовать как preview в UI — только как source для playback; миниатюра — coverPreviewSmUrl.
-         SELECT em.media_url AS cover_image_url,
-                em.media_type AS cover_media_type,
-                mf.id AS cover_media_id,
-                mf.preview_sm_key, mf.preview_md_key, mf.preview_status
-         FROM lfk_complex_exercises ce
-         INNER JOIN lfk_exercise_media em ON em.exercise_id = ce.exercise_id
-         -- TEMP: parsing media_id из media_url, будет заменено на нормальный FK media_id
-         LEFT JOIN media_files mf ON mf.id = NULLIF(
-           substring(trim(em.media_url) from '^/api/media/([0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12})'),
-           ''
-         )::uuid
-         WHERE ce.complex_id = c.id
-         ORDER BY ce.sort_order ASC, em.sort_order ASC, em.created_at ASC
-         LIMIT 1
-       ) cover ON TRUE
+       ${complexCoverJoinForCurrentPrincipal()}
        WHERE ${userMatchSql("c", 1)} ${activeOnly ? "AND c.is_active = true" : ""}
        ORDER BY c.updated_at DESC`,
       [userId]
@@ -229,23 +241,7 @@ export const pgLfkDiaryPort: LfkDiaryPort = {
     const result = await runWebappPgText<LfkComplexDbRow>(
       `SELECT ${COMPLEX_SELECT}
        FROM lfk_complexes c
-       LEFT JOIN LATERAL (
-         -- cover_image_url: не использовать как preview в UI — только как source для playback; миниатюра — coverPreviewSmUrl.
-         SELECT em.media_url AS cover_image_url,
-                em.media_type AS cover_media_type,
-                mf.id AS cover_media_id,
-                mf.preview_sm_key, mf.preview_md_key, mf.preview_status
-         FROM lfk_complex_exercises ce
-         INNER JOIN lfk_exercise_media em ON em.exercise_id = ce.exercise_id
-         -- TEMP: parsing media_id из media_url, будет заменено на нормальный FK media_id
-         LEFT JOIN media_files mf ON mf.id = NULLIF(
-           substring(trim(em.media_url) from '^/api/media/([0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12})'),
-           ''
-         )::uuid
-         WHERE ce.complex_id = c.id
-         ORDER BY ce.sort_order ASC, em.sort_order ASC, em.created_at ASC
-         LIMIT 1
-       ) cover ON TRUE
+       ${complexCoverJoinForCurrentPrincipal()}
        WHERE c.id = $1 AND ${userMatchSql("c", 2)}`,
       [params.complexId, params.userId]
     );
@@ -350,6 +346,7 @@ export const pgLfkDiaryPort: LfkDiaryPort = {
     complexIds: string[];
   }): Promise<Record<string, LfkComplexExerciseLine[]>> {
     if (params.complexIds.length === 0) return {};
+    const isPatientPrincipal = getCurrentDbPrincipal()?.kind === "patient";
     const result = await runWebappPgText<{
       complex_id: string;
       id: string;
@@ -358,16 +355,19 @@ export const pgLfkDiaryPort: LfkDiaryPort = {
       comment: string | null;
       local_comment: string | null;
     }>(
-      `SELECT ce.complex_id, ce.id, ce.sort_order,
-              COALESCE(NULLIF(trim(e.title), ''), 'Упражнение') AS exercise_title,
-              ce.comment, ce.local_comment
-       FROM lfk_complex_exercises ce
-       INNER JOIN lfk_exercises e ON e.id = ce.exercise_id
-       INNER JOIN lfk_complexes c ON c.id = ce.complex_id
-       WHERE ce.complex_id = ANY($1::uuid[])
-         AND ${userMatchSql("c", 2)}
-       ORDER BY ce.complex_id, ce.sort_order ASC, ce.id ASC`,
-      [params.complexIds, params.userId]
+      isPatientPrincipal
+        ? `SELECT complex_id, id, sort_order, exercise_title, comment, local_comment
+           FROM app.read_patient_lfk_complex_exercise_lines($1::uuid[])`
+        : `SELECT ce.complex_id, ce.id, ce.sort_order,
+                  COALESCE(NULLIF(trim(e.title), ''), 'Упражнение') AS exercise_title,
+                  ce.comment, ce.local_comment
+           FROM lfk_complex_exercises ce
+           INNER JOIN lfk_exercises e ON e.id = ce.exercise_id
+           INNER JOIN lfk_complexes c ON c.id = ce.complex_id
+           WHERE ce.complex_id = ANY($1::uuid[])
+             AND ${userMatchSql("c", 2)}
+           ORDER BY ce.complex_id, ce.sort_order ASC, ce.id ASC`,
+      isPatientPrincipal ? [params.complexIds] : [params.complexIds, params.userId]
     );
     const byComplex: Record<string, LfkComplexExerciseLine[]> = {};
     for (const row of result.rows) {

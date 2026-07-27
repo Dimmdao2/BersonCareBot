@@ -1262,7 +1262,16 @@ WITH required(tbl, priv) AS (
     ('public.email_otp_locks', 'SELECT'),
     ('public.email_otp_locks', 'INSERT'),
     ('public.email_otp_locks', 'UPDATE'),
-    ('public.email_otp_locks', 'DELETE')
+    ('public.email_otp_locks', 'DELETE'),
+    -- 0252 patient LFK action accessors: cover and exercise-line reads re-check current org+patient;
+    -- the platform media mapping re-checks platform/global ownership. media_files SELECT is already
+    -- covered by its canonical overlay and does not need a duplicate row here.
+    ('public.lfk_complexes', 'SELECT'),
+    ('public.lfk_complex_exercises', 'SELECT'),
+    ('public.lfk_complex_templates', 'SELECT'),
+    ('public.lfk_complex_template_exercises', 'SELECT'),
+    ('public.lfk_exercises', 'SELECT'),
+    ('public.lfk_exercise_media', 'SELECT')
 )
 SELECT coalesce(string_agg(tbl || ' ' || priv, ', ' ORDER BY tbl, priv), '')
 FROM required
@@ -1388,7 +1397,19 @@ SELECT has_column_privilege('app_owner', 'public.operator_incidents', 'alert_sen
   # This was invisible until 2026-07-27: the operator_incidents check above compared a `::text`-cast
   # boolean to "t" and FATALed unconditionally, so the count assertion had never once executed
   # (17 transcripts checked; fixed in 6ac7c2af4).
-  local expected_secdef_count=62
+  # 62 -> 70 (2026-07-27, taskdb #1032/#1033): migration 0252_patient_action_accessors adds eight
+  # reviewed app_owner SECURITY DEFINER functions. Phone auth/profile bind adds five exact operations:
+  # app.phone_challenge_store_upsert/read/delete/delete_by_phone/increment_attempts, all touching only
+  # public.phone_challenges (whose SELECT/INSERT/UPDATE/DELETE grants are already required above).
+  # Patient LFK adds app.read_patient_lfk_complex_cover(uuid) (reads public.lfk_complexes,
+  # public.lfk_complex_exercises, public.lfk_exercise_media, public.media_files),
+  # app.read_patient_lfk_complex_exercise_lines(uuid[]) (reads public.lfk_complexes,
+  # public.lfk_complex_exercises, public.lfk_exercises), and
+  # app.read_platform_lfk_media_entitlement_refs(uuid) (reads public.media_files,
+  # public.lfk_exercise_media, public.lfk_exercises, public.lfk_complex_templates and
+  # public.lfk_complex_template_exercises). The six newly required LFK SELECT rows are in the VALUES
+  # set above; public.media_files SELECT was already reviewed for app_owner.
+  local expected_secdef_count=70
   local actual_secdef_count
   actual_secdef_count="$(sudo -u postgres psql -d "$DB" -X -v ON_ERROR_STOP=1 -tAc "
 SELECT count(*) FROM pg_proc p WHERE pg_get_userbyid(p.proowner) = 'app_owner' AND p.prosecdef;
@@ -1401,7 +1422,7 @@ SELECT count(*) FROM pg_proc p WHERE pg_get_userbyid(p.proowner) = 'app_owner' A
     exit 1
   }
 
-  echo "   app_owner SECURITY DEFINER table-grant completeness: OK (31 required table grants + 1 column grant present, $actual_secdef_count/$expected_secdef_count secdef functions pinned)"
+  echo "   app_owner SECURITY DEFINER table-grant completeness: OK (37 required table grants + 1 column grant present, $actual_secdef_count/$expected_secdef_count secdef functions pinned)"
 }
 
 assert_c5a_clinical_test_measure_kinds_closure(){

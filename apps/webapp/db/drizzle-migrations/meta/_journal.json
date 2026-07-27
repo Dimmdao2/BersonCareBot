@@ -1765,6 +1765,13 @@
       "when": 1793539200048,
       "tag": "0251_current_patient_booking_rows_branch_enrichment",
       "breakpoints": true
+    },
+    {
+      "idx": 252,
+      "version": "7",
+      "when": 1793539200049,
+      "tag": "0252_patient_action_accessors",
+      "breakpoints": true
     }
   ]
 }

@@ -82,15 +82,10 @@ function mergeChannelContextJson(payload: PhoneChallengePayload): string | null 
 export function createPgPhoneChallengeStore(): PhoneChallengeStore {
   return {
     async set(challengeId: string, payload: PhoneChallengePayload): Promise<void> {
-      await runWebappPgText(
-        `INSERT INTO phone_challenges (challenge_id, phone, expires_at, code, channel_context, verify_attempts)
-         VALUES ($1, $2, $3, $4, $5, $6)
-         ON CONFLICT (challenge_id) DO UPDATE SET
-           phone = EXCLUDED.phone,
-           expires_at = EXCLUDED.expires_at,
-           code = EXCLUDED.code,
-           channel_context = EXCLUDED.channel_context,
-           verify_attempts = EXCLUDED.verify_attempts`,
+      const result = await runWebappPgText<{ ok: boolean }>(
+        `SELECT app.phone_challenge_store_upsert(
+           $1::text, $2::text, $3::bigint, $4::text, $5::jsonb, $6::integer
+         ) AS ok`,
         [
           challengeId,
           payload.phone,
@@ -100,9 +95,11 @@ export function createPgPhoneChallengeStore(): PhoneChallengeStore {
           payload.verifyAttempts ?? 0,
         ],
       );
+      if (result.rows[0]?.ok !== true) {
+        throw new Error("Phone challenge could not be stored");
+      }
     },
     async get(challengeId: string): Promise<PhoneChallengePayload | null> {
-      const now = Math.floor(Date.now() / 1000);
       const r = await runWebappPgText<{
         phone: string;
         expires_at: number | string;
@@ -110,16 +107,13 @@ export function createPgPhoneChallengeStore(): PhoneChallengeStore {
         channel_context: unknown;
         verify_attempts: number | string | null;
       }>(
-        "SELECT phone, expires_at, code, channel_context, verify_attempts FROM phone_challenges WHERE challenge_id = $1",
+        `SELECT phone, expires_at, code, channel_context, verify_attempts
+         FROM app.phone_challenge_store_read($1::text)`,
         [challengeId],
       );
       if (r.rows.length === 0) return null;
       const row = r.rows[0]!;
       const expiresAt = Number(row.expires_at);
-      if (expiresAt <= now) {
-        await runWebappPgText("DELETE FROM phone_challenges WHERE challenge_id = $1", [challengeId]);
-        return null;
-      }
       const channelContext = channelContextFromRow(row);
       const deliveryChannel = otpDeliveryFromRow(row);
       const profileBindUserId = profileBindUserIdFromRow(row);
@@ -138,10 +132,10 @@ export function createPgPhoneChallengeStore(): PhoneChallengeStore {
       };
     },
     async delete(challengeId: string): Promise<void> {
-      await runWebappPgText("DELETE FROM phone_challenges WHERE challenge_id = $1", [challengeId]);
+      await runWebappPgText("SELECT app.phone_challenge_store_delete($1::text)", [challengeId]);
     },
     async deleteByPhone(phone: string): Promise<void> {
-      await runWebappPgText("DELETE FROM phone_challenges WHERE phone = $1", [phone]);
+      await runWebappPgText("SELECT app.phone_challenge_store_delete_by_phone($1::text)", [phone]);
     },
     async incrementVerifyAttempts(challengeId: string): Promise<number | null> {
       // Atomic: a single `UPDATE ... SET verify_attempts = verify_attempts + 1 ... RETURNING`
@@ -153,10 +147,9 @@ export function createPgPhoneChallengeStore(): PhoneChallengeStore {
       // incrementing a row that is expired but not yet reaped by a concurrent `get()`.
       const now = Math.floor(Date.now() / 1000);
       const r = await runWebappPgText<{ verify_attempts: number | string }>(
-        `UPDATE phone_challenges
-         SET verify_attempts = verify_attempts + 1
-         WHERE challenge_id = $1 AND expires_at > $2
-         RETURNING verify_attempts`,
+        `SELECT app.phone_challenge_store_increment_attempts(
+           $1::text, $2::bigint
+         ) AS verify_attempts`,
         [challengeId, now],
       );
       const row = r.rows[0];
