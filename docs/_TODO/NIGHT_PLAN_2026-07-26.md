@@ -272,6 +272,17 @@ part of their own text is provably not done. Detail is inline on each item below
       к назначению доказаны настоящими двухсоединительными тестами конкуренции против Postgres.
       Лечение — узкая `SECURITY DEFINER`-процедура под bootstrap-роль по образцу `0252`, НЕ грант на
       таблицу (§4 канона владельца; лишний грант роняет деплой — инцидент 24.07). Блокирует C-5.
+      ✅ **ПОЧИНЕНО И ДОКАЗАНО ЖИВЬЁМ 27.07** (`dc628b1d0`, миграция `0254`, деплой
+      `deploy-test-20260727T050632Z`). Четыре узкие `SECURITY DEFINER`-функции (`auth_rate_limit_count`,
+      `_record`, `_prune_scope`, `_prune_key`), владелец `app_owner`, `EXECUTE` выданы bootstrap-роли и
+      `app_patient`. Семантика окна, подсчёта и advisory-локов не менялась — это правка ПРАВ, не логики.
+      Решающая проверка под настоящей рантайм-ролью: `SET ROLE bcb_test_nonstaff_login` →
+      `count` = 0 → `record` → `count` = **1**, то есть счётчик вырос В БАЗЕ, а прямой
+      `SELECT count(*) FROM auth_rate_limit_events` по-прежнему `permission denied`.
+      Гейт деплоя: `80/80 secdef functions pinned`, 42 обязательных гранта.
+      Побочно: тихий откат в память теперь пишет `warn` ОДИН раз — раньше он молчал, и именно поэтому
+      поломка прожила незамеченной. Сам механизм отката не переделывался: нужен ли ему сброс или ретрай —
+      **вопрос владельцу**, не наша инициатива.
 - [ ] **C-3 (#1005) Delivery-channel fallback.** Phone entered → SMS if enabled → web-push if subscribed →
       e-mail if bound. NIST 800-63B treats SMS as restricted and expects an alternative. Two hard edges:
       uniform response/timing so it cannot be used to test whether a phone has an e-mail; and a code
