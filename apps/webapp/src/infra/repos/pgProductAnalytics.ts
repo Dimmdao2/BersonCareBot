@@ -503,17 +503,27 @@ export function createPgProductAnalyticsPort(): ProductAnalyticsPort {
 
     async listRegistrationEvents(params: ListRegistrationEventsParams): Promise<ListRegistrationEventsResult> {
       const db = getDrizzle();
+      const isPlatformPrincipal = getCurrentDbPrincipal()?.kind === "platform";
       // Operational auth funnel journal — always exclude test accounts (not gated by dev_mode).
-      const excludedUserIds = await resolveAnalyticsExcludedUserIds(db, {
-        includeTestAccounts: false,
-        excludeStaffRoles: true,
-        testAccountIdentifiers: await loadProductAnalyticsTestAccountIdentifiers(),
-      });
+      // The platform role intentionally cannot read platform_users/user_channel_bindings directly;
+      // its boolean SECURITY DEFINER predicate exposes only "exclude this user", not identifiers.
+      const excludedUserIds = isPlatformPrincipal
+        ? []
+        : await resolveAnalyticsExcludedUserIds(db, {
+            includeTestAccounts: false,
+            excludeStaffRoles: true,
+            testAccountIdentifiers: await loadProductAnalyticsTestAccountIdentifiers(),
+          });
       const conditions = [
         gte(productAnalyticsEventsRecent.occurredAt, params.startIso),
         lt(productAnalyticsEventsRecent.occurredAt, params.endExclusiveIso),
         inArray(productAnalyticsEventsRecent.eventType, [...AUTH_REGISTRATION_EVENT_TYPES]),
       ];
+      if (isPlatformPrincipal) {
+        conditions.push(
+          sql`NOT app.is_platform_registration_analytics_user_excluded(${productAnalyticsEventsRecent.userId})`,
+        );
+      }
       if (excludedUserIds.length > 0) {
         const notExcluded = or(
           isNull(productAnalyticsEventsRecent.userId),

@@ -14,6 +14,7 @@ const {
   getSettingMock,
   listTopicsMock,
   persistAdminModesBatchMock,
+  clearSettingMock,
   resolveOrganizationForUserMock,
   buildAppDepsMock,
 } = vi.hoisted(() => {
@@ -22,6 +23,7 @@ const {
   const getSetting = vi.fn();
   const listTopics = vi.fn();
   const persistAdminModesBatch = vi.fn();
+  const clearSetting = vi.fn();
   const resolveOrganizationForUser = vi.fn();
   return {
     getSessionMock: vi.fn(),
@@ -30,6 +32,7 @@ const {
     getSettingMock: getSetting,
     listTopicsMock: listTopics,
     persistAdminModesBatchMock: persistAdminModesBatch,
+    clearSettingMock: clearSetting,
     resolveOrganizationForUserMock: resolveOrganizationForUser,
     buildAppDepsMock: vi.fn(() => ({
       systemSettings: {
@@ -37,6 +40,7 @@ const {
         updateSetting,
         getSetting,
         persistAdminModesBatch,
+        clearSetting,
       },
       subscriptionMailingProjection: { listTopics },
       organizationMembership: { resolveOrganizationForUser },
@@ -51,7 +55,7 @@ vi.mock("@/modules/system-settings/syncToIntegrator", () => ({
   syncSettingToIntegrator: vi.fn(),
 }));
 
-import { GET, PATCH } from "./route";
+import { DELETE, GET, PATCH } from "./route";
 import { ALLOWED_KEYS, type SystemSetting } from "@/modules/system-settings/types";
 
 const clinicOwnerSession = {
@@ -59,7 +63,7 @@ const clinicOwnerSession = {
 };
 
 const platformAdminSession = {
-  user: { userId: "platform-1", role: "admin" as const, bindings: {} },
+  user: { userId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa", role: "admin" as const, bindings: {} },
   adminMode: true,
 };
 
@@ -85,6 +89,14 @@ function patchRequest(key: string, value: unknown): Request {
   });
 }
 
+function deleteRequest(key: string): Request {
+  return new Request("http://localhost/api/admin/settings", {
+    method: "DELETE",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ key }),
+  });
+}
+
 describe("GET /api/admin/settings", () => {
   beforeEach(() => {
     getSessionMock.mockReset();
@@ -107,13 +119,31 @@ describe("GET /api/admin/settings", () => {
     expect((await GET()).status).toBe(403);
   });
 
-  it("keeps platform global configuration fail-closed until U9", async () => {
+  it("lists global settings for a platform admin without resolving a clinic", async () => {
     getSessionMock.mockResolvedValue(platformAdminSession);
+    listSettingsByScopeMock.mockImplementation(async (scope: "admin" | "doctor") =>
+      scope === "admin"
+        ? [
+            {
+              key: "operator_health_probe_config",
+              scope: "admin",
+              organizationId: null,
+              valueJson: { value: {} },
+              updatedAt: "",
+              updatedBy: null,
+            } as SystemSetting,
+          ]
+        : [],
+    );
 
     const response = await GET();
+    const body = (await response.json()) as { settings: SystemSetting[] };
 
-    expect(response.status).toBe(403);
-    expect(listSettingsByScopeMock).not.toHaveBeenCalled();
+    expect(response.status).toBe(200);
+    expect(body.settings.map((setting) => setting.key)).toEqual(["operator_health_probe_config"]);
+    expect(resolveOrganizationForUserMock).not.toHaveBeenCalled();
+    expect(listSettingsByScopeMock).toHaveBeenCalledWith("admin", { organizationId: null });
+    expect(listSettingsByScopeMock).toHaveBeenCalledWith("doctor", { organizationId: null });
   });
 
   it("returns only organization-owned settings for a clinic owner", async () => {
@@ -219,14 +249,28 @@ describe("PATCH /api/admin/settings", () => {
     expect(updateSettingMock).not.toHaveBeenCalled();
   });
 
-  it("rejects platform global configuration until U9 without borrowing an organization", async () => {
+  it("writes platform global configuration without borrowing an organization", async () => {
     getSessionMock.mockResolvedValue(platformAdminSession);
+    updateSettingMock.mockResolvedValue({
+      key: "dev_mode",
+      scope: "admin",
+      organizationId: null,
+      valueJson: { value: true },
+      updatedAt: "",
+      updatedBy: platformAdminSession.user.userId,
+    });
 
     const response = await PATCH(patchRequest("dev_mode", true));
 
-    expect(response.status).toBe(403);
-    expect(resolveOrganizationForUserMock).toHaveBeenCalledWith({ platformUserId: "platform-1" });
-    expect(updateSettingMock).not.toHaveBeenCalled();
+    expect(response.status).toBe(200);
+    expect(resolveOrganizationForUserMock).not.toHaveBeenCalled();
+    expect(updateSettingMock).toHaveBeenCalledWith(
+      "dev_mode",
+      "admin",
+      { value: true },
+      platformAdminSession.user.userId,
+      { organizationId: null },
+    );
   });
 
   it("rejects a global setting for a clinic owner", async () => {
@@ -362,5 +406,56 @@ describe("PATCH /api/admin/settings", () => {
       "payments",
     );
     expect(updateSettingMock).not.toHaveBeenCalled();
+  });
+});
+
+describe("DELETE /api/admin/settings", () => {
+  beforeEach(() => {
+    getSessionMock.mockReset();
+    resolveOrganizationForUserMock.mockReset().mockResolvedValue(clinicMembership());
+    clearSettingMock.mockReset().mockResolvedValue(true);
+  });
+
+  it("clears the global override for a platform admin without resolving a clinic", async () => {
+    getSessionMock.mockResolvedValue(platformAdminSession);
+
+    const response = await DELETE(deleteRequest("operator_health_probe_config"));
+
+    expect(response.status).toBe(200);
+    expect(resolveOrganizationForUserMock).not.toHaveBeenCalled();
+    expect(clearSettingMock).toHaveBeenCalledWith(
+      "operator_health_probe_config",
+      "admin",
+      platformAdminSession.user.userId,
+      { organizationId: null },
+    );
+  });
+
+  it("keeps a clinic manager on the organization path and denies the platform-only reset", async () => {
+    getSessionMock.mockResolvedValue(clinicOwnerSession);
+
+    const response = await DELETE(deleteRequest("operator_health_probe_config"));
+
+    expect(response.status).toBe(403);
+    expect(resolveOrganizationForUserMock).toHaveBeenCalledWith({ platformUserId: "owner-1" });
+    expect(clearSettingMock).not.toHaveBeenCalled();
+  });
+
+  it("pins global-only DELETE privileges for the platform settings principal", async () => {
+    const { readFileSync } = await import("node:fs");
+    const sql = readFileSync(
+      "../../deploy/postgres/u9a-platform-settings-role.sql",
+      "utf8",
+    );
+
+    expect(sql).toContain(
+      "GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE public.system_settings TO app_platform_settings",
+    );
+    expect(sql).toContain(
+      "GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE public.app_runtime_settings TO app_platform_settings",
+    );
+    expect(sql).toContain(
+      "FOR ALL TO app_platform_settings\n  USING (organization_id IS NULL) WITH CHECK (organization_id IS NULL)",
+    );
   });
 });

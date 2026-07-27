@@ -1828,6 +1828,13 @@
       "when": 1793539200057,
       "tag": "0260_outgoing_delivery_scope_text_ids",
       "breakpoints": true
+    },
+    {
+      "idx": 261,
+      "version": "7",
+      "when": 1793539200058,
+      "tag": "0261_platform_registration_events_read",
+      "breakpoints": true
     }
   ]
 }

@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
-import { requireAdminModeSession } from "@/modules/auth/requireAdminMode";
+import { requirePlatformOperationsApiContext } from "@/app-layer/guards/requireRole";
 import { resolveAdminStatsLocalRange } from "@/modules/admin-platform-stats/registrationTimeRange";
 import type { AdminStatsTimePreset } from "@/modules/admin-platform-stats/types";
 import { AUTH_REGISTRATION_EVENT_TYPES } from "@/modules/product-analytics/types";
@@ -25,7 +25,7 @@ const querySchema = z.object({
 
 /** GET /api/admin/auth-registration-events — журнал попыток регистрации (product analytics recent). */
 export async function GET(req: Request) {
-  const gate = await requireAdminModeSession();
+  const gate = await requirePlatformOperationsApiContext();
   if (!gate.ok) return gate.response;
 
   const url = new URL(req.url);

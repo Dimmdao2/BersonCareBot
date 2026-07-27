@@ -1,16 +1,22 @@
 /**
  * GET  /api/admin/settings — список настроек scope=admin
  * PATCH /api/admin/settings — обновить ключ scope=admin
- * Guard: clinic manager for per-org keys only. Global platform configuration stays
- * fail-closed until the U9 platform API/principal contract is implemented.
+ * Guard: branch on the platform.operations capability. Global platform configuration uses
+ * the dedicated platform principal and clinic managers keep the organization-scoped path.
  */
 import { isPasswordBearingSettingKey, redactSettingValueForAudit } from "@/modules/system-settings/auditRedaction";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
-import { requireClinicManagementApiContext } from "@/app-layer/guards/requireRole";
+import {
+  requireClinicManagementApiContext,
+  requirePlatformOperationsApiContext,
+  type DoctorWorkspaceAccessContext,
+} from "@/app-layer/guards/requireRole";
+import { hasLaunchCapability, resolveLaunchCapabilities } from "@/app-layer/guards/workspaceCapabilities";
 import { requireEntitlementForMutation } from "@/app-layer/guards/requireEntitlement";
 import { systemSettingsOrgContextErrorResponse } from "@/app-layer/guards/systemSettingsOrgContextResponse";
+import { getCurrentSession } from "@/modules/auth/service";
 import { ALLOWED_KEYS, type SystemSetting } from "@/modules/system-settings/types";
 import { isPerOrgSettingKey } from "@/modules/system-settings/orgScopedKeys";
 import { normalizeNotificationsTopicsForAdminPatch } from "@/modules/patient-notifications/notificationsTopics";
@@ -247,10 +253,57 @@ function auditValueForLog(key: string, value: unknown): unknown {
   return value;
 }
 
-function canAccessGlobalSettings(ctx: {
-  session: { user: { role: string }; adminMode?: boolean };
-}): boolean {
-  return ctx.session.user.role === "admin" && ctx.session.adminMode === true;
+type SettingsApiContext =
+  | {
+      kind: "platform";
+      session: NonNullable<Awaited<ReturnType<typeof getCurrentSession>>>;
+      organizationId: null;
+    }
+  | {
+      kind: "clinic";
+      session: DoctorWorkspaceAccessContext["session"];
+      organizationId: string;
+      workspace: DoctorWorkspaceAccessContext;
+    };
+
+async function requireSettingsApiContext(): Promise<
+  { ok: true; ctx: SettingsApiContext } | { ok: false; response: NextResponse }
+> {
+  const session = await getCurrentSession();
+  const isPlatformOperations =
+    session != null &&
+    hasLaunchCapability(
+      resolveLaunchCapabilities({
+        sessionRole: session.user.role,
+        adminMode: session.adminMode,
+      }),
+      "platform.operations",
+    );
+
+  if (isPlatformOperations) {
+    const gate = await requirePlatformOperationsApiContext();
+    if (!gate.ok) return gate;
+    return {
+      ok: true,
+      ctx: {
+        kind: "platform",
+        session: gate.session,
+        organizationId: null,
+      },
+    };
+  }
+
+  const gate = await requireClinicManagementApiContext();
+  if (!gate.ok) return gate;
+  return {
+    ok: true,
+    ctx: {
+      kind: "clinic",
+      session: gate.ctx.session,
+      organizationId: gate.ctx.organizationId,
+      workspace: gate.ctx,
+    },
+  };
 }
 
 function settingScopeForKey(key: (typeof PATCH_SCOPE_KEYS)[number]): "admin" | "doctor" {
@@ -258,7 +311,7 @@ function settingScopeForKey(key: (typeof PATCH_SCOPE_KEYS)[number]): "admin" | "
 }
 
 export async function GET() {
-  const gate = await requireClinicManagementApiContext();
+  const gate = await requireSettingsApiContext();
   if (!gate.ok) return gate.response;
 
   const organizationId = gate.ctx.organizationId;
@@ -268,19 +321,19 @@ export async function GET() {
     deps.systemSettings.listSettingsByScope("doctor", { organizationId }),
   ]);
   const allSettings = redactAdminSettingsForClient([...adminSettings, ...doctorSettings]);
-  const settings = canAccessGlobalSettings(gate.ctx)
+  const settings = gate.ctx.kind === "platform"
     ? allSettings
     : allSettings.filter((setting) => isPerOrgSettingKey(setting.key));
   return NextResponse.json({ ok: true, settings });
 }
 
 export async function PATCH(request: Request) {
-  const gate = await requireClinicManagementApiContext();
+  const gate = await requireSettingsApiContext();
   if (!gate.ok) return gate.response;
 
   const session = gate.ctx.session;
   const organizationId = gate.ctx.organizationId;
-  const allowGlobalSettings = canAccessGlobalSettings(gate.ctx);
+  const allowGlobalSettings = gate.ctx.kind === "platform";
   const raw = (await request.json().catch(() => null)) as unknown;
 
   if (raw !== null && typeof raw === "object" && "items" in raw) {
@@ -372,14 +425,15 @@ export async function PATCH(request: Request) {
       { status: 403 },
     );
   }
-  if (PAYMENT_ENTITLEMENT_SETTING_KEYS.has(parsed.data.key)) {
-    const entitlement = await requireEntitlementForMutation(gate.ctx, "payments");
+  if (PAYMENT_ENTITLEMENT_SETTING_KEYS.has(parsed.data.key) && gate.ctx.kind === "clinic") {
+    const entitlement = await requireEntitlementForMutation(gate.ctx.workspace, "payments");
     if (!entitlement.ok) return entitlement.response;
   }
   if (
     OWNER_ONLY_PATIENT_HOME_KEYS.has(parsed.data.key) &&
     !allowGlobalSettings &&
-    gate.ctx.membershipRole !== "owner"
+    gate.ctx.kind === "clinic" &&
+    gate.ctx.workspace.membershipRole !== "owner"
   ) {
     return NextResponse.json({ ok: false, error: "forbidden_owner_setting", key: parsed.data.key }, { status: 403 });
   }
@@ -694,11 +748,18 @@ export async function PATCH(request: Request) {
 }
 
 export async function DELETE(request: Request) {
-  const gate = await requireClinicManagementApiContext();
+  const gate = await requireSettingsApiContext();
   if (!gate.ok) return gate.response;
-  if (!canAccessGlobalSettings(gate.ctx)) return NextResponse.json({ ok: false, error: "forbidden_global_setting" }, { status: 403 });
+  if (gate.ctx.kind !== "platform") {
+    return NextResponse.json({ ok: false, error: "forbidden_global_setting" }, { status: 403 });
+  }
   const parsed = deleteSchema.safeParse(await request.json().catch(() => null));
   if (!parsed.success) return NextResponse.json({ ok: false, error: "invalid_body" }, { status: 400 });
-  const deleted = await buildAppDeps().systemSettings.clearSetting(parsed.data.key, "admin", gate.ctx.session.user.userId, { organizationId: gate.ctx.organizationId });
+  const deleted = await buildAppDeps().systemSettings.clearSetting(
+    parsed.data.key,
+    "admin",
+    gate.ctx.session.user.userId,
+    { organizationId: null },
+  );
   return NextResponse.json({ ok: true, deleted });
 }

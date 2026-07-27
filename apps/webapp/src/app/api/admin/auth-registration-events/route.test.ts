@@ -1,13 +1,13 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { createInMemoryProductAnalyticsPort } from "@/infra/repos/inMemoryProductAnalytics";
 
-const { requireAdminModeSessionMock, listRegistrationEventsMock } = vi.hoisted(() => ({
-  requireAdminModeSessionMock: vi.fn(),
+const { requirePlatformOperationsApiContextMock, listRegistrationEventsMock } = vi.hoisted(() => ({
+  requirePlatformOperationsApiContextMock: vi.fn(),
   listRegistrationEventsMock: vi.fn(),
 }));
 
-vi.mock("@/modules/auth/requireAdminMode", () => ({
-  requireAdminModeSession: requireAdminModeSessionMock,
+vi.mock("@/app-layer/guards/requireRole", () => ({
+  requirePlatformOperationsApiContext: requirePlatformOperationsApiContextMock,
 }));
 
 vi.mock("@/app-layer/di/buildAppDeps", () => ({
@@ -26,35 +26,35 @@ import { GET } from "./route";
 
 describe("GET /api/admin/auth-registration-events", () => {
   beforeEach(() => {
-    requireAdminModeSessionMock.mockReset();
+    requirePlatformOperationsApiContextMock.mockReset();
     listRegistrationEventsMock.mockReset();
+    requirePlatformOperationsApiContextMock.mockResolvedValue({
+      ok: true,
+      session: {
+        user: { userId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa", role: "admin" },
+        adminMode: true,
+      },
+    });
   });
 
-  it("returns 403 when not admin mode", async () => {
-    requireAdminModeSessionMock.mockResolvedValue({
+  it("keeps a clinic staff member out of the platform registration journal", async () => {
+    requirePlatformOperationsApiContextMock.mockResolvedValue({
       ok: false,
-      response: new Response(JSON.stringify({ ok: false }), { status: 403 }),
+      response: new Response(JSON.stringify({ ok: false, error: "forbidden" }), { status: 403 }),
     });
     const res = await GET(new Request("http://localhost/api/admin/auth-registration-events"));
     expect(res.status).toBe(403);
+    expect(listRegistrationEventsMock).not.toHaveBeenCalled();
   });
 
   it("returns 400 when custom preset without from/to", async () => {
-    requireAdminModeSessionMock.mockResolvedValue({
-      ok: true,
-      session: { user: { userId: "a1", role: "admin" } },
-    });
     const res = await GET(
       new Request("http://localhost/api/admin/auth-registration-events?preset=custom"),
     );
     expect(res.status).toBe(400);
   });
 
-  it("returns list when authorized", async () => {
-    requireAdminModeSessionMock.mockResolvedValue({
-      ok: true,
-      session: { user: { userId: "a1", role: "admin" } },
-    });
+  it("returns the platform-wide list for a global admin", async () => {
     listRegistrationEventsMock.mockResolvedValue({
       items: [
         {
@@ -79,6 +79,7 @@ describe("GET /api/admin/auth-registration-events", () => {
     const body = (await res.json()) as { ok: boolean; total: number; items: unknown[] };
     expect(body.ok).toBe(true);
     expect(body.total).toBe(1);
+    expect(requirePlatformOperationsApiContextMock).toHaveBeenCalledOnce();
     expect(listRegistrationEventsMock).toHaveBeenCalledWith(
       expect.objectContaining({
         eventType: "auth_register_failure",
@@ -87,6 +88,23 @@ describe("GET /api/admin/auth-registration-events", () => {
         limit: 50,
       }),
     );
+  });
+
+  it("pins the narrow platform DB contract used by the registration list", async () => {
+    const { readFileSync } = await import("node:fs");
+    const migration = readFileSync(
+      "db/drizzle-migrations/0261_platform_registration_events_read.sql",
+      "utf8",
+    );
+    const repository = readFileSync("src/infra/repos/pgProductAnalytics.ts", "utf8");
+
+    expect(migration).toContain("product_analytics_registration_platform_operations_select");
+    expect(migration).toContain("event_type IN (");
+    expect(migration).toContain("auth_register_attempt");
+    expect(migration).toContain("auth_register_success");
+    expect(migration).toContain("auth_register_failure");
+    expect(migration).toContain("NOT has_table_privilege");
+    expect(repository).toContain("app.is_platform_registration_analytics_user_excluded");
   });
 });
 
