@@ -223,7 +223,8 @@ describe("0238 organization brand publication", () => {
     // the first 0252 pass; their two tables' required grants were already pinned by migration 0245.
     // 74 -> 76 (2026-07-27): #1018 H-3 adds the two patient reminder-occurrence actions; their
     // focused migration test pins both exact signatures and the two newly required table grants.
-    expect(deploy).toContain("local expected_secdef_count=76");
+    // 76 -> 80 (2026-07-27): migration 0254 adds four auth rate-limit accessors.
+    expect(deploy).toContain("local expected_secdef_count=80");
     expect(deploy).toContain("('public.org_enrollments', 'SELECT')");
     expect(deploy).toContain("('public.phone_challenges', 'INSERT')");
     expect(deploy).toContain("('public.phone_otp_locks', 'UPDATE')");

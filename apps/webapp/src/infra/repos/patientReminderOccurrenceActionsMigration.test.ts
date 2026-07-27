@@ -69,7 +69,7 @@ describe("0253 patient reminder occurrence actions", () => {
     const deploy = readFileSync(deployPath, "utf8");
     expect(deploy).toContain("('public.reminder_occurrence_history', 'SELECT')");
     expect(deploy).toContain("('public.reminder_occurrence_history', 'UPDATE')");
-    expect(deploy).toContain("local expected_secdef_count=76");
+    expect(deploy).toContain("local expected_secdef_count=80");
 
     const ownershipOverlay = readFileSync(inviteOwnershipPath, "utf8");
     expect(ownershipOverlay).not.toContain("patient_snooze_reminder_occurrence");
