@@ -1,5 +1,12 @@
 export const OPERATOR_HEALTH_PROBE_CONFIG_KEY = "operator_health_probe_config";
 
+/**
+ * Владелец 27.07, дословно: «ЗНАЧЕНИЕ ПО УМОЛЧАНИЮ 2 часа» · «ПОТОЛОК - 24 часа».
+ * Два разных числа, их легко перепутать (лид перепутал):
+ *  - DEFAULT_DURATION — что подставляется в поле, когда оператор глушит алерты руками;
+ *  - MAX_DURATION — предел, выше которого форма и сервер не дают поставить вообще.
+ */
+export const OPERATOR_HEALTH_PROBE_QUIET_WINDOW_DEFAULT_DURATION_MS = 2 * 60 * 60 * 1_000;
 export const OPERATOR_HEALTH_PROBE_QUIET_WINDOW_DEFAULT_MAX_DURATION_MS = 24 * 60 * 60 * 1_000;
 
 export const OPERATOR_HEALTH_PROBE_DEFAULT_VALUE = {
@@ -20,7 +27,7 @@ export const OPERATOR_HEALTH_PROBE_DEFAULT_VALUE = {
 
 const PROBE_NAMES = ["max", "telegram", "google_calendar"] as const;
 const QUIET_WINDOW_CAP_MIN_MS = 60_000;
-const QUIET_WINDOW_CAP_MAX_MS = 7 * 24 * 60 * 60 * 1_000;
+const QUIET_WINDOW_CAP_MAX_MS = OPERATOR_HEALTH_PROBE_QUIET_WINDOW_DEFAULT_MAX_DURATION_MS;
 
 function formatDurationHours(durationMs: number): string {
   const hours = durationMs / (60 * 60 * 1_000);

@@ -21,7 +21,10 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/shared/ui/doctor/primitives/dialog';
-import { OPERATOR_HEALTH_PROBE_DEFAULT_VALUE } from '@/modules/system-settings/operatorHealthProbeConfig';
+import {
+  OPERATOR_HEALTH_PROBE_DEFAULT_VALUE,
+  OPERATOR_HEALTH_PROBE_QUIET_WINDOW_DEFAULT_DURATION_MS,
+} from '@/modules/system-settings/operatorHealthProbeConfig';
 
 type ProbeName = 'max' | 'telegram' | 'google_calendar';
 type ProbeConfig = {
@@ -141,7 +144,10 @@ export function OperatorHealthProbeSettingsSection() {
   const [saved, setSaved] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [resetConfirmOpen, setResetConfirmOpen] = useState(false);
-  const [quietAmount, setQuietAmount] = useState('');
+  // Owner 27.07: «ЗНАЧЕНИЕ ПО УМОЛЧАНИЮ 2 часа» — the field opens pre-filled, the cap (24 h) is separate.
+  const [quietAmount, setQuietAmount] = useState(
+    String(OPERATOR_HEALTH_PROBE_QUIET_WINDOW_DEFAULT_DURATION_MS / 3_600_000),
+  );
   const [quietUnit, setQuietUnit] = useState<'minutes' | 'hours'>('hours');
 
   useEffect(() => {
@@ -199,7 +205,7 @@ export function OperatorHealthProbeSettingsSection() {
         body: JSON.stringify({ key: 'operator_health_probe_config' }),
       });
       setConfig(defaults);
-      setQuietAmount('');
+      setQuietAmount(String(OPERATOR_HEALTH_PROBE_QUIET_WINDOW_DEFAULT_DURATION_MS / 3_600_000));
       setResetConfirmOpen(false);
       setSaved('Сброшено: снова действуют значения по умолчанию из кода.');
     } catch (e) {
