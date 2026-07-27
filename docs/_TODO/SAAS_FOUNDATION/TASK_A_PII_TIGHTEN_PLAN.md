@@ -224,8 +224,26 @@ Implemented + rehearsal-verified in layers (each caught by the LIVE prod-copy re
   Latent (dormant app role is BYPASSRLS → no break; bites only at locked+FORCE). Fix options (owner triage):
   (a) close prior via SECURITY DEFINER helper closing ALL the user's active rows regardless of org; (b) re-stamp
   org on transition; (c) pre-flip invariant: no NULL-org active row survives for an org-known user.
-  **⏳ ЖДЁТ РЕШЕНИЯ ВЛАДЕЛЬЦА 2026-07-27** — три опции (a)/(b)/(c) выше не выбраны; ни один агент не должен
-  выбирать за него. Оставлено открытым намеренно, не «забыто».
+  **🟢 РЕШЕНО ВЛАДЕЛЬЦЕМ 2026-07-27: вариант (b) + (c). Дословно: «вариант (b)+(c) - ок».**
+  Вариант **(a) ОТКЛОНЁН** — не заводить новую SECURITY DEFINER функцию ради этого. Причина, изложенная
+  владельцу при рекомендации: в системе уже 45 definer-функций, и именно на них держится запрет снимать
+  FORCE-RLS; 46-я расширяет поверхность обхода стен ради одного частного случая.
+  **Что делать конкретно:**
+  - **(b) постоянное правило:** при переходе телефона проставлять `organization_id` на строку истории, как
+    только клиника известна. Тогда org-контекстная сессия ВИДИТ прошлую активную строку, обычный
+    `UPDATE ... WHERE valid_to IS NULL` её закрывает, и уникальный индекс не срабатывает. Никаких обходов
+    стен не требуется. Точка правки — `applyPlatformUserPhoneHistoryTransition` (`pgPhoneHistory.ts`).
+  - **(c) разовая чистка ПЕРЕД включением стен:** ни у одного человека с известной клиникой не должно
+    остаться активной строки без организации. Прогоняется один раз, до флипа, с отчётом об остатке.
+  **Целевой инвариант, который это даёт:** если клиника у человека известна — его активная строка телефона
+  несёт эту клинику. Строки без организации остаются легальными только для тех, у кого клиники ещё нет
+  (вход по СМС-коду, привязка мессенджера, публичная запись до определения клиники) — а такие сессии и так
+  проходят через NULL-ветку предиката.
+  **Обоснование самой таблицы истории** (владелец спросил «кто так вообще делает»): паттерн стандартный —
+  SCD-2 / effective-dating, в медицинском стандарте HL7 FHIR это поле `ContactPoint.period`. Ключевая
+  причина здесь — переиспользование номеров операторами: телефон является и фактором входа (СМС-код), и
+  каналом медицинских напоминаний, поэтому без интервалов действия напоминание пациента может уйти
+  постороннему, получившему его старый номер. Исследование с источниками — в ответе владельцу 27.07.
 - [ ] **FB#2 [MEDIUM] locked-mode bootstrap base DB role must be NOBYPASSRLS AND not a member of app_staff.**
   Bootstrap/infra principals `RESET ROLE` to the base `DATABASE_URL` role (db-principal `applySignedDbPrincipal`
   early-returns for bootstrap). If that role ∈ app_staff → `NOT app.is_staff()` false → bootstrap NULL reads/writes
