@@ -48,7 +48,7 @@ export function clinicSlugErrorMessage(error: SlugApiErrorCode) {
     case "slug_unchanged":
       return "Введите адрес, отличный от текущего.";
     case "rename_confirmation_required":
-      return "Подтвердите необратимое переименование.";
+      return "Подтвердите переименование.";
     default:
       return "Не удалось сохранить адрес. Повторите попытку.";
   }
@@ -178,7 +178,7 @@ export function ClinicSlugSection({
               <DialogHeader>
                 <DialogTitle>Изменить адрес публичной записи</DialogTitle>
                 <DialogDescription>
-                  Старый адрес будет работать всегда и навсегда останется привязан к этой клинике.
+                  Старый адрес продолжит работать и навсегда останется за вашей клиникой — другой клинике он не достанется никогда. При желании вы сможете вернуть его себе.
                 </DialogDescription>
               </DialogHeader>
               <div className="flex flex-col gap-3">
@@ -191,7 +191,7 @@ export function ClinicSlugSection({
                     disabled={pending}
                     className="mt-0.5"
                   />
-                  <span>Я понимаю, что старый адрес навсегда останется привязан к этой клинике.</span>
+                  <span>Я понимаю: старый адрес останется за моей клиникой и другим не достанется.</span>
                 </label>
                 {error ? (
                   <p role="alert" className="text-sm text-destructive">

@@ -33,7 +33,7 @@ describe("clinicSlugErrorMessage", () => {
     expect(screen.getByRole("button", { name: "Скопировать" })).toBeEnabled();
   });
 
-  it("states the irreversible alias policy before rename confirmation", async () => {
+  it("states the slug policy before rename confirmation: never to another clinic, reclaimable by this one", async () => {
     const user = userEvent.setup();
     render(
       <ClinicSlugSection
@@ -46,7 +46,7 @@ describe("clinicSlugErrorMessage", () => {
 
     expect(
       screen.getByText(
-        "Старый адрес будет работать всегда и навсегда останется привязан к этой клинике.",
+        "Старый адрес продолжит работать и навсегда останется за вашей клиникой — другой клинике он не достанется никогда. При желании вы сможете вернуть его себе.",
       ),
     ).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Переименовать" })).toBeDisabled();
