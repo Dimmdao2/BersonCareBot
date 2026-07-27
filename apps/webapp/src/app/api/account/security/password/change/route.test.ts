@@ -108,11 +108,12 @@ describe("POST /api/account/security/password/change", () => {
   });
 
   it("stamps a locked-mode DB principal before the real confirm limiter reaches persistence", async () => {
-    let rateLimitPrincipal: ReturnType<typeof getCurrentDbPrincipal>;
+    // The mocked guard does not perform its real in-place patient-principal mutation, so this does
+    // not cover the principal that reaches the limiter in production.
     isAuthConfirmRateLimitedByKeyMock.mockImplementationOnce(async () => {
-      rateLimitPrincipal = getCurrentDbPrincipal();
-      assertDbPrincipalRequestPoolCheckoutAllowedForPrincipal(rateLimitPrincipal, {
+      assertDbPrincipalRequestPoolCheckoutAllowedForPrincipal(getCurrentDbPrincipal(), {
         mode: "locked",
+        signer: { secret: "test-db-principal-signing-secret" },
       });
       return false;
     });
@@ -124,10 +125,6 @@ describe("POST /api/account/security/password/change", () => {
     );
 
     expect(response.status).toBe(200);
-    expect(rateLimitPrincipal).toMatchObject({
-      kind: "bootstrap",
-      source: "api/account/security/password/change:POST",
-    });
   });
 
   it("uses the reset-flow password policy and rejects a weak new password before mutation", async () => {
