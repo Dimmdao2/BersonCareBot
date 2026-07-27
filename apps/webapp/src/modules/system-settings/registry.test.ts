@@ -62,6 +62,35 @@ describe("S5-0 system-settings registry", () => {
     });
   });
 
+  it("keeps platform integration availability global, server-only, and structured", () => {
+    expect(SYSTEM_SETTING_REGISTRY.platform_integration_availability).toMatchObject({
+      scope: "admin",
+      storage: "runtime",
+      ownership: "global",
+      audience: "server",
+      valueContract: "structured",
+    });
+  });
+
+  it("classifies VK ID credentials like the existing OAuth provider settings", () => {
+    expect(SYSTEM_SETTING_REGISTRY.vk_id_application_id).toMatchObject({
+      storage: "restricted",
+      ownership: "global",
+      valueContract: "secret_envelope",
+    });
+    expect(SYSTEM_SETTING_REGISTRY.vk_id_client_secret).toMatchObject({
+      storage: "restricted",
+      ownership: "global",
+      valueContract: "secret_envelope",
+      clientSerialization: "redacted",
+    });
+    expect(SYSTEM_SETTING_REGISTRY.vk_id_redirect_uri).toMatchObject({
+      storage: "restricted",
+      ownership: "global",
+      valueContract: "url",
+    });
+  });
+
   it("keeps the platform merchant key global, restricted, redacted, and mock-defaulted", () => {
     expect(SYSTEM_SETTING_REGISTRY.saas_billing_payment_provider).toMatchObject({
       scope: "admin",

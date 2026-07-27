@@ -113,6 +113,18 @@ export const SYSTEM_SETTING_REGISTRY = {
   auth_oauth_google_enabled: runtime("admin", "global", "public", "boolean", "true"),
   auth_oauth_yandex_enabled: runtime("admin", "global", "public", "boolean", "true"),
   /**
+   * Platform-wide availability of clinic-facing integrations. This is deliberately one
+   * structured setting: the platform decides whether an integration exists, while any
+   * clinic-owned credentials remain organization-scoped and tariff-gated.
+   */
+  platform_integration_availability: runtime(
+    "admin",
+    "global",
+    "server",
+    "structured",
+    '{"version":1,"integrations":{"telegram":true,"max":true,"email":true,"smsc":true,"web_push":true,"google_calendar":true,"yandex_calendar":false}}',
+  ),
+  /**
    * Global admin switch: when true, staff (global-admin + specialists) must complete TOTP
    * enrollment/verification to keep using protected staff surfaces (owner ruling 2026-07-24).
    * Server-only audience — enforcement reads happen in `app-layer/guards/requireRole.ts`, never
@@ -182,6 +194,9 @@ export const SYSTEM_SETTING_REGISTRY = {
   yandex_oauth_client_id: restricted("admin", "global", "secret_envelope", "absent", "derived", "oauth_yandex_enabled"),
   yandex_oauth_client_secret: restricted("admin", "global", "secret_envelope", "absent", "derived", "oauth_yandex_enabled"),
   yandex_oauth_redirect_uri: restricted("admin", "global", "url", "absent", "derived", "oauth_yandex_enabled"),
+  vk_id_application_id: restricted("admin", "global", "secret_envelope"),
+  vk_id_client_secret: restricted("admin", "global", "secret_envelope", "absent", "redacted"),
+  vk_id_redirect_uri: restricted("admin", "global", "url"),
   google_client_id: restricted("admin", "global", "secret_envelope"),
   google_client_secret: restricted("admin", "global", "secret_envelope"),
   google_redirect_uri: restricted("admin", "global", "url"),

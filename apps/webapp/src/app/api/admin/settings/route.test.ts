@@ -146,6 +146,27 @@ describe("GET /api/admin/settings", () => {
     expect(listSettingsByScopeMock).toHaveBeenCalledWith("doctor", { organizationId: null });
   });
 
+  it("returns only a configured marker for the VK ID protected key", async () => {
+    getSessionMock.mockResolvedValue(platformAdminSession);
+    const configuredMarker = "vk-id-configured-marker";
+    listSettingsByScopeMock.mockImplementation(async (scope: "admin" | "doctor") =>
+      scope === "admin"
+        ? [{
+            key: "vk_id_client_secret",
+            scope: "admin",
+            organizationId: null,
+            valueJson: { value: configuredMarker },
+            updatedAt: "",
+            updatedBy: null,
+          } as SystemSetting]
+        : [],
+    );
+
+    const body = await (await GET()).json();
+    expect(body.settings[0]?.valueJson).toEqual({ value: { hasStoredSecret: true } });
+    expect(JSON.stringify(body)).not.toContain(configuredMarker);
+  });
+
   it("returns only organization-owned settings for a clinic owner", async () => {
     getSessionMock.mockResolvedValue(clinicOwnerSession);
     listSettingsByScopeMock.mockImplementation(async (scope: "admin" | "doctor") =>
@@ -271,6 +292,31 @@ describe("PATCH /api/admin/settings", () => {
       platformAdminSession.user.userId,
       { organizationId: null },
     );
+  });
+
+  it("redacts the VK ID protected key from the audit event and response", async () => {
+    getSessionMock.mockResolvedValue(platformAdminSession);
+    const configuredMarker = "vk-id-new-configured-marker";
+    const infoSpy = vi.spyOn(console, "info").mockImplementation(() => undefined);
+    updateSettingMock.mockResolvedValue({
+      key: "vk_id_client_secret",
+      scope: "admin",
+      organizationId: null,
+      valueJson: { value: configuredMarker },
+      updatedAt: "",
+      updatedBy: platformAdminSession.user.userId,
+    });
+
+    const response = await PATCH(patchRequest("vk_id_client_secret", configuredMarker));
+    const responseBody = await response.json();
+    const auditCalls = JSON.stringify(infoSpy.mock.calls);
+    infoSpy.mockRestore();
+
+    expect(response.status).toBe(200);
+    expect(responseBody.setting.valueJson).toEqual({ value: { hasStoredSecret: true } });
+    expect(JSON.stringify(responseBody)).not.toContain(configuredMarker);
+    expect(auditCalls).not.toContain(configuredMarker);
+    expect(auditCalls).toContain("[REDACTED]");
   });
 
   it("rejects a global setting for a clinic owner", async () => {
