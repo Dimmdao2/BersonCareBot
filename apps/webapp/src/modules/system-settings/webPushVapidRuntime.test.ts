@@ -86,6 +86,21 @@ describe("redactWebPushVapidSettingForClient", () => {
     expect(JSON.stringify(out)).not.toContain("private-smsc-key");
   });
 
+  it("returns only a configured marker for the VK ID client secret", () => {
+    const configuredMarker = "vk-secret-configured";
+    const out = redactAdminSettingsForClient([
+      {
+        key: "vk_id_client_secret",
+        scope: "admin",
+        valueJson: { value: configuredMarker },
+        updatedAt: "",
+        updatedBy: null,
+      },
+    ]);
+    expect(out[0]?.valueJson).toEqual({ value: { hasStoredSecret: true } });
+    expect(JSON.stringify(out)).not.toContain(configuredMarker);
+  });
+
   it("never returns the error tracking DSN to browser-facing settings", () => {
     const out = redactAdminSettingsForClient([{
       key: "error_tracking_dsn",

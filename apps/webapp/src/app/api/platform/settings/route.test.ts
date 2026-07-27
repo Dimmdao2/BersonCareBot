@@ -18,6 +18,7 @@ vi.mock("@/modules/auth/authChannelPolicy", () => ({
 }));
 
 import { GET, PATCH } from "./route";
+import { DEFAULT_PLATFORM_INTEGRATION_AVAILABILITY } from "@/modules/system-settings/platformIntegrationAvailability";
 
 const platformSession = {
   user: { userId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa", role: "admin" as const, bindings: {} },
@@ -108,6 +109,37 @@ describe("/api/platform/settings", () => {
     const response = await PATCH(new Request("http://localhost/api/platform/settings", {
       method: "PATCH", headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ key: "auth_sms_enabled", value: "true" }),
+    }));
+    expect(response.status).toBe(400);
+    expect(updateMock).not.toHaveBeenCalled();
+  });
+
+  it("writes the exact versioned platform integration availability shape", async () => {
+    const value = {
+      ...DEFAULT_PLATFORM_INTEGRATION_AVAILABILITY,
+      integrations: {
+        ...DEFAULT_PLATFORM_INTEGRATION_AVAILABILITY.integrations,
+        telegram: false,
+      },
+    };
+    const response = await PATCH(new Request("http://localhost/api/platform/settings", {
+      method: "PATCH", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ key: "platform_integration_availability", value }),
+    }));
+    expect(response.status).toBe(200);
+    expect(updateMock).toHaveBeenCalledWith(
+      "platform_integration_availability", "admin", { value },
+      platformSession.user.userId, { organizationId: null },
+    );
+  });
+
+  it("rejects incomplete platform integration availability before the service", async () => {
+    const response = await PATCH(new Request("http://localhost/api/platform/settings", {
+      method: "PATCH", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        key: "platform_integration_availability",
+        value: { version: 1, integrations: { telegram: true } },
+      }),
     }));
     expect(response.status).toBe(400);
     expect(updateMock).not.toHaveBeenCalled();

@@ -26,12 +26,20 @@ const bookingLocationPaletteMigration = readFileSync(
   new URL("../drizzle-migrations/0227_booking_location_default_palette.sql", import.meta.url),
   "utf8",
 );
+const errorTrackingMigration = readFileSync(
+  new URL("../drizzle-migrations/0230_error_tracking_runtime.sql", import.meta.url),
+  "utf8",
+);
 const doctorTodayPreferencesMigration = readFileSync(
   new URL("../drizzle-migrations/0228_doctor_today_preferences.sql", import.meta.url),
   "utf8",
 );
 const globalAdminChannelAuthTogglesMigration = readFileSync(
   new URL("../drizzle-migrations/0236_global_admin_channel_auth_toggles.sql", import.meta.url),
+  "utf8",
+);
+const platformIntegrationAvailabilityMigration = readFileSync(
+  new URL("../drizzle-migrations/0264_platform_integration_availability.sql", import.meta.url),
   "utf8",
 );
 
@@ -86,6 +94,11 @@ describe("S5-1 app runtime settings schema/data contract", () => {
   });
 
   it("keeps the normal migration list exactly aligned with the S5-0 runtime registry", () => {
+    const retiredRuntimeKeys = new Set([
+      "booking_rubitime_bridge_enabled",
+      "booking_doctor_appointments_read_source",
+      "booking_slots_read_source",
+    ]);
     const authChannelKeys = [
       "auth_email_enabled",
       "auth_sms_enabled",
@@ -119,13 +132,23 @@ describe("S5-1 app runtime settings schema/data contract", () => {
     for (const key of globalAdminChannelAuthToggleKeys) {
       expect(globalAdminChannelAuthTogglesMigration).toContain(`'${key}'`);
     }
+    const errorTrackingKeys = ["error_tracking_enabled", "error_tracking_dsn"];
+    for (const key of errorTrackingKeys) expect(errorTrackingMigration).toContain(`'${key}'`);
+    // 0264 deliberately adds one versioned registry row. Yandex Calendar lives inside its
+    // structured value, so adding it does not multiply setting keys or privilege grants.
+    expect(platformIntegrationAvailabilityMigration).toContain("'platform_integration_availability'");
+    expect(platformIntegrationAvailabilityMigration).toContain("'server'");
     const migrationKeys = [
-      ...normalRuntimeDefinitionKeys(migration),
+      ...normalRuntimeDefinitionKeys(migration).filter((key) => !retiredRuntimeKeys.has(key)),
       ...authChannelKeys,
       "patient_unsupported_client_fallback_enabled",
       "booking_location_default_palette",
       "doctor_today_preferences",
       ...globalAdminChannelAuthToggleKeys,
+      ...errorTrackingKeys,
+      // This pre-existing key is code-defaulted and intentionally creates its row on first admin save.
+      "operator_health_probe_config",
+      "platform_integration_availability",
     ];
     expect(new Set(migrationKeys).size).toBe(migrationKeys.length);
     expect([...migrationKeys].sort()).toEqual([...RUNTIME_SYSTEM_SETTING_KEYS].sort());

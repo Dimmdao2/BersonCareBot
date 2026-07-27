@@ -14,6 +14,7 @@ import {
   getAuthChannelPolicyDetail,
   getOAuthProviderPolicyDetail,
 } from "@/modules/auth/authChannelPolicy";
+import { normalizePlatformIntegrationAvailability } from "@/modules/system-settings/platformIntegrationAvailability";
 
 /**
  * The platform API is deliberately not a mirror of `/api/admin/settings`.
@@ -33,6 +34,10 @@ export const PLATFORM_GLOBAL_SETTINGS_API_KEYS = [
   "auth_oauth_google_enabled",
   "auth_oauth_yandex_enabled",
   "auth_2fa_enabled",
+  // admin_emails deliberately NOT here: the field was removed 2026-07-27 — it wrote a setting that the
+  // global-admin login never read (elevation comes from PLATFORM_OWNER_IDENTITY), so it looked like a
+  // security lever and was not one.
+  "platform_integration_availability",
   "booking_location_default_palette",
 ] as const satisfies readonly SystemSettingKey[];
 
@@ -56,6 +61,10 @@ function normalizePlatformValue(key: (typeof PLATFORM_GLOBAL_SETTINGS_API_KEYS)[
   if (key === "patient_app_maintenance_message") {
     if (typeof normalized.value !== "string" || normalized.value.length > 2_000) return null;
     return { value: normalized.value.trim() };
+  }
+  if (key === "platform_integration_availability") {
+    const availability = normalizePlatformIntegrationAvailability(normalized.value);
+    return availability ? { value: availability } : null;
   }
   return typeof normalized.value === "boolean" ? { value: normalized.value } : null;
 }

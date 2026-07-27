@@ -164,6 +164,9 @@ export type AdminSettingsPageData = {
     maxLoginBotNickname: string;
     maxBotApiKey: string;
     vkWebLoginUrl: string;
+    vkIdApplicationId: string;
+    vkIdHasStoredClientSecret: boolean;
+    vkIdRedirectUri: string;
     yandexOauthClientId: string;
     yandexOauthClientSecret: string;
     yandexOauthRedirectUri: string;
@@ -366,6 +369,15 @@ export async function loadAdminSettingsPageData(): Promise<AdminSettingsPageData
         const raw = getValueJson(adminSettingsList.find((x) => x.key === "vk_web_login_url")?.valueJson, "");
         return typeof raw === "string" ? raw.trim() : "";
       })(),
+      vkIdApplicationId: adminStr("vk_id_application_id"),
+      vkIdHasStoredClientSecret: (() => {
+        const raw = getValueJson<unknown>(
+          adminSettingsList.find((x) => x.key === "vk_id_client_secret")?.valueJson,
+          null,
+        );
+        return raw !== null && typeof raw === "object" && (raw as Record<string, unknown>).hasStoredSecret === true;
+      })(),
+      vkIdRedirectUri: adminStr("vk_id_redirect_uri"),
       yandexOauthClientId: (() => {
         const raw = getValueJson(adminSettingsList.find((x) => x.key === "yandex_oauth_client_id")?.valueJson, "");
         return typeof raw === "string" ? raw.trim() : "";

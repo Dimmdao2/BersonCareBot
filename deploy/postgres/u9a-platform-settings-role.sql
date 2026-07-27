@@ -57,6 +57,7 @@ BEGIN
     'auth_oauth_google_enabled',
     'auth_oauth_yandex_enabled',
     'auth_2fa_enabled',
+    'platform_integration_availability',
     'admin_emails',
     'booking_location_default_palette',
     'saas_billing_payment_provider',

@@ -15,7 +15,10 @@ export type AuthProvidersSectionProps = {
   /** MAX Bot API key — проверка Mini App initData (тот же ключ, что MAX_API_KEY у интегратора). */
   maxBotApiKey: string;
   /** Ссылка для будущей кнопки «Вход с VK ID» на экране входа (https). */
-  vkWebLoginUrl: string;
+  vkWebLoginUrl?: string;
+  vkIdApplicationId: string;
+  vkIdHasStoredClientSecret: boolean;
+  vkIdRedirectUri: string;
   yandexOauthClientId: string;
   yandexOauthClientSecret: string;
   yandexOauthRedirectUri: string;
@@ -47,7 +50,10 @@ export function AuthProvidersSection({
   telegramLoginBotUsername,
   maxLoginBotNickname,
   maxBotApiKey,
-  vkWebLoginUrl,
+  vkWebLoginUrl = "",
+  vkIdApplicationId,
+  vkIdHasStoredClientSecret,
+  vkIdRedirectUri,
   yandexOauthClientId,
   yandexOauthClientSecret,
   yandexOauthRedirectUri,
@@ -64,6 +70,9 @@ export function AuthProvidersSection({
   const [maxBotNick, setMaxBotNick] = useState(maxLoginBotNickname);
   const [maxApiKey, setMaxApiKey] = useState(maxBotApiKey);
   const [vkLoginUrl, setVkLoginUrl] = useState(vkWebLoginUrl);
+  const [vkIdApplication, setVkIdApplication] = useState(vkIdApplicationId);
+  const [vkIdClientSecret, setVkIdClientSecret] = useState("");
+  const [vkIdRedirect, setVkIdRedirect] = useState(vkIdRedirectUri);
   const [yandexId, setYandexId] = useState(yandexOauthClientId);
   const [yandexSecret, setYandexSecret] = useState(yandexOauthClientSecret);
   const [yandexRedirect, setYandexRedirect] = useState(yandexOauthRedirectUri);
@@ -94,6 +103,11 @@ export function AuthProvidersSection({
           setError(gLoginErr);
           return;
         }
+        const vkIdRedirectErr = validateHttpUrl("VK ID redirect URI", vkIdRedirect);
+        if (vkIdRedirectErr) {
+          setError(vkIdRedirectErr);
+          return;
+        }
         const aRedirErr = validateHttpUrl("Apple redirect URI", aRedirect);
         if (aRedirErr) {
           setError(aRedirErr);
@@ -111,11 +125,13 @@ export function AuthProvidersSection({
             return;
           }
         }
-        const results = await Promise.all([
+        const patches = [
           patchAdminSetting("telegram_login_bot_username", telegramBot.trim()),
           patchAdminSetting("max_login_bot_nickname", maxBotNick.trim()),
           patchAdminSetting("max_bot_api_key", maxApiKey.trim()),
           patchAdminSetting("vk_web_login_url", vkTrim),
+          patchAdminSetting("vk_id_application_id", vkIdApplication.trim()),
+          patchAdminSetting("vk_id_redirect_uri", vkIdRedirect.trim()),
           patchAdminSetting("yandex_oauth_client_id", yandexId.trim()),
           patchAdminSetting("yandex_oauth_client_secret", yandexSecret.trim()),
           patchAdminSetting("yandex_oauth_redirect_uri", yandexRedirect.trim()),
@@ -127,11 +143,16 @@ export function AuthProvidersSection({
           patchAdminSetting("apple_oauth_key_id", aKeyId.trim()),
           patchAdminSetting("apple_oauth_private_key", aPem.trim()),
           patchAdminSetting("apple_oauth_redirect_uri", aRedirect.trim()),
-        ]);
+        ];
+        if (vkIdClientSecret.trim().length > 0) {
+          patches.push(patchAdminSetting("vk_id_client_secret", vkIdClientSecret.trim()));
+        }
+        const results = await Promise.all(patches);
         if (results.some((r) => !r)) {
           setError("Не удалось сохранить часть настроек");
           return;
         }
+        setVkIdClientSecret("");
         setSaved(true);
       } catch {
         setError("Ошибка при сохранении");
@@ -224,9 +245,51 @@ export function AuthProvidersSection({
           </section>
 
           <section className="flex flex-col gap-2">
-            <p className="text-sm font-semibold">VK ID (URL для будущей кнопки на экране входа)</p>
+            <p className="text-sm font-semibold">VK ID</p>
+            <p className="text-xs text-muted-foreground">
+              Для серверного OAuth 2.1 нужны ID приложения, защищённый ключ и точный redirect URI. Сервисный ключ
+              доступа VK API для входа через VK ID не требуется и здесь не хранится.
+            </p>
             <label className="flex flex-col gap-1">
-              <span className="text-xs font-medium">URL входа (https)</span>
+              <span className="text-xs font-medium">ID приложения (client_id / APP_ID)</span>
+              <Input
+                type="text"
+                value={vkIdApplication}
+                onChange={(e) => setVkIdApplication(e.target.value)}
+                disabled={isPending}
+                autoComplete="off"
+                className="font-mono text-xs"
+              />
+            </label>
+            <label className="flex flex-col gap-1">
+              <span className="text-xs font-medium">Защищённый ключ (client_secret)</span>
+              <Input
+                type="password"
+                placeholder={vkIdHasStoredClientSecret ? "Сохранён; оставьте пустым, чтобы не менять" : "Вставьте защищённый ключ"}
+                value={vkIdClientSecret}
+                onChange={(e) => setVkIdClientSecret(e.target.value)}
+                disabled={isPending}
+                autoComplete="new-password"
+                className="font-mono text-xs"
+              />
+              <span className="text-xs text-muted-foreground">
+                Значение не возвращается в браузер. Пустое поле не перезаписывает уже сохранённый ключ.
+              </span>
+            </label>
+            <label className="flex flex-col gap-1">
+              <span className="text-xs font-medium">Redirect URI (callback)</span>
+              <Input
+                type="url"
+                placeholder="https://example.com/api/auth/oauth/callback/vk-id"
+                value={vkIdRedirect}
+                onChange={(e) => setVkIdRedirect(e.target.value)}
+                disabled={isPending}
+                autoComplete="off"
+                className="font-mono text-xs"
+              />
+            </label>
+            <label className="flex flex-col gap-1">
+              <span className="text-xs font-medium">Старый URL входа (не OAuth credential)</span>
               <Input
                 type="url"
                 placeholder="https://id.vk.com/… или ссылка на мини-приложение"
@@ -237,8 +300,7 @@ export function AuthProvidersSection({
                 className="font-mono text-xs"
               />
               <span className="text-xs text-muted-foreground">
-                Пустое — ссылка не отдаётся в публичный API. Кнопка на входе будет добавлена отдельно. Реализация OAuth на
-                стороне VK — вне этого поля; здесь только куда вести пользователя.
+                Сохраняется для совместимости с будущей кнопкой-ссылкой; OAuth callback должен использовать поле выше.
               </span>
             </label>
           </section>

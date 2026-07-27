@@ -125,6 +125,9 @@ const ADMIN_SCOPE_KEYS = [
   "yandex_oauth_client_id",
   "yandex_oauth_client_secret",
   "yandex_oauth_redirect_uri",
+  "vk_id_application_id",
+  "vk_id_client_secret",
+  "vk_id_redirect_uri",
   // Google Calendar OAuth + integration
   "google_client_id",
   "google_client_secret",
@@ -190,6 +193,7 @@ const batchBodySchema = z.object({
 const SECRET_LIKE_KEYS = new Set<string>([
   "max_bot_api_key",
   "yandex_oauth_client_secret",
+  "vk_id_client_secret",
   "google_client_secret",
   "google_refresh_token",
   "apple_oauth_private_key",
