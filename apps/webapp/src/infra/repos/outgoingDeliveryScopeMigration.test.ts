@@ -46,7 +46,9 @@ describe("0260 outgoing delivery scope text identifier fix", () => {
     expect(migration).toContain(
       "GRANT EXECUTE ON FUNCTION app.resolve_outgoing_delivery_scope(uuid) TO app_operational_delivery_worker;",
     );
-    expect(readFileSync(deployHostPath, "utf8")).toContain("local expected_secdef_count=105");
+    // 105 -> 106: migration 0261 adds the single reviewed
+    // app.is_platform_registration_analytics_user_excluded(uuid) SECURITY DEFINER.
+    expect(readFileSync(deployHostPath, "utf8")).toContain("local expected_secdef_count=106");
   });
 
   it("keeps the UUID-to-UUID operator and broadcast branches unchanged", () => {
@@ -64,12 +66,31 @@ describe("0260 outgoing delivery scope text identifier fix", () => {
     const journal = JSON.parse(readFileSync(journalPath, "utf8")) as {
       entries: Array<Record<string, unknown>>;
     };
-    expect(journal.entries.at(-1)).toEqual({
-      idx: 260,
-      version: "7",
-      when: 1793539200057,
-      tag: "0260_outgoing_delivery_scope_text_ids",
-      breakpoints: true,
-    });
+    // The exact journal tail grew from one pinned 0260 entry to three: reviewed 0261 adds the
+    // platform-registration read definer, and 0262 removes Rubitime data. Keep all three exact
+    // instead of weakening the 0260 contract merely because it is no longer the final entry.
+    expect(journal.entries.slice(-3)).toEqual([
+      {
+        idx: 260,
+        version: "7",
+        when: 1793539200057,
+        tag: "0260_outgoing_delivery_scope_text_ids",
+        breakpoints: true,
+      },
+      {
+        idx: 261,
+        version: "7",
+        when: 1793539200058,
+        tag: "0261_platform_registration_events_read",
+        breakpoints: true,
+      },
+      {
+        idx: 262,
+        version: "7",
+        when: 1793539200059,
+        tag: "0262_remove_rubitime_data",
+        breakpoints: true,
+      },
+    ]);
   });
 });

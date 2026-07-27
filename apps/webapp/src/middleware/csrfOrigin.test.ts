@@ -246,11 +246,17 @@ describe("frozen webapp mutation census", () => {
     // The existing `api/admin/settings/route.ts` then gained DELETE for the owner-facing reset to
     // registry default. It is another same-origin browser mutation, so route/file counts stay fixed
     // while unsafe handlers move 398 -> 399 and browser handlers 362 -> 363.
-    expect(routeFiles).toHaveLength(524);
-    expect(sha256Lines(routeInventory)).toBe("98a43d644aaa210397238ddc568ae8ba3792964f95835ef1732bc6d5610673d6");
-    expect(unsafeInventory).toHaveLength(359);
-    expect(unsafeInventory.reduce((count, entry) => count + entry.methods.length, 0)).toBe(399);
-    expect(sha256Lines(unsafeInventoryLines)).toBe("ac58d6a15a6168bc992a6ecee01b9ad70f87b7d785d7f59a8fd2ff6996cf5cb5");
+    // 524 -> 503: the Rubitime retirement removed 21 intentional API routes (one GET-only and
+    // 20 mutating files with 26 unsafe handlers). The separately deleted appointment-record
+    // soft-delete route is NOT included in that reduction: AdminDangerActions still POSTs to it
+    // from two live doctor surfaces, so freezing the observed 502 would hide a broken mutation.
+    // Keep its exact path/method in the intended inventory until runtime/UI ownership resolves it.
+    expect(routeInventory).toContain("admin/appointment-records/[integratorRecordId]/soft-delete/route.ts");
+    expect(routeFiles).toHaveLength(503);
+    expect(sha256Lines(routeInventory)).toBe("0acec4bd002b3ce4e6dee295bc4bd02763a1c89915a17b548ad61e424dc40f8f");
+    expect(unsafeInventory).toHaveLength(339);
+    expect(unsafeInventory.reduce((count, entry) => count + entry.methods.length, 0)).toBe(373);
+    expect(sha256Lines(unsafeInventoryLines)).toBe("0285e65270f53a3222ad681c1d2a94a8bbb5d1fe2659dfcf4f823dc62a8a598f");
   });
 
   it("exhaustively classifies unsafe files as browser, integrator, internal, webhook, or Apple", () => {
@@ -258,8 +264,11 @@ describe("frozen webapp mutation census", () => {
     for (const file of specialFiles) expect(actualUnsafeFiles.has(file), file).toBe(true);
     expect(specialFiles.size).toBe(36);
     const browser = unsafeInventory.filter((entry) => !specialFiles.has(entry.file));
-    expect(browser).toHaveLength(323);
-    expect(browser.reduce((count, entry) => count + entry.methods.length, 0)).toBe(363);
+    // 323 -> 303 files / 363 -> 337 handlers: the same Rubitime cut removed 20 browser
+    // mutation files and 26 handlers. The still-called appointment-record soft-delete POST remains
+    // deliberately required here, so the observed 302/336 is a regression rather than a new freeze.
+    expect(browser).toHaveLength(303);
+    expect(browser.reduce((count, entry) => count + entry.methods.length, 0)).toBe(337);
     expect(browser).toContainEqual({
       file: "admin/settings/route.ts",
       methods: ["DELETE", "PATCH"],

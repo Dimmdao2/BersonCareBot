@@ -126,7 +126,9 @@ describe("0254 auth rate-limit action accessors", () => {
 
   it("pins the four reviewed definers and their three app_owner table privileges", () => {
     const deploy = readFileSync(deployPath, "utf8");
-    expect(deploy).toContain("local expected_secdef_count=105");
+    // 105 -> 106: migration 0261 adds the single reviewed
+    // app.is_platform_registration_analytics_user_excluded(uuid) SECURITY DEFINER.
+    expect(deploy).toContain("local expected_secdef_count=106");
     for (const row of [
       "('public.auth_rate_limit_events', 'SELECT')",
       "('public.auth_rate_limit_events', 'INSERT')",
