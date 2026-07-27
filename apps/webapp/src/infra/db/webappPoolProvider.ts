@@ -36,7 +36,6 @@ export type WebappPoolRoutingMetrics = {
   missingPrincipalSelections: number;
   bootstrapSelections: number;
   infraSelections: number;
-  poolRoleMismatches: number;
   webPushReminderSelections: number;
 };
 
@@ -210,6 +209,8 @@ function choosePoolKindForPrincipal(
   principal: DbPrincipal | undefined,
   metrics: WebappPoolRoutingMetrics,
 ): WebappRuntimePoolKind {
+  // This is the routing decision, not an independent record of the pool checkout.
+  // Actual role/pool failures are reported only from the PostgreSQL 42501 classifier.
   const poolKind: WebappRuntimePoolKind =
     principal?.kind === "organization" || principal?.kind === "staff" || principal?.kind === "platform"
       ? "staff"
@@ -227,24 +228,6 @@ function choosePoolKindForPrincipal(
     metrics.bootstrapSelections += 1;
   } else if (principal.kind === "infra") {
     metrics.infraSelections += 1;
-  }
-
-  const expectedPoolKind =
-    principal?.kind === "organization" || principal?.kind === "staff" || principal?.kind === "platform"
-      ? "staff"
-      : "nonstaff";
-  if (poolKind !== expectedPoolKind) {
-    metrics.poolRoleMismatches += 1;
-    console.error("webapp_db_pool_role_mismatch", {
-      expectedPoolKind,
-      principalKind: principal?.kind ?? "missing",
-      selectedPoolKind: poolKind,
-    });
-    void reportSaasIsolationEventBestEffort({
-      eventClass: "role_pool_mismatch",
-      sourceService: "webapp",
-      sourceOperation: currentWebappDbSourceOperation(),
-    });
   }
 
   return poolKind;
@@ -348,7 +331,6 @@ function createEmptyRoutingMetrics(): WebappPoolRoutingMetrics {
     missingPrincipalSelections: 0,
     bootstrapSelections: 0,
     infraSelections: 0,
-    poolRoleMismatches: 0,
     webPushReminderSelections: 0,
   };
 }

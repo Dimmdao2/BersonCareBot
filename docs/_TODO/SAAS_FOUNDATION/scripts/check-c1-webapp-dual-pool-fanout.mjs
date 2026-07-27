@@ -51,7 +51,6 @@ function runChecks(overrides = {}) {
     "Pool selection happens before checkout",
     "Missing and `infra` fail closed in locked mode.",
     "RESET ROLE",
-    "pool/role mismatch metrics",
   ]);
 
   requireFragments(files.dbPrincipal, loaded.dbPrincipal, [
@@ -66,7 +65,6 @@ function runChecks(overrides = {}) {
     "assertRoutedWebappPoolCheckoutAllowed",
     "choosePoolKindForPrincipal(principal, input.metrics) === \"staff\" ? input.staffPool : input.nonstaffPool",
     "principal?.kind === \"organization\" || principal?.kind === \"staff\" || principal?.kind === \"platform\"",
-    "metrics.poolRoleMismatches += 1",
     "getWebappPoolRoutingMetrics",
   ]);
   requireFragmentBefore(

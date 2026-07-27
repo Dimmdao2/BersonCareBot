@@ -100,7 +100,6 @@ try {
 
   const metrics = getWebappPoolRoutingMetrics(pool);
   assert.ok(metrics);
-  assert.equal(metrics.poolRoleMismatches, 0);
   assert.equal(metrics.missingPrincipalSelections, 1);
   assert.ok(metrics.staffSelections >= 4);
   assert.ok(metrics.nonstaffSelections >= 4);
@@ -114,7 +113,6 @@ try {
       ownOrgAccess: true,
       crossOrgDenied: true,
       missingPrincipalDenied: true,
-      poolRoleMismatches: metrics.poolRoleMismatches,
     }),
   );
 } finally {

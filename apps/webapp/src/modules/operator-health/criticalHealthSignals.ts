@@ -232,7 +232,7 @@ function classifyTenantIsolationSignals(
       pushTitle: "Критичный сбой: изоляция организаций",
       lines: [
         "Изоляция организаций: обнаружено нарушение runtime-контекста",
-        `Без принципала: +${input.runtime.missingPrincipalDelta}, mismatch роли/пула: +${input.runtime.poolRoleMismatchDelta}`,
+        `Без принципала: +${input.runtime.missingPrincipalDelta}`,
       ],
     });
   }

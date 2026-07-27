@@ -18,8 +18,23 @@ function requireMatch(value, pattern, label) {
 function validatePlaybackAcl(value) {
   requireMatch(
     value,
-    /REVOKE SELECT ON TABLE\s+public\.media_playback_resolution_events,\s+public\.media_playback_stats_hourly,\s+public\.media_playback_user_video_first_resolve,\s+public\.media_playback_client_events,\s+public\.media_hls_proxy_error_events\s+FROM PUBLIC, app_staff, app_patient, app_worker, saas_telemetry_operator;/,
+    /REVOKE SELECT ON TABLE\s+public\.media_playback_resolution_events,\s+public\.media_playback_stats_hourly,\s+public\.media_playback_user_video_first_resolve,\s+public\.media_playback_client_events,\s+public\.media_hls_proxy_error_events\s+FROM PUBLIC, app_patient, app_worker, saas_telemetry_operator;/,
     "playback_source_fixed_role_revoke",
+  );
+  requireMatch(
+    value,
+    /GRANT SELECT ON TABLE\s+public\.media_playback_resolution_events,\s+public\.media_playback_stats_hourly,\s+public\.media_playback_user_video_first_resolve\s+TO app_staff;/,
+    "playback_staff_analytics_select",
+  );
+  requireMatch(
+    value,
+    /source_table\.relname = ANY \(ARRAY\[[\s\S]*'media_playback_client_events'[\s\S]*'media_hls_proxy_error_events'[\s\S]*source_acl\.grantee = 'app_staff'::regrole::oid/,
+    "playback_nonanalytics_staff_revoke_postflight",
+  );
+  requireMatch(
+    value,
+    /unnest\(ARRAY\[[\s\S]*'media_playback_resolution_events'[\s\S]*'media_playback_stats_hourly'[\s\S]*'media_playback_user_video_first_resolve'[\s\S]*source_acl\.grantee = 'app_staff'::regrole::oid/,
+    "playback_staff_analytics_select_postflight",
   );
   requireMatch(
     value,
@@ -39,7 +54,7 @@ function validatePlaybackAcl(value) {
   requireMatch(value, /pg_catalog\.aclexplode\(/, "playback_source_acl_postflight");
   requireMatch(
     value,
-    /source_table\.relname = ANY \(ARRAY\[[\s\S]*'media_playback_resolution_events'[\s\S]*'media_playback_stats_hourly'[\s\S]*'media_playback_user_video_first_resolve'[\s\S]*'media_playback_client_events'[\s\S]*'media_hls_proxy_error_events'[\s\S]*source_acl\.privilege_type = 'SELECT'[\s\S]*source_acl\.grantee = ANY \(ARRAY\[[\s\S]*0::oid[\s\S]*'app_staff'::regrole::oid[\s\S]*'app_patient'::regrole::oid[\s\S]*'app_worker'::regrole::oid[\s\S]*'saas_telemetry_operator'::regrole::oid[\s\S]*:'system_health_operator_runtime_role'::regrole::oid/,
+    /source_table\.relname = ANY \(ARRAY\[[\s\S]*'media_playback_resolution_events'[\s\S]*'media_playback_stats_hourly'[\s\S]*'media_playback_user_video_first_resolve'[\s\S]*'media_playback_client_events'[\s\S]*'media_hls_proxy_error_events'[\s\S]*source_acl\.privilege_type = 'SELECT'[\s\S]*source_acl\.grantee = ANY \(ARRAY\[[\s\S]*0::oid[\s\S]*'app_patient'::regrole::oid[\s\S]*'app_worker'::regrole::oid[\s\S]*'saas_telemetry_operator'::regrole::oid[\s\S]*:'system_health_operator_runtime_role'::regrole::oid/,
     "playback_source_acl_inventory",
   );
   requireMatch(
@@ -144,8 +159,12 @@ if (process.argv.length > 3 || (process.argv[2] && process.argv[2] !== "--self-t
 if (process.argv[2] === "--self-test") {
   const mutations = [
     overlay.replace(
-      "FROM PUBLIC, app_staff, app_patient, app_worker, saas_telemetry_operator;",
-      "FROM PUBLIC, app_staff, app_patient, app_worker;",
+      "FROM PUBLIC, app_patient, app_worker, saas_telemetry_operator;",
+      "FROM PUBLIC, app_patient, app_worker;",
+    ),
+    overlay.replace(
+      "TO app_staff;",
+      "TO app_patient;",
     ),
     overlay.replace(
       "public.media_playback_user_video_first_resolve, public.media_playback_client_events, public.media_hls_proxy_error_events FROM %I",

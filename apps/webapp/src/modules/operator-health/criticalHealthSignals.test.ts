@@ -37,7 +37,7 @@ function healthyInput(overrides: Partial<CriticalHealthSignalsInput> = {}): Crit
     videoTranscodeStatus: "ok",
     webhookBursts: [],
     tenantIsolation: {
-      runtime: { critical: false, missingPrincipalDelta: 0, poolRoleMismatchDelta: 0 },
+      runtime: { critical: false, missingPrincipalDelta: 0 },
       diagnostics: { status: "okay", activeUnexplainedEvents: 0 },
       wentDark: { status: "ok", affectedOrganizations: 0 },
     },
@@ -64,7 +64,7 @@ describe("classifyCriticalHealthSignals", () => {
     const candidates = classifyCriticalHealthSignals(
       healthyInput({
         tenantIsolation: {
-          runtime: { critical: true, missingPrincipalDelta: 2, poolRoleMismatchDelta: 1 },
+          runtime: { critical: true, missingPrincipalDelta: 2 },
           diagnostics: { status: "critical", activeUnexplainedEvents: 3 },
           wentDark: { status: "critical", affectedOrganizations: 2 },
         },
@@ -83,7 +83,7 @@ describe("classifyCriticalHealthSignals", () => {
     const candidates = classifyCriticalHealthSignals(
       healthyInput({
         tenantIsolation: {
-          runtime: { critical: false, missingPrincipalDelta: 0, poolRoleMismatchDelta: 0 },
+          runtime: { critical: false, missingPrincipalDelta: 0 },
           diagnostics: { status: "degraded", activeUnexplainedEvents: 0 },
           wentDark: { status: "priming", affectedOrganizations: 0 },
         },

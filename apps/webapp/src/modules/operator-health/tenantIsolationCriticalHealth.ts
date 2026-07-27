@@ -12,13 +12,11 @@ const MIN_SAMPLE_INTERVAL_MS = 4 * 60_000;
 
 type IsolationRoutingCounters = {
   missingPrincipalSelections: number;
-  poolRoleMismatches: number;
 };
 
 export type TenantIsolationRuntimeSignal = {
   critical: boolean;
   missingPrincipalDelta: number;
-  poolRoleMismatchDelta: number;
 };
 
 export type TenantIsolationDiagnosticsSignal = {
@@ -49,7 +47,6 @@ let lastRuntimeObservedAt: number | null = null;
 let lastRuntimeSignal: TenantIsolationRuntimeSignal = {
   critical: false,
   missingPrincipalDelta: 0,
-  poolRoleMismatchDelta: 0,
 };
 let diagnosticsFailureSamples = 0;
 let lastDiagnosticsObservedAt: number | null = null;
@@ -89,7 +86,6 @@ export function observeTenantIsolationRuntimeCounters(
     lastRuntimeSignal = {
       critical: runtimeCritical,
       missingPrincipalDelta: 0,
-      poolRoleMismatchDelta: 0,
     };
     return lastRuntimeSignal;
   }
@@ -98,16 +94,11 @@ export function observeTenantIsolationRuntimeCounters(
     metrics.missingPrincipalSelections,
     previousRoutingCounters?.missingPrincipalSelections,
   );
-  const poolRoleMismatchDelta = nonNegativeDelta(
-    metrics.poolRoleMismatches,
-    previousRoutingCounters?.poolRoleMismatches,
-  );
   previousRoutingCounters = {
     missingPrincipalSelections: metrics.missingPrincipalSelections,
-    poolRoleMismatches: metrics.poolRoleMismatches,
   };
 
-  if (missingPrincipalDelta > 0 || poolRoleMismatchDelta > 0) {
+  if (missingPrincipalDelta > 0) {
     runtimeCritical = true;
     runtimeCleanSamples = 0;
   } else if (runtimeCritical) {
@@ -118,7 +109,7 @@ export function observeTenantIsolationRuntimeCounters(
     }
   }
 
-  lastRuntimeSignal = { critical: runtimeCritical, missingPrincipalDelta, poolRoleMismatchDelta };
+  lastRuntimeSignal = { critical: runtimeCritical, missingPrincipalDelta };
   return lastRuntimeSignal;
 }
 
@@ -265,7 +256,7 @@ export function resetTenantIsolationCriticalHealthForTest(): void {
   runtimeCritical = false;
   runtimeCleanSamples = 0;
   lastRuntimeObservedAt = null;
-  lastRuntimeSignal = { critical: false, missingPrincipalDelta: 0, poolRoleMismatchDelta: 0 };
+  lastRuntimeSignal = { critical: false, missingPrincipalDelta: 0 };
   diagnosticsFailureSamples = 0;
   lastDiagnosticsObservedAt = null;
   lastDiagnosticsSignal = { status: "degraded", activeUnexplainedEvents: 0 };

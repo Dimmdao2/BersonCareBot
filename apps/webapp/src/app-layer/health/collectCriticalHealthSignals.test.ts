@@ -80,7 +80,6 @@ describe("collectCriticalHealthSignals", () => {
       missingPrincipalSelections: 0,
       bootstrapSelections: 0,
       infraSelections: 0,
-      poolRoleMismatches: 0,
       webPushReminderSelections: 0,
     });
     readIsolationHealthMock.mockResolvedValue({
@@ -130,7 +129,6 @@ describe("collectCriticalHealthSignals", () => {
   it("feeds existing routing and isolation diagnostics into the critical snapshot", async () => {
     getPoolRoutingMetricsMock.mockReturnValue({
       missingPrincipalSelections: 2,
-      poolRoleMismatches: 1,
     });
     readIsolationHealthMock.mockResolvedValue({
       status: "critical",
@@ -138,7 +136,7 @@ describe("collectCriticalHealthSignals", () => {
     });
     const input = await collectCriticalHealthSignals();
     expect(input.tenantIsolation).toEqual({
-      runtime: { critical: true, missingPrincipalDelta: 2, poolRoleMismatchDelta: 1 },
+      runtime: { critical: true, missingPrincipalDelta: 2 },
       diagnostics: { status: "critical", activeUnexplainedEvents: 3 },
       wentDark: { status: "priming", affectedOrganizations: 0 },
     });

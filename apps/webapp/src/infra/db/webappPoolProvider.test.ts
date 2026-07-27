@@ -245,7 +245,6 @@ describe("webapp pool provider", () => {
     expect(getWebappPoolRoutingMetrics(pool)).toMatchObject({
       staffSelections: 1,
       nonstaffSelections: 0,
-      poolRoleMismatches: 0,
     });
   });
 
@@ -290,7 +289,6 @@ describe("webapp pool provider", () => {
       nonstaffSelections: 3,
       missingPrincipalSelections: 1,
       bootstrapSelections: 1,
-      poolRoleMismatches: 0,
     });
   });
 
@@ -552,7 +550,6 @@ describe("webapp pool provider", () => {
     expect(pools[0]?.connect).toHaveBeenCalledTimes(2);
     expect(getWebappPoolRoutingMetrics(pool)).toMatchObject({
       missingPrincipalSelections: 0,
-      poolRoleMismatches: 0,
     });
   });
 

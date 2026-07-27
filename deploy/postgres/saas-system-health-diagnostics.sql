@@ -174,14 +174,24 @@ WHERE granted_role.rolname = 'saas_system_health_owner'
 
 REVOKE ALL ON ALL TABLES IN SCHEMA public FROM saas_system_health_owner;
 -- Remove any stale direct source-table capability left by an older deployment.
--- Only the sealed SECURITY DEFINER owner may read these telemetry tables.
+-- app_staff already owns the matching INSERT/UPDATE/DELETE surface for the first
+-- three tables; its SELECT is intentionally restored below for doctor analytics.
 REVOKE SELECT ON TABLE
   public.media_playback_resolution_events,
   public.media_playback_stats_hourly,
   public.media_playback_user_video_first_resolve,
   public.media_playback_client_events,
   public.media_hls_proxy_error_events
-FROM PUBLIC, app_staff, app_patient, app_worker, saas_telemetry_operator;
+FROM PUBLIC, app_patient, app_worker, saas_telemetry_operator;
+REVOKE SELECT ON TABLE
+  public.media_playback_client_events,
+  public.media_hls_proxy_error_events
+FROM app_staff;
+GRANT SELECT ON TABLE
+  public.media_playback_resolution_events,
+  public.media_playback_stats_hourly,
+  public.media_playback_user_video_first_resolve
+TO app_staff;
 REVOKE SELECT ON TABLE
   public.media_playback_resolution_events,
   public.media_playback_user_video_first_resolve,
@@ -316,12 +326,46 @@ SELECT 1 / (
       AND source_acl.privilege_type = 'SELECT'
       AND source_acl.grantee = ANY (ARRAY[
         0::oid,
-        'app_staff'::regrole::oid,
         'app_patient'::regrole::oid,
         'app_worker'::regrole::oid,
         'saas_telemetry_operator'::regrole::oid,
         :'system_health_operator_runtime_role'::regrole::oid
       ])
+  )
+  AND NOT EXISTS (
+    SELECT 1
+    FROM pg_catalog.pg_class AS source_table
+    JOIN pg_catalog.pg_namespace AS source_schema
+      ON source_schema.oid = source_table.relnamespace
+    CROSS JOIN LATERAL pg_catalog.aclexplode(
+      COALESCE(source_table.relacl, pg_catalog.acldefault('r', source_table.relowner))
+    ) AS source_acl
+    WHERE source_schema.nspname = 'public'
+      AND source_table.relname = ANY (ARRAY[
+        'media_playback_client_events',
+        'media_hls_proxy_error_events'
+      ])
+      AND source_acl.privilege_type = 'SELECT'
+      AND source_acl.grantee = 'app_staff'::regrole::oid
+  )
+  AND NOT EXISTS (
+    SELECT source_table.relname
+    FROM unnest(ARRAY[
+      'media_playback_resolution_events',
+      'media_playback_stats_hourly',
+      'media_playback_user_video_first_resolve'
+    ]) AS expected_table(relname)
+    LEFT JOIN pg_catalog.pg_class AS source_table
+      JOIN pg_catalog.pg_namespace AS source_schema
+        ON source_schema.oid = source_table.relnamespace
+      ON source_schema.nspname = 'public'
+        AND source_table.relname = expected_table.relname
+    LEFT JOIN LATERAL pg_catalog.aclexplode(
+      COALESCE(source_table.relacl, pg_catalog.acldefault('r', source_table.relowner))
+    ) AS source_acl
+      ON source_acl.privilege_type = 'SELECT'
+        AND source_acl.grantee = 'app_staff'::regrole::oid
+    WHERE source_acl.grantee IS NULL
   )
   AND NOT EXISTS (
     SELECT 1

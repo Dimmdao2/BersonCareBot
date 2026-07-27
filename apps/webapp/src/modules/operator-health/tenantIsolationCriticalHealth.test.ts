@@ -46,23 +46,20 @@ describe("tenant isolation critical health runtime", () => {
 
   it("alerts on monotonic routing-counter deltas and recovers only after two clean ticks", () => {
     expect(
-      observeTenantIsolationRuntimeCounters({ missingPrincipalSelections: 1, poolRoleMismatches: 0 }, 0),
-    ).toEqual({ critical: true, missingPrincipalDelta: 1, poolRoleMismatchDelta: 0 });
+      observeTenantIsolationRuntimeCounters({ missingPrincipalSelections: 1 }, 0),
+    ).toEqual({ critical: true, missingPrincipalDelta: 1 });
     expect(
-      observeTenantIsolationRuntimeCounters({ missingPrincipalSelections: 1, poolRoleMismatches: 0 }, 300_000).critical,
+      observeTenantIsolationRuntimeCounters({ missingPrincipalSelections: 1 }, 300_000).critical,
     ).toBe(true);
     expect(
-      observeTenantIsolationRuntimeCounters({ missingPrincipalSelections: 1, poolRoleMismatches: 0 }, 600_000).critical,
+      observeTenantIsolationRuntimeCounters({ missingPrincipalSelections: 1 }, 600_000).critical,
     ).toBe(false);
   });
 
   it("treats a counter reset as a new process baseline without negative deltas", () => {
-    observeTenantIsolationRuntimeCounters({ missingPrincipalSelections: 5, poolRoleMismatches: 2 }, 0);
-    const reset = observeTenantIsolationRuntimeCounters(
-      { missingPrincipalSelections: 0, poolRoleMismatches: 1 },
-      300_000,
-    );
-    expect(reset).toMatchObject({ missingPrincipalDelta: 0, poolRoleMismatchDelta: 1, critical: true });
+    observeTenantIsolationRuntimeCounters({ missingPrincipalSelections: 5 }, 0);
+    const reset = observeTenantIsolationRuntimeCounters({ missingPrincipalSelections: 0 }, 300_000);
+    expect(reset).toMatchObject({ missingPrincipalDelta: 0, critical: true });
   });
 
   it("debounces diagnostics-read failure and clears it on a healthy read", () => {
