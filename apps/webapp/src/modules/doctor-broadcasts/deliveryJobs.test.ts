@@ -2,28 +2,15 @@ import { describe, expect, it } from "vitest";
 import {
   buildBroadcastMessengerHtml,
   buildBroadcastMessageText,
-  buildDoctorBroadcastDeliveryJobs as buildDoctorBroadcastDeliveryJobsRaw,
+  buildDoctorBroadcastDeliveryJobs,
   markdownToTelegramHtml,
   splitBroadcastPlainCombined,
   stripMarkdownToPlain,
-  type DoctorBroadcastDeliveryJobsParams,
 } from "./deliveryJobs";
 import type { BroadcastNotificationPrefsFlags } from "./ports";
 import type { ClientListItem } from "@/modules/doctor-clients/ports";
 
 const auditId = "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee";
-const notificationOpenUrl = "https://app.test/app/patient?notifications=1";
-
-function buildDoctorBroadcastDeliveryJobs(
-  input: Omit<DoctorBroadcastDeliveryJobsParams, "notificationOpenUrl"> & {
-    notificationOpenUrl?: string;
-  },
-) {
-  return buildDoctorBroadcastDeliveryJobsRaw({
-    ...input,
-    notificationOpenUrl: input.notificationOpenUrl ?? notificationOpenUrl,
-  });
-}
 
 function cl(partial: Partial<ClientListItem> & Pick<ClientListItem, "userId">): ClientListItem {
   return {
@@ -293,17 +280,16 @@ describe("stripMarkdownToPlain", () => {
 });
 
 describe("sms plain rendition", () => {
-  it("sms strips markdown markers from the subject while keeping the body private", () => {
+  it("sms strips markdown markers while preserving the full broadcast body", () => {
     const jobs = buildDoctorBroadcastDeliveryJobs({
       auditId,
       eligibleClients: [cl({ userId: "u1", bindings: {}, phone: "+79990001122" })],
       channels: ["sms"],
       messageTitle: "**Заголовок**",
-      messageBodyPlain: "PRIVATE **BODY**\n- пункт",
+      messageBodyPlain: "Полный **текст**\n- пункт",
     });
     const intent = jobs[0].payloadJson.intent as { payload: { message: { text: string } } };
-    expect(intent.payload.message.text).toBe(`Заголовок\n\n${notificationOpenUrl}`);
-    expect(intent.payload.message.text).not.toContain("PRIVATE");
+    expect(intent.payload.message.text).toBe("Заголовок\n\nПолный текст\n• пункт");
   });
 });
 
@@ -317,7 +303,7 @@ describe("buildBroadcastMessengerHtml", () => {
 });
 
 describe("messenger delivery intent", () => {
-  it("telegram and MAX carry the subject and click-through, never the broadcast body", () => {
+  it("telegram and MAX carry the full broadcast body", () => {
     const jobs = buildDoctorBroadcastDeliveryJobs({
       auditId,
       eligibleClients: [
@@ -329,32 +315,28 @@ describe("messenger delivery intent", () => {
       ],
       channels: ["telegram", "max"],
       messageTitle: "Title",
-      messageBodyPlain: "PRIVATE_BROADCAST_BODY",
+      messageBodyPlain: "FULL_BROADCAST_BODY",
     });
     for (const job of jobs) {
       const intent = job.payloadJson.intent as {
         payload: { parse_mode?: string; message: { text: string } };
       };
       expect(intent.payload.parse_mode).toBe("HTML");
-      expect(intent.payload.message.text).toBe(
-        `<b>Title</b>\n\n${notificationOpenUrl}`,
-      );
-      expect(intent.payload.message.text).not.toContain("PRIVATE_BROADCAST_BODY");
+      expect(intent.payload.message.text).toBe("<b>Title</b>\n\nFULL_BROADCAST_BODY");
     }
   });
 
-  it("sms carries the subject and click-through without parse_mode or broadcast body", () => {
+  it("sms carries the full broadcast body without parse_mode", () => {
     const jobs = buildDoctorBroadcastDeliveryJobs({
       auditId,
       eligibleClients: [cl({ userId: "u1", bindings: {}, phone: "+79990001122" })],
       channels: ["sms"],
       messageTitle: "Title",
-      messageBodyPlain: "PRIVATE_BROADCAST_BODY",
+      messageBodyPlain: "FULL_BROADCAST_BODY",
     });
     const intent = jobs[0].payloadJson.intent as { payload: { parse_mode?: string; message: { text: string } } };
     expect(intent.payload.parse_mode).toBeUndefined();
-    expect(intent.payload.message.text).toBe(`Title\n\n${notificationOpenUrl}`);
-    expect(intent.payload.message.text).not.toContain("PRIVATE_BROADCAST_BODY");
+    expect(intent.payload.message.text).toBe("Title\n\nFULL_BROADCAST_BODY");
   });
 
   it("threads imageUrl into telegram intent payload but not sms", () => {
@@ -393,7 +375,7 @@ describe("messenger delivery intent", () => {
     expect(jobs[0]?.channel).toBe("telegram");
   });
 
-  it("telegram and sms both hide a long body while preserving the subject and click-through", () => {
+  it("telegram and sms preserve the same truncated full-content rendition", () => {
     const longBody = "z".repeat(4000);
     const jobs = buildDoctorBroadcastDeliveryJobs({
       auditId,
@@ -408,13 +390,10 @@ describe("messenger delivery intent", () => {
     const sms = jobs.find((j) => j.channel === "sms")!;
     const tgIntent = tg.payloadJson.intent as { payload: { message: { text: string } } };
     const smsIntent = sms.payloadJson.intent as { payload: { message: { text: string } } };
-    expect(smsIntent.payload.message.text).toBe(
-      `Long\n\n${notificationOpenUrl}`,
-    );
-    expect(smsIntent.payload.message.text).not.toContain(longBody.slice(0, 100));
-    expect(tgIntent.payload.message.text).toBe(
-      `<b>Long</b>\n\n${notificationOpenUrl}`,
-    );
-    expect(tgIntent.payload.message.text).not.toContain(longBody.slice(0, 100));
+    const plainCap = buildBroadcastMessageText("Long", longBody);
+    expect(smsIntent.payload.message.text).toBe(plainCap);
+    expect(tgIntent.payload.message.text.length).toBeLessThanOrEqual(plainCap.length + 20);
+    expect(tgIntent.payload.message.text).toContain("<b>Long</b>");
+    expect(tgIntent.payload.message.text).toContain(longBody.slice(0, 100));
   });
 });

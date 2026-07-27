@@ -376,6 +376,8 @@ describe("doctor-broadcasts service", () => {
     expect(fanOut).toHaveBeenCalledOnce();
     expect(fanOut.mock.calls[0][0]).toMatchObject({
       broadcastTitle: "Новость",
+      broadcastBody: "Текст длиннее десяти символов",
+      notificationOpenUrl: "https://app.example/app/patient?notifications=1",
       webPushEligibleUserIds: pushEligible,
     });
   });

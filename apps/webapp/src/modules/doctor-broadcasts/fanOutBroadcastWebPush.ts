@@ -6,6 +6,7 @@ import {
 } from "@/modules/patient-notifications/patientWebPushNotify";
 import { broadcastNotificationTopicCode } from "@/modules/patient-notifications/notificationTopicCodes";
 import { broadcastIncludeWebPushJob } from "./broadcastEligible";
+import { buildBroadcastMessageText, stripMarkdownToPlain } from "./deliveryJobs";
 import type { BroadcastCategory } from "./ports";
 
 export type FanOutBroadcastWebPushInput = {
@@ -13,6 +14,7 @@ export type FanOutBroadcastWebPushInput = {
   auditId: string;
   broadcastCategory: BroadcastCategory;
   broadcastTitle: string;
+  broadcastBody: string;
   notificationOpenUrl: string;
   eligibleClients: readonly ClientListItem[];
   webPushEligibleUserIds: ReadonlySet<string>;
@@ -48,7 +50,9 @@ export async function fanOutBroadcastWebPush(
           platformUserId: client.userId,
           topicCode,
           intentType: "news",
-          broadcastTitle: input.broadcastTitle,
+          broadcastTitle: stripMarkdownToPlain(
+            buildBroadcastMessageText(input.broadcastTitle, input.broadcastBody),
+          ),
           openUrl: input.notificationOpenUrl,
           stableKey: `broadcast:${input.auditId}:${client.userId}`.slice(0, 240),
         },

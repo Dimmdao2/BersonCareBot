@@ -1020,7 +1020,7 @@ describe('executeAction', () => {
       .mockResolvedValueOnce(null);
     const templatePort = {
       renderTemplate: vi.fn().mockResolvedValue({
-        text: 'Новый вопрос\nОт: Alice Example (@alice)\nTelegram ID: 123\nТекст:\nПоследний текст вопроса',
+        text: 'Ответить',
       }),
     };
     const draftCtx: DomainContext = {
@@ -1089,9 +1089,74 @@ describe('executeAction', () => {
       type: 'message.send',
       payload: {
         recipient: { chatId: 999 },
-        message: { text: expect.stringContaining('Последний текст вопроса') },
+        message: { text: 'новое сообщение от Alice Example' },
+        replyMarkup: {
+          inline_keyboard: [[
+            expect.objectContaining({ text: 'Ответить' }),
+          ]],
+        },
       },
     });
+    expect(JSON.stringify(result.intents)).not.toContain('Последний текст вопроса');
+  });
+
+  it('conversation.openWithMessage sends only a neutral notification with Reply', async () => {
+    const writeDb = vi.fn().mockResolvedValue(undefined);
+    const openCtx: DomainContext = {
+      ...ctx,
+      event: {
+        type: 'message.received',
+        meta: {
+          ...ctx.event.meta,
+          source: 'telegram',
+          userId: '79991234567',
+        },
+        payload: {
+          incoming: {
+            kind: 'message',
+            chatId: 79991234567,
+            channelId: '79991234567',
+            channelFirstName: '+79991234567',
+            messageId: 91,
+            text: 'PRIVATE_OPEN_MESSAGE',
+            relayMessageType: 'text',
+          },
+        },
+      },
+      base: {
+        ...ctx.base,
+        facts: { adminChatId: 999 },
+      },
+    };
+
+    const result = await executeAction({
+      id: 'open-notification-only',
+      type: 'conversation.openWithMessage',
+      mode: 'sync',
+      params: { source: 'telegram' },
+    }, openCtx, {
+      readPort: { readDb: vi.fn().mockResolvedValue(null) },
+      writePort: { writeDb },
+    });
+
+    expect(result.status).toBe('success');
+    expect(result.intents).toHaveLength(1);
+    expect(result.intents?.[0]).toMatchObject({
+      type: 'message.send',
+      payload: {
+        recipient: { chatId: 999 },
+        message: { text: 'новое сообщение от пациента' },
+        replyMarkup: {
+          inline_keyboard: [[
+            expect.objectContaining({ text: 'Ответить' }),
+          ]],
+        },
+      },
+    });
+    expect(JSON.stringify(result.intents)).not.toContain('PRIVATE_OPEN_MESSAGE');
+    const visibleText = (result.intents?.[0]?.payload as { message?: { text?: string } })
+      .message?.text;
+    expect(visibleText).not.toContain('79991234567');
   });
 
   it('draft.send appends to existing open conversation and cancels draft', async () => {
@@ -1233,15 +1298,16 @@ describe('executeAction', () => {
     });
 
     expect(userResult.status).toBe('success');
-    expect(userResult.intents?.length).toBeGreaterThanOrEqual(2);
+    expect(userResult.intents).toHaveLength(1);
     const notificationIntent = userResult.intents?.find(
-      (i) => i.type === 'message.send' && (i.payload as { message?: { text?: string } }).message?.text?.includes('От:'),
+      (i) => i.type === 'message.send',
     );
     expect(notificationIntent).toBeDefined();
     expect(notificationIntent?.payload).toMatchObject({
       recipient: { chatId: 999 },
-      message: { text: expect.stringMatching(/Новое сообщение|От:/) },
+      message: { text: 'новое сообщение от Alice Example' },
     });
+    expect(JSON.stringify(userResult.intents)).not.toContain('Дополнение от пользователя');
 
     const adminCtx: DomainContext = {
       ...ctx,
@@ -2100,7 +2166,7 @@ describe('executeAction', () => {
       expect(result.writes).toBeUndefined();
     });
 
-    it('conversation.user.message: includes message.copy when type allowed and chatId/messageId present', async () => {
+    it('conversation.user.message: never copies the patient message into the doctor chat', async () => {
       const writeDb = vi.fn().mockResolvedValue(undefined);
       const readDb = vi.fn().mockResolvedValue({
         id: 'conv-1',
@@ -2139,22 +2205,18 @@ describe('executeAction', () => {
         supportRelayPolicy: createSupportRelayPolicy(['text', 'photo'], ['text']),
       });
       expect(result.status).toBe('success');
-      expect(result.intents?.length).toBeGreaterThanOrEqual(2);
+      expect(result.intents).toHaveLength(1);
       const copyIntent = result.intents?.find((i) => i.type === 'message.copy');
-      expect(copyIntent).toBeDefined();
-      expect(copyIntent?.payload).toMatchObject({
-        recipient: { chatId: 999 },
-        from_chat_id: 123,
-        message_id: 99,
-      });
+      expect(copyIntent).toBeUndefined();
       const notificationIntent = result.intents?.find(
-        (i) => i.type === 'message.send' && (i.payload as { message?: { text?: string } }).message?.text?.includes('Новое сообщение'),
+        (i) => i.type === 'message.send',
       );
       expect(notificationIntent).toBeDefined();
       expect(notificationIntent?.payload).toMatchObject({
         recipient: { chatId: 999 },
-        message: { text: expect.stringContaining('Новое сообщение') },
+        message: { text: 'новое сообщение от A B' },
       });
+      expect(JSON.stringify(result.intents)).not.toContain('Hello');
     });
 
     it('conversation.user.message: explicit params.text skips message.copy (e.g. after draft confirm)', async () => {
@@ -2195,10 +2257,14 @@ describe('executeAction', () => {
       });
       expect(result.status).toBe('success');
       expect(result.intents?.some((i) => i.type === 'message.copy')).toBe(false);
-      expect(result.intents?.some(
-        (i) => i.type === 'message.send'
-          && (i.payload as { message?: { text?: string } }).message?.text === 'Текст из черновика',
-      )).toBe(true);
+      expect(result.intents).toHaveLength(1);
+      expect(result.intents?.[0]).toMatchObject({
+        type: 'message.send',
+        payload: {
+          message: { text: 'новое сообщение от A B' },
+        },
+      });
+      expect(JSON.stringify(result.intents)).not.toContain('Текст из черновика');
     });
 
     it('conversation.user.message: routes MAX text to MAX admin chat without telegram copy', async () => {
@@ -2245,8 +2311,9 @@ describe('executeAction', () => {
         (i) => i.type === 'message.send'
           && (i.payload as { recipient?: { chatId?: number }; delivery?: { channels?: string[] } }).recipient?.chatId === 156854402,
       );
-      expect(adminIntents?.length).toBe(2);
+      expect(adminIntents?.length).toBe(1);
       expect(adminIntents?.every((i) => (i.payload as { delivery?: { channels?: string[] } }).delivery?.channels?.[0] === 'max')).toBe(true);
+      expect(JSON.stringify(adminIntents)).not.toContain('Hello from MAX');
     });
 
     it('conversation.admin.reply: returns refusal intent when type not allowed admin->user', async () => {

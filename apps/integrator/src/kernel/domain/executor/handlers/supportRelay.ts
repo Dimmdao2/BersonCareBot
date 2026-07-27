@@ -10,7 +10,6 @@ import {
   asRecord,
   asString,
   buildIntentMeta,
-  appendTelegramUsernameMentionToLabel,
   formatActorLabel,
   persistWrites,
   readConversationId,
@@ -27,7 +26,6 @@ import { maxUserRecipient } from '../../../../integrations/max/maxRecipient.js';
 import { isWebappPlatformConversationId } from '../../../../shared/support/platformConversationId.js';
 import { webappPlatformConversationId } from '../../../../shared/support/platformConversationId.js';
 import {
-  adminReplyConversationId,
   applyWebappAdminReplyFromMessenger,
   mirrorPatientUserMessageToWebapp,
   resolvePlatformUserIdForChannel,
@@ -51,6 +49,116 @@ function resolvePatientMessengerRecipient(
 
 function channelDeliveryPayload(channel: string) {
   return { channels: [channel], maxAttempts: 1 };
+}
+
+function isSafePersonalChatDisplayName(value: string): boolean {
+  return /^[\p{L}\p{M}](?:[\p{L}\p{M}'’ -]*[\p{L}\p{M}])?$/u.test(value);
+}
+
+export function buildDoctorPatientMessageNotificationText(input: {
+  firstName?: string | null | undefined;
+  lastName?: string | null | undefined;
+  displayName?: string | null | undefined;
+}): string {
+  const structuredName = [input.firstName, input.lastName]
+    .filter((part): part is string => typeof part === 'string' && part.trim().length > 0)
+    .join(' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+  const candidate = structuredName || input.displayName?.replace(/\s+/g, ' ').trim() || '';
+  const displayName = isSafePersonalChatDisplayName(candidate) ? candidate : 'пациента';
+  return `новое сообщение от ${displayName}`;
+}
+
+export async function buildDoctorPatientMessageNotificationIntents(input: {
+  action: Action;
+  ctx: DomainContext;
+  deps: ExecutorDeps;
+  source: string;
+  externalId: string;
+  conversationId: string;
+  integratorMessageId: string;
+  messageText: string;
+  firstName?: string | null | undefined;
+  lastName?: string | null | undefined;
+  username?: string | null | undefined;
+  channelId?: string | null | undefined;
+}): Promise<OutgoingIntent[]> {
+  const {
+    action,
+    ctx,
+    deps,
+    source,
+    externalId,
+    conversationId,
+    integratorMessageId,
+  } = input;
+  const platformUserId = await resolvePlatformUserIdForChannel(deps, source, externalId);
+  const platformConversationKey = platformUserId ? webappPlatformConversationId(platformUserId) : null;
+  if (
+    platformUserId &&
+    platformConversationKey &&
+    platformConversationKey !== conversationId &&
+    deps.writePort
+  ) {
+    await persistWrites(deps.writePort, [{
+      type: 'conversation.mergeLegacyToPlatform',
+      params: {
+        platformConversationId: platformConversationKey,
+        legacyConversationId: conversationId,
+        resource: source,
+        externalId,
+      },
+    }]);
+  }
+
+  const messageText = input.messageText.trim();
+  const mirrored =
+    platformUserId && messageText
+      ? await mirrorPatientUserMessageToWebapp(deps, {
+        platformUserId,
+        integratorMessageId,
+        text: messageText,
+        source,
+        createdAt: ctx.nowIso,
+      })
+      : false;
+  if (mirrored) {
+    // The webapp notification path owns sender-name resolution, the safety gate,
+    // the doctor-conversation deep link, and the Reply affordance.
+    return [];
+  }
+
+  const adminChatId = asNumber(asRecord(ctx.base.facts).adminChatId);
+  if (adminChatId === null) return [];
+  const fallbackLabel = formatActorLabel({
+    firstName: input.firstName ?? null,
+    lastName: input.lastName ?? null,
+    username: input.username ?? null,
+    channelId: input.channelId ?? null,
+  });
+  const notificationText = buildDoctorPatientMessageNotificationText({
+    firstName: input.firstName,
+    lastName: input.lastName,
+    displayName: fallbackLabel,
+  });
+  const replyButtonText = deps.templatePort
+    ? (await renderText({ templateKey: ADMIN.REPLY_BUTTON, ctx, templatePort: deps.templatePort })) || 'Ответить'
+    : 'Ответить';
+  return [{
+    type: 'message.send',
+    meta: buildIntentMeta(action, ctx),
+    payload: {
+      recipient: { chatId: adminChatId },
+      message: { text: notificationText },
+      replyMarkup: {
+        inline_keyboard: [[
+          { text: replyButtonText, callback_data: `admin_reply:${conversationId}` },
+        ]],
+      },
+      delivery: channelDeliveryPayload(ctx.event.meta.source),
+    },
+  }];
 }
 
 function getUnsupportedUserRelayText(source: string): string {
@@ -106,7 +214,6 @@ export async function handleConversationUserMessage(
   }
   const externalId = readExternalActorId(ctx);
   const source = asString(action.params.source) ?? ctx.event.meta.source;
-  const adminChannel = ctx.event.meta.source;
   const explicitText = asString(action.params.text);
   const text = explicitText ?? readIncomingText(ctx);
   const relayMessageType = readRelayMessageType(ctx) ?? 'text';
@@ -176,94 +283,19 @@ export async function handleConversationUserMessage(
   await persistWrites(deps.writePort, writes);
 
   const integratorMessageId = asString(asRecord(writes[0]?.params).id) ?? randomUUID();
-  const platformUserId = await resolvePlatformUserIdForChannel(deps, ctx.event.meta.source, externalId);
-  const platformConversationKey = platformUserId ? webappPlatformConversationId(platformUserId) : null;
-  if (
-    platformUserId &&
-    platformConversationKey &&
-    platformConversationKey !== conversationId &&
-    deps.writePort
-  ) {
-    await persistWrites(deps.writePort, [{
-      type: 'conversation.mergeLegacyToPlatform',
-      params: {
-        platformConversationId: platformConversationKey,
-        legacyConversationId: conversationId,
-        resource: ctx.event.meta.source,
-        externalId,
-      },
-    }]);
-  }
-  const messageTextForMirror = (text ?? '').trim();
-  if (platformUserId && messageTextForMirror.length > 0) {
-    await mirrorPatientUserMessageToWebapp(deps, {
-      platformUserId,
-      integratorMessageId,
-      text: messageTextForMirror,
-      source,
-      createdAt: ctx.nowIso,
-    });
-  }
-  const replyConversationId = adminReplyConversationId(conversationId, platformUserId);
-
-  let userLabel = formatActorLabel({
+  const intents = await buildDoctorPatientMessageNotificationIntents({
+    action,
+    ctx,
+    deps,
+    source,
+    externalId,
+    conversationId,
+    integratorMessageId,
+    messageText: text ?? '',
     firstName: asString(conversation?.first_name),
     lastName: asString(conversation?.last_name),
     username: asString(conversation?.username),
     channelId: asString(conversation?.user_channel_id),
-  });
-  if (source === 'max' && (!userLabel || userLabel === asString(conversation?.user_channel_id))) {
-    const cid = asString(conversation?.user_channel_id);
-    userLabel = cid ? `Пользователь (${cid})` : 'Пользователь';
-  }
-  const replyButtonText = deps.templatePort
-    ? (await renderText({ templateKey: ADMIN.REPLY_BUTTON, ctx, templatePort: deps.templatePort })) || 'Ответить'
-    : 'Ответить';
-  const senderLabel =
-    source === 'telegram'
-      ? appendTelegramUsernameMentionToLabel(userLabel, asString(conversation?.username))
-      : userLabel;
-  const notificationOnlyText = `Новое сообщение в диалоге\nОт: ${senderLabel}`;
-  const incoming = readIncoming(ctx);
-  const userChatId = asNumber(incoming.chatId);
-  const userMessageIdRaw = readIncomingMessageId(ctx);
-  const userMessageId = userMessageIdRaw !== null && Number.isFinite(Number(userMessageIdRaw)) ? Number(userMessageIdRaw) : null;
-  const intents: OutgoingIntent[] = [];
-  if (source === 'telegram' && userChatId !== null && userMessageId !== null && explicitText === null) {
-    intents.push({
-      type: 'message.copy',
-      meta: buildIntentMeta(action, ctx),
-      payload: {
-        recipient: { chatId: adminChatId },
-        from_chat_id: userChatId,
-        message_id: userMessageId,
-        delivery: channelDeliveryPayload(adminChannel),
-      },
-    });
-  } else if (effectiveRelayType === 'text' && text) {
-    intents.push({
-      type: 'message.send',
-      meta: buildIntentMeta(action, ctx),
-      payload: {
-        recipient: { chatId: adminChatId },
-        message: { text },
-        delivery: channelDeliveryPayload(adminChannel),
-      },
-    });
-  }
-  intents.push({
-    type: 'message.send',
-    meta: buildIntentMeta(action, ctx),
-    payload: {
-      recipient: { chatId: adminChatId },
-      message: { text: notificationOnlyText },
-      replyMarkup: {
-        inline_keyboard: [[
-          { text: replyButtonText, callback_data: `admin_reply:${replyConversationId}` },
-        ]],
-      },
-      delivery: channelDeliveryPayload(adminChannel),
-    },
   });
   return {
     actionId: action.id,

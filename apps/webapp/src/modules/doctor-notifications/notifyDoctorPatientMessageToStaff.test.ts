@@ -11,7 +11,10 @@ vi.mock("@/modules/messaging/relayOutbound", () => ({
 
 import type { ChannelPreferencesPort } from "@/modules/channel-preferences/ports";
 import type { WebPushSubscriptionsPort } from "@/modules/web-push/ports";
-import { notifyDoctorPatientMessageToStaff } from "./notifyDoctorPatientMessageToStaff";
+import {
+  notifyDoctorPatientMessageToStaff,
+  type NotifyDoctorStaffTopicInput,
+} from "./notifyDoctorPatientMessageToStaff";
 
 describe("notifyDoctorPatientMessageToStaff", () => {
   beforeEach(() => {
@@ -20,17 +23,19 @@ describe("notifyDoctorPatientMessageToStaff", () => {
   });
 
   it("delivers telegram to staff with default fallback and binding", async () => {
-    const result = await notifyDoctorPatientMessageToStaff(
-      {
-        organizationId: "11111111-1111-4111-8111-111111111111",
-        topicCode: "doctor_patient_messages",
-        messageId: "patient-msg-notify:m1",
-        senderDisplayName: "Иван",
-        notificationUrl: "https://app.example/app/doctor/messages",
-        replyMarkup: {
-          inline_keyboard: [[{ text: "Ответить", callback_data: "admin_reply:webapp:platform:u1" }]],
-        },
+    const input: NotifyDoctorStaffTopicInput & { messageText: string } = {
+      organizationId: "11111111-1111-4111-8111-111111111111",
+      topicCode: "doctor_patient_messages",
+      messageId: "patient-msg-notify:m1",
+      messageText: "PRIVATE_PATIENT_MESSAGE",
+      senderDisplayName: "Иван",
+      notificationUrl: "https://app.example/app/doctor/messages",
+      replyMarkup: {
+        inline_keyboard: [[{ text: "Ответить", callback_data: "admin_reply:webapp:platform:u1" }]],
       },
+    };
+    const result = await notifyDoctorPatientMessageToStaff(
+      input,
       {
         staffUsers: { listActiveStaffUserIds: async () => ["doc-1"] },
         topicChannelPrefs: { listByUserId: async () => [], upsert: async () => {} },
@@ -51,8 +56,10 @@ describe("notifyDoctorPatientMessageToStaff", () => {
         channel: "telegram",
         recipient: "123",
         text: "новое сообщение от Иван\n\nhttps://app.example/app/doctor/messages",
+        replyMarkup: input.replyMarkup,
       }),
     );
+    expect(relayMock.mock.calls[0]?.[0]?.text).not.toContain("PRIVATE_PATIENT_MESSAGE");
   });
 
   it.each([

@@ -27,7 +27,11 @@ import { handleBooking } from './handlers/booking.js';
 import { handleDelivery } from './handlers/delivery.js';
 import { handleNotifications } from './handlers/notifications.js';
 import { handleReminders } from './handlers/reminders.js';
-import { handleConversationAdminReply, handleConversationUserMessage } from './handlers/supportRelay.js';
+import {
+  buildDoctorPatientMessageNotificationIntents,
+  handleConversationAdminReply,
+  handleConversationUserMessage,
+} from './handlers/supportRelay.js';
 import {
   type ExecutorDeps,
   asRecord,
@@ -1721,40 +1725,20 @@ export async function executeAction(
       ];
       await persistWrites(deps.writePort, writes);
 
-      const userLabel = formatActorLabel({
+      const intents = await buildDoctorPatientMessageNotificationIntents({
+        action,
+        ctx,
+        deps: fullDeps,
+        source,
+        externalId,
+        conversationId,
+        integratorMessageId: firstMessageId,
+        messageText: draftTextCurrent,
         firstName: asString(draft.first_name),
         lastName: asString(draft.last_name),
         username: asString(draft.username),
         channelId: userChannelId,
       });
-      const adminText = await renderText({
-        templateKey: action.params.adminTemplateKey ?? ADMIN.FORWARD,
-        vars: {
-          name: userLabel,
-          username: asString(draft.username),
-          channelId: userChannelId,
-          messageText: draftTextCurrent,
-        },
-        ctx,
-        templatePort: deps.templatePort,
-      });
-      const replyButtonText = deps.templatePort
-        ? (await renderText({ templateKey: ADMIN.REPLY_BUTTON, ctx, templatePort: deps.templatePort })) || 'Ответить'
-        : 'Ответить';
-      const intents: OutgoingIntent[] = [{
-        type: 'message.send',
-        meta: buildIntentMeta(action, ctx),
-        payload: {
-          recipient: { chatId: adminChatId },
-          message: { text: adminText || draftTextCurrent },
-          replyMarkup: {
-            inline_keyboard: [[
-              { text: replyButtonText, callback_data: `admin_reply:${conversationId}` },
-            ]],
-          },
-          delivery: { maxAttempts: 1 },
-        },
-      }];
       return {
         actionId: action.id,
         status: 'success',
@@ -1838,37 +1822,21 @@ export async function executeAction(
         },
       ];
       await persistWrites(deps.writePort, writes);
-      const userLabel = `Пользователь (${externalId})`;
-      const notificationOnlyText = `Новое сообщение в диалоге\nОт: ${userLabel}`;
-      const replyButtonText = deps.templatePort
-        ? (await renderText({ templateKey: ADMIN.REPLY_BUTTON, ctx, templatePort: deps.templatePort })) || 'Ответить'
-        : 'Ответить';
-      const adminChannel = source;
-      const intents: OutgoingIntent[] = [
-        {
-          type: 'message.send',
-          meta: buildIntentMeta(action, ctx),
-          payload: {
-            recipient: { chatId: adminChatId },
-            message: { text: messageText },
-            delivery: { channels: [adminChannel], maxAttempts: 1 },
-          },
-        },
-        {
-          type: 'message.send',
-          meta: buildIntentMeta(action, ctx),
-          payload: {
-            recipient: { chatId: adminChatId },
-            message: { text: notificationOnlyText },
-            replyMarkup: {
-              inline_keyboard: [[
-                { text: replyButtonText, callback_data: `admin_reply:${conversationId}` },
-              ]],
-            },
-            delivery: { channels: [adminChannel], maxAttempts: 1 },
-          },
-        },
-      ];
+      const incoming = readIncoming(ctx);
+      const intents = await buildDoctorPatientMessageNotificationIntents({
+        action,
+        ctx,
+        deps: fullDeps,
+        source,
+        externalId,
+        conversationId,
+        integratorMessageId: firstMessageId,
+        messageText,
+        firstName: asString(incoming.channelFirstName),
+        lastName: asString(incoming.channelLastName),
+        username: asString(incoming.channelUsername),
+        channelId: asString(incoming.channelId),
+      });
       return {
         actionId: action.id,
         status: 'success',

@@ -137,8 +137,6 @@ export type DoctorBroadcastDeliveryJobsParams = {
   channels: readonly BroadcastChannel[];
   messageTitle: string;
   messageBodyPlain: string;
-  /** Authenticated notification-inbox target; messenger copy carries title + this link, never body. */
-  notificationOpenUrl: string;
   audienceFilter?: BroadcastAudienceFilter;
   notificationPrefsByUserId?: ReadonlyMap<string, BroadcastNotificationPrefsFlags>;
   /** Копия на момент постановки в очередь; воркер читает из `payload_json`. */
@@ -163,13 +161,10 @@ export function buildDoctorBroadcastDeliveryJobs(input: DoctorBroadcastDeliveryJ
   const jobs: DoctorBroadcastQueueJob[] = [];
   const attachMenu = input.attachMenu === true;
   const plainCombined = buildBroadcastMessageText(input.messageTitle, input.messageBodyPlain);
-  const { title: truncatedTitle } = splitBroadcastPlainCombined(plainCombined);
-  const messengerText = buildBroadcastMessengerHtml(truncatedTitle, input.notificationOpenUrl);
-  // SMS has no markup and follows the same privacy rule as messenger delivery:
-  // subject + authenticated click-through, never the broadcast body.
-  const smsText = stripMarkdownToPlain(
-    buildBroadcastMessageText(truncatedTitle, input.notificationOpenUrl),
-  );
+  const { title: truncatedTitle, body: truncatedBody } = splitBroadcastPlainCombined(plainCombined);
+  const messengerText = buildBroadcastMessengerHtml(truncatedTitle, truncatedBody);
+  // SMS has no markup → strip markdown markers (keep bullets/line breaks).
+  const smsText = stripMarkdownToPlain(plainCombined);
 
   for (const client of input.eligibleClients) {
     const prefs = resolveBroadcastNotificationPrefsFromBatch(prefsMap, client.userId);

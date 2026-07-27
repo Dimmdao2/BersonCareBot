@@ -1,19 +1,29 @@
-import { describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Action, DomainContext } from '../../../contracts/index.js';
 import type { ExecutorDeps } from '../helpers.js';
 
-const { applyWebappAdminReplyFromMessengerMock } = vi.hoisted(() => ({
+const {
+  applyWebappAdminReplyFromMessengerMock,
+  mirrorPatientUserMessageToWebappMock,
+  resolvePlatformUserIdForChannelMock,
+} = vi.hoisted(() => ({
   applyWebappAdminReplyFromMessengerMock: vi.fn(),
+  mirrorPatientUserMessageToWebappMock: vi.fn(),
+  resolvePlatformUserIdForChannelMock: vi.fn(),
 }));
 
 vi.mock('../../support/webappSupportSync.js', () => ({
   adminReplyConversationId: (conversationId: string) => conversationId,
   applyWebappAdminReplyFromMessenger: (...args: unknown[]) => applyWebappAdminReplyFromMessengerMock(...args),
-  mirrorPatientUserMessageToWebapp: vi.fn(),
-  resolvePlatformUserIdForChannel: vi.fn(),
+  mirrorPatientUserMessageToWebapp: (...args: unknown[]) => mirrorPatientUserMessageToWebappMock(...args),
+  resolvePlatformUserIdForChannel: (...args: unknown[]) => resolvePlatformUserIdForChannelMock(...args),
 }));
 
-import { handleConversationAdminReply, handleConversationUserMessage } from './supportRelay.js';
+import {
+  buildDoctorPatientMessageNotificationText,
+  handleConversationAdminReply,
+  handleConversationUserMessage,
+} from './supportRelay.js';
 
 const baseCtx = (): DomainContext => ({
   event: {
@@ -35,6 +45,12 @@ const baseCtx = (): DomainContext => ({
 });
 
 describe('handleConversationUserMessage', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    resolvePlatformUserIdForChannelMock.mockResolvedValue(null);
+    mirrorPatientUserMessageToWebappMock.mockResolvedValue(false);
+  });
+
   it('does not relay user text to admin when collecting skip reason (S3.T07)', async () => {
     const readDb = vi.fn();
     const action: Action = {
@@ -48,6 +64,68 @@ describe('handleConversationUserMessage', () => {
     expect(res.status).toBe('skipped');
     expect(res.error).toBe('CONVERSATION_USER_BLOCKED_SKIP_REASON');
     expect(readDb).not.toHaveBeenCalled();
+  });
+
+  it('mirrors the patient text to webapp without copying it into the doctor messenger chat', async () => {
+    const platformUserId = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
+    resolvePlatformUserIdForChannelMock.mockResolvedValue(platformUserId);
+    mirrorPatientUserMessageToWebappMock.mockResolvedValue(true);
+    const writeDb = vi.fn().mockResolvedValue(undefined);
+    const action: Action = {
+      id: 'a-notification-only',
+      type: 'conversation.user.message',
+      mode: 'sync',
+      params: { source: 'telegram' },
+    };
+    const ctx: DomainContext = {
+      ...baseCtx(),
+      base: { ...baseCtx().base, conversationState: 'idle', facts: { adminChatId: 999 } },
+      event: {
+        ...baseCtx().event,
+        payload: {
+          incoming: {
+            kind: 'message',
+            chatId: 123,
+            channelId: '123',
+            messageId: 77,
+            text: 'PRIVATE_PATIENT_MESSAGE',
+            relayMessageType: 'text',
+          },
+        },
+      },
+    };
+    const deps = {
+      readPort: {
+        readDb: vi.fn().mockResolvedValue({
+          id: 'conv-1',
+          first_name: 'Анна',
+          last_name: 'Иванова',
+          user_channel_id: '123',
+        }),
+      },
+      writePort: { writeDb },
+    } as unknown as ExecutorDeps;
+
+    const result = await handleConversationUserMessage(action, ctx, deps);
+
+    expect(result.status).toBe('success');
+    expect(result.intents).toEqual([]);
+    expect(mirrorPatientUserMessageToWebappMock).toHaveBeenCalledWith(
+      deps,
+      expect.objectContaining({
+        platformUserId,
+        text: 'PRIVATE_PATIENT_MESSAGE',
+      }),
+    );
+  });
+
+  it.each([
+    '+79991234567',
+    'patient@example.com',
+    'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+  ])('uses a neutral fallback instead of unsafe patient label %s', (unsafeLabel) => {
+    expect(buildDoctorPatientMessageNotificationText({ displayName: unsafeLabel }))
+      .toBe('новое сообщение от пациента');
   });
 });
 

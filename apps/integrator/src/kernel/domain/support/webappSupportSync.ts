@@ -31,9 +31,9 @@ export async function mirrorPatientUserMessageToWebapp(
     source: string;
     createdAt: string;
   },
-): Promise<void> {
+): Promise<boolean> {
   const sync = deps.webappEventsPort?.syncSupportUserMessage;
-  if (!sync) return;
+  if (!sync) return false;
   const body = JSON.stringify({
     platformUserId: input.platformUserId,
     integratorMessageId: input.integratorMessageId,
@@ -51,7 +51,9 @@ export async function mirrorPatientUserMessageToWebapp(
       result.status,
       result.error ?? 'unknown',
     );
+    return false;
   }
+  return true;
 }
 
 export async function applyWebappAdminReplyFromMessenger(

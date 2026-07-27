@@ -2,7 +2,6 @@ import { describe, it, expect, vi } from "vitest";
 import {
   fanOutBroadcastEmail,
   buildBroadcastEmailHtml,
-  type FanOutBroadcastEmailInput,
 } from "./fanOutBroadcastEmail";
 import type { ClientListItem } from "@/modules/doctor-clients/ports";
 
@@ -40,14 +39,13 @@ describe("fanOutBroadcastEmail", () => {
       },
     };
 
-    const input: FanOutBroadcastEmailInput & { broadcastBody: string } = {
+    const input = {
       auditId: "audit-1",
       broadcastCategory: "organizational",
       broadcastTitle: "Test title",
-      broadcastBody: "PRIVATE_BROADCAST_BODY",
-      notificationOpenUrl: "https://app.test/app/patient?notifications=1",
+      broadcastBody: "FULL_BROADCAST_BODY",
       eligibleClients: [cl({ userId: "u1" }), cl({ userId: "u2" })],
-    };
+    } as const;
     const result = await fanOutBroadcastEmail(input, deps);
 
     expect(result.attempted).toBe(2);
@@ -60,12 +58,12 @@ describe("fanOutBroadcastEmail", () => {
     expect(relayOutboundMock).toHaveBeenCalledWith(
       expect.objectContaining({
         channel: "email",
-        text: "Test title\n\nhttps://app.test/app/patient?notifications=1",
+        text: "Test title\n\nFULL_BROADCAST_BODY",
         metadata: expect.objectContaining({ subject: "Test title" }),
       }),
       expect.anything(),
     );
-    expect(JSON.stringify(relayOutboundMock.mock.calls)).not.toContain("PRIVATE_BROADCAST_BODY");
+    expect(JSON.stringify(relayOutboundMock.mock.calls)).toContain("FULL_BROADCAST_BODY");
   });
 
   it("passes inline-image HTML to relay when mediaUrl set; omits html otherwise (RASSL-06)", async () => {
@@ -81,7 +79,7 @@ describe("fanOutBroadcastEmail", () => {
         auditId: "a-img",
         broadcastCategory: "organizational",
         broadcastTitle: "Pic title",
-        notificationOpenUrl: "https://app.test/app/patient?notifications=1",
+        broadcastBody: "Pic body",
         mediaUrl: "https://cdn/x.jpg",
         eligibleClients: [cl({ userId: "u1" })],
       },
@@ -90,7 +88,7 @@ describe("fanOutBroadcastEmail", () => {
     const arg = relayOutboundMock.mock.calls[0][0] as { html?: string };
     expect(arg.html).toContain('<img src="https://cdn/x.jpg"');
     expect(arg.html).toContain("Pic title");
-    expect(arg.html).toContain("https://app.test/app/patient?notifications=1");
+    expect(arg.html).toContain("Pic body");
 
     relayOutboundMock.mockClear();
     await fanOutBroadcastEmail(
@@ -98,7 +96,7 @@ describe("fanOutBroadcastEmail", () => {
         auditId: "a-noimg",
         broadcastCategory: "organizational",
         broadcastTitle: "T",
-        notificationOpenUrl: "https://app.test/app/patient?notifications=1",
+        broadcastBody: "B",
         eligibleClients: [cl({ userId: "u1" })],
       },
       deps,
@@ -106,11 +104,11 @@ describe("fanOutBroadcastEmail", () => {
     expect((relayOutboundMock.mock.calls[0][0] as { html?: string }).html).toBeUndefined();
   });
 
-  it("buildBroadcastEmailHtml escapes title and click-through + embeds image", () => {
+  it("buildBroadcastEmailHtml escapes full content + embeds image", () => {
     const html = buildBroadcastEmailHtml("<b>T</b>", "a & b", "https://cdn/y.png");
     expect(html).toContain('<img src="https://cdn/y.png"');
     expect(html).toContain("&lt;b&gt;T&lt;/b&gt;"); // title escaped
-    expect(html).toContain("a &amp; b"); // click-through escaped
+    expect(html).toContain("a &amp; b"); // body escaped
   });
 
   it("skips clients without verified email", async () => {
@@ -128,7 +126,7 @@ describe("fanOutBroadcastEmail", () => {
         auditId: "audit-2",
         broadcastCategory: "service",
         broadcastTitle: "T",
-        notificationOpenUrl: "https://app.test/app/patient?notifications=1",
+        broadcastBody: "B",
         eligibleClients: [cl({ userId: "u1" }), cl({ userId: "u2-no-email" })],
       },
       deps,
@@ -152,7 +150,7 @@ describe("fanOutBroadcastEmail", () => {
         auditId: "audit-3",
         broadcastCategory: "marketing",
         broadcastTitle: "T",
-        notificationOpenUrl: "https://app.test/app/patient?notifications=1",
+        broadcastBody: "B",
         eligibleClients: [cl({ userId: "u1" })],
       },
       deps,
@@ -174,7 +172,7 @@ describe("fanOutBroadcastEmail", () => {
         auditId: "audit-4",
         broadcastCategory: "organizational",
         broadcastTitle: "T",
-        notificationOpenUrl: "https://app.test/app/patient?notifications=1",
+        broadcastBody: "B",
         eligibleClients: [cl({ userId: "u1" }), cl({ userId: "u2" })],
       },
       deps,
