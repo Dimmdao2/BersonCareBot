@@ -42,7 +42,7 @@ const RAW_PLATFORM_MENU_ITEMS: DoctorMenuLinkItem[] = [
     accessTier: "global_admin",
   },
   { id: "admin-auth", label: "Авторизация", href: "/app/admin/auth", accessTier: "global_admin" },
-  { id: "admin-booking", label: "Бронирование", href: "/app/admin/booking", accessTier: "global_admin" },
+  { id: "admin-booking", label: "Запись клиентов", href: "/app/admin/booking", accessTier: "global_admin" },
   {
     id: "admin-integrations",
     label: "Интеграции",
