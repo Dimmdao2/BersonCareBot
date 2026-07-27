@@ -35,6 +35,7 @@ import {
   resolveSlugBoundPublicInPersonBookingOrganization,
 } from "@/modules/patient-booking/inPersonBookingResolve";
 import { withExplicitOrganizationPrincipal } from "@/app-layer/principal/withOrganizationPrincipal";
+import { logger } from "@/app-layer/logging/logger";
 import {
   jsonError,
   jsonOk,
@@ -191,6 +192,13 @@ export async function POST(request: Request) {
       { status: 200 },
     );
   } catch (error) {
+    if (error instanceof InPersonBookingResolveError) {
+      // Reason stays server-side: distinct wire errors would let anonymous callers enumerate clinics/services.
+      logger.warn(
+        { reason: error.reason, branchId: body.branchId, serviceId: body.serviceId, orgSlug: body.orgSlug },
+        "[booking/public/create] in-person booking resolution refused",
+      );
+    }
     const mapped = mapApiError(
       error,
       PUBLIC_BOOKING_CREATE_ERROR_RULES,

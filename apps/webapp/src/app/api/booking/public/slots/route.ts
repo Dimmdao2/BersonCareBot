@@ -64,6 +64,11 @@ export async function GET(request: Request) {
     const msg = err instanceof Error ? err.message : "slots_unavailable";
     if (err instanceof InPersonBookingResolveError) {
       const status = msg === "branch_service_mapping_missing" ? 404 : 400;
+      // Reason stays server-side: distinct wire errors would let anonymous callers enumerate clinics/services.
+      logger.warn(
+        { reason: err.reason, branchId: parsed.data.branchId, serviceId: parsed.data.serviceId, orgSlug: parsed.data.orgSlug },
+        "[booking/public/slots] in-person booking resolution refused",
+      );
       return NextResponse.json({ ok: false, error: msg }, { status });
     }
     if (msg === "branch_service_not_found") {

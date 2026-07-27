@@ -2,6 +2,7 @@ import { stampBootstrapPrincipal } from "@/app-layer/principal/bootstrapPrincipa
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
+import { logger } from "@/app-layer/logging/logger";
 import { withExplicitOrganizationPrincipal } from "@/app-layer/principal/withOrganizationPrincipal";
 import {
   InPersonBookingResolveError,
@@ -44,6 +45,11 @@ export async function GET(request: Request) {
     const message = error instanceof Error ? error.message : "ambiguous_booking_tenant";
     if (error instanceof InPersonBookingResolveError) {
       const status = message === "branch_service_mapping_missing" ? 404 : 400;
+      // Reason stays server-side: distinct wire errors would let anonymous callers enumerate clinics/services.
+      logger.warn(
+        { reason: error.reason, branchId: parsed.data.branchId, serviceId: parsed.data.serviceId, orgSlug: parsed.data.orgSlug },
+        "[booking/public/form-fields] in-person booking resolution refused",
+      );
       return NextResponse.json({ ok: false, error: message }, { status });
     }
     return NextResponse.json({ ok: false, error: message }, { status: 400 });

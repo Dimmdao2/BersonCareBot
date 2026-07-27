@@ -7,6 +7,11 @@ const getBranchMock = vi.hoisted(() => vi.fn());
 const getServiceMock = vi.hoisted(() => vi.fn());
 const getSlotsMock = vi.hoisted(() => vi.fn());
 const resolveOrganizationIdBySlugMock = vi.hoisted(() => vi.fn());
+const warnMock = vi.hoisted(() => vi.fn());
+
+vi.mock("@/app-layer/logging/logger", () => ({
+  logger: { warn: warnMock, error: vi.fn() },
+}));
 
 vi.mock("@/app-layer/di/buildAppDeps", () => ({
   buildAppDeps: () => ({
@@ -68,14 +73,30 @@ describe("GET /api/booking/public/slots", () => {
     expect(organizationSeenByTenantRead).toBe(ORG_ID);
   });
 
-  it("fails closed before tenant reads when no unique organization can be proved", async () => {
+  it("keeps distinct private tenant-resolution failures wire-identical and logs their reasons", async () => {
     resolvePublicBookingOrganizationMock.mockResolvedValue(null);
-    const response = await GET(
+    const emptyResolverResponse = await GET(
+      new Request(`http://localhost/api/booking/public/slots?type=in_person&branchId=${BRANCH_ID}&serviceId=${SERVICE_ID}&orgSlug=clinic-a`),
+    );
+    resolveOrganizationIdBySlugMock.mockResolvedValue(null);
+    const unknownSlugResponse = await GET(
       new Request(`http://localhost/api/booking/public/slots?type=in_person&branchId=${BRANCH_ID}&serviceId=${SERVICE_ID}&orgSlug=clinic-a`),
     );
 
-    expect(response.status).toBe(400);
-    expect(await response.json()).toMatchObject({ ok: false, error: "ambiguous_booking_tenant" });
+    expect(emptyResolverResponse.status).toBe(400);
+    await expect(emptyResolverResponse.json()).resolves.toEqual({ ok: false, error: "ambiguous_booking_tenant" });
+    expect(unknownSlugResponse.status).toBe(400);
+    await expect(unknownSlugResponse.json()).resolves.toEqual({ ok: false, error: "ambiguous_booking_tenant" });
+    expect(warnMock).toHaveBeenNthCalledWith(
+      1,
+      expect.objectContaining({ reason: "public_resolver_empty", branchId: BRANCH_ID, serviceId: SERVICE_ID, orgSlug: "clinic-a" }),
+      expect.stringContaining("in-person booking resolution refused"),
+    );
+    expect(warnMock).toHaveBeenNthCalledWith(
+      2,
+      expect.objectContaining({ reason: "slug_unknown", branchId: BRANCH_ID, serviceId: SERVICE_ID, orgSlug: "clinic-a" }),
+      expect.stringContaining("in-person booking resolution refused"),
+    );
     expect(getBranchMock).not.toHaveBeenCalled();
     expect(getSlotsMock).not.toHaveBeenCalled();
   });

@@ -17,9 +17,13 @@ export type InPersonBookingResolveDeps = {
 };
 
 export class InPersonBookingResolveError extends Error {
-  constructor(code: string) {
+  /** Private diagnostic only; public routes must continue to return the neutral `code`. */
+  readonly reason?: string;
+
+  constructor(code: string, reason?: string) {
     super(code);
     this.name = "InPersonBookingResolveError";
+    this.reason = reason;
   }
 }
 
@@ -52,7 +56,7 @@ export async function resolvePublicInPersonBookingOrganization(
 
   const organizationId = await deps.bookingScheduling.resolvePublicBookingOrganization(keys);
   if (!organizationId) {
-    throw new InPersonBookingResolveError("ambiguous_booking_tenant");
+    throw new InPersonBookingResolveError("ambiguous_booking_tenant", "public_resolver_empty");
   }
   return { organizationId, keys };
 }
@@ -71,15 +75,15 @@ export async function resolveSlugBoundPublicInPersonBookingOrganization(
 ): Promise<{ organizationId: string; keys: PublicInPersonBookingKeys }> {
   const orgSlug = input.orgSlug?.trim();
   if (!orgSlug || !deps.clinicDirectory) {
-    throw new InPersonBookingResolveError("ambiguous_booking_tenant");
+    throw new InPersonBookingResolveError("ambiguous_booking_tenant", "slug_context_unavailable");
   }
   const slugOrganizationId = await deps.clinicDirectory.resolveOrganizationIdBySlug(orgSlug);
   if (!slugOrganizationId) {
-    throw new InPersonBookingResolveError("ambiguous_booking_tenant");
+    throw new InPersonBookingResolveError("ambiguous_booking_tenant", "slug_unknown");
   }
   const publicContext = await resolvePublicInPersonBookingOrganization(deps, input);
   if (publicContext.organizationId !== slugOrganizationId) {
-    throw new InPersonBookingResolveError("ambiguous_booking_tenant");
+    throw new InPersonBookingResolveError("ambiguous_booking_tenant", "slug_organization_mismatch");
   }
   return publicContext;
 }
@@ -103,7 +107,7 @@ export async function resolveInPersonBookingContext(
   ]);
   if (!branch || !service) throw new InPersonBookingResolveError("branch_service_not_found");
   if (branch.organizationId !== service.organizationId) {
-    throw new InPersonBookingResolveError("ambiguous_booking_tenant");
+    throw new InPersonBookingResolveError("ambiguous_booking_tenant", "branch_service_organization_mismatch");
   }
 
   const organizationId = branch.organizationId;
