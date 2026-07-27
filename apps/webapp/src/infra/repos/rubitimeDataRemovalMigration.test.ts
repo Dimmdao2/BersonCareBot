@@ -34,7 +34,7 @@ describe("0262 Rubitime data removal migration", () => {
     const capability = position("CREATE OR REPLACE FUNCTION app.read_current_patient_booking_rows");
     const firstIndex = position("DROP INDEX IF EXISTS public.patient_bookings_rubitime_id_key");
     const firstColumn = position("DROP COLUMN IF EXISTS rubitime_service_id");
-    const firstTable = position("DROP TABLE IF EXISTS integrator.booking_calendar_map");
+    const firstTable = position("DROP TABLE IF EXISTS integrator.rubitime_booking_profiles");
 
     expect(patientDropCheck).toBeLessThan(patientUpdate);
     expect(appointmentDropCheck).toBeLessThan(appointmentUpdate);
@@ -48,6 +48,10 @@ describe("0262 Rubitime data removal migration", () => {
     expect(migration).toContain("WHERE source = 'rubitime_projection'");
     expect(migration).toContain("ARRAY['native'::text, 'imported'::text]");
     expect(migration).not.toContain("'rubitime_id', row.rubitime_id");
+    // booking_calendar_map is deliberately kept: Google Calendar sync stores its event↔appointment
+    // mapping there (integrations/google-calendar/sync.ts). The first cut dropped it and broke the
+    // deploy. Pinned negatively so it cannot come back by accident.
+    expect(migration).not.toContain("DROP TABLE IF EXISTS integrator.booking_calendar_map");
   });
 
   it("drops the exact requested indexes, columns and integrator tables repeat-safely", () => {
@@ -74,7 +78,6 @@ describe("0262 Rubitime data removal migration", () => {
     }
 
     const tables = [
-      "booking_calendar_map",
       "rubitime_booking_profiles",
       "rubitime_events",
       "rubitime_records",

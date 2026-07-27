@@ -210,9 +210,12 @@ ALTER TABLE IF EXISTS public.patient_bookings
   DROP COLUMN IF EXISTS rubitime_service_id_snapshot;
 --> statement-breakpoint
 
--- 4. Drop the provider tables in FK-safe child-first order. booking_calendar_map is also removed:
--- it exists only to relate a retired Rubitime record id to a Google Calendar event id.
-DROP TABLE IF EXISTS integrator.booking_calendar_map;
+-- 4. Drop the provider tables in FK-safe child-first order.
+-- booking_calendar_map is NOT dropped: it is Google Calendar sync's memory of which calendar event
+-- belongs to which appointment (integrations/google-calendar/sync.ts). Rubitime only supplied the key
+-- it stored. Dropping it (first cut of this migration, 2026-07-27) broke the deploy and would have
+-- broken calendar sync. The column is renamed to a neutral `appointment_key` by the integrator
+-- migration 20260727_0002 instead.
 --> statement-breakpoint
 DROP TABLE IF EXISTS integrator.rubitime_booking_profiles;
 --> statement-breakpoint
