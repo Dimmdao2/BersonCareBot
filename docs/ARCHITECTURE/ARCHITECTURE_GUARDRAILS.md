@@ -14,6 +14,12 @@ This document captures regression guardrails for the current live runtime path.
 - Telegram contact linking accepts only self-owned contacts (`contact.user_id === from.id`).
 - Phone linking is conflict-safe: an existing phone cannot be reassigned to another user via webhook flow.
 
+### Registry advisory exceptions
+
+`pnpm run ci` retains the full registry dependency audit. Its only exceptions live in [`scripts/registry-prod-audit-allowlist.json`](../../scripts/registry-prod-audit-allowlist.json): each entry is keyed by both advisory ID and package, states its reason, and has a `reviewBy` date. The audit prints every suppression and its reason; an expired entry fails the gate until it is re-justified or removed.
+
+Add an entry only when no safe dependency remediation is available, with the concrete exposure analysis and a short review window. At review time, remove it if the dependency graph can be fixed; otherwise update the reason and future `reviewBy` date after rechecking the dependency and reachability. Never use an entry to cover another advisory or package.
+
 ## SaaS Foundation Guardrails
 
 - New code and schema changes must account for the current `SAAS_FOUNDATION` direction: shared-DB SaaS, tenant = `Organization`, future data isolation.

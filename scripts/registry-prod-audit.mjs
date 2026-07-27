@@ -14,6 +14,7 @@ import { fileURLToPath } from "node:url";
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const BULK_URL = "https://registry.npmjs.org/-/npm/v1/security/advisories/bulk";
 const BATCH = 180;
+const ALLOWLIST_PATH = path.join(path.dirname(fileURLToPath(import.meta.url)), "registry-prod-audit-allowlist.json");
 
 /** @type {Record<string, number>} */
 const SEVERITY_RANK = {
@@ -25,6 +26,84 @@ const SEVERITY_RANK = {
 };
 
 const ALLOWED_LEVELS = new Set(["low", "moderate", "high", "critical"]);
+
+function todayIso() {
+  return new Date().toISOString().slice(0, 10);
+}
+
+/**
+ * Read the explicit, expiring advisory exceptions. An exception is deliberately
+ * keyed by both registry advisory id and package name.
+ *
+ * @param {{ filePath?: string, today?: string }} [options]
+ */
+export function loadAdvisoryAllowlist({ filePath = ALLOWLIST_PATH, today = todayIso() } = {}) {
+  let policy;
+  try {
+    policy = JSON.parse(fs.readFileSync(filePath, "utf8"));
+  } catch (error) {
+    throw new Error(`registry-prod-audit: cannot read advisory allowlist ${filePath}: ${error.message}`);
+  }
+
+  if (!policy || typeof policy !== "object" || !Array.isArray(policy.advisories)) {
+    throw new Error("registry-prod-audit: advisory allowlist must contain an advisories array");
+  }
+
+  const seen = new Set();
+  return policy.advisories.map((entry, index) => {
+    if (!entry || typeof entry !== "object") {
+      throw new Error(`registry-prod-audit: allowlist entry ${index + 1} must be an object`);
+    }
+    const { id, package: packageName, reason, reviewBy } = entry;
+    if (![id, packageName, reason, reviewBy].every((value) => typeof value === "string" && value.trim())) {
+      throw new Error(`registry-prod-audit: allowlist entry ${index + 1} requires id, package, reason, and reviewBy`);
+    }
+    const reviewDate = new Date(`${reviewBy}T00:00:00.000Z`);
+    if (
+      !/^\d{4}-\d{2}-\d{2}$/.test(reviewBy) ||
+      Number.isNaN(reviewDate.getTime()) ||
+      reviewDate.toISOString().slice(0, 10) !== reviewBy
+    ) {
+      throw new Error(`registry-prod-audit: allowlist entry ${index + 1} has invalid reviewBy date ${reviewBy}`);
+    }
+    const key = `${id}\u0000${packageName}`;
+    if (seen.has(key)) {
+      throw new Error(`registry-prod-audit: duplicate allowlist entry for ${id} / ${packageName}`);
+    }
+    seen.add(key);
+    if (reviewBy < today) {
+      throw new Error(
+        `registry-prod-audit: exception expired for ${id} / ${packageName} (reviewBy ${reviewBy}); it must be re-justified or removed`,
+      );
+    }
+    return { id, package: packageName, reason, reviewBy };
+  });
+}
+
+function advisoryId(advisory) {
+  if (typeof advisory?.github_advisory_id === "string") return advisory.github_advisory_id;
+  if (typeof advisory?.url === "string") {
+    const match = advisory.url.match(/\/advisories\/(GHSA-[a-z0-9-]+)\/?$/iu);
+    if (match) return match[1];
+  }
+  return advisory?.id;
+}
+
+/**
+ * @param {Array<{ pkg: string, version: string, advisory: any }>} hits
+ * @param {Array<{ id: string, package: string, reason: string, reviewBy: string }>} allowlist
+ */
+export function classifyAdvisoryHits(hits, allowlist) {
+  const allowed = new Map(allowlist.map((entry) => [`${entry.id}\u0000${entry.package}`, entry]));
+  const suppressed = [];
+  const failures = [];
+  for (const hit of hits) {
+    const entry = allowed.get(`${advisoryId(hit.advisory)}\u0000${hit.pkg}`);
+    if (entry) suppressed.push({ ...hit, exception: entry });
+    else failures.push(hit);
+  }
+  return { suppressed, failures };
+}
 
 function parseArgs(argv) {
   let prodOnly = false;
@@ -174,6 +253,7 @@ async function postBatch(body) {
 
 async function main() {
   const { prodOnly, auditLevel } = parseArgs(process.argv);
+  const allowlist = loadAdvisoryAllowlist();
   const semver = loadSemver();
   const packages = collectInstalledPackages(prodOnly);
   const batches = chunkEntries(packages);
@@ -210,8 +290,16 @@ async function main() {
     }
   }
 
+  const { suppressed, failures } = classifyAdvisoryHits(hits, allowlist);
+  for (const hit of suppressed) {
+    const { advisory, exception } = hit;
+    console.log(
+      `registry-prod-audit: suppressed ${advisoryId(advisory)} for ${hit.pkg}@${hit.version} until ${exception.reviewBy}: ${exception.reason}`,
+    );
+  }
+
   const scope = prodOnly ? "production" : "all";
-  if (hits.length === 0) {
+  if (failures.length === 0) {
     console.log(
       `registry-prod-audit: no known vulnerabilities (${scope} deps, audit-level >= ${auditLevel})`,
     );
@@ -221,7 +309,7 @@ async function main() {
   console.error(
     `registry-prod-audit: found vulnerable dependencies (${scope} deps, audit-level >= ${auditLevel}):\n`,
   );
-  for (const h of hits) {
+  for (const h of failures) {
     const a = h.advisory;
     console.error(
       `  - ${h.pkg}@${h.version}: [${a.severity}] ${a.title} (${a.vulnerable_versions})`,
@@ -231,7 +319,9 @@ async function main() {
   process.exitCode = 1;
 }
 
-main().catch((err) => {
-  console.error(err);
-  process.exit(1);
-});
+if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+  main().catch((err) => {
+    console.error(err);
+    process.exit(1);
+  });
+}
