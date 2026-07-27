@@ -80,7 +80,6 @@ describe("POST /api/booking/cancel", () => {
     cancelBookingMock.mockResolvedValue({
       ok: true,
       lateCancellation: true,
-      rubitimeMirrorFailed: true,
       notificationOutcomeFailed: true,
       paymentOutcomeFailed: true,
       membershipOutcomeFailed: true,
@@ -95,7 +94,6 @@ describe("POST /api/booking/cancel", () => {
     const json = (await response.json()) as Record<string, unknown>;
     expect(json.ok).toBe(true);
     expect(json.lateCancellation).toBe(true);
-    expect(json.rubitimeMirrorFailed).toBe(true);
     expect(json.notificationOutcomeFailed).toBe(true);
     expect(json.paymentOutcomeFailed).toBe(true);
     expect(json.membershipOutcomeFailed).toBe(true);

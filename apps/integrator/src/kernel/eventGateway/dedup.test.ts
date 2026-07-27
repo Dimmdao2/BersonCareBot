@@ -28,7 +28,7 @@ describe('buildDedupKey', () => {
       meta: {
         eventId: 'evt-2',
         occurredAt: '2026-03-03T00:00:00.000Z',
-        source: 'rubitime',
+        source: 'provider-a',
         dedupFingerprint: {
           action: 'updated',
           recordId: '7905420',
@@ -39,7 +39,7 @@ describe('buildDedupKey', () => {
     };
 
     expect(buildDedupKey(event)).toBe([
-      'rubitime:webhook.received',
+      'provider-a:webhook.received',
       'action=updated',
       'recordId=7905420',
       'status=null',

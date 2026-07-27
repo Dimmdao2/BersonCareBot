@@ -33,8 +33,6 @@
 - `TELEGRAM_BOT_TOKEN=...`
 - `TELEGRAM_ADMIN_ID=364943522`
 - `TELEGRAM_SEND_MENU_ON_BUTTON_PRESS=true|false`
-- `RUBITIME_WEBHOOK_TOKEN=...`
-- `RUBITIME_API_KEY=...`
 - `SMSC_ENABLED=true|false`
 - `SMSC_API_KEY='...'`
 - `SMSC_BASE_URL=https://smsc.ru/sys/send.php`
@@ -113,7 +111,7 @@ NOINHERIT/NOBYPASSRLS login, связанный только с `app_operational
 
 Важно:
 
-- Telegram / Rubitime / SMSC runtime-переменные сюда не класть;
+- Telegram / SMSC runtime-переменные сюда не класть;
 - `INTEGRATOR_SHARED_SECRET` должен совпадать с `api.prod`.
 
 Проверка:

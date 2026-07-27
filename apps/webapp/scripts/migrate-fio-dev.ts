@@ -102,7 +102,7 @@ async function main() {
       // Only propose when display_name has 3+ words (likely FIO format)
       if (words.length < 3) continue;
 
-      // If first_name and last_name are already filled from Rubitime, skip — we don't overwrite
+      // If first_name and last_name are already filled, skip — we don't overwrite
       // Instead, we just use display_name to extract a 3rd word as patronymic
       const parsed = parseFullName(dn);
       if (!parsed.patronymic) continue;

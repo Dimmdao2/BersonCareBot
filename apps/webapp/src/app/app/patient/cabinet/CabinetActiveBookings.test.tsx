@@ -86,7 +86,7 @@ describe("CabinetActiveBookings", () => {
     expect(screen.queryByRole("button", { name: "Изменить" })).not.toBeInTheDocument();
   });
 
-  it("renders canonical-linked historical rows through canonical navigation, not Rubitime", () => {
+  it("renders canonical-linked historical rows through canonical navigation", () => {
     render(
       <CabinetActiveBookings
         bookings={[

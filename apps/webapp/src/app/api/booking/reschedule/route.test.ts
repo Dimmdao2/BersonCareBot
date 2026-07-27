@@ -108,7 +108,6 @@ describe("POST /api/booking/reschedule", () => {
     rescheduleBookingMock.mockResolvedValue({
       ok: true,
       booking: { id: "2f14566f-a4de-4ab4-9336-5ddf806cd6ce" },
-      rubitimeMirrorFailed: true,
       notificationOutcomeFailed: true,
       paymentOutcomeFailed: true,
     });
@@ -126,7 +125,6 @@ describe("POST /api/booking/reschedule", () => {
     expect(response.status).toBe(200);
     const json = (await response.json()) as Record<string, unknown>;
     expect(json.ok).toBe(true);
-    expect(json.rubitimeMirrorFailed).toBe(true);
     expect(json.notificationOutcomeFailed).toBe(true);
     expect(json.paymentOutcomeFailed).toBe(true);
   });

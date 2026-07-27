@@ -191,7 +191,7 @@ describe("createBookingOnCanonicalEngine", () => {
     (input.bookingsPort.createPending as ReturnType<typeof vi.fn>).mockImplementation(async (row: { slotStart: string }) =>
       pendingRecord({ id: `pb-${row.slotStart.slice(11, 13)}` }),
     );
-    (input.bookingsPort.markConfirmed as ReturnType<typeof vi.fn>).mockImplementation(async (id: string, _rubitimeId: unknown, options: { canonicalAppointmentId?: string }) =>
+    (input.bookingsPort.markConfirmed as ReturnType<typeof vi.fn>).mockImplementation(async (id: string, _sourceId: unknown, options: { canonicalAppointmentId?: string }) =>
       confirmedRecord({ id, canonicalAppointmentId: options?.canonicalAppointmentId ?? null }),
     );
     const memberships = {
@@ -285,7 +285,7 @@ describe("createBookingOnCanonicalEngine", () => {
 
     expect(input.bookingEngine.createOnlineAppointmentsIfAvailable).toHaveBeenCalled();
     expect(payments.createAppointmentPaymentIntent).toHaveBeenCalled();
-    expect(input.bookingsPort.markAwaitingPayment).toHaveBeenCalledWith("booking-1", "appt-1", { rubitimeId: null, rubitimeManageUrl: null });
+    expect(input.bookingsPort.markAwaitingPayment).toHaveBeenCalledWith("booking-1", "appt-1");
   });
 
   it("creates a native be: doctor projection row for legacy compatibility", async () => {

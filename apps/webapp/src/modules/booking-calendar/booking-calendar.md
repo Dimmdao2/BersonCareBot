@@ -7,7 +7,6 @@
 - Источник записей в календаре: только canonical `be_appointments`.
 - `readSource` в ответе calendar API: всегда `canonical`.
 - `includeFreeSlots` в doctor/admin calendar route принимается для compat, но игнорируется.
-- Слоты Rubitime (`getSlots`) не используются для отрисовки календаря врача.
 
 ## События календаря
 
@@ -28,14 +27,14 @@
 - Immediate `load()` после успешного create/reschedule/cancel.
 - Immediate `load()` после `409 external_slot_taken`.
 
-## Rubitime sync (staff actions)
+## Staff actions
 
-- `POST .../appointments/manual`: canonical create -> synchronous Rubitime `createRecord` -> при конфликте rollback (hard delete/fallback cancel) + `409 external_slot_taken`.
-- `POST .../appointments/[id]/manual-reschedule`: Rubitime sync first (`AppointmentMirrorSync` / normalized `update-record`) -> canonical `staffReschedule`; при конфликте Rubitime canonical запись не меняется, `409 external_slot_taken`.
-- `POST .../appointments/[id]/manual-cancel`: сначала `staffCancel` в каноне, затем при успехе — `cancelRecord` (status 4) в Rubitime.
-- `POST .../appointments/[id]/delete`: только уже отменённые (`cancelled_by_*`, `late_cancellation`); local purge → `remove-record` (bridge on) → `booking.deleted` (без второго уведомления). См. [`BOOKING_MIRROR_INTEGRITY_CONTRACT.md`](../../../../docs/BOOKING_REWORK_INITIATIVE/BOOKING_MIRROR_INTEGRITY_CONTRACT.md) §Staff delete.
+- `POST .../appointments/manual`: canonical create.
+- `POST .../appointments/[id]/manual-reschedule`: canonical `staffReschedule`.
+- `POST .../appointments/[id]/manual-cancel`: canonical `staffCancel`.
+- `POST .../appointments/[id]/delete`: только уже отменённые (`cancelled_by_*`, `late_cancellation`); local purge → `booking.deleted` (без второго уведомления).
 
-Единый контракт конфликтов:
+Контракт конфликтов:
 
 - HTTP `409`
 - `{ ok: false, error: "external_slot_taken", hint: "refresh_calendar" }`

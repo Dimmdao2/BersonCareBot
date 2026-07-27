@@ -1,4 +1,6 @@
 #!/usr/bin/env tsx
+// HISTORICAL ONE-SHOT TOOL — Rubitime выведено 2026-07-27.
+// Kept for reproducible integrator-schema migration audits; it is not a live runtime workflow.
 import "dotenv/config";
 import pg from "pg";
 

@@ -105,7 +105,7 @@
   - `appSettings.ts` — неcекретные runtime-настройки
 
 - `src/content`
-  - source-bundles (`telegram`, `rubitime`, ...)
+  - source-bundles (`telegram`, `max`, ...)
   - `scripts.json` и `templates.json`
   - content описывает сценарии, но не исполняет их
 
@@ -124,7 +124,7 @@
   - logging / observability
 
 - `src/integrations`
-  - внешние адаптеры Telegram / Rubitime / SMSC / др.
+  - внешние адаптеры Telegram / MAX / SMSC / др.
   - schema validation
   - `mapIn` / `connector` / `mapOut` / delivery adapters
 

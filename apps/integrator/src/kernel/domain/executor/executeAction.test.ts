@@ -185,7 +185,7 @@ describe('executeAction', () => {
     expect(getCurrentDbPrincipal()).toBeUndefined();
   });
 
-  it('fans out rubitime message.send to multiple channels when deliveryTargetsPort returns bindings', async () => {
+  it('fans out message.send to multiple channels when deliveryTargetsPort returns bindings', async () => {
     const deliveryTargetsPort = {
       getTargetsByPhone: async () => ({ channelBindings: { telegramId: '123', maxId: '456' } }),
       getTargetsByChannelBinding: async () => null,
@@ -206,7 +206,7 @@ describe('executeAction', () => {
         ...ctx,
         event: {
           ...ctx.event,
-          meta: { ...ctx.event.meta, source: 'rubitime' },
+          meta: { ...ctx.event.meta, source: 'scheduler' },
           payload: { incoming: { phone: '89643805480', action: 'created' } },
         },
       },
@@ -232,7 +232,7 @@ describe('executeAction', () => {
     });
   });
 
-  it('rubitime fan-out: max intent omits auto main inline (menus.main Запись/Приложение disabled for MAX)', async () => {
+  it('fan-out max intent omits auto main inline (menus.main Запись/Приложение disabled for MAX)', async () => {
     const deliveryTargetsPort = {
       getTargetsByPhone: async () => ({ channelBindings: { telegramId: '123', maxId: '456' } }),
       getTargetsByChannelBinding: async () => null,
@@ -283,7 +283,7 @@ describe('executeAction', () => {
         },
         event: {
           ...ctx.event,
-          meta: { ...ctx.event.meta, source: 'rubitime' },
+          meta: { ...ctx.event.meta, source: 'scheduler' },
           payload: { incoming: { phone: '89643805480', action: 'created' } },
         },
       },
@@ -299,10 +299,10 @@ describe('executeAction', () => {
     expect((maxIntent?.payload as { replyMarkup?: unknown }).replyMarkup).toBeUndefined();
   });
 
-  it('applies rubitime delivery policy when message.send fields are missing', async () => {
+  it('applies source delivery policy when message.send fields are missing', async () => {
     const deliveryDefaultsPort = {
       getDeliveryDefaults: async (source: string, options?: { inputAction?: string }) =>
-        source === 'rubitime' && options?.inputAction === 'created'
+        source === 'scheduler' && options?.inputAction === 'created'
           ? {
               preferredLinkedChannels: ['telegram'],
               defaultChannels: ['telegram'],
@@ -319,7 +319,7 @@ describe('executeAction', () => {
         recipient: { phoneNormalized: '+79990001122' },
         recipientPolicy: { lookupByPhone: true },
         message: {},
-        templateKey: 'rubitime:bookingAccepted',
+        templateKey: 'scheduler:bookingAccepted',
       },
     }, {
       ...ctx,
@@ -327,7 +327,7 @@ describe('executeAction', () => {
         ...ctx.event,
         meta: {
           ...ctx.event.meta,
-          source: 'rubitime',
+          source: 'scheduler',
         },
       },
       values: {
@@ -358,7 +358,7 @@ describe('executeAction', () => {
               channels: ['smsc'],
               maxAttempts: 1,
             },
-            templateKey: 'rubitime:bookingAccepted',
+            templateKey: 'scheduler:bookingAccepted',
           },
         },
       },
@@ -400,7 +400,7 @@ describe('executeAction', () => {
         ...ctx.event,
         meta: {
           ...ctx.event.meta,
-          source: 'rubitime',
+          source: 'scheduler',
         },
       },
     });

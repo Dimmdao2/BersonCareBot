@@ -209,7 +209,7 @@ describe('max deliveryAdapter', () => {
     const adapter = createMaxDeliveryAdapter();
     await adapter.send({
       type: 'message.send',
-      meta: { eventId: 'e', occurredAt: '', source: 'rubitime', userId: '999999999' },
+      meta: { eventId: 'e', occurredAt: '', source: 'scheduler', userId: '999999999' },
       payload: {
         recipient: { chatId: 555 },
         message: { text: 'x' },

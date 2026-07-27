@@ -148,7 +148,7 @@ describe('orchestrator routing', () => {
       getScriptsBySource: vi.fn().mockResolvedValue([
         {
           id: 'legacy',
-          source: 'rubitime',
+          source: 'provider-a',
           event: 'webhook.received',
           steps: [{ action: 'event.log', params: {} }],
         },
@@ -157,12 +157,12 @@ describe('orchestrator routing', () => {
     };
 
     const plan = await buildPlan(
-      { event: createEvent({ source: 'rubitime', type: 'webhook.received' }), context: baseContext },
+      { event: createEvent({ source: 'provider-a', type: 'webhook.received' }), context: baseContext },
       { contentPort, contextQueryPort },
     );
 
     expect(plan.length).toBeGreaterThan(0);
-    expect(contentPort.getScriptsBySource).toHaveBeenCalledWith('rubitime');
+    expect(contentPort.getScriptsBySource).toHaveBeenCalledWith('provider-a');
   });
 
   it('returns empty plan when no business script matches and does not use legacy key', async () => {

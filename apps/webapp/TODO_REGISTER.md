@@ -28,11 +28,6 @@
 **Context**: Учётка "PWA/App" block is a placeholder — push subscription state not in DB schema.  
 **Action**: Add `push_subscriptions` table or flag on `platform_users`; expose in PatientCardHeader.
 
-## DR-005 — Rubitime ID not exposed in PatientCardHeader
-**File**: `src/app/app/doctor/patients/[userId]/tabs/PatientTabAccount.tsx:882`  
-**Context**: Учётка "Rubitime ID" block has no data — `rubitime_id` not loaded in card header.  
-**Action**: Add `rubilimeId` to PatientCardHeader query (JOIN `rubitime_client_mappings`).
-
 ## DR-006 — Registration date (createdAt) not in PatientCardHeader
 **File**: `src/app/app/doctor/patients/[userId]/tabs/PatientTabAccount.tsx:891`  
 **Context**: Учётка "Дата регистрации" block has no data — `createdAt` not in card header response.  

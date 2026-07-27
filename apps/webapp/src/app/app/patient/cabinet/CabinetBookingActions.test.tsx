@@ -1,9 +1,7 @@
 /** @vitest-environment jsdom */
 
-import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { render, screen, waitFor } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
-import toast from "react-hot-toast";
+import { describe, it, expect, vi } from "vitest";
+import { render, screen } from "@testing-library/react";
 import {
   buildRescheduleHref,
   CabinetBookingActions,
@@ -11,21 +9,8 @@ import {
 } from "./CabinetBookingActions";
 import type { PatientBookingRecord } from "@/modules/patient-booking/types";
 
-const refresh = vi.fn();
-const partialToast = vi.fn();
-
 vi.mock("next/navigation", () => ({
-  useRouter: () => ({ refresh, push: vi.fn(), replace: vi.fn(), prefetch: vi.fn() }),
-}));
-
-vi.mock("react-hot-toast", () => ({
-  default: Object.assign(vi.fn(), { success: vi.fn(), error: vi.fn() }),
-}));
-
-vi.mock("@/shared/booking/bookingPartialOutcomeToast", () => ({
-  parsePatientBookingPartialOutcome: (json: Record<string, unknown>) =>
-    json.rubitimeMirrorFailed === true ? { rubitimeMirrorFailed: true as const } : undefined,
-  showBookingPartialOutcomeToast: (...args: unknown[]) => partialToast(...args),
+  useRouter: () => ({ refresh: vi.fn(), push: vi.fn(), replace: vi.fn(), prefetch: vi.fn() }),
 }));
 
 function sampleRow(overrides: Partial<PatientBookingRecord> = {}): PatientBookingRecord {
@@ -64,42 +49,6 @@ function sampleRow(overrides: Partial<PatientBookingRecord> = {}): PatientBookin
 }
 
 describe("CabinetBookingActions", () => {
-  beforeEach(() => {
-    refresh.mockClear();
-    partialToast.mockClear();
-    vi.mocked(toast.success).mockClear();
-    vi.stubGlobal("confirm", vi.fn(() => true));
-    vi.stubGlobal(
-      "fetch",
-      vi.fn()
-        .mockResolvedValueOnce({
-          ok: true,
-          json: async () => ({ ok: true, cancel: { ok: true, allowed: true } }),
-        } as Response)
-        .mockResolvedValueOnce({
-          ok: true,
-          json: async () => ({ ok: true, rubitimeMirrorFailed: true }),
-        } as Response),
-    );
-  });
-
-  afterEach(() => {
-    vi.unstubAllGlobals();
-  });
-
-  it("shows partial outcome toast after successful cancel with rubitime mirror failure", async () => {
-    const user = userEvent.setup();
-    render(<CabinetBookingActions row={sampleRow()} />);
-
-    await user.click(screen.getByRole("button", { name: /Отменить/i }));
-
-    await waitFor(() => {
-      expect(toast.success).toHaveBeenCalledWith("Запись отменена");
-      expect(partialToast).toHaveBeenCalledWith({ rubitimeMirrorFailed: true });
-      expect(refresh).toHaveBeenCalled();
-    });
-  });
-
   it("uses the new canonical in-person context for the reschedule navigation", () => {
     const row = sampleRow({
       bookingType: "in_person",

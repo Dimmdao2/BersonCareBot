@@ -44,7 +44,7 @@ function gateCtx() {
   return {
     organizationId: "org-1",
     session: { user: { userId: "u1", role: "admin" } },
-    service: { getRubitimeAppointmentId: vi.fn() },
+    service: {},
   };
 }
 
@@ -132,7 +132,7 @@ describe("POST admin delete", () => {
     expect(principalState.inside).toBe(false);
   });
 
-  it("does not expose a Rubitime flag after canonical purge", async () => {
+  it("returns canonical purge success", async () => {
     requireAdminBookingEngineMock.mockResolvedValue({ ok: true, ctx: gateCtx() });
     vi.mocked(buildAppDeps).mockReturnValue({ appointmentProjection: {} } as never);
     staffPurgeCancelledAppointmentMock.mockResolvedValue({ ok: true });
@@ -141,9 +141,8 @@ describe("POST admin delete", () => {
       new Request("http://localhost/delete", { method: "POST" }),
       { params: Promise.resolve({ id: APPT_ID }) },
     );
-    const json = (await res.json()) as { ok?: boolean; rubitimeMirrorFailed?: boolean };
+    const json = (await res.json()) as { ok?: boolean };
     expect(res.status).toBe(200);
     expect(json.ok).toBe(true);
-    expect(json.rubitimeMirrorFailed).toBeUndefined();
   });
 });

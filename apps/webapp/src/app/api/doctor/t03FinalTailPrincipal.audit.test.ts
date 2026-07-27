@@ -10,22 +10,6 @@ const allowedUncovered: Record<string, string> = {
     "global OAuth start URL, no scoped DB write",
   "src/app/api/admin/mode/route.ts":
     "session adminMode toggle, no scoped DB write",
-  "src/app/api/admin/rubitime/booking-profiles/[id]/route.ts":
-    "legacy Rubitime admin catalog disposition",
-  "src/app/api/admin/rubitime/booking-profiles/route.ts":
-    "legacy Rubitime admin catalog disposition",
-  "src/app/api/admin/rubitime/branches/[id]/route.ts":
-    "legacy Rubitime admin catalog disposition",
-  "src/app/api/admin/rubitime/branches/route.ts":
-    "legacy Rubitime admin catalog disposition",
-  "src/app/api/admin/rubitime/cooperators/[id]/route.ts":
-    "legacy Rubitime admin catalog disposition",
-  "src/app/api/admin/rubitime/cooperators/route.ts":
-    "legacy Rubitime admin catalog disposition",
-  "src/app/api/admin/rubitime/services/[id]/route.ts":
-    "legacy Rubitime admin catalog disposition",
-  "src/app/api/admin/rubitime/services/route.ts":
-    "legacy Rubitime admin catalog disposition",
   "src/app/api/admin/smtp-test/route.ts":
     "global admin integration test send, not scoped DB write",
   "src/app/api/admin/users/[userId]/archive/route.ts":

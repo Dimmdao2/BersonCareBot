@@ -16,8 +16,6 @@ const bookingsPort = vi.hoisted(() => ({
   markCancelled: vi.fn(),
   updateSlotsAfterReschedule: vi.fn(),
   getByIdForUser: vi.fn(),
-  getByRubitimeId: vi.fn(),
-  upsertFromRubitime: vi.fn(),
   listUpcomingByUser: vi.fn(),
   listHistoryByUser: vi.fn(),
 }));
@@ -128,7 +126,7 @@ describe("createPatientBookingService", () => {
     vi.clearAllMocks();
   });
 
-  it("createBooking without canonical deps fails instead of calling Rubitime create", async () => {
+  it("createBooking without canonical deps fails closed", async () => {
     const svc = createPatientBookingService({
       bookingsPort: bookingsPort as never,
       syncPort: syncPort as never,
@@ -417,7 +415,7 @@ describe("createPatientBookingService", () => {
     expect(appointmentLifecycle.patientReschedule).not.toHaveBeenCalled();
   });
 
-  it("rescheduleBooking: still calls assertSlotAvailable when retired slots read source is rubitime", async () => {
+  it("rescheduleBooking calls assertSlotAvailable before the canonical update", async () => {
     const row = sampleRow({
       status: "confirmed",
       canonicalAppointmentId: "appt-1",
@@ -794,7 +792,7 @@ describe("createPatientBookingService", () => {
     expect(syncPort.updateRecord).not.toHaveBeenCalled();
   });
 
-  it("rescheduleBooking: skips Rubitime update when bridge is disabled", async () => {
+  it("rescheduleBooking does not call the provider-neutral update port", async () => {
     const row = sampleRow({
       status: "confirmed",
       canonicalAppointmentId: "appt-1",
@@ -1014,7 +1012,7 @@ describe("createPatientBookingService", () => {
     );
   });
 
-  it("cancelBooking: canonical lifecycle error returns lifecycle_failed even when Rubitime fails", async () => {
+  it("cancelBooking returns lifecycle_failed when the canonical lifecycle fails", async () => {
     const row = sampleRow({
       status: "confirmed",
       canonicalAppointmentId: "appt-1",

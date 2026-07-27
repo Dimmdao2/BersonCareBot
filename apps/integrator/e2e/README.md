@@ -34,7 +34,7 @@
   - при `GOOGLE_CALENDAR_ENABLED=true` событие синхронизировано в Google Calendar (create/update/delete),
   - при `GOOGLE_CALENDAR_ENABLED=false` внешних вызовов в Google нет.
 
-## 5) Retired Rubitime reverse API
+## 5) Retired Rubitime reverse API (выведено 2026-07-27)
 
 - Не проверять `/api/doctor/appointments/rubitime/*` и `/api/bersoncare/rubitime/*`: эти runtime routes retired by
   Rubitime retirement R6. Исторический raw archive остается только audit/rollback scope до R7.
@@ -47,7 +47,7 @@
   - integrator возвращает 200,
   - письмо с OTP отправлено провайдером.
 
-## 7) Retired Rubitime autobind
+## 7) Retired Rubitime autobind (выведено 2026-07-27)
 
 - Не проверять Rubitime `event-create-record`: Rubitime webhook ingress retired by R6. Email/user identity checks
   должны идти через canonical webapp flows, не через raw provider webhook.

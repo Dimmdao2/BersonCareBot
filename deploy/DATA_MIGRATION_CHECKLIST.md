@@ -94,6 +94,6 @@ COMMIT;
 
 - **Карточки и настройки пользователей:** backfill-person-domain переносит users → platform_users, identities/contacts → bindings, telegram_state (notify_*) → user_notification_topics (topic_code). Reconcile-person-domain сравнивает по integrator_user_id, phone, display_name, bindings, topics (с маппингом notify_* → topic_code).
 - **Подписки на рассылки:** backfill-subscription-mailing-domain переносит user_subscriptions (user_id = users.id после миграции 0010) в user_subscriptions_webapp по integrator_user_id.
-- **Записи на приём:** backfill-appointments-domain переносит rubitime_records в appointment_records по integrator_record_id.
+- **История записей на приём:** historical backfill переносил provider records в `appointment_records` по `integrator_record_id`; внешний источник выведен 2026-07-27.
 
 Все backfill-скрипты используют upsert/ON CONFLICT; повторный запуск с `--commit` безопасен и не дублирует записи при корректных ключах.

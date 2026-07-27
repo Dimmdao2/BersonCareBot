@@ -149,7 +149,6 @@ describe("DoctorCalendarEventPanel patient heading", () => {
       expect.stringContaining("createVisitFrom=appointment-1"),
     );
     expect(screen.getByRole("button", { name: "Закрыть карточку записи" })).toBeInTheDocument();
-    expect(screen.queryByText(/Rubitime/i)).not.toBeInTheDocument();
     expect(screen.queryByText("Карточка пациента")).not.toBeInTheDocument();
     expect(screen.queryByTestId("payment-panel")).not.toBeInTheDocument();
     await waitFor(() => expect(fetch).toHaveBeenCalledTimes(1));

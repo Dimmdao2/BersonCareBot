@@ -1,5 +1,8 @@
 # Integrator schema cleanup scripts
 
+> HISTORICAL ONE-SHOT TOOL — Rubitime выведено 2026-07-27. The suite remains only for reproducible
+> integrator-schema migration audits and is not a live runtime workflow.
+
 Dry-run-first tooling for `docs/_TODO/SAAS_FOUNDATION/T0_4_PRE_INTEGRATOR_SCHEMA_CLEANUP_PLAN.md`.
 
 These scripts are intentionally conservative:

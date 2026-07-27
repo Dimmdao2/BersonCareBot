@@ -31,12 +31,7 @@ describe("useRescheduleBooking", () => {
     vi.unstubAllGlobals();
   });
 
-  it("returns partial rubitimeMirrorFailed on successful reschedule", async () => {
-    vi.mocked(fetch).mockResolvedValueOnce({
-      ok: true,
-      json: async () => ({ ok: true, rubitimeMirrorFailed: true }),
-    } as Response);
-
+  it("returns success after a canonical reschedule", async () => {
     const { result } = renderHook(() => useRescheduleBooking());
     let outcome: Awaited<ReturnType<typeof result.current.rescheduleBooking>> | undefined;
     await act(async () => {
@@ -47,7 +42,7 @@ describe("useRescheduleBooking", () => {
       });
     });
 
-    expect(outcome).toEqual({ ok: true, partial: { rubitimeMirrorFailed: true } });
+    expect(outcome).toEqual({ ok: true });
     expect(toast).not.toHaveBeenCalled();
   });
 

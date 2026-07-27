@@ -120,10 +120,6 @@ Examples:
 - `diary.lfk.complex.created` — payload: `userId`, `title`, optional `origin` (`manual` | `assigned_by_specialist`)
 - `diary.lfk.session.created` — payload: `userId`, `complexId`, `completedAt` (ISO), optional
 
-**Rubitime / профиль:**
-
-- `user.email.autobind` — payload: `phoneNormalized`, `email`. Эмитится интегратором при `event-create-record`, если в записи есть телефон и email. В webapp: невалидный email → пропуск; уже есть подтверждённый email → пропуск; email занят другим пользователем → конфликт (лог), автопривязка не выполняется; иначе email сохраняется как неподтверждённый.
-
 ### `POST /api/integrator/reminders/dispatch`
 
 **Канон для пациентских напоминаний по правилам:** доставка идёт через integrator **`schedule.tick`** → **`reminders.dispatchDue`** → запись в **`public.outgoing_delivery_queue`** и обработку integrator worker (см. `apps/integrator/src/content/scheduler/scripts.json`, unit **`bersoncarebot-scheduler-prod.service`** в `deploy/systemd/`). Паритет доставки напоминаний в MAX (очередь, stale-delete, ключи логов): `docs/ARCHITECTURE/MAX_SETUP.md`.
@@ -426,79 +422,7 @@ compatibility mirror. Disabled/missing/read failure
 
 **Reply-меню Telegram (`sendMenuOnButtonPress`):** автоподмешивание главной reply-клавиатуры из `replyMenu.json` к `message.send` / `message.compose` для пользователя выполняется в executor **только при** `ctx.base.linkedPhone === true`, чтобы не обходить гейт контакта.
 
-**Главное инлайн-меню MAX:** для исходящих `message.send` / `message.compose`, если в `delivery.channels` есть **`max`** (или канал не задан и `event.meta.source === 'max'`), у пользователя **`linkedPhone === true`**, в payload задан числовой **`recipient.chatId`** (иначе MAX send недопустим и меню не подмешивается — напр. телефон без fan-out) и ещё **нет** `replyMarkup`, executor подмешивает **`menus.main`** из контент-бандла **`max/user`** (три кнопки WebApp из фактов `links.*`). При fan-out с Rubitime обогащение применяется **отдельно** к каждому интенту с каналом `max`, чтобы не подмешивать MAX-клавиатуру в Telegram.
-
----
-
-## Flow: BersonCare → Integrator (Rubitime record create + projection)
-
-**Направление:** webapp → integrator → Rubitime API2 `create-record`. После успешного создания integrator автоматически запускает post-create projection: fetch записи → нормализация → Google Calendar sync (best-effort) → `booking.upsert` (→ `appointment_records` через projection outbox).
-
-### `POST {INTEGRATOR_API_URL}/api/bersoncare/rubitime/create-record`
-
-**Заголовки:** как Flow 4 (`X-Bersoncare-Timestamp`, `X-Bersoncare-Signature`, raw JSON body).
-
-**Тело (v2 — explicit IDs):**
-
-```json
-{
-  "version": "v2",
-  "rubitimeBranchId": "10",
-  "rubitimeCooperatorId": "20",
-  "rubitimeServiceId": "30",
-  "slotStart": "2026-04-10T10:00:00.000Z",
-  "patient": { "name": "Иван", "phone": "+79990001122", "email": "ivan@example.com" }
-}
-```
-
-**Ответ:**
-
-- `200 { ok: true, recordId: "79380", data: {...} }` — создано + projection запущена.
-- `200 { ok: true, recordId: "79380", data: {...}, projectionWarning: "fetch_failed" }` — создано, но projection не прошла (запись видна пациенту, но не врачу до следующего webhook).
-- `400 { ok: false, error: "invalid_create_record_input" | "invalid_rubitime_ids" }` — невалидные данные.
-- `502 { ok: false, error: "..." }` — ошибка Rubitime API.
-
-**Политика ошибок:** ошибка Rubitime API = ошибка для юзера (502). Projection (fetch/gcal/upsert) — non-blocking: HTTP 200 возвращается с `projectionWarning`, если projection не прошла. Webapp не блокирует UX при projection failure — webhook Rubitime впоследствии закроет gap.
-
-**Интервал между вызовами Rubitime API2 (integrator):** по правилам Rubitime запросы к `https://rubitime.ru/api2/*` не чаще одного раза в ~5 секунд на API-ключ. В integrator все исходящие вызовы api2 (`create-record`, `get-record`, `get-schedule`, `update-record`, `remove-record`) проходят через общий throttle: минимум **5500 ms** между завершением одного запроса и началом следующего, координация между процессами — `pg_advisory_lock` + таблица `rubitime_api_throttle` (миграция `rubitime:20260413_0001_rubitime_api_throttle.sql`). Повторный вызов после ответа Rubitime про лимит («consecutive requests» / «5 second») снова проходит через этот throttle — отдельная пауза в коде клиента не дублируется. В production/staging throttle **нельзя отключить** (нет env «skip»). После деплоя нужно применить миграции integrator; при отсутствии строки throttle — ошибка `RUBITIME_THROTTLE_ROW_MISSING`. Пока integrator обрабатывает M2M `create-record` (в т.ч. ожидание throttle и повторные вызовы api2), HTTP-запрос webapp к integrator остаётся открытым — на стороне webapp уместен индикатор загрузки до ответа. Post-create projection: при ошибке первого `get-record` дополнительно пауза **5200 ms** перед второй попыткой (см. `postCreateProjection.ts`). Подробности и backlog очереди/async/мультислотов: `docs/REPORTS/RUBITIME_API2_PACING_AND_PHASE2_BACKLOG.md`.
-
----
-
-## Flow: BersonCare → Integrator (Rubitime record reverse API)
-
-**Направление:** вебапп (сессия врача / patient booking / admin) вызывает интегратор; интегратор — `POST https://rubitime.ru/api2/update-record` / `remove-record` с API-ключом Rubitime.
-
-**Mirror sync (2026-06-05):** отмена mapped записи в кабинете — `update-record` с `status: 4` (`cancelRecord` M2M), не обязательно `remove-record`; перенос — `update-record` с `record` / `datetime_end` и scope ids (`normalizeUpdateRecordPatch` в integrator). Порядок staff cancel vs reschedule — [`docs/ARCHITECTURE/RUBITIME_BOOKING_PIPELINE.md`](../../docs/ARCHITECTURE/RUBITIME_BOOKING_PIPELINE.md) § mirror.
-
-### `POST {INTEGRATOR_API_URL}/api/bersoncare/rubitime/update-record`
-
-**Заголовки:** как Flow 4 (`X-Bersoncare-Timestamp`, `X-Bersoncare-Signature`, raw JSON body).
-
-**Тело:**
-
-```json
-{
-  "recordId": "79379",
-  "patch": { "status": 4 }
-}
-```
-
-`patch` — дополнительные поля Rubitime API (кроме `id`/`rk`, они подставляются интегратором). Пустой patch после нормализации (`normalizeUpdateRecordPatch`) → **`400`** `{ ok: false, error: "empty_patch" }`. Поля контакта (`name`, `phone`, `email`) в patch не передаются — только scope/datetime/status.
-
-### `POST {INTEGRATOR_API_URL}/api/bersoncare/rubitime/remove-record`
-
-**Тело:** `{ "recordId": "79379" }` (или числовой `recordId`).
-
-**Idempotency (2026-06-06):** если Rubitime отвечает «record not found» — integrator возвращает **`200`** `{ ok: true, data: {} }` (запись уже удалена). Для **`update-record`** с повторной отменой (status 4) или «record not found» / «already cancelled» — тоже **`200`** `{ ok: true, data: {} }`. GCal cleanup при remove webhook: HTTP **404** и **410** на DELETE события — не ошибка.
-
-**Retired webapp proxy (doctor):**
-
-- `POST /api/doctor/appointments/rubitime/update` and
-  `POST /api/doctor/appointments/rubitime/cancel` were removed during Rubitime retirement R6 preparation.
-  Doctor/admin manual booking flows use canonical booking-engine routes and, until cutoff, their bounded mirror code.
-  Do not reintroduce direct doctor webapp proxies to Rubitime M2M endpoints.
-
-Те же подписи к integrator формируются на стороне webapp через общий webhook secret.
+**Главное инлайн-меню MAX:** для исходящих `message.send` / `message.compose`, если в `delivery.channels` есть **`max`** (или канал не задан и `event.meta.source === 'max'`), у пользователя **`linkedPhone === true`**, в payload задан числовой **`recipient.chatId`** (иначе MAX send недопустим и меню не подмешивается — напр. телефон без fan-out) и ещё **нет** `replyMarkup`, executor подмешивает **`menus.main`** из контент-бандла **`max/user`** (три кнопки WebApp из фактов `links.*`).
 
 ---
 
@@ -522,8 +446,6 @@ compatibility mirror. Disabled/missing/read failure
 | `nowIso` | опционально для расчёта «осталось N часов/дней» |
 
 **Ответ 200:** `{ ok: true, webPushDelivered?, webPushErrors?, skipped? }`.
-
-**Rubitime booking:** integrator worker вызывает этот endpoint после TG/MAX для slot-напоминаний (`intentType: appointment_reminder`).
 
 **Doctor broadcasts:** webapp fan-out при канале `push` в UI рассылок (`intentType: news`, `topicCode: news`) — in-process, без HTTP. Полный текст — в PWA-чат (`support_conversation_messages`); `openUrl` для push: `/app/patient/messages`. Legacy `/app/patient/broadcasts/{auditId}` → редирект в чат.
 

@@ -12,7 +12,7 @@ Validity: `packageValidity.ts` (auto `expired` when `valid_until` passed).
 
 ## Booking integration
 
-**Canonical-only debit path:** reserve/consume/FEFO и ручные действия staff опираются на **canonical `serviceId`** записи и позиций пакета. Rubitime/legacy — только через mapping (`branch_service_mapping_missing` fail-closed на create/available, этап 2). В UI сеансов абонемента: `mappingStatus` + бейдж «нет связи услуги».
+**Canonical-only debit path:** reserve/consume/FEFO и ручные действия staff опираются на **canonical `serviceId`** записи и позиций пакета. В UI сеансов абонемента: `mappingStatus` + бейдж «нет связи услуги».
 
 - Create (in_person): optional `patientPackageId` on `POST /api/booking/create`; if omitted and no `productPurchaseId`, **auto FEFO** (`fefoPicker.ts`) among active packages with balance for service; `reserveForAppointment` before `markConfirmed`; skips prepayment when package covers visit. Staff manual create (`POST .../appointments/manual`) uses the same FEFO when `platformUserId` + `serviceId` are set.
 - Calendar: `booking.package_linked` / `booking.package_unlinked` → integrator GCal update only (no patient/doctor notifications). Summary `✅` after status markers; description line `Абонемент от <soldAt>: сеанс n из N`. After consume/penalty ref change, `refreshPackageCalendar` emits `package_linked` (best-effort).

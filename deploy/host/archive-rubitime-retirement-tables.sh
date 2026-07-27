@@ -1,6 +1,9 @@
 #!/usr/bin/env bash
 set -Eeuo pipefail
 
+# HISTORICAL ONE-SHOT TOOL — Rubitime выведено 2026-07-27.
+# Kept only to reproduce or audit the completed archive/drop migration; it is not live deploy tooling.
+#
 # R7 archive-then-drop tooling (B-7(b) of docs/_TODO/SAAS_FOUNDATION/SAAS_PROD_DEPLOY_PROCESS.md §8).
 #
 # Replaces the PROSE-ONLY archive block of

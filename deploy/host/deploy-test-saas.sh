@@ -14,9 +14,8 @@
 #
 # Run as user `dev` (uses sudo for postgres/deploy/systemctl). This is NOT the normal code deploy:
 # it deliberately recreates TEST from a clean dump and therefore requires an explicit destructive confirmation
-# plus hash-bound Rubitime/FIO inputs. Normal code deploys use deploy/host/deploy-test.sh and never restore TEST.
+# plus hash-bound FIO inputs. Normal code deploys use deploy/host/deploy-test.sh and never restore TEST.
 # Public destructive entrypoint: bash deploy/host/deploy-test-full-reset.sh --confirm-full-reset \
-#   --rubitime-csv=/secure/input.csv --rubitime-csv-sha256=<sha256> \
 #   --fio-manifest=/secure/fio-manifest.json --fio-manifest-file-sha256=<sha256> \
 #   --fio-manifest-sha256=<sha256> --fio-review-source-sha256=<sha256> [branch]
 set -euo pipefail
@@ -34,8 +33,6 @@ SRC_REPO=/home/dev/dev-projects/BersonCareBot
 DEPLOY_REPO=/opt/projects/bersoncarebot-test
 BRANCH="feat/doctor-ui-rebuild"
 CONFIRM_FULL_RESET=0
-RUBITIME_CSV=""
-RUBITIME_CSV_SHA256=""
 FIO_MANIFEST=""
 FIO_MANIFEST_FILE_SHA256=""
 FIO_MANIFEST_SHA256=""
@@ -106,7 +103,6 @@ CLOSURE_GATE_RED_EXIT=3
 FIXTURE_VALIDATOR_ROOT="$SRC_REPO"
 LOCKED_PRODUCT_SMOKE_FIXTURE_CANONICAL=""
 E1_RUNTIME_COVERAGE_STARTED_AT=""
-STAGED_INPUT_DIR=""
 
 # ── KNOWN ANCHORS (owner's real, stable prod identities — the whole sequence keys off these; same on prod) ──
 #   doctor phone   +79643805480   (p0-data-fix + override: role=doctor, owns yandex email, doctor allowlist)
@@ -114,7 +110,7 @@ STAGED_INPUT_DIR=""
 #   doctor email   dimmdao@yandex.ru   admin email  dimmdao@gmail.com
 #   org id         a0000000-0000-4000-8000-000000000001
 #   canonical specialist  c9515025-7224-4d9b-86b6-9cb7d26ea503  (the "Дмитрий Берсон" row holding the full
-#                         appointment history; the per-branch rubitime dup is merged into it + deactivated)
+#                         appointment history)
 ORG_ID=a0000000-0000-4000-8000-000000000001
 CANONICAL_SPECIALIST=c9515025-7224-4d9b-86b6-9cb7d26ea503
 # LIVE prod source (adelaide / 135.106.162.170). The local /opt/backups on THIS (test/151.x) box are of a
@@ -208,7 +204,6 @@ cleanup_exit(){
   set +e
   cleanup_elevation
   cleanup_status=$?
-  cleanup_staged_inputs || cleanup_status=1
   if [ "$original_status" -ne 0 ] && [ "${WRITERS_STOPPED:-0}" = "1" ] && [ "${SERVICES_RELEASED:-0}" != "1" ]; then
     for unit_name in "${UNITS[@]}"; do
       sudo systemctl stop "bersoncarebot-$unit_name-test" >/dev/null 2>&1 || cleanup_status=1
@@ -218,74 +213,6 @@ cleanup_exit(){
     exit "$cleanup_status"
   fi
   exit "$original_status"
-}
-
-cleanup_staged_inputs(){
-  if [ -z "${STAGED_INPUT_DIR:-}" ]; then return 0; fi
-  [[ "$STAGED_INPUT_DIR" = /run/bersoncarebot/full-reset-input.* ]] || {
-    echo "FATAL: refusing cleanup of unexpected staged input path" >&2
-    return 1
-  }
-  sudo rm -f -- "$STAGED_INPUT_DIR/rubitime.csv"
-  sudo rmdir -- "$STAGED_INPUT_DIR"
-  STAGED_INPUT_DIR=""
-}
-
-cleanup_pre_destructive_exit(){
-  local original_status=$?
-  set +e
-  cleanup_staged_inputs
-  local cleanup_status=$?
-  if [ "$original_status" -eq 0 ] && [ "$cleanup_status" -ne 0 ]; then exit "$cleanup_status"; fi
-  exit "$original_status"
-}
-
-stage_hash_bound_rubitime_csv(){
-  local staged_hash staged_meta
-  sudo test -d /run/bersoncarebot && sudo test ! -L /run/bersoncarebot || {
-    echo "FATAL: canonical /run/bersoncarebot directory is missing or symlinked" >&2
-    exit 2
-  }
-  STAGED_INPUT_DIR="$(sudo mktemp -d -p /run/bersoncarebot full-reset-input.XXXXXX)"
-  sudo chown root:deploy "$STAGED_INPUT_DIR"
-  sudo chmod 0750 "$STAGED_INPUT_DIR"
-  trap cleanup_pre_destructive_exit EXIT
-  sudo install -o root -g deploy -m 0440 -- "$RUBITIME_CSV" "$STAGED_INPUT_DIR/rubitime.csv"
-  sudo sync -f "$STAGED_INPUT_DIR/rubitime.csv"
-  staged_meta="$(sudo -u deploy stat -Lc '%U:%G:%a' -- "$STAGED_INPUT_DIR/rubitime.csv")"
-  [ "$staged_meta" = "root:deploy:440" ] || {
-    echo "FATAL: staged Rubitime CSV protection mismatch" >&2
-    exit 2
-  }
-  staged_hash="$(sudo -u deploy sha256sum -- "$STAGED_INPUT_DIR/rubitime.csv" | awk '{print $1}')"
-  [ "${staged_hash,,}" = "${RUBITIME_CSV_SHA256,,}" ] || {
-    echo "FATAL: staged Rubitime CSV SHA-256 mismatch" >&2
-    exit 2
-  }
-  RUBITIME_CSV="$STAGED_INPUT_DIR/rubitime.csv"
-  echo "   Rubitime CSV: immutable root-owned staged snapshot OK"
-}
-
-assert_staged_rubitime_csv_ready(){
-  local staged_hash staged_meta
-  [[ "$RUBITIME_CSV" = /run/bersoncarebot/full-reset-input.*/rubitime.csv ]] || {
-    echo "FATAL: Rubitime chain must read only the staged snapshot" >&2
-    exit 2
-  }
-  sudo -u deploy test -f "$RUBITIME_CSV" && sudo -u deploy test ! -L "$RUBITIME_CSV" || {
-    echo "FATAL: staged Rubitime CSV is not a regular non-symlink file" >&2
-    exit 2
-  }
-  staged_meta="$(sudo -u deploy stat -Lc '%U:%G:%a' -- "$RUBITIME_CSV")"
-  [ "$staged_meta" = "root:deploy:440" ] || {
-    echo "FATAL: staged Rubitime CSV protection changed" >&2
-    exit 2
-  }
-  staged_hash="$(sudo -u deploy sha256sum -- "$RUBITIME_CSV" | awk '{print $1}')"
-  [ "${staged_hash,,}" = "${RUBITIME_CSV_SHA256,,}" ] || {
-    echo "FATAL: staged Rubitime CSV SHA-256 changed" >&2
-    exit 2
-  }
 }
 
 validate_pg_identifier(){
@@ -2217,7 +2144,6 @@ full_reset_usage(){
   cat <<'EOF'
 Usage:
   bash deploy/host/deploy-test-full-reset.sh --confirm-full-reset \
-    --rubitime-csv=/secure/input.csv --rubitime-csv-sha256=<sha256> \
     --fio-manifest=/secure/fio-manifest.json --fio-manifest-file-sha256=<sha256> \
     --fio-manifest-sha256=<sha256> --fio-review-source-sha256=<sha256> \
     [branch]
@@ -2226,8 +2152,8 @@ This command destroys and recreates bersoncarebot_test from a fresh production d
 owner-authorized full migration rehearsal. For ordinary code deploys use:
   bash deploy/host/deploy-test.sh [branch]
 
-Protected Rubitime/FIO inputs must be regular, non-symlink files owned by deploy with mode 0600. Their hashes
-bind this run to the exact owner-reviewed inputs. No patient data is printed by this wrapper.
+Protected FIO inputs must be regular, non-symlink files owned by deploy with mode 0600. Their hashes bind this
+run to the exact owner-reviewed inputs. No patient data is printed by this wrapper.
 EOF
 }
 
@@ -2236,8 +2162,6 @@ parse_full_reset_args(){
   for arg in "$@"; do
     case "$arg" in
       --confirm-full-reset) CONFIRM_FULL_RESET=1 ;;
-      --rubitime-csv=*) RUBITIME_CSV="${arg#*=}" ;;
-      --rubitime-csv-sha256=*) RUBITIME_CSV_SHA256="${arg#*=}" ;;
       --fio-manifest=*) FIO_MANIFEST="${arg#*=}" ;;
       --fio-manifest-file-sha256=*) FIO_MANIFEST_FILE_SHA256="${arg#*=}" ;;
       --fio-manifest-sha256=*) FIO_MANIFEST_SHA256="${arg#*=}" ;;
@@ -2263,8 +2187,6 @@ parse_full_reset_args(){
     echo "FATAL: full TEST reset requires --confirm-full-reset; ordinary deploys use deploy/host/deploy-test.sh" >&2
     exit 2
   }
-  [ -n "$RUBITIME_CSV" ] || { echo "FATAL: --rubitime-csv is required for a data-complete reset" >&2; exit 2; }
-  [ -n "$RUBITIME_CSV_SHA256" ] || { echo "FATAL: --rubitime-csv-sha256 is required" >&2; exit 2; }
   [ -n "$FIO_MANIFEST" ] || { echo "FATAL: --fio-manifest is required for a data-complete reset" >&2; exit 2; }
   [ -n "$FIO_MANIFEST_FILE_SHA256" ] || { echo "FATAL: --fio-manifest-file-sha256 is required" >&2; exit 2; }
   [ -n "$FIO_MANIFEST_SHA256" ] || { echo "FATAL: --fio-manifest-sha256 is required" >&2; exit 2; }
@@ -2332,9 +2254,7 @@ esac
 }
 parse_full_reset_args "$@"
 log "DESTRUCTIVE full-reset confirmation + owner input preflight"
-assert_hash_bound_protected_input "Rubitime CSV" "$RUBITIME_CSV" "$RUBITIME_CSV_SHA256"
 assert_hash_bound_protected_input "FIO manifest" "$FIO_MANIFEST" "$FIO_MANIFEST_FILE_SHA256"
-stage_hash_bound_rubitime_csv
 [ -r "$RESTORE" ] || { echo "FATAL: missing required file: $RESTORE"; exit 1; }
 [ -r "$SRC_REPO/$OVERRIDE" ] || { echo "FATAL: missing repo file: $SRC_REPO/$OVERRIDE"; exit 1; }
 [ -r "$SRC_REPO/$C4D_MEDIA_OWNER_ONLINE_INDEX" ] || { echo "FATAL: missing repo file: $SRC_REPO/$C4D_MEDIA_OWNER_ONLINE_INDEX"; exit 1; }
@@ -2485,17 +2405,7 @@ sudo -u postgres psql -d "$DB" -v ON_ERROR_STOP=1 \
   -v test_settings_overlay_mode=reset \
   -f "$DEPLOY_REPO/$OVERRIDE"
 
-# 5. Full canonical Rubitime/history normalization while all writers are still stopped. The one-pass wrapper owns
-#    placeholder cleanup, specialist consolidation, all cleanup/import passes (including the mandatory second
-#    non-confirmed pass after import), aggregate audits, and retirement gates. No service is started between restore
-#    and this data normalization.
-log "canonical Rubitime/history cleanup-import chain"
-assert_staged_rubitime_csv_ready
-rubitime_csv_q="$(shell_quote "$RUBITIME_CSV")"
-run_deploy_repo_with_test_db_owner_role \
-  "pnpm run rubitime:db-cleanup:one-pass -- --csv=$rubitime_csv_q --execute --commit-cleanup --allow-test-target --canonical-specialist='$CANONICAL_SPECIALIST' --org-id='$ORG_ID'"
-
-# 6. Apply the exact owner-reviewed FIO decisions. The manifest and original review are separately hash-bound;
+# 5. Apply the exact owner-reviewed FIO decisions. The manifest and original review are separately hash-bound;
 #    the script re-attests the exact loopback TEST DB, locks rows, fails on unlisted drift, persists a private
 #    rollback artifact before mutation, and performs one conditional transaction. Temporary BYPASS is limited to
 #    this stopped-writers data-migration window and is revoked/asserted by the shared helper.
@@ -2507,7 +2417,7 @@ fio_rollback_dir_q="$(shell_quote "$DEPLOY_REPO/.tmp/fio-owner-review-rollback")
 run_deploy_repo_with_test_db_owner_bypass \
   "pnpm --dir apps/webapp run fio:owner-reviewed-test:apply -- --test --manifest $fio_manifest_q --confirm-manifest-sha256 $fio_manifest_sha_q --confirm-review-source-sha256 $fio_review_source_sha_q --rollback-dir $fio_rollback_dir_q"
 
-# 7. end-state self-check (reproducibility gate — same asserted state every run, from zero)
+# 6. end-state self-check (reproducibility gate — same asserted state every run, from zero)
 log "verify end-state"
 ACTIVE="$(sudo -u postgres psql -d "$DB" -tAc "SELECT count(*) FROM be_specialists WHERE is_active=true;")"
 [ "${ACTIVE:-0}" = "1" ] || { echo "FATAL: expected exactly 1 active specialist, got ${ACTIVE:-0}"; exit 1; }
@@ -2530,4 +2440,4 @@ run_b1_doctor_admin_identity_assertion
 FIXTURE_VALIDATOR_ROOT="$DEPLOY_REPO"
 assert_strict_closure_deploy_checkout_ready
 run_strict_post_migration_closure
-log "DONE — full data-ready TEST migration (Rubitime history + reviewed FIO + locked runtime verified)"
+log "DONE — full data-ready TEST migration (reviewed FIO + locked runtime verified)"

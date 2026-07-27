@@ -245,7 +245,7 @@ PTY/non-TTY, повторная ротация и отсутствие утеч�
 
 ## Operator health probes (MVP)
 
-Интегратор: **`POST /internal/operator-health-probe`** (синтетические пробы MAX + Rubitime). Доступ **только** с подписью `x-bersoncare-timestamp` / `x-bersoncare-signature` (тот же секрет, что M2M webapp→integrator: **`INTEGRATOR_WEBHOOK_SECRET`** или **`INTEGRATOR_SHARED_SECRET`** в `api.prod`).
+Интегратор: **`POST /internal/operator-health-probe`** (синтетические пробы активных интеграций). Доступ **только** с подписью `x-bersoncare-timestamp` / `x-bersoncare-signature` (тот же секрет, что M2M webapp→integrator: **`INTEGRATOR_WEBHOOK_SECRET`** или **`INTEGRATOR_SHARED_SECRET`** в `api.prod`).
 
 **Канонический скрипт вызова с хоста:** [`deploy/host/operator-health-probe.sh`](../host/operator-health-probe.sh). Копируется вместе с репозиторием; на prod обычно symlink или копия под `/opt/backups/scripts/` (рядом с `postgres-backup.sh`) — путь оператор выбирает сам, важно чтобы скрипт был исполняемым (`chmod +x`).
 
@@ -257,7 +257,7 @@ bash /opt/projects/bersoncarebot/deploy/host/operator-health-probe.sh
 
 **Периодический запуск (пример, cron от root или от пользователя с доступом к `api.prod` и `curl` к `127.0.0.1:3200`):** раз в час — `0 * * * *` и тот же `bash …/operator-health-probe.sh`. Альтернатива — `systemd.timer` с `OnCalendar=hourly` и `ExecStart=` на этот скрипт (unit-файл в репозитории не зафиксирован — добавляется на хосте при необходимости).
 
-**Проверка:** при валидном env ответ JSON `{"ok":true,"max":"ok"|"fail"|…,"rubitime":…}`; при неверной подписи — **401** `invalid_signature`.
+**Проверка:** при валидном env ответ JSON содержит `{"ok":true,...}` и статусы активных проб; при неверной подписи — **401** `invalid_signature`.
 
 ---
 
@@ -285,8 +285,6 @@ bash /opt/projects/bersoncarebot/deploy/host/operator-health-probe.sh
 restore/reset или отправку приглашений.
 
 **Webapp Drizzle и порядок относительно билда:** канонический прогон — `pnpm --dir apps/webapp run migrate` с `DATABASE_URL` из `webapp.prod`. Для ручного прогона integrator + webapp на host достаточно **`pnpm migrate`**: скрипт `scripts/migrate-all.sh` автоматически подгружает `api.prod` и `webapp.prod` (если файлы существуют). Если новый билд webapp расширяет `SELECT` по `media_files` новыми колонками (например VIDEO_HLS_DELIVERY, миграция `0018_media_files_hls_foundation`), **применить миграции до или в одном окне с первым запуском этого билда**, иначе возможна ошибка PostgreSQL `column does not exist`.
-
-**Booking mirror (post-deploy smoke, при изменениях rubitime-first / cancel / reschedule):** после деплоя **webapp + integrator** — ручная матрица CR-A / CN-P / RS-P / partial toast; инварианты и SQL — [`docs/BOOKING_REWORK_INITIATIVE/LOG.md`](../docs/BOOKING_REWORK_INITIATIVE/LOG.md) §2026-06-06, [`ACCEPTANCE_MIRROR_SYNC.md`](../docs/BOOKING_REWORK_INITIATIVE/ACCEPTANCE_MIRROR_SYNC.md) §Smoke-матрица.
 
 ---
 
@@ -605,9 +603,6 @@ journalctl -u bersoncarebot-api-prod.service -p err --since "14 days ago" --no-p
 - `MAX_ADMIN_CHAT_ID=156854402`
 - `MAX_API_KEY=...`
 - `MAX_WEBHOOK_SECRET=...`
-- `RUBITIME_WEBHOOK_TOKEN=...`
-- `RUBITIME_API_KEY=...`
-- ~~`RUBITIME_SCHEDULE_MAPPING`~~ — **УДАЛЕНА**. Маппинг booking query → Rubitime schedule params теперь хранится в DB (таблица `rubitime_booking_profiles`). Управляется через admin UI webapp (`/app/settings` → «Rubitime — профили записи»).
 - `SMSC_ENABLED=true`
 - `SMSC_API_KEY=...`
 - `SMSC_BASE_URL=https://smsc.ru/sys/send.php`
@@ -756,8 +751,6 @@ families через отдельный diagnostic login. Активный unexpl
 ```bash
 bash deploy/host/deploy-test-full-reset.sh \
   --confirm-full-reset \
-  --rubitime-csv=/secure/owner-rubitime.csv \
-  --rubitime-csv-sha256=<approved-sha256> \
   --fio-manifest=/secure/fio-owner-manifest.json \
   --fio-manifest-file-sha256=<approved-file-sha256> \
   --fio-manifest-sha256=<approved-sha256> \
@@ -767,8 +760,7 @@ bash deploy/host/deploy-test-full-reset.sh \
 
 Обычные UI/code обновления всегда идут через `deploy-test.sh`; повторное создание БД для них запрещено и не нужно.
 Hard wrapper останавливает writers, восстанавливает dump, выполняет owner-authority migration/overlay/settings chain,
-затем в том же stopped-writers окне выполняет полную Rubitime/history cleanup-import цепочку и hash-bound
-owner-reviewed FIO apply с durable conditional rollback,
+затем в том же stopped-writers окне выполняет hash-bound owner-reviewed FIO apply с durable conditional rollback,
 затем общей closure применяет строгие helper policies + безопасные invite/course/app_worker overlays + FORCE с
 точной проверкой 163 таблиц и до рестарта идемпотентно восстанавливает две синтетические walkthrough-клиники:
 A с управляющим, двумя специалистами и пятью пациентами; B с solo owner/specialist и тремя пациентами. Он
@@ -779,10 +771,8 @@ local-only URL (`127.0.0.1:5432/bersoncarebot_test`), создаёт base/capabi
 discovery-definer роли, применяет оба C4 overlay, а затем повторяет overlay + readiness после FORCE и locked DB matrix.
 До рестарта отдельно проверяется, что systemd webapp читает точный `webapp.test` и в нём доступен
 `DATABASE_URL_WEB_PUSH_REMINDER`. Любой сбой оставляет writers остановленными; root-owned env и идемпотентные роли
-сохраняются для безопасного повторного запуска. `DONE` допустим только после Rubitime post-import cleanup/audits и
-FIO reconciliation; отсутствие защищённого CSV/manifest или несовпадение SHA-256 останавливает прогон до restore.
-Rubitime CSV на весь прогон читается из отдельного root-owned `0440` snapshot в `/run`, повторно сверенного по
-approved SHA-256 непосредственно перед one-pass; исходный deploy-owned файл после preflight больше не читается.
+сохраняются для безопасного повторного запуска. `DONE` допустим только после FIO reconciliation; отсутствие
+защищённого manifest или несовпадение SHA-256 останавливает прогон до restore.
 Fresh wrapper намеренно не ставит cron и не вызывает live tick:
 `web-push-only-reminder-cron.sh install-test` разрешён только отдельным шагом после успешного полного fresh rehearsal.
 Безопасная локальная репетиция точного C4-сегмента wrapper (не читает и не меняет host env, БД, systemd или cron):
@@ -1127,7 +1117,7 @@ curl -sI -H "Host: bersoncare.ru" "http://127.0.0.1:6200/_next/static/chunks/$(b
 
 ### 4. `pnpm install` в CI / SSH: `EACCES … rmdir … node_modules`
 
-**Симптом:** при деплое `Recreating node_modules` и **`EACCES: permission denied, rmdir '…/node_modules/.bin'`** (часто под `packages/booking-rubitime-sync`).
+**Симптом:** при деплое `Recreating node_modules` и **`EACCES: permission denied, rmdir '…/node_modules/.bin'`**.
 
 **Причина:** дерево репозитория или `node_modules` частично принадлежит **root** (например, ранее запускали `sudo pnpm install` или сборку от root в `/opt/projects/bersoncarebot`), а деплой идёт от **`deploy`** — не может удалить чужие каталоги.
 

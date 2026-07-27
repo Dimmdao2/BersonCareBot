@@ -109,7 +109,6 @@ describe("GET /api/integrator/appointments/active-by-user", () => {
     const json = await res.json();
     expect(json).toMatchObject({ ok: true, records: expect.any(Array) });
     expect(json.records).toHaveLength(1);
-    expect(json.records[0].rubitimeRecordId).toBe("rec-1");
     expect(json.records[0].status).toBe("created");
     expect(json.records[0].link).toBe("https://example.com/rec");
   });

@@ -53,16 +53,18 @@ describe("emitBookingDeletedEvent", () => {
 
     await emitBookingDeletedEvent({
       deps: {
-        patientBooking: { getByRubitimeId: vi.fn().mockResolvedValue(booking) },
+        patientBooking: {
+          getBookingByCanonicalAppointment: vi.fn().mockResolvedValue(booking),
+        },
         appointmentProjection: null,
       } as never,
-      integratorRecordId: "legacy-record-1",
+      integratorRecordId: `be:${booking.canonicalAppointmentId}`,
     });
 
     expect(emitBookingEvent).toHaveBeenCalledWith(
       expect.objectContaining({
         eventType: "booking.deleted",
-        idempotencyKey: "booking.deleted:legacy-record-1",
+        idempotencyKey: `booking.deleted:be:${booking.canonicalAppointmentId}`,
       }),
     );
     const emittedPayload = emitBookingEvent.mock.calls[0]?.[0]?.payload as Record<string, unknown>;

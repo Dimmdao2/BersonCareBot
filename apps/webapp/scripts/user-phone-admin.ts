@@ -12,7 +12,7 @@
  *                         — переносит контентные записи со старого UUID на текущего пользователя с данным телефоном.
  *
  *   integrator-clear-phone <phone>
- *                         — ВРЕМЕННО ОТКЛЮЧЕНА: удаляла integrator account и Rubitime history по телефону.
+ *                         — ВРЕМЕННО ОТКЛЮЧЕНА: удаляла integrator account и связанную историю по телефону.
  *
  *   scrub-webapp-by-phone <phone>
  *                         — только webapp: appointment_records + phone_otp/challenges по номеру и журнал doctor-сообщений
@@ -356,12 +356,6 @@ async function info(phone: string): Promise<void> {
 
   if (integratorDb) {
     const intIds = await resolveIntegratorUserIds(digs, user.integrator_user_id);
-    const rub = await integratorDb.query<{ cnt: number }>(
-      `SELECT count(*)::int AS cnt FROM rubitime_records
-       WHERE phone_normalized IS NOT NULL
-         AND regexp_replace(phone_normalized, '\\D', '', 'g') = $1`,
-      [digs],
-    );
     const rj = await integratorDb.query<{ cnt: number }>(
       `SELECT count(*)::int AS cnt FROM message_retry_jobs
        WHERE regexp_replace(phone_normalized, '\\D', '', 'g') = $1`,
@@ -369,7 +363,6 @@ async function info(phone: string): Promise<void> {
     );
     console.log("\nIntegrator (очищается при reset-user):");
     console.log(`  users.id (удаление строки users + CASCADE): ${intIds.length ? intIds.join(", ") : "—"}`);
-    console.log(`  rubitime_records: ${rub.rows[0]?.cnt ?? 0}`);
     console.log(`  message_retry_jobs: ${rj.rows[0]?.cnt ?? 0}`);
   } else {
     console.log("\nIntegrator: URL не задан (INTEGRATOR_DATABASE_URL / api.prod) — блок integrator пропущен.");

@@ -20,11 +20,9 @@ const createAppointmentMock = vi.hoisted(() => vi.fn());
 const transitionAppointmentStatusMock = vi.hoisted(() => vi.fn());
 const deleteAppointmentHardMock = vi.hoisted(() => vi.fn());
 const emitBookingEventMock = vi.hoisted(() => vi.fn());
-const createRecordMock = vi.hoisted(() => vi.fn());
 const resolveLegacyBranchServiceIdMock = vi.hoisted(() => vi.fn());
 const assertSlotAvailableMock = vi.hoisted(() => vi.fn());
 const listSpecialistsMock = vi.hoisted(() => vi.fn());
-const bridgeEnabledState = vi.hoisted(() => ({ value: true }));
 
 vi.mock("../../_requireAdminBookingEngine", () => ({
   requireAdminBookingEngine: requireAdminBookingEngineMock,
@@ -36,9 +34,6 @@ vi.mock("@/app-layer/principal/withOrganizationPrincipal", () => ({
 
 vi.mock("@/modules/integrator/bookingM2mApi", () => ({
   createBookingSyncPort: () => ({
-    createRecord: createRecordMock,
-    cancelRecord: vi.fn(),
-    deleteRecord: vi.fn(),
     emitBookingEvent: emitBookingEventMock,
   }),
 }));
@@ -56,9 +51,6 @@ vi.mock("@/app-layer/di/buildAppDeps", () => ({
     bookingEngine: {
       catalog: { listSpecialists: listSpecialistsMock },
     },
-    rubitimeCanonicalProjection: {
-      isBridgeEnabled: async () => bridgeEnabledState.value,
-    },
     memberships: null,
     patientBooking: null,
   }),
@@ -70,10 +62,9 @@ describe("POST admin manual appointment", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     principalState.inside = false;
-    bridgeEnabledState.value = true;
   });
 
-  it("creates the canonical appointment despite legacy bridge enablement", async () => {
+  it("creates the canonical appointment", async () => {
     requireAdminBookingEngineMock.mockResolvedValue({
       ok: true,
       ctx: {
@@ -86,7 +77,6 @@ describe("POST admin manual appointment", () => {
         },
       },
     });
-    createRecordMock.mockRejectedValue(new Error("rubitime unavailable"));
     createAppointmentMock.mockResolvedValue({
       id: "appt-1",
       startAt: "2026-06-01T10:00:00.000Z",
@@ -119,7 +109,6 @@ describe("POST admin manual appointment", () => {
 
     expect(res.status).toBe(200);
     expect(resolveLegacyBranchServiceIdMock).not.toHaveBeenCalled();
-    expect(createRecordMock).not.toHaveBeenCalled();
     expect(deleteAppointmentHardMock).not.toHaveBeenCalled();
     expect(transitionAppointmentStatusMock).not.toHaveBeenCalled();
     expect(emitBookingEventMock).toHaveBeenCalled();
@@ -200,8 +189,6 @@ describe("POST admin manual appointment", () => {
       expect(principalState.inside).toBe(false);
     });
     resolveLegacyBranchServiceIdMock.mockResolvedValue("branch-service-id");
-    createRecordMock.mockResolvedValue({ rubitimeId: "rt-1", raw: {} });
-
     const res = await POST(
       new Request("http://localhost/manual", {
         method: "POST",

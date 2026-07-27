@@ -77,7 +77,7 @@ async function renderSetupTab(deepLinkParams: Record<string, string> = {}) {
 // ---------------------------------------------------------------------------
 
 describe("ScheduleSetupTab", () => {
-  it("renders the sub-nav with all 9 sections (services + specialists, no Rubitime)", async () => {
+  it("renders the sub-nav with all 9 canonical sections", async () => {
     await renderSetupTab();
     expect(screen.getByTestId("setup-subnav")).toBeInTheDocument();
     expect(screen.getByTestId("setup-nav-calendar")).toBeInTheDocument();
@@ -161,7 +161,6 @@ describe("ScheduleSetupTab", () => {
   it("ignores the retired integrations deep link", async () => {
     await renderSetupTab({ section: "integrations" });
     expect(screen.getByTestId("setup-section-calendar")).toBeInTheDocument();
-    expect(screen.queryByText(/Rubitime/i)).not.toBeInTheDocument();
   });
 
   it("switching back to default section (calendar) calls onDeepLinkChange with null", async () => {

@@ -5,7 +5,7 @@ import { render, screen, waitFor } from '@testing-library/react';
 import { OperatorHealthProbeSettingsSection } from './OperatorHealthProbeSettingsSection';
 
 describe('OperatorHealthProbeSettingsSection', () => {
-  it('renders current and code-default values without the retired Rubitime probe', async () => {
+  it('renders current and code-default values', async () => {
     vi.stubGlobal(
       'fetch',
       vi
@@ -53,7 +53,6 @@ describe('OperatorHealthProbeSettingsSection', () => {
     await waitFor(() => expect(screen.getByDisplayValue('15')).toBeInTheDocument());
     expect(screen.getAllByText(/По умолчанию:/).length).toBeGreaterThanOrEqual(9);
     expect(screen.getByRole('button', { name: 'Сбросить на дефолт' })).toBeInTheDocument();
-    expect(screen.queryByText(/Rubitime/)).not.toBeInTheDocument();
     expect(screen.getByText(/Письмо не дошло за/)).toBeInTheDocument();
   });
 });

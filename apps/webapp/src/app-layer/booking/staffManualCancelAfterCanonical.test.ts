@@ -1,8 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const applyStaffCancelSideEffectsMock = vi.hoisted(() => vi.fn());
-const cancelRecordMock = vi.hoisted(() => vi.fn());
-const createBookingSyncPortMock = vi.hoisted(() => vi.fn(() => ({ cancelRecord: cancelRecordMock })));
+const createBookingSyncPortMock = vi.hoisted(() => vi.fn(() => ({})));
 
 vi.mock("@/app-layer/booking/staffAppointmentLifecycleEffects", () => ({
   applyStaffCancelSideEffects: applyStaffCancelSideEffectsMock,
@@ -57,13 +56,11 @@ const baseAppointment = {
 describe("runStaffManualCancelAfterCanonical", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    cancelRecordMock.mockRejectedValue(new Error("rubitime unavailable"));
     applyStaffCancelSideEffectsMock.mockResolvedValue(undefined);
   });
 
   function deps(over: Record<string, unknown> = {}) {
     return {
-      rubitimeCanonicalProjection: { isBridgeEnabled: async () => true },
       patientBooking: null,
       appointmentProjection: null,
       bookingAppointmentLifecycle: { staffCancel: vi.fn() },
@@ -94,7 +91,6 @@ describe("runStaffManualCancelAfterCanonical", () => {
       canonicalAppointmentId: "appt-1",
       reason: "staff reason",
     });
-    expect(cancelRecordMock).not.toHaveBeenCalled();
   });
 
   it("returns membershipOutcomeFailed when package outcome apply fails", async () => {
@@ -147,5 +143,4 @@ describe("runStaffManualCancelAfterCanonical", () => {
     });
     expect(flags).toEqual({ notificationOutcomeFailed: true });
   });
-
 });

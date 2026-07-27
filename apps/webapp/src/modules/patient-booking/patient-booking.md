@@ -2,19 +2,16 @@
 
 Запись пациента: канонический write-путь (`be_appointments`) + совместимость с `patient_bookings` и уведомлениями.
 
-## Read/write sources (Rubitime retirement R3, 2026-07-14)
+## Read/write sources
 
-Admin keys (`system_settings`, scope `admin`):
-
-- **`booking_doctor_appointments_read_source`:** retired for doctor runtime reads; doctor list/KPI/calendar are canonical-only after Rubitime R2. Old DB rows may remain for audit/rollback until table-drop phases.
-- **`booking_slots_read_source`:** retired for patient/public slots and create; runtime is canonical-only after Rubitime R3. Old DB rows may remain for audit/rollback until table-drop phases.
+Doctor list/KPI/calendar and patient/public slots/create are canonical-only. Historical source-selection rows may
+remain in the database for migration audit, but runtime does not read them.
 
 | Area | Runtime source |
 |------|----------------|
 | Patient/public slots | `booking-scheduling` canonical slots |
 | Patient/public create | native `be_appointments` via booking engine |
 | Create overlap guard | `assertSlotAvailable` preflight + atomic canonical insert guard |
-| Rubitime create/slots M2M | retired from normal runtime; branch-only rollback code until R6/R7 removal |
 
 Код: `canonicalCreate.ts`, `slotsReadSource.ts`, `doctorAppointmentsReadSwitch.ts`, `bookingCalendarReadSwitch.ts`.
 
@@ -23,9 +20,8 @@ Admin keys (`system_settings`, scope `admin`):
 1. Быстрая валидация слота (`booking-scheduling.assertSlotAvailable`) и обязательных полей (`booking-form`).
 2. `be_appointments` со статусом `confirmed` или `awaiting_payment`. Для очной записи действует exclusion constraint на специалиста; legacy online/null-capacity путь блокирует все минутные ключи полуинтервала `(organization, [start, end))`, повторно проверяет занятость и вставляет цепочку в одной транзакции.
 3. `patient_bookings` (pending → confirmed), связь `canonical_appointment_id`.
-4. Rubitime create/slots не вызывается в normal runtime.
-5. Проекция в `appointment_records` (`integrator_record_id` = `be:{appointmentId}`) для кабинета врача при canonical cutover / native path.
-6. `emitBookingEvent('booking.created')` → integrator / напоминания.
+4. Проекция в `appointment_records` (`integrator_record_id` = `be:{appointmentId}`) для кабинета врача.
+5. `emitBookingEvent('booking.created')` → integrator / напоминания.
 
 Реализация: `canonicalCreate.ts` (вызывается из `service.ts` при наличии `bookingEngine` + `bookingScheduling` в DI).
 
@@ -61,14 +57,12 @@ API остаётся fail-closed. Существующие authenticated intake-
 Записи с **`canonical_appointment_id`**:
 
 1. Preview: `GET /api/booking/actions?bookingId=` → `previewCancel` / `previewReschedule` (политики `booking-policies`, anti-bypass §8.4).
-2. **Отмена:** `booking-appointment-lifecycle.patientCancel` (канон) **до** best-effort Rubitime `cancelRecord`; затем `patient_bookings` → `cancelled`; проекция; `emitBookingEvent('booking.cancelled')`; `notifications_sent` (+ `rubitime_mirror` при сбое моста). API: `{ ok: true }` или partial flags (`rubitimeMirrorFailed`, `notificationOutcomeFailed`, `paymentOutcomeFailed`, `membershipOutcomeFailed`, `productOutcomeFailed`) — канон уже отменён.
-3. **Перенос:** проверка слота с `excludeAppointmentId`; lifecycle → `patient_bookings.updateSlotsAfterReschedule`; проекция (`native.rescheduled`); `emitBookingEvent('booking.rescheduled')` (integrator schema + handler); история в `be_appointment_reschedules`. API: `{ ok: true }` или partial flags (`rubitimeMirrorFailed`, `notificationOutcomeFailed`, `paymentOutcomeFailed`).
+2. **Отмена:** `booking-appointment-lifecycle.patientCancel`, затем `patient_bookings` → `cancelled`; проекция; `emitBookingEvent('booking.cancelled')`; API может вернуть provider-neutral partial flags для notification/payment/membership/product side effects.
+3. **Перенос:** проверка слота с `excludeAppointmentId`; lifecycle → `patient_bookings.updateSlotsAfterReschedule`; проекция (`native.rescheduled`); `emitBookingEvent('booking.rescheduled')` (integrator schema + handler); история в `be_appointment_reschedules`.
 
-**UI partial outcomes (2026-06-06):** после успешной отмены/переноса при `rubitimeMirrorFailed` — warning toast (`shared/booking/bookingPartialOutcomeToast.ts`) в `CabinetBookingActions`, `useRescheduleBooking`, `ConfirmStepClient`; остальные partial flags пациенту не показываются.
+Запись без `canonical_appointment_id` не поддерживает самостоятельную отмену/перенос.
 
-Без канона — legacy-отмена только через Rubitime + `patient_bookings` (без политик).
-
-Ручные решения: admin/doctor `.../manual-cancel|manual-reschedule|delete` (delete — только отменённые; DELETE `patient_bookings`, без второго `booking.cancelled`); staff manual-cancel — partial flags `rubitimeMirrorFailed`, `notificationOutcomeFailed`, `paymentOutcomeFailed`, `membershipOutcomeFailed` (без `productOutcomeFailed`); история `GET .../appointments/[id]/lifecycle` (admin). Staff delete убирает строку из `listHistoryByUser` / upcoming.
+Ручные решения: admin/doctor `.../manual-cancel|manual-reschedule|delete` (delete — только отменённые; DELETE `patient_bookings`, без второго `booking.cancelled`); история `GET .../appointments/[id]/lifecycle` (admin). Staff delete убирает строку из `listHistoryByUser` / upcoming.
 
 ## Предоплата и оплата (этап 5)
 
@@ -94,7 +88,7 @@ API остаётся fail-closed. Существующие authenticated intake-
 | Слой | Путь |
 |------|------|
 | Порты | `ports.ts` (`AppointmentProjectionPort` — в модуле, не в infra) |
-| Сервис | `service.ts`, `canonicalCreate.ts`, `patientMirrorOutbound.ts` (cancel/reschedule → Rubitime) |
+| Сервис | `service.ts`, `canonicalCreate.ts` |
 | Слоты | `../booking-scheduling/` |
 | Поля | `../booking-form/` |
 | Bookings | `infra/repos/pgPatientBookings.ts` |
@@ -102,4 +96,4 @@ API остаётся fail-closed. Существующие authenticated intake-
 
 ## Тесты
 
-`service.test.ts`, `canonicalCreate.test.ts`, `patientMirrorOutbound.test.ts`, `slotOverlap.test.ts`, `createInputValidation.test.ts`; payments — `modules/payments/*.test.ts`, `app/api/booking/payment-routes.test.ts`.
+`service.test.ts`, `canonicalCreate.test.ts`, `slotOverlap.test.ts`, `createInputValidation.test.ts`; payments — `modules/payments/*.test.ts`, `app/api/booking/payment-routes.test.ts`.

@@ -30,7 +30,7 @@ describe("emailSetupAccess service", () => {
     expect(port.requestContactEmailSetup).toHaveBeenCalledWith({
       userId: "u1",
       emailNormalized: "user@example.com",
-      source: "rubitime",
+      source: "doctor_profile",
     });
   });
 });
