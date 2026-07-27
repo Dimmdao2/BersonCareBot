@@ -301,15 +301,16 @@ Per `patient-booking.md:34` source feedback ("После выбора одног
       buffer-minutes-style table.** — org-level key shipped: `booking_max_consecutive_slot_hours` in
       `apps/webapp/src/modules/system-settings/registry.ts:153` (`runtime("admin", "per_org", "server",
       "integer", "3")`), admin read/write route `apps/webapp/src/app/api/admin/booking-engine/scheduling-settings/route.ts:43-99`.
-- [ ] **Confirm payment model for chains: N separate prepayment intents (recommend, §2.b) vs one combined
-      intent.** — **Галочка СНЯТА независимым аудитом 27.07.** Реализовано ПРОТИВОПОЛОЖНОЕ рекомендации §2.b:
-      ОДИН объединённый платёж на `amountMinor * slotCount` (`canonicalCreate.ts`, коммит `ae12c2964`,
-      `createAppointmentPaymentIntent` с `amountMinor: prepayQuote.amountMinor * slotCount`; в сообщении
-      коммита — "1-payment"). Почему галочка не заслужена: §5 этого дока требует **owner/product sign-off
-      перед реализацией** именно по этому пункту, а решения владельца нигде не зафиксировано — только выбор
-      исполнителя, отражённый в сообщении коммита. Пункт называется «Confirm», и подтверждения не было.
-      ⏳ **ЖДЁТ РЕШЕНИЯ ВЛАДЕЛЬЦА:** принять объединённый платёж как есть (тогда закрыть) или требовать
-      раздельные платежи по слотам (тогда это работа). Код при этом рабочий, менять его до решения не нужно.
+- [x] **Confirm payment model for chains: N separate prepayment intents (recommend, §2.b) vs one combined
+      intent.** — ✅ **РЕШЕНО ВЛАДЕЛЬЦЕМ 27.07, дословно: «я сказал ОДИН платеж - и разные платежи это бред».**
+      Реализация совпадает с его решением: ОДИН объединённый платёж на `amountMinor * slotCount`
+      (`canonicalCreate.ts`, коммит `ae12c2964`, `createAppointmentPaymentIntent` с
+      `amountMinor: prepayQuote.amountMinor * slotCount`). Рекомендация §2.b этого дока (раздельные платежи)
+      владельцем ОТКЛОНЕНА — не переоткрывать, не «чинить» на раздельные.
+      Хронология, чтобы это не повторилось: 27.07 галочку сняли на том основании, что §5 требует owner
+      sign-off, а зафиксированного решения в репозитории нет. Формально верно, по сути — нет: решение
+      владельцем было **дано устно и не записано**. Тот же класс ошибки, что инцидент с SCH-G1: отсутствие
+      записи прочитали как отсутствие решения. Канон: `docs/ARCHITECTURE/OWNER_PRODUCT_RULES.md` §7.
 - [ ] **Confirm cancel/reschedule semantics for a partial chain (§3) — genuine open product question.** —
       **Галочка СНЯТА независимым аудитом 27.07.** Была поставлена по слову `cancel-single` в сообщении
       коммита `ae12c2964`, без чтения кода отмены — автор сам это признал в примечании. Сообщение коммита не
