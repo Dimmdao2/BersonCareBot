@@ -195,7 +195,13 @@ export async function POST(request: Request) {
     if (error instanceof InPersonBookingResolveError) {
       // Reason stays server-side: distinct wire errors would let anonymous callers enumerate clinics/services.
       logger.warn(
-        { reason: error.reason, branchId: body.branchId, serviceId: body.serviceId, orgSlug: body.orgSlug },
+        {
+          reason: error.reason,
+          // `body` is a discriminated union: only the in_person variant carries these keys.
+          ...(body.type === "in_person"
+            ? { branchId: body.branchId, serviceId: body.serviceId, orgSlug: body.orgSlug }
+            : {}),
+        },
         "[booking/public/create] in-person booking resolution refused",
       );
     }

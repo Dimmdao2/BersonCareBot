@@ -66,7 +66,13 @@ export async function GET(request: Request) {
       const status = msg === "branch_service_mapping_missing" ? 404 : 400;
       // Reason stays server-side: distinct wire errors would let anonymous callers enumerate clinics/services.
       logger.warn(
-        { reason: err.reason, branchId: parsed.data.branchId, serviceId: parsed.data.serviceId, orgSlug: parsed.data.orgSlug },
+        {
+          reason: err.reason,
+          // `parsed.data` is a discriminated union: only the in_person variant carries these keys.
+          ...(parsed.data.type === "in_person"
+            ? { branchId: parsed.data.branchId, serviceId: parsed.data.serviceId, orgSlug: parsed.data.orgSlug }
+            : {}),
+        },
         "[booking/public/slots] in-person booking resolution refused",
       );
       return NextResponse.json({ ok: false, error: msg }, { status });
