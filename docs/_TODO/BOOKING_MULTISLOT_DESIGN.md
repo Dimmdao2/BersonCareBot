@@ -310,7 +310,7 @@ Per `patient-booking.md:34` source feedback ("После выбора одног
       Хронология, чтобы это не повторилось: 27.07 галочку сняли на том основании, что §5 требует owner
       sign-off, а зафиксированного решения в репозитории нет. Формально верно, по сути — нет: решение
       владельцем было **дано устно и не записано**. Тот же класс ошибки, что инцидент с SCH-G1: отсутствие
-      записи прочитали как отсутствие решения. Канон: `docs/ARCHITECTURE/OWNER_PRODUCT_RULES.md` §7.
+      записи прочитали как отсутствие решения. Канон: `docs/ARCHITECTURE/OWNER_PRODUCT_RULES.md` §13.
 - [ ] **Confirm cancel/reschedule semantics for a partial chain (§3) — genuine open product question.** —
       ПРОВЕРЕНО ПО КОДУ 27.07 (по прямому вопросу владельца). Результат раздвоился:
       **(1) По записям владелец ПРАВ — доп. кода не нужно.** Цепочка = N независимых `be_appointments` с общим
@@ -328,7 +328,7 @@ Per `patient-booking.md:34` source feedback ("После выбора одног
       каждого сеанса отдельно». Частичная отмена РАЗРЕШЕНА; возврат = сумма по отменённым слотам
       (стоимость слота − его невозвратная часть по обычной политике отмены, считаемой **посеансно**);
       оставшиеся слоты не затрагиваются. Полностью с примером расчёта —
-      `docs/ARCHITECTURE/OWNER_PRODUCT_RULES.md` §7.1.
+      `docs/ARCHITECTURE/OWNER_PRODUCT_RULES.md` §13.1.
       **Пункт остаётся открытым до фикса кода** (`#1056`): продуктовый вопрос закрыт, инженерная работа нет.
       Что делать: перевести `applyCancelPaymentOutcome`, `recordReschedulePaymentCarryOver` и
       `getAppointmentPaymentSummary` с поиска по `bePayments.appointmentId` на `beAppointments.paymentRef`,
