@@ -15,7 +15,10 @@ for (const fragment of [
   "CREATE ROLE app_platform_settings NOLOGIN NOINHERIT NOBYPASSRLS;",
   "ALTER ROLE app_platform_settings NOLOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT NOREPLICATION NOBYPASSRLS;",
   "GRANT app_platform_settings TO app_staff WITH ADMIN FALSE, INHERIT FALSE, SET TRUE;",
-  "GRANT SELECT, INSERT, UPDATE ON TABLE public.system_settings TO app_platform_settings;",
+  // DELETE added 2026-07-27: the owner asked for a "reset to default" control, and a reset is a row
+  // DELETE — the registry default takes over once the row is gone (OWNER_PRODUCT_RULES §28.3 item 1).
+  // Pinned here on purpose: widening this grant must stay a deliberate, reviewed act.
+  "GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE public.system_settings TO app_platform_settings;",
   "GRANT INSERT ON TABLE public.system_settings_audit TO app_platform_settings;",
   "REVOKE ALL PRIVILEGES ON ALL TABLES IN SCHEMA integrator FROM app_platform_settings;",
   "CREATE OR REPLACE FUNCTION app.enqueue_platform_system_settings_sync(",
