@@ -1308,7 +1308,31 @@ SELECT has_column_privilege('app_owner', 'public.operator_incidents', 'alert_sen
   # platform exercise's media once resolvePlatformLfkMediaAccess() has already confirmed
   # entitlement). No new required-grant row: it only reads public.media_files, and app_owner already
   # holds SELECT there (deploy/postgres/patient-media-playback-telemetry-accessors.sql).
-  local expected_secdef_count=63
+  # 63 -> 62 (2026-07-27, CORRECTION of a constant that was never achievable): the 61 -> 62 entry
+  # above credited migration 0249 with adding app.email_auth_set_email_challenge_purpose(uuid, text)
+  # as an app_owner-owned definer. It is not one and never was. That migration's
+  # `ALTER FUNCTION ... OWNER TO app_owner` is unconditionally overwritten later in the SAME deploy by
+  # deploy/postgres/organization-member-invites-rls.sql:970, which re-owns 19 email_auth_*/
+  # email_otp_public_* functions to `:organization_member_invites_owner_ident` -- a variable derived at
+  # :23-30 from the CURRENT owner of table public.organization_member_invites, which is the DB owner
+  # (bersoncarebot_test), not app_owner. That is not an accident of this one function: measured live
+  # 2026-07-27, ALL 19 functions on that dynamic line are DB-owner-owned, and the single sibling that
+  # is hardcoded `OWNER TO app_owner` (:965, email_otp_public_consume_latest_challenge) is the only
+  # app_owner one among them. The overlay's idiom is consistent; migration 0249 was the outlier.
+  # Nor could the variable ever resolve to app_owner: assert_specialist_owner_provisioning_seam_pinned
+  # (:1108-1116) pins as an invariant that app_owner owns EXACTLY 3 tables, deliberately excluding
+  # organization_member_invites.
+  # Why 62 is the safe value to assert rather than "fix" the ownership to reach 63: app_owner is
+  # BYPASSRLS, the DB owner is not, and 162 tables are FORCE RLS -- so for a patient-callable definer
+  # accessor, DB-owner ownership is the NARROWER blast radius, not the looser one. Flipping 19 live
+  # auth accessors to a BYPASSRLS owner is a security-model change, and it is already the subject of an
+  # open owner-plan item (A-1 stage 2/3, "the DB-owner role must own zero anon-reachable definers",
+  # docs/_TODO/NIGHT_PLAN_2026-07-26.md). This constant asserts today's real invariant; A-1 changes it
+  # deliberately when that staged work lands. Do NOT bump this back to 63 without doing A-1.
+  # This was invisible until 2026-07-27: the operator_incidents check above compared a `::text`-cast
+  # boolean to "t" and FATALed unconditionally, so the count assertion had never once executed
+  # (17 transcripts checked; fixed in 6ac7c2af4).
+  local expected_secdef_count=62
   local actual_secdef_count
   actual_secdef_count="$(sudo -u postgres psql -d "$DB" -X -v ON_ERROR_STOP=1 -tAc "
 SELECT count(*) FROM pg_proc p WHERE pg_get_userbyid(p.proowner) = 'app_owner' AND p.prosecdef;
