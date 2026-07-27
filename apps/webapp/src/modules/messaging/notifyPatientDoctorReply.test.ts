@@ -9,12 +9,17 @@
  * - sendWebPushToSubscriptions is never called (G2 guard path never reached)
  */
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { createNotifyPatientDoctorReply } from "./notifyPatientDoctorReply";
+import {
+  buildPatientMessagesOpenUrl,
+  createNotifyPatientDoctorReply,
+} from "./notifyPatientDoctorReply";
 
 // ── module mocks ──────────────────────────────────────────────────────────────
 
+const getAppBaseUrlSyncMock = vi.hoisted(() => vi.fn(() => "https://app.example"));
+
 vi.mock("@/modules/system-settings/integrationRuntime", () => ({
-  getAppBaseUrlSync: vi.fn(() => "https://app.example"),
+  getAppBaseUrlSync: getAppBaseUrlSyncMock,
   getIntegratorApiUrl: vi.fn(async () => "http://integrator.test"),
   getIntegratorWebhookSecret: vi.fn(async () => "test-secret"),
 }));
@@ -139,7 +144,13 @@ describe("notifyPatientDoctorReply — P16 web_push leg migration", () => {
   beforeEach(() => {
     // Clear call history between tests to avoid cross-test accumulation.
     vi.clearAllMocks();
+    getAppBaseUrlSyncMock.mockReturnValue("https://app.example");
     vi.mocked(relayOutbound).mockResolvedValue({ ok: true, status: "accepted" });
+  });
+
+  it("returns the patient messages path when app base URL is blank", () => {
+    getAppBaseUrlSyncMock.mockReturnValue("   ");
+    expect(buildPatientMessagesOpenUrl()).toBe("/app/patient/messages");
   });
 
   it("emits web_push intent via relayOutbound when user has subscriptions", async () => {
@@ -292,6 +303,24 @@ describe("notifyPatientDoctorReply — P16 web_push leg migration", () => {
         expect(params.text).toContain("https://app.example");
       }
     }
+  });
+
+  it.each([
+    "doctor@example.com",
+    "+79991234567",
+    "33333333-3333-4333-8333-333333333333",
+  ])("uses a neutral specialist label instead of unsafe sender value %s", async (unsafeLabel) => {
+    const deps = buildDeps({ telegramId: "987654321" });
+    const notify = createNotifyPatientDoctorReply(deps);
+    await notify({
+      ...notifyParams("Секретный текст о здоровье"),
+      senderDisplayName: unsafeLabel,
+    });
+
+    const tgCall = vi.mocked(relayOutbound).mock.calls.find(([params]) => params.channel === "telegram");
+    expect(tgCall?.[0].text).toContain("новое сообщение от специалиста");
+    expect(tgCall?.[0].text).not.toContain(unsafeLabel);
+    expect(tgCall?.[0].text).not.toContain("Секретный текст о здоровье");
   });
 
   it("skips sending entirely when text is empty", async () => {

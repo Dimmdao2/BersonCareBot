@@ -60,7 +60,7 @@ export async function applyWebappAdminReplyFromMessenger(
     integratorConversationId: string;
     text: string;
     createdAt: string;
-    senderDisplayName: string;
+    senderDisplayName?: string;
     adminMessageId?: string | null;
     programNoteStageItemId?: string | null;
   },
@@ -73,7 +73,9 @@ export async function applyWebappAdminReplyFromMessenger(
     integratorConversationId: input.integratorConversationId,
     integratorMessageId,
     text: input.text,
-    senderDisplayName: input.senderDisplayName,
+    ...(input.senderDisplayName?.trim()
+      ? { senderDisplayName: input.senderDisplayName.trim() }
+      : {}),
     createdAt: input.createdAt,
     ...(input.programNoteStageItemId?.trim()
       ? { programNoteStageItemId: input.programNoteStageItemId.trim() }

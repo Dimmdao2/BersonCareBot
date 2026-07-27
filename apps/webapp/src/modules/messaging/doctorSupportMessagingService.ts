@@ -95,7 +95,7 @@ export function createDoctorSupportMessagingService(
             platformUserId,
             messageId: integratorMessageId,
             text: trimmed,
-            senderDisplayName: senderDisplayName?.trim() || "специалиста",
+            senderDisplayName: senderDisplayName?.trim() || undefined,
           })
           .catch((err: unknown) => {
             logger.error({ err: serializeError(err) }, "[doctorSupport] patient notify error");
@@ -108,7 +108,8 @@ export function createDoctorSupportMessagingService(
             channel: channelCode,
             recipient: channelExternalId,
             text: `${buildPersonalChatNotificationText(
-              senderDisplayName?.trim() || "специалиста",
+              senderDisplayName,
+              "specialist",
             )}\n\n${buildPatientMessagesOpenUrl()}`,
           },
           opts,

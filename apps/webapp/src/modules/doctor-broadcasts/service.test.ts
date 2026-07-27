@@ -1,9 +1,18 @@
-import { describe, it, expect, vi } from "vitest";
+import { beforeEach, describe, it, expect, vi } from "vitest";
 import {
   appendPatientInboundAdminMessage,
   broadcastChatIntegratorMessageId,
 } from "@/modules/messaging/appendPatientInboundAdminMessage";
-import { createDoctorBroadcastsService } from "./service";
+const getAppBaseUrlSyncMock = vi.hoisted(() => vi.fn(() => "https://app.example"));
+
+vi.mock("@/modules/system-settings/integrationRuntime", () => ({
+  getAppBaseUrlSync: getAppBaseUrlSyncMock,
+}));
+
+import {
+  buildPatientNotificationsOpenUrl,
+  createDoctorBroadcastsService,
+} from "./service";
 
 vi.mock("@/modules/messaging/appendPatientInboundAdminMessage", () => ({
   appendPatientInboundAdminMessage: vi.fn().mockResolvedValue({ conversationId: "c1", messageId: "m1" }),
@@ -27,6 +36,10 @@ import {
 } from "./broadcastEligible";
 
 describe("doctor-broadcasts service", () => {
+  beforeEach(() => {
+    getAppBaseUrlSyncMock.mockReturnValue("https://app.example");
+  });
+
   const auditEntries: BroadcastAuditEntry[] = [];
   const committed: Array<{
     auditId: string;
@@ -134,6 +147,11 @@ describe("doctor-broadcasts service", () => {
     expect(categories).toContain("service");
     expect(categories).toContain("reminder");
     expect(categories.length).toBeGreaterThan(0);
+  });
+
+  it("returns the patient notification path when app base URL is blank", () => {
+    getAppBaseUrlSyncMock.mockReturnValue("   ");
+    expect(buildPatientNotificationsOpenUrl()).toBe("/app/patient?notifications=1");
   });
 
   it("preview returns audience size without writing audit", async () => {

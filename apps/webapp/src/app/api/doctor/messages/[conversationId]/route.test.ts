@@ -103,7 +103,14 @@ describe("GET /api/doctor/messages/[conversationId]", () => {
       ctx: {
         organizationId: orgId,
         session: {
-          user: { userId: "d1", role: "doctor", displayName: "Доктор Берсон", bindings: {} },
+          user: {
+            userId: "d1",
+            role: "doctor",
+            displayName: "doctor@example.com",
+            firstName: "Дмитрий",
+            lastName: "Берсон",
+            bindings: {},
+          },
         },
       },
     });
@@ -204,7 +211,14 @@ describe("POST /api/doctor/messages/[conversationId]", () => {
       ctx: {
         organizationId: orgId,
         session: {
-          user: { userId: "d1", role: "doctor", displayName: "Доктор Берсон", bindings: {} },
+          user: {
+            userId: "d1",
+            role: "doctor",
+            displayName: "doctor@example.com",
+            firstName: "Дмитрий",
+            lastName: "Берсон",
+            bindings: {},
+          },
         },
       },
     });
@@ -242,7 +256,7 @@ describe("POST /api/doctor/messages/[conversationId]", () => {
       cid,
       "reply",
       orgId,
-      "Доктор Берсон",
+      "Берсон Дмитрий",
     );
     expect(withDoctorWorkspacePrincipalMock).toHaveBeenCalledWith(
       expect.objectContaining({ organizationId: orgId }),

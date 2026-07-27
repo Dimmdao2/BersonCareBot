@@ -22,7 +22,7 @@ export type IntegratorSupportAdminReplyInput = {
   integratorMessageId: string;
   text: string;
   createdAt: string;
-  senderDisplayName: string;
+  senderDisplayName?: string;
   programNoteStageItemId?: string;
 };
 
@@ -66,15 +66,15 @@ export function createIntegratorSupportBridge(deps: {
           input.source === "max" ? "max" : input.source === "telegram" ? "telegram" : "webapp";
         const patientLabel =
           deps.resolvePatientLabel ?
-            (await deps.resolvePatientLabel(platformUserId).catch(() => "Пациент"))
-          : "Пациент";
+            (await deps.resolvePatientLabel(platformUserId).catch(() => ""))
+          : "";
         deps
           .notifyDoctorOfPatientMessage({
             organizationId,
             platformUserId,
             messageId: input.integratorMessageId,
             messageText: trimmed,
-            patientLabel: patientLabel.trim() || "Пациент",
+            patientLabel: patientLabel.trim(),
             source,
           })
           .catch((err: unknown) => {

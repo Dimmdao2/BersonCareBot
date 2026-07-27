@@ -23,7 +23,7 @@ export type NotifyPatientDoctorReplyParams = {
   messageId: string;
   text: string;
   /** Уже разрешённое display name отправителя; текст сообщения в notification copy не попадает. */
-  senderDisplayName: string;
+  senderDisplayName?: string;
   /** Defaults to {@link NOTIFICATION_TOPIC_SPECIALIST_MESSAGES}. */
   topicCode?: string;
 };
@@ -42,11 +42,22 @@ export type NotifyPatientDoctorReplyDeps = RelayOutboundDeps & {
 
 export function buildPatientMessagesOpenUrl(): string {
   const base = getAppBaseUrlSync().replace(/\/$/, "");
-  return `${base}${routePaths.patientMessages}`;
+  const path = routePaths.patientMessages;
+  if (!base.trim()) return path;
+  return `${base}${path}`;
 }
 
-export function buildPersonalChatNotificationText(senderDisplayName: string): string {
-  const displayName = senderDisplayName.replace(/\s+/g, " ").trim() || "специалиста";
+export function buildPersonalChatNotificationText(
+  senderDisplayName: string | null | undefined,
+  senderRole: "specialist" | "patient",
+): string {
+  const candidate = senderDisplayName?.replace(/\s+/g, " ").trim() ?? "";
+  const isName = /^[\p{L}\p{M}](?:[\p{L}\p{M}'’ -]*[\p{L}\p{M}])?$/u.test(candidate);
+  const displayName = isName
+    ? candidate
+    : senderRole === "patient"
+      ? "пациента"
+      : "специалиста";
   return `новое сообщение от ${displayName}`;
 }
 
@@ -96,7 +107,7 @@ export function createNotifyPatientDoctorReply(deps: NotifyPatientDoctorReplyDep
     const openUrl = buildPatientMessagesOpenUrl();
     const trimmed = text.trim();
     if (!trimmed) return;
-    const notificationText = buildPersonalChatNotificationText(params.senderDisplayName);
+    const notificationText = buildPersonalChatNotificationText(params.senderDisplayName, "specialist");
 
     const topicCode = params.topicCode?.trim() || NOTIFICATION_TOPIC_SPECIALIST_MESSAGES;
     const organizationId = params.organizationId;

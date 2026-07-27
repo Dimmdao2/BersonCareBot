@@ -46,7 +46,9 @@ const workspaceCtx = {
     user: {
       userId: doctorId,
       role: "doctor",
-      displayName: "Доктор Берсон",
+      displayName: "doctor@example.com",
+      firstName: "Дмитрий",
+      lastName: "Берсон",
       bindings: {},
     },
   },
@@ -100,7 +102,7 @@ describe("POST program-note-reply", () => {
     expect(first).toBe(second);
     expect(first).toMatch(/^webapp-program-note:/);
     expect(sendReplyMock).toHaveBeenCalledWith(
-      expect.objectContaining({ senderDisplayName: "Доктор Берсон" }),
+      expect.objectContaining({ senderDisplayName: "Берсон Дмитрий" }),
     );
   });
 });

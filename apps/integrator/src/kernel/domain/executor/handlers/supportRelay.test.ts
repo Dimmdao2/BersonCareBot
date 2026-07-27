@@ -85,6 +85,8 @@ describe('handleConversationAdminReply', () => {
     const firstButton = ((sentConfirmation?.payload as { replyMarkup?: { inline_keyboard?: Array<Array<{ callback_data?: string }>> } })
       ?.replyMarkup?.inline_keyboard?.[0]?.[0]);
     expect(firstButton?.callback_data).toBe('admin_reply:webapp:platform:aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa');
+    const webappReplyInput = applyWebappAdminReplyFromMessengerMock.mock.calls[0]?.[1];
+    expect(webappReplyInput).not.toHaveProperty('senderDisplayName');
   });
 
   it('uses admin_reply callback for continue button in legacy flow', async () => {

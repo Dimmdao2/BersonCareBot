@@ -73,9 +73,11 @@ function resolvedChannels(command: BroadcastCommand) {
   return normalizeBroadcastChannels(command.channels?.map(String));
 }
 
-function buildPatientNotificationsOpenUrl(): string {
+export function buildPatientNotificationsOpenUrl(): string {
   const base = getAppBaseUrlSync().replace(/\/$/, "");
-  return `${base}${routePaths.patient}?notifications=1`;
+  const path = `${routePaths.patient}?notifications=1`;
+  if (!base.trim()) return path;
+  return `${base}${path}`;
 }
 
 export function createDoctorBroadcastsService(deps: DoctorBroadcastsServiceDeps) {

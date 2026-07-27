@@ -55,6 +55,41 @@ describe("notifyDoctorPatientMessageToStaff", () => {
     );
   });
 
+  it.each([
+    "patient@example.com",
+    "+79991234567",
+    "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+  ])("uses a neutral patient label instead of unsafe sender value %s", async (unsafeLabel) => {
+    await notifyDoctorPatientMessageToStaff(
+      {
+        organizationId: "11111111-1111-4111-8111-111111111111",
+        topicCode: "doctor_patient_messages",
+        messageId: "patient-msg-notify:unsafe",
+        senderDisplayName: unsafeLabel,
+        notificationUrl: "https://app.example/app/doctor/messages",
+      },
+      {
+        staffUsers: { listActiveStaffUserIds: async () => ["doc-1"] },
+        topicChannelPrefs: { listByUserId: async () => [], upsert: async () => {} },
+        channelPreferences: { getPreferences: async () => [] } as unknown as ChannelPreferencesPort,
+        webPushSubscriptions: {
+          hasAnyForUserId: async () => false,
+          listActiveByUserId: async () => [],
+          deleteByEndpointIfExists: async () => true,
+        } as unknown as WebPushSubscriptionsPort,
+        systemSettings: { getSetting: async () => null },
+        getChannelBindings: async () => ({ telegramId: "123" }),
+      },
+    );
+
+    expect(relayMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        text: "новое сообщение от пациента\n\nhttps://app.example/app/doctor/messages",
+      }),
+    );
+    expect(relayMock.mock.calls[0]?.[0]?.text).not.toContain(unsafeLabel);
+  });
+
   it("skips telegram when explicitly disabled in prefs", async () => {
     const result = await notifyDoctorPatientMessageToStaff(
       {

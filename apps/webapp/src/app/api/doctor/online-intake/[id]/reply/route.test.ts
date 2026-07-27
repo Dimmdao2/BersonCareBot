@@ -80,7 +80,16 @@ describe("POST /api/doctor/online-intake/[id]/reply", () => {
       ok: true,
       ctx: {
         organizationId,
-        session: { user: { userId: "d1", role: "doctor", bindings: {}, displayName: "D" } },
+        session: {
+          user: {
+            userId: "d1",
+            role: "doctor",
+            bindings: {},
+            displayName: "doctor@example.com",
+            firstName: "Дмитрий",
+            lastName: "Берсон",
+          },
+        },
       },
     });
     withDoctorWorkspacePrincipalMock.mockClear();
@@ -154,7 +163,7 @@ describe("POST /api/doctor/online-intake/[id]/reply", () => {
       "conv-1",
       "Здравствуйте",
       organizationId,
-      "D",
+      "Берсон Дмитрий",
     );
     expect(withDoctorWorkspacePrincipalMock).toHaveBeenCalledWith(
       expect.objectContaining({ organizationId }),

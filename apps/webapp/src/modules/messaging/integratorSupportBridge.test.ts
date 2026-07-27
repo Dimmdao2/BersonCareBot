@@ -1,6 +1,8 @@
 import { describe, expect, it, vi } from "vitest";
 import { createIntegratorSupportBridge } from "./integratorSupportBridge";
 import type { SupportCommunicationPort } from "@/infra/repos/pgSupportCommunication";
+import { integratorSupportAdminReplySchema } from "./integratorSupportHttp";
+import { buildPersonalChatNotificationText } from "./notifyPatientDoctorReply";
 
 describe("createIntegratorSupportBridge", () => {
   it("syncUserMessage appends to the exact organization-scoped conversation returned by ensure", async () => {
@@ -67,6 +69,38 @@ describe("createIntegratorSupportBridge", () => {
         senderDisplayName: "Доктор Берсон",
       }),
     );
+  });
+
+  it("accepts an old-integrator payload without senderDisplayName and emits a redacted neutral notification", async () => {
+    const parsed = integratorSupportAdminReplySchema.safeParse({
+      integratorConversationId: "webapp:platform:00000000-0000-4000-8000-000000000001",
+      integratorMessageId: "webapp-msg:old-integrator",
+      text: "Секретный ответ врача",
+      createdAt: "2026-07-27T10:00:00.000Z",
+    });
+    expect(parsed.success).toBe(true);
+    if (!parsed.success) throw new Error("old integrator payload must remain valid");
+
+    const ensureWebappConversationForUser = vi.fn().mockResolvedValue({
+      id: "conv-internal",
+      organizationId: "11111111-1111-4111-8111-111111111111",
+    });
+    const appendWebappMessage = vi.fn().mockResolvedValue({ id: "msg-1", created: true });
+    let notificationText = "";
+    const notifyPatientOfDoctorReply = vi.fn(async (params) => {
+      notificationText = buildPersonalChatNotificationText(params.senderDisplayName, "specialist");
+    });
+    const bridge = createIntegratorSupportBridge({
+      port: {
+        ensureWebappConversationForUser,
+        appendWebappMessage,
+      } as unknown as SupportCommunicationPort,
+      notifyPatientOfDoctorReply,
+    });
+
+    await expect(bridge.applyAdminReply(parsed.data)).resolves.toEqual({ ok: true });
+    expect(notificationText).toBe("новое сообщение от специалиста");
+    expect(notificationText).not.toContain("Секретный ответ врача");
   });
 
   it("applyAdminReply rejects organization-scoped conversation without trusted tenant context", async () => {

@@ -4,6 +4,7 @@ import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import { requireDoctorWorkspaceApiContext } from "@/app-layer/guards/requireRole";
 import { withDoctorWorkspacePrincipal } from "@/app-layer/guards/doctorWorkspacePrincipal";
 import { buildWebappProgramNoteReplyIntegratorMessageId } from "@/modules/messaging/programNoteReplyIdempotency";
+import { formatDoctorFio } from "@/shared/lib/fio";
 import { webappPlatformConversationId } from "@/modules/messaging/supportConversationIds";
 
 const bodySchema = z.object({
@@ -65,7 +66,11 @@ export async function POST(
       }),
       stageItemId,
       text: parsed.data.text,
-      senderDisplayName: session.user.displayName,
+      senderDisplayName: formatDoctorFio({
+        lastName: session.user.lastName ?? null,
+        firstName: session.user.firstName ?? null,
+        patronymic: session.user.patronymic ?? null,
+      }),
       source: "webapp",
     }),
   );

@@ -322,11 +322,11 @@ export async function handleConversationAdminReply(
       .filter((part): part is string => Boolean(part))
       .join(' ')
       .replace(/\s+/g, ' ')
-      .trim() || 'Специалист';
+      .trim() || undefined;
     const applyResult = await applyWebappAdminReplyFromMessenger(deps, {
       integratorConversationId: conversationId,
       text,
-      senderDisplayName,
+      ...(senderDisplayName ? { senderDisplayName } : {}),
       createdAt: ctx.nowIso,
       adminMessageId: readIncomingMessageId(ctx),
       programNoteStageItemId,

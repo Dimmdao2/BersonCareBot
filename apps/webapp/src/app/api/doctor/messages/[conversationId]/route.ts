@@ -8,6 +8,7 @@ import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import { requireDoctorWorkspaceApiContext } from "@/app-layer/guards/requireRole";
 import { withDoctorWorkspacePrincipal } from "@/app-layer/guards/doctorWorkspacePrincipal";
 import { serializeSupportMessage } from "@/modules/messaging/serializeSupportMessage";
+import { formatDoctorFio } from "@/shared/lib/fio";
 
 const postBodySchema = z.object({
   text: z.string().min(1).max(4000),
@@ -94,7 +95,11 @@ export async function POST(
       conversationId,
       parsed.data.text,
       gate.ctx.organizationId,
-      gate.ctx.session.user.displayName,
+      formatDoctorFio({
+        lastName: gate.ctx.session.user.lastName ?? null,
+        firstName: gate.ctx.session.user.firstName ?? null,
+        patronymic: gate.ctx.session.user.patronymic ?? null,
+      }),
     ),
   );
   if (!result.ok) {

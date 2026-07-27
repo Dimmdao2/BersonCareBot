@@ -12,7 +12,7 @@ export const integratorSupportAdminReplySchema = z.object({
   integratorConversationId: z.string().min(1).max(200),
   integratorMessageId: z.string().min(1).max(200),
   text: z.string().min(1).max(4000),
-  senderDisplayName: z.string().min(1).max(500),
+  senderDisplayName: z.string().min(1).max(500).optional(),
   createdAt: z.string().min(1),
   programNoteStageItemId: z.string().uuid().optional(),
 });

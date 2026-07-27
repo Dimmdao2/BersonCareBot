@@ -165,8 +165,11 @@ export function buildDoctorBroadcastDeliveryJobs(input: DoctorBroadcastDeliveryJ
   const plainCombined = buildBroadcastMessageText(input.messageTitle, input.messageBodyPlain);
   const { title: truncatedTitle } = splitBroadcastPlainCombined(plainCombined);
   const messengerText = buildBroadcastMessengerHtml(truncatedTitle, input.notificationOpenUrl);
-  // SMS has no markup → strip markdown markers (keep bullets/line breaks).
-  const smsText = stripMarkdownToPlain(plainCombined);
+  // SMS has no markup and follows the same privacy rule as messenger delivery:
+  // subject + authenticated click-through, never the broadcast body.
+  const smsText = stripMarkdownToPlain(
+    buildBroadcastMessageText(truncatedTitle, input.notificationOpenUrl),
+  );
 
   for (const client of input.eligibleClients) {
     const prefs = resolveBroadcastNotificationPrefsFromBatch(prefsMap, client.userId);

@@ -122,7 +122,7 @@ export function createPatientMessagingService(
         void (async () => {
           const patientLabel = options.resolvePatientLabel
             ? await options.resolvePatientLabel(platformUserId)
-            : "Пациент";
+            : "";
           await options.notifyDoctorOfPatientMessage!({
             organizationId,
             platformUserId,

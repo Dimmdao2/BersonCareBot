@@ -33,7 +33,7 @@ export function buildDoctorPatientProgramNoteNotifyText(input: {
   patientLabel: string;
   deepLink: string;
 }): string {
-  const notificationText = buildPersonalChatNotificationText(input.patientLabel);
+  const notificationText = buildPersonalChatNotificationText(input.patientLabel, "patient");
   return input.deepLink ? `${notificationText}\n\n${input.deepLink}` : notificationText;
 }
 

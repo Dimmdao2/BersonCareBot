@@ -14,7 +14,7 @@ export type SendProgramNoteReplyInput = {
   integratorMessageId: string;
   stageItemId: string;
   text: string;
-  senderDisplayName: string;
+  senderDisplayName?: string;
   createdAt?: string;
   source?: string;
 };

@@ -62,7 +62,7 @@ export async function notifyDoctorPatientMessageToStaff(
   const staffIds = await deps.staffUsers.listActiveStaffUserIds();
   const globalFallback = defaultDoctorTopicFallbackChannels(input.topicCode);
   const replyMarkup = input.replyMarkup;
-  const notificationText = buildPersonalChatNotificationText(input.senderDisplayName);
+  const notificationText = buildPersonalChatNotificationText(input.senderDisplayName, "patient");
   const messengerText = `${notificationText}\n\n${input.notificationUrl}`;
 
   let telegramDelivered = 0;

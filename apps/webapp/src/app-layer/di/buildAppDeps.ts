@@ -125,6 +125,7 @@ import {
   formatBookingDateTimeMediumRu,
 } from "@/shared/lib/formatBusinessDateTime";
 import { SCHEDULE_RECORD_PROVENANCE_PREFIX } from "@/shared/lib/scheduleRecordProvenance";
+import { formatDoctorFio } from "@/shared/lib/fio";
 import { createMediaService } from "@/modules/media/service";
 import { createSymptomDiaryService } from "@/modules/diaries/symptom-service";
 import { createLfkDiaryService } from "@/modules/diaries/lfk-service";
@@ -978,7 +979,11 @@ registerAdminNotificationTargetsPort({
 registerEmptyAudienceReporter(emptyAudienceReporter);
 const resolvePatientLabelForDoctorNotify = async (platformUserId: string): Promise<string> => {
   const identity = await doctorClientsPort.getClientIdentity(platformUserId);
-  return identity?.displayName?.trim() || identity?.phone?.trim() || "Пациент";
+  return formatDoctorFio({
+    lastName: identity?.lastName ?? null,
+    firstName: identity?.firstName ?? null,
+    patronymic: null,
+  });
 };
 const notifyDoctorOfProgramNoteImpl = async (
   input: Parameters<typeof notifyDoctorPatientProgramNote>[0],

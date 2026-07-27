@@ -551,7 +551,11 @@ compatibility mirror. Disabled/missing/read failure
 
 Ответ врача/админа из бота в тот же thread.
 
-**Body (JSON):** `integratorConversationId`, `integratorMessageId`, `text`, `createdAt`; опционально **`programNoteStageItemId`** — при ответе на наблюдение по упражнению webapp добавляет префикс `Ответ на ваш комментарий к упражнению «…»:` перед текстом.
+**Body (JSON):** `integratorConversationId`, `integratorMessageId`, `text`, `createdAt`; опционально
+**`senderDisplayName`** (имя отправителя для redacted-уведомления) и **`programNoteStageItemId`** — при ответе
+на наблюдение по упражнению webapp добавляет префикс `Ответ на ваш комментарий к упражнению «…»:` перед текстом.
+Если `senderDisplayName` отсутствует (в том числе при rolling deploy со старым integrator), payload принимается,
+а уведомление содержит нейтральное «новое сообщение от специалиста» без текста ответа.
 
 **Idempotency key:** `support-admin:{integratorMessageId}`.
 
