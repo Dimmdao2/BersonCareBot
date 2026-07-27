@@ -161,8 +161,8 @@ describe("pgAuthEmailPorts (SQL parity)", () => {
     expect(String(runWebappPgTextMock.mock.calls[0]?.[0])).toContain("user_oauth_bindings");
   });
 
-  it("createPgPhoneChallengeStore set upserts phone_challenges", async () => {
-    runWebappPgTextMock.mockResolvedValueOnce({ rows: [], rowCount: 1 });
+  it("createPgPhoneChallengeStore set uses the narrow challenge-store accessor", async () => {
+    runWebappPgTextMock.mockResolvedValueOnce({ rows: [{ ok: true }], rowCount: 1 });
     const store = createPgPhoneChallengeStore();
     await store.set("ch-1", {
       phone: "+79001234567",
@@ -170,7 +170,9 @@ describe("pgAuthEmailPorts (SQL parity)", () => {
       profileBindUserId: "00000000-0000-4000-8000-000000000010",
       profileBindOrganizationId: "00000000-0000-4000-8000-000000000011",
     });
-    expect(String(runWebappPgTextMock.mock.calls[0]?.[0])).toContain("INSERT INTO phone_challenges");
+    const sql = String(runWebappPgTextMock.mock.calls[0]?.[0]);
+    expect(sql).toContain("app.phone_challenge_store_upsert");
+    expect(sql).not.toMatch(/\bINSERT INTO\s+(?:public\.)?phone_challenges\b/i);
     const context = JSON.parse(String(runWebappPgTextMock.mock.calls[0]?.[1]?.[4])) as Record<string, unknown>;
     expect(context).toMatchObject({
       profileBindUserId: "00000000-0000-4000-8000-000000000010",
