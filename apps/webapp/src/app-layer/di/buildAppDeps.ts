@@ -17,6 +17,8 @@ import {
   setSessionFromUser,
 } from "@/modules/auth/service";
 import type { TelegramLoginWidgetPayload } from "@/modules/auth/telegramLoginVerify";
+import { createPasswordChangeService } from "@/modules/auth/passwordChange";
+import { hashPin } from "@/modules/auth/pinHash";
 import {
   startPhoneAuth as startPhoneAuthFlow,
   confirmPhoneAuth as confirmPhoneAuthFlow,
@@ -560,6 +562,12 @@ const staffSecurityService = createStaffSecurityService(
   !inMemoryRepos ? createPgStaffSecurityPort() : createInMemoryStaffSecurityPort(),
   createLazyStaffSecurityCryptoFromEnv(() => env.STAFF_SECURITY_KEYRING_JSON),
 );
+const passwordChangeService = createPasswordChangeService({
+  credentials: userPasswordCredentialsPort,
+  users: userByPhonePort,
+  staffSecurity: staffSecurityService,
+  hashPassword: hashPin,
+});
 const organizationInvitesPort = !inMemoryRepos
   ? createPgOrganizationInvitesPort()
   : createInMemoryOrganizationInvitesPort();
@@ -1699,6 +1707,7 @@ function _buildAppDeps() {
     },
     userPins: userPinsPort,
     userPasswordCredentials: userPasswordCredentialsPort,
+    passwordChange: passwordChangeService,
     emailPasswordLookup: emailPasswordLookupPort,
     emailOtpPublicDb: emailOtpPublicDbPort,
     emailSetupAccess: emailSetupAccessService,

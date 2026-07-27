@@ -125,4 +125,43 @@ describe('StaffSecuritySection first-run acceptance', () => {
     // replacement-only recovery surface is out of scope for this exact stuck-signup fix.
     expect(screen.queryByRole('button', { name: 'Выйти' })).not.toBeInTheDocument();
   });
+
+  it.each([
+    ['wrong_current_password', 'Текущий пароль указан неверно.'],
+    ['weak_new_password', 'Новый пароль должен содержать от 8 до 128 символов.'],
+    ['rate_limited', 'Слишком много попыток. Повторите через 10 минут.'],
+  ])('shows an actionable password-change error for %s', async (error, message) => {
+    vi.mocked(fetch).mockResolvedValue(
+      new Response(JSON.stringify({ ok: false, error }), { status: 400 }),
+    );
+
+    render(
+      <StaffSecuritySection
+        initialStatus={{
+          enrolled: true,
+          recoveryConfirmed: true,
+          replacementRequired: false,
+          lockedUntil: null,
+        }}
+        hasProfileName
+        hasTimezone
+        hasOrganization
+        hasSpecialistBinding
+      />,
+    );
+
+    await userEvent.type(screen.getByLabelText('Текущий пароль'), 'current-password');
+    await userEvent.type(screen.getByLabelText('Новый пароль'), 'new-password');
+    await userEvent.click(screen.getByRole('button', { name: 'Сменить пароль' }));
+
+    expect(fetch).toHaveBeenCalledWith('/api/account/security/password/change', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        currentPassword: 'current-password',
+        newPassword: 'new-password',
+      }),
+    });
+    expect(toastErrorMock).toHaveBeenCalledWith(message);
+  });
 });

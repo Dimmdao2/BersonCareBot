@@ -1,11 +1,12 @@
 "use client";
 
-import { useState } from "react";
+import { useState, type FormEvent } from "react";
 import Link from "next/link";
 import toast from "react-hot-toast";
 import { DoctorSection, DoctorSectionHeader, DoctorSectionTitle } from "@/shared/ui/doctor/DoctorSection";
 import { Button } from "@/shared/ui/doctor/primitives/button";
 import { Input } from "@/shared/ui/doctor/primitives/input";
+import { Label } from "@/shared/ui/doctor/primitives/label";
 
 type SecurityStatus = {
   enrolled: boolean;
@@ -32,6 +33,21 @@ async function postJson<T>(url: string, body?: unknown): Promise<T> {
   return await response.json() as T;
 }
 
+function passwordChangeErrorText(error?: string): string {
+  switch (error) {
+    case "wrong_current_password":
+      return "Текущий пароль указан неверно.";
+    case "weak_new_password":
+      return "Новый пароль должен содержать от 8 до 128 символов.";
+    case "rate_limited":
+      return "Слишком много попыток. Повторите через 10 минут.";
+    case "password_login_unavailable":
+      return "Для аккаунта не настроен вход по паролю.";
+    default:
+      return "Пароль не изменён. Повторите попытку.";
+  }
+}
+
 export function StaffSecuritySection(props: Props) {
   const [status, setStatus] = useState(props.initialStatus);
   const [secret, setSecret] = useState<string | null>(null);
@@ -39,6 +55,9 @@ export function StaffSecuritySection(props: Props) {
   const [code, setCode] = useState("");
   const [recoveryCodes, setRecoveryCodes] = useState<string[]>([]);
   const [busy, setBusy] = useState(false);
+  const [currentPassword, setCurrentPassword] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [passwordBusy, setPasswordBusy] = useState(false);
 
   const securityReady = status.enrolled && status.recoveryConfirmed && !status.replacementRequired;
 
@@ -115,6 +134,28 @@ export function StaffSecuritySection(props: Props) {
     toast.success("Другие сеансы завершены");
   }
 
+  async function changePassword(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setPasswordBusy(true);
+    try {
+      const result = await postJson<{ ok: boolean; error?: string }>(
+        "/api/account/security/password/change",
+        { currentPassword, newPassword },
+      );
+      if (!result.ok) {
+        toast.error(passwordChangeErrorText(result.error));
+        return;
+      }
+      setCurrentPassword("");
+      setNewPassword("");
+      toast.success("Пароль изменён");
+    } catch {
+      toast.error("Пароль не изменён. Проверьте соединение и повторите попытку.");
+    } finally {
+      setPasswordBusy(false);
+    }
+  }
+
   return (
     <div className="flex flex-col gap-3">
       {!props.recoveryOnly ? <DoctorSection>
@@ -151,6 +192,36 @@ export function StaffSecuritySection(props: Props) {
 
       <DoctorSection>
         <DoctorSectionHeader><DoctorSectionTitle>Защита аккаунта</DoctorSectionTitle></DoctorSectionHeader>
+        <form className="grid max-w-md gap-2" onSubmit={changePassword}>
+          <div className="grid gap-1">
+            <Label htmlFor="account-current-password">Текущий пароль</Label>
+            <Input
+              id="account-current-password"
+              type="password"
+              autoComplete="current-password"
+              maxLength={128}
+              required
+              value={currentPassword}
+              onChange={(event) => setCurrentPassword(event.target.value)}
+            />
+          </div>
+          <div className="grid gap-1">
+            <Label htmlFor="account-new-password">Новый пароль</Label>
+            <Input
+              id="account-new-password"
+              type="password"
+              autoComplete="new-password"
+              minLength={8}
+              maxLength={128}
+              required
+              value={newPassword}
+              onChange={(event) => setNewPassword(event.target.value)}
+            />
+          </div>
+          <Button className="w-fit" size="sm" type="submit" disabled={passwordBusy}>
+            Сменить пароль
+          </Button>
+        </form>
         {securityReady ? <p className="text-sm">Приложение-аутентификатор подключено, резервные коды сохранены.</p> : null}
         {status.replacementRequired ? <p className="text-sm text-destructive">Вход выполнен резервным кодом. Подключите фактор заново.</p> : null}
         {!secret && (!securityReady || status.replacementRequired) ? (

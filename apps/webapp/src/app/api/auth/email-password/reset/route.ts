@@ -13,6 +13,7 @@ import {
   normalizeEmail,
 } from "@/modules/auth/emailAuth";
 import { hashPin } from "@/modules/auth/pinHash";
+import { newPasswordSchema } from "@/modules/auth/passwordPolicy";
 import { enterStaffSecuritySelfPrincipal } from "@/app-layer/principal/staffSecuritySelfPrincipal";
 
 const bodySchema = z.object({
@@ -20,7 +21,7 @@ const bodySchema = z.object({
   /** Опционально: после forgot-password без `challengeId` в ответе используется {@link consumeLatestEmailChallengeCodeForUser}. */
   challengeId: z.string().uuid().optional(),
   code: z.string().min(4).max(32),
-  newPassword: z.string().min(8).max(128),
+  newPassword: newPasswordSchema,
 });
 
 const DUMMY_RESET_USER_ID = "00000000-0000-4000-8000-000000000000";

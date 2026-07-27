@@ -43,6 +43,7 @@
 - **`POST /api/auth/email-password/forgot`** — сброс: код на почту для **verified + password**; для **contact-only** (`needs_email_setup`) — setup-код и `challengeId` для текущей формы (после lookup UI уже знает, что это setup flow). Если вкладка потеряла `challengeId`, `setup-code/complete` принимает код через latest active challenge пользователя.
 - **`POST /api/auth/email-password/setup-code/complete`** — contact-only setup по коду: подтверждает email, создаёт/обновляет пароль и ставит сессию.
 - **`POST /api/auth/email-password/reset`** — проверка кода через `consumeEmailChallengeCode` (если передан `challengeId`) или `consumeLatestEmailChallengeCodeForUser`, обновление хэша пароля; ошибки верификации кода (включая случай отсутствия пользователя) нормализуются в нейтральный `invalid_code`.
+- **`POST /api/account/security/password/change`** — смена пароля из авторизованного staff-аккаунта с проверкой текущего пароля; старые сессии отзываются через `session_epoch`, текущая перевыпускается с новым epoch.
 - **Подтверждение email из авторизованного профиля** (`/api/auth/email/confirm`, `/api/patient/email-change/confirm`) после верного OTP выполняет транзакционный claim. Если адрес принадлежит другому безопасно сливаемому client-аккаунту, он merge-ится в текущего пациента под server-resolved organization principal; два password-login аккаунта и остальные hard blockers по-прежнему дают `409 email_conflict`.
 
 ## Мессенджеры и обмен токенами

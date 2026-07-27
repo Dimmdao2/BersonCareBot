@@ -13,4 +13,5 @@
 specialist-specific defaults. Management-only staff не получает клинические controls, а account не выдаёт
 organization-management capability.
 
-ACC security/2FA/sessions не реализуются здесь: это U3S. Отдельного `/app/ops/account` нет.
+Security tab содержит существующие 2FA/sessions controls и смену пароля с текущим паролем. Отдельного
+`/app/ops/account` нет.
