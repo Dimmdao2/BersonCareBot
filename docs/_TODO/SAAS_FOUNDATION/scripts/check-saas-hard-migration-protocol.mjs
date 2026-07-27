@@ -427,6 +427,11 @@ function runChecks(overrides = {}) {
     '-v telemetry_api_runtime_role="$api_runtime_role"',
     '-v telemetry_operator_runtime_role="$operator_runtime_role"',
     'RUNTIME_OVERLAY_LIB="$DEPLOY_TEST_SAAS_SCRIPT_DIR/runtime-overlay-rehydrate-lib.sh"',
+    // 2026-07-27: the Rubitime CSV staging / one-pass cleanup steps left this protocol together with the
+    // integration itself (owner: «хватит тянуть - вырезай»). They used to import that provider's booking
+    // history into TEST; there is no such history to import any more, and the deploy script no longer has
+    // those steps. Everything else in the protocol — owner-reviewed FIO, locked runtime, the identity
+    // assertions — is unchanged and still pinned.
     'source "$RUNTIME_OVERLAY_LIB"',
     'runtime_overlay_apply_post_migration_chain',
     "has_function_privilege(current_user, 'app.release_principal_context()', 'EXECUTE')",
@@ -435,8 +440,6 @@ function runChecks(overrides = {}) {
     "SELECT rolbypassrls::text FROM pg_roles WHERE rolname = '$DBROLE';",
     "SELECT pg_has_role('$MIGRATOR_ROLE', '$DBROLE', 'member');",
     'sudo -u postgres psql -d "$DB" -v ON_ERROR_STOP=1 \\\n  -v test_settings_overlay_mode=reset \\\n  -f "$DEPLOY_REPO/$OVERRIDE"',
-    'rubitime:db-cleanup:one-pass',
-    '--commit-cleanup --allow-test-target',
     'fio:owner-reviewed-test:apply',
     '--confirm-review-source-sha256',
     'run_deploy_repo_with_test_db_owner_role \\\n    "node docs/_TODO/SAAS_FOUNDATION/scripts/check-b1-doctor-admin-identity.mjs',
@@ -458,7 +461,7 @@ function runChecks(overrides = {}) {
     'assert_test_units_active',
     'assert_test_health_ok',
     'assert_awg_relay_active',
-    'DONE — full data-ready TEST migration (Rubitime history + reviewed FIO + locked runtime verified)',
+    'DONE — full data-ready TEST migration (reviewed FIO + locked runtime verified)',
   ]);
 
   requireOrderedFragments(`${files.runtimeOverlayLib} canonical overlay sequence`, loaded.runtimeOverlayLib, [
@@ -893,10 +896,9 @@ function runChecks(overrides = {}) {
     'sudo -u deploy test -r "$LOCKED_PRODUCT_SMOKE_FIXTURE_CANONICAL"',
     'sudo install -d -o deploy -g deploy -m 0700 "$smoke_dir"',
     'sudo -u deploy node "$DEPLOY_REPO/docs/_TODO/SAAS_FOUNDATION/scripts/smoke-saas-product.mjs"',
-    'stage_hash_bound_rubitime_csv',
-    'assert_staged_rubitime_csv_ready',
-    'root:deploy:440',
-    "run_deploy_repo_with_test_db_owner_role \\\n  \"pnpm run rubitime:db-cleanup:one-pass",
+    // 'root:deploy:440' left with the Rubitime CSV staging: that mode belonged to the staged provider
+    // export. Protected inputs are still asserted, and more strictly — assert_hash_bound_protected_input
+    // demands deploy:0600 plus a SHA-256 binding for the FIO manifest (deploy-test-saas.sh:2276-2290).
   ]);
   forbidFragments(files.deployTestSaas, loaded.deployTestSaas, [
     ". '$SAAS_TEST_FIXTURE_ENV'",
@@ -907,7 +909,7 @@ function runChecks(overrides = {}) {
     'assert_locked_product_smoke_fixture_ready',
     'trap cleanup_exit EXIT',
     'log "test settings override"',
-    'log "canonical Rubitime/history cleanup-import chain"',
+    // the "canonical Rubitime/history cleanup-import chain" step left with the integration (2026-07-27).
     'log "owner-reviewed FIO manifest apply"',
     'log "B1 doctor/admin identity assertion"',
     'run_strict_post_migration_closure',
@@ -1480,12 +1482,6 @@ function runSelfTest() {
       deployTestSaas: read(files.deployTestSaas).replace(
         'ALTER FUNCTION app.is_staff() OWNER TO %I',
         '-- missing app.is_staff owner normalization before P2-B',
-      ),
-    },
-    {
-      deployTestSaas: read(files.deployTestSaas).replace(
-        "run_deploy_repo_with_test_db_owner_role \\\n  \"pnpm run rubitime:db-cleanup:one-pass",
-        "sudo -u deploy bash -lc \"cd '$DEPLOY_REPO' && set -a && . '$WEBAPP_ENV' && set +a && \\\n  pnpm run rubitime:db-cleanup:one-pass",
       ),
     },
     {
