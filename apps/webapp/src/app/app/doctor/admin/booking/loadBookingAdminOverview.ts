@@ -8,6 +8,11 @@ export type BookingAdminOverviewData =
   | { unavailable: true }
   | {
       unavailable: false;
+      organizationRequired: true;
+    }
+  | {
+      unavailable: false;
+      organizationRequired: false;
       stats: {
         bookingEnabled: boolean;
         activeLocations: number;
@@ -20,12 +25,17 @@ export type BookingAdminOverviewData =
       warnings: string[];
     };
 
-export async function loadBookingAdminOverview(): Promise<BookingAdminOverviewData> {
+export async function loadBookingAdminOverview(
+  organizationId: string | null,
+): Promise<BookingAdminOverviewData> {
+  if (!organizationId) {
+    return { unavailable: false, organizationRequired: true };
+  }
+
   const deps = buildAppDeps();
   const service = deps.bookingEngine;
   if (!service) return { unavailable: true };
 
-  const organizationId = await service.organization.getDefaultOrganizationId();
   const [
     branches,
     services,
@@ -82,6 +92,7 @@ export async function loadBookingAdminOverview(): Promise<BookingAdminOverviewDa
 
   return {
     unavailable: false,
+    organizationRequired: false,
     stats: {
       bookingEnabled: activeBranches.length > 0 && activeServices.length > 0 && specialistAvailability.length > 0,
       activeLocations: activeBranches.length,
