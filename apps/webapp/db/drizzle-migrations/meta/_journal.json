@@ -1814,6 +1814,13 @@
       "when": 1793539200055,
       "tag": "0258_bootstrap_auth_table_accessors",
       "breakpoints": true
+    },
+    {
+      "idx": 259,
+      "version": "7",
+      "when": 1793539200056,
+      "tag": "0259_saas_billing_foundation",
+      "breakpoints": true
     }
   ]
 }

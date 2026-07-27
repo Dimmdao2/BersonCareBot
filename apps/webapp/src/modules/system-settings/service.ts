@@ -29,6 +29,7 @@ import {
 import {
   mergeBookingPaymentProvidersSecretsRetain,
 } from "@/modules/payments/bookingPaymentSettings";
+import { mergeSaasBillingPaymentProviderSecretsRetain } from "@/modules/saas-billing/settings";
 
 type SystemSettingsServiceDependencies = {
   runtimeRepository?: RuntimeSettingsRepository;
@@ -262,6 +263,13 @@ export function createSystemSettingsService(port: SystemSettingsPort, dependenci
               () => port.getByKey("booking_payment_providers", "admin", options).then((r) => r?.valueJson ?? null),
               value,
             )
+          : key === "saas_billing_payment_provider" && scope === "admin"
+            ? mergeSaasBillingPaymentProviderSecretsRetain(
+                () => port
+                  .getByKey("saas_billing_payment_provider", "admin", options)
+                  .then((row) => row?.valueJson ?? null),
+                value,
+              )
           : value;
   }
 

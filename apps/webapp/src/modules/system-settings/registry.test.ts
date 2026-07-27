@@ -66,4 +66,16 @@ describe("S5-0 system-settings registry", () => {
     expect(SYSTEM_SETTING_REGISTRY.booking_doctor_appointments_read_source.defaultValue).toBe("canonical");
     expect(SYSTEM_SETTING_REGISTRY.booking_slots_read_source.defaultValue).toBe("canonical");
   });
+
+  it("keeps the platform merchant key global, restricted, redacted, and mock-defaulted", () => {
+    expect(SYSTEM_SETTING_REGISTRY.saas_billing_payment_provider).toMatchObject({
+      scope: "admin",
+      storage: "restricted",
+      ownership: "global",
+      audience: "server",
+      valueContract: "secret_envelope",
+      defaultValue: "mock",
+      clientSerialization: "redacted",
+    });
+  });
 });

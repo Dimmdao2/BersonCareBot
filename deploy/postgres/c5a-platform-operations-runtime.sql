@@ -87,6 +87,101 @@ BEGIN
   END IF;
 END
 $c5a_clinical_test_measure_kinds_platform_grant$;
+
+-- Phase 4 SaaS billing tables arrive in migration 0259. This overlay also runs against bounded
+-- scratch clusters that omit that migration, so the entire rehydration is explicitly guarded.
+DO $c5a_saas_billing_runtime$
+DECLARE
+  relation_name text;
+  relation_names constant text[] := ARRAY[
+    'saas_billing_accounts',
+    'saas_billing_subscriptions',
+    'saas_billing_invoices',
+    'saas_billing_provider_events'
+  ];
+BEGIN
+  IF EXISTS (
+    SELECT 1
+    FROM unnest(relation_names) AS expected(name)
+    WHERE to_regclass('public.' || expected.name) IS NULL
+  ) THEN
+    RAISE WARNING 'Phase 4: one or more saas_billing_* tables do not exist -- skipping the guarded C5A billing rehydration.';
+    RETURN;
+  END IF;
+
+  FOREACH relation_name IN ARRAY relation_names LOOP
+    EXECUTE format(
+      'REVOKE INSERT, UPDATE, DELETE ON TABLE public.%I FROM app_staff',
+      relation_name
+    );
+    EXECUTE format(
+      'REVOKE DELETE ON TABLE public.%I FROM app_platform_settings',
+      relation_name
+    );
+    EXECUTE format(
+      'REVOKE ALL PRIVILEGES ON TABLE public.%I FROM app_patient',
+      relation_name
+    );
+    EXECUTE format(
+      'GRANT SELECT ON TABLE public.%I TO app_staff',
+      relation_name
+    );
+    EXECUTE format(
+      'GRANT SELECT, INSERT, UPDATE ON TABLE public.%I TO app_platform_settings',
+      relation_name
+    );
+    EXECUTE format(
+      'ALTER TABLE public.%I ENABLE ROW LEVEL SECURITY',
+      relation_name
+    );
+    EXECUTE format(
+      'ALTER TABLE public.%I FORCE ROW LEVEL SECURITY',
+      relation_name
+    );
+
+    EXECUTE format(
+      'DROP POLICY IF EXISTS %I ON public.%I',
+      relation_name || '_staff_select',
+      relation_name
+    );
+    EXECUTE format(
+      'CREATE POLICY %I ON public.%I FOR SELECT TO app_staff USING (app.is_staff() AND app.current_org_id() IS NOT NULL AND organization_id = app.current_org_id())',
+      relation_name || '_staff_select',
+      relation_name
+    );
+    EXECUTE format(
+      'DROP POLICY IF EXISTS %I ON public.%I',
+      relation_name || '_platform_select',
+      relation_name
+    );
+    EXECUTE format(
+      'CREATE POLICY %I ON public.%I FOR SELECT TO app_platform_settings USING (true)',
+      relation_name || '_platform_select',
+      relation_name
+    );
+    EXECUTE format(
+      'DROP POLICY IF EXISTS %I ON public.%I',
+      relation_name || '_platform_insert',
+      relation_name
+    );
+    EXECUTE format(
+      'CREATE POLICY %I ON public.%I FOR INSERT TO app_platform_settings WITH CHECK (true)',
+      relation_name || '_platform_insert',
+      relation_name
+    );
+    EXECUTE format(
+      'DROP POLICY IF EXISTS %I ON public.%I',
+      relation_name || '_platform_update',
+      relation_name
+    );
+    EXECUTE format(
+      'CREATE POLICY %I ON public.%I FOR UPDATE TO app_platform_settings USING (true) WITH CHECK (true)',
+      relation_name || '_platform_update',
+      relation_name
+    );
+  END LOOP;
+END
+$c5a_saas_billing_runtime$;
 -- Read-only booking configuration for the global-admin overview at /app/doctor/admin/booking.
 -- SELECT and nothing else, enumerated table by table; the matching cross-tenant read policies and
 -- the full rationale are in the be_* platform-operations policy block further down this file.
@@ -491,6 +586,65 @@ SELECT 1 / (
   AND policy_wall.ok
 )::int AS c5a_platform_booking_config_read_only_wall
 FROM privilege_wall, policy_wall;
+
+-- Exact Phase 4 billing wall. Guarded for the same partial-cluster reason as the rehydration block.
+DO $c5a_saas_billing_exact_wall$
+DECLARE
+  relation_name text;
+  relation_names constant text[] := ARRAY[
+    'saas_billing_accounts',
+    'saas_billing_subscriptions',
+    'saas_billing_invoices',
+    'saas_billing_provider_events'
+  ];
+  policy_count integer;
+BEGIN
+  IF EXISTS (
+    SELECT 1
+    FROM unnest(relation_names) AS expected(name)
+    WHERE to_regclass('public.' || expected.name) IS NULL
+  ) THEN
+    RAISE WARNING 'Phase 4: one or more saas_billing_* tables do not exist -- skipping the guarded C5A billing exact wall.';
+    RETURN;
+  END IF;
+
+  FOREACH relation_name IN ARRAY relation_names LOOP
+    IF NOT (
+      has_table_privilege('app_staff', 'public.' || relation_name, 'SELECT')
+      AND NOT has_table_privilege('app_staff', 'public.' || relation_name, 'INSERT')
+      AND NOT has_table_privilege('app_staff', 'public.' || relation_name, 'UPDATE')
+      AND NOT has_table_privilege('app_staff', 'public.' || relation_name, 'DELETE')
+      AND has_table_privilege('app_platform_settings', 'public.' || relation_name, 'SELECT')
+      AND has_table_privilege('app_platform_settings', 'public.' || relation_name, 'INSERT')
+      AND has_table_privilege('app_platform_settings', 'public.' || relation_name, 'UPDATE')
+      AND NOT has_table_privilege('app_platform_settings', 'public.' || relation_name, 'DELETE')
+      AND NOT has_table_privilege('app_patient', 'public.' || relation_name, 'SELECT')
+      AND NOT has_table_privilege('app_patient', 'public.' || relation_name, 'INSERT')
+      AND NOT has_table_privilege('app_patient', 'public.' || relation_name, 'UPDATE')
+      AND NOT has_table_privilege('app_patient', 'public.' || relation_name, 'DELETE')
+    ) THEN
+      RAISE EXCEPTION 'C5A SaaS billing privilege wall failed for %', relation_name;
+    END IF;
+
+    SELECT count(*)
+    INTO policy_count
+    FROM pg_policy AS policy
+    JOIN pg_class AS relation ON relation.oid = policy.polrelid
+    WHERE relation.relnamespace = 'public'::regnamespace
+      AND relation.relname = relation_name
+      AND policy.polname IN (
+        relation_name || '_staff_select',
+        relation_name || '_platform_select',
+        relation_name || '_platform_insert',
+        relation_name || '_platform_update'
+      );
+    IF policy_count <> 4 THEN
+      RAISE EXCEPTION 'C5A SaaS billing policy inventory failed for %: expected 4, got %',
+        relation_name, policy_count;
+    END IF;
+  END LOOP;
+END
+$c5a_saas_billing_exact_wall$;
 
 COMMIT;
 

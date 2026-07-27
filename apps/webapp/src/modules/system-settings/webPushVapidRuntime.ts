@@ -1,5 +1,6 @@
 import type { SystemSettingsService } from "./service";
 import type { SystemSetting } from "./types";
+import { redactSaasBillingPaymentProviderValue } from "@/modules/saas-billing/settings";
 
 export type WebPushVapidKeyPair = {
   publicKey: string;
@@ -85,6 +86,9 @@ export function redactAdminSettingsForClient(settings: SystemSetting[]): SystemS
     }
     if (s.key === "web_push_vapid") return redactWebPushVapidSettingForClient(s);
     if (s.key === "booking_payment_providers") return redactBookingPaymentProvidersSettingForClient(s);
+    if (s.key === "saas_billing_payment_provider") {
+      return { ...s, valueJson: redactSaasBillingPaymentProviderValue(s.valueJson) };
+    }
     return s;
   });
 }

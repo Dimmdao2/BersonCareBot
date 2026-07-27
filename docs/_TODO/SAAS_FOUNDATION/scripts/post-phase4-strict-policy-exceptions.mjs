@@ -2,6 +2,28 @@
 // taxonomy and protected by reviewed exact-organization FORCE-RLS artifacts.
 // Keep policy evidence here so coverage and taxonomy guards share one source.
 export const postPhase4StrictPolicyExceptions = new Map([
+  ...[
+    "saas_billing_accounts",
+    "saas_billing_subscriptions",
+    "saas_billing_invoices",
+    "saas_billing_provider_events",
+  ].map((table) => [
+    `public.${table}`,
+    {
+      reason:
+        "Post-Phase-4 SaaS billing data is organization-owned, FORCE RLS, staff exact-org read-only, and globally mutable only through the platform principal.",
+      policyPath: "apps/webapp/db/drizzle-migrations/0259_saas_billing_foundation.sql",
+      policyTokens: [
+        `ALTER TABLE public.${table} ENABLE ROW LEVEL SECURITY;`,
+        `ALTER TABLE public.${table} FORCE ROW LEVEL SECURITY;`,
+        `CREATE POLICY ${table}_staff_select`,
+        "AND organization_id = app.current_org_id()",
+        `CREATE POLICY ${table}_platform_select`,
+        `CREATE POLICY ${table}_platform_insert`,
+        `CREATE POLICY ${table}_platform_update`,
+      ],
+    },
+  ]),
   [
     "public.organization_slug_claims",
     {

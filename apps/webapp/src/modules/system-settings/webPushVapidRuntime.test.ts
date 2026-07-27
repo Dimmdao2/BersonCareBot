@@ -113,4 +113,29 @@ describe("redactWebPushVapidSettingForClient", () => {
       expect(serialized).not.toContain(secretField);
     }
   });
+
+  it("redacts the separate global SaaS provider envelope", () => {
+    const out = redactAdminSettingsForClient([{
+      key: "saas_billing_payment_provider",
+      scope: "admin",
+      valueJson: {
+        value: {
+          defaultProviderId: "mock",
+          providers: [{
+            id: "mock",
+            label: "Mock",
+            enabled: true,
+            apiKey: "configured-marker",
+            webhookSecret: "configured-webhook-marker",
+          }],
+        },
+      },
+      updatedAt: "",
+      updatedBy: null,
+    }]);
+    const serialized = JSON.stringify(out);
+    expect(serialized).not.toContain("configured-marker");
+    expect(serialized).not.toContain("configured-webhook-marker");
+    expect(serialized).toContain("[REDACTED]");
+  });
 });

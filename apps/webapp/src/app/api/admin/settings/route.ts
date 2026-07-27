@@ -21,6 +21,7 @@ import {
 import { isModesFormKey, MODES_FORM_KEYS } from "@/modules/system-settings/modesFormKeys";
 import { VIDEO_PRESIGN_TTL_MAX_SEC, VIDEO_PRESIGN_TTL_MIN_SEC } from "@/modules/media/videoPresignTtlConstants";
 import { coerceAdminBooleanSetting } from "@/modules/system-settings/coerceAdminBooleanSetting";
+import { redactSaasBillingPaymentProviderValue } from "@/modules/saas-billing/settings";
 import {
   PATIENT_REPEAT_COOLDOWN_MINUTES_MAX,
   PATIENT_REPEAT_COOLDOWN_MINUTES_MIN,
@@ -101,6 +102,7 @@ const ADMIN_SCOPE_KEYS = [
   "booking_min_notice_hours",
   "booking_payment_enabled",
   "booking_payment_providers",
+  "saas_billing_payment_provider",
   "booking_lifecycle_notifications",
   "patient_default_promo_treatment_program_template_id",
   "patient_home_daily_practice_target",
@@ -246,6 +248,9 @@ function auditValueForLog(key: string, value: unknown): unknown {
         return { value: o };
       }
     }
+  }
+  if (key === "saas_billing_payment_provider") {
+    return redactSaasBillingPaymentProviderValue(value);
   }
   return value;
 }

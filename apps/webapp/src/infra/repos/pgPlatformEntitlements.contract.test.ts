@@ -35,11 +35,13 @@ describe("platform commercial persistence boundary", () => {
     const organizationFrom = vi.fn(() => ({ orderBy: organizationOrderBy }));
     const trialFrom = vi.fn().mockResolvedValue([]);
     const overrideFrom = vi.fn().mockResolvedValue([]);
+    const manualSaasBillingFrom = vi.fn(() => ({ where: vi.fn().mockResolvedValue([]) }));
     const select = vi
       .fn()
       .mockReturnValueOnce({ from: organizationFrom })
       .mockReturnValueOnce({ from: trialFrom })
-      .mockReturnValueOnce({ from: overrideFrom });
+      .mockReturnValueOnce({ from: overrideFrom })
+      .mockReturnValueOnce({ from: manualSaasBillingFrom });
     getDrizzleMock.mockReturnValue({
       transaction: (callback: (tx: { select: typeof select }) => unknown) => callback({ select }),
     });
@@ -53,7 +55,7 @@ describe("platform commercial persistence boundary", () => {
         trial: null,
       },
     ]);
-    expect(select).toHaveBeenCalledTimes(3);
+    expect(select).toHaveBeenCalledTimes(4);
   });
 
   it("separates trial tariff persistence from manual assignment and projects effective trial time", async () => {
@@ -81,7 +83,10 @@ describe("platform commercial persistence boundary", () => {
       .fn()
       .mockReturnValueOnce({ from: vi.fn(() => ({ orderBy: vi.fn().mockResolvedValue(organizations) })) })
       .mockReturnValueOnce({ from: vi.fn().mockResolvedValue(trials) })
-      .mockReturnValueOnce({ from: vi.fn().mockResolvedValue([]) });
+      .mockReturnValueOnce({ from: vi.fn().mockResolvedValue([]) })
+      .mockReturnValueOnce({
+        from: vi.fn(() => ({ where: vi.fn().mockResolvedValue([]) })),
+      });
     getDrizzleMock.mockReturnValue({
       transaction: (callback: (tx: { select: typeof select }) => unknown) => callback({ select }),
     });
@@ -107,7 +112,8 @@ describe("platform commercial persistence boundary", () => {
     const select = vi
       .fn()
       .mockReturnValueOnce({ from: vi.fn(() => ({ where: vi.fn(() => ({ limit: vi.fn().mockResolvedValue([{ tariffId: trialTariffId, commercialAccessState: "active" }]) })) })) })
-      .mockReturnValueOnce({ from: vi.fn(() => ({ where: vi.fn(() => ({ limit: vi.fn().mockResolvedValue([{ id: "trial-1", status: "active" }]) })) })) });
+      .mockReturnValueOnce({ from: vi.fn(() => ({ where: vi.fn(() => ({ limit: vi.fn().mockResolvedValue([{ id: "trial-1", status: "active" }]) })) })) })
+      .mockReturnValueOnce({ from: vi.fn(() => ({ where: vi.fn(() => ({ limit: vi.fn().mockResolvedValue([]) })) })) });
     const update = vi.fn();
     const insert = vi.fn();
     getDrizzleMock.mockReturnValue({
@@ -131,6 +137,7 @@ describe("platform commercial persistence boundary", () => {
       .fn()
       .mockReturnValueOnce({ from: vi.fn(() => ({ where: vi.fn(() => ({ limit: vi.fn().mockResolvedValue([{ tariffId: "trial-tariff", commercialAccessState: "active" }]) })) })) })
       .mockReturnValueOnce({ from: vi.fn(() => ({ where: vi.fn(() => ({ limit: vi.fn().mockResolvedValue([activeTrial]) })) })) })
+      .mockReturnValueOnce({ from: vi.fn(() => ({ where: vi.fn(() => ({ limit: vi.fn().mockResolvedValue([]) })) })) })
       .mockReturnValueOnce({ from: vi.fn(() => ({ where: vi.fn(() => ({ limit: vi.fn().mockResolvedValue([{ id: nextTariffId }]) })) })) });
     const organizationAfter = { tariffId: nextTariffId, commercialAccessState: "active" };
     const endedTrial = { ...activeTrial, status: "ended" };
@@ -138,8 +145,22 @@ describe("platform commercial persistence boundary", () => {
       .fn()
       .mockReturnValueOnce({ set: vi.fn(() => ({ where: vi.fn(() => ({ returning: vi.fn().mockResolvedValue([organizationAfter]) })) })) })
       .mockReturnValueOnce({ set: vi.fn(() => ({ where: vi.fn(() => ({ returning: vi.fn().mockResolvedValue([endedTrial]) })) })) });
+    const accountReturning = vi.fn().mockResolvedValue([{ id: "account-1" }]);
+    const assignmentReturning = vi.fn().mockResolvedValue([{ id: "assignment-1" }]);
     const auditValues = vi.fn().mockResolvedValue(undefined);
-    const insert = vi.fn(() => ({ values: auditValues }));
+    const insert = vi
+      .fn()
+      .mockReturnValueOnce({
+        values: vi.fn(() => ({
+          onConflictDoUpdate: vi.fn(() => ({ returning: accountReturning })),
+        })),
+      })
+      .mockReturnValueOnce({
+        values: vi.fn(() => ({
+          onConflictDoUpdate: vi.fn(() => ({ returning: assignmentReturning })),
+        })),
+      })
+      .mockReturnValueOnce({ values: auditValues });
     getDrizzleMock.mockReturnValue({
       transaction: (callback: (tx: { select: typeof select; update: typeof update; insert: typeof insert }) => unknown) => callback({ select, update, insert }),
     });

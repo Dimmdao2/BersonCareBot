@@ -234,6 +234,10 @@ import { inMemoryPatientPaymentsPort } from "@/infra/repos/inMemoryPatientPaymen
 import { createPatientPaymentsService } from "@/modules/patient-payments/service";
 import { noopAcquiringGateway } from "@/infra/repos/noopAcquiringGateway";
 import { createRegistryAcquiringGateway } from "@/infra/payments/registryAcquiringGateway";
+import { getPaymentProviderAdapter } from "@/infra/payments/paymentProviderRegistry";
+import { createPgSaasBillingRepository } from "@/infra/repos/pgSaasBilling";
+import { createInMemorySaasBillingRepository } from "@/infra/repos/inMemorySaasBilling";
+import { createSaasBillingService } from "@/modules/saas-billing/service";
 import { inMemoryDoctorNotesPort } from "@/infra/repos/inMemoryDoctorNotes";
 import { createPgBranchesProjectionPort } from "@/infra/repos/pgBranches";
 import { createPgSubscriptionMailingProjectionPort } from "@/infra/repos/pgSubscriptionMailingProjection";
@@ -728,6 +732,18 @@ const appRuntimeSettingsPort = !inMemoryRepos ? createPgAppRuntimeSettingsPort()
 const systemSettingsService = createSystemSettingsService(systemSettingsPort, {
   runtimeRepository: appRuntimeSettingsPort,
   writeUnitOfWork: !inMemoryRepos ? createPgSystemSettingsWriteUnitOfWork() : undefined,
+});
+const saasBillingService = createSaasBillingService({
+  repository: !inMemoryRepos
+    ? createPgSaasBillingRepository()
+    : createInMemorySaasBillingRepository(),
+  settings: {
+    getSaasBillingPaymentProviderValue: () =>
+      systemSettingsService
+        .getSetting("saas_billing_payment_provider", "admin")
+        .then((row) => row?.valueJson ?? null),
+  },
+  resolvePaymentProvider: getPaymentProviderAdapter,
 });
 const runtimeConfig = createRuntimeConfigProvider(
   appRuntimeSettingsPort,
@@ -1744,6 +1760,7 @@ function _buildAppDeps() {
     patientDailyWarmupVideoViews: patientDailyWarmupVideoViewsPort,
     organizationMembership: organizationMembershipService,
     orgEntitlements: orgEntitlementsPort,
+    saasBilling: saasBillingService,
     /** Effective organization brand (core context always, paid additions only when entitled+published). */
     orgBranding: orgBrandingService,
     platformEntitlements: platformEntitlementsService,

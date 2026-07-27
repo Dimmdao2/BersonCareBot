@@ -147,6 +147,13 @@ export const SYSTEM_SETTING_REGISTRY = {
   booking_slots_read_source: runtime("admin", "global", "server", "string", "canonical"),
   booking_payment_enabled: runtime("admin", "per_org", "authenticated_client", "boolean", "false"),
   booking_payment_providers: restricted("admin", "per_org", "secret_envelope", "mock", "redacted", "booking_payment_public_config"),
+  saas_billing_payment_provider: restricted(
+    "admin",
+    "global",
+    "secret_envelope",
+    "mock",
+    "redacted",
+  ),
   booking_lifecycle_notifications: runtime("admin", "per_org", "server", "boolean", "false"),
   booking_allow_doctor_unlink_past_package_sessions: runtime("admin", "per_org", "server", "boolean", "false"),
   booking_min_notice_hours: runtime("admin", "per_org", "server", "integer", "0"),

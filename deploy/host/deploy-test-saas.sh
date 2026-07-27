@@ -1579,6 +1579,59 @@ SELECT (
   echo "   clinical_test_measure_kinds write-lock closure: OK (app_staff locked out, app_platform_settings holds SELECT/UPDATE)"
 }
 
+assert_c5a_saas_billing_foundation_closure(){
+  local ok
+  ok="$(sudo -u postgres psql -d "$DB" -X -v ON_ERROR_STOP=1 -tAc "
+WITH expected(relation_name) AS (
+  VALUES
+    ('saas_billing_accounts'),
+    ('saas_billing_subscriptions'),
+    ('saas_billing_invoices'),
+    ('saas_billing_provider_events')
+), privilege_wall AS (
+  SELECT bool_and(
+    to_regclass('public.' || relation_name) IS NOT NULL
+    AND has_table_privilege('app_staff', 'public.' || relation_name, 'SELECT')
+    AND NOT has_table_privilege('app_staff', 'public.' || relation_name, 'INSERT')
+    AND NOT has_table_privilege('app_staff', 'public.' || relation_name, 'UPDATE')
+    AND NOT has_table_privilege('app_staff', 'public.' || relation_name, 'DELETE')
+    AND has_table_privilege('app_platform_settings', 'public.' || relation_name, 'SELECT')
+    AND has_table_privilege('app_platform_settings', 'public.' || relation_name, 'INSERT')
+    AND has_table_privilege('app_platform_settings', 'public.' || relation_name, 'UPDATE')
+    AND NOT has_table_privilege('app_platform_settings', 'public.' || relation_name, 'DELETE')
+    AND NOT has_table_privilege('app_patient', 'public.' || relation_name, 'SELECT')
+    AND NOT has_table_privilege('app_patient', 'public.' || relation_name, 'INSERT')
+    AND NOT has_table_privilege('app_patient', 'public.' || relation_name, 'UPDATE')
+    AND NOT has_table_privilege('app_patient', 'public.' || relation_name, 'DELETE')
+  ) AS ok
+  FROM expected
+), policy_wall AS (
+  SELECT count(policy.polname) = 16 AS ok
+  FROM expected
+  JOIN pg_class AS relation
+    ON relation.relname = expected.relation_name
+   AND relation.relnamespace = 'public'::regnamespace
+  JOIN pg_policy AS policy
+    ON policy.polrelid = relation.oid
+   AND policy.polname IN (
+     expected.relation_name || '_staff_select',
+     expected.relation_name || '_platform_select',
+     expected.relation_name || '_platform_insert',
+     expected.relation_name || '_platform_update'
+   )
+)
+SELECT (privilege_wall.ok AND policy_wall.ok)::text
+FROM privilege_wall, policy_wall;
+")"
+  [ "$ok" = "true" ] || {
+    echo "FATAL: SaaS billing foundation exact grants/RLS inventory did not take effect." >&2
+    echo "       Expected: app_staff SELECT-only, app_platform_settings SELECT/INSERT/UPDATE," >&2
+    echo "       app_patient none, and four named policies on each of four tables." >&2
+    exit 1
+  }
+  echo "   SaaS billing foundation exact grants/RLS inventory: OK"
+}
+
 assert_db_owner_and_telemetry_owner_secdef_anon_surface_pinned(){
   # A-1 stage 1 (night plan 2026-07-26, taskdb): additive-only whole-class gate, sibling to
   # assert_app_owner_secdef_table_grants_complete right above -- same idiom, same closure position,
@@ -2003,6 +2056,8 @@ run_strict_post_migration_closure(){
   run_closure_gate "app_owner SECURITY DEFINER table-grant completeness" assert_app_owner_secdef_table_grants_complete
   log "clinical_test_measure_kinds write-lock closure pin (H-7 / #1040, detects a guarded skip)"
   run_closure_gate "clinical_test_measure_kinds write-lock closure" assert_c5a_clinical_test_measure_kinds_closure
+  log "SaaS billing foundation exact grants/RLS inventory"
+  run_closure_gate "SaaS billing foundation exact grants/RLS inventory" assert_c5a_saas_billing_foundation_closure
   log "DB-owner + telemetry-owner SECURITY DEFINER anon-reachable surface (A-1 stage 1, whole-class gate)"
   run_closure_gate "DB-owner + telemetry-owner SECURITY DEFINER anon-reachable surface" assert_db_owner_and_telemetry_owner_secdef_anon_surface_pinned
   log "E1 post-runtime coverage/read gate"

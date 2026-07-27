@@ -17,6 +17,10 @@ import type {
 } from "@/modules/org-entitlements/types";
 import { beOrganizations } from "../../../db/schema/bookingEngine";
 import {
+  saasBillingAccounts,
+  saasBillingSubscriptions,
+} from "../../../db/schema/saasBilling";
+import {
   saasOrganizationTrials,
   saasOrgEntitlementOverrides,
   saasTariffs,
@@ -228,13 +232,25 @@ export function createPgPlatformEntitlementsPort(): PlatformEntitlementsPort {
     async listOrganizations() {
       assertPlatformOperationsPrincipal();
       return getDrizzle().transaction(async (tx) => {
-        const [organizations, trials, overrides] = await Promise.all([
+        const [organizations, trials, overrides, manualSaasBillingRows] = await Promise.all([
           tx
             .select({ id: beOrganizations.id, title: beOrganizations.title, tariffId: beOrganizations.tariffId, isActive: beOrganizations.isActive, commercialAccessState: beOrganizations.commercialAccessState })
             .from(beOrganizations)
             .orderBy(beOrganizations.title),
           tx.select().from(saasOrganizationTrials),
           tx.select().from(saasOrgEntitlementOverrides),
+          tx
+            .select({
+              organizationId: saasBillingSubscriptions.organizationId,
+              tariffId: saasBillingSubscriptions.tariffId,
+            })
+            .from(saasBillingSubscriptions)
+            .where(
+              and(
+                eq(saasBillingSubscriptions.source, "manual"),
+                eq(saasBillingSubscriptions.status, "active"),
+              ),
+            ),
         ]);
         const trialByOrg = new Map(trials.map((trial) => [trial.organizationId, trial]));
         const overridesByOrg = new Map<string, OrgEntitlementOverride[]>();
@@ -244,6 +260,9 @@ export function createPgPlatformEntitlementsPort(): PlatformEntitlementsPort {
           overridesByOrg.set(override.organizationId, current);
         }
         const now = Date.now();
+        const manualTariffByOrg = new Map(
+          manualSaasBillingRows.map((row) => [row.organizationId, row.tariffId]),
+        );
         return organizations.map((organization) => {
           const trial = trialByOrg.get(organization.id) ?? null;
           const commercialAccessState = organization.commercialAccessState as OrgCommercialAccessState;
@@ -255,7 +274,7 @@ export function createPgPlatformEntitlementsPort(): PlatformEntitlementsPort {
           });
           return {
             ...organization,
-            manualTariffId: effectiveAccess.source === "assignment" ? organization.tariffId : null,
+            manualTariffId: manualTariffByOrg.get(organization.id) ?? null,
             commercialAccessState,
             effectiveAccess,
             overrides: overridesByOrg.get(organization.id) ?? [],
@@ -324,9 +343,81 @@ export function createPgPlatformEntitlementsPort(): PlatformEntitlementsPort {
             .from(saasOrganizationTrials)
             .where(and(eq(saasOrganizationTrials.organizationId, organizationId), eq(saasOrganizationTrials.status, "active")))
             .limit(1);
-          const currentManualTariffId = activeTrial ? null : before.tariffId;
-          if (tariffId === currentManualTariffId) return;
+          const [manualSaasBillingRow] = await tx
+            .select({
+              id: saasBillingSubscriptions.id,
+              tariffId: saasBillingSubscriptions.tariffId,
+              status: saasBillingSubscriptions.status,
+            })
+            .from(saasBillingSubscriptions)
+            .where(
+              and(
+                eq(saasBillingSubscriptions.organizationId, organizationId),
+                eq(saasBillingSubscriptions.source, "manual"),
+              ),
+            )
+            .limit(1);
+          const currentManualTariffId =
+            manualSaasBillingRow?.status === "active"
+              ? manualSaasBillingRow.tariffId
+              : null;
+          if (
+            tariffId === currentManualTariffId &&
+            (!activeTrial || tariffId === null)
+          ) {
+            return;
+          }
           if (tariffId) await requireActiveTariff(tx, tariffId);
+          if (tariffId) {
+            const [account] = await tx
+              .insert(saasBillingAccounts)
+              .values({ organizationId })
+              .onConflictDoUpdate({
+                target: saasBillingAccounts.organizationId,
+                set: { updatedAt: new Date().toISOString() },
+              })
+              .returning({ id: saasBillingAccounts.id });
+            if (!account) throw new Error("saas_billing_account_upsert_failed");
+            const [assignment] = await tx
+              .insert(saasBillingSubscriptions)
+              .values({
+                organizationId,
+                saasBillingAccountId: account.id,
+                tariffId,
+                source: "manual",
+                status: "active",
+                lifecycleState: "active",
+              })
+              .onConflictDoUpdate({
+                target: [
+                  saasBillingSubscriptions.organizationId,
+                  saasBillingSubscriptions.source,
+                ],
+                set: {
+                  tariffId,
+                  status: "active",
+                  lifecycleState: "active",
+                  cancelledAt: null,
+                  updatedAt: new Date().toISOString(),
+                },
+              })
+              .returning({ id: saasBillingSubscriptions.id });
+            if (!assignment) throw new Error("saas_billing_manual_assignment_failed");
+          } else {
+            await tx
+              .update(saasBillingSubscriptions)
+              .set({
+                status: "cancelled",
+                cancelledAt: new Date().toISOString(),
+                updatedAt: new Date().toISOString(),
+              })
+              .where(
+                and(
+                  eq(saasBillingSubscriptions.organizationId, organizationId),
+                  eq(saasBillingSubscriptions.source, "manual"),
+                ),
+              );
+          }
           const [after] = await tx.update(beOrganizations).set({ tariffId, commercialAccessState: tariffId ? "active" : "no_trial" }).where(eq(beOrganizations.id, organizationId)).returning({ tariffId: beOrganizations.tariffId, commercialAccessState: beOrganizations.commercialAccessState });
           let endedTrial: typeof saasOrganizationTrials.$inferSelect | null = null;
           if (activeTrial) {
@@ -347,7 +438,11 @@ export function createPgPlatformEntitlementsPort(): PlatformEntitlementsPort {
                 : "saas_tariff_unassign",
             targetId: organizationId,
             organizationId,
-            before: { organization: before, trial: activeTrial ?? null },
+            before: {
+              organization: before,
+              trial: activeTrial ?? null,
+              saasBillingSubscription: manualSaasBillingRow ?? null,
+            },
             after: { organization: after, trial: endedTrial },
           });
         });
