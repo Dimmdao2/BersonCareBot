@@ -193,9 +193,16 @@ export function applyChannelFilter(list: ClientListItem[], activeChannel: Patien
 }
 
 /**
- * Owner punch-list item 4: hide the communication-channel filter buttons from the right pane while
- * keeping every prop/state/URL-param wire-up they depend on intact (see the block that reads this
- * flag further down). Flip back to `true` to re-enable — no other code needs to change.
+ * Owner punch-list item 4 (CLI-5): hide the communication-channel filter buttons from the right pane
+ * while keeping every prop/state/URL-param wire-up they depend on intact (see the block that reads
+ * this flag further down).
+ *
+ * 🔴 НЕ ВКЛЮЧАТЬ БЕЗ ПРЯМОГО УКАЗАНИЯ ВЛАДЕЛЬЦА (его распоряжение 2026-07-27).
+ * `false` здесь — это ВЫПОЛНЕННОЕ требование, а не незаконченная работа и не забытый флаг. Владелец
+ * просил убрать фильтр СО СТРАНИЦЫ, но не удалять код. Не «чинить», не включать «чтобы не пропадало»,
+ * не заводить задачу «доделать фильтр по каналам». Вернуть `true` можно только по его явной команде.
+ *
+ * Do NOT flip this to `true` on your own initiative — see the rule above.
  */
 const CHANNEL_FILTERS_UI_ENABLED = false;
 
