@@ -7,18 +7,25 @@ import {
 } from '../infra/db/publicSystemSettings.js';
 
 export const OPERATOR_HEALTH_PROBE_CONFIG_KEY = 'operator_health_probe_config';
-export const OPERATOR_HEALTH_PROBE_NAMES = ['max', 'telegram', 'rubitime', 'google_calendar'] as const;
+export const OPERATOR_HEALTH_PROBE_NAMES = ['max', 'telegram', 'google_calendar'] as const;
 export type OperatorHealthProbeName = (typeof OPERATOR_HEALTH_PROBE_NAMES)[number];
+export type OperatorHealthEmailProbeConfig = {
+  intervalMs: number;
+  timeoutMs: number;
+  roundTripDeadlineMs: number;
+  retentionMs: number;
+  cleanupIntervalMs: number;
+};
 export type OperatorHealthProbeConfig = {
   [K in OperatorHealthProbeName]: { enabled: boolean; intervalMs: number; timeoutMs: number; consecutiveFailures: number };
-} & { quietWindowMaxDurationMs: number; quietUntil: string | null };
+} & { email: OperatorHealthEmailProbeConfig; quietWindowMaxDurationMs: number; quietUntil: string | null };
 
 /** Must match the registry default; the integrator cannot import webapp internals. */
 export const DEFAULT_OPERATOR_HEALTH_PROBE_CONFIG: OperatorHealthProbeConfig = {
   max: { enabled: true, intervalMs: 600_000, timeoutMs: 5_000, consecutiveFailures: 2 },
   telegram: { enabled: true, intervalMs: 600_000, timeoutMs: 5_000, consecutiveFailures: 2 },
-  rubitime: { enabled: true, intervalMs: 600_000, timeoutMs: 5_000, consecutiveFailures: 2 },
   google_calendar: { enabled: true, intervalMs: 600_000, timeoutMs: 5_000, consecutiveFailures: 2 },
+  email: { intervalMs: 900_000, timeoutMs: 60_000, roundTripDeadlineMs: 300_000, retentionMs: 604_800_000, cleanupIntervalMs: 86_400_000 },
   quietWindowMaxDurationMs: 86_400_000,
   quietUntil: null,
 };
@@ -30,7 +37,14 @@ const probeSchema = z.object({
   consecutiveFailures: z.number().int().min(2).max(10),
 });
 const configSchema = z.object({
-  max: probeSchema, telegram: probeSchema, rubitime: probeSchema, google_calendar: probeSchema,
+  max: probeSchema, telegram: probeSchema, google_calendar: probeSchema,
+  email: z.object({
+    intervalMs: z.number().int().min(300_000).max(3_600_000),
+    timeoutMs: z.number().int().min(30_000).max(120_000),
+    roundTripDeadlineMs: z.number().int().min(60_000).max(900_000),
+    retentionMs: z.number().int().min(86_400_000).max(2_592_000_000),
+    cleanupIntervalMs: z.number().int().min(86_400_000).max(604_800_000),
+  }).default({ intervalMs: 900_000, timeoutMs: 60_000, roundTripDeadlineMs: 300_000, retentionMs: 604_800_000, cleanupIntervalMs: 86_400_000 }),
   quietWindowMaxDurationMs: z.number().int().min(60_000).max(604_800_000).default(86_400_000),
   quietUntil: z.string().datetime({ offset: true }).nullable(),
 });

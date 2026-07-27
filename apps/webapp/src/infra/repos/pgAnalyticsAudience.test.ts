@@ -62,6 +62,7 @@ describe("pgAnalyticsAudience", () => {
         excludeStaffRoles: true,
         testAccountIdentifiers: {
           phones: ["+79001234567"],
+          emails: [],
           telegramIds: ["tg-1"],
           maxIds: ["max-1"],
         },
@@ -83,7 +84,7 @@ describe("pgAnalyticsAudience", () => {
       resolveAnalyticsExcludedUserIds(db, {
         includeTestAccounts: false,
         excludeStaffRoles: false,
-        testAccountIdentifiers: { phones: ["+79009998877"], telegramIds: [], maxIds: [] },
+        testAccountIdentifiers: { phones: ["+79009998877"], telegramIds: [], maxIds: [], emails: [] },
       }),
     ).resolves.toEqual(["phone-only-user"]);
   });

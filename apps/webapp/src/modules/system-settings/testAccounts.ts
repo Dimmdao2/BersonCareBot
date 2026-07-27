@@ -1,11 +1,13 @@
 import { normalizePhone } from "@/modules/auth/phoneNormalize";
 import { isValidPhoneE164 } from "@/modules/auth/phoneValidation";
+import { normalizeEmail } from "@/modules/auth/emailAuth";
 
 /** Stored under `system_settings.test_account_identifiers` (admin). */
 export type TestAccountIdentifiers = {
   phones: string[];
   telegramIds: string[];
   maxIds: string[];
+  emails: string[];
 };
 
 const MAX_LIST_LEN = 200;
@@ -29,7 +31,15 @@ function normalizeTestAccountPhoneToken(raw: string): string | null {
   return n;
 }
 
-function parseStringArrayField(raw: unknown, field: "phones" | "telegramIds" | "maxIds"): string[] {
+function normalizeTestAccountEmailToken(raw: string): string | null {
+  const email = normalizeEmail(raw);
+  if (!email || email.length > MAX_TOKEN_LEN) return null;
+  // Deliberately conservative: the delivery address must be a single, normalised mailbox.
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return null;
+  return email;
+}
+
+function parseStringArrayField(raw: unknown, field: "phones" | "telegramIds" | "maxIds" | "emails"): string[] {
   if (raw === undefined || raw === null) return [];
   if (!Array.isArray(raw)) return [];
   const out: string[] = [];
@@ -41,6 +51,10 @@ function parseStringArrayField(raw: unknown, field: "phones" | "telegramIds" | "
       const n = normalizeTestAccountPhoneToken(t);
       if (n === null) continue;
       out.push(n);
+    } else if (field === "emails") {
+      const email = normalizeTestAccountEmailToken(t);
+      if (email === null) continue;
+      out.push(email);
     } else {
       if (t.length > MAX_TOKEN_LEN) continue;
       out.push(t);
@@ -98,7 +112,8 @@ export function normalizeTestAccountIdentifiersValue(inner: unknown): TestAccoun
   const phones = parseStringArrayField(o.phones, "phones");
   const telegramIds = parseStringArrayField(o.telegramIds, "telegramIds");
   const maxIds = parseStringArrayField(o.maxIds, "maxIds");
-  return { phones, telegramIds, maxIds };
+  const emails = parseStringArrayField(o.emails, "emails");
+  return { phones, telegramIds, maxIds, emails };
 }
 
 export function sessionMatchesTestAccountIdentifiers(
@@ -118,8 +133,7 @@ export function sessionMatchesTestAccountIdentifiers(
 }
 
 /**
- * Dev-mode relay: разрешить только если канал `telegram` или `max` и `recipient` есть в соответствующем списке spec.
- * Любой другой канал → `false` (в т.ч. `sms` до появления явной политики и поля `phone` в контракте guard).
+ * Dev-mode relay: разрешить только адреса явно внесённых тестовых аккаунтов.
  */
 export function relayRecipientAllowedInDevMode(
   channel: string,
@@ -131,5 +145,7 @@ export function relayRecipientAllowedInDevMode(
   if (!rec) return false;
   if (ch === "telegram") return spec.telegramIds.includes(rec);
   if (ch === "max") return spec.maxIds.includes(rec);
+  if (ch === "email") return spec.emails.includes(normalizeTestAccountEmailToken(rec) ?? "");
+  if (ch === "sms") return spec.phones.includes(normalizeTestAccountPhoneToken(rec) ?? "");
   return false;
 }

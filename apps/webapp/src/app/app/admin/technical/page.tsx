@@ -4,6 +4,7 @@ import { AdminSettingsSection } from "@/app/app/settings/AdminSettingsSection";
 import { OperatorHealthAlertsSection } from "@/app/app/settings/OperatorHealthAlertsSection";
 import { OperatorHealthProjectionThresholdsSection } from "@/app/app/settings/OperatorHealthProjectionThresholdsSection";
 import { ErrorTrackingSettingsSection } from "@/app/app/settings/ErrorTrackingSettingsSection";
+import { OperatorHealthProbeSettingsSection } from "@/app/app/admin/system-health/OperatorHealthProbeSettingsSection";
 import { DoctorAppShell } from "@/shared/ui/doctor/DoctorAppShell";
 import { DoctorPageHeader } from "@/shared/ui/doctor/shell/DoctorPageHeader";
 
@@ -25,12 +26,10 @@ export default async function DoctorAdminTechnicalPage() {
         importantFallbackDelayMinutes={diagnostics.importantFallbackDelayMinutes}
         platformUserMergeV2Enabled={diagnostics.platformUserMergeV2Enabled}
         integratorLinkedPhoneSource={diagnostics.integratorLinkedPhoneSource}
-        adminPhone={diagnostics.adminPhone}
-        adminTelegramId={diagnostics.adminTelegramId}
-        adminMaxId={diagnostics.adminMaxId}
         testAccountPhones={diagnostics.testAccountIdentifiers.phones.join(" ")}
         testAccountTelegramIds={diagnostics.testAccountIdentifiers.telegramIds.join(" ")}
         testAccountMaxIds={diagnostics.testAccountIdentifiers.maxIds.join(" ")}
+        testAccountEmails={diagnostics.testAccountIdentifiers.emails.join(" ")}
         patientAppMaintenanceEnabled={diagnostics.patientAppMaintenanceEnabled}
         patientAppMaintenanceMessage={diagnostics.patientAppMaintenanceMessage}
         patientProgramDiscussionDoctorReplyFromLogEnabled={
@@ -40,6 +39,7 @@ export default async function DoctorAdminTechnicalPage() {
         patientProgramDiscussionMediaSubmissionEnabled={diagnostics.patientProgramDiscussionMediaSubmissionEnabled}
         patientBookingUrl={diagnostics.patientBookingUrl}
       />
+      <OperatorHealthProbeSettingsSection />
       <OperatorHealthAlertsSection initialConfig={diagnostics.operatorHealthAlertsConfig} />
       <OperatorHealthProjectionThresholdsSection
         initialThresholds={diagnostics.operatorHealthProjectionThresholds}

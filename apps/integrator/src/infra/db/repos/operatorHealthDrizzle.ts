@@ -88,19 +88,18 @@ export async function getOperatorIncidentAlertState(
 }
 
 /**
- * Закрыть все открытые инциденты, чей dedup_key начинается с префикса (MVP: resolve проб MAX/Rubitime).
+ * Закрыть все открытые инциденты, чей dedup_key начинается с префикса.
  */
 const OPERATOR_HEALTH_JOB_FAMILY = 'health';
 const OPERATOR_OUTBOUND_PROBE_JOB_KEY = 'health.outbound_probe.run';
-const OPERATOR_OUTBOUND_PROBE_CHANNELS = ['max', 'rubitime', 'telegram', 'google_calendar'] as const;
+const OPERATOR_OUTBOUND_PROBE_CHANNELS = ['max', 'telegram', 'google_calendar'] as const;
 type OperatorOutboundProbeChannel = (typeof OPERATOR_OUTBOUND_PROBE_CHANNELS)[number];
 
 /**
- * Записать результат синтетических проб (MAX/Rubitime) в `operator_job_status` для 3-strike critical tick.
+ * Записать результат синтетических проб в `operator_job_status` для 3-strike critical tick.
  */
 export async function recordOperatorOutboundProbeRun(input: {
   max: string;
-  rubitime: string;
   telegram: string;
   google_calendar: string;
   probed?: readonly OperatorOutboundProbeChannel[];
@@ -138,7 +137,6 @@ export async function recordOperatorOutboundProbeRun(input: {
   const consecutiveFailRuns = Math.max(...Object.values(consecutiveFailures));
   const metaJson = {
     max: input.max,
-    rubitime: input.rubitime,
     telegram: input.telegram,
     google_calendar: input.google_calendar,
     consecutiveFailRuns,

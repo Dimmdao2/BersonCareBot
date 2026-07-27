@@ -53,7 +53,6 @@ function fetchWithTimeout(timeoutMs: number): typeof fetch {
 
 export type OperatorHealthProbeRunResult = {
   max: ProbeOutcome;
-  rubitime: ProbeOutcome;
   telegram: ProbeOutcome;
   google_calendar: ProbeOutcome;
   details: Record<string, string>;
@@ -71,13 +70,12 @@ export async function runOperatorHealthProbes(input: {
   if (isOperatorHealthProbeQuiet(config)) {
     return {
       max: 'skipped_not_configured',
-      rubitime: 'skipped_not_configured',
       telegram: 'skipped_not_configured',
       google_calendar: 'skipped_not_configured',
       details: { quietWindow: 'active' },
     };
   }
-  const requestedProbes = input.probes ?? ['max', 'telegram', 'rubitime', 'google_calendar'];
+  const requestedProbes = input.probes ?? ['max', 'telegram', 'google_calendar'];
   const attemptStartedAtMs = Date.now();
   const probes = requestedProbes.filter((name) => {
     if (!config[name].enabled) return false;
@@ -92,7 +90,6 @@ export async function runOperatorHealthProbes(input: {
   const shouldProbe = (name: OperatorHealthProbeName) => probes.includes(name) && config[name].enabled;
   const details: Record<string, string> = {};
   let max: ProbeOutcome = 'skipped_not_configured';
-  let rubitime: ProbeOutcome = 'skipped_not_configured';
   let telegram: ProbeOutcome = 'skipped_not_configured';
   let google_calendar: ProbeOutcome = 'skipped_not_configured';
 
@@ -110,8 +107,6 @@ export async function runOperatorHealthProbes(input: {
   } else if (shouldProbe('max')) {
     details.max = 'skipped_not_configured';
   }
-
-  details.rubitime = shouldProbe('rubitime') ? 'retired' : 'disabled_or_not_due';
 
   if (shouldProbe('telegram') && telegramConfig.botToken.trim().length > 0) {
     try {
@@ -161,11 +156,10 @@ export async function runOperatorHealthProbes(input: {
   try {
     if (probes.length === 0) {
       logger.info({ requestedProbes }, 'operator_health_probes_suppressed_by_attempt_floor');
-      return { max, rubitime, telegram, google_calendar, details };
+      return { max, telegram, google_calendar, details };
     }
     const streak = await recordOperatorOutboundProbeRun({
       max,
-      rubitime,
       telegram,
       google_calendar,
       probed: probes.filter((name) => config[name].enabled),
@@ -188,6 +182,6 @@ export async function runOperatorHealthProbes(input: {
     logger.warn({ err }, 'operator_health_probe_job_status_failed');
   }
 
-  logger.info({ max, rubitime, telegram, google_calendar, details }, 'operator_health_probes_done');
-  return { max, rubitime, telegram, google_calendar, details };
+  logger.info({ max, telegram, google_calendar, details }, 'operator_health_probes_done');
+  return { max, telegram, google_calendar, details };
 }

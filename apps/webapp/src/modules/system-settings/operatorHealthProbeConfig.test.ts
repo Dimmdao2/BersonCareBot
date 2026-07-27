@@ -12,8 +12,8 @@ describe("operator health probe settings", () => {
     const tooFast = structuredClone(OPERATOR_HEALTH_PROBE_DEFAULT_VALUE) as {
       max: { enabled: boolean; intervalMs: number; timeoutMs: number; consecutiveFailures: number };
       telegram: { enabled: boolean; intervalMs: number; timeoutMs: number; consecutiveFailures: number };
-      rubitime: { enabled: boolean; intervalMs: number; timeoutMs: number; consecutiveFailures: number };
       google_calendar: { enabled: boolean; intervalMs: number; timeoutMs: number; consecutiveFailures: number };
+      email: { intervalMs: number; timeoutMs: number; roundTripDeadlineMs: number; retentionMs: number; cleanupIntervalMs: number };
       quietWindowMaxDurationMs: number;
       quietUntil: string | null;
     };

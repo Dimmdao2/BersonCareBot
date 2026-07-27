@@ -5,13 +5,20 @@ export const OPERATOR_HEALTH_PROBE_QUIET_WINDOW_DEFAULT_MAX_DURATION_MS = 24 * 6
 export const OPERATOR_HEALTH_PROBE_DEFAULT_VALUE = {
   max: { enabled: true, intervalMs: 600_000, timeoutMs: 5_000, consecutiveFailures: 2 },
   telegram: { enabled: true, intervalMs: 600_000, timeoutMs: 5_000, consecutiveFailures: 2 },
-  rubitime: { enabled: true, intervalMs: 600_000, timeoutMs: 5_000, consecutiveFailures: 2 },
   google_calendar: { enabled: true, intervalMs: 600_000, timeoutMs: 5_000, consecutiveFailures: 2 },
+  /** Settings only: the IMAP round-trip probe itself is intentionally not implemented in this slice. */
+  email: {
+    intervalMs: 900_000,
+    timeoutMs: 60_000,
+    roundTripDeadlineMs: 300_000,
+    retentionMs: 7 * 24 * 60 * 60 * 1_000,
+    cleanupIntervalMs: 24 * 60 * 60 * 1_000,
+  },
   quietWindowMaxDurationMs: OPERATOR_HEALTH_PROBE_QUIET_WINDOW_DEFAULT_MAX_DURATION_MS,
   quietUntil: null,
 } as const;
 
-const PROBE_NAMES = ["max", "telegram", "rubitime", "google_calendar"] as const;
+const PROBE_NAMES = ["max", "telegram", "google_calendar"] as const;
 const QUIET_WINDOW_CAP_MIN_MS = 60_000;
 const QUIET_WINDOW_CAP_MAX_MS = 7 * 24 * 60 * 60 * 1_000;
 
@@ -49,6 +56,22 @@ export function assertOperatorHealthProbeConfig(valueJson: unknown, now = new Da
       throw new Error(`Порог пробы ${name} должен быть от 2 до 10 подряд: тревога требует подтверждённых сбоев. Исправьте порог и сохраните снова.`);
     }
   }
+  const email = config.email;
+  if (!email || typeof email !== "object" || Array.isArray(email)) {
+    throw new Error("Настройки почтовой пробы обязательны. Заполните их и сохраните снова.");
+  }
+  const mail = email as Record<string, unknown>;
+  const assertRange = (key: string, min: number, max: number, label: string) => {
+    const candidate = mail[key];
+    if (typeof candidate !== "number" || !Number.isInteger(candidate) || candidate < min || candidate > max) {
+      throw new Error(`${label} должен быть от ${min / 60_000} до ${max / 60_000} минут. Исправьте значение и сохраните снова.`);
+    }
+  };
+  assertRange("intervalMs", 300_000, 3_600_000, "Период почтовой пробы");
+  assertRange("timeoutMs", 30_000, 120_000, "Таймаут почтовой пробы");
+  assertRange("roundTripDeadlineMs", 60_000, 900_000, "Дедлайн доставки письма");
+  assertRange("retentionMs", 86_400_000, 30 * 86_400_000, "Срок хранения служебной почты");
+  assertRange("cleanupIntervalMs", 86_400_000, 7 * 86_400_000, "Период очистки служебной почты");
   const quietWindowMaxDurationMs =
     config.quietWindowMaxDurationMs ?? OPERATOR_HEALTH_PROBE_QUIET_WINDOW_DEFAULT_MAX_DURATION_MS;
   if (

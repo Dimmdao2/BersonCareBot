@@ -99,6 +99,7 @@ describe("analyticsAudience", () => {
       excludeStaffRoles: false,
       testAccountIdentifiers: {
         phones: ["+79001234567"],
+        emails: [],
         telegramIds: ["tg-1"],
         maxIds: ["max-1"],
       },

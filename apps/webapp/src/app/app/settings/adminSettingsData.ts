@@ -3,7 +3,6 @@ import { env } from "@/config/env";
 import { DEFAULT_APP_DISPLAY_TIMEZONE } from "@/modules/system-settings/appDisplayTimezone";
 import { DEFAULT_SUPPORT_CONTACT_URL } from "@/modules/system-settings/supportContactConstants";
 import { DEFAULT_PATIENT_MAINTENANCE_MESSAGE } from "@/modules/system-settings/patientMaintenance";
-import { parseIdTokens } from "@/shared/parsers/parseIdTokens";
 import { normalizeTestAccountIdentifiersValue } from "@/modules/system-settings/testAccounts";
 import {
   VIDEO_PRESIGN_TTL_MAX_SEC,
@@ -52,16 +51,6 @@ function getValueJson<T>(valueJson: unknown, fallback: T): T {
     return (valueJson as Record<string, unknown>).value as T;
   }
   return fallback;
-}
-
-function firstAdminSlotFromSettings(settings: Array<{ key: string; valueJson: unknown }>, key: string): string {
-  const entry = settings.find((x) => x.key === key);
-  const raw = getValueJson<unknown>(entry?.valueJson, []);
-  if (Array.isArray(raw)) {
-    const s = raw.find((x) => typeof x === "string" && String(x).trim().length > 0);
-    return typeof s === "string" ? s.trim() : "";
-  }
-  return parseIdTokens(raw)[0] ?? "";
 }
 
 function parseVideoBoolSetting(valueJson: unknown): boolean {
@@ -142,10 +131,7 @@ export type AdminDiagnosticsSettings = {
   importantFallbackDelayMinutes: number;
   platformUserMergeV2Enabled: boolean;
   integratorLinkedPhoneSource: IntegratorLinkedPhoneSource;
-  adminPhone: string;
-  adminTelegramId: string;
-  adminMaxId: string;
-  testAccountIdentifiers: { phones: string[]; telegramIds: string[]; maxIds: string[] };
+  testAccountIdentifiers: { phones: string[]; telegramIds: string[]; maxIds: string[]; emails: string[] };
   patientAppMaintenanceEnabled: boolean;
   patientAppMaintenanceMessage: string;
   patientProgramDiscussionDoctorReplyFromLogEnabled: boolean;
@@ -253,9 +239,6 @@ export async function loadAdminSettingsPageData(): Promise<AdminSettingsPageData
       if (s === "public_only" || s === "contacts_only" || s === "public_then_contacts") return s;
       return "public_then_contacts";
     })(),
-    adminPhone: firstAdminSlotFromSettings(adminSettingsList, "admin_phones"),
-    adminTelegramId: firstAdminSlotFromSettings(adminSettingsList, "admin_telegram_ids"),
-    adminMaxId: firstAdminSlotFromSettings(adminSettingsList, "admin_max_ids"),
     testAccountIdentifiers: (() => {
       const inner = getValueJson<unknown>(
         adminSettingsList.find((x) => x.key === "test_account_identifiers")?.valueJson,
@@ -266,6 +249,7 @@ export async function loadAdminSettingsPageData(): Promise<AdminSettingsPageData
           phones: [] as string[],
           telegramIds: [] as string[],
           maxIds: [] as string[],
+          emails: [] as string[],
         }
       );
     })(),

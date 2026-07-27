@@ -18,11 +18,13 @@ describe("normalizeTestAccountIdentifiersValue", () => {
       phones: ["+7 999 000 00 01", "+79990000001", "bad"],
       telegramIds: [],
       maxIds: [],
+      emails: [],
     });
     expect(v).toEqual({
       phones: ["+79990000001"],
       telegramIds: [],
       maxIds: [],
+      emails: [],
     });
   });
 
@@ -31,8 +33,9 @@ describe("normalizeTestAccountIdentifiersValue", () => {
       phones: [],
       telegramIds: [" 1 ", "1", "2"],
       maxIds: ["a", "a"],
+      emails: [" TEST@EXAMPLE.COM ", "test@example.com", "bad"],
     });
-    expect(v).toEqual({ phones: [], telegramIds: ["1", "2"], maxIds: ["a"] });
+    expect(v).toEqual({ phones: [], telegramIds: ["1", "2"], maxIds: ["a"], emails: ["test@example.com"] });
   });
 });
 
@@ -47,6 +50,7 @@ describe("previewTestAccountPhoneTokens", () => {
       phones: tokens,
       telegramIds: [],
       maxIds: [],
+      emails: [],
     });
     expect(normalized?.phones).toEqual(preview.accepted);
   });
@@ -60,7 +64,7 @@ describe("previewTestAccountPhoneTokens", () => {
 });
 
 describe("sessionMatchesTestAccountIdentifiers", () => {
-  const spec = { phones: ["+79991112233"], telegramIds: ["42"], maxIds: ["mx"] };
+  const spec = { phones: ["+79991112233"], telegramIds: ["42"], maxIds: ["mx"], emails: ["test@example.com"] };
 
   it("matches by normalized phone", () => {
     expect(sessionMatchesTestAccountIdentifiers({ phone: "+7 999 111 22 33" }, spec)).toBe(true);
@@ -77,7 +81,7 @@ describe("sessionMatchesTestAccountIdentifiers", () => {
 });
 
 describe("relayRecipientAllowedInDevMode", () => {
-  const spec = { phones: [], telegramIds: ["9"], maxIds: ["m"] };
+  const spec = { phones: [], telegramIds: ["9"], maxIds: ["m"], emails: [] };
 
   it("allows telegram and max recipients", () => {
     expect(relayRecipientAllowedInDevMode("telegram", "9", spec)).toBe(true);
@@ -86,5 +90,12 @@ describe("relayRecipientAllowedInDevMode", () => {
 
   it("is fail-closed for unknown channel", () => {
     expect(relayRecipientAllowedInDevMode("sms", "+7999", spec)).toBe(false);
+  });
+
+  it("allows normalized e-mail and SMS recipients from the test-account allowlist", () => {
+    const allowed = { phones: ["+79991112233"], telegramIds: [], maxIds: [], emails: ["test@example.com"] };
+    expect(relayRecipientAllowedInDevMode("email", " TEST@EXAMPLE.COM ", allowed)).toBe(true);
+    expect(relayRecipientAllowedInDevMode("sms", "+7 999 111-22-33", allowed)).toBe(true);
+    expect(relayRecipientAllowedInDevMode("email", "other@example.com", allowed)).toBe(false);
   });
 });

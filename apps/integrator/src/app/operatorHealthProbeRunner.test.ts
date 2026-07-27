@@ -63,11 +63,8 @@ describe('runOperatorHealthProbes', () => {
     getMaxBotInfoMock.mockResolvedValue({ id: 1 });
     const r = await runOperatorHealthProbes({ dispatchPort });
     expect(r.max).toBe('ok');
-    expect(r.rubitime).toBe('skipped_not_configured');
-    expect(r.details.rubitime).toBe('retired');
     expect(reportOperatorFailureMock).not.toHaveBeenCalled();
     expect(resolvePrefixMock).toHaveBeenCalledWith('outbound:max:');
-    expect(resolvePrefixMock).not.toHaveBeenCalledWith('outbound:rubitime:');
   });
 
   it('Telegram first failure is recorded but does not raise an incident', async () => {
@@ -162,7 +159,6 @@ describe('runOperatorHealthProbes', () => {
     expect(recordProbeRunMock).toHaveBeenCalledWith(
       expect.objectContaining({
         max: 'fail',
-        rubitime: 'skipped_not_configured',
         telegram: 'skipped_not_configured',
         probed: expect.any(Array),
       }),

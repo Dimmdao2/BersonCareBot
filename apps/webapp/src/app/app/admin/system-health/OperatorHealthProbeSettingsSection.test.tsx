@@ -5,7 +5,7 @@ import { render, screen, waitFor } from '@testing-library/react';
 import { OperatorHealthProbeSettingsSection } from './OperatorHealthProbeSettingsSection';
 
 describe('OperatorHealthProbeSettingsSection', () => {
-  it('renders current and code-default values and marks Rubitime retired', async () => {
+  it('renders current and code-default values without the retired Rubitime probe', async () => {
     vi.stubGlobal(
       'fetch',
       vi
@@ -39,6 +39,7 @@ describe('OperatorHealthProbeSettingsSection', () => {
                           timeoutMs: 5000,
                           consecutiveFailures: 2,
                         },
+                        email: { intervalMs: 900000, timeoutMs: 60000, roundTripDeadlineMs: 300000, retentionMs: 604800000, cleanupIntervalMs: 86400000 },
                         quietUntil: null,
                       },
                     },
@@ -52,7 +53,7 @@ describe('OperatorHealthProbeSettingsSection', () => {
     await waitFor(() => expect(screen.getByDisplayValue('15')).toBeInTheDocument());
     expect(screen.getAllByText(/По умолчанию:/).length).toBeGreaterThanOrEqual(9);
     expect(screen.getByRole('button', { name: 'Сбросить на дефолт' })).toBeInTheDocument();
-    expect(screen.getByText(/Rubitime/)).toBeInTheDocument();
-    expect(screen.getByText(/выведена из эксплуатации/)).toBeInTheDocument();
+    expect(screen.queryByText(/Rubitime/)).not.toBeInTheDocument();
+    expect(screen.getByText(/Письмо не дошло за/)).toBeInTheDocument();
   });
 });

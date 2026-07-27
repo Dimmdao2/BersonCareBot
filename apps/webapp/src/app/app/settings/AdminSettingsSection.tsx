@@ -8,8 +8,6 @@ import { Textarea } from "@/shared/ui/doctor/primitives/textarea";
 import { LabeledSwitch } from "@/shared/ui/doctor/primitives/labeled-switch";
 import { Select, SelectContent, SelectItem, SelectTrigger } from "@/shared/ui/doctor/primitives/select";
 import { parseIdTokens } from "@/shared/parsers/parseIdTokens";
-import { normalizePhone } from "@/modules/auth/phoneNormalize";
-import { isValidPhoneE164 } from "@/modules/auth/phoneValidation";
 import { previewTestAccountPhoneTokens } from "@/modules/system-settings/testAccounts";
 import { patchAdminSettingsBatch } from "./patchAdminSetting";
 
@@ -24,14 +22,11 @@ export type AdminSettingsSectionProps = {
   platformUserMergeV2Enabled: boolean;
   /** Как integrator собирает `linkedPhone`: public vs legacy `integrator.contacts`. */
   integratorLinkedPhoneSource: IntegratorLinkedPhoneSource;
-  /** Первый админский телефон (остальные слоты в БД не редактируются из этого поля). */
-  adminPhone: string;
-  adminTelegramId: string;
-  adminMaxId: string;
   /** Тестовые аккаунты: телефоны (пробел/запятая), Telegram ID, Max ID — для техработ и dev_mode relay. */
   testAccountPhones: string;
   testAccountTelegramIds: string;
   testAccountMaxIds: string;
+  testAccountEmails: string;
   patientAppMaintenanceEnabled: boolean;
   patientAppMaintenanceMessage: string;
   patientProgramDiscussionDoctorReplyFromLogEnabled: boolean;
@@ -40,20 +35,6 @@ export type AdminSettingsSectionProps = {
   patientBookingUrl: string;
 };
 
-function firstPhoneTokenForAdminSave(raw: string): string[] {
-  const tokens = parseIdTokens(raw);
-  if (tokens.length === 0) return [];
-  const n = normalizePhone(tokens[0]!);
-  if (!isValidPhoneE164(n)) return [];
-  return [n];
-}
-
-function firstIdTokenForAdminSave(raw: string): string[] {
-  const tokens = parseIdTokens(raw);
-  if (tokens.length === 0) return [];
-  return [tokens[0]!];
-}
-
 export function AdminSettingsSection({
   devMode,
   debugForwardToAdmin,
@@ -61,12 +42,10 @@ export function AdminSettingsSection({
   importantFallbackDelayMinutes,
   platformUserMergeV2Enabled,
   integratorLinkedPhoneSource,
-  adminPhone,
-  adminTelegramId,
-  adminMaxId,
   testAccountPhones,
   testAccountTelegramIds,
   testAccountMaxIds,
+  testAccountEmails,
   patientAppMaintenanceEnabled,
   patientAppMaintenanceMessage,
   patientProgramDiscussionDoctorReplyFromLogEnabled,
@@ -81,13 +60,10 @@ export function AdminSettingsSection({
   const [mergeV2, setMergeV2] = useState(platformUserMergeV2Enabled);
   const [linkedPhoneSource, setLinkedPhoneSource] = useState(integratorLinkedPhoneSource);
 
-  const [adminPhoneVal, setAdminPhoneVal] = useState(adminPhone);
-  const [adminTgVal, setAdminTgVal] = useState(adminTelegramId);
-  const [adminMaxVal, setAdminMaxVal] = useState(adminMaxId);
-
   const [testPhonesVal, setTestPhonesVal] = useState(testAccountPhones);
   const [testTgVal, setTestTgVal] = useState(testAccountTelegramIds);
   const [testMaxVal, setTestMaxVal] = useState(testAccountMaxIds);
+  const [testEmailsVal, setTestEmailsVal] = useState(testAccountEmails);
 
   const [maintenanceEnabled, setMaintenanceEnabled] = useState(patientAppMaintenanceEnabled);
   const [maintenanceMessage, setMaintenanceMessage] = useState(patientAppMaintenanceMessage);
@@ -132,18 +108,13 @@ export function AdminSettingsSection({
       }
     }
 
-    const adminPhonesPayload = firstPhoneTokenForAdminSave(adminPhoneVal);
-    if (adminPhoneVal.trim().length > 0 && adminPhonesPayload.length === 0) {
-      setError("Телефон администратора: укажите валидный номер в формате E.164 или оставьте пустым");
-      return;
-    }
-
     startTransition(async () => {
       try {
         const testPayload = {
           phones: parseIdTokens(testPhonesVal),
           telegramIds: parseIdTokens(testTgVal),
           maxIds: parseIdTokens(testMaxVal),
+          emails: parseIdTokens(testEmailsVal),
         };
 
         const batchResult = await patchAdminSettingsBatch([
@@ -153,9 +124,6 @@ export function AdminSettingsSection({
           { key: "important_fallback_delay_minutes", value: fallbackDelay },
           { key: "platform_user_merge_v2_enabled", value: mergeV2 },
           { key: "integrator_linked_phone_source", value: linkedPhoneSource },
-          { key: "admin_phones", value: adminPhonesPayload },
-          { key: "admin_telegram_ids", value: firstIdTokenForAdminSave(adminTgVal) },
-          { key: "admin_max_ids", value: firstIdTokenForAdminSave(adminMaxVal) },
           { key: "test_account_identifiers", value: testPayload },
           { key: "patient_app_maintenance_enabled", value: maintenanceEnabled },
           { key: "patient_app_maintenance_message", value: msgRaw },
@@ -208,55 +176,10 @@ export function AdminSettingsSection({
       </CardHeader>
       <CardContent className="flex flex-col gap-6">
         <section className="flex flex-col gap-3 rounded-lg border border-border/80 bg-muted/20 p-4">
-          <p className="text-sm font-semibold">Администратор</p>
-          <p className="text-xs text-muted-foreground">
-            Один телефон и один ID на канал (сохраняется как первый элемент списка в БД; остальные слоты не трогаем).
-          </p>
-          <p className="text-xs font-medium text-destructive">
-            C-4 (26.07.2026): эти поля больше не дают доступ администратора — роль определяется только
-            строкой в БД и переменной окружения владельца. Сохранённое здесь ни на что не влияет.
-          </p>
-          <label className="flex flex-col gap-1">
-            <span className="text-xs font-medium">Телефон (E.164)</span>
-            <Input
-              type="text"
-              value={adminPhoneVal}
-              onChange={(e) => setAdminPhoneVal(e.target.value)}
-              disabled={isPending}
-              autoComplete="off"
-              className="max-w-xl font-mono text-sm"
-              placeholder="+79990000000"
-            />
-          </label>
-          <label className="flex flex-col gap-1">
-            <span className="text-xs font-medium">Telegram ID</span>
-            <Input
-              type="text"
-              value={adminTgVal}
-              onChange={(e) => setAdminTgVal(e.target.value)}
-              disabled={isPending}
-              autoComplete="off"
-              className="max-w-xl font-mono text-sm"
-            />
-          </label>
-          <label className="flex flex-col gap-1">
-            <span className="text-xs font-medium">Max ID</span>
-            <Input
-              type="text"
-              value={adminMaxVal}
-              onChange={(e) => setAdminMaxVal(e.target.value)}
-              disabled={isPending}
-              autoComplete="off"
-              className="max-w-xl font-mono text-sm"
-            />
-          </label>
-        </section>
-
-        <section className="flex flex-col gap-3 rounded-lg border border-border/80 bg-muted/20 p-4">
           <p className="text-sm font-semibold">Тестовые аккаунты</p>
           <p className="text-xs text-muted-foreground">
             При включённых техработах пациентского приложения эти аккаунты видят полный интерфейс. При dev_mode
-            рассылки уходят только на перечисленные Telegram / Max ID (и телефон для будущих SMS-каналов).
+            рассылки уходят только на перечисленные Telegram / Max ID, номера SMS и адреса e-mail.
           </p>
           <label className="flex flex-col gap-1">
             <span className="text-xs font-medium">Телефоны (пробел, запятая)</span>
@@ -303,6 +226,10 @@ export function AdminSettingsSection({
               disabled={isPending}
               className="max-w-2xl font-mono text-sm"
             />
+          </label>
+          <label className="flex flex-col gap-1">
+            <span className="text-xs font-medium">E-mail (пробел, запятая)</span>
+            <Input type="text" value={testEmailsVal} onChange={(e) => setTestEmailsVal(e.target.value)} disabled={isPending} className="max-w-2xl font-mono text-sm" />
           </label>
         </section>
 

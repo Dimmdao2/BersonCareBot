@@ -21,7 +21,6 @@ describe('runScheduledOperatorHealthProbeTick', () => {
       principals.push(getCurrentDbPrincipal());
       return {
         max: 'ok' as const,
-        rubitime: 'skipped_not_configured' as const,
         telegram: 'skipped_not_configured' as const,
         google_calendar: 'skipped_not_configured' as const,
         details: {},
@@ -39,7 +38,6 @@ describe('runScheduledOperatorHealthProbeTick', () => {
         return {
           max: '2026-07-27T11:40:00.000Z',
           telegram: '2026-07-27T11:59:00.000Z',
-          rubitime: '2026-07-27T11:59:00.000Z',
           google_calendar: '2026-07-27T11:59:00.000Z',
         };
       }),

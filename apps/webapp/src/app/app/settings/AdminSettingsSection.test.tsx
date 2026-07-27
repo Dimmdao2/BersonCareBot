@@ -19,12 +19,10 @@ const baseProps = {
   importantFallbackDelayMinutes: 60,
   platformUserMergeV2Enabled: false,
   integratorLinkedPhoneSource: "public_then_contacts" as const,
-  adminPhone: "",
-  adminTelegramId: "",
-  adminMaxId: "",
   testAccountPhones: "",
   testAccountTelegramIds: "",
   testAccountMaxIds: "",
+  testAccountEmails: "",
   patientAppMaintenanceEnabled: false,
   patientAppMaintenanceMessage: "msg",
   patientProgramDiscussionDoctorReplyFromLogEnabled: false,
@@ -39,21 +37,21 @@ describe("AdminSettingsSection", () => {
     patchBatchMock.mockResolvedValue({ ok: true });
   });
 
-  it("save issues one batch PATCH for admin slots, test_account_identifiers, maintenance and mode flags", async () => {
+  it("saves test accounts, maintenance and mode flags in one batch", async () => {
     const user = userEvent.setup();
     render(
       <AdminSettingsSection
         {...baseProps}
-        adminPhone="+79990000001"
         testAccountTelegramIds="111 222"
         testAccountMaxIds="m1"
+        testAccountEmails="TEST@EXAMPLE.COM"
       />,
     );
     await user.click(screen.getByRole("button", { name: /Сохранить настройки/i }));
     await waitFor(() => expect(patchBatchMock).toHaveBeenCalledTimes(1));
 
     const items = patchBatchMock.mock.calls[0]![0] as { key: string; value: unknown }[];
-    expect(items).toHaveLength(16);
+    expect(items).toHaveLength(13);
     const keys = items.map((i) => i.key);
     expect(keys).toEqual(
       expect.arrayContaining([
@@ -63,9 +61,6 @@ describe("AdminSettingsSection", () => {
         "important_fallback_delay_minutes",
         "platform_user_merge_v2_enabled",
         "integrator_linked_phone_source",
-        "admin_phones",
-        "admin_telegram_ids",
-        "admin_max_ids",
         "test_account_identifiers",
         "patient_app_maintenance_enabled",
         "patient_app_maintenance_message",
@@ -76,15 +71,12 @@ describe("AdminSettingsSection", () => {
       ]),
     );
 
-    const phonesItem = items.find((c) => c.key === "admin_phones");
-    expect(phonesItem?.value).toEqual(["+79990000001"]);
-
-
     const testItem = items.find((c) => c.key === "test_account_identifiers");
     expect(testItem?.value).toEqual({
       phones: [],
       telegramIds: ["111", "222"],
       maxIds: ["m1"],
+      emails: ["TEST@EXAMPLE.COM"],
     });
   });
 });

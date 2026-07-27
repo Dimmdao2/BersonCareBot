@@ -173,7 +173,7 @@ export const SYSTEM_SETTING_REGISTRY = {
     "global",
     "server",
     "structured",
-    '{"max":{"enabled":true,"intervalMs":600000,"timeoutMs":5000,"consecutiveFailures":2},"telegram":{"enabled":true,"intervalMs":600000,"timeoutMs":5000,"consecutiveFailures":2},"rubitime":{"enabled":true,"intervalMs":600000,"timeoutMs":5000,"consecutiveFailures":2},"google_calendar":{"enabled":true,"intervalMs":600000,"timeoutMs":5000,"consecutiveFailures":2},"quietWindowMaxDurationMs":86400000,"quietUntil":null}',
+    '{"max":{"enabled":true,"intervalMs":600000,"timeoutMs":5000,"consecutiveFailures":2},"telegram":{"enabled":true,"intervalMs":600000,"timeoutMs":5000,"consecutiveFailures":2},"google_calendar":{"enabled":true,"intervalMs":600000,"timeoutMs":5000,"consecutiveFailures":2},"email":{"intervalMs":900000,"timeoutMs":60000,"roundTripDeadlineMs":300000,"retentionMs":604800000,"cleanupIntervalMs":86400000},"quietWindowMaxDurationMs":86400000,"quietUntil":null}',
   ),
   operator_health_projection_thresholds: runtime("admin", "global", "server", "structured", "absent"),
   "notif_template:created:patient": runtime("admin", "per_org", "server", "string", "hardcoded fallback"),
