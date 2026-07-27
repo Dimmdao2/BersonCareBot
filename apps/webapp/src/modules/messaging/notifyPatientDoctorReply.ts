@@ -61,6 +61,17 @@ export function buildPersonalChatNotificationText(
   return `новое сообщение от ${displayName}`;
 }
 
+/**
+ * Structured FIO is authoritative; the legacy display name is only a fallback.
+ * Its safety validation remains centralized in buildPersonalChatNotificationText.
+ */
+export function selectPersonalChatSenderDisplayName(
+  structuredName: string | null | undefined,
+  displayName: string | null | undefined,
+): string | undefined {
+  return structuredName?.trim() || displayName?.trim() || undefined;
+}
+
 function messengerBody(notificationText: string, openUrl: string): string {
   return `${notificationText}\n\n${openUrl}`;
 }

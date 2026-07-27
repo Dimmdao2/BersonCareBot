@@ -11,7 +11,9 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
   buildPatientMessagesOpenUrl,
+  buildPersonalChatNotificationText,
   createNotifyPatientDoctorReply,
+  selectPersonalChatSenderDisplayName,
 } from "./notifyPatientDoctorReply";
 
 // ── module mocks ──────────────────────────────────────────────────────────────
@@ -329,5 +331,37 @@ describe("notifyPatientDoctorReply — P16 web_push leg migration", () => {
     await notify(notifyParams("   "));
 
     expect(vi.mocked(relayOutbound)).not.toHaveBeenCalled();
+  });
+});
+
+describe("personal chat sender name", () => {
+  const notificationFor = (structuredName: string, displayName: string, senderRole: "specialist" | "patient") =>
+    buildPersonalChatNotificationText(
+      selectPersonalChatSenderDisplayName(structuredName, displayName),
+      senderRole,
+    );
+
+  it("prefers structured FIO over a display name", () => {
+    expect(notificationFor("Берсон Дмитрий", "Другой Отправитель", "specialist"))
+      .toBe("новое сообщение от Берсон Дмитрий");
+  });
+
+  it("uses a safe display name when structured FIO is empty", () => {
+    expect(notificationFor("", "Анна Петрова", "specialist"))
+      .toBe("новое сообщение от Анна Петрова");
+  });
+
+  it.each(["doctor@example.com", "+79991234567", "550e8400-e29b-41d4-a716-446655440000"])(
+    "rejects unsafe display name %s when structured FIO is empty",
+    (displayName) => {
+      const notification = notificationFor("", displayName, "patient");
+      expect(notification).toBe("новое сообщение от пациента");
+      expect(notification).not.toContain(displayName);
+    },
+  );
+
+  it("uses the neutral fallback when both names are empty", () => {
+    expect(notificationFor("", "", "specialist"))
+      .toBe("новое сообщение от специалиста");
   });
 });

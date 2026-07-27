@@ -12,6 +12,7 @@ import { requireDoctorWorkspaceApiContext } from "@/app-layer/guards/requireRole
 import { withDoctorWorkspacePrincipal } from "@/app-layer/guards/doctorWorkspacePrincipal";
 import { logger, serializeError } from "@/infra/logging/logger";
 import { formatDoctorFio } from "@/shared/lib/fio";
+import { selectPersonalChatSenderDisplayName } from "@/modules/messaging/notifyPatientDoctorReply";
 
 const bodySchema = z.object({
   text: z.string().min(1).max(4000),
@@ -52,11 +53,14 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       conversationId,
       parsed.data.text,
       gate.ctx.organizationId,
-      formatDoctorFio({
-        lastName: gate.ctx.session.user.lastName ?? null,
-        firstName: gate.ctx.session.user.firstName ?? null,
-        patronymic: gate.ctx.session.user.patronymic ?? null,
-      }),
+      selectPersonalChatSenderDisplayName(
+        formatDoctorFio({
+          lastName: gate.ctx.session.user.lastName ?? null,
+          firstName: gate.ctx.session.user.firstName ?? null,
+          patronymic: gate.ctx.session.user.patronymic ?? null,
+        }),
+        gate.ctx.session.user.displayName,
+      ),
     ),
   );
   if (!result.ok) {
