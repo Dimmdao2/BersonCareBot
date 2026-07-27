@@ -21,6 +21,7 @@ type Props = {
   hasTimezone: boolean;
   hasOrganization: boolean;
   hasSpecialistBinding: boolean;
+  showSpecialistFirstRun?: boolean;
   recoveryOnly?: boolean;
 };
 
@@ -83,6 +84,8 @@ export function StaffSecuritySection(props: Props) {
       setSecret(result.secret);
       setUri(result.uri);
       setRecoveryCodes([]);
+    } catch {
+      toast.error("Не удалось начать настройку защиты");
     } finally {
       setBusy(false);
     }
@@ -168,7 +171,7 @@ export function StaffSecuritySection(props: Props) {
 
   return (
     <div className="flex flex-col gap-3">
-      {!props.recoveryOnly ? <DoctorSection>
+      {!props.recoveryOnly && props.showSpecialistFirstRun !== false ? <DoctorSection>
         <DoctorSectionHeader><DoctorSectionTitle>Первый запуск</DoctorSectionTitle></DoctorSectionHeader>
         <ul className="space-y-2 text-sm">
           <li>{props.hasProfileName ? "✓" : "○"} Профиль специалиста</li>

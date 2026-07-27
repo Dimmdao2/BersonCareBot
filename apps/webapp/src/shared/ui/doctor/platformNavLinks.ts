@@ -31,6 +31,12 @@ import { isDoctorMenuLinkVisible } from "@/shared/ui/doctor/doctorNavLinks";
  * this menu serves, not the (now-retired) `/app/platform/*` URL prefix.
  */
 const RAW_PLATFORM_MENU_ITEMS: DoctorMenuLinkItem[] = [
+  {
+    id: "account-security",
+    label: "Безопасность аккаунта",
+    href: "/app/account?tab=security",
+    accessTier: "global_admin",
+  },
   { id: "analytics", label: "Аналитика", href: "/app/doctor/analytics", accessTier: "global_admin" },
   // Moved in slice 3.
   { id: "commercial", label: "Тарифы и триал", href: "/app/admin/commercial", accessTier: "global_admin" },

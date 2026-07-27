@@ -182,6 +182,44 @@ describe("shared staff account", () => {
     expect(screen.getByRole("link", { name: "Профиль" })).toHaveAttribute("aria-current", "page");
   });
 
+  it("reuses the same password, TOTP, recovery and session security component for a global admin without a clinic", async () => {
+    loadContextMock.mockResolvedValue({
+      session: {
+        user: {
+          userId: "platform-user-1",
+          role: "admin",
+          displayName: "Platform owner",
+          bindings: {},
+        },
+        adminMode: true,
+      },
+      workspaceContext: null,
+    });
+    staffSecurityMock.getStatus.mockResolvedValue(null);
+
+    render(await AccountPage({ searchParams: Promise.resolve({ tab: "security" }) }));
+
+    expect(screen.getByTestId("staff-security")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Безопасность" })).toHaveAttribute("aria-current", "page");
+    expect(staffSecuritySectionMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        initialStatus: {
+          enrolled: false,
+          recoveryConfirmed: false,
+          replacementRequired: false,
+          lockedUntil: null,
+          sessionVersion: 0,
+        },
+        hasOrganization: false,
+        hasSpecialistBinding: false,
+        showSpecialistFirstRun: false,
+        recoveryOnly: false,
+      }),
+      undefined,
+    );
+    expect(listSettingsByScopeMock).not.toHaveBeenCalled();
+  });
+
   it.each(["recovery", "recovery_confirmation"] as const)(
     "renders a %s session as a replacement-only surface with no general account UI",
     async (assurance) => {

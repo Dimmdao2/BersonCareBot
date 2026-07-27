@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import { requireStaffSecurityApiSession } from "@/app-layer/guards/requireRole";
+import { logger } from "@/app-layer/logging/logger";
 
 export async function POST() {
   const gate = await requireStaffSecurityApiSession();
@@ -20,8 +21,23 @@ export async function POST() {
     return NextResponse.json({ ok: false, error: "security_session_required" }, { status: 403 });
   }
   const deps = buildAppDeps();
-  const email = await deps.userByPhone.getVerifiedEmailForUser(gate.session.user.userId);
-  if (!email) return NextResponse.json({ ok: false, error: "verified_email_required" }, { status: 409 });
-  const result = await deps.staffSecurity.startTotpEnrollment({ email });
-  return NextResponse.json(result, { status: result.ok ? 200 : 409 });
+  try {
+    const email = await deps.userByPhone.getVerifiedEmailForUser(gate.session.user.userId);
+    if (!email) return NextResponse.json({ ok: false, error: "verified_email_required" }, { status: 409 });
+    const result = await deps.staffSecurity.startTotpEnrollment({ email });
+    return NextResponse.json(result, { status: result.ok ? 200 : 409 });
+  } catch (err) {
+    const errorMessage = err instanceof Error ? err.message : String(err);
+    const errorCode =
+      typeof err === "object" && err !== null && "code" in err
+        ? String((err as { code?: unknown }).code)
+        : undefined;
+    logger.error(
+      { err, errorMessage, errorCode },
+      "[account/security/totp/start] enrollment start failed",
+    );
+    // Keep the response JSON-shaped even when infrastructure fails. The UI must not turn the
+    // original server error into a second, misleading response.json() SyntaxError.
+    return NextResponse.json({ ok: false, error: "totp_enrollment_start_failed" }, { status: 500 });
+  }
 }

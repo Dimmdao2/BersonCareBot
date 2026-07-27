@@ -45,6 +45,15 @@ describe("staff security database boundary", () => {
     expect(overlay).toContain(
       "GRANT EXECUTE ON FUNCTION app.complete_staff_totp_enrollment(text, jsonb) TO app_patient",
     );
+    for (const signature of [
+      "app.get_staff_security_session_state()",
+      "app.ensure_staff_security_profile()",
+      "app.get_staff_security_profile()",
+      "app.save_pending_staff_totp(text)",
+    ]) {
+      expect(overlay).toContain(`GRANT EXECUTE ON FUNCTION ${signature} TO app_patient`);
+      expect(overlay).not.toContain(`GRANT EXECUTE ON FUNCTION ${signature} TO app_staff`);
+    }
     expect(overlay).not.toContain(
       "GRANT EXECUTE ON FUNCTION app.complete_staff_totp_enrollment(text, jsonb) TO app_staff",
     );
@@ -82,5 +91,32 @@ describe("staff security database boundary", () => {
     expect(migration).toContain("app.current_patient_user_id()");
     expect(migration).not.toMatch(/FUNCTION app\.(?:ensure|get|save|complete|confirm|begin|consume|record|revoke)_staff_[^(]+\([^)]*uuid/u);
     expect(overlay).not.toMatch(/GRANT EXECUTE ON FUNCTION app\.(?:ensure|get|save|complete|confirm|begin|consume|record|revoke)_staff_[^(]+\([^)]*\) TO app_staff/u);
+  });
+
+  it("pins the real nonstaff -> app_patient TOTP-start ACL and TEST keyring preflight in deploy closure", () => {
+    const deploy = readFileSync(
+      join(repoRoot, "deploy/host/deploy-test-saas.sh"),
+      "utf8",
+    );
+
+    expect(deploy).toContain("assert_webapp_test_staff_security_keyring_available");
+    expect(deploy).toContain("STAFF_SECURITY_KEYRING_JSON is missing or invalid");
+    expect(deploy).toContain("assert_staff_security_self_runtime_acl_ready");
+    expect(deploy).toContain("SET ROLE app_patient");
+    expect(deploy).toContain(
+      "has_function_privilege(current_user, 'app.ensure_staff_security_profile()', 'EXECUTE')",
+    );
+    expect(deploy).toContain(
+      "has_function_privilege(current_user, 'app.get_staff_security_profile()', 'EXECUTE')",
+    );
+    expect(deploy).toContain(
+      "has_function_privilege(current_user, 'app.get_staff_security_session_state()', 'EXECUTE')",
+    );
+    expect(deploy).toContain(
+      "has_function_privilege(current_user, 'app.save_pending_staff_totp(text)', 'EXECUTE')",
+    );
+    expect(deploy).toContain("NOT has_table_privilege(");
+    expect(deploy).toContain("NOT has_any_column_privilege(");
+    expect(deploy).toContain("local expected_secdef_count=106");
   });
 });

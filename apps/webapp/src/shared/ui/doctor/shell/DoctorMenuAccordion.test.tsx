@@ -238,6 +238,10 @@ describe("DoctorMenuAccordion", () => {
     expect(screen.getByRole("link", { name: "Аналитика" })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Журнал операций" })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Тарифы и триал" })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Безопасность аккаунта" })).toHaveAttribute(
+      "href",
+      "/app/account?tab=security",
+    );
     // Flat by owner ruling 2026-07-26: no "Система" (or any other) group/accordion button exists.
     expect(screen.queryByRole("button", { name: /Система/ })).not.toBeInTheDocument();
   });
