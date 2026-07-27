@@ -25,18 +25,21 @@ export function assertOperatorHealthProbeConfig(valueJson: unknown): void {
       throw new Error(`operator_health_probe_config.${name} is required`);
     }
     const p = probe as Record<string, unknown>;
-    if (typeof p.enabled !== "boolean") throw new Error(`operator_health_probe_config.${name}.enabled must be boolean`);
-    if (!Number.isInteger(p.timeoutMs) || p.timeoutMs < 1_000 || p.timeoutMs > 60_000) {
-      throw new Error(`operator_health_probe_config.${name}.timeoutMs must be 1000–60000 ms; shorter timeouts cause false failures and provider load`);
+    if (typeof p.enabled !== "boolean") throw new Error(`Проба ${name}: укажите, включена она или выключена, и сохраните снова.`);
+    const timeoutMs = p.timeoutMs;
+    if (typeof timeoutMs !== "number" || !Number.isInteger(timeoutMs) || timeoutMs < 1_000 || timeoutMs > 60_000) {
+      throw new Error(`Таймаут пробы ${name} должен быть от 1 до 60 секунд: меньше создаёт ложные сбои и нагрузку на провайдера. Исправьте таймаут и сохраните снова.`);
     }
-    if (!Number.isInteger(p.intervalMs) || p.intervalMs < 300_000 || p.intervalMs > 3_600_000) {
-      throw new Error(`operator_health_probe_config.${name}.intervalMs must be 300000–3600000 ms; shorter intervals can DoS the provider`);
+    const intervalMs = p.intervalMs;
+    if (typeof intervalMs !== "number" || !Number.isInteger(intervalMs) || intervalMs < 300_000 || intervalMs > 3_600_000) {
+      throw new Error(`Период пробы ${name} должен быть от 5 до 60 минут: более частые запросы могут перегрузить провайдера. Увеличьте период и сохраните снова.`);
     }
-    if (!Number.isInteger(p.consecutiveFailures) || p.consecutiveFailures < 2 || p.consecutiveFailures > 10) {
-      throw new Error(`operator_health_probe_config.${name}.consecutiveFailures must be 2–10; alerts require confirmed consecutive failures`);
+    const consecutiveFailures = p.consecutiveFailures;
+    if (typeof consecutiveFailures !== "number" || !Number.isInteger(consecutiveFailures) || consecutiveFailures < 2 || consecutiveFailures > 10) {
+      throw new Error(`Порог пробы ${name} должен быть от 2 до 10 подряд: тревога требует подтверждённых сбоев. Исправьте порог и сохраните снова.`);
     }
   }
   if (config.quietUntil !== null && (typeof config.quietUntil !== "string" || Number.isNaN(Date.parse(config.quietUntil)))) {
-    throw new Error("operator_health_probe_config.quietUntil must be an ISO timestamp or null");
+    throw new Error("Окно тишины должно быть корректной датой или пустым. Исправьте дату и сохраните снова.");
   }
 }

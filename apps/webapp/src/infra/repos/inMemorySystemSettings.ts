@@ -117,6 +117,7 @@ export function createInMemorySystemSettingsPort(): SystemSettingsPort {
       }
       return out;
     },
+    async delete(key, scope, _updatedBy, options = {}) { return store.delete(makeKey(key, scope, normalizeOrganizationId(options.organizationId))); },
   };
 }
 

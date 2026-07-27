@@ -368,6 +368,18 @@ export function createPgSystemSettingsPort(): SystemSettingsPort {
         return out;
       });
     },
+    async delete(key, scope, updatedBy, options = {}) {
+      return runWebappTransaction(async (tx) => {
+        const organizationId = options.organizationId?.trim() || null;
+        const deleted = organizationId
+          ? await runWebappPgText<{ value_json: unknown }>(`DELETE FROM system_settings WHERE key = $1 AND scope = $2 AND organization_id = $3::uuid RETURNING value_json`, [key, scope, organizationId], tx)
+          : await runWebappPgText<{ value_json: unknown }>(`DELETE FROM system_settings WHERE key = $1 AND scope = $2 AND organization_id IS NULL RETURNING value_json`, [key, scope], tx);
+        if (!deleted.rows[0]) return false;
+        await runWebappPgText(`DELETE FROM public.app_runtime_settings WHERE key = $1 AND scope = $2 AND organization_id IS NOT DISTINCT FROM $3::uuid`, [key, scope, organizationId], tx);
+        await runWebappPgText(`INSERT INTO system_settings_audit (key, scope, organization_id, old_value_json, new_value_json, changed_by, source) VALUES ($1, $2, $3::uuid, $4::jsonb, NULL, $5, $6)`, [key, scope, organizationId, JSON.stringify(deleted.rows[0].value_json), updatedBy, "system_settings_repo_delete"], tx);
+        return true;
+      });
+    },
   };
 }
 

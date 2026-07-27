@@ -19,6 +19,7 @@ import {
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/shared/ui/doctor/primitives/collapsible";
 import { cn } from "@/lib/utils";
 import { CopyForAiButton } from "@/app/app/settings/CopyForAiButton";
+import { OperatorHealthProbeSettingsSection } from "./OperatorHealthProbeSettingsSection";
 import {
   HEALTH_FAILURE_ARCHIVE_INTEGRATOR_OUTBOX_PROBE,
   HEALTH_FAILURE_ARCHIVE_OUTGOING_PROBE,
@@ -969,6 +970,8 @@ export function SystemHealthSection() {
           )}
         </CardContent>
       </Card>
+
+      <OperatorHealthProbeSettingsSection />
 
       <Card>
         <CardHeader>

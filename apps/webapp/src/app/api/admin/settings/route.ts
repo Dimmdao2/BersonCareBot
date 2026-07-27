@@ -114,6 +114,7 @@ const ADMIN_SCOPE_KEYS = [
   "patient_home_mood_icons",
   "notifications_topics",
   "smtp_outbound",
+  "operator_health_imap",
   "web_push_vapid",
   "smsc_enabled",
   "smsc_api_key",
@@ -146,6 +147,7 @@ const ADMIN_SCOPE_KEYS = [
   "allowed_phones",
   "admin_incident_alert_config",
   "operator_health_alert_config",
+  "operator_health_probe_config",
   "operator_health_projection_thresholds",
 ] as const;
 
@@ -168,6 +170,7 @@ const patchSchema = z.object({
   key: z.enum(PATCH_SCOPE_KEYS),
   value: z.unknown(),
 });
+const deleteSchema = z.object({ key: z.literal("operator_health_probe_config") });
 
 const batchBodySchema = z.object({
   items: z
@@ -693,9 +696,20 @@ export async function PATCH(request: Request) {
   } catch (error) {
     const errResponse = systemSettingsOrgContextErrorResponse(error);
     if (errResponse) return errResponse;
+    if (parsed.data.key === "operator_health_probe_config" && error instanceof Error) return NextResponse.json({ ok: false, error: error.message }, { status: 400 });
     throw error;
   }
 
   const clientSetting = redactAdminSettingsForClient([setting])[0]!;
   return NextResponse.json({ ok: true, setting: clientSetting });
+}
+
+export async function DELETE(request: Request) {
+  const gate = await requireClinicManagementApiContext();
+  if (!gate.ok) return gate.response;
+  if (!canAccessGlobalSettings(gate.ctx)) return NextResponse.json({ ok: false, error: "forbidden_global_setting" }, { status: 403 });
+  const parsed = deleteSchema.safeParse(await request.json().catch(() => null));
+  if (!parsed.success) return NextResponse.json({ ok: false, error: "invalid_body" }, { status: 400 });
+  const deleted = await buildAppDeps().systemSettings.clearSetting(parsed.data.key, "admin", gate.ctx.session.user.userId, { organizationId: gate.ctx.organizationId });
+  return NextResponse.json({ ok: true, deleted });
 }
