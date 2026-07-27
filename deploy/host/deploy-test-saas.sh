@@ -1061,12 +1061,17 @@ run_locked_product_smoke(){
   if [ -n "${SAAS_PRODUCT_SMOKE_SCENARIO_IDS:-}" ]; then
     smoke_args+=("--scenario-ids=$SAAS_PRODUCT_SMOKE_SCENARIO_IDS")
   else
-    # Known limitation (2026-07-25): the real TEST clinic ("Точка Здоровья") has no
-    # clinic_public_directory_entries row, and no in-app publish flow is wired yet to create one
-    # (modules/clinic-directory reserveSlug/claimReservedSlug have zero route callers today) — so
-    # public.booking.slots cannot legitimately pass without fabricating a slug, which is out of
-    # bounds. It is excluded from the pass/fail gate and reported as SKIPPED below, never as passed.
-    local known_skip_ids="${SAAS_PRODUCT_SMOKE_KNOWN_SKIP_IDS:-public.booking.slots}"
+    # The 2026-07-25 known limitation is RESOLVED as of 2026-07-27 and the skip list is now EMPTY.
+    # It read: the real TEST clinic has no clinic_public_directory_entries row and no in-app publish
+    # flow exists, so public.booking.slots cannot pass without fabricating a slug. Both halves are gone:
+    # F-6 shipped the publish flow (Настройки → Организация → «Публичная запись», commit edbcd7eeb) and
+    # the owner claimed the slug "dmitryberson" for Точка Здоровья through it on 2026-07-27.
+    # The scenario then still failed 400 — NOT a product defect: the fixture ref pointed at
+    # "Сеанс 40 мин", a service the owner deactivated on 2026-06-01, and the public resolver correctly
+    # refuses an inactive service. Repointed at an active service; the full smoke is 22/22.
+    # Keep this list EMPTY. A scenario that cannot pass belongs in the contract's own skip mechanism
+    # with a reason, not silently excluded from the gate here.
+    local known_skip_ids="${SAAS_PRODUCT_SMOKE_KNOWN_SKIP_IDS:-}"
     if [ -n "$known_skip_ids" ]; then
       echo "   ⚠️  SKIPPED (known limitation, excluded from pass/fail gate): $known_skip_ids"
       echo "       reason: no clinic_public_directory_entries row for the real org and no in-app publish flow yet;"
