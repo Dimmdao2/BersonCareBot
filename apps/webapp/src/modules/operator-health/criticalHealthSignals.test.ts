@@ -5,7 +5,6 @@ import {
   classifyOperatorHealthBannerSignals,
   countRecentOutboundProviderFailureIncidents,
   OUTBOUND_PROVIDER_FAILURE_WINDOW_MINUTES,
-  PROBE_CRITICAL_CONSECUTIVE_FAIL_RUNS,
   type CriticalHealthSignalsInput,
   type OperatorHealthBannerInput,
 } from "./criticalHealthSignals";
@@ -34,6 +33,7 @@ function healthyInput(overrides: Partial<CriticalHealthSignalsInput> = {}): Crit
     integratorPushOutbox: emptyIpo(),
     backupJobs: {},
     probeConsecutiveFailRuns: 0,
+    probeIncidentsOpenCount: 0,
     videoTranscodeStatus: "ok",
     webhookBursts: [],
     tenantIsolation: {
@@ -244,17 +244,19 @@ describe("classifyCriticalHealthSignals", () => {
     ).toBe(true);
   });
 
-  it("probe 3-strike only at threshold", () => {
+  it("pages probes only from the incident created after the configured channel threshold", () => {
     expect(
-      classifyCriticalHealthSignals(healthyInput({ probeConsecutiveFailRuns: 2 })).some(
+      classifyCriticalHealthSignals(healthyInput({ probeConsecutiveFailRuns: 10 })).some(
         (x) => x.topic === "probe_outbound",
       ),
     ).toBe(false);
-    expect(
-      classifyCriticalHealthSignals(
-        healthyInput({ probeConsecutiveFailRuns: PROBE_CRITICAL_CONSECUTIVE_FAIL_RUNS }),
-      ).some((x) => x.topic === "probe_outbound"),
-    ).toBe(true);
+    const candidates = classifyCriticalHealthSignals(
+      healthyInput({ probeConsecutiveFailRuns: 2, probeIncidentsOpenCount: 1 }),
+    );
+    expect(candidates.some((x) => x.topic === "probe_outbound")).toBe(true);
+    expect(candidates.find((x) => x.topic === "probe_outbound")?.dedupKey).toBe(
+      "critical:probe_outbound:active",
+    );
   });
 });
 
@@ -295,10 +297,10 @@ describe("classifyOperatorHealthBannerSignals", () => {
     ).toBe(false);
   });
 
-  it("shows banner for probe 3-strike and video transcode error", () => {
+  it("shows banner for a threshold-gated probe incident and video transcode error", () => {
     expect(
       classifyOperatorHealthBannerSignals(
-        healthyBanner({ probeConsecutiveFailRuns: PROBE_CRITICAL_CONSECUTIVE_FAIL_RUNS }),
+        healthyBanner({ probeConsecutiveFailRuns: 2, probeIncidentsOpenCount: 1 }),
       ),
     ).toBe(true);
     expect(classifyOperatorHealthBannerSignals(healthyBanner({ videoTranscodeStatus: "error" }))).toBe(true);

@@ -126,6 +126,27 @@ describe("collectCriticalHealthSignals", () => {
     expect(listOpenIncidentsMock).toHaveBeenCalledWith(100);
   });
 
+  it("collects a probe incident only after the integrator has opened its configured-threshold incident", async () => {
+    listOpenIncidentsMock.mockResolvedValue([
+      {
+        id: "probe-incident-id",
+        dedupKey: "outbound:telegram:telegram_probe_failed",
+        direction: "outbound",
+        integration: "telegram",
+        errorClass: "telegram_probe_failed",
+        errorDetail: null,
+        openedAt: "2026-07-27T12:00:00.000Z",
+        lastSeenAt: "2026-07-27T12:00:00.000Z",
+        occurrenceCount: 1,
+        alertSentAt: null,
+      },
+    ]);
+
+    const input = await collectCriticalHealthSignals();
+
+    expect(input.probeIncidentsOpenCount).toBe(1);
+  });
+
   it("feeds existing routing and isolation diagnostics into the critical snapshot", async () => {
     getPoolRoutingMetricsMock.mockReturnValue({
       missingPrincipalSelections: 2,

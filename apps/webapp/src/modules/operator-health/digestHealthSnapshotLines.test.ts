@@ -1,6 +1,5 @@
 import { describe, expect, it } from "vitest";
 import { buildDigestHealthSnapshotLines } from "./digestHealthSnapshotLines";
-import { PROBE_CRITICAL_CONSECUTIVE_FAIL_RUNS } from "./criticalHealthSignals";
 
 const emptyCronJobs = { status: "ok" as const, jobs: [] };
 
@@ -23,6 +22,7 @@ const base = {
   integratorPushOutbox: emptyIpo,
   backupJobs: {},
   probeConsecutiveFailRuns: 0,
+  probeIncidentsOpenCount: 0,
   videoTranscodeStatus: "ok" as const,
   cronJobs: emptyCronJobs,
   operatorIncidentsOpenCount: 0,
@@ -44,11 +44,12 @@ describe("buildDigestHealthSnapshotLines", () => {
     expect(lines.some((l) => l.includes("dead: 2"))).toBe(true);
   });
 
-  it("includes probe 3-strike critical line", () => {
+  it("includes the threshold-gated probe incident critical line", () => {
     const lines = buildDigestHealthSnapshotLines({
       ...base,
       webappDb: "up",
-      probeConsecutiveFailRuns: PROBE_CRITICAL_CONSECUTIVE_FAIL_RUNS,
+      probeConsecutiveFailRuns: 2,
+      probeIncidentsOpenCount: 1,
     });
     expect(lines.some((l) => l.includes("Синтетические пробы"))).toBe(true);
   });
@@ -93,7 +94,8 @@ describe("buildDigestHealthSnapshotLines", () => {
     const lines = buildDigestHealthSnapshotLines({
       ...base,
       webappDb: "up",
-      probeConsecutiveFailRuns: PROBE_CRITICAL_CONSECUTIVE_FAIL_RUNS,
+      probeConsecutiveFailRuns: 2,
+      probeIncidentsOpenCount: 1,
       operatorIncidentsOpenCount: 2,
     });
     expect(lines.some((l) => l.startsWith("Открытые инциденты:"))).toBe(false);

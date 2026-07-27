@@ -13,11 +13,19 @@ import {
 } from '../infra/db/repos/operatorHealthDrizzle.js';
 import {
   DEFAULT_OPERATOR_HEALTH_PROBE_CONFIG,
+  isOperatorHealthProbeQuiet,
   type OperatorHealthProbeConfig,
   type OperatorHealthProbeName,
 } from './operatorHealthProbeSettings.js';
 
 export type ProbeOutcome = 'ok' | 'fail' | 'skipped_not_configured';
+
+const lastProbeAttemptAtMs = new Map<OperatorHealthProbeName, number>();
+
+/** Test isolation for the process-local retry floor. */
+export function resetOperatorHealthProbeAttemptFloorForTest(): void {
+  lastProbeAttemptAtMs.clear();
+}
 
 function withProbeTimeout<T>(promise: Promise<T>, timeoutMs: number): Promise<T> {
   return new Promise<T>((resolve, reject) => {
@@ -60,7 +68,27 @@ export async function runOperatorHealthProbes(input: {
   probes?: readonly OperatorHealthProbeName[];
 }): Promise<OperatorHealthProbeRunResult> {
   const config = input.config ?? DEFAULT_OPERATOR_HEALTH_PROBE_CONFIG;
-  const probes = input.probes ?? ['max', 'telegram', 'rubitime', 'google_calendar'];
+  if (isOperatorHealthProbeQuiet(config)) {
+    return {
+      max: 'skipped_not_configured',
+      rubitime: 'skipped_not_configured',
+      telegram: 'skipped_not_configured',
+      google_calendar: 'skipped_not_configured',
+      details: { quietWindow: 'active' },
+    };
+  }
+  const requestedProbes = input.probes ?? ['max', 'telegram', 'rubitime', 'google_calendar'];
+  const attemptStartedAtMs = Date.now();
+  const probes = requestedProbes.filter((name) => {
+    if (!config[name].enabled) return false;
+    const lastAttemptAtMs = lastProbeAttemptAtMs.get(name);
+    return lastAttemptAtMs === undefined || attemptStartedAtMs - lastAttemptAtMs >= config[name].intervalMs;
+  });
+  for (const name of probes) {
+    // Mark before touching the provider: even a persistence failure must not make the 5-second
+    // scheduler poll immediately repeat a probe that already consumed provider capacity.
+    lastProbeAttemptAtMs.set(name, attemptStartedAtMs);
+  }
   const shouldProbe = (name: OperatorHealthProbeName) => probes.includes(name) && config[name].enabled;
   const details: Record<string, string> = {};
   let max: ProbeOutcome = 'skipped_not_configured';
@@ -131,6 +159,10 @@ export async function runOperatorHealthProbes(input: {
   }
 
   try {
+    if (probes.length === 0) {
+      logger.info({ requestedProbes }, 'operator_health_probes_suppressed_by_attempt_floor');
+      return { max, rubitime, telegram, google_calendar, details };
+    }
     const streak = await recordOperatorOutboundProbeRun({
       max,
       rubitime,

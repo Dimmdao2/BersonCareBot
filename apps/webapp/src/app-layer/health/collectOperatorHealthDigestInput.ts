@@ -2,7 +2,10 @@ import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import { collectAdminSystemHealthData } from "@/app-layer/health/collectAdminSystemHealthData";
 import type { OperatorHealthDigestInput } from "@/modules/operator-health/buildOperatorHealthDigest";
 import { buildDigestHealthSnapshotLines } from "@/modules/operator-health/digestHealthSnapshotLines";
-import { countRecentOutboundProviderFailureIncidents } from "@/modules/operator-health/criticalHealthSignals";
+import {
+  countRecentOutboundProviderFailureIncidents,
+  isOperatorProbeFailureIncident,
+} from "@/modules/operator-health/criticalHealthSignals";
 import { loadOperatorHealthProjectionThresholds } from "@/modules/operator-health/operatorHealthProjectionThresholds";
 import {
   evaluateProjectionDigestDebounceFlags,
@@ -92,6 +95,7 @@ export async function collectOperatorHealthDigestInput(params: {
       Object.entries(health.backupJobs).map(([jobKey, row]) => [jobKey, { lastStatus: row.lastStatus }]),
     ),
     probeConsecutiveFailRuns: health.probeOutbound.consecutiveFailRuns,
+    probeIncidentsOpenCount: openIncidents.filter(isOperatorProbeFailureIncident).length,
     videoTranscodeStatus: health.videoTranscode.status,
     cronJobs: health.cronJobs,
     operatorIncidentsOpenCount: health.operatorIncidents.openCount,

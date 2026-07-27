@@ -52,7 +52,7 @@ function buildRecipientDigest(channel: 'telegram' | 'max', recipientId: string):
   return createHmac('sha256', key).update(`${channel}\0${recipientId}`, 'utf8').digest('hex').slice(0, 32);
 }
 
-/** Probe fails: incident only; critical push — после 3-strike в webapp critical tick (SCOPE P7). */
+/** Probe fails: incident only; critical push follows the configured streak gate in the webapp tick. */
 const PROBE_ERROR_CLASSES_NO_IMMEDIATE_CRITICAL = new Set([
   'max_probe_failed',
   'rubitime_get_schedule_failed',
