@@ -15,12 +15,9 @@ import { assertSchedulerPoolReady } from '../../db/operationalPoolReadiness.js';
 import { listSchedulerReminderOrganizationIds } from '../../db/repos/schedulerReminderOrganizations.js';
 import { runSchedulerOrganizationTicks } from './organizationTicks.js';
 import { runOperatorHealthProbes } from '../../../app/operatorHealthProbeRunner.js';
-import {
-  getOperatorHealthProbeConfig,
-  isOperatorHealthProbeDue,
-  isOperatorHealthProbeQuiet,
-} from '../../../app/operatorHealthProbeSettings.js';
+import { getOperatorHealthProbeConfig } from '../../../app/operatorHealthProbeSettings.js';
 import { getOperatorOutboundProbeLastRunAt } from '../../db/repos/operatorHealthDrizzle.js';
+import { runScheduledOperatorHealthProbeTick } from './operatorHealthProbeTick.js';
 import {
   captureSchedulerLoopError,
   captureSchedulerStartupFatal,
@@ -95,21 +92,12 @@ async function startScheduler(): Promise<void> {
         nowIso: () => new Date().toISOString(),
         newEventId: randomUUID,
       });
-      const probeConfig = await getOperatorHealthProbeConfig();
-      if (!isOperatorHealthProbeQuiet(probeConfig)) {
-        const lastRunAt = await getOperatorOutboundProbeLastRunAt();
-        const now = new Date();
-        const due = (['max', 'telegram', 'rubitime', 'google_calendar'] as const).filter((name) =>
-          probeConfig[name].enabled && isOperatorHealthProbeDue({
-            lastRunAt: lastRunAt[name] ?? null,
-            intervalMs: probeConfig[name].intervalMs,
-            now,
-          }),
-        );
-        if (due.length > 0) {
-          await runOperatorHealthProbes({ dispatchPort: deps.dispatchPort, config: probeConfig, probes: due });
-        }
-      }
+      await runScheduledOperatorHealthProbeTick({
+        dispatchPort: deps.dispatchPort,
+        loadConfig: getOperatorHealthProbeConfig,
+        loadLastRunAt: getOperatorOutboundProbeLastRunAt,
+        runProbes: runOperatorHealthProbes,
+      });
     } catch (err) {
       captureSchedulerLoopError(err);
       reportSchedulerDispatchIsolationFailure(err);

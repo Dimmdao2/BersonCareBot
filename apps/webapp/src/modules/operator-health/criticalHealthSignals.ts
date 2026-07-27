@@ -21,11 +21,16 @@ import {
   isPageOnFirstOccurrenceProviderErrorClass,
 } from "@bersoncare/operator-db-schema";
 
-export const PROBE_CRITICAL_CONSECUTIVE_FAIL_RUNS = 3;
 export const OUTBOUND_PROVIDER_FAILURE_DIRECTION = "outbound_delivery_provider";
 export const OUTBOUND_PROVIDER_FAILURE_WINDOW_MINUTES = 15;
 export const OUTBOUND_PROVIDER_FAILURE_MIN_INCIDENTS = 1;
 export const OUTBOUND_PROVIDER_STOP_PREFIX = "🛑 !";
+const OPERATOR_PROBE_FAILURE_ERROR_CLASSES = new Set([
+  "max_probe_failed",
+  "rubitime_get_schedule_failed",
+  "telegram_probe_failed",
+  "google_calendar_probe_failed",
+]);
 
 export type DbStatus = "up" | "down";
 export type IntegratorApiStatus = "ok" | "unreachable" | "error";
@@ -54,6 +59,8 @@ export type CriticalHealthSignalsInput = {
   backupJobs: Record<string, { lastStatus: string }>;
   /** Из `operator_job_status.meta_json.consecutiveFailRuns` (outbound probe). */
   probeConsecutiveFailRuns: number;
+  /** Open incidents created by the integrator only after each probe's configured streak threshold. */
+  probeIncidentsOpenCount?: number;
   videoTranscodeStatus: VideoTranscodeHealthStatus;
   /** Burst inbound webhook errors (P8); omit when lightweight collect skips webhook table. */
   webhookBursts?: WebhookBurstRow[];
@@ -101,7 +108,7 @@ export function classifyOperatorHealthBannerSignals(input: OperatorHealthBannerI
   if (input.videoTranscodeStatus === "error") return true;
   if (Object.values(input.backupJobs).some((j) => j.lastStatus === "failure")) return true;
   if (input.operatorIncidentsOpenCount > 0) return true;
-  if (input.probeConsecutiveFailRuns >= PROBE_CRITICAL_CONSECUTIVE_FAIL_RUNS) return true;
+  if ((input.probeIncidentsOpenCount ?? 0) > 0) return true;
   if ((input.webhookBursts ?? []).some(isWebhookBurstCritical)) return true;
   const od = input.outgoingDelivery;
   if ((input.outboundDeliveryProvider?.openIncidentCount ?? 0) >= OUTBOUND_PROVIDER_FAILURE_MIN_INCIDENTS) return true;
@@ -218,6 +225,12 @@ export function countRecentOutboundProviderFailureIncidents(
     const lastSeenMs = Date.parse(incident.lastSeenAt);
     return Number.isFinite(lastSeenMs) && lastSeenMs >= cutoffMs && lastSeenMs <= nowMs;
   }).length;
+}
+
+export function isOperatorProbeFailureIncident(
+  incident: Pick<OperatorIncidentOpenRow, "direction" | "errorClass">,
+): boolean {
+  return incident.direction === "outbound" && OPERATOR_PROBE_FAILURE_ERROR_CLASSES.has(incident.errorClass);
 }
 
 function classifyTenantIsolationSignals(
@@ -355,14 +368,15 @@ export function classifyCriticalHealthSignals(input: CriticalHealthSignalsInput)
     });
   }
 
-  if (input.probeConsecutiveFailRuns >= PROBE_CRITICAL_CONSECUTIVE_FAIL_RUNS) {
+  const probeIncidentsOpenCount = input.probeIncidentsOpenCount ?? 0;
+  if (probeIncidentsOpenCount > 0) {
     out.push({
       topic: "probe_outbound",
-      dedupKey: "critical:probe_outbound:3strike",
+      dedupKey: "critical:probe_outbound:active",
       pushTitle: "Критичный сбой: исходящие пробы",
       lines: [
         `Синтетические пробы интеграций: ${input.probeConsecutiveFailRuns} подряд неуспешных запусков`,
-        `Порог critical: ${PROBE_CRITICAL_CONSECUTIVE_FAIL_RUNS}`,
+        `Открытых инцидентов после настроенного порога: ${probeIncidentsOpenCount}`,
       ],
     });
   }

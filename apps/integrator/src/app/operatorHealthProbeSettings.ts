@@ -11,7 +11,7 @@ export const OPERATOR_HEALTH_PROBE_NAMES = ['max', 'telegram', 'rubitime', 'goog
 export type OperatorHealthProbeName = (typeof OPERATOR_HEALTH_PROBE_NAMES)[number];
 export type OperatorHealthProbeConfig = {
   [K in OperatorHealthProbeName]: { enabled: boolean; intervalMs: number; timeoutMs: number; consecutiveFailures: number };
-} & { quietUntil: string | null };
+} & { quietWindowMaxDurationMs: number; quietUntil: string | null };
 
 /** Must match the registry default; the integrator cannot import webapp internals. */
 export const DEFAULT_OPERATOR_HEALTH_PROBE_CONFIG: OperatorHealthProbeConfig = {
@@ -19,6 +19,7 @@ export const DEFAULT_OPERATOR_HEALTH_PROBE_CONFIG: OperatorHealthProbeConfig = {
   telegram: { enabled: true, intervalMs: 600_000, timeoutMs: 5_000, consecutiveFailures: 2 },
   rubitime: { enabled: true, intervalMs: 600_000, timeoutMs: 5_000, consecutiveFailures: 2 },
   google_calendar: { enabled: true, intervalMs: 600_000, timeoutMs: 5_000, consecutiveFailures: 2 },
+  quietWindowMaxDurationMs: 86_400_000,
   quietUntil: null,
 };
 
@@ -30,11 +31,14 @@ const probeSchema = z.object({
 });
 const configSchema = z.object({
   max: probeSchema, telegram: probeSchema, rubitime: probeSchema, google_calendar: probeSchema,
+  quietWindowMaxDurationMs: z.number().int().min(60_000).max(604_800_000).default(86_400_000),
   quietUntil: z.string().datetime({ offset: true }).nullable(),
 });
 
 export function isOperatorHealthProbeQuiet(config: OperatorHealthProbeConfig, now = new Date()): boolean {
-  return config.quietUntil !== null && Date.parse(config.quietUntil) > now.getTime();
+  if (config.quietUntil === null) return false;
+  const remainingMs = Date.parse(config.quietUntil) - now.getTime();
+  return remainingMs > 0 && remainingMs <= config.quietWindowMaxDurationMs;
 }
 
 export function isOperatorHealthProbeDue(input: { lastRunAt: string | null; intervalMs: number; now: Date }): boolean {

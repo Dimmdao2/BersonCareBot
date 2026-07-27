@@ -14,6 +14,7 @@ describe("operator health probe settings", () => {
       telegram: { enabled: boolean; intervalMs: number; timeoutMs: number; consecutiveFailures: number };
       rubitime: { enabled: boolean; intervalMs: number; timeoutMs: number; consecutiveFailures: number };
       google_calendar: { enabled: boolean; intervalMs: number; timeoutMs: number; consecutiveFailures: number };
+      quietWindowMaxDurationMs: number;
       quietUntil: string | null;
     };
     tooFast.max.timeoutMs = 999;
@@ -21,5 +22,21 @@ describe("operator health probe settings", () => {
     tooFast.max.timeoutMs = 5_000;
     tooFast.max.intervalMs = 5_000;
     expect(() => assertOperatorHealthProbeConfig({ value: tooFast })).toThrow("могут перегрузить провайдера");
+  });
+
+  it("rejects a quiet window longer than the configured 24-hour maintenance cap", () => {
+    const config = structuredClone(OPERATOR_HEALTH_PROBE_DEFAULT_VALUE) as {
+      quietWindowMaxDurationMs: number;
+      quietUntil: string | null;
+    } & Record<string, unknown>;
+    const now = new Date("2026-07-27T12:00:00.000Z");
+    config.quietUntil = "9999-12-31T23:59:59.000Z";
+
+    expect(() => assertOperatorHealthProbeConfig({ value: config }, now)).toThrow(
+      "exceeds the configured maintenance-window limit of 24 hours",
+    );
+
+    config.quietUntil = "2026-07-28T12:00:00.000Z";
+    expect(() => assertOperatorHealthProbeConfig({ value: config }, now)).not.toThrow();
   });
 });

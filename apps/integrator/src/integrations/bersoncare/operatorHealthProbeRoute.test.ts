@@ -1,12 +1,17 @@
 import { createHmac } from 'node:crypto';
+import { getCurrentDbPrincipal } from '@bersoncare/db-principal';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import Fastify from 'fastify';
 import { registerOperatorHealthProbeRoute } from './operatorHealthProbeRoute.js';
 
 const mockRunOperatorHealthProbes = vi.hoisted(() => vi.fn());
+const mockGetOperatorHealthProbeConfig = vi.hoisted(() => vi.fn());
 
 vi.mock('../../app/operatorHealthProbeRunner.js', () => ({
   runOperatorHealthProbes: mockRunOperatorHealthProbes,
+}));
+vi.mock('../../app/operatorHealthProbeSettings.js', () => ({
+  getOperatorHealthProbeConfig: mockGetOperatorHealthProbeConfig,
 }));
 
 const TEST_SECRET = 'test-shared-secret-16chars';
@@ -28,6 +33,15 @@ describe('POST /internal/operator-health-probe', () => {
   beforeEach(() => {
     vi.restoreAllMocks();
     mockRunOperatorHealthProbes.mockReset();
+    mockGetOperatorHealthProbeConfig.mockReset();
+    mockGetOperatorHealthProbeConfig.mockResolvedValue({
+      max: { enabled: true, intervalMs: 600_000, timeoutMs: 5_000, consecutiveFailures: 4 },
+      telegram: { enabled: false, intervalMs: 600_000, timeoutMs: 5_000, consecutiveFailures: 4 },
+      rubitime: { enabled: false, intervalMs: 600_000, timeoutMs: 5_000, consecutiveFailures: 4 },
+      google_calendar: { enabled: false, intervalMs: 600_000, timeoutMs: 5_000, consecutiveFailures: 4 },
+      quietWindowMaxDurationMs: 86_400_000,
+      quietUntil: null,
+    });
     mockRunOperatorHealthProbes.mockResolvedValue({
       max: 'ok',
       rubitime: 'skipped_not_configured',
@@ -68,6 +82,28 @@ describe('POST /internal/operator-health-probe', () => {
 
   it('runs probes when signature is valid', async () => {
     const dispatchPort = { dispatchOutgoing: vi.fn() };
+    const principals: unknown[] = [];
+    mockGetOperatorHealthProbeConfig.mockImplementationOnce(async () => {
+      principals.push(getCurrentDbPrincipal());
+      return {
+        max: { enabled: true, intervalMs: 600_000, timeoutMs: 5_000, consecutiveFailures: 4 },
+        telegram: { enabled: false, intervalMs: 600_000, timeoutMs: 5_000, consecutiveFailures: 4 },
+        rubitime: { enabled: false, intervalMs: 600_000, timeoutMs: 5_000, consecutiveFailures: 4 },
+        google_calendar: { enabled: false, intervalMs: 600_000, timeoutMs: 5_000, consecutiveFailures: 4 },
+        quietWindowMaxDurationMs: 86_400_000,
+        quietUntil: null,
+      };
+    });
+    mockRunOperatorHealthProbes.mockImplementationOnce(async () => {
+      principals.push(getCurrentDbPrincipal());
+      return {
+        max: 'ok',
+        rubitime: 'skipped_not_configured',
+        telegram: 'skipped_not_configured',
+        google_calendar: 'skipped_not_configured',
+        details: {},
+      };
+    });
     const app = Fastify();
     await registerOperatorHealthProbeRoute(app, {
       sharedSecret: TEST_SECRET,
@@ -81,7 +117,16 @@ describe('POST /internal/operator-health-probe', () => {
       body: raw,
     });
     expect(res.statusCode).toBe(200);
-    expect(mockRunOperatorHealthProbes).toHaveBeenCalledWith({ dispatchPort });
+    expect(mockRunOperatorHealthProbes).toHaveBeenCalledWith({
+      dispatchPort,
+      config: expect.objectContaining({
+        max: expect.objectContaining({ consecutiveFailures: 4 }),
+      }),
+    });
+    expect(principals).toEqual([
+      { kind: 'infra', source: 'scheduler:handle-tick-event' },
+      { kind: 'infra', source: 'scheduler:handle-tick-event' },
+    ]);
     const json = JSON.parse(res.body) as { ok: boolean; max: string };
     expect(json.ok).toBe(true);
     expect(json.max).toBe('ok');

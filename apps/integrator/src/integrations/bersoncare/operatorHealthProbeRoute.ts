@@ -6,6 +6,8 @@ import type { FastifyInstance, FastifyRequest } from 'fastify';
 import type { DispatchPort } from '../../kernel/contracts/index.js';
 import { logger } from '../../infra/observability/logger.js';
 import { runOperatorHealthProbes } from '../../app/operatorHealthProbeRunner.js';
+import { getOperatorHealthProbeConfig } from '../../app/operatorHealthProbeSettings.js';
+import { runWithInfraPrincipal } from '../../infra/principal/organizationPrincipal.js';
 
 const WINDOW_SECONDS = 300;
 
@@ -64,7 +66,13 @@ export async function registerOperatorHealthProbeRoute(
     }
 
     try {
-      const result = await runOperatorHealthProbes({ dispatchPort });
+      const result = await runWithInfraPrincipal(
+        { source: 'scheduler:handle-tick-event' },
+        async () => {
+          const config = await getOperatorHealthProbeConfig();
+          return runOperatorHealthProbes({ dispatchPort, config });
+        },
+      );
       return reply.code(200).send({ ok: true, ...result });
     } catch (err) {
       logger.error({ err }, 'operator-health-probe failed');

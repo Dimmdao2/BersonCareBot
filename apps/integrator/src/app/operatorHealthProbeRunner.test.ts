@@ -37,13 +37,18 @@ vi.mock('../integrations/google-calendar/probe.js', () => ({
   probeGoogleCalendarAccess: probeGoogleCalendarAccessMock,
 }));
 
-import { runOperatorHealthProbes } from './operatorHealthProbeRunner.js';
+import {
+  resetOperatorHealthProbeAttemptFloorForTest,
+  runOperatorHealthProbes,
+} from './operatorHealthProbeRunner.js';
+import { DEFAULT_OPERATOR_HEALTH_PROBE_CONFIG } from './operatorHealthProbeSettings.js';
 
 describe('runOperatorHealthProbes', () => {
   const dispatchPort = { dispatchOutgoing: vi.fn().mockResolvedValue(undefined) };
 
   beforeEach(() => {
     vi.clearAllMocks();
+    resetOperatorHealthProbeAttemptFloorForTest();
     telegramConfigMock.botToken = '';
     resolvePrefixMock.mockResolvedValue(0);
     recordProbeRunMock.mockResolvedValue({ consecutiveFailRuns: 0, consecutiveFailures: {} });
@@ -96,6 +101,43 @@ describe('runOperatorHealthProbes', () => {
     );
   });
 
+  it('uses the configured channel threshold before creating the paging incident', async () => {
+    getGoogleCalendarConfigMock.mockResolvedValue({
+      enabled: true,
+      refreshToken: 'rt',
+      calendarId: 'cal',
+      clientId: 'cid',
+      clientSecret: 'sec',
+      redirectUri: 'http://localhost',
+    });
+    probeGoogleCalendarAccessMock.mockRejectedValue(new Error('GOOGLE_CALENDAR_HTTP_403'));
+    recordProbeRunMock.mockResolvedValue({
+      consecutiveFailRuns: 2,
+      consecutiveFailures: { google_calendar: 2 },
+    });
+    const config = structuredClone(DEFAULT_OPERATOR_HEALTH_PROBE_CONFIG);
+    config.google_calendar.consecutiveFailures = 4;
+
+    await runOperatorHealthProbes({
+      dispatchPort,
+      config,
+      probes: ['google_calendar'],
+    });
+
+    expect(reportOperatorFailureMock).not.toHaveBeenCalled();
+  });
+
+  it('honours the configured quiet window without contacting providers', async () => {
+    const config = structuredClone(DEFAULT_OPERATOR_HEALTH_PROBE_CONFIG);
+    config.quietUntil = new Date(Date.now() + 60_000).toISOString();
+
+    const result = await runOperatorHealthProbes({ dispatchPort, config });
+
+    expect(result.details.quietWindow).toBe('active');
+    expect(getMaxBotInfoMock).not.toHaveBeenCalled();
+    expect(recordProbeRunMock).not.toHaveBeenCalled();
+  });
+
   it('MAX probe fails when getMaxBotInfo exceeds timeout', async () => {
     vi.useFakeTimers();
     try {
@@ -126,5 +168,16 @@ describe('runOperatorHealthProbes', () => {
       }),
     );
     expect(r.details.consecutiveFailRuns).toBe('1');
+  });
+
+  it('does not immediately re-run a provider when recording the previous attempt failed', async () => {
+    getMaxBotInfoMock.mockResolvedValue({ id: 1 });
+    recordProbeRunMock.mockRejectedValueOnce(new Error('database unavailable'));
+
+    await runOperatorHealthProbes({ dispatchPort, probes: ['max'] });
+    await runOperatorHealthProbes({ dispatchPort, probes: ['max'] });
+
+    expect(getMaxBotInfoMock).toHaveBeenCalledTimes(1);
+    expect(recordProbeRunMock).toHaveBeenCalledTimes(1);
   });
 });

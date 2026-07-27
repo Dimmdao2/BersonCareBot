@@ -19,7 +19,10 @@ import type {
   ProjectionProbeStatus,
   VideoTranscodeHealthStatus,
 } from "@/modules/operator-health/criticalHealthSignals";
-import { countRecentOutboundProviderFailureIncidents } from "@/modules/operator-health/criticalHealthSignals";
+import {
+  countRecentOutboundProviderFailureIncidents,
+  isOperatorProbeFailureIncident,
+} from "@/modules/operator-health/criticalHealthSignals";
 import { readProbeConsecutiveFailRuns } from "@/modules/operator-health/probeOutboundMeta";
 import { WEBHOOK_BURST_MIN_COUNT, WEBHOOK_BURST_WINDOW_MINUTES } from "@/modules/operator-health/webhookBurst";
 import { getConfigBool } from "@/modules/system-settings/configAdapter";
@@ -203,6 +206,7 @@ async function collectCriticalHealthSignalsBase(
     integratorPushOutbox,
     backupJobs,
     probeConsecutiveFailRuns: readProbeConsecutiveFailRuns(probeJob?.metaJson),
+    probeIncidentsOpenCount: operatorIncidents.filter(isOperatorProbeFailureIncident).length,
     videoTranscodeStatus,
     webhookBursts,
   };

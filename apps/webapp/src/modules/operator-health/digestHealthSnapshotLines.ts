@@ -1,6 +1,5 @@
 import {
   classifyCriticalHealthSignals,
-  PROBE_CRITICAL_CONSECUTIVE_FAIL_RUNS,
   type CriticalHealthSignalsInput,
   type ProjectionProbeStatus,
 } from "./criticalHealthSignals";
@@ -27,6 +26,7 @@ export type DigestHealthSnapshotInput = {
   integratorPushOutbox: IntegratorPushOutboxHealthSnapshot;
   backupJobs: Record<string, { lastStatus: string }>;
   probeConsecutiveFailRuns: number;
+  probeIncidentsOpenCount: number;
   videoTranscodeStatus: VideoTranscodeHealthStatus;
   cronJobs: CronJobsHealthPayload;
   operatorIncidentsOpenCount: number;
@@ -45,11 +45,11 @@ export function buildDigestHealthSnapshotLines(input: DigestHealthSnapshotInput)
     integratorPushOutbox: input.integratorPushOutbox,
     backupJobs: input.backupJobs,
     probeConsecutiveFailRuns: input.probeConsecutiveFailRuns,
+    probeIncidentsOpenCount: input.probeIncidentsOpenCount,
     videoTranscodeStatus: input.videoTranscodeStatus,
   };
   const criticalLines = classifyCriticalHealthSignals(criticalInput).flatMap((c) => c.lines);
-  const skipOpenIncidentsLine =
-    input.probeConsecutiveFailRuns >= PROBE_CRITICAL_CONSECUTIVE_FAIL_RUNS;
+  const skipOpenIncidentsLine = input.probeIncidentsOpenCount > 0;
   const degradedLines = extractDigestDegradedLines({
     projection: input.projection,
     projectionDigestDebounce: input.projectionDigestDebounce,
