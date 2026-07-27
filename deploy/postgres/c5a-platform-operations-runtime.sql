@@ -590,14 +590,13 @@ FROM privilege_wall, policy_wall;
 -- Exact Phase 4 billing wall. Guarded for the same partial-cluster reason as the rehydration block.
 DO $c5a_saas_billing_exact_wall$
 DECLARE
-  relation_name text;
   relation_names constant text[] := ARRAY[
     'saas_billing_accounts',
     'saas_billing_subscriptions',
     'saas_billing_invoices',
     'saas_billing_provider_events'
   ];
-  policy_count integer;
+  inventory_ok boolean;
 BEGIN
   IF EXISTS (
     SELECT 1
@@ -608,41 +607,125 @@ BEGIN
     RETURN;
   END IF;
 
-  FOREACH relation_name IN ARRAY relation_names LOOP
-    IF NOT (
-      has_table_privilege('app_staff', 'public.' || relation_name, 'SELECT')
-      AND NOT has_table_privilege('app_staff', 'public.' || relation_name, 'INSERT')
-      AND NOT has_table_privilege('app_staff', 'public.' || relation_name, 'UPDATE')
-      AND NOT has_table_privilege('app_staff', 'public.' || relation_name, 'DELETE')
-      AND has_table_privilege('app_platform_settings', 'public.' || relation_name, 'SELECT')
-      AND has_table_privilege('app_platform_settings', 'public.' || relation_name, 'INSERT')
-      AND has_table_privilege('app_platform_settings', 'public.' || relation_name, 'UPDATE')
-      AND NOT has_table_privilege('app_platform_settings', 'public.' || relation_name, 'DELETE')
-      AND NOT has_table_privilege('app_patient', 'public.' || relation_name, 'SELECT')
-      AND NOT has_table_privilege('app_patient', 'public.' || relation_name, 'INSERT')
-      AND NOT has_table_privilege('app_patient', 'public.' || relation_name, 'UPDATE')
-      AND NOT has_table_privilege('app_patient', 'public.' || relation_name, 'DELETE')
-    ) THEN
-      RAISE EXCEPTION 'C5A SaaS billing privilege wall failed for %', relation_name;
-    END IF;
+  WITH expected(relation_name) AS (
+    SELECT unnest(relation_names)
+  ), relations AS (
+    SELECT
+      expected.relation_name,
+      relation.oid,
+      relation.relowner,
+      owner.rolname AS owner_name,
+      relation.relacl,
+      relation.relrowsecurity,
+      relation.relforcerowsecurity
+    FROM expected
+    JOIN pg_class AS relation
+      ON relation.relname = expected.relation_name
+     AND relation.relnamespace = 'public'::regnamespace
+    JOIN pg_roles AS owner ON owner.oid = relation.relowner
+  ), role_oids AS (
+    SELECT
+      (SELECT oid FROM pg_roles WHERE rolname = 'app_staff') AS staff_oid,
+      (SELECT oid FROM pg_roles WHERE rolname = 'app_platform_settings') AS platform_oid
+  ), expected_table_acl(relation_name, grantee, privilege_type, is_grantable) AS (
+    SELECT relation_name, owner_name, privilege_type, false
+    FROM relations
+    CROSS JOIN unnest(ARRAY[
+      'SELECT', 'INSERT', 'UPDATE', 'DELETE', 'TRUNCATE', 'REFERENCES', 'TRIGGER'
+    ]::text[]) AS privilege_type
+    UNION
+    SELECT relation_name, 'app_staff', 'SELECT', false FROM relations
+    UNION
+    SELECT relation_name, 'app_platform_settings', privilege_type, false
+    FROM relations
+    CROSS JOIN unnest(ARRAY['SELECT', 'INSERT', 'UPDATE']::text[]) AS privilege_type
+  ), actual_table_acl AS (
+    SELECT
+      relations.relation_name,
+      CASE
+        WHEN acl.grantee = 0 THEN 'PUBLIC'
+        ELSE COALESCE(grantee.rolname, acl.grantee::text)
+      END AS grantee,
+      acl.privilege_type,
+      acl.is_grantable
+    FROM relations
+    CROSS JOIN LATERAL aclexplode(
+      COALESCE(relations.relacl, acldefault('r', relations.relowner))
+    ) AS acl
+    LEFT JOIN pg_roles AS grantee ON grantee.oid = acl.grantee
+  ), actual_column_acl AS (
+    SELECT
+      relations.relation_name,
+      attribute.attname,
+      CASE
+        WHEN acl.grantee = 0 THEN 'PUBLIC'
+        ELSE COALESCE(grantee.rolname, acl.grantee::text)
+      END AS grantee,
+      acl.privilege_type,
+      acl.is_grantable
+    FROM relations
+    JOIN pg_attribute AS attribute
+      ON attribute.attrelid = relations.oid
+     AND attribute.attnum > 0
+     AND NOT attribute.attisdropped
+    CROSS JOIN LATERAL aclexplode(attribute.attacl) AS acl
+    LEFT JOIN pg_roles AS grantee ON grantee.oid = acl.grantee
+  ), expected_policy_inventory AS (
+    SELECT
+      relations.relation_name,
+      relations.relation_name || expected_policy.suffix AS policy_name,
+      true AS permissive,
+      expected_policy.command,
+      expected_policy.roles,
+      expected_policy.using_expression,
+      expected_policy.check_expression
+    FROM relations
+    CROSS JOIN role_oids
+    CROSS JOIN LATERAL (
+      VALUES
+        (
+          '_staff_select',
+          'r'::"char",
+          ARRAY[role_oids.staff_oid]::oid[],
+          '(app.is_staff() AND (app.current_org_id() IS NOT NULL) AND (organization_id = app.current_org_id()))'::text,
+          NULL::text
+        ),
+        ('_platform_select', 'r'::"char", ARRAY[role_oids.platform_oid]::oid[], 'true'::text, NULL::text),
+        ('_platform_insert', 'a'::"char", ARRAY[role_oids.platform_oid]::oid[], NULL::text, 'true'::text),
+        ('_platform_update', 'w'::"char", ARRAY[role_oids.platform_oid]::oid[], 'true'::text, 'true'::text)
+    ) AS expected_policy(suffix, command, roles, using_expression, check_expression)
+  ), actual_policy_inventory AS (
+    SELECT
+      relations.relation_name,
+      policy.polname AS policy_name,
+      policy.polpermissive AS permissive,
+      policy.polcmd AS command,
+      policy.polroles AS roles,
+      pg_get_expr(policy.polqual, policy.polrelid) AS using_expression,
+      pg_get_expr(policy.polwithcheck, policy.polrelid) AS check_expression
+    FROM relations
+    JOIN pg_policy AS policy ON policy.polrelid = relations.oid
+  )
+  SELECT (
+    (SELECT count(*) FROM relations) = 4
+    AND (SELECT bool_and(relrowsecurity AND relforcerowsecurity) FROM relations)
+    AND NOT EXISTS (
+      (SELECT * FROM actual_table_acl EXCEPT SELECT * FROM expected_table_acl)
+      UNION ALL
+      (SELECT * FROM expected_table_acl EXCEPT SELECT * FROM actual_table_acl)
+    )
+    AND NOT EXISTS (SELECT 1 FROM actual_column_acl)
+    AND NOT EXISTS (
+      (SELECT * FROM actual_policy_inventory EXCEPT SELECT * FROM expected_policy_inventory)
+      UNION ALL
+      (SELECT * FROM expected_policy_inventory EXCEPT SELECT * FROM actual_policy_inventory)
+    )
+  )
+  INTO inventory_ok;
 
-    SELECT count(*)
-    INTO policy_count
-    FROM pg_policy AS policy
-    JOIN pg_class AS relation ON relation.oid = policy.polrelid
-    WHERE relation.relnamespace = 'public'::regnamespace
-      AND relation.relname = relation_name
-      AND policy.polname IN (
-        relation_name || '_staff_select',
-        relation_name || '_platform_select',
-        relation_name || '_platform_insert',
-        relation_name || '_platform_update'
-      );
-    IF policy_count <> 4 THEN
-      RAISE EXCEPTION 'C5A SaaS billing policy inventory failed for %: expected 4, got %',
-        relation_name, policy_count;
-    END IF;
-  END LOOP;
+  IF NOT inventory_ok THEN
+    RAISE EXCEPTION 'C5A SaaS billing exact table/column ACL, policy, or FORCE RLS inventory failed';
+  END IF;
 END
 $c5a_saas_billing_exact_wall$;
 

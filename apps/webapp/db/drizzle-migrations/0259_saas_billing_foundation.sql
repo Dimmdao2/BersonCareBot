@@ -140,7 +140,20 @@ CREATE TABLE public.saas_billing_provider_events (
   CONSTRAINT saas_billing_provider_events_provider_event_uidx
     UNIQUE (provider_id, provider_event_id),
   CONSTRAINT saas_billing_provider_events_payload_check
-    CHECK (jsonb_typeof(raw_payload) = 'object')
+    CHECK (
+      jsonb_typeof(raw_payload) = 'object'
+      AND raw_payload - ARRAY[
+        'providerId',
+        'providerEventId',
+        'type',
+        'status',
+        'amountMinor',
+        'currency',
+        'invoiceReference',
+        'subscriptionReference',
+        'occurredAt'
+      ] = '{}'::jsonb
+    )
 );
 
 CREATE INDEX idx_saas_billing_provider_events_org_created
@@ -154,6 +167,12 @@ INSERT INTO public.saas_billing_accounts (organization_id)
 SELECT organization.id
 FROM public.be_organizations AS organization
 WHERE organization.tariff_id IS NOT NULL
+  AND NOT EXISTS (
+    SELECT 1
+    FROM public.saas_organization_trials AS trial
+    WHERE trial.organization_id = organization.id
+      AND trial.status = 'active'
+  )
 ON CONFLICT (organization_id) DO NOTHING;
 
 INSERT INTO public.saas_billing_subscriptions (
@@ -175,6 +194,12 @@ FROM public.be_organizations AS organization
 JOIN public.saas_billing_accounts AS account
   ON account.organization_id = organization.id
 WHERE organization.tariff_id IS NOT NULL
+  AND NOT EXISTS (
+    SELECT 1
+    FROM public.saas_organization_trials AS trial
+    WHERE trial.organization_id = organization.id
+      AND trial.status = 'active'
+  )
 ON CONFLICT (organization_id, source) DO UPDATE SET
   tariff_id = EXCLUDED.tariff_id,
   status = 'active',

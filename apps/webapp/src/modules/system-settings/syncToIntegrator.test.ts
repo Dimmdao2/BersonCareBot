@@ -96,7 +96,7 @@ describe("syncSettingToIntegrator", () => {
 	    warnSpy.mockRestore();
 	  });
 
-  it("uses the closed platform-settings outbox function after a platform HTTP failure", async () => {
+  it("enqueues the SaaS billing provider setting through the closed fallback after an HTTP failure", async () => {
     getCurrentDbPrincipalMock.mockReturnValue({
       kind: "platform",
       platformUserId: "77777777-7777-4777-8777-777777777777",
@@ -105,15 +105,15 @@ describe("syncSettingToIntegrator", () => {
     const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
 
     await syncSettingToIntegrator({
-      key: "specialist_signup_enabled",
+      key: "saas_billing_payment_provider",
       scope: "admin",
       organizationId: null,
-      valueJson: { value: true },
+      valueJson: { value: { defaultProviderId: "mock" } },
       updatedBy: "77777777-7777-4777-8777-777777777777",
     });
 
     expect(enqueuePlatformSystemSettingsPushMock).toHaveBeenCalledWith({
-      key: "specialist_signup_enabled",
+      key: "saas_billing_payment_provider",
     });
     expect(enqueueIntegratorPushMock).not.toHaveBeenCalled();
     warnSpy.mockRestore();

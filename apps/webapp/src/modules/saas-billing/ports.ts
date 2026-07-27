@@ -45,11 +45,64 @@ export type SaasBillingInvoice = {
   providerIdempotencyKey: string;
 };
 
-export type SaasBillingRepositoryPort = {
-  upsertManualSaasBillingSubscription(input: {
+export type SaasBillingProviderEventEnvelope = {
+  providerId: string;
+  providerEventId: string;
+  type: string;
+  status?: string | null;
+  amountMinor?: number | null;
+  currency?: string | null;
+  invoiceReference?: string | null;
+  subscriptionReference?: string | null;
+  occurredAt?: string | null;
+};
+
+export type SaasBillingManualAssignmentState = {
+  organization: {
+    tariffId: string | null;
+    commercialAccessState: string;
+  };
+  activeTrial:
+    | (Record<string, unknown> & {
+        id: string;
+        organizationId: string;
+        status: string;
+      })
+    | null;
+  manualSaasBillingSubscription: {
+    id: string;
+    tariffId: string;
+    status: SaasBillingSubscriptionStatus;
+  } | null;
+};
+
+export type SaasBillingManualAssignmentTransactionPort = {
+  loadManualAssignmentState(organizationId: string): Promise<SaasBillingManualAssignmentState>;
+  requireActiveTariff(tariffId: string): Promise<void>;
+  setManualSaasBillingSubscription(input: {
     organizationId: string;
     tariffId: string | null;
-  }): Promise<SaasBillingSubscription | null>;
+  }): Promise<void>;
+  updateCompatibilityProjection(input: {
+    organizationId: string;
+    tariffId: string | null;
+  }): Promise<{ tariffId: string | null; commercialAccessState: string }>;
+  endActiveTrial(trialId: string): Promise<unknown>;
+  appendManualAssignmentAudit(input: {
+    actorId: string | null;
+    reason: string;
+    action: string;
+    targetId: string;
+    organizationId: string;
+    before: unknown;
+    after: unknown;
+  }): Promise<void>;
+};
+
+export type SaasBillingRepositoryPort = {
+  runManualAssignmentTransaction<T>(
+    work: (transaction: SaasBillingManualAssignmentTransactionPort) => Promise<T>,
+  ): Promise<T>;
   createSaasBillingInvoice(input: {
     organizationId: string;
     saasBillingSubscriptionId: string;
@@ -66,10 +119,7 @@ export type SaasBillingRepositoryPort = {
   recordSaasBillingProviderEvent(input: {
     organizationId: string;
     saasBillingInvoiceId: string | null;
-    providerId: string;
-    providerEventId: string;
-    eventType: string;
-    rawPayload: Record<string, unknown>;
+    event: SaasBillingProviderEventEnvelope;
   }): Promise<{ created: boolean }>;
 };
 

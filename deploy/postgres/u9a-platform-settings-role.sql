@@ -57,6 +57,7 @@ BEGIN
     'auth_2fa_enabled',
     'admin_emails',
     'booking_location_default_palette',
+    'saas_billing_payment_provider',
     'notif_template:created:patient',
     'notif_template:created:doctor',
     'notif_template:cancelled:patient',

@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import type { PaymentProviderPort } from "@/modules/payments/providerPort";
 import type {
   SaasBillingInvoice,
+  SaasBillingManualAssignmentTransactionPort,
   SaasBillingRepositoryPort,
 } from "./ports";
 import { createSaasBillingService } from "./service";
@@ -32,7 +33,7 @@ describe("SaaS billing service", () => {
     const calls: string[] = [];
     const invoice = draftSaasBillingInvoice();
     const repository: SaasBillingRepositoryPort = {
-      upsertManualSaasBillingSubscription: vi.fn(),
+      runManualAssignmentTransaction: vi.fn(),
       createSaasBillingInvoice: vi.fn(async () => {
         calls.push("invoice");
         return invoice;
@@ -89,17 +90,118 @@ describe("SaaS billing service", () => {
     }));
   });
 
+  it("owns the manual trial-conversion transaction and writes exactly one audit record", async () => {
+    const activeTrial = {
+      id: "trial-1",
+      organizationId: "org-1",
+      status: "active",
+    };
+    const transaction: SaasBillingManualAssignmentTransactionPort = {
+      loadManualAssignmentState: vi.fn().mockResolvedValue({
+        organization: { tariffId: "trial-tariff", commercialAccessState: "active" },
+        activeTrial,
+        manualSaasBillingSubscription: null,
+      }),
+      requireActiveTariff: vi.fn().mockResolvedValue(undefined),
+      setManualSaasBillingSubscription: vi.fn().mockResolvedValue(undefined),
+      updateCompatibilityProjection: vi.fn().mockResolvedValue({
+        tariffId: "manual-tariff",
+        commercialAccessState: "active",
+      }),
+      endActiveTrial: vi.fn().mockResolvedValue({ ...activeTrial, status: "ended" }),
+      appendManualAssignmentAudit: vi.fn().mockResolvedValue(undefined),
+    };
+    const runManualAssignmentTransaction = vi.fn();
+    const repository: SaasBillingRepositoryPort = {
+      async runManualAssignmentTransaction<T>(
+        work: (value: SaasBillingManualAssignmentTransactionPort) => Promise<T>,
+      ) {
+        runManualAssignmentTransaction(work);
+        return work(transaction);
+      },
+      createSaasBillingInvoice: vi.fn(),
+      attachSaasBillingInvoiceProviderIntent: vi.fn(),
+      recordSaasBillingProviderEvent: vi.fn(),
+    };
+    const service = createSaasBillingService({
+      repository,
+      settings: { getSaasBillingPaymentProviderValue: vi.fn() },
+      resolvePaymentProvider: vi.fn(),
+    });
+
+    await service.assignManualTariff({
+      organizationId: "org-1",
+      tariffId: "manual-tariff",
+      audit: { actorId: "actor-1", reason: "convert" },
+    });
+
+    expect(runManualAssignmentTransaction).toHaveBeenCalledOnce();
+    expect(transaction.setManualSaasBillingSubscription).toHaveBeenCalledWith({
+      organizationId: "org-1",
+      tariffId: "manual-tariff",
+    });
+    expect(transaction.updateCompatibilityProjection).toHaveBeenCalledOnce();
+    expect(transaction.endActiveTrial).toHaveBeenCalledWith("trial-1");
+    expect(transaction.appendManualAssignmentAudit).toHaveBeenCalledOnce();
+    expect(transaction.appendManualAssignmentAudit).toHaveBeenCalledWith(
+      expect.objectContaining({
+        action: "saas_trial_convert_to_manual_tariff",
+        before: expect.objectContaining({ trial: activeTrial }),
+        after: expect.objectContaining({
+          trial: expect.objectContaining({ status: "ended" }),
+        }),
+      }),
+    );
+  });
+
+  it("keeps a null manual assignment during an active trial as a no-op", async () => {
+    const transaction: SaasBillingManualAssignmentTransactionPort = {
+      loadManualAssignmentState: vi.fn().mockResolvedValue({
+        organization: { tariffId: "trial-tariff", commercialAccessState: "active" },
+        activeTrial: { id: "trial-1", organizationId: "org-1", status: "active" },
+        manualSaasBillingSubscription: null,
+      }),
+      requireActiveTariff: vi.fn(),
+      setManualSaasBillingSubscription: vi.fn(),
+      updateCompatibilityProjection: vi.fn(),
+      endActiveTrial: vi.fn(),
+      appendManualAssignmentAudit: vi.fn(),
+    };
+    const repository: SaasBillingRepositoryPort = {
+      runManualAssignmentTransaction: (work) => work(transaction),
+      createSaasBillingInvoice: vi.fn(),
+      attachSaasBillingInvoiceProviderIntent: vi.fn(),
+      recordSaasBillingProviderEvent: vi.fn(),
+    };
+    const service = createSaasBillingService({
+      repository,
+      settings: { getSaasBillingPaymentProviderValue: vi.fn() },
+      resolvePaymentProvider: vi.fn(),
+    });
+
+    await service.assignManualTariff({
+      organizationId: "org-1",
+      tariffId: null,
+      audit: { actorId: null, reason: "unchanged" },
+    });
+
+    expect(transaction.setManualSaasBillingSubscription).not.toHaveBeenCalled();
+    expect(transaction.updateCompatibilityProjection).not.toHaveBeenCalled();
+    expect(transaction.endActiveTrial).not.toHaveBeenCalled();
+    expect(transaction.appendManualAssignmentAudit).not.toHaveBeenCalled();
+  });
+
   it("lands repeated provider events idempotently through the repository port", async () => {
     const seen = new Set<string>();
     const recordSaasBillingProviderEvent = vi.fn(async (input) => {
-      const key = `${input.providerId}:${input.providerEventId}`;
+      const key = `${input.event.providerId}:${input.event.providerEventId}`;
       if (seen.has(key)) return { created: false };
       seen.add(key);
       return { created: true };
     });
     const service = createSaasBillingService({
       repository: {
-        upsertManualSaasBillingSubscription: vi.fn(),
+        runManualAssignmentTransaction: vi.fn(),
         createSaasBillingInvoice: vi.fn(),
         attachSaasBillingInvoiceProviderIntent: vi.fn(),
         recordSaasBillingProviderEvent,
@@ -110,10 +212,12 @@ describe("SaaS billing service", () => {
     const event = {
       organizationId: "org-1",
       saasBillingInvoiceId: "invoice-1",
-      providerId: "mock",
-      providerEventId: "event-1",
-      eventType: "captured",
-      rawPayload: { state: "captured" },
+      event: {
+        providerId: "mock",
+        providerEventId: "event-1",
+        type: "captured",
+        status: "captured",
+      },
     };
     await expect(service.recordSaasBillingProviderEvent(event)).resolves.toEqual({ created: true });
     await expect(service.recordSaasBillingProviderEvent(event)).resolves.toEqual({ created: false });

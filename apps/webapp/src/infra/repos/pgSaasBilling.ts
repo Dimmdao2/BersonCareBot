@@ -1,10 +1,7 @@
 import { and, eq } from "drizzle-orm";
 import { getDrizzle } from "@/app-layer/db/drizzle";
-import type {
-  SaasBillingInvoice,
-  SaasBillingRepositoryPort,
-  SaasBillingSubscription,
-} from "@/modules/saas-billing/ports";
+import type { SaasBillingInvoice, SaasBillingRepositoryPort } from "@/modules/saas-billing/ports";
+import { sanitizeSaasBillingProviderEventEnvelope } from "@/modules/saas-billing/providerEventEnvelope";
 import { beOrganizations } from "../../../db/schema/bookingEngine";
 import {
   saasBillingAccounts,
@@ -12,16 +9,14 @@ import {
   saasBillingProviderEvents,
   saasBillingSubscriptions,
 } from "../../../db/schema/saasBilling";
-import { saasTariffs } from "../../../db/schema/saasEntitlements";
+import {
+  saasOrganizationTrials,
+  saasTariffs,
+} from "../../../db/schema/saasEntitlements";
+import { adminAuditLog } from "../../../db/schema/schema";
 
 type Db = ReturnType<typeof getDrizzle>;
 type Transaction = Parameters<Parameters<Db["transaction"]>[0]>[0];
-
-function toSaasBillingSubscription(
-  row: typeof saasBillingSubscriptions.$inferSelect,
-): SaasBillingSubscription {
-  return row;
-}
 
 function toSaasBillingInvoice(
   row: typeof saasBillingInvoices.$inferSelect,
@@ -30,15 +25,6 @@ function toSaasBillingInvoice(
     ...row,
     tariffBillingPeriod: row.tariffBillingPeriod as SaasBillingInvoice["tariffBillingPeriod"],
   };
-}
-
-async function requireOrganization(tx: Transaction, organizationId: string): Promise<void> {
-  const [row] = await tx
-    .select({ id: beOrganizations.id })
-    .from(beOrganizations)
-    .where(eq(beOrganizations.id, organizationId))
-    .limit(1);
-  if (!row) throw new Error("organization_not_found");
 }
 
 async function upsertSaasBillingAccount(
@@ -59,69 +45,145 @@ async function upsertSaasBillingAccount(
 
 export function createPgSaasBillingRepository(): SaasBillingRepositoryPort {
   return {
-    async upsertManualSaasBillingSubscription({ organizationId, tariffId }) {
+    async runManualAssignmentTransaction(work) {
       return getDrizzle().transaction(async (tx) => {
-        await requireOrganization(tx, organizationId);
-        if (tariffId === null) {
-          await tx
-            .update(saasBillingSubscriptions)
-            .set({
-              status: "cancelled",
-              cancelledAt: new Date().toISOString(),
-              updatedAt: new Date().toISOString(),
-            })
-            .where(
-              and(
-                eq(saasBillingSubscriptions.organizationId, organizationId),
-                eq(saasBillingSubscriptions.source, "manual"),
-              ),
-            );
-          await tx
-            .update(beOrganizations)
-            .set({ tariffId: null, commercialAccessState: "no_trial" })
-            .where(eq(beOrganizations.id, organizationId));
-          return null;
-        }
-
-        const [tariff] = await tx
-          .select({ id: saasTariffs.id })
-          .from(saasTariffs)
-          .where(and(eq(saasTariffs.id, tariffId), eq(saasTariffs.isActive, true)))
-          .limit(1);
-        if (!tariff) throw new Error("active_tariff_not_found");
-
-        const account = await upsertSaasBillingAccount(tx, organizationId);
-        const [row] = await tx
-          .insert(saasBillingSubscriptions)
-          .values({
-            organizationId,
-            saasBillingAccountId: account.id,
-            tariffId,
-            source: "manual",
-            status: "active",
-            lifecycleState: "active",
-          })
-          .onConflictDoUpdate({
-            target: [
-              saasBillingSubscriptions.organizationId,
-              saasBillingSubscriptions.source,
-            ],
-            set: {
-              tariffId,
-              status: "active",
-              lifecycleState: "active",
-              cancelledAt: null,
-              updatedAt: new Date().toISOString(),
-            },
-          })
-          .returning();
-        if (!row) throw new Error("saas_billing_manual_assignment_failed");
-
-        await tx
-          .update(beOrganizations)
-          .set({ tariffId, commercialAccessState: "active" })
-          .where(eq(beOrganizations.id, organizationId));
-        return toSaasBillingSubscription(row);
+        return work({
+          async loadManualAssignmentState(organizationId) {
+            const [organization] = await tx
+              .select({
+                tariffId: beOrganizations.tariffId,
+                commercialAccessState: beOrganizations.commercialAccessState,
+              })
+              .from(beOrganizations)
+              .where(eq(beOrganizations.id, organizationId))
+              .limit(1);
+            if (!organization) throw new Error("organization_not_found");
+            const [activeTrial] = await tx
+              .select()
+              .from(saasOrganizationTrials)
+              .where(
+                and(
+                  eq(saasOrganizationTrials.organizationId, organizationId),
+                  eq(saasOrganizationTrials.status, "active"),
+                ),
+              )
+              .limit(1);
+            const [manualSaasBillingSubscription] = await tx
+              .select({
+                id: saasBillingSubscriptions.id,
+                tariffId: saasBillingSubscriptions.tariffId,
+                status: saasBillingSubscriptions.status,
+              })
+              .from(saasBillingSubscriptions)
+              .where(
+                and(
+                  eq(saasBillingSubscriptions.organizationId, organizationId),
+                  eq(saasBillingSubscriptions.source, "manual"),
+                ),
+              )
+              .limit(1);
+            return {
+              organization,
+              activeTrial: activeTrial ?? null,
+              manualSaasBillingSubscription: manualSaasBillingSubscription ?? null,
+            };
+          },
+          async requireActiveTariff(tariffId) {
+            const [tariff] = await tx
+              .select({ id: saasTariffs.id })
+              .from(saasTariffs)
+              .where(and(eq(saasTariffs.id, tariffId), eq(saasTariffs.isActive, true)))
+              .limit(1);
+            if (!tariff) throw new Error("active_tariff_not_found");
+          },
+          async setManualSaasBillingSubscription({ organizationId, tariffId }) {
+            if (tariffId === null) {
+              await tx
+                .update(saasBillingSubscriptions)
+                .set({
+                  status: "cancelled",
+                  cancelledAt: new Date().toISOString(),
+                  updatedAt: new Date().toISOString(),
+                })
+                .where(
+                  and(
+                    eq(saasBillingSubscriptions.organizationId, organizationId),
+                    eq(saasBillingSubscriptions.source, "manual"),
+                  ),
+                );
+              return;
+            }
+            const account = await upsertSaasBillingAccount(tx, organizationId);
+            const [row] = await tx
+              .insert(saasBillingSubscriptions)
+              .values({
+                organizationId,
+                saasBillingAccountId: account.id,
+                tariffId,
+                source: "manual",
+                status: "active",
+                lifecycleState: "active",
+              })
+              .onConflictDoUpdate({
+                target: [
+                  saasBillingSubscriptions.organizationId,
+                  saasBillingSubscriptions.source,
+                ],
+                set: {
+                  tariffId,
+                  status: "active",
+                  lifecycleState: "active",
+                  cancelledAt: null,
+                  updatedAt: new Date().toISOString(),
+                },
+              })
+              .returning({ id: saasBillingSubscriptions.id });
+            if (!row) throw new Error("saas_billing_manual_assignment_failed");
+          },
+          async updateCompatibilityProjection({ organizationId, tariffId }) {
+            const [organization] = await tx
+              .update(beOrganizations)
+              .set({
+                tariffId,
+                commercialAccessState: tariffId ? "active" : "no_trial",
+              })
+              .where(eq(beOrganizations.id, organizationId))
+              .returning({
+                tariffId: beOrganizations.tariffId,
+                commercialAccessState: beOrganizations.commercialAccessState,
+              });
+            if (!organization) throw new Error("organization_not_found");
+            return organization;
+          },
+          async endActiveTrial(trialId) {
+            const [trial] = await tx
+              .update(saasOrganizationTrials)
+              .set({ status: "ended", updatedAt: new Date().toISOString() })
+              .where(
+                and(
+                  eq(saasOrganizationTrials.id, trialId),
+                  eq(saasOrganizationTrials.status, "active"),
+                ),
+              )
+              .returning();
+            if (!trial) throw new Error("trial_conversion_conflict");
+            return trial;
+          },
+          async appendManualAssignmentAudit(input) {
+            await tx.insert(adminAuditLog).values({
+              organizationId: input.organizationId,
+              actorId: input.actorId,
+              action: input.action,
+              targetId: input.targetId,
+              details: {
+                reason: input.reason,
+                before: input.before,
+                after: input.after,
+              },
+              status: "ok",
+            });
+          },
+        });
       });
     },
 
@@ -193,9 +255,17 @@ export function createPgSaasBillingRepository(): SaasBillingRepositoryPort {
     },
 
     async recordSaasBillingProviderEvent(input) {
+      const event = sanitizeSaasBillingProviderEventEnvelope(input.event);
       const [row] = await getDrizzle()
         .insert(saasBillingProviderEvents)
-        .values(input)
+        .values({
+          organizationId: input.organizationId,
+          saasBillingInvoiceId: input.saasBillingInvoiceId,
+          providerId: event.providerId,
+          providerEventId: event.providerEventId,
+          eventType: event.type,
+          rawPayload: event,
+        })
         .onConflictDoNothing({
           target: [
             saasBillingProviderEvents.providerId,

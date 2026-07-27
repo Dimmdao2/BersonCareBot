@@ -6,33 +6,64 @@ import type {
 
 export function createInMemorySaasBillingRepository(): SaasBillingRepositoryPort {
   const rows = new Map<string, SaasBillingSubscription>();
+  const organizationTariffs = new Map<string, string | null>();
   const invoices = new Map<string, SaasBillingInvoice>();
   const events = new Set<string>();
 
   return {
-    async upsertManualSaasBillingSubscription({ organizationId, tariffId }) {
-      if (tariffId === null) {
-        rows.delete(organizationId);
-        return null;
-      }
-      const row: SaasBillingSubscription = {
-        id: rows.get(organizationId)?.id ?? crypto.randomUUID(),
-        organizationId,
-        saasBillingAccountId:
-          rows.get(organizationId)?.saasBillingAccountId ?? crypto.randomUUID(),
-        tariffId,
-        source: "manual",
-        status: "active",
-        lifecycleState: "active",
-        providerId: null,
-        savedPaymentMethodId: null,
-        currentPeriodStartsAt: null,
-        currentPeriodEndsAt: null,
-        graceEndsAt: null,
-        readOnlyEndsAt: null,
-      };
-      rows.set(organizationId, row);
-      return row;
+    async runManualAssignmentTransaction(work) {
+      return work({
+        async loadManualAssignmentState(organizationId) {
+          const manual = rows.get(organizationId) ?? null;
+          return {
+            organization: {
+              tariffId: organizationTariffs.get(organizationId) ?? null,
+              commercialAccessState: organizationTariffs.get(organizationId)
+                ? "active"
+                : "no_trial",
+            },
+            activeTrial: null,
+            manualSaasBillingSubscription: manual
+              ? { id: manual.id, tariffId: manual.tariffId, status: manual.status }
+              : null,
+          };
+        },
+        async requireActiveTariff() {},
+        async setManualSaasBillingSubscription({ organizationId, tariffId }) {
+          if (tariffId === null) {
+            const current = rows.get(organizationId);
+            if (current) rows.set(organizationId, { ...current, status: "cancelled" });
+            return;
+          }
+          const current = rows.get(organizationId);
+          rows.set(organizationId, {
+            id: current?.id ?? crypto.randomUUID(),
+            organizationId,
+            saasBillingAccountId: current?.saasBillingAccountId ?? crypto.randomUUID(),
+            tariffId,
+            source: "manual",
+            status: "active",
+            lifecycleState: "active",
+            providerId: null,
+            savedPaymentMethodId: null,
+            currentPeriodStartsAt: null,
+            currentPeriodEndsAt: null,
+            graceEndsAt: null,
+            readOnlyEndsAt: null,
+          });
+        },
+        async updateCompatibilityProjection({ organizationId, tariffId }) {
+          organizationTariffs.set(organizationId, tariffId);
+          return {
+            tariffId,
+            commercialAccessState: tariffId ? "active" : "no_trial",
+          };
+        },
+        async endActiveTrial() {
+          throw new Error("in_memory_saas_billing_trial_missing");
+        },
+        async appendManualAssignmentAudit() {},
+      });
     },
 
     async createSaasBillingInvoice(input) {
@@ -78,7 +109,7 @@ export function createInMemorySaasBillingRepository(): SaasBillingRepositoryPort
     },
 
     async recordSaasBillingProviderEvent(input) {
-      const key = `${input.providerId}:${input.providerEventId}`;
+      const key = `${input.event.providerId}:${input.event.providerEventId}`;
       if (events.has(key)) return { created: false };
       events.add(key);
       return { created: true };

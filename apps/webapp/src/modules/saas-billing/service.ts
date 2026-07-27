@@ -1,9 +1,11 @@
 import type {
   ResolvedSaasBillingPaymentProvider,
   SaasBillingPaymentProviderResolver,
+  SaasBillingProviderEventEnvelope,
   SaasBillingRepositoryPort,
   SaasBillingSettingsReadPort,
 } from "./ports";
+import { sanitizeSaasBillingProviderEventEnvelope } from "./providerEventEnvelope";
 import {
   parseSaasBillingPaymentProviderSettings,
 } from "./settings";
@@ -31,11 +33,55 @@ export function createSaasBillingService(dependencies: {
   }
 
   return {
-    upsertManualSaasBillingSubscription(input: {
+    assignManualTariff(input: {
       organizationId: string;
       tariffId: string | null;
+      audit: { actorId: string | null; reason: string };
     }) {
-      return dependencies.repository.upsertManualSaasBillingSubscription(input);
+      return dependencies.repository.runManualAssignmentTransaction(async (transaction) => {
+        const state = await transaction.loadManualAssignmentState(input.organizationId);
+        const currentManualTariffId =
+          state.manualSaasBillingSubscription?.status === "active"
+            ? state.manualSaasBillingSubscription.tariffId
+            : null;
+        if (
+          input.tariffId === currentManualTariffId &&
+          (!state.activeTrial || input.tariffId === null)
+        ) {
+          return;
+        }
+
+        if (input.tariffId) {
+          await transaction.requireActiveTariff(input.tariffId);
+        }
+        await transaction.setManualSaasBillingSubscription({
+          organizationId: input.organizationId,
+          tariffId: input.tariffId,
+        });
+        const organization = await transaction.updateCompatibilityProjection({
+          organizationId: input.organizationId,
+          tariffId: input.tariffId,
+        });
+        const endedTrial = state.activeTrial
+          ? await transaction.endActiveTrial(state.activeTrial.id)
+          : null;
+        await transaction.appendManualAssignmentAudit({
+          ...input.audit,
+          action: state.activeTrial
+            ? "saas_trial_convert_to_manual_tariff"
+            : input.tariffId
+              ? "saas_tariff_assign"
+              : "saas_tariff_unassign",
+          targetId: input.organizationId,
+          organizationId: input.organizationId,
+          before: {
+            organization: state.organization,
+            trial: state.activeTrial,
+            saasBillingSubscription: state.manualSaasBillingSubscription,
+          },
+          after: { organization, trial: endedTrial },
+        });
+      });
     },
 
     async createRenewalSaasBillingInvoice(input: {
@@ -68,8 +114,16 @@ export function createSaasBillingService(dependencies: {
       });
     },
 
-    recordSaasBillingProviderEvent:
-      dependencies.repository.recordSaasBillingProviderEvent.bind(dependencies.repository),
+    recordSaasBillingProviderEvent(input: {
+      organizationId: string;
+      saasBillingInvoiceId: string | null;
+      event: SaasBillingProviderEventEnvelope;
+    }) {
+      return dependencies.repository.recordSaasBillingProviderEvent({
+        ...input,
+        event: sanitizeSaasBillingProviderEventEnvelope(input.event),
+      });
+    },
   };
 }
 

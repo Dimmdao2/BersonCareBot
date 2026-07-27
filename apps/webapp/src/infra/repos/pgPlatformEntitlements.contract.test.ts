@@ -107,78 +107,23 @@ describe("platform commercial persistence boundary", () => {
     });
   });
 
-  it("treats an unchanged manual assignment during a trial as a no-op", async () => {
-    const trialTariffId = "33333333-3333-4333-8333-333333333333";
-    const select = vi
-      .fn()
-      .mockReturnValueOnce({ from: vi.fn(() => ({ where: vi.fn(() => ({ limit: vi.fn().mockResolvedValue([{ tariffId: trialTariffId, commercialAccessState: "active" }]) })) })) })
-      .mockReturnValueOnce({ from: vi.fn(() => ({ where: vi.fn(() => ({ limit: vi.fn().mockResolvedValue([{ id: "trial-1", status: "active" }]) })) })) })
-      .mockReturnValueOnce({ from: vi.fn(() => ({ where: vi.fn(() => ({ limit: vi.fn().mockResolvedValue([]) })) })) });
-    const update = vi.fn();
-    const insert = vi.fn();
-    getDrizzleMock.mockReturnValue({
-      transaction: (callback: (tx: { select: typeof select; update: typeof update; insert: typeof insert }) => unknown) => callback({ select, update, insert }),
-    });
+  it("delegates the existing platform assignment operation to the SaaS billing service", async () => {
+    const assignManualTariff = vi.fn().mockResolvedValue(undefined);
+    const audit = { actorId: null, reason: "convert" };
 
-    await createPgPlatformEntitlementsPort().assignTariff(
+    await createPgPlatformEntitlementsPort({ assignManualTariff }).assignTariff(
       "11111111-1111-4111-8111-111111111111",
-      null,
-      { actorId: null, reason: "unchanged" },
+      "44444444-4444-4444-8444-444444444444",
+      audit,
     );
 
-    expect(update).not.toHaveBeenCalled();
-    expect(insert).not.toHaveBeenCalled();
-  });
-
-  it("audits an explicit different assignment as trial conversion", async () => {
-    const nextTariffId = "44444444-4444-4444-8444-444444444444";
-    const activeTrial = { id: "trial-1", organizationId: "11111111-1111-4111-8111-111111111111", status: "active" };
-    const select = vi
-      .fn()
-      .mockReturnValueOnce({ from: vi.fn(() => ({ where: vi.fn(() => ({ limit: vi.fn().mockResolvedValue([{ tariffId: "trial-tariff", commercialAccessState: "active" }]) })) })) })
-      .mockReturnValueOnce({ from: vi.fn(() => ({ where: vi.fn(() => ({ limit: vi.fn().mockResolvedValue([activeTrial]) })) })) })
-      .mockReturnValueOnce({ from: vi.fn(() => ({ where: vi.fn(() => ({ limit: vi.fn().mockResolvedValue([]) })) })) })
-      .mockReturnValueOnce({ from: vi.fn(() => ({ where: vi.fn(() => ({ limit: vi.fn().mockResolvedValue([{ id: nextTariffId }]) })) })) });
-    const organizationAfter = { tariffId: nextTariffId, commercialAccessState: "active" };
-    const endedTrial = { ...activeTrial, status: "ended" };
-    const update = vi
-      .fn()
-      .mockReturnValueOnce({ set: vi.fn(() => ({ where: vi.fn(() => ({ returning: vi.fn().mockResolvedValue([organizationAfter]) })) })) })
-      .mockReturnValueOnce({ set: vi.fn(() => ({ where: vi.fn(() => ({ returning: vi.fn().mockResolvedValue([endedTrial]) })) })) });
-    const accountReturning = vi.fn().mockResolvedValue([{ id: "account-1" }]);
-    const assignmentReturning = vi.fn().mockResolvedValue([{ id: "assignment-1" }]);
-    const auditValues = vi.fn().mockResolvedValue(undefined);
-    const insert = vi
-      .fn()
-      .mockReturnValueOnce({
-        values: vi.fn(() => ({
-          onConflictDoUpdate: vi.fn(() => ({ returning: accountReturning })),
-        })),
-      })
-      .mockReturnValueOnce({
-        values: vi.fn(() => ({
-          onConflictDoUpdate: vi.fn(() => ({ returning: assignmentReturning })),
-        })),
-      })
-      .mockReturnValueOnce({ values: auditValues });
-    getDrizzleMock.mockReturnValue({
-      transaction: (callback: (tx: { select: typeof select; update: typeof update; insert: typeof insert }) => unknown) => callback({ select, update, insert }),
+    expect(assignManualTariff).toHaveBeenCalledOnce();
+    expect(assignManualTariff).toHaveBeenCalledWith({
+      organizationId: "11111111-1111-4111-8111-111111111111",
+      tariffId: "44444444-4444-4444-8444-444444444444",
+      audit,
     });
-
-    await createPgPlatformEntitlementsPort().assignTariff(
-      activeTrial.organizationId,
-      nextTariffId,
-      { actorId: null, reason: "convert" },
-    );
-
-    expect(update).toHaveBeenCalledTimes(2);
-    expect(auditValues).toHaveBeenCalledWith(expect.objectContaining({
-      action: "saas_trial_convert_to_manual_tariff",
-      details: expect.objectContaining({
-        before: expect.objectContaining({ trial: activeTrial }),
-        after: expect.objectContaining({ trial: endedTrial }),
-      }),
-    }));
+    expect(getDrizzleMock).not.toHaveBeenCalled();
   });
 
   it("maps arbitrary persisted tariff mechanics and typed quotas without a product default", async () => {

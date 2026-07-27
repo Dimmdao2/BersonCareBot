@@ -290,7 +290,7 @@ export const saasBillingProviderEvents = pgTable(
     }).onDelete("restrict"),
     check(
       "saas_billing_provider_events_payload_check",
-      sql`jsonb_typeof(${table.rawPayload}) = 'object'`,
+      sql`jsonb_typeof(${table.rawPayload}) = 'object' AND ${table.rawPayload} - ARRAY['providerId', 'providerEventId', 'type', 'status', 'amountMinor', 'currency', 'invoiceReference', 'subscriptionReference', 'occurredAt'] = '{}'::jsonb`,
     ),
   ],
 );

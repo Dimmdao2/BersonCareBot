@@ -552,9 +552,6 @@ const orgBrandingService = createOrgBrandingService({
   isBrandingMechanicEnabled: (organizationId: string) =>
     isMechanicEnabled(orgEntitlementsPort, organizationId, "branding"),
 });
-const platformEntitlementsService = createPlatformEntitlementsService(
-  !inMemoryRepos ? createPgPlatformEntitlementsPort() : createInMemoryPlatformEntitlementsPort(),
-);
 const patientOrganizationService = !inMemoryRepos
   ? createPatientOrganizationService({ port: createPgPatientOrganizationPort() })
   : null;
@@ -745,6 +742,13 @@ const saasBillingService = createSaasBillingService({
   },
   resolvePaymentProvider: getPaymentProviderAdapter,
 });
+const platformEntitlementsService = createPlatformEntitlementsService(
+  !inMemoryRepos
+    ? createPgPlatformEntitlementsPort({
+        assignManualTariff: saasBillingService.assignManualTariff,
+      })
+    : createInMemoryPlatformEntitlementsPort(),
+);
 const runtimeConfig = createRuntimeConfigProvider(
   appRuntimeSettingsPort,
 );

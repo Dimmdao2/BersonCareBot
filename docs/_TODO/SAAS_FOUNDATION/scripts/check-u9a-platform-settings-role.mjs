@@ -27,6 +27,7 @@ for (const fragment of [
   "'patient_unsupported_client_fallback_enabled'",
   "'patient_app_maintenance_enabled'",
   "'patient_app_maintenance_message'",
+  "'saas_billing_payment_provider'",
   "FROM public.system_settings AS setting",
   "'valueJson', v_value_json",
   "GRANT EXECUTE ON FUNCTION app.enqueue_platform_system_settings_sync(text)",
@@ -54,6 +55,7 @@ const platformApiKeys = [...(apiWhitelistMatch?.[1] ?? "").matchAll(/"([a-z0-9_]
 );
 const expectedKeys = [
   ...platformApiKeys,
+  "saas_billing_payment_provider",
   "notif_template:created:patient",
   "notif_template:created:doctor",
   "notif_template:cancelled:patient",

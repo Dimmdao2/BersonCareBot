@@ -16,10 +16,7 @@ import type {
   TrialPolicy,
 } from "@/modules/org-entitlements/types";
 import { beOrganizations } from "../../../db/schema/bookingEngine";
-import {
-  saasBillingAccounts,
-  saasBillingSubscriptions,
-} from "../../../db/schema/saasBilling";
+import { saasBillingSubscriptions } from "../../../db/schema/saasBilling";
 import {
   saasOrganizationTrials,
   saasOrgEntitlementOverrides,
@@ -221,7 +218,13 @@ async function startTrialForOrganization(
   });
 }
 
-export function createPgPlatformEntitlementsPort(): PlatformEntitlementsPort {
+export function createPgPlatformEntitlementsPort(dependencies?: {
+  assignManualTariff(input: {
+    organizationId: string;
+    tariffId: string | null;
+    audit: PlatformMutationAudit;
+  }): Promise<void>;
+}): PlatformEntitlementsPort {
   return {
     async listTariffs() {
       assertPlatformOperationsPrincipal();
@@ -335,117 +338,12 @@ export function createPgPlatformEntitlementsPort(): PlatformEntitlementsPort {
 
     async assignTariff(organizationId, tariffId, audit) {
       assertPlatformOperationsPrincipal();
-      await getDrizzle().transaction(async (tx) => {
-          const [before] = await tx.select({ tariffId: beOrganizations.tariffId, commercialAccessState: beOrganizations.commercialAccessState }).from(beOrganizations).where(eq(beOrganizations.id, organizationId)).limit(1);
-          if (!before) throw new Error("organization_not_found");
-          const [activeTrial] = await tx
-            .select()
-            .from(saasOrganizationTrials)
-            .where(and(eq(saasOrganizationTrials.organizationId, organizationId), eq(saasOrganizationTrials.status, "active")))
-            .limit(1);
-          const [manualSaasBillingRow] = await tx
-            .select({
-              id: saasBillingSubscriptions.id,
-              tariffId: saasBillingSubscriptions.tariffId,
-              status: saasBillingSubscriptions.status,
-            })
-            .from(saasBillingSubscriptions)
-            .where(
-              and(
-                eq(saasBillingSubscriptions.organizationId, organizationId),
-                eq(saasBillingSubscriptions.source, "manual"),
-              ),
-            )
-            .limit(1);
-          const currentManualTariffId =
-            manualSaasBillingRow?.status === "active"
-              ? manualSaasBillingRow.tariffId
-              : null;
-          if (
-            tariffId === currentManualTariffId &&
-            (!activeTrial || tariffId === null)
-          ) {
-            return;
-          }
-          if (tariffId) await requireActiveTariff(tx, tariffId);
-          if (tariffId) {
-            const [account] = await tx
-              .insert(saasBillingAccounts)
-              .values({ organizationId })
-              .onConflictDoUpdate({
-                target: saasBillingAccounts.organizationId,
-                set: { updatedAt: new Date().toISOString() },
-              })
-              .returning({ id: saasBillingAccounts.id });
-            if (!account) throw new Error("saas_billing_account_upsert_failed");
-            const [assignment] = await tx
-              .insert(saasBillingSubscriptions)
-              .values({
-                organizationId,
-                saasBillingAccountId: account.id,
-                tariffId,
-                source: "manual",
-                status: "active",
-                lifecycleState: "active",
-              })
-              .onConflictDoUpdate({
-                target: [
-                  saasBillingSubscriptions.organizationId,
-                  saasBillingSubscriptions.source,
-                ],
-                set: {
-                  tariffId,
-                  status: "active",
-                  lifecycleState: "active",
-                  cancelledAt: null,
-                  updatedAt: new Date().toISOString(),
-                },
-              })
-              .returning({ id: saasBillingSubscriptions.id });
-            if (!assignment) throw new Error("saas_billing_manual_assignment_failed");
-          } else {
-            await tx
-              .update(saasBillingSubscriptions)
-              .set({
-                status: "cancelled",
-                cancelledAt: new Date().toISOString(),
-                updatedAt: new Date().toISOString(),
-              })
-              .where(
-                and(
-                  eq(saasBillingSubscriptions.organizationId, organizationId),
-                  eq(saasBillingSubscriptions.source, "manual"),
-                ),
-              );
-          }
-          const [after] = await tx.update(beOrganizations).set({ tariffId, commercialAccessState: tariffId ? "active" : "no_trial" }).where(eq(beOrganizations.id, organizationId)).returning({ tariffId: beOrganizations.tariffId, commercialAccessState: beOrganizations.commercialAccessState });
-          let endedTrial: typeof saasOrganizationTrials.$inferSelect | null = null;
-          if (activeTrial) {
-            const [ended] = await tx
-              .update(saasOrganizationTrials)
-              .set({ status: "ended", updatedAt: new Date().toISOString() })
-              .where(and(eq(saasOrganizationTrials.id, activeTrial.id), eq(saasOrganizationTrials.status, "active")))
-              .returning();
-            if (!ended) throw new Error("trial_conversion_conflict");
-            endedTrial = ended;
-          }
-          await appendAudit(tx, {
-            audit,
-            action: activeTrial
-              ? "saas_trial_convert_to_manual_tariff"
-              : tariffId
-                ? "saas_tariff_assign"
-                : "saas_tariff_unassign",
-            targetId: organizationId,
-            organizationId,
-            before: {
-              organization: before,
-              trial: activeTrial ?? null,
-              saasBillingSubscription: manualSaasBillingRow ?? null,
-            },
-            after: { organization: after, trial: endedTrial },
-          });
-        });
+      if (!dependencies) throw new Error("saas_billing_service_required");
+      await dependencies.assignManualTariff({
+        organizationId,
+        tariffId,
+        audit,
+      });
     },
 
     async upsertOverride(input, audit) {

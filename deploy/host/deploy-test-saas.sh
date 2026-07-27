@@ -1588,45 +1588,123 @@ WITH expected(relation_name) AS (
     ('saas_billing_subscriptions'),
     ('saas_billing_invoices'),
     ('saas_billing_provider_events')
-), privilege_wall AS (
-  SELECT bool_and(
-    to_regclass('public.' || relation_name) IS NOT NULL
-    AND has_table_privilege('app_staff', 'public.' || relation_name, 'SELECT')
-    AND NOT has_table_privilege('app_staff', 'public.' || relation_name, 'INSERT')
-    AND NOT has_table_privilege('app_staff', 'public.' || relation_name, 'UPDATE')
-    AND NOT has_table_privilege('app_staff', 'public.' || relation_name, 'DELETE')
-    AND has_table_privilege('app_platform_settings', 'public.' || relation_name, 'SELECT')
-    AND has_table_privilege('app_platform_settings', 'public.' || relation_name, 'INSERT')
-    AND has_table_privilege('app_platform_settings', 'public.' || relation_name, 'UPDATE')
-    AND NOT has_table_privilege('app_platform_settings', 'public.' || relation_name, 'DELETE')
-    AND NOT has_table_privilege('app_patient', 'public.' || relation_name, 'SELECT')
-    AND NOT has_table_privilege('app_patient', 'public.' || relation_name, 'INSERT')
-    AND NOT has_table_privilege('app_patient', 'public.' || relation_name, 'UPDATE')
-    AND NOT has_table_privilege('app_patient', 'public.' || relation_name, 'DELETE')
-  ) AS ok
-  FROM expected
-), policy_wall AS (
-  SELECT count(policy.polname) = 16 AS ok
+), relations AS (
+  SELECT
+    expected.relation_name,
+    relation.oid,
+    relation.relowner,
+    owner.rolname AS owner_name,
+    relation.relacl,
+    relation.relrowsecurity,
+    relation.relforcerowsecurity
   FROM expected
   JOIN pg_class AS relation
     ON relation.relname = expected.relation_name
    AND relation.relnamespace = 'public'::regnamespace
-  JOIN pg_policy AS policy
-    ON policy.polrelid = relation.oid
-   AND policy.polname IN (
-     expected.relation_name || '_staff_select',
-     expected.relation_name || '_platform_select',
-     expected.relation_name || '_platform_insert',
-     expected.relation_name || '_platform_update'
-   )
+  JOIN pg_roles AS owner ON owner.oid = relation.relowner
+), role_oids AS (
+  SELECT
+    (SELECT oid FROM pg_roles WHERE rolname = 'app_staff') AS staff_oid,
+    (SELECT oid FROM pg_roles WHERE rolname = 'app_platform_settings') AS platform_oid
+), expected_table_acl(relation_name, grantee, privilege_type, is_grantable) AS (
+  SELECT relation_name, owner_name, privilege_type, false
+  FROM relations
+  CROSS JOIN unnest(ARRAY[
+    'SELECT', 'INSERT', 'UPDATE', 'DELETE', 'TRUNCATE', 'REFERENCES', 'TRIGGER'
+  ]::text[]) AS privilege_type
+  UNION
+  SELECT relation_name, 'app_staff', 'SELECT', false FROM relations
+  UNION
+  SELECT relation_name, 'app_platform_settings', privilege_type, false
+  FROM relations
+  CROSS JOIN unnest(ARRAY['SELECT', 'INSERT', 'UPDATE']::text[]) AS privilege_type
+), actual_table_acl AS (
+  SELECT
+    relations.relation_name,
+    CASE
+      WHEN acl.grantee = 0 THEN 'PUBLIC'
+      ELSE COALESCE(grantee.rolname, acl.grantee::text)
+    END AS grantee,
+    acl.privilege_type,
+    acl.is_grantable
+  FROM relations
+  CROSS JOIN LATERAL aclexplode(
+    COALESCE(relations.relacl, acldefault('r', relations.relowner))
+  ) AS acl
+  LEFT JOIN pg_roles AS grantee ON grantee.oid = acl.grantee
+), actual_column_acl AS (
+  SELECT
+    relations.relation_name,
+    attribute.attname,
+    CASE
+      WHEN acl.grantee = 0 THEN 'PUBLIC'
+      ELSE COALESCE(grantee.rolname, acl.grantee::text)
+    END AS grantee,
+    acl.privilege_type,
+    acl.is_grantable
+  FROM relations
+  JOIN pg_attribute AS attribute
+    ON attribute.attrelid = relations.oid
+   AND attribute.attnum > 0
+   AND NOT attribute.attisdropped
+  CROSS JOIN LATERAL aclexplode(attribute.attacl) AS acl
+  LEFT JOIN pg_roles AS grantee ON grantee.oid = acl.grantee
+), expected_policy_inventory AS (
+  SELECT
+    relations.relation_name,
+    relations.relation_name || expected_policy.suffix AS policy_name,
+    true AS permissive,
+    expected_policy.command,
+    expected_policy.roles,
+    expected_policy.using_expression,
+    expected_policy.check_expression
+  FROM relations
+  CROSS JOIN role_oids
+  CROSS JOIN LATERAL (
+    VALUES
+      (
+        '_staff_select',
+        'r'::\"char\",
+        ARRAY[role_oids.staff_oid]::oid[],
+        '(app.is_staff() AND (app.current_org_id() IS NOT NULL) AND (organization_id = app.current_org_id()))'::text,
+        NULL::text
+      ),
+      ('_platform_select', 'r'::\"char\", ARRAY[role_oids.platform_oid]::oid[], 'true'::text, NULL::text),
+      ('_platform_insert', 'a'::\"char\", ARRAY[role_oids.platform_oid]::oid[], NULL::text, 'true'::text),
+      ('_platform_update', 'w'::\"char\", ARRAY[role_oids.platform_oid]::oid[], 'true'::text, 'true'::text)
+  ) AS expected_policy(suffix, command, roles, using_expression, check_expression)
+), actual_policy_inventory AS (
+  SELECT
+    relations.relation_name,
+    policy.polname AS policy_name,
+    policy.polpermissive AS permissive,
+    policy.polcmd AS command,
+    policy.polroles AS roles,
+    pg_get_expr(policy.polqual, policy.polrelid) AS using_expression,
+    pg_get_expr(policy.polwithcheck, policy.polrelid) AS check_expression
+  FROM relations
+  JOIN pg_policy AS policy ON policy.polrelid = relations.oid
 )
-SELECT (privilege_wall.ok AND policy_wall.ok)::text
-FROM privilege_wall, policy_wall;
+SELECT (
+  (SELECT count(*) FROM relations) = 4
+  AND (SELECT bool_and(relrowsecurity AND relforcerowsecurity) FROM relations)
+  AND NOT EXISTS (
+    (SELECT * FROM actual_table_acl EXCEPT SELECT * FROM expected_table_acl)
+    UNION ALL
+    (SELECT * FROM expected_table_acl EXCEPT SELECT * FROM actual_table_acl)
+  )
+  AND NOT EXISTS (SELECT 1 FROM actual_column_acl)
+  AND NOT EXISTS (
+    (SELECT * FROM actual_policy_inventory EXCEPT SELECT * FROM expected_policy_inventory)
+    UNION ALL
+    (SELECT * FROM expected_policy_inventory EXCEPT SELECT * FROM actual_policy_inventory)
+  )
+)::text;
 ")"
   [ "$ok" = "true" ] || {
     echo "FATAL: SaaS billing foundation exact grants/RLS inventory did not take effect." >&2
-    echo "       Expected: app_staff SELECT-only, app_platform_settings SELECT/INSERT/UPDATE," >&2
-    echo "       app_patient none, and four named policies on each of four tables." >&2
+    echo "       Expected the complete table/column ACL, exact four-policy definitions per table," >&2
+    echo "       no additional policies, and ENABLE+FORCE RLS on all four tables." >&2
     exit 1
   }
   echo "   SaaS billing foundation exact grants/RLS inventory: OK"

@@ -35,8 +35,14 @@ describe("0259 SaaS billing foundation migration", () => {
     }
   });
 
-  it("backfills manual tariff authority and preserves the compatibility projection", () => {
-    expect(sql).toContain("WHERE organization.tariff_id IS NOT NULL");
+  it("backfills only manual tariff authority and never converts an active trial projection", () => {
+    expect(sql.match(/WHERE organization\.tariff_id IS NOT NULL/g)).toHaveLength(2);
+    expect(sql.match(/AND NOT EXISTS \(/g)).toHaveLength(2);
+    expect(
+      sql.match(
+        /FROM public\.saas_organization_trials AS trial\s+WHERE trial\.organization_id = organization\.id\s+AND trial\.status = 'active'/g,
+      ),
+    ).toHaveLength(2);
     expect(sql).toContain("'manual'");
     expect(sql).toContain("ON CONFLICT (organization_id, source) DO UPDATE SET");
     expect(sql).not.toMatch(/UPDATE\s+public\.be_organizations\s+SET\s+tariff_id/);
@@ -53,6 +59,8 @@ describe("0259 SaaS billing foundation migration", () => {
     }
     expect(sql).toContain("UNIQUE (provider_id, provider_event_id)");
     expect(sql).toContain("raw_payload jsonb NOT NULL");
+    expect(sql).toContain("raw_payload - ARRAY[");
+    expect(sql).toContain("'subscriptionReference'");
     expect(sql).toContain("saved_payment_method_id text");
   });
 
@@ -69,7 +77,7 @@ describe("0259 SaaS billing foundation migration", () => {
     const journal = JSON.parse(readFileSync(journalPath, "utf8")) as {
       entries: Array<Record<string, unknown>>;
     };
-    expect(journal.entries.at(-1)).toEqual({
+    expect(journal.entries.find((entry) => entry.idx === 259)).toEqual({
       idx: 259,
       version: "7",
       when: 1793539200056,
@@ -84,7 +92,17 @@ describe("0259 SaaS billing foundation migration", () => {
     expect(runtime).toContain("c5a_saas_billing_exact_wall");
     expect(runtime).toContain("GRANT SELECT, INSERT, UPDATE ON TABLE public.%I TO app_platform_settings");
     expect(runtime).toContain("REVOKE INSERT, UPDATE, DELETE ON TABLE public.%I FROM app_staff");
+    expect(runtime).toContain("actual_table_acl");
+    expect(runtime).toContain("expected_table_acl");
+    expect(runtime).toContain("actual_column_acl");
+    expect(runtime).toContain("expected_policy_inventory");
+    expect(runtime).toContain("relrowsecurity");
+    expect(runtime).toContain("relforcerowsecurity");
     expect(host).toContain("assert_c5a_saas_billing_foundation_closure");
+    expect(host).toContain("actual_table_acl");
+    expect(host).toContain("expected_policy_inventory");
+    expect(host).toContain("relforcerowsecurity");
+    expect(host).toContain("local expected_secdef_count=105");
     expect(sql).not.toMatch(/SECURITY\s+DEFINER/i);
   });
 });
