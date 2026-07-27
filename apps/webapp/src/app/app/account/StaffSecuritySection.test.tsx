@@ -130,9 +130,22 @@ describe('StaffSecuritySection first-run acceptance', () => {
     ['wrong_current_password', 'Текущий пароль указан неверно.'],
     ['weak_new_password', 'Новый пароль должен содержать от 8 до 128 символов.'],
     ['rate_limited', 'Слишком много попыток. Повторите через 10 минут.'],
+    [
+      'password_changed_session_reissue_failed',
+      'Пароль изменён, но сеанс завершён. Войдите снова.',
+    ],
   ])('shows an actionable password-change error for %s', async (error, message) => {
     vi.mocked(fetch).mockResolvedValue(
-      new Response(JSON.stringify({ ok: false, error }), { status: 400 }),
+      new Response(
+        JSON.stringify({
+          ok: false,
+          error,
+          ...(error === 'password_changed_session_reissue_failed'
+            ? { passwordChanged: true }
+            : {}),
+        }),
+        { status: error === 'password_changed_session_reissue_failed' ? 500 : 400 },
+      ),
     );
 
     render(

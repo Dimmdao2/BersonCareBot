@@ -1,11 +1,14 @@
+import { stampBootstrapPrincipal } from "@/app-layer/principal/bootstrapPrincipal";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import { requireStaffSecurityApiSession } from "@/app-layer/guards/requireRole";
+import { logger } from "@/app-layer/logging/logger";
 import {
   AUTH_CONFIRM_RATE_LIMIT_SEC,
   checkAuthConfirmRateLimit,
 } from "@/modules/auth/authConfirmRateLimit";
+import type { PasswordChangeResult } from "@/modules/auth/passwordChange";
 import { newPasswordSchema } from "@/modules/auth/passwordPolicy";
 import { setSessionFromUser } from "@/modules/auth/service";
 
@@ -15,6 +18,13 @@ const bodySchema = z.object({
 });
 
 export async function POST(request: Request) {
+  stampBootstrapPrincipal("api/account/security/password/change:POST", request);
+
+  const gate = await requireStaffSecurityApiSession();
+  if (!gate.ok) return gate.response;
+
+  // Authenticate before consuming the shared confirm budget so anonymous callers cannot exhaust it;
+  // authenticated password guesses remain rate-limited below.
   const rateLimit = await checkAuthConfirmRateLimit(request, "account_password_change");
   if (rateLimit.limited) {
     if (rateLimit.reason === "proxy_configuration") {
@@ -36,9 +46,6 @@ export async function POST(request: Request) {
     );
   }
 
-  const gate = await requireStaffSecurityApiSession();
-  if (!gate.ok) return gate.response;
-
   const parsed = bodySchema.safeParse(await request.json().catch(() => null));
   if (!parsed.success) {
     const weakNewPassword = parsed.error.issues.some(
@@ -53,30 +60,48 @@ export async function POST(request: Request) {
     );
   }
 
+  let result: PasswordChangeResult;
   try {
-    const result = await buildAppDeps().passwordChange.changePassword({
+    result = await buildAppDeps().passwordChange.changePassword({
       userId: gate.session.user.userId,
       currentPassword: parsed.data.currentPassword,
       newPassword: parsed.data.newPassword,
     });
-    if (!result.ok) {
-      return NextResponse.json(
-        { ok: false, error: result.error },
-        { status: result.error === "wrong_current_password" ? 401 : 409 },
-      );
-    }
+  } catch (err) {
+    logger.error({ err }, "[account/security/password/change] password change failed");
+    return NextResponse.json(
+      { ok: false, error: "password_change_failed" },
+      { status: 500 },
+    );
+  }
+  if (!result.ok) {
+    return NextResponse.json(
+      { ok: false, error: result.error },
+      { status: result.error === "wrong_current_password" ? 401 : 409 },
+    );
+  }
 
+  try {
     await setSessionFromUser(
       result.user,
       gate.session.staffSecurity
         ? { staffSecurity: gate.session.staffSecurity }
         : undefined,
     );
-    return NextResponse.json({ ok: true });
-  } catch {
+  } catch (err) {
+    logger.error(
+      { err },
+      "[account/security/password/change] session reissue failed after password change",
+    );
     return NextResponse.json(
-      { ok: false, error: "password_change_failed" },
+      {
+        ok: false,
+        error: "password_changed_session_reissue_failed",
+        passwordChanged: true,
+      },
       { status: 500 },
     );
   }
+
+  return NextResponse.json({ ok: true });
 }

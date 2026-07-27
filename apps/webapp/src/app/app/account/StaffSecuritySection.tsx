@@ -43,6 +43,8 @@ function passwordChangeErrorText(error?: string): string {
       return "Слишком много попыток. Повторите через 10 минут.";
     case "password_login_unavailable":
       return "Для аккаунта не настроен вход по паролю.";
+    case "password_changed_session_reissue_failed":
+      return "Пароль изменён, но сеанс завершён. Войдите снова.";
     default:
       return "Пароль не изменён. Повторите попытку.";
   }
@@ -138,11 +140,19 @@ export function StaffSecuritySection(props: Props) {
     event.preventDefault();
     setPasswordBusy(true);
     try {
-      const result = await postJson<{ ok: boolean; error?: string }>(
+      const result = await postJson<{
+        ok: boolean;
+        error?: string;
+        passwordChanged?: boolean;
+      }>(
         "/api/account/security/password/change",
         { currentPassword, newPassword },
       );
       if (!result.ok) {
+        if (result.passwordChanged) {
+          setCurrentPassword("");
+          setNewPassword("");
+        }
         toast.error(passwordChangeErrorText(result.error));
         return;
       }
