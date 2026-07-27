@@ -7,7 +7,7 @@ const ALLOWED_PROVIDERS: OauthProvider[] = ["google", "apple", "yandex"];
 export const pgOAuthBindingsPort: OAuthBindingsPort = {
   async listProvidersForUser(userId: string): Promise<OauthProvider[]> {
     const res = await runWebappPgText<{ provider: string }>(
-      `SELECT DISTINCT provider FROM user_oauth_bindings WHERE user_id = $1`,
+      `SELECT provider FROM app.auth_oauth_list_user_providers($1::uuid)`,
       [userId],
     );
     const out: OauthProvider[] = [];
@@ -21,7 +21,8 @@ export const pgOAuthBindingsPort: OAuthBindingsPort = {
 
   async findUserByOAuthId(provider: OauthProvider, providerUserId: string): Promise<{ userId: string } | null> {
     const res = await runWebappPgText<{ user_id: string }>(
-      `SELECT user_id FROM user_oauth_bindings WHERE provider = $1 AND provider_user_id = $2 LIMIT 1`,
+      `SELECT user_id::text AS user_id
+       FROM app.auth_oauth_find_user($1::text, $2::text)`,
       [provider, providerUserId],
     );
     const row = res.rows[0];

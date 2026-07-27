@@ -62,17 +62,12 @@ export const pgEmailSetupFlowPort: EmailSetupFlowPort = {
           tx,
         );
 
-        const tokenRes = await runWebappPgText(
-          `UPDATE user_email_setup_tokens
-           SET used_at = now()
-           WHERE id = $1::uuid
-             AND used_at IS NULL
-             AND revoked_at IS NULL
-             AND expires_at >= now()`,
+        const tokenRes = await runWebappPgText<{ marked: boolean }>(
+          `SELECT app.auth_email_setup_mark_used($1::uuid) AS marked`,
           [setupTokenId],
           tx,
         );
-        if ((tokenRes.rowCount ?? 0) === 0) {
+        if (tokenRes.rows[0]?.marked !== true) {
           tx.rollback();
           return { ok: false, reason: "token_consume_failed" as const };
         }

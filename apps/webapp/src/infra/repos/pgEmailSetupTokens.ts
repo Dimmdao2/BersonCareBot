@@ -10,22 +10,21 @@ import type {
 export const pgEmailSetupTokensPort: EmailSetupTokensPort = {
   async revokeActiveForUserEmail(userId: string, emailNormalized: string): Promise<void> {
     await runWebappPgText(
-      `UPDATE user_email_setup_tokens
-       SET revoked_at = now()
-       WHERE user_id = $1::uuid
-         AND email_normalized = $2
-         AND used_at IS NULL
-         AND revoked_at IS NULL`,
+      `SELECT app.auth_email_setup_revoke_active($1::uuid, $2::text) AS revoked_count`,
       [userId, emailNormalized],
     );
   },
 
   async insertToken(params: IssueEmailSetupTokenParams): Promise<{ id: string }> {
     const res = await runWebappPgText<{ id: string }>(
-      `INSERT INTO user_email_setup_tokens (
-         user_id, email_normalized, token_hash, expires_at, source, created_by_user_id
-       ) VALUES ($1::uuid, $2, $3, $4::timestamptz, $5, $6::uuid)
-       RETURNING id::text AS id`,
+      `SELECT app.auth_email_setup_insert(
+         $1::uuid,
+         $2::text,
+         $3::text,
+         $4::timestamptz,
+         $5::text,
+         $6::uuid
+       )::text AS id`,
       [
         params.userId,
         params.emailNormalized,
@@ -39,7 +38,7 @@ export const pgEmailSetupTokensPort: EmailSetupTokensPort = {
   },
 
   async deleteTokenById(id: string): Promise<void> {
-    await runWebappPgText(`DELETE FROM user_email_setup_tokens WHERE id = $1::uuid`, [id]);
+    await runWebappPgText(`SELECT app.auth_email_setup_delete($1::uuid) AS deleted`, [id]);
   },
 
   async findByTokenHash(tokenHash: string): Promise<EmailSetupTokenRow | null> {
@@ -53,9 +52,7 @@ export const pgEmailSetupTokensPort: EmailSetupTokensPort = {
     }>(
       `SELECT id::text AS id, user_id::text AS user_id, email_normalized,
               expires_at, used_at, revoked_at
-       FROM user_email_setup_tokens
-       WHERE token_hash = $1
-       LIMIT 1`,
+       FROM app.auth_email_setup_read($1::text)`,
       [tokenHash],
     );
     if (res.rows.length === 0) return null;
@@ -71,15 +68,10 @@ export const pgEmailSetupTokensPort: EmailSetupTokensPort = {
   },
 
   async markUsedById(id: string): Promise<boolean> {
-    const res = await runWebappPgText(
-      `UPDATE user_email_setup_tokens
-       SET used_at = now()
-       WHERE id = $1::uuid
-         AND used_at IS NULL
-         AND revoked_at IS NULL
-         AND expires_at >= now()`,
+    const res = await runWebappPgText<{ marked: boolean }>(
+      `SELECT app.auth_email_setup_mark_used($1::uuid) AS marked`,
       [id],
     );
-    return (res.rowCount ?? 0) > 0;
+    return res.rows[0]?.marked === true;
   },
 };

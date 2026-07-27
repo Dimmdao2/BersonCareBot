@@ -33,7 +33,7 @@ function resultForSql(queryText: string) {
   if (queryText.includes("count(*)::text AS c FROM user_channel_bindings")) {
     return { rows: [{ c: "1" }] };
   }
-  if (queryText.includes("count(*)::text AS c FROM user_oauth_bindings")) {
+  if (queryText.includes("app.auth_oauth_list_user_providers")) {
     return { rows: [{ c: "0" }] };
   }
   if (queryText.includes("FROM symptom_trackings st")) {
@@ -51,8 +51,8 @@ function resultForSql(queryText: string) {
   if (queryText.includes("FROM patient_lfk_assignments")) {
     return { rows: [{ c: "0" }] };
   }
-  if (queryText.includes("FROM channel_link_secrets")) {
-    return { rows: [{ id: "secret-1" }] };
+  if (queryText.includes("app.auth_channel_link_lock_unused_secret")) {
+    return { rows: [{ locked: true }] };
   }
   if (queryText.includes("FROM user_channel_bindings") && queryText.includes("FOR UPDATE")) {
     return { rows: [{ user_id: "stub-1" }] };

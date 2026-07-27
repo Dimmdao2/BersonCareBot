@@ -1339,7 +1339,25 @@ WITH required(tbl, priv) AS (
     -- 0256 staff-security self password action: the body reads user_id for its exact self-principal
     -- predicate and updates only that credentials row. Runtime callers retain no direct table grant.
     ('public.user_password_credentials', 'SELECT'),
-    ('public.user_password_credentials', 'UPDATE')
+    ('public.user_password_credentials', 'UPDATE'),
+    -- 0258 bootstrap auth table accessors: the NOINHERIT base login gets only EXECUTE on 22 exact
+    -- operations. app_owner needs the following base privileges; no runtime role gets these table grants.
+    ('public.user_pins', 'SELECT'),
+    ('public.user_pins', 'INSERT'),
+    ('public.user_pins', 'UPDATE'),
+    ('public.channel_link_secrets', 'SELECT'),
+    ('public.channel_link_secrets', 'INSERT'),
+    ('public.channel_link_secrets', 'UPDATE'),
+    ('public.channel_link_secrets', 'DELETE'),
+    ('public.user_email_setup_tokens', 'SELECT'),
+    ('public.user_email_setup_tokens', 'INSERT'),
+    ('public.user_email_setup_tokens', 'UPDATE'),
+    ('public.user_email_setup_tokens', 'DELETE'),
+    ('public.user_oauth_bindings', 'SELECT'),
+    ('public.user_oauth_bindings', 'INSERT'),
+    ('public.login_tokens', 'SELECT'),
+    ('public.login_tokens', 'INSERT'),
+    ('public.login_tokens', 'UPDATE')
 )
 SELECT coalesce(string_agg(tbl || ' ' || priv, ', ' ORDER BY tbl, priv), '')
 FROM required
@@ -1504,7 +1522,13 @@ SELECT has_column_privilege('app_owner', 'public.operator_incidents', 'alert_sen
   # then SELECT/UPDATEs the caller's pending intent and SELECT/INSERT/UPDATEs only its disposable
   # reservation. Provisioning additionally needs claims SELECT/UPDATE and directory INSERT; all four
   # new required table-grant rows are pinned above.
-  local expected_secdef_count=83
+  # 83 -> 105 (2026-07-27, taskdb #1062): migration 0258_bootstrap_auth_table_accessors adds exactly
+  # 22 reviewed app_owner SECURITY DEFINER operations for user_pins (4), channel_link_secrets (5),
+  # user_email_setup_tokens (5), user_oauth_bindings (3), and login_tokens (5). Every read is keyed by
+  # an exact server-resolved UUID or a SHA-256 opaque bearer hash; global login-token expiry uses only
+  # database time. Their 16 required table-grant rows are pinned above, while the bare login keeps no
+  # direct grant on any of the five auth tables.
+  local expected_secdef_count=105
   local actual_secdef_count
   actual_secdef_count="$(sudo -u postgres psql -d "$DB" -X -v ON_ERROR_STOP=1 -tAc "
 SELECT count(*) FROM pg_proc p WHERE pg_get_userbyid(p.proowner) = 'app_owner' AND p.prosecdef;

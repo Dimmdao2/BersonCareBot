@@ -33,9 +33,10 @@ describe("pgOAuthUserResolvePort", () => {
   });
 
   it("upsertOAuthBinding returns existing owner on conflict", async () => {
-    runWebappPgTextMock
-      .mockResolvedValueOnce({ rows: [], rowCount: 0 })
-      .mockResolvedValueOnce({ rows: [{ user_id: "owner-1" }] });
+    runWebappPgTextMock.mockResolvedValueOnce({
+      rows: [{ inserted: false, user_id: "owner-1" }],
+      rowCount: 1,
+    });
 
     const result = await pgOAuthUserResolvePort.upsertOAuthBinding({
       userId: "u-new",
@@ -45,5 +46,8 @@ describe("pgOAuthUserResolvePort", () => {
     });
 
     expect(result).toEqual({ inserted: false, existingOwnerUserId: "owner-1" });
+    expect(String(runWebappPgTextMock.mock.calls[0]?.[0])).toContain(
+      "app.auth_oauth_upsert_binding",
+    );
   });
 });

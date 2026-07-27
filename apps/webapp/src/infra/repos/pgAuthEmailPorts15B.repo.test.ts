@@ -111,7 +111,7 @@ describe("pgAuthEmailPorts (SQL parity)", () => {
     runWebappPgTextMock
       .mockResolvedValueOnce({ rows: [{ id: "u1" }], rowCount: 1 })
       .mockResolvedValueOnce({ rows: [], rowCount: 1 })
-      .mockResolvedValueOnce({ rows: [], rowCount: 1 });
+      .mockResolvedValueOnce({ rows: [{ marked: true }], rowCount: 1 });
     const r = await pgEmailSetupFlowPort.applyEmailSetupCompletion({
       userId: "550e8400-e29b-41d4-a716-446655440000",
       emailNormalized: "user@example.com",
@@ -123,15 +123,14 @@ describe("pgAuthEmailPorts (SQL parity)", () => {
     const sqls = runWebappPgTextMock.mock.calls.map((c) => String(c[0]));
     expect(sqls.some((s) => s.includes("UPDATE platform_users") && s.includes("email_verified_at"))).toBe(true);
     expect(sqls.some((s) => s.includes("user_password_credentials"))).toBe(true);
-    expect(sqls.some((s) => s.includes("user_email_setup_tokens"))).toBe(true);
+    expect(sqls.some((s) => s.includes("app.auth_email_setup_mark_used"))).toBe(true);
   });
 
-  it("pgLoginTokensPort findByTokenHash selects login_tokens by hash", async () => {
+  it("pgLoginTokensPort findByTokenHash uses the opaque-token accessor", async () => {
     runWebappPgTextMock.mockResolvedValueOnce({
       rows: [
         {
           id: "lt-1",
-          token_hash: "hash",
           user_id: "u1",
           method: "telegram",
           status: "pending",
@@ -143,22 +142,22 @@ describe("pgAuthEmailPorts (SQL parity)", () => {
     });
     const row = await pgLoginTokensPort.findByTokenHash("hash");
     expect(row?.userId).toBe("u1");
-    expect(String(runWebappPgTextMock.mock.calls[0]?.[0])).toContain("FROM login_tokens");
+    expect(String(runWebappPgTextMock.mock.calls[0]?.[0])).toContain("app.auth_login_token_read");
   });
 
   it("pgLoginTokensPort confirmByTokenHash updates pending token", async () => {
-    runWebappPgTextMock.mockResolvedValueOnce({ rows: [], rowCount: 1 });
+    runWebappPgTextMock.mockResolvedValueOnce({ rows: [{ confirmed: true }], rowCount: 1 });
     const now = new Date("2026-06-06T12:00:00.000Z");
     const ok = await pgLoginTokensPort.confirmByTokenHash("hash", now);
     expect(ok).toBe(true);
-    expect(String(runWebappPgTextMock.mock.calls[0]?.[0])).toContain("status = 'confirmed'");
+    expect(String(runWebappPgTextMock.mock.calls[0]?.[0])).toContain("app.auth_login_token_confirm");
   });
 
   it("pgOAuthBindingsPort findUserByOAuthId queries bindings", async () => {
     runWebappPgTextMock.mockResolvedValueOnce({ rows: [{ user_id: "u1" }] });
     const r = await pgOAuthBindingsPort.findUserByOAuthId("google", "gid");
     expect(r).toEqual({ userId: "u1" });
-    expect(String(runWebappPgTextMock.mock.calls[0]?.[0])).toContain("user_oauth_bindings");
+    expect(String(runWebappPgTextMock.mock.calls[0]?.[0])).toContain("app.auth_oauth_find_user");
   });
 
   it("createPgPhoneChallengeStore set uses the narrow challenge-store accessor", async () => {
@@ -181,10 +180,10 @@ describe("pgAuthEmailPorts (SQL parity)", () => {
   });
 
   it("pgEmailSetupTokensPort markUsedById updates active token row", async () => {
-    runWebappPgTextMock.mockResolvedValueOnce({ rows: [], rowCount: 1 });
+    runWebappPgTextMock.mockResolvedValueOnce({ rows: [{ marked: true }], rowCount: 1 });
     const ok = await pgEmailSetupTokensPort.markUsedById("t1");
     expect(ok).toBe(true);
-    expect(String(runWebappPgTextMock.mock.calls[0]?.[0])).toContain("SET used_at = now()");
+    expect(String(runWebappPgTextMock.mock.calls[0]?.[0])).toContain("app.auth_email_setup_mark_used");
   });
 
   it("createPgUserPasswordCredentialsPort findUserIdByEmailChallengeId", async () => {

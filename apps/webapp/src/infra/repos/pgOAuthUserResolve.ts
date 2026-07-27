@@ -78,25 +78,16 @@ async function createOAuthPlatformUser(input: CreateOAuthPlatformUserInput): Pro
 }
 
 async function upsertOAuthBinding(input: UpsertOAuthBindingInput): Promise<UpsertOAuthBindingResult> {
-  const bind = await runWebappPgText<{ user_id: string }>(
-    `INSERT INTO user_oauth_bindings (user_id, provider, provider_user_id, email)
-     VALUES ($1::uuid, $2::text, $3, $4)
-     ON CONFLICT (provider, provider_user_id) DO NOTHING
-     RETURNING user_id`,
+  const bind = await runWebappPgText<{ inserted: boolean; user_id: string }>(
+    `SELECT inserted, user_id::text AS user_id
+     FROM app.auth_oauth_upsert_binding($1::uuid, $2::text, $3::text, $4::text)`,
     [input.userId, input.provider, input.providerUserId, input.emailRaw],
   );
-  if ((bind.rowCount ?? 0) > 0) {
+  const row = bind.rows[0];
+  if (row?.inserted === true) {
     return { inserted: true };
   }
-
-  const existing = await runWebappPgText<{ user_id: string }>(
-    `SELECT user_id::text AS user_id
-     FROM user_oauth_bindings
-     WHERE provider = $1::text AND provider_user_id = $2
-     LIMIT 1`,
-    [input.provider, input.providerUserId],
-  );
-  const ownerId = existing.rows[0]?.user_id;
+  const ownerId = row?.user_id;
   return ownerId ? { inserted: false, existingOwnerUserId: ownerId } : { inserted: false };
 }
 

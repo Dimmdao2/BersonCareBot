@@ -14,9 +14,12 @@ function nullableDateField(v: Date | string | null): Date | null {
 export const pgLoginTokensPort: LoginTokensPort = {
   async createPending(params): Promise<{ id: string }> {
     const res = await runWebappPgText<{ id: string }>(
-      `INSERT INTO login_tokens (token_hash, user_id, method, status, expires_at)
-       VALUES ($1, $2, $3, 'pending', $4)
-       RETURNING id`,
+      `SELECT app.auth_login_token_create(
+         $1::text,
+         $2::uuid,
+         $3::text,
+         $4::timestamptz
+       )::text AS id`,
       [params.tokenHash, params.userId, params.method, params.expiresAt],
     );
     return { id: res.rows[0]!.id };
@@ -25,7 +28,6 @@ export const pgLoginTokensPort: LoginTokensPort = {
   async findByTokenHash(tokenHash: string): Promise<LoginTokenRow | null> {
     const res = await runWebappPgText<{
       id: string;
-      token_hash: string;
       user_id: string;
       method: string;
       status: string;
@@ -33,15 +35,16 @@ export const pgLoginTokensPort: LoginTokensPort = {
       confirmed_at: Date | string | null;
       session_issued_at: Date | string | null;
     }>(
-      `SELECT id, token_hash, user_id, method, status, expires_at, confirmed_at, session_issued_at
-       FROM login_tokens WHERE token_hash = $1`,
+      `SELECT id::text AS id, user_id::text AS user_id, method, status,
+              expires_at, confirmed_at, session_issued_at
+       FROM app.auth_login_token_read($1::text)`,
       [tokenHash],
     );
     if (res.rows.length === 0) return null;
     const r = res.rows[0]!;
     return {
       id: r.id,
-      tokenHash: r.token_hash,
+      tokenHash,
       userId: r.user_id,
       method: r.method as LoginTokenRow["method"],
       status: r.status as LoginTokenRow["status"],
@@ -51,28 +54,25 @@ export const pgLoginTokensPort: LoginTokensPort = {
     };
   },
 
-  async markExpiredIfPast(now: Date): Promise<void> {
+  async markExpiredIfPast(_now: Date): Promise<void> {
     await runWebappPgText(
-      `UPDATE login_tokens SET status = 'expired'
-       WHERE status = 'pending' AND expires_at < $1`,
-      [now],
+      `SELECT app.auth_login_token_expire_past()`,
+      [],
     );
   },
 
-  async confirmByTokenHash(tokenHash: string, now: Date): Promise<boolean> {
-    const res = await runWebappPgText(
-      `UPDATE login_tokens SET status = 'confirmed', confirmed_at = $2
-       WHERE token_hash = $1 AND status = 'pending' AND expires_at >= $2`,
-      [tokenHash, now],
+  async confirmByTokenHash(tokenHash: string, _now: Date): Promise<boolean> {
+    const res = await runWebappPgText<{ confirmed: boolean }>(
+      `SELECT app.auth_login_token_confirm($1::text) AS confirmed`,
+      [tokenHash],
     );
-    return (res.rowCount ?? 0) > 0;
+    return res.rows[0]?.confirmed === true;
   },
 
-  async markSessionIssued(tokenHash: string, at: Date): Promise<void> {
+  async markSessionIssued(tokenHash: string, _at: Date): Promise<void> {
     await runWebappPgText(
-      `UPDATE login_tokens SET session_issued_at = $2
-       WHERE token_hash = $1 AND session_issued_at IS NULL`,
-      [tokenHash, at],
+      `SELECT app.auth_login_token_mark_session_issued($1::text) AS marked`,
+      [tokenHash],
     );
   },
 };

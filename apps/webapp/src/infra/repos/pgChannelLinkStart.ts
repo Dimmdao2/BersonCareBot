@@ -8,13 +8,13 @@ export async function replaceChannelLinkSecret(params: {
   tokenHash: string;
   expiresAtIso: string;
 }): Promise<void> {
-  await runWebappPgText("DELETE FROM channel_link_secrets WHERE user_id = $1 AND channel_code = $2", [
-    params.userId,
-    params.channelCode,
-  ]);
   await runWebappPgText(
-    `INSERT INTO channel_link_secrets (user_id, channel_code, token_hash, expires_at)
-     VALUES ($1, $2, $3, $4)`,
+    `SELECT app.auth_channel_link_replace_secret(
+       $1::uuid,
+       $2::text,
+       $3::text,
+       $4::timestamptz
+     )`,
     [params.userId, params.channelCode, params.tokenHash, params.expiresAtIso],
   );
 }
@@ -51,8 +51,8 @@ export async function loadChannelLinkSecretByTokenHash(params: {
     expires_at: string;
     used_at: string | null;
   }>(
-    `SELECT id, user_id, expires_at, used_at FROM channel_link_secrets
-     WHERE channel_code = $1 AND token_hash = $2`,
+    `SELECT id::text AS id, user_id::text AS user_id, expires_at, used_at
+     FROM app.auth_channel_link_read_secret($1::text, $2::text)`,
     [params.channelCode, params.tokenHash],
   );
   const row = result.rows[0];
@@ -77,13 +77,17 @@ export async function loadChannelBindingUserId(params: {
 }
 
 export async function markChannelLinkSecretUsed(secretRowId: string): Promise<void> {
-  await runWebappPgText("UPDATE channel_link_secrets SET used_at = now() WHERE id = $1", [secretRowId]);
+  await runWebappPgText(
+    "SELECT app.auth_channel_link_mark_secret_used($1::uuid) AS marked",
+    [secretRowId],
+  );
 }
 
 export async function markChannelLinkSecretUsedIfUnused(secretRowId: string): Promise<void> {
-  await runWebappPgText("UPDATE channel_link_secrets SET used_at = now() WHERE id = $1 AND used_at IS NULL", [
-    secretRowId,
-  ]);
+  await runWebappPgText(
+    "SELECT app.auth_channel_link_mark_secret_used_if_unused($1::uuid) AS marked",
+    [secretRowId],
+  );
 }
 
 export async function insertChannelBinding(params: {

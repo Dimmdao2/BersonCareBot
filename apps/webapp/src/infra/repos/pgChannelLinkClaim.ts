@@ -59,7 +59,8 @@ export async function classifyChannelBindingOwnerForLink(
   }
 
   const oauth = await runWebappPgText<{ c: string }>(
-    `SELECT count(*)::text AS c FROM user_oauth_bindings WHERE user_id = $1::uuid`,
+    `SELECT count(*)::text AS c
+     FROM app.auth_oauth_list_user_providers($1::uuid)`,
     [stubUserId],
     db,
   );
@@ -139,7 +140,7 @@ export async function tryMergeChannelLinkOwners(
     await withPoolTransaction(pool, async (client) => {
       await mergePlatformUsersInTransaction(client, params.tokenUserId, params.existingUserId, "phone_bind");
       await runWebappPgText(
-        `UPDATE channel_link_secrets SET used_at = now() WHERE id = $1::uuid AND used_at IS NULL`,
+        `SELECT app.auth_channel_link_mark_secret_used_if_unused($1::uuid) AS marked`,
         [params.secretRowId],
         getWebappSqlFromPgClient(client),
       );
@@ -197,12 +198,12 @@ export async function claimMessengerChannelBindingInTransaction(
     throw new ChannelLinkClaimRejectedError(recheck.reason);
   }
 
-  const sec = await runWebappPgText<{ id: string }>(
-    `SELECT id::text AS id FROM channel_link_secrets WHERE id = $1::uuid AND used_at IS NULL FOR UPDATE`,
+  const sec = await runWebappPgText<{ locked: boolean }>(
+    `SELECT app.auth_channel_link_lock_unused_secret($1::uuid) AS locked`,
     [secretRowId],
     db,
   );
-  if (sec.rows.length === 0) {
+  if (sec.rows[0]?.locked !== true) {
     throw new Error("claimMessengerChannelBindingInTransaction: channel_link_secret missing or already used");
   }
 
@@ -254,7 +255,7 @@ export async function claimMessengerChannelBindingInTransaction(
   );
 
   await runWebappPgText(
-    `UPDATE channel_link_secrets SET used_at = now() WHERE id = $1::uuid AND used_at IS NULL`,
+    `SELECT app.auth_channel_link_mark_secret_used_if_unused($1::uuid) AS marked`,
     [secretRowId],
     db,
   );

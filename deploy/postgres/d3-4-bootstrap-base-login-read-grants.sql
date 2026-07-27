@@ -304,6 +304,40 @@ SELECT format(
   :'d3_4_bootstrap_base_role'
 )
 WHERE to_regprocedure('app.auth_rate_limit_record(text, text)') IS NOT NULL \gexec
+-- 0258 bootstrap auth tables: exact action signatures only; the five backing tables stay denied.
+WITH bootstrap_auth_accessor(signature) AS (
+  VALUES
+    ('app.auth_user_pin_read(uuid)'),
+    ('app.auth_user_pin_upsert(uuid, text)'),
+    ('app.auth_user_pin_increment_failed(uuid)'),
+    ('app.auth_user_pin_reset_attempts(uuid)'),
+    ('app.auth_channel_link_replace_secret(uuid, text, text, timestamptz)'),
+    ('app.auth_channel_link_read_secret(text, text)'),
+    ('app.auth_channel_link_mark_secret_used(uuid)'),
+    ('app.auth_channel_link_lock_unused_secret(uuid)'),
+    ('app.auth_channel_link_mark_secret_used_if_unused(uuid)'),
+    ('app.auth_email_setup_revoke_active(uuid, text)'),
+    ('app.auth_email_setup_insert(uuid, text, text, timestamptz, text, uuid)'),
+    ('app.auth_email_setup_delete(uuid)'),
+    ('app.auth_email_setup_read(text)'),
+    ('app.auth_email_setup_mark_used(uuid)'),
+    ('app.auth_oauth_list_user_providers(uuid)'),
+    ('app.auth_oauth_find_user(text, text)'),
+    ('app.auth_oauth_upsert_binding(uuid, text, text, text)'),
+    ('app.auth_login_token_create(text, uuid, text, timestamptz)'),
+    ('app.auth_login_token_read(text)'),
+    ('app.auth_login_token_expire_past()'),
+    ('app.auth_login_token_confirm(text)'),
+    ('app.auth_login_token_mark_session_issued(text)')
+)
+SELECT format(
+  'REVOKE EXECUTE ON FUNCTION %s FROM %I',
+  signature,
+  :'d3_4_bootstrap_base_role'
+)
+FROM bootstrap_auth_accessor
+WHERE to_regprocedure(signature) IS NOT NULL
+\gexec
 REVOKE EXECUTE ON FUNCTION app.email_auth_find_email_send_cooldown(uuid, text) FROM :"d3_4_bootstrap_base_role";
 REVOKE EXECUTE ON FUNCTION app.email_auth_delete_email_challenges_for_user(uuid) FROM :"d3_4_bootstrap_base_role";
 REVOKE EXECUTE ON FUNCTION app.email_auth_insert_email_challenge(uuid, text, text, bigint) FROM :"d3_4_bootstrap_base_role";
@@ -654,6 +688,41 @@ SELECT format(
   :'d3_4_bootstrap_base_role'
 )
 WHERE to_regprocedure('app.auth_rate_limit_record(text, text)') IS NOT NULL \gexec
+-- 0258: all listed auth routes stamp bootstrap and therefore stay on this bare NOINHERIT login.
+-- The functions repeat their own exact-key predicates; do not replace this with table privileges.
+WITH bootstrap_auth_accessor(signature) AS (
+  VALUES
+    ('app.auth_user_pin_read(uuid)'),
+    ('app.auth_user_pin_upsert(uuid, text)'),
+    ('app.auth_user_pin_increment_failed(uuid)'),
+    ('app.auth_user_pin_reset_attempts(uuid)'),
+    ('app.auth_channel_link_replace_secret(uuid, text, text, timestamptz)'),
+    ('app.auth_channel_link_read_secret(text, text)'),
+    ('app.auth_channel_link_mark_secret_used(uuid)'),
+    ('app.auth_channel_link_lock_unused_secret(uuid)'),
+    ('app.auth_channel_link_mark_secret_used_if_unused(uuid)'),
+    ('app.auth_email_setup_revoke_active(uuid, text)'),
+    ('app.auth_email_setup_insert(uuid, text, text, timestamptz, text, uuid)'),
+    ('app.auth_email_setup_delete(uuid)'),
+    ('app.auth_email_setup_read(text)'),
+    ('app.auth_email_setup_mark_used(uuid)'),
+    ('app.auth_oauth_list_user_providers(uuid)'),
+    ('app.auth_oauth_find_user(text, text)'),
+    ('app.auth_oauth_upsert_binding(uuid, text, text, text)'),
+    ('app.auth_login_token_create(text, uuid, text, timestamptz)'),
+    ('app.auth_login_token_read(text)'),
+    ('app.auth_login_token_expire_past()'),
+    ('app.auth_login_token_confirm(text)'),
+    ('app.auth_login_token_mark_session_issued(text)')
+)
+SELECT format(
+  'GRANT EXECUTE ON FUNCTION %s TO %I',
+  signature,
+  :'d3_4_bootstrap_base_role'
+)
+FROM bootstrap_auth_accessor
+WHERE to_regprocedure(signature) IS NOT NULL
+\gexec
 GRANT EXECUTE ON FUNCTION app.email_auth_find_email_send_cooldown(uuid, text) TO :"d3_4_bootstrap_base_role";
 GRANT EXECUTE ON FUNCTION app.email_auth_delete_email_challenges_for_user(uuid) TO :"d3_4_bootstrap_base_role";
 GRANT EXECUTE ON FUNCTION app.email_auth_insert_email_challenge(uuid, text, text, bigint) TO :"d3_4_bootstrap_base_role";

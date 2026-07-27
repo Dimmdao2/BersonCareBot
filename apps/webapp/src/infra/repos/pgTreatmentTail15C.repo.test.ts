@@ -156,7 +156,7 @@ describe("pgTreatmentTail15C (SQL parity)", () => {
     drizzleSnapshotState.mediaRows = [];
   });
 
-  it("pgUserPinsPort getByUserId selects user_pins by user_id", async () => {
+  it("pgUserPinsPort getByUserId uses the exact-user accessor", async () => {
     runWebappPgTextMock.mockResolvedValueOnce({
       rows: [
         {
@@ -169,15 +169,15 @@ describe("pgTreatmentTail15C (SQL parity)", () => {
     });
     const r = await pgUserPinsPort.getByUserId("u1");
     expect(r).toMatchObject({ userId: "u1", pinHash: "hash", attemptsFailed: 0, lockedUntil: null });
-    expect(String(runWebappPgTextMock.mock.calls[0]?.[0])).toContain("FROM user_pins");
+    expect(String(runWebappPgTextMock.mock.calls[0]?.[0])).toContain("app.auth_user_pin_read");
   });
 
-  it("pgUserPinsPort upsertPinHash inserts with ON CONFLICT reset", async () => {
+  it("pgUserPinsPort upsertPinHash uses the narrow reset-and-upsert action", async () => {
     runWebappPgTextMock.mockResolvedValueOnce({ rows: [], rowCount: 1 });
     await pgUserPinsPort.upsertPinHash("u1", "hash");
     const sql = String(runWebappPgTextMock.mock.calls[0]?.[0]);
-    expect(sql).toContain("INSERT INTO user_pins");
-    expect(sql).toContain("ON CONFLICT (user_id)");
+    expect(sql).toContain("app.auth_user_pin_upsert");
+    expect(sql).not.toMatch(/\bINSERT INTO\s+(?:public\.)?user_pins\b/i);
   });
 
   it("pgUserPinsPort incrementFailed returns lock interval when max attempts reached", async () => {
@@ -187,15 +187,16 @@ describe("pgTreatmentTail15C (SQL parity)", () => {
     const r = await pgUserPinsPort.incrementFailed("u1", 3, 15);
     expect(r.attemptsFailed).toBe(3);
     expect(r.lockedUntil).toBeInstanceOf(Date);
-    expect(String(runWebappPgTextMock.mock.calls[0]?.[0])).toContain("make_interval");
+    expect(String(runWebappPgTextMock.mock.calls[0]?.[0])).toContain(
+      "app.auth_user_pin_increment_failed",
+    );
   });
 
   it("pgUserPinsPort resetAttempts clears lockout counters", async () => {
     runWebappPgTextMock.mockResolvedValueOnce({ rows: [], rowCount: 1 });
     await pgUserPinsPort.resetAttempts("u1");
     const sql = String(runWebappPgTextMock.mock.calls[0]?.[0]);
-    expect(sql).toContain("attempts_failed = 0");
-    expect(sql).toContain("locked_until = NULL");
+    expect(sql).toContain("app.auth_user_pin_reset_attempts");
   });
 
   it("applyPlatformUserPhoneHistoryTransition closes open intervals and inserts new row", async () => {

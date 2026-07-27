@@ -1807,6 +1807,13 @@
       "when": 1793539200054,
       "tag": "0257_specialist_signup_slug_reservation",
       "breakpoints": true
+    },
+    {
+      "idx": 258,
+      "version": "7",
+      "when": 1793539200055,
+      "tag": "0258_bootstrap_auth_table_accessors",
+      "breakpoints": true
     }
   ]
 }
