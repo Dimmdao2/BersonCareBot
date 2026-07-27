@@ -350,18 +350,31 @@ cancelled or superseded work and is excluded from both totals. Detail and eviden
       operator alerts are a separate class (all channels by default, past user preferences and past the
       dev filter), ordinary admin notifications follow §21. Still to BUILD, none of it exists yet:
       - [ ] the operator-alert destination list and channel switches in the global-admin cabinet;
-      - [ ] the undisableable floor — e-mail has no switch, at least one further channel must stay on,
-        enforced on the server and not only in the form;
+      - [x] the undisableable floor — enforced server-side in `operatorHealthAlertConfig.ts`: disabling the
+        emergency class, e-mail, or any critical channel is REJECTED with a cause, and a stored config that
+        already violates the floor is repaired on read so the alert still goes out. 15 scoped tests, re-run by
+        the lead in the main tree (the worker's own clone had no `node_modules` and it said so);
       - [ ] no early return on an empty recipient set: fall back, count, and let the counter alert.
       **What counts as an emergency is now decided too** — §28.1: a failed precondition/channel self-test,
       never a share of recipients. The probe machinery already exists (`runOperatorHealthProbes`: MAX,
       Telegram, Rubitime, Google Calendar) and **nothing schedules it** — no cron, no timer, no in-process
       job. Open work:
-      - [ ] schedule the existing probe endpoint (the documented `deploy/host/operator-health-probe.sh`);
+      - [~] the probes are now driven from the leader-elected scheduler with per-channel interval, timeout,
+        consecutive-failure threshold and a quiet window (`14e88c606`) — **but an independent audit returned
+        FAIL and the lead confirmed the three worst findings by reading the code**: the new DB reads carry no
+        principal context, so on TEST every tick throws before reaching the probes; the configured threshold
+        does not drive paging (hardcoded `PROBE_CRITICAL_CONSECUTIVE_FAIL_RUNS = 3`); an unbounded quiet
+        window can silence the probes forever. Fixes in flight — this line closes only when they land;
       - [ ] add the missing probes: SMTP connect+AUTH, a daily real test send, SMS balance, web push;
-      - [ ] per-channel timeouts instead of the single 15 s constant (§28.2), and alert on the second
-        consecutive failure, not the first;
+      - [~] per-channel timeouts replaced the single 15 s constant, and the threshold is configurable — but
+        see the audit findings above: the threshold is not yet wired to what actually pages;
       - [ ] an external heartbeat whose silence is the alert, on a transport we do not own.
+      - [x] the admin form for the probes (§28.3): enable, interval, timeout, consecutive failures, each field
+        showing its default, with a reset control — and the settings service gained the delete path a reset
+        actually needs (it had none). IMAP service-mailbox fields landed with it (secret-enveloped password,
+        never returned to the client); the mail probe itself is a separate slice and is NOT built.
+      - [ ] the deploy must issue its own short, auto-expiring silence (§28.7), and an active silence must be
+        visible on the health page — neither exists yet.
 - [x] **D-2 DONE 2026-07-26 (`eb62b6544`) — and the defect was worse than this line said.**
       Both routes (`api/patient/support`, `api/public/support`) hardcoded `ADMIN_TELEGRAM_ID` and relayed
       to Telegram only: unset id → 503 before anything was attempted, relay failure → 502. **Neither route
