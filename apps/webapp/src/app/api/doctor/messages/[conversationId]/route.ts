@@ -90,7 +90,12 @@ export async function POST(
     return NextResponse.json({ ok: false, error: "not_found" }, { status: 404 });
   }
   const result = await withDoctorWorkspacePrincipal(gate.ctx, () =>
-    deps.messaging.doctorSupport.sendAdminReply(conversationId, parsed.data.text, gate.ctx.organizationId),
+    deps.messaging.doctorSupport.sendAdminReply(
+      conversationId,
+      parsed.data.text,
+      gate.ctx.organizationId,
+      gate.ctx.session.user.displayName,
+    ),
   );
   if (!result.ok) {
     if (result.error === "not_found") {

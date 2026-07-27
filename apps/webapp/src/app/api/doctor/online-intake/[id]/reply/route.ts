@@ -47,7 +47,12 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   );
 
   const result = await withDoctorWorkspacePrincipal(gate.ctx, () =>
-    deps.messaging.doctorSupport.sendAdminReply(conversationId, parsed.data.text, gate.ctx.organizationId),
+    deps.messaging.doctorSupport.sendAdminReply(
+      conversationId,
+      parsed.data.text,
+      gate.ctx.organizationId,
+      gate.ctx.session.user.displayName,
+    ),
   );
   if (!result.ok) {
     return NextResponse.json({ ok: false, error: result.error }, { status: 400 });

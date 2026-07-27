@@ -22,6 +22,7 @@ export type IntegratorSupportAdminReplyInput = {
   integratorMessageId: string;
   text: string;
   createdAt: string;
+  senderDisplayName: string;
   programNoteStageItemId?: string;
 };
 
@@ -106,6 +107,7 @@ export function createIntegratorSupportBridge(deps: {
           integratorMessageId: input.integratorMessageId,
           stageItemId: input.programNoteStageItemId,
           text: trimmed,
+          senderDisplayName: input.senderDisplayName,
           createdAt: input.createdAt,
           source: "webapp",
         });
@@ -132,6 +134,7 @@ export function createIntegratorSupportBridge(deps: {
           platformUserId,
           messageId: integratorMessageId,
           text: trimmed,
+          senderDisplayName: input.senderDisplayName,
           topicCode: NOTIFICATION_TOPIC_SUPPORT_MESSAGES,
         });
       }

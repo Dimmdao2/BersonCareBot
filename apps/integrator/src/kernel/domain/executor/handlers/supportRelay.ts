@@ -314,9 +314,19 @@ export async function handleConversationAdminReply(
       typeof ctx.base.programNoteStageItemId === 'string' && ctx.base.programNoteStageItemId.trim()
         ? ctx.base.programNoteStageItemId.trim()
         : null;
+    const incoming = readIncoming(ctx);
+    const senderDisplayName = [
+      asString(incoming.channelFirstName),
+      asString(incoming.channelLastName),
+    ]
+      .filter((part): part is string => Boolean(part))
+      .join(' ')
+      .replace(/\s+/g, ' ')
+      .trim() || 'Специалист';
     const applyResult = await applyWebappAdminReplyFromMessenger(deps, {
       integratorConversationId: conversationId,
       text,
+      senderDisplayName,
       createdAt: ctx.nowIso,
       adminMessageId: readIncomingMessageId(ctx),
       programNoteStageItemId,

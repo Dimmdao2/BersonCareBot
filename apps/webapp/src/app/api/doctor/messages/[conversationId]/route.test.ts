@@ -100,7 +100,12 @@ describe("GET /api/doctor/messages/[conversationId]", () => {
     requireDoctorWorkspaceApiContextMock.mockReset();
     requireDoctorWorkspaceApiContextMock.mockResolvedValue({
       ok: true,
-      ctx: { organizationId: orgId, session: { user: { userId: "d1", role: "doctor", bindings: {} } } },
+      ctx: {
+        organizationId: orgId,
+        session: {
+          user: { userId: "d1", role: "doctor", displayName: "Доктор Берсон", bindings: {} },
+        },
+      },
     });
   });
 
@@ -196,7 +201,12 @@ describe("POST /api/doctor/messages/[conversationId]", () => {
     );
     requireDoctorWorkspaceApiContextMock.mockResolvedValue({
       ok: true,
-      ctx: { organizationId: orgId, session: { user: { userId: "d1", role: "doctor", bindings: {} } } },
+      ctx: {
+        organizationId: orgId,
+        session: {
+          user: { userId: "d1", role: "doctor", displayName: "Доктор Берсон", bindings: {} },
+        },
+      },
     });
   });
 
@@ -228,6 +238,12 @@ describe("POST /api/doctor/messages/[conversationId]", () => {
       { params: Promise.resolve({ conversationId: cid }) }
     );
     expect(res.status).toBe(200);
+    expect(sendMock).toHaveBeenCalledWith(
+      cid,
+      "reply",
+      orgId,
+      "Доктор Берсон",
+    );
     expect(withDoctorWorkspacePrincipalMock).toHaveBeenCalledWith(
       expect.objectContaining({ organizationId: orgId }),
       expect.any(Function),

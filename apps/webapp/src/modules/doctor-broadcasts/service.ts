@@ -28,6 +28,8 @@ import {
 import type { PatientInboundChatPort } from "@/modules/messaging/ports";
 import type { PatientWebPushNotifyDeps } from "@/modules/patient-notifications/patientWebPushNotify";
 import { logger } from "@/infra/logging/logger";
+import { routePaths } from "@/app-layer/routes/paths";
+import { getAppBaseUrlSync } from "@/modules/system-settings/integrationRuntime";
 
 export type DoctorBroadcastsServiceDeps = {
   resolveBroadcastAudience(
@@ -71,6 +73,11 @@ function resolvedChannels(command: BroadcastCommand) {
   return normalizeBroadcastChannels(command.channels?.map(String));
 }
 
+function buildPatientNotificationsOpenUrl(): string {
+  const base = getAppBaseUrlSync().replace(/\/$/, "");
+  return `${base}${routePaths.patient}?notifications=1`;
+}
+
 export function createDoctorBroadcastsService(deps: DoctorBroadcastsServiceDeps) {
   return {
     getCategories(): BroadcastCategory[] {
@@ -108,6 +115,7 @@ export function createDoctorBroadcastsService(deps: DoctorBroadcastsServiceDeps)
       } = resolved;
       await options?.reserveAudienceGrowth?.(audienceSize);
       const messageBody = buildBroadcastMessageText(command.message.title, command.message.body);
+      const notificationOpenUrl = buildPatientNotificationsOpenUrl();
       // In-app chat has no markup → patient sees clean text, not raw **/-/_ markers.
       const messageBodyPlainText = stripMarkdownToPlain(messageBody);
       const auditId = randomUUID();
@@ -117,6 +125,7 @@ export function createDoctorBroadcastsService(deps: DoctorBroadcastsServiceDeps)
         channels,
         messageTitle: command.message.title,
         messageBodyPlain: command.message.body,
+        notificationOpenUrl,
         attachMenu: command.attachMenuAfterSend === true,
         audienceFilter: command.audienceFilter,
         notificationPrefsByUserId,
@@ -184,6 +193,7 @@ export function createDoctorBroadcastsService(deps: DoctorBroadcastsServiceDeps)
             auditId,
             broadcastCategory: command.category,
             broadcastTitle: command.message.title,
+            notificationOpenUrl,
             eligibleClients,
             webPushEligibleUserIds,
           },
@@ -200,7 +210,7 @@ export function createDoctorBroadcastsService(deps: DoctorBroadcastsServiceDeps)
             auditId,
             broadcastCategory: command.category,
             broadcastTitle: command.message.title,
-            broadcastBody: stripMarkdownToPlain(command.message.body),
+            notificationOpenUrl,
             mediaUrl: command.message.mediaUrl ?? null,
             eligibleClients: emailClients,
           },

@@ -65,6 +65,7 @@ export async function POST(
       }),
       stageItemId,
       text: parsed.data.text,
+      senderDisplayName: session.user.displayName,
       source: "webapp",
     }),
   );

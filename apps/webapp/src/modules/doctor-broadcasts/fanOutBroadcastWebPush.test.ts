@@ -17,6 +17,7 @@ describe("fanOutBroadcastWebPush", () => {
         auditId: "audit-1",
         broadcastCategory: "marketing",
         broadcastTitle: "Акция",
+        notificationOpenUrl: "https://app.test/app/patient?notifications=1",
         eligibleClients: [{ userId: "u1" } as never, { userId: "u2" } as never],
         webPushEligibleUserIds: new Set(["u1"]),
       },
@@ -30,7 +31,7 @@ describe("fanOutBroadcastWebPush", () => {
         intentType: "news",
         topicCode: "patient_news",
         broadcastTitle: "Акция",
-        openUrl: expect.stringContaining("/app/patient?notifications=1"),
+        openUrl: "https://app.test/app/patient?notifications=1",
       }),
       {},
     );

@@ -6,7 +6,11 @@ import type { AdminConversationListRow, SupportConversationMessageRow } from "@/
 import { isSupportChatMessage } from "@/shared/lib/supportMessageKinds";
 import { logger, serializeError } from "@/infra/logging/logger";
 import { relayOutbound, type RelayOutboundDeps } from "./relayOutbound";
-import type { NotifyPatientDoctorReplyParams } from "./notifyPatientDoctorReply";
+import {
+  buildPatientMessagesOpenUrl,
+  buildPersonalChatNotificationText,
+  type NotifyPatientDoctorReplyParams,
+} from "./notifyPatientDoctorReply";
 
 const MAX_LEN = 4000;
 
@@ -61,6 +65,7 @@ export function createDoctorSupportMessagingService(
       conversationId: string,
       text: string,
       organizationId?: string,
+      senderDisplayName?: string,
     ): Promise<{ ok: true } | { ok: false; error: string }> {
       const convInfo = await port.getConversationRelayInfo(conversationId, organizationId);
       if (!convInfo) return { ok: false, error: "not_found" };
@@ -90,6 +95,7 @@ export function createDoctorSupportMessagingService(
             platformUserId,
             messageId: integratorMessageId,
             text: trimmed,
+            senderDisplayName: senderDisplayName?.trim() || "специалиста",
           })
           .catch((err: unknown) => {
             logger.error({ err: serializeError(err) }, "[doctorSupport] patient notify error");
@@ -101,7 +107,9 @@ export function createDoctorSupportMessagingService(
             messageId: integratorMessageId,
             channel: channelCode,
             recipient: channelExternalId,
-            text: trimmed,
+            text: `${buildPersonalChatNotificationText(
+              senderDisplayName?.trim() || "специалиста",
+            )}\n\n${buildPatientMessagesOpenUrl()}`,
           },
           opts,
         ).catch((err: unknown) => {

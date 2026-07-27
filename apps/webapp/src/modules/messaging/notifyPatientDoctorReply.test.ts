@@ -129,7 +129,13 @@ function buildDeps(
 // ── tests ─────────────────────────────────────────────────────────────────────
 
 describe("notifyPatientDoctorReply — P16 web_push leg migration", () => {
-  const notifyParams = (text = TEXT) => ({ organizationId: ORGANIZATION_ID, platformUserId: PLATFORM_USER_ID, messageId: MESSAGE_ID, text });
+  const notifyParams = (text = TEXT) => ({
+    organizationId: ORGANIZATION_ID,
+    platformUserId: PLATFORM_USER_ID,
+    messageId: MESSAGE_ID,
+    text,
+    senderDisplayName: "Доктор Берсон",
+  });
   beforeEach(() => {
     // Clear call history between tests to avoid cross-test accumulation.
     vi.clearAllMocks();
@@ -148,9 +154,8 @@ describe("notifyPatientDoctorReply — P16 web_push leg migration", () => {
     expect(params.channel).toBe("web_push");
     expect(params.recipient).toBe(PLATFORM_USER_ID);
     expect(params.messageId).toBe(`${MESSAGE_ID}:web_push`);
-    // text is the push body built by buildMessagePushCopy
-    expect(typeof params.text).toBe("string");
-    expect(params.text.length).toBeGreaterThan(0);
+    expect(params.text).toBe("новое сообщение от Доктор Берсон");
+    expect(params.text).not.toContain(TEXT);
     // metadata carries title, url, and pushExtras.tag — all WebPushClientPayload fields
     expect(params.metadata).toMatchObject({
       title: "Сообщение",
@@ -223,6 +228,8 @@ describe("notifyPatientDoctorReply — P16 web_push leg migration", () => {
     expect(emailCalls[0]![0].metadata).toMatchObject({
       subject: "Новое сообщение в чате",
     });
+    expect(emailCalls[0]![0].text).toContain("новое сообщение от Доктор Берсон");
+    expect(emailCalls[0]![0].text).not.toContain(TEXT);
     // No push sent
     const pushCalls = vi.mocked(relayOutbound).mock.calls.filter((c) => c[0].channel === "web_push");
     expect(pushCalls).toHaveLength(0);
@@ -236,6 +243,8 @@ describe("notifyPatientDoctorReply — P16 web_push leg migration", () => {
     const tgCalls = vi.mocked(relayOutbound).mock.calls.filter((c) => c[0].channel === "telegram");
     expect(tgCalls).toHaveLength(1);
     expect(tgCalls[0]![0].recipient).toBe("987654321");
+    expect(tgCalls[0]![0].text).toContain("новое сообщение от Доктор Берсон");
+    expect(tgCalls[0]![0].text).not.toContain(TEXT);
     // No push sent
     const pushCalls = vi.mocked(relayOutbound).mock.calls.filter((c) => c[0].channel === "web_push");
     expect(pushCalls).toHaveLength(0);
@@ -255,6 +264,34 @@ describe("notifyPatientDoctorReply — P16 web_push leg migration", () => {
     const emailCalls = vi.mocked(relayOutbound).mock.calls.filter((c) => c[0].channel === "email");
     expect(pushCalls).toHaveLength(1);
     expect(emailCalls).toHaveLength(1);
+  });
+
+  it("redacts the message body in web push, Telegram, MAX, and email while preserving links", async () => {
+    const deps = buildDeps({
+      hasSubs: true,
+      telegramId: "987654321",
+      maxId: "max-42",
+      emailAddress: "patient@example.com",
+      emailVerified: true,
+      smtpConfigured: true,
+    });
+    const notify = createNotifyPatientDoctorReply(deps);
+    await notify(notifyParams("Секретный текст о здоровье"));
+
+    const calls = vi.mocked(relayOutbound).mock.calls.map(([params]) => params);
+    expect(calls.map((params) => params.channel).sort()).toEqual([
+      "email",
+      "max",
+      "telegram",
+      "web_push",
+    ]);
+    for (const params of calls) {
+      expect(params.text).toContain("новое сообщение от Доктор Берсон");
+      expect(params.text).not.toContain("Секретный текст о здоровье");
+      if (params.channel !== "web_push") {
+        expect(params.text).toContain("https://app.example");
+      }
+    }
   });
 
   it("skips sending entirely when text is empty", async () => {

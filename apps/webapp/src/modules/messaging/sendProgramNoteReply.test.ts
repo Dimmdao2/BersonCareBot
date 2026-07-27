@@ -44,6 +44,7 @@ describe("createSendProgramNoteReply", () => {
       integratorMessageId: "webapp-msg:1",
       stageItemId,
       text: "Делайте медленнее",
+      senderDisplayName: "Доктор Берсон",
       createdAt: "2026-05-30T03:00:00.000Z",
       source: "webapp",
     });
@@ -67,7 +68,9 @@ describe("createSendProgramNoteReply", () => {
         supportMessageId: "support-msg-1",
       }),
     );
-    expect(notifyPatientOfDoctorReply).toHaveBeenCalledTimes(1);
+    expect(notifyPatientOfDoctorReply).toHaveBeenCalledWith(
+      expect.objectContaining({ senderDisplayName: "Доктор Берсон" }),
+    );
   });
 
   it("passes integratorMessageId to support append for idempotent dedup (P19)", async () => {
@@ -101,6 +104,7 @@ describe("createSendProgramNoteReply", () => {
       integratorMessageId: "webapp-msg:idempotent-1",
       stageItemId,
       text: "Повтор",
+      senderDisplayName: "Доктор Берсон",
     });
 
     expect(appendWebappMessage).toHaveBeenCalledWith(
@@ -132,6 +136,7 @@ describe("createSendProgramNoteReply", () => {
       integratorMessageId: "webapp-msg:2",
       stageItemId,
       text: "Ок",
+      senderDisplayName: "Доктор Берсон",
     });
 
     expect(result).toEqual({ ok: false, error: "stage_item_mismatch" });

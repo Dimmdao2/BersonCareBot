@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { getAppBaseUrlSync } from "@/modules/system-settings/integrationRuntime";
 import {
   loadDoctorNotifyTargets,
@@ -7,8 +8,7 @@ import {
   notifyDoctorPatientMessageToStaff,
   type NotifyDoctorPatientMessageToStaffDeps,
 } from "@/modules/doctor-notifications/notifyDoctorPatientMessageToStaff";
-import { resolvePatientTelegramUsernameMention } from "@/app-layer/messaging/resolvePatientTelegramUsernameMention";
-import { buildPatientNotifyFromLine } from "@/modules/messaging/patientTelegramUsernameMention";
+import { buildPersonalChatNotificationText } from "@/modules/messaging/notifyPatientDoctorReply";
 import { logger, serializeError } from "@/infra/logging/logger";
 import { reportEmptyAudience } from "@/modules/operator-alerts/emptyAudienceRuntime";
 
@@ -31,20 +31,10 @@ export function buildDoctorPatientProgramDeepLink(input: {
 
 export function buildDoctorPatientProgramNoteNotifyText(input: {
   patientLabel: string;
-  exerciseTitle: string;
-  notePreview: string;
   deepLink: string;
-  telegramUsernameMention?: string | null;
 }): string {
-  const preview = input.notePreview.trim().slice(0, 500);
-  const title = input.exerciseTitle.trim() || "Пункт программы";
-  const linkPart = input.deepLink ? `\nПрограмма: ${input.deepLink}` : "";
-  return (
-    `Комментарий пациента к упражнению\n` +
-    `${buildPatientNotifyFromLine(input.patientLabel, input.telegramUsernameMention)}\n` +
-    `${title}\n` +
-    `${preview}${linkPart}`
-  );
+  const notificationText = buildPersonalChatNotificationText(input.patientLabel);
+  return input.deepLink ? `${notificationText}\n\n${input.deepLink}` : notificationText;
 }
 
 export type NotifyDoctorPatientProgramNoteInput = {
@@ -61,28 +51,17 @@ export async function notifyDoctorPatientProgramNote(
   input: NotifyDoctorPatientProgramNoteInput,
   opts?: {
     staffDeps?: NotifyDoctorPatientMessageToStaffDeps;
-    resolveTelegramUsernameMention?: (platformUserId: string) => Promise<string | null>;
   },
 ): Promise<void> {
   const deepLink = buildDoctorPatientProgramDeepLink({
     patientUserId: input.patientUserId,
     instanceId: input.instanceId,
   });
-  const openPath = buildDoctorPatientProgramOpenPath({
-    patientUserId: input.patientUserId,
-    instanceId: input.instanceId,
-  });
-  const resolveMention = opts?.resolveTelegramUsernameMention ?? resolvePatientTelegramUsernameMention;
-  const telegramUsernameMention = await resolveMention(input.patientUserId).catch(() => null);
   const text = buildDoctorPatientProgramNoteNotifyText({
     patientLabel: input.patientLabel,
-    exerciseTitle: input.exerciseTitle,
-    notePreview: input.noteText,
     deepLink,
-    telegramUsernameMention,
   });
-  const preview = input.noteText.trim().slice(0, 120);
-  const noteKey = input.noteText.trim().slice(0, 64).replace(/\s+/g, " ");
+  const noteKey = createHash("sha256").update(input.noteText.trim()).digest("hex").slice(0, 16);
   const messageId = `patient-program-note:${input.stageItemId}:${noteKey}`;
   const replyMarkup = {
     inline_keyboard: [[{ text: "Ответить", callback_data: `program_reply:${input.stageItemId}` }]],
@@ -94,10 +73,8 @@ export async function notifyDoctorPatientProgramNote(
         organizationId: input.organizationId,
         topicCode: "doctor_patient_program_notes",
         messageId,
-        text,
-        pushTitle: "Комментарий к упражнению",
-        pushBody: `${input.patientLabel}: ${preview}`,
-        pushUrl: openPath,
+        senderDisplayName: input.patientLabel,
+        notificationUrl: deepLink,
         replyMarkup,
       },
       opts.staffDeps,

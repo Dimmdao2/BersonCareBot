@@ -137,6 +137,8 @@ export type DoctorBroadcastDeliveryJobsParams = {
   channels: readonly BroadcastChannel[];
   messageTitle: string;
   messageBodyPlain: string;
+  /** Authenticated notification-inbox target; messenger copy carries title + this link, never body. */
+  notificationOpenUrl: string;
   audienceFilter?: BroadcastAudienceFilter;
   notificationPrefsByUserId?: ReadonlyMap<string, BroadcastNotificationPrefsFlags>;
   /** Копия на момент постановки в очередь; воркер читает из `payload_json`. */
@@ -161,8 +163,8 @@ export function buildDoctorBroadcastDeliveryJobs(input: DoctorBroadcastDeliveryJ
   const jobs: DoctorBroadcastQueueJob[] = [];
   const attachMenu = input.attachMenu === true;
   const plainCombined = buildBroadcastMessageText(input.messageTitle, input.messageBodyPlain);
-  const { title: truncatedTitle, body: truncatedBody } = splitBroadcastPlainCombined(plainCombined);
-  const messengerText = buildBroadcastMessengerHtml(truncatedTitle, truncatedBody);
+  const { title: truncatedTitle } = splitBroadcastPlainCombined(plainCombined);
+  const messengerText = buildBroadcastMessengerHtml(truncatedTitle, input.notificationOpenUrl);
   // SMS has no markup → strip markdown markers (keep bullets/line breaks).
   const smsText = stripMarkdownToPlain(plainCombined);
 

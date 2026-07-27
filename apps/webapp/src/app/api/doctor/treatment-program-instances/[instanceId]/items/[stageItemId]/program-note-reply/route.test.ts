@@ -42,7 +42,14 @@ const instanceId = "11111111-1111-4111-8111-111111111111";
 const stageItemId = "22222222-2222-4222-8222-222222222222";
 const doctorId = "33333333-3333-4333-8333-333333333333";
 const workspaceCtx = {
-  session: { user: { userId: doctorId, role: "doctor", bindings: {} } },
+  session: {
+    user: {
+      userId: doctorId,
+      role: "doctor",
+      displayName: "Доктор Берсон",
+      bindings: {},
+    },
+  },
   organizationId: "44444444-4444-4444-8444-444444444444",
   membershipId: "55555555-5555-4555-8555-555555555555",
   membershipRole: "doctor",
@@ -92,5 +99,8 @@ describe("POST program-note-reply", () => {
     const second = sendReplyMock.mock.calls[1]![0].integratorMessageId;
     expect(first).toBe(second);
     expect(first).toMatch(/^webapp-program-note:/);
+    expect(sendReplyMock).toHaveBeenCalledWith(
+      expect.objectContaining({ senderDisplayName: "Доктор Берсон" }),
+    );
   });
 });

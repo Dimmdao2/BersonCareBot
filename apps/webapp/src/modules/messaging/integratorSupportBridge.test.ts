@@ -52,6 +52,7 @@ describe("createIntegratorSupportBridge", () => {
       integratorConversationId: `webapp:platform:${platformUserId}`,
       integratorMessageId: "webapp-msg:admin-1",
       text: "Ответ врача",
+      senderDisplayName: "Доктор Берсон",
       createdAt: new Date().toISOString(),
     });
     expect(r).toEqual({ ok: true });
@@ -63,6 +64,7 @@ describe("createIntegratorSupportBridge", () => {
       expect.objectContaining({
         platformUserId,
         topicCode: "support_messages",
+        senderDisplayName: "Доктор Берсон",
       }),
     );
   });
@@ -88,6 +90,7 @@ describe("createIntegratorSupportBridge", () => {
           "webapp:organization:11111111-1111-4111-8111-111111111111:platform:00000000-0000-4000-8000-000000000001",
         integratorMessageId: "webapp-msg:admin-scoped",
         text: "Ответ врача",
+        senderDisplayName: "Доктор Берсон",
         createdAt: "2026-07-16T12:00:00.000Z",
       }),
     ).resolves.toEqual({ ok: false, error: "organization_context_required" });
@@ -109,6 +112,7 @@ describe("createIntegratorSupportBridge", () => {
       integratorConversationId: `webapp:platform:${platformUserId}`,
       integratorMessageId: "webapp-msg:admin-2",
       text: "Делайте медленнее",
+      senderDisplayName: "Доктор Берсон",
       createdAt: new Date().toISOString(),
       programNoteStageItemId: stageItemId,
     });
@@ -119,6 +123,7 @@ describe("createIntegratorSupportBridge", () => {
         stageItemId,
         integratorConversationId: `webapp:platform:${platformUserId}`,
         text: "Делайте медленнее",
+        senderDisplayName: "Доктор Берсон",
       }),
     );
   });

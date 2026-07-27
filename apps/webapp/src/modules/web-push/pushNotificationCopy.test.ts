@@ -107,14 +107,16 @@ describe("buildReminderWebPushCopy", () => {
 });
 
 describe("appointment push copy", () => {
-  it("formats lifecycle created copy", () => {
+  it("keeps appointment lifecycle content fully visible", () => {
     const copy = buildAppointmentLifecyclePushCopy(
       "created",
       "2026-05-20T11:00:00+03:00",
       "Europe/Moscow",
     );
-    expect(copy.title).toBe("Запись на приём");
-    expect(copy.body).toContain("Вы записаны на приём");
+    expect(copy).toEqual({
+      title: "Запись на приём",
+      body: "Вы записаны на приём 20 мая 2026 г., 11:00",
+    });
   });
 
   it("formats reminder with days", () => {
@@ -134,6 +136,20 @@ describe("appointment push copy", () => {
       "Europe/Moscow",
     );
     expect(copy.body).toMatch(/2 часа/);
+  });
+});
+
+describe("lesson reminder regression guard", () => {
+  it("keeps custom lesson reminder content fully visible", () => {
+    expect(
+      buildCustomReminderPushCopy(
+        "Занятие с реабилитологом",
+        "Сегодня в 18:30, зал на втором этаже",
+      ),
+    ).toEqual({
+      title: "Занятие с реабилитологом",
+      body: "Сегодня в 18:30, зал на втором этаже",
+    });
   });
 });
 

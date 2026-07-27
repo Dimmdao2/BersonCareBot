@@ -16,12 +16,12 @@ import { escapeHtml } from "@/shared/lib/escapeHtml";
 import type { ClientListItem } from "@/modules/doctor-clients/ports";
 import type { BroadcastCategory } from "./ports";
 
-/** RASSL-06: HTML-тело письма с inline-картинкой сверху + заголовок + текст (всё HTML-escaped). */
-export function buildBroadcastEmailHtml(title: string, body: string, mediaUrl: string): string {
+/** HTML-уведомление: inline-картинка, открытая тема и ссылка на полное содержание в приложении. */
+export function buildBroadcastEmailHtml(title: string, notificationOpenUrl: string, mediaUrl: string): string {
   const img = `<img src="${escapeHtml(mediaUrl)}" alt="" style="max-width:100%;height:auto;border-radius:8px;display:block;margin-bottom:12px" />`;
   const head = title.trim() ? `<div style="font-weight:600;font-size:16px;margin-bottom:6px">${escapeHtml(title.trim())}</div>` : "";
-  const text = `<div style="white-space:pre-wrap">${escapeHtml(body)}</div>`;
-  return `${img}${head}${text}`;
+  const link = `<a href="${escapeHtml(notificationOpenUrl)}">Открыть в приложении</a>`;
+  return `${img}${head}${link}`;
 }
 
 /** Маппинг email-адресов по userId (только с подтверждённым email). */
@@ -37,7 +37,7 @@ export type FanOutBroadcastEmailInput = {
   auditId: string;
   broadcastCategory: BroadcastCategory;
   broadcastTitle: string;
-  broadcastBody: string;
+  notificationOpenUrl: string;
   /** RASSL-06: опц. URL картинки — рендерится inline в HTML-теле письма. */
   mediaUrl?: string | null;
   eligibleClients: readonly ClientListItem[];
@@ -102,10 +102,10 @@ export async function fanOutBroadcastEmail(
           messageId,
           channel: "email",
           recipient: emailAddress,
-          text: `${input.broadcastTitle}\n\n${input.broadcastBody}`,
+          text: `${input.broadcastTitle}\n\n${input.notificationOpenUrl}`,
           metadata: { subject: input.broadcastTitle },
           ...(input.mediaUrl
-            ? { html: buildBroadcastEmailHtml(input.broadcastTitle, input.broadcastBody, input.mediaUrl) }
+            ? { html: buildBroadcastEmailHtml(input.broadcastTitle, input.notificationOpenUrl, input.mediaUrl) }
             : {}),
         },
         deps,

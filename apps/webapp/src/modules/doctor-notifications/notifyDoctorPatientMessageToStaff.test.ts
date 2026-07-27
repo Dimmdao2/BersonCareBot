@@ -25,10 +25,8 @@ describe("notifyDoctorPatientMessageToStaff", () => {
         organizationId: "11111111-1111-4111-8111-111111111111",
         topicCode: "doctor_patient_messages",
         messageId: "patient-msg-notify:m1",
-        text: "hello",
-        pushTitle: "t",
-        pushBody: "b",
-        pushUrl: "/app/doctor/messages",
+        senderDisplayName: "Иван",
+        notificationUrl: "https://app.example/app/doctor/messages",
         replyMarkup: {
           inline_keyboard: [[{ text: "Ответить", callback_data: "admin_reply:webapp:platform:u1" }]],
         },
@@ -49,7 +47,11 @@ describe("notifyDoctorPatientMessageToStaff", () => {
 
     expect(result.telegramDelivered).toBe(1);
     expect(relayMock).toHaveBeenCalledWith(
-      expect.objectContaining({ channel: "telegram", recipient: "123" }),
+      expect.objectContaining({
+        channel: "telegram",
+        recipient: "123",
+        text: "новое сообщение от Иван\n\nhttps://app.example/app/doctor/messages",
+      }),
     );
   });
 
@@ -59,10 +61,8 @@ describe("notifyDoctorPatientMessageToStaff", () => {
         organizationId: "11111111-1111-4111-8111-111111111111",
         topicCode: "doctor_patient_messages",
         messageId: "patient-msg-notify:m2",
-        text: "hello",
-        pushTitle: "t",
-        pushBody: "b",
-        pushUrl: "/app/doctor/messages",
+        senderDisplayName: "Иван",
+        notificationUrl: "https://app.example/app/doctor/messages",
         replyMarkup: {
           inline_keyboard: [[{ text: "Ответить", callback_data: "admin_reply:webapp:platform:u1" }]],
         },
@@ -100,10 +100,8 @@ describe("notifyDoctorPatientMessageToStaff", () => {
         organizationId: "11111111-1111-4111-8111-111111111111",
         topicCode: "doctor_patient_messages",
         messageId: "patient-msg-notify:m3",
-        text: "hello",
-        pushTitle: "Сообщение от пациента",
-        pushBody: "Иван: hi",
-        pushUrl: "/app/doctor/messages",
+        senderDisplayName: "Иван",
+        notificationUrl: "https://app.example/app/doctor/messages",
       },
       {
         staffUsers: { listActiveStaffUserIds: async () => ["doc-1"] },
@@ -125,10 +123,10 @@ describe("notifyDoctorPatientMessageToStaff", () => {
       expect.objectContaining({
         channel: "web_push",
         recipient: "doc-1",
-        text: "Иван: hi",
+        text: "новое сообщение от Иван",
         metadata: expect.objectContaining({
-          title: "Сообщение от пациента",
-          url: "/app/doctor/messages",
+          title: "Новое сообщение",
+          url: "https://app.example/app/doctor/messages",
         }),
       }),
     );
@@ -140,10 +138,8 @@ describe("notifyDoctorPatientMessageToStaff", () => {
         organizationId: "11111111-1111-4111-8111-111111111111",
         topicCode: "doctor_patient_messages",
         messageId: "patient-msg-notify:m4",
-        text: "hello",
-        pushTitle: "t",
-        pushBody: "b",
-        pushUrl: "/app/doctor/messages",
+        senderDisplayName: "Иван",
+        notificationUrl: "https://app.example/app/doctor/messages",
       },
       {
         staffUsers: { listActiveStaffUserIds: async () => ["doc-1"] },

@@ -14,6 +14,7 @@ export type SendProgramNoteReplyInput = {
   integratorMessageId: string;
   stageItemId: string;
   text: string;
+  senderDisplayName: string;
   createdAt?: string;
   source?: string;
 };
@@ -86,6 +87,7 @@ export function createSendProgramNoteReply(deps: {
         platformUserId,
         messageId: integratorMessageId,
         text: chatText,
+        senderDisplayName: input.senderDisplayName,
       });
     }
 

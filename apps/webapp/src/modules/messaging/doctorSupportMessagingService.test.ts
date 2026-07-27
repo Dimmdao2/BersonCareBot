@@ -1,9 +1,13 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { createDoctorSupportMessagingService } from "./doctorSupportMessagingService";
 import type { SupportCommunicationPort, SupportConversationRow } from "@/infra/repos/pgSupportCommunication";
+import type { RelayOutboundParams } from "./relayOutbound";
 
 const { relayMock } = vi.hoisted(() => ({
-  relayMock: vi.fn(async () => ({ ok: true as const, status: "accepted" as const })),
+  relayMock: vi.fn(async (_input: RelayOutboundParams, _deps?: unknown) => ({
+    ok: true as const,
+    status: "accepted" as const,
+  })),
 }));
 
 vi.mock("./relayOutbound", () => ({
@@ -291,13 +295,17 @@ describe("doctorSupportMessagingService", () => {
       { notifyPatientOfDoctorReply },
     );
 
-    const res = await service.sendAdminReply("conv-1", "reply");
+    const res = await service.sendAdminReply("conv-1", "reply", undefined, "Доктор Берсон");
     expect(res).toEqual({ ok: true });
     expect(appendWebappMessage).toHaveBeenCalledTimes(1);
 
     await new Promise((r) => setTimeout(r, 0));
     expect(notifyPatientOfDoctorReply).toHaveBeenCalledWith(
-      expect.objectContaining({ platformUserId: "user-1", text: "reply" }),
+      expect.objectContaining({
+        platformUserId: "user-1",
+        text: "reply",
+        senderDisplayName: "Доктор Берсон",
+      }),
     );
     expect(relayMock).not.toHaveBeenCalled();
   });
@@ -320,10 +328,16 @@ describe("doctorSupportMessagingService", () => {
     expect(res).toEqual({ ok: true });
 
     await new Promise((r) => setTimeout(r, 0));
-    expect(relayMock).toHaveBeenCalledWith(
-      expect.objectContaining({ channel: "telegram", recipient: "987654321", text: "reply" }),
-      undefined,
+    const relayInput = relayMock.mock.calls[0]?.[0];
+    expect(relayInput).toEqual(
+      expect.objectContaining({
+        channel: "telegram",
+        recipient: "987654321",
+        text: expect.stringContaining("новое сообщение от специалиста"),
+      }),
     );
+    expect(relayInput?.text).toContain("/app/patient/messages");
+    expect(relayInput?.text).not.toContain("reply");
   });
 
   it("не шлёт notify и relay без platform user и без channel binding", async () => {
@@ -398,7 +412,11 @@ describe("doctorSupportMessagingService", () => {
     await new Promise((r) => setTimeout(r, 0));
 
     expect(relayMock).toHaveBeenCalledWith(
-      expect.objectContaining({ channel: "telegram", recipient: "222", text: "reply" }),
+      expect.objectContaining({
+        channel: "telegram",
+        recipient: "222",
+        text: expect.stringContaining("новое сообщение от специалиста"),
+      }),
       expect.objectContaining({ shouldDispatchRelay }),
     );
   });

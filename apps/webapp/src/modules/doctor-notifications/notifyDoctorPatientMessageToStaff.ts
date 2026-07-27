@@ -17,6 +17,7 @@
  */
 import { logger } from "@/app-layer/logging/logger";
 import type { ChannelPreferencesPort } from "@/modules/channel-preferences/ports";
+import { buildPersonalChatNotificationText } from "@/modules/messaging/notifyPatientDoctorReply";
 import { relayOutbound, type RelayInlineButton } from "@/modules/messaging/relayOutbound";
 import type { TopicChannelPrefsPort } from "@/modules/patient-notifications/topicChannelPrefsPort";
 import type { SystemSettingsService } from "@/modules/system-settings/service";
@@ -43,10 +44,8 @@ export type NotifyDoctorStaffTopicInput = {
   organizationId: string;
   topicCode: DoctorNotificationTopicCode;
   messageId: string;
-  text: string;
-  pushTitle: string;
-  pushBody: string;
-  pushUrl: string;
+  senderDisplayName: string;
+  notificationUrl: string;
   replyMarkup?: { inline_keyboard: RelayInlineButton[][] };
 };
 
@@ -63,6 +62,8 @@ export async function notifyDoctorPatientMessageToStaff(
   const staffIds = await deps.staffUsers.listActiveStaffUserIds();
   const globalFallback = defaultDoctorTopicFallbackChannels(input.topicCode);
   const replyMarkup = input.replyMarkup;
+  const notificationText = buildPersonalChatNotificationText(input.senderDisplayName);
+  const messengerText = `${notificationText}\n\n${input.notificationUrl}`;
 
   let telegramDelivered = 0;
   let maxDelivered = 0;
@@ -124,7 +125,7 @@ export async function notifyDoctorPatientMessageToStaff(
         messageId: `${input.messageId}:tg:${userId}:${recipient}`,
         channel: "telegram",
         recipient,
-        text: input.text,
+        text: messengerText,
         userId,
         ...(replyMarkup ? { replyMarkup } : {}),
       }).catch((err: unknown) => {
@@ -140,7 +141,7 @@ export async function notifyDoctorPatientMessageToStaff(
         messageId: `${input.messageId}:max:${userId}:${recipient}`,
         channel: "max",
         recipient,
-        text: input.text,
+        text: messengerText,
         userId,
         ...(replyMarkup ? { replyMarkup } : {}),
       }).catch((err: unknown) => {
@@ -161,10 +162,10 @@ export async function notifyDoctorPatientMessageToStaff(
         organizationId: input.organizationId,
         channel: "web_push",
         recipient: userId,
-        text: input.pushBody,
+        text: notificationText,
         metadata: {
-          title: input.pushTitle,
-          url: input.pushUrl,
+          title: "Новое сообщение",
+          url: input.notificationUrl,
           pushExtras: { tag },
         },
       }).catch((err: unknown) => {

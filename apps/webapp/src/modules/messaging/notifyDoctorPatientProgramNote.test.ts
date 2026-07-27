@@ -77,26 +77,10 @@ describe("notifyDoctorPatientProgramNote", () => {
   it("buildDoctorPatientProgramNoteNotifyText includes label, title and note preview", () => {
     const text = buildDoctorPatientProgramNoteNotifyText({
       patientLabel: "Иван",
-      exerciseTitle: "Присед",
-      notePreview: "  Болит колено ",
       deepLink: "https://app.example/p",
     });
-    expect(text).toContain("Комментарий пациента к упражнению");
-    expect(text).toContain("От: Иван");
-    expect(text).toContain("Присед");
-    expect(text).toContain("Болит колено");
-    expect(text).toContain("Программа: https://app.example/p");
-  });
-
-  it("buildDoctorPatientProgramNoteNotifyText appends telegram @nickname", () => {
-    const text = buildDoctorPatientProgramNoteNotifyText({
-      patientLabel: "Иван",
-      exerciseTitle: "Присед",
-      notePreview: "Болит колено",
-      deepLink: "https://app.example/p",
-      telegramUsernameMention: "@ivan_tg",
-    });
-    expect(text).toContain("От: Иван @ivan_tg");
+    expect(text).toBe("новое сообщение от Иван\n\nhttps://app.example/p");
+    expect(text).not.toContain("Болит колено");
   });
 
   it("notifyDoctorPatientProgramNote uses staff topic delivery when staffDeps provided", async () => {
@@ -112,16 +96,14 @@ describe("notifyDoctorPatientProgramNote", () => {
       },
       {
         staffDeps,
-        resolveTelegramUsernameMention: async () => "@ivan_tg",
       },
     );
     expect(notifyDoctorPatientMessageToStaff).toHaveBeenCalledWith(
       expect.objectContaining({
         topicCode: "doctor_patient_program_notes",
         messageId: expect.stringMatching(/^patient-program-note:/),
-        text: expect.stringContaining("От: Иван @ivan_tg"),
-        pushTitle: "Комментарий к упражнению",
-        pushBody: "Иван: Комментарий",
+        senderDisplayName: "Иван",
+        notificationUrl: expect.stringContaining(`/app/doctor/clients/${patientUserId}`),
         replyMarkup: expect.objectContaining({
           inline_keyboard: [[{ text: "Ответить", callback_data: `program_reply:${stageItemId}` }]],
         }),
@@ -144,12 +126,13 @@ describe("notifyDoctorPatientProgramNote", () => {
     expect(relayTextToDoctorTargets).toHaveBeenCalledWith(
       expect.stringMatching(/^patient-program-note:/),
       { telegram: ["123"], max: [] },
-      expect.stringContaining("Комментарий"),
+      expect.stringContaining("новое сообщение от Иван"),
       "patient-program-note",
       expect.objectContaining({
         inline_keyboard: [[{ text: "Ответить", callback_data: `program_reply:${stageItemId}` }]],
       }),
     );
+    expect(vi.mocked(relayTextToDoctorTargets).mock.calls[0]?.[2]).not.toContain("Комментарий");
     expect(notifyDoctorPatientMessageToStaff).not.toHaveBeenCalled();
   });
 

@@ -1,4 +1,3 @@
-import { routePaths } from "@/app-layer/routes/paths";
 import { logger } from "@/infra/logging/logger";
 import type { ClientListItem } from "@/modules/doctor-clients/ports";
 import {
@@ -6,20 +5,15 @@ import {
   type PatientWebPushNotifyDeps,
 } from "@/modules/patient-notifications/patientWebPushNotify";
 import { broadcastNotificationTopicCode } from "@/modules/patient-notifications/notificationTopicCodes";
-import { getAppBaseUrlSync } from "@/modules/system-settings/integrationRuntime";
 import { broadcastIncludeWebPushJob } from "./broadcastEligible";
 import type { BroadcastCategory } from "./ports";
-
-function buildPatientNotificationsOpenUrl(): string {
-  const base = getAppBaseUrlSync().replace(/\/$/, "");
-  return `${base}${routePaths.patient}?notifications=1`;
-}
 
 export type FanOutBroadcastWebPushInput = {
   organizationId: string;
   auditId: string;
   broadcastCategory: BroadcastCategory;
   broadcastTitle: string;
+  notificationOpenUrl: string;
   eligibleClients: readonly ClientListItem[];
   webPushEligibleUserIds: ReadonlySet<string>;
 };
@@ -48,7 +42,6 @@ export async function fanOutBroadcastWebPush(
 
     attempted += 1;
     try {
-      const openUrl = buildPatientNotificationsOpenUrl();
       const result = await runPatientWebPushNotify(
         {
           organizationId: input.organizationId,
@@ -56,7 +49,7 @@ export async function fanOutBroadcastWebPush(
           topicCode,
           intentType: "news",
           broadcastTitle: input.broadcastTitle,
-          openUrl,
+          openUrl: input.notificationOpenUrl,
           stableKey: `broadcast:${input.auditId}:${client.userId}`.slice(0, 240),
         },
         deps,

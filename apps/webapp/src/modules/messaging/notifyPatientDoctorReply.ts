@@ -22,6 +22,8 @@ export type NotifyPatientDoctorReplyParams = {
   platformUserId: string;
   messageId: string;
   text: string;
+  /** Уже разрешённое display name отправителя; текст сообщения в notification copy не попадает. */
+  senderDisplayName: string;
   /** Defaults to {@link NOTIFICATION_TOPIC_SPECIALIST_MESSAGES}. */
   topicCode?: string;
 };
@@ -38,20 +40,18 @@ export type NotifyPatientDoctorReplyDeps = RelayOutboundDeps & {
   getChannelBindings: (platformUserId: string) => Promise<{ telegramId?: string | null; maxId?: string | null }>;
 };
 
-function buildMessagesOpenUrl(): string {
+export function buildPatientMessagesOpenUrl(): string {
   const base = getAppBaseUrlSync().replace(/\/$/, "");
   return `${base}${routePaths.patientMessages}`;
 }
 
-function previewText(text: string, maxLen: number): string {
-  const t = text.replace(/\s+/g, " ").trim();
-  if (t.length <= maxLen) return t;
-  return `${t.slice(0, maxLen - 1)}…`;
+export function buildPersonalChatNotificationText(senderDisplayName: string): string {
+  const displayName = senderDisplayName.replace(/\s+/g, " ").trim() || "специалиста";
+  return `новое сообщение от ${displayName}`;
 }
 
-function messengerBody(text: string, openUrl: string): string {
-  const body = previewText(text, 500);
-  return body ? `${body}\n\n${openUrl}` : openUrl;
+function messengerBody(notificationText: string, openUrl: string): string {
+  return `${notificationText}\n\n${openUrl}`;
 }
 
 async function buildAvailability(
@@ -93,9 +93,10 @@ async function buildAvailability(
 export function createNotifyPatientDoctorReply(deps: NotifyPatientDoctorReplyDeps) {
   return async function notifyPatientDoctorReply(params: NotifyPatientDoctorReplyParams): Promise<void> {
     const { platformUserId, messageId, text } = params;
-    const openUrl = buildMessagesOpenUrl();
+    const openUrl = buildPatientMessagesOpenUrl();
     const trimmed = text.trim();
     if (!trimmed) return;
+    const notificationText = buildPersonalChatNotificationText(params.senderDisplayName);
 
     const topicCode = params.topicCode?.trim() || NOTIFICATION_TOPIC_SPECIALIST_MESSAGES;
     const organizationId = params.organizationId;
@@ -138,7 +139,7 @@ export function createNotifyPatientDoctorReply(deps: NotifyPatientDoctorReplyDep
           messageId: `${messageId}:${channel}`,
           channel,
           recipient,
-          text: messengerBody(trimmed, openUrl),
+          text: messengerBody(notificationText, openUrl),
           userId: platformUserId,
         },
         deps,
@@ -169,7 +170,7 @@ export function createNotifyPatientDoctorReply(deps: NotifyPatientDoctorReplyDep
         // The integrator's WebPushDeliveryAdapter resolves subscriptions + VAPID and performs
         // the actual send. In dev (DEV_DELIVERY_REDIRECT=1), the pre-fork redirect collapses to
         // the telegram test chat — ZERO real webpush.sendNotification calls.
-        const pushCopy = buildMessagePushCopy(trimmed);
+        const pushCopy = buildMessagePushCopy(notificationText);
         const tag = `doctor_reply:${messageId}`;
         tasks.push(
           relayOutbound(
@@ -214,7 +215,7 @@ export function createNotifyPatientDoctorReply(deps: NotifyPatientDoctorReplyDep
               messageId: `${messageId}:email`,
               channel: "email",
               recipient: to,
-              text: `${previewText(trimmed, 2000)}\n\n${openUrl}`,
+              text: `${notificationText}\n\n${openUrl}`,
               metadata: {
                 subject: EMAIL_SUBJECT,
                 ...(listUnsubscribe ? { listUnsubscribe } : {}),
