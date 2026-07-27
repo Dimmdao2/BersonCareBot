@@ -4,7 +4,18 @@
 -- constraints/indexes/columns/tables use repeat-safe DDL, and the patient capability is replaced
 -- in place (same pg_proc identity, owner and ACL). It must remain safe for strict overlay replay.
 
--- 1. Preserve only neutral import provenance before tightening either source constraint.
+-- 1. DROP the old CHECKs FIRST. Ordering matters and was wrong in the first cut: the rewrite below
+--    sets source='imported', which the OLD constraint does not allow, so updating before dropping
+--    fails with "violates check constraint patient_bookings_source_check" on the very first row.
+--    Caught by a rolled-back dry run against the live TEST database, not by review.
+ALTER TABLE IF EXISTS public.patient_bookings
+  DROP CONSTRAINT IF EXISTS patient_bookings_source_check;
+--> statement-breakpoint
+ALTER TABLE IF EXISTS public.be_appointments
+  DROP CONSTRAINT IF EXISTS be_appointments_source_check;
+--> statement-breakpoint
+
+-- 2. Preserve only neutral import provenance; the provider name leaves the data.
 UPDATE public.patient_bookings
 SET source = 'imported'
 WHERE source = 'rubitime_projection';
@@ -14,16 +25,10 @@ SET source = 'imported'
 WHERE source = 'rubitime_projection';
 --> statement-breakpoint
 
--- 2. The retired provider-specific source value is no longer valid for new or existing rows.
-ALTER TABLE IF EXISTS public.patient_bookings
-  DROP CONSTRAINT IF EXISTS patient_bookings_source_check;
---> statement-breakpoint
+-- 3. Re-add the CHECKs in their final shape: the retired provider value is no longer accepted.
 ALTER TABLE IF EXISTS public.patient_bookings
   ADD CONSTRAINT patient_bookings_source_check
   CHECK (source = ANY (ARRAY['native'::text, 'imported'::text]));
---> statement-breakpoint
-ALTER TABLE IF EXISTS public.be_appointments
-  DROP CONSTRAINT IF EXISTS be_appointments_source_check;
 --> statement-breakpoint
 ALTER TABLE IF EXISTS public.be_appointments
   ADD CONSTRAINT be_appointments_source_check
