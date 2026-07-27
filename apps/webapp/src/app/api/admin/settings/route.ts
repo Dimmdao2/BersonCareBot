@@ -4,6 +4,7 @@
  * Guard: clinic manager for per-org keys only. Global platform configuration stays
  * fail-closed until the U9 platform API/principal contract is implemented.
  */
+import { isPasswordBearingSettingKey, redactSettingValueForAudit } from "@/modules/system-settings/auditRedaction";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
@@ -216,22 +217,10 @@ function redactWebPushVapidForAudit(envelope: unknown): unknown {
   return { ...(envelope as Record<string, unknown>), value: o };
 }
 
-function redactSmtpOutboundForAudit(envelope: unknown): unknown {
-  if (envelope === null || typeof envelope !== "object") return envelope;
-  if (!("value" in envelope)) return envelope;
-  const inner = (envelope as Record<string, unknown>).value;
-  if (inner === null || typeof inner !== "object" || Array.isArray(inner)) return envelope;
-  const o = { ...(inner as Record<string, unknown>) };
-  if ("password" in o) {
-    const p = typeof o.password === "string" ? o.password.trim() : "";
-    (o as Record<string, unknown>).password = p.length > 0 ? "[REDACTED]" : "";
-  }
-  return { ...(envelope as Record<string, unknown>), value: o };
-}
 
 function auditValueForLog(key: string, value: unknown): unknown {
   if (SECRET_LIKE_KEYS.has(key)) return "[REDACTED]";
-  if (key === "smtp_outbound") return redactSmtpOutboundForAudit(value);
+  if (isPasswordBearingSettingKey(key)) return redactSettingValueForAudit(key, value);
   if (key === "web_push_vapid") return redactWebPushVapidForAudit(value);
   if (key === "booking_payment_providers") {
     const parsed = value;

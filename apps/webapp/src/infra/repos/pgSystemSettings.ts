@@ -1,3 +1,4 @@
+import { redactSettingValueForAudit } from "@/modules/system-settings/auditRedaction";
 import { runWebappPgText, runWebappTransaction } from "@/infra/db/runWebappSql";
 import { toIsoStringSafe } from "@/shared/lib/toIsoStringSafe";
 import type {
@@ -214,8 +215,8 @@ async function upsertWithAudit(
       key,
       scope,
       organizationId,
-      oldValueJson !== null ? JSON.stringify(oldValueJson) : null,
-      JSON.stringify(valueJson),
+      oldValueJson !== null ? JSON.stringify(redactSettingValueForAudit(key, oldValueJson)) : null,
+      JSON.stringify(redactSettingValueForAudit(key, valueJson)),
       updatedBy,
       "system_settings_repo",
     ],
