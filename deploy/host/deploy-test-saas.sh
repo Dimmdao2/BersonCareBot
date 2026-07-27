@@ -1090,10 +1090,13 @@ SEAM_OK_SQL
     set +e
     ok="$(sudo -u postgres psql -d "$DB" -X -v ON_ERROR_STOP=1 -tAc "$seam_ok_sql" 2>/dev/null)"
     set -e
-    [ "$ok" = "t" ] && break
+    # $seam_ok_sql ends in `::text`, so psql renders it as the words true/false (bare booleans
+    # render t/f, but a ::text cast spells them out) -- compare to "true", matching every other
+    # ::text-cast boolean check in this file (e.g. assert_c5a_clinical_test_measure_kinds_closure).
+    [ "$ok" = "true" ] && break
     sleep 2
   done
-  [ "$ok" = "t" ] || {
+  [ "$ok" = "true" ] || {
     # WARN-not-FATAL: this check runs mid-closure and has been observed to read a transient
     # non-settled state -- every condition verifies correct in steady state, and the ownership/grant/
     # FORCE invariant is set DETERMINISTICALLY by the reviewed overlays regardless of this read. Repo
@@ -1212,7 +1215,10 @@ WHERE NOT has_table_privilege('app_owner', tbl, priv);
     operator_incidents_ok="$(sudo -u postgres psql -d "$DB" -X -v ON_ERROR_STOP=1 -tAc "
 SELECT has_column_privilege('app_owner', 'public.operator_incidents', 'alert_sent_at', 'UPDATE')::text;
 ")"
-    [ -z "$missing" ] && [ "$operator_incidents_ok" = "t" ] && break
+    # ::text cast above renders as the word true/false, not psql's native t/f -- this was the root
+    # cause of the 2026-07-26 FATAL storm investigated at length in the comment above this loop: the
+    # grant was always present, but "$operator_incidents_ok" = "t" could never be satisfied.
+    [ -z "$missing" ] && [ "$operator_incidents_ok" = "true" ] && break
     sleep 3
   done
   [ -z "$missing" ] || {
@@ -1220,7 +1226,7 @@ SELECT has_column_privilege('app_owner', 'public.operator_incidents', 'alert_sen
     echo "       app_owner is BYPASSRLS -- this is a base table-ACL gap, not an RLS/policy gap." >&2
     exit 1
   }
-  [ "$operator_incidents_ok" = "t" ] || {
+  [ "$operator_incidents_ok" = "true" ] || {
     echo "FATAL: app_owner is missing UPDATE (alert_sent_at) on public.operator_incidents" >&2
     exit 1
   }
