@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-import { chmodSync, lstatSync, readFileSync, renameSync, rmSync, writeFileSync } from "node:fs";
+import { chmodSync, chownSync, lstatSync, readFileSync, renameSync, rmSync, writeFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { randomBytes } from "node:crypto";
 
@@ -203,7 +203,7 @@ async function elevateAdminMode(baseUrl, cookie) {
   return elevated;
 }
 
-function writeFixtureAtomically(outPath, fixture) {
+function writeFixtureAtomically(outPath, fixture, expectedGroupId) {
   const directory = dirname(resolve(outPath));
   const directoryMetadata = lstatSync(directory);
   if (!directoryMetadata.isDirectory() || directoryMetadata.isSymbolicLink()) fail("out_parent_must_be_real_directory");
@@ -211,8 +211,17 @@ function writeFixtureAtomically(outPath, fixture) {
   try {
     writeFileSync(temporary, `${JSON.stringify(fixture, null, 2)}\n`, { encoding: "utf8", mode: 0o640, flag: "wx" });
     chmodSync(temporary, 0o640);
+    // The deploy's own validator (deploy/host/validate-saas-product-smoke-fixture.sh, called by
+    // assert_locked_product_smoke_fixture_ready) requires this file to be exactly root:deploy 0640.
+    // Writing it as root leaves it root:root, which passes the mode check and FAILS the ownership one —
+    // observed live 2026-07-27, the first real mint produced root:root and would have failed the deploy.
+    // Set the group explicitly and assert both, so a wrong-owner fixture can never reach the gate.
+    chownSync(temporary, 0, expectedGroupId);
     renameSync(temporary, outPath);
-    if ((lstatSync(outPath).mode & 0o777) !== 0o640) fail("fixture_mode_must_be_0640");
+    const written = lstatSync(outPath);
+    if ((written.mode & 0o777) !== 0o640) fail("fixture_mode_must_be_0640");
+    if (written.uid !== 0) fail("fixture_owner_must_be_root");
+    if (written.gid !== expectedGroupId) fail("fixture_group_must_be_deploy");
   } catch {
     rmSync(temporary, { force: true });
     fail("fixture_write_failed");
@@ -249,7 +258,7 @@ async function main() {
     },
     refs,
   };
-  writeFixtureAtomically(options.outPath, fixture);
+  writeFixtureAtomically(options.outPath, fixture, resolveDeployGroupId());
   process.stdout.write(`minted: out=${options.outPath} actors=doctor,clinic_admin,patient,global_admin,public\n`);
 }
 

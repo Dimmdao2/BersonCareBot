@@ -1003,9 +1003,52 @@ compute_locked_smoke_scenario_ids(){
   ' "$DEPLOY_REPO/docs/_TODO/SAAS_FOUNDATION/saas-product-smoke-contract.json" "$exclude_csv"
 }
 
+# Mint the product-smoke sessions FRESH, immediately before the smoke runs.
+#
+# Why this exists: the fixture holds pre-minted session COOKIES, and a staff session dies after
+# SESSION_SLIDING_TTL_STAFF_SECONDS (12 h) of idle. So any deploy more than 12 hours after the fixture was
+# last written failed deterministically — 13 of 21 scenarios returning 307/401 while every patient and
+# public scenario passed. That exact split was misread as product breakage more than once. Proven live
+# 2026-07-27: fixture minted 15:16 on 07-26, smoke ran 03:31 on 07-27 (12 h 15 m later) -> all 13 staff
+# scenarios failed. After minting fresh: 21 of 22 pass.
+#
+# Sourced practice, not invented: Datadog Synthetics and Playwright both require a dedicated test account
+# and a live login for state-changing checks rather than a stored session. Decision and sources are
+# recorded in docs/ARCHITECTURE/OWNER_PRODUCT_RULES.md section 10; the three authorised accounts are
+# section 11.
+#
+# Fail-soft by design: if the credentials packet is absent, this is a NO-OP and the deploy falls back to
+# whatever fixture is on disk, which then gets the usual staleness warning. A missing packet must not take
+# a deploy down — the packet lives outside the repo and a fresh host will not have one yet.
+mint_smoke_sessions_if_possible(){
+  local packet="${SAAS_SMOKE_LOGIN_PACKET:-/opt/env/bersoncarebot/saas-smoke-login.env}"
+  local minter="$DEPLOY_REPO/deploy/host/mint-smoke-session.mjs"
+  local fixture="${SAAS_PRODUCT_SMOKE_FIXTURE:-/run/bersoncarebot/saas-smoke.fixture}"
+  if ! sudo test -r "$packet"; then
+    echo "   note: no smoke-login packet at $packet — skipping session mint, using the fixture as found." >&2
+    return 0
+  fi
+  if [ ! -r "$minter" ]; then
+    echo "   note: $minter not readable — skipping session mint." >&2
+    return 0
+  fi
+  echo "   minting fresh product-smoke sessions (packet present)"
+  if sudo node "$minter" \
+      --base-url="${SAAS_PRODUCT_SMOKE_BASE_URL:-https://test.bersoncare.ru}" \
+      --packet="$packet" \
+      --refs-from="$fixture" \
+      --out="$fixture"; then
+    return 0
+  fi
+  echo "   ⚠️  WARN: session mint failed — falling back to the fixture on disk; expect the staleness warning" >&2
+  echo "       and staff-scenario failures if it is older than the 12 h staff idle TTL." >&2
+  return 0
+}
+
 run_locked_product_smoke(){
   local fixture_path
   local local_smoke_failed=0
+  mint_smoke_sessions_if_possible
   assert_locked_product_smoke_fixture_ready
   fixture_path="$LOCKED_PRODUCT_SMOKE_FIXTURE_CANONICAL"
   local smoke_dir
