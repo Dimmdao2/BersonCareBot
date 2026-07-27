@@ -1528,7 +1528,15 @@ SELECT has_column_privilege('app_owner', 'public.operator_incidents', 'alert_sen
   # an exact server-resolved UUID or a SHA-256 opaque bearer hash; global login-token expiry uses only
   # database time. Their 16 required table-grant rows are pinned above, while the bare login keeps no
   # direct grant on any of the five auth tables.
-  local expected_secdef_count=105
+  # 105 -> 106 (2026-07-27, owner walkthrough): migration 0261 adds exactly ONE app_owner SECURITY
+  # DEFINER function, app.is_platform_registration_analytics_user_excluded(uuid). Reviewed body: it
+  # returns a BOOLEAN ONLY -- it never returns a row, an identifier or a contact. It reads
+  # public.platform_users (role, phone_normalized, email) and the global test_account_identifiers
+  # setting solely to answer "is this actor a staff/TEST identity that must be excluded from the
+  # registration funnel". This is what lets the platform-operations role read the registration-event
+  # panel WITHOUT any SELECT on platform_users, which the platform role wall forbids by assertion.
+  # No new table grant is required: app_owner already owns both tables.
+  local expected_secdef_count=106
   local actual_secdef_count
   actual_secdef_count="$(sudo -u postgres psql -d "$DB" -X -v ON_ERROR_STOP=1 -tAc "
 SELECT count(*) FROM pg_proc p WHERE pg_get_userbyid(p.proowner) = 'app_owner' AND p.prosecdef;
