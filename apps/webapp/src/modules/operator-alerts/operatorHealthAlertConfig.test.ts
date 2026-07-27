@@ -36,7 +36,7 @@ describe("operatorHealthAlertConfig", () => {
     expect(cfg.topics.critical_enabled).toBe(true);
   });
 
-  it("prefers operator_health_alert_config when present", () => {
+  it("repairs the emergency floor when operator_health_alert_config is already stored in violation", () => {
     const cfg = mergeOperatorHealthAlertConfigFromLegacy(
       {
         value: {
@@ -51,11 +51,14 @@ describe("operatorHealthAlertConfig", () => {
       },
       { value: { topics: { channel_link: true }, channels: { telegram: true, max: true } } },
     );
-    expect(cfg.topics.critical_enabled).toBe(false);
+    expect(cfg.topics.critical_enabled).toBe(true);
     expect(cfg.digestTime).toBe("10:00");
-    expect(cfg.channels.critical.max).toBe(false);
-    expect(cfg.channels.critical.sms).toBe(false);
+    expect(cfg.channels.critical).toEqual({ telegram: true, max: true, web_push: true, sms: true, email: true });
     expect(cfg.channels.critical.email).toBe(true);
+    expect(cfg.locks).toEqual({
+      topics: { critical_enabled: true },
+      channels: { critical: { telegram: true, max: true, web_push: true, sms: true, email: true } },
+    });
   });
 
   it("keeps email enabled when a stored pre-email config has no email key", () => {
@@ -86,6 +89,52 @@ describe("operatorHealthAlertConfig", () => {
       digestTime: "09:30",
     });
     expect(r.ok).toBe(false);
+  });
+
+  it("rejects an attempt to disable the emergency class with a next step", () => {
+    const r = normalizeOperatorHealthAlertConfigForAdminPatch({
+      topics: { ...defaultOperatorHealthAlertConfig().topics, critical_enabled: false },
+      channels: defaultOperatorHealthAlertConfig().channels,
+      digestTime: "09:00",
+    });
+    expect(r).toMatchObject({
+      ok: false,
+      error: "critical_alerts_must_remain_enabled",
+      message: "Аварийные алерты нельзя отключить. Включите «Критичные сбои» и сохраните настройку снова.",
+    });
+  });
+
+  it("rejects an attempt to disable locked emergency email with a next step", () => {
+    const r = normalizeOperatorHealthAlertConfigForAdminPatch({
+      topics: defaultOperatorHealthAlertConfig().topics,
+      channels: {
+        ...defaultOperatorHealthAlertConfig().channels,
+        critical: { ...defaultOperatorHealthAlertConfig().channels.critical, email: false },
+      },
+      digestTime: "09:00",
+    });
+    expect(r).toMatchObject({
+      ok: false,
+      error: "critical_alert_email_must_remain_enabled",
+      message: "Почта для аварийных алертов всегда включена. Включите E-mail и сохраните настройку снова.",
+    });
+  });
+
+  it("rejects disabling another emergency channel because all emergency channels are locked on", () => {
+    const r = normalizeOperatorHealthAlertConfigForAdminPatch({
+      topics: defaultOperatorHealthAlertConfig().topics,
+      channels: {
+        ...defaultOperatorHealthAlertConfig().channels,
+        critical: { ...defaultOperatorHealthAlertConfig().channels.critical, telegram: false },
+      },
+      digestTime: "09:00",
+    });
+    expect(r).toMatchObject({
+      ok: false,
+      error: "critical_alert_channels_must_remain_enabled",
+      message:
+        "Все доступные каналы аварийных алертов должны оставаться включёнными. Включите отключённый канал и сохраните настройку снова.",
+    });
   });
 
   it("maps legacy topics to alert blocks", () => {
