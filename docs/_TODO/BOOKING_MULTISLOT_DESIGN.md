@@ -323,9 +323,16 @@ Per `patient-booking.md:34` source feedback ("После выбора одног
       `bePayments.appointmentId` (`pgPayments.ts:333-340`) — при отмене НЕ первого слота платёж не находится
       и не происходит вообще никакого финансового события; при отмене ПЕРВОГО обрабатывается вся сумма за все
       слоты. Поле `beAppointments.paymentRef` проставляется во все N строк корректно, но его никто не читает.
-      **Пункт остаётся открытым:** нужен фикс потребителей + продуктовое решение владельца, что происходит с
-      объединённым платежом при отмене части цепочки (пропорциональный возврат / удержание / запрет частичной
-      отмены оплаченной цепочки).
+      **🟢 ПРОДУКТОВОЕ РЕШЕНИЕ ВЛАДЕЛЬЦА ПОЛУЧЕНО 27.07, дословно:** «Сколько отменено - за столько и
+      возвращать (то есть частичный возврат), у предоплата удерживается если есть невозвратная часть для
+      каждого сеанса отдельно». Частичная отмена РАЗРЕШЕНА; возврат = сумма по отменённым слотам
+      (стоимость слота − его невозвратная часть по обычной политике отмены, считаемой **посеансно**);
+      оставшиеся слоты не затрагиваются. Полностью с примером расчёта —
+      `docs/ARCHITECTURE/OWNER_PRODUCT_RULES.md` §7.1.
+      **Пункт остаётся открытым до фикса кода** (`#1056`): продуктовый вопрос закрыт, инженерная работа нет.
+      Что делать: перевести `applyCancelPaymentOutcome`, `recordReschedulePaymentCarryOver` и
+      `getAppointmentPaymentSummary` с поиска по `bePayments.appointmentId` на `beAppointments.paymentRef`,
+      и реализовать посеансный расчёт возврата/удержания по правилу 7.1.
 - [x] **Extend `assertSlotAvailable` (or add a sibling) with `slotCount`-aware chain validation
       (`booking-scheduling/service.ts:180-218`).** — `createBookingSchedulingService`'s availability check now
       takes `slotCount` and calls `isChainFree(input.slotStart, slotCount, durationMinutes, busy)` instead of
