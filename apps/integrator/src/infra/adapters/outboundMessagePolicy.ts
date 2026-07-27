@@ -60,7 +60,7 @@ export function assertOutboundMessagePolicy(intent: OutgoingIntent): string {
 
   if (
     hasMarker(intent, 'operator_security', 'operator_alert')
-    && ['telegram', 'max', 'smsc', 'web_push'].includes(channel)
+    && ['telegram', 'max', 'email', 'smsc', 'web_push'].includes(channel)
   ) return channel;
 
   if (channel === 'telegram' || channel === 'max') {

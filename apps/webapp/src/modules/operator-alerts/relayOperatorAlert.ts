@@ -5,7 +5,7 @@ import type { RelayResult } from "@/modules/messaging/relayOutbound";
 
 export type OperatorAlertRelayParams = {
   messageId: string;
-  channel: "telegram" | "max" | "sms" | "web_push";
+  channel: "telegram" | "max" | "sms" | "email" | "web_push";
   recipient: string;
   text: string;
   organizationId?: string;

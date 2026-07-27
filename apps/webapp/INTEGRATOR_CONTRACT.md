@@ -361,7 +361,7 @@ Canonical linking rules:
 ### Dedicated operator-alert relay
 
 Критические операторские алерты используют только `POST /api/bersoncare/operator-alert-relay` через
-typed server-owned клиент `relayOperatorAlert`. Каналы фиксированы: `telegram | max | sms | web_push`.
+typed server-owned клиент `relayOperatorAlert`. Каналы фиксированы: `telegram | max | sms | email | web_push`.
 Маркер policy capability `operator_security/operator_alert` создаёт только этот route; generic
 `relay-outbound` отвергает поле `purpose` и не может повысить capability произвольного сообщения.
 

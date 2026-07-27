@@ -13,7 +13,7 @@ type ReqWithRawBody = FastifyRequest & { rawBody?: string };
 const schema = z.object({
   messageId: z.string().min(1),
   organizationId: z.string().uuid().optional(),
-  channel: z.enum(['telegram', 'max', 'sms', 'web_push'] as const),
+  channel: z.enum(['telegram', 'max', 'sms', 'email', 'web_push'] as const),
   recipient: z.string().min(1),
   text: z.string().min(1),
   idempotencyKey: z.string().min(1),
@@ -58,6 +58,17 @@ function buildIntent(payload: Payload): OutgoingIntent {
   if (payload.channel === 'sms') {
     return { type: 'message.send', meta, payload: {
       recipient: { phoneNormalized: payload.recipient }, message: { text: payload.text }, delivery: { channels: ['smsc'] },
+    } };
+  }
+  if (payload.channel === 'email') {
+    const subject = typeof payload.metadata?.subject === 'string' && payload.metadata.subject.trim()
+      ? payload.metadata.subject.trim()
+      : 'BersonCare';
+    return { type: 'message.send', meta, payload: {
+      recipient: { email: payload.recipient },
+      subject,
+      message: { text: payload.text },
+      delivery: { channels: ['email'] },
     } };
   }
   const extras = payload.metadata?.pushExtras;

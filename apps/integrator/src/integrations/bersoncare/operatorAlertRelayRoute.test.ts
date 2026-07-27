@@ -1,7 +1,9 @@
 import { createHmac } from 'node:crypto';
 import Fastify from 'fastify';
 import { describe, expect, it, vi } from 'vitest';
-import type { DispatchPort } from '../../kernel/contracts/index.js';
+import type { DeliveryAdapter, DispatchPort } from '../../kernel/contracts/index.js';
+import { createDefaultDispatchPort } from '../../infra/adapters/dispatchPort.js';
+import { _resetDevRedirectActiveCache } from '../../shared/devDeliveryRedirect.js';
 import { registerOperatorAlertRelayRoute } from './operatorAlertRelayRoute.js';
 
 const SECRET = 'test-shared-secret-16chars';
@@ -67,5 +69,59 @@ describe('POST /api/bersoncare/operator-alert-relay', () => {
     const tgRaw = JSON.stringify(tg);
     expect((await app.inject({ method: 'POST', url: '/api/bersoncare/operator-alert-relay', headers: headers(tgRaw), body: tgRaw })).statusCode).toBe(200);
     expect(dispatchPort.dispatchOutgoing).toHaveBeenCalledTimes(1);
+  });
+
+  it('dispatches an operator-alert email through the real policy to the email adapter', async () => {
+    const originalNodeEnv = process.env.NODE_ENV;
+    process.env.NODE_ENV = 'production';
+    _resetDevRedirectActiveCache();
+    try {
+      const send = vi.fn(async () => ({}));
+      const emailAdapter: DeliveryAdapter = {
+        canHandle: (intent) => intent.type === 'message.send'
+          && (intent.payload.delivery as { channels?: unknown[] } | undefined)?.channels?.[0] === 'email',
+        send,
+      };
+      const app = Fastify();
+      app.addContentTypeParser('application/json', { parseAs: 'string' }, (request, body, done) => {
+        const raw = typeof body === 'string' ? body : (body as Buffer).toString('utf8');
+        (request as typeof request & { rawBody?: string }).rawBody = raw;
+        done(null, JSON.parse(raw) as unknown);
+      });
+      await registerOperatorAlertRelayRoute(app, {
+        dispatchPort: createDefaultDispatchPort({ adapters: [emailAdapter] }),
+        sharedSecret: SECRET,
+        isSmsProviderReady: vi.fn(async () => true),
+      });
+      const body = {
+        messageId: 'operator-alert:email-delivery',
+        channel: 'email',
+        recipient: 'operator-email-recipient',
+        text: 'operator alert text',
+        metadata: { subject: 'Operator alert subject' },
+        idempotencyKey: 'global:operator-alert:email-delivery:email:operator-email-recipient',
+      };
+      const raw = JSON.stringify(body);
+
+      const response = await app.inject({
+        method: 'POST',
+        url: '/api/bersoncare/operator-alert-relay',
+        headers: headers(raw),
+        body: raw,
+      });
+
+      expect(response.statusCode).toBe(200);
+      expect(JSON.parse(response.body)).toMatchObject({ ok: true, status: 'accepted' });
+      expect(send).toHaveBeenCalledWith(expect.objectContaining({
+        payload: expect.objectContaining({
+          recipient: { email: 'operator-email-recipient' },
+          subject: 'Operator alert subject',
+        }),
+      }));
+    } finally {
+      if (originalNodeEnv === undefined) delete process.env.NODE_ENV;
+      else process.env.NODE_ENV = originalNodeEnv;
+      _resetDevRedirectActiveCache();
+    }
   });
 });

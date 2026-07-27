@@ -44,6 +44,7 @@ describe('central outbound message policy', () => {
     ['web_push', 'operator_security', 'app_push'],
     ['telegram', 'operator_security', 'operator_alert'],
     ['max', 'operator_security', 'operator_alert'],
+    ['email', 'operator_security', 'operator_alert'],
     ['smsc', 'operator_security', 'operator_alert'],
     ['web_push', 'operator_security', 'operator_alert'],
   ] as const)('allows %s only with %s/%s capability', (channel, messageClass, capability) => {
@@ -52,13 +53,14 @@ describe('central outbound message policy', () => {
 
   it.each([
     intent({ channel: 'telegram' }),
+    intent({ channel: 'email' }),
     intent({ channel: 'max', messageClass: 'routine_product', capability: 'app_push' }),
     intent({ channel: 'email', messageClass: 'auth_code', capability: 'contact_handshake' }),
     intent({ channel: 'smsc', messageClass: 'routine_product', capability: 'app_push' }),
     intent({ channel: 'web_push' }),
     intent({ channel: 'legacy' as string, messageClass: 'auth_code', capability: 'auth_code' }),
     intent({ channel: 'telegram', messageClass: 'auth_code', capability: 'app_push' }),
-    intent({ channel: 'email', messageClass: 'operator_security', capability: 'operator_alert' }),
+    intent({ channel: 'email', messageClass: 'routine_product', capability: 'app_push' }),
   ])('denies missing, forged, and legacy message sends', (candidate) => {
     expect(() => assertOutboundMessagePolicy(candidate)).toThrow(OUTBOUND_MESSAGE_POLICY_DENIED);
   });

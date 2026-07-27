@@ -8,7 +8,6 @@ import {
 const getConfigValueMock = vi.hoisted(() => vi.fn());
 const loadAdminNotificationTargetsFromDbMock = vi.hoisted(() => vi.fn());
 const relayOutboundMock = vi.hoisted(() => vi.fn());
-const emailRelayOutboundMock = vi.hoisted(() => vi.fn());
 const getAdminIncidentStaffPushDepsMock = vi.hoisted(() => vi.fn());
 const sendAdminIncidentStaffWebPushMock = vi.hoisted(() => vi.fn());
 
@@ -26,10 +25,6 @@ vi.mock("./adminNotificationTargetsRuntime", () => ({
 
 vi.mock("./relayOperatorAlert", () => ({
   relayOperatorAlert: relayOutboundMock,
-}));
-
-vi.mock("@/modules/messaging/relayOutbound", () => ({
-  relayOutbound: emailRelayOutboundMock,
 }));
 
 vi.mock("@/modules/admin-incidents/adminIncidentStaffPushRuntime", () => ({
@@ -71,7 +66,6 @@ describe("dispatchOperatorAlert", () => {
     resetInMemoryOperatorHealthAlertSent();
     registerOperatorAlertDedupPort(inMemoryOperatorHealthAlertSentPort);
     relayOutboundMock.mockResolvedValue({ ok: true });
-    emailRelayOutboundMock.mockResolvedValue({ ok: true, status: "accepted" });
     sendAdminIncidentStaffWebPushMock.mockResolvedValue(1);
     getAdminIncidentStaffPushDepsMock.mockReturnValue(null);
     getConfigValueMock.mockImplementation(async (key: string) => {
@@ -189,10 +183,13 @@ describe("dispatchOperatorAlert", () => {
       telegram: ["111"],
       max: ["222"],
       sms: ["+79990001122"],
-      email: ["admin@example.test"],
+      email: ["operator-email-recipient"],
     });
     getAdminIncidentStaffPushDepsMock.mockReturnValue({});
-    emailRelayOutboundMock.mockRejectedValue(new Error("email_down"));
+    relayOutboundMock.mockImplementation(async (input: { channel: string }) => {
+      if (input.channel === "email") throw new Error("email_down");
+      return { ok: true, status: "accepted" };
+    });
 
     const result = await dispatchOperatorAlert({
       organizationId: "11111111-1111-4111-8111-111111111111",
@@ -206,7 +203,7 @@ describe("dispatchOperatorAlert", () => {
     expect(relayOutboundMock).toHaveBeenCalledWith(expect.objectContaining({ channel: "telegram" }));
     expect(relayOutboundMock).toHaveBeenCalledWith(expect.objectContaining({ channel: "max" }));
     expect(relayOutboundMock).toHaveBeenCalledWith(expect.objectContaining({ channel: "sms" }));
-    expect(emailRelayOutboundMock).toHaveBeenCalledWith(expect.objectContaining({ channel: "email", recipient: "admin@example.test" }));
+    expect(relayOutboundMock).toHaveBeenCalledWith(expect.objectContaining({ channel: "email", recipient: "operator-email-recipient" }));
     expect(sendAdminIncidentStaffWebPushMock).toHaveBeenCalledOnce();
   });
 
@@ -217,12 +214,12 @@ describe("dispatchOperatorAlert", () => {
       return "";
     });
     loadAdminNotificationTargetsFromDbMock.mockResolvedValue({
-      telegram: ["111"], max: [], sms: [], email: ["admin@example.test"],
+      telegram: ["111"], max: [], sms: [], email: ["operator-email-recipient"],
     });
 
     await dispatchOperatorAlert({ block: "critical", topic: "test", dedupKey: "email-disabled", lines: ["line"] });
 
-    expect(emailRelayOutboundMock).not.toHaveBeenCalled();
+    expect(relayOutboundMock).not.toHaveBeenCalledWith(expect.objectContaining({ channel: "email" }));
     expect(relayOutboundMock).toHaveBeenCalledWith(expect.objectContaining({ channel: "telegram" }));
   });
 
@@ -259,7 +256,7 @@ describe("dispatchOperatorAlert", () => {
         block: "support",
         topic: "support_submission_patient",
         dedupKey: "support:patient:u1:1",
-        lines: ["Поддержка (webapp)", "Email: a@b.co", "", "Сообщение:", "help"],
+        lines: ["Поддержка (webapp)", "Email: [redacted]", "", "Сообщение:", "help"],
       });
 
       expect(result.dispatched).toBe(true);
@@ -289,7 +286,7 @@ describe("dispatchOperatorAlert", () => {
         block: "support",
         topic: "support_submission_guest",
         dedupKey: "support:public:2",
-        lines: ["Поддержка (webapp) — гость", "Email: g@b.co"],
+        lines: ["Поддержка (webapp) — гость", "Email: [redacted]"],
       });
 
       expect(result.dispatched).toBe(false);

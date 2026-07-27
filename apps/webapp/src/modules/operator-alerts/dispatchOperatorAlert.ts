@@ -1,7 +1,6 @@
 import { createHash } from "node:crypto";
 import { logger } from "@/infra/logging/logger";
 import { relayOperatorAlert } from "./relayOperatorAlert";
-import { relayOutbound } from "@/modules/messaging/relayOutbound";
 import { getConfigValue } from "@/modules/system-settings/configAdapter";
 import { getAdminNotificationTargetsPort } from "./adminNotificationTargetsRuntime";
 import { getAdminIncidentStaffPushDeps } from "@/modules/admin-incidents/adminIncidentStaffPushRuntime";
@@ -89,10 +88,11 @@ export type DispatchOperatorAlertResult = {
 
 async function fireOperatorRelay(input: {
   messageId: string;
-  channel: "telegram" | "max" | "sms";
+  channel: "telegram" | "max" | "sms" | "email";
   recipient: string;
   recipientRef?: string;
   text: string;
+  subject?: string;
   block: OperatorAlertBlock;
   topic: string;
 }): Promise<boolean> {
@@ -102,6 +102,7 @@ async function fireOperatorRelay(input: {
     channel: input.channel,
     recipient: input.recipient,
     text: input.text,
+    ...(input.subject ? { metadata: { subject: input.subject } } : {}),
     });
     if (result.ok) return result.status !== "skipped";
       logger.warn(
@@ -119,43 +120,6 @@ async function fireOperatorRelay(input: {
     return false;
   } catch (err: unknown) {
     logger.warn({ err, block: input.block, topic: input.topic, channel: input.channel }, "relay failed");
-    return false;
-  }
-}
-
-async function fireOperatorEmail(input: {
-  messageId: string;
-  recipient: string;
-  recipientRef: string;
-  text: string;
-  subject: string;
-  block: OperatorAlertBlock;
-  topic: string;
-}): Promise<boolean> {
-  try {
-    const result = await relayOutbound({
-      messageId: input.messageId,
-      channel: "email",
-      recipient: input.recipient,
-      text: input.text,
-      metadata: { subject: input.subject },
-    });
-    if (result.ok) return result.status !== "skipped";
-    logger.warn(
-      {
-        scope: "operator_alert",
-        event: "operator_alert_relay_failed",
-        block: input.block,
-        topic: input.topic,
-        channel: "email",
-        recipientRef: input.recipientRef,
-        reason: result.reason,
-      },
-      "relay failed",
-    );
-    return false;
-  } catch (err: unknown) {
-    logger.warn({ err, block: input.block, topic: input.topic, channel: "email" }, "relay failed");
     return false;
   }
 }
@@ -256,10 +220,9 @@ export async function dispatchOperatorAlert(input: DispatchOperatorAlertInput): 
       for (const emailAddress of targets.email) {
         const recipientDigest = createHash("sha256").update(emailAddress).digest("hex").slice(0, 16);
         const messageId = `operator-alert:${input.deliveryIdentity ?? dk}:email:${recipientDigest}`;
-        // relay-outbound is the sanctioned email chokepoint: it reaches the integrator's
-        // redirect/allowlist-covered EmailDeliveryAdapter rather than creating an SMTP client here.
-        attempts.push(fireOperatorEmail({
+        attempts.push(fireOperatorRelay({
           messageId,
+          channel: "email",
           recipient: emailAddress,
           recipientRef: `email:${recipientDigest}`,
           text,
