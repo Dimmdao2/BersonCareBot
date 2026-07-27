@@ -521,6 +521,29 @@ write-пути честно помечены `declared_no_surface` (не изо�
   reads in blocked lifecycle»). Но САМА подписка/её state machine, которая переводила бы lifecycle по `expired`/
   `past_due`, не существует — фундамент для потребления есть, источника события (billing) нет.
 
+- [ ] **Фискализация: объект `receipt` в платеже и возврате.** Заведено ПРЯМЫМ распоряжением владельца 27.07:
+  «И облачную кассу будем подключать» → на уточнение «поле `receipt` в платеже» — **«делай конечно как надо.
+  чеки и касса будут»**. Разведка с источниками:
+  [`CLOUD_CASH_REGISTER_RESEARCH_2026-07-27.md`](./CLOUD_CASH_REGISTER_RESEARCH_2026-07-27.md).
+  Форма правки — **одно необязательное поле `receipt?` в параметрах `createIntent` и `refund`**
+  ([`modules/payments/providerPort.ts:12-18`](../../../apps/webapp/src/modules/payments/providerPort.ts)),
+  подмешиваемое в тело запроса ЮKassa, когда оно есть
+  ([`infra/payments/yookassaPaymentProvider.ts:79-87`](../../../apps/webapp/src/infra/payments/yookassaPaymentProvider.ts)).
+  Не форк адаптера, не второй провайдер; `mock` поле игнорирует. `PaymentProviderConfig` не меняется — чек это
+  данные платежа, а не учётка провайдера.
+  Состав: `customer.email` (обязателен — ЮKassa доставляет чеки только письмом), `items[]` с `description`,
+  `quantity`, `amount`, `vat_code`, `payment_subject: "service"`, `payment_mode: "full_prepayment"`,
+  и `tax_system_code`.
+  **`vat_code` и `tax_system_code` — НАСТРОЙКИ кабинета глобального админа, не константы** (правило
+  [`OWNER_PRODUCT_RULES.md` §19](../../ARCHITECTURE/OWNER_PRODUCT_RULES.md)); доказательство обязательности:
+  с 01.01.2026 `4`=20 % соседствует с `11`=22 % и `12`=22/122 — захардкоженная ставка неверна уже сегодня.
+  **Порядок обязателен: СНАЧАЛА поле в коде, ПОТОМ тумблер кассы в кабинете ЮKassa.** Как только фискализация
+  включена, ЮKassa отклоняет создание платежа без `receipt` (`INVALID_REQUEST`, параметр `receipt`) — то есть
+  включение кассы без этой правки ломает ВСЕ платежи.
+  Сама касса подключается в кабинете ЮKassa (Настройки → Онлайн-касса), НЕ у нас; выбор «Чеки от ЮKassa» или
+  партнёрской кассы на код не влияет и решается владельцем позже.
+  — НЕ СДЕЛАНО: `grep -rn "receipt\|vat_code\|tax_system_code\|fiscal" apps/webapp/src` — 0 совпадений.
+
 **Проверка:** state-machine + idempotency тесты; подписанный webhook success/replay/forgery/amount-mismatch;
 capture/refund integration тест на mock-адаптере; secret redaction scan; checkout UI RTL/E2E.
 **Выход:** клиника может оплатить тариф через существующий provider layer в mock-режиме на test; когда владелец
