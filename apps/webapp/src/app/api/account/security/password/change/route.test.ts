@@ -158,6 +158,30 @@ describe("POST /api/account/security/password/change", () => {
     await expect(response.json()).resolves.toEqual({ ok: true });
   });
 
+  it("logs the database error message and code when the password write fails", async () => {
+    const passwordWriteError = Object.assign(
+      new Error("permission denied for table user_password_credentials"),
+      { code: "42501" },
+    );
+    changePasswordMock.mockRejectedValueOnce(passwordWriteError);
+
+    const response = await POST(request());
+
+    expect(response.status).toBe(500);
+    await expect(response.json()).resolves.toEqual({
+      ok: false,
+      error: "password_change_failed",
+    });
+    expect(loggerErrorMock).toHaveBeenCalledWith(
+      {
+        err: passwordWriteError,
+        errorMessage: "permission denied for table user_password_credentials",
+        errorCode: "42501",
+      },
+      "[account/security/password/change] password change failed",
+    );
+  });
+
   it("reports a truthful distinct outcome when session reissue fails after the password changed", async () => {
     const sessionError = new Error("cookie write failed");
     changePasswordMock.mockResolvedValue({ ok: true, user: freshUser });

@@ -1324,7 +1324,11 @@ WITH required(tbl, priv) AS (
     -- and update only the snooze/skip columns on the matched reminder occurrence. platform_users
     -- SELECT is already required above.
     ('public.reminder_occurrence_history', 'SELECT'),
-    ('public.reminder_occurrence_history', 'UPDATE')
+    ('public.reminder_occurrence_history', 'UPDATE'),
+    -- 0256 staff-security self password action: the body reads user_id for its exact self-principal
+    -- predicate and updates only that credentials row. Runtime callers retain no direct table grant.
+    ('public.user_password_credentials', 'SELECT'),
+    ('public.user_password_credentials', 'UPDATE')
 )
 SELECT coalesce(string_agg(tbl || ' ' || priv, ', ' ORDER BY tbl, priv), '')
 FROM required
@@ -1476,7 +1480,13 @@ SELECT has_column_privilege('app_owner', 'public.operator_incidents', 'alert_sen
   # 76 -> 80 (2026-07-27, taskdb #1055): migration 0254_auth_rate_limit_action_accessors adds four
   # reviewed app_owner SECURITY DEFINER functions: exact-scope bounded prune, exact scope/key prune,
   # exact scope/key count, and one-event record. Their SELECT/INSERT/DELETE grants are pinned above.
-  local expected_secdef_count=80
+  # 80 -> 81 (2026-07-27, taskdb #1000 C-5 correction): migration
+  # 0256_staff_security_self_password_hash adds exactly one reviewed app_owner SECURITY DEFINER
+  # function, app.set_staff_security_self_password_hash(text). It accepts no user id, derives the
+  # caller only through app.require_staff_security_self_user_id(), and updates the credentials row
+  # only where user_password_credentials.user_id equals that derived self id. Its required SELECT
+  # (predicate) and UPDATE (hash write) grants are pinned above.
+  local expected_secdef_count=81
   local actual_secdef_count
   actual_secdef_count="$(sudo -u postgres psql -d "$DB" -X -v ON_ERROR_STOP=1 -tAc "
 SELECT count(*) FROM pg_proc p WHERE pg_get_userbyid(p.proowner) = 'app_owner' AND p.prosecdef;
@@ -1489,7 +1499,7 @@ SELECT count(*) FROM pg_proc p WHERE pg_get_userbyid(p.proowner) = 'app_owner' A
     exit 1
   }
 
-  echo "   app_owner SECURITY DEFINER table-grant completeness: OK (42 required table grants + 1 column grant present, $actual_secdef_count/$expected_secdef_count secdef functions pinned)"
+  echo "   app_owner SECURITY DEFINER table-grant completeness: OK (44 required table grants + 1 column grant present, $actual_secdef_count/$expected_secdef_count secdef functions pinned)"
 }
 
 assert_c5a_clinical_test_measure_kinds_closure(){

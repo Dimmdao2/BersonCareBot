@@ -176,12 +176,12 @@ export function createPgUserPasswordCredentialsPort(): UserPasswordCredentialsPo
       return r.rows[0]?.id ?? null;
     },
 
-    async updatePasswordHash(userId, passwordHash) {
-      const res = await runWebappPgText(
-        `UPDATE user_password_credentials SET password_hash = $2, updated_at = now() WHERE user_id = $1::uuid`,
-        [userId, passwordHash],
+    async updatePasswordHash(_userId, passwordHash) {
+      const res = await runWebappPgText<{ updated: boolean }>(
+        "SELECT app.set_staff_security_self_password_hash($1::text) AS updated",
+        [passwordHash],
       );
-      if ((res.rowCount ?? 0) === 0) {
+      if (res.rows[0]?.updated !== true) {
         throw new Error("updatePasswordHash: no credentials row");
       }
     },

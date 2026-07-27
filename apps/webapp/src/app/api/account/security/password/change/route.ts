@@ -68,7 +68,15 @@ export async function POST(request: Request) {
       newPassword: parsed.data.newPassword,
     });
   } catch (err) {
-    logger.error({ err }, "[account/security/password/change] password change failed");
+    const errorMessage = err instanceof Error ? err.message : String(err);
+    const errorCode =
+      typeof err === "object" && err !== null && "code" in err
+        ? String((err as { code?: unknown }).code)
+        : undefined;
+    logger.error(
+      { err, errorMessage, errorCode },
+      "[account/security/password/change] password change failed",
+    );
     return NextResponse.json(
       { ok: false, error: "password_change_failed" },
       { status: 500 },
