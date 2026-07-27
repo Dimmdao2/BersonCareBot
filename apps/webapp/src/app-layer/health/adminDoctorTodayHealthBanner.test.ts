@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import type { IntegratorPushOutboxHealthSnapshot } from "@/modules/operator-health/ports";
 import type { SystemHealthResponse } from "./collectAdminSystemHealthData";
 import { ADMIN_DELIVERY_DUE_BACKLOG_WARNING } from "@/modules/operator-health/adminHealthThresholds";
+import { OPERATOR_HEALTH_PROBE_DEFAULT_VALUE } from "@/modules/system-settings/operatorHealthProbeConfig";
 import { adminDoctorTodayHealthBannerFromSystemHealth } from "./adminDoctorTodayHealthBanner";
 
 function emptyIntegratorPushOutbox(): IntegratorPushOutboxHealthSnapshot {
@@ -95,9 +96,19 @@ describe("adminDoctorTodayHealthBannerFromSystemHealth", () => {
     expect(banner.show).toBe(true);
   });
 
-  it("shows banner for probe 3-strike from probeOutbound field", () => {
+  it("shows banner after the probe runner opens an incident at the configured default threshold", () => {
+    const consecutiveFailRuns = OPERATOR_HEALTH_PROBE_DEFAULT_VALUE.max.consecutiveFailures;
+    expect(
+      adminDoctorTodayHealthBannerFromSystemHealth(
+        healthyShell({ probeOutbound: { consecutiveFailRuns } }),
+      ),
+    ).toEqual({ show: false });
+
     const banner = adminDoctorTodayHealthBannerFromSystemHealth(
-      healthyShell({ probeOutbound: { consecutiveFailRuns: 3 } }),
+      healthyShell({
+        probeOutbound: { consecutiveFailRuns },
+        operatorIncidents: { openCount: 1, occurrenceCount: 1, lastSeenAt: "2026-07-27T00:00:00.000Z" },
+      }),
     );
     expect(banner.show).toBe(true);
   });

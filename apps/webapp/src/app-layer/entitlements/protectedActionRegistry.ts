@@ -124,6 +124,7 @@ export const PROTECTED_ACTION_EXEMPTIONS = [
   { file: "src/app/api/admin/booking-engine/branches/route.ts", exportName: "GET", reason: "read route" },
   { file: "src/app/api/admin/booking-engine/services/route.ts", exportName: "GET", reason: "read route" },
   { file: "src/app/api/admin/booking-engine/schedule-blocks/route.ts", exportName: "GET", reason: "read route" },
+  { file: "src/app/api/admin/settings/route.ts", exportName: "DELETE", reason: "global operator-health reset; role-protected admin operation, not an organization tariff mechanic" },
   { file: "src/app/api/admin/settings/route.ts", exportName: "GET", reason: "read route" },
 ] as const satisfies readonly ProtectedActionExemption[];
 

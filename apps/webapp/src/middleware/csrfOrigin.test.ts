@@ -243,11 +243,14 @@ describe("frozen webapp mutation census", () => {
     // 523 -> 524: mandatory specialist-signup slug availability added
     // `api/auth/specialist-signup/slug/route.ts`. Its browser POST is intentionally not exempt, so
     // unsafe moves 358 -> 359 / 397 -> 398 and browser 322 -> 323 / 361 -> 362.
+    // The existing `api/admin/settings/route.ts` then gained DELETE for the owner-facing reset to
+    // registry default. It is another same-origin browser mutation, so route/file counts stay fixed
+    // while unsafe handlers move 398 -> 399 and browser handlers 362 -> 363.
     expect(routeFiles).toHaveLength(524);
     expect(sha256Lines(routeInventory)).toBe("98a43d644aaa210397238ddc568ae8ba3792964f95835ef1732bc6d5610673d6");
     expect(unsafeInventory).toHaveLength(359);
-    expect(unsafeInventory.reduce((count, entry) => count + entry.methods.length, 0)).toBe(398);
-    expect(sha256Lines(unsafeInventoryLines)).toBe("3299c8f93e0cbe7c30e4597e70cc61e74f84d83764c05b784f1fec0918ff0cdb");
+    expect(unsafeInventory.reduce((count, entry) => count + entry.methods.length, 0)).toBe(399);
+    expect(sha256Lines(unsafeInventoryLines)).toBe("ac58d6a15a6168bc992a6ecee01b9ad70f87b7d785d7f59a8fd2ff6996cf5cb5");
   });
 
   it("exhaustively classifies unsafe files as browser, integrator, internal, webhook, or Apple", () => {
@@ -256,7 +259,11 @@ describe("frozen webapp mutation census", () => {
     expect(specialFiles.size).toBe(36);
     const browser = unsafeInventory.filter((entry) => !specialFiles.has(entry.file));
     expect(browser).toHaveLength(323);
-    expect(browser.reduce((count, entry) => count + entry.methods.length, 0)).toBe(362);
+    expect(browser.reduce((count, entry) => count + entry.methods.length, 0)).toBe(363);
+    expect(browser).toContainEqual({
+      file: "admin/settings/route.ts",
+      methods: ["DELETE", "PATCH"],
+    });
     expect(browser).toContainEqual({
       file: "auth/specialist-signup/slug/route.ts",
       methods: ["POST"],

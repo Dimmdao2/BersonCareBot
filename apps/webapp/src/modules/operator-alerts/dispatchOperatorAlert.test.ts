@@ -81,7 +81,7 @@ describe("dispatchOperatorAlert", () => {
     });
   });
 
-  it("skips when block disabled", async () => {
+  it("repairs a stored attempt to disable the critical block before dispatch", async () => {
     getConfigValueMock.mockImplementation(async (key: string) => {
       if (key === "operator_health_alert_config") return operatorConfig({ critical: false });
       if (key === "admin_incident_alert_config") return "";
@@ -91,6 +91,25 @@ describe("dispatchOperatorAlert", () => {
       block: "critical",
       topic: "test",
       dedupKey: "k1",
+      lines: ["alert"],
+    });
+    expect(r.dispatched).toBe(true);
+    expect(r.reason).toBeUndefined();
+    expect(relayOutboundMock).toHaveBeenCalledWith(
+      expect.objectContaining({ channel: "telegram", recipient: "111" }),
+    );
+  });
+
+  it("still skips a non-emergency account-conflicts block when disabled", async () => {
+    getConfigValueMock.mockImplementation(async (key: string) => {
+      if (key === "operator_health_alert_config") return operatorConfig({ accountConflicts: false });
+      if (key === "admin_incident_alert_config") return "";
+      return "";
+    });
+    const r = await dispatchOperatorAlert({
+      block: "account_conflicts",
+      topic: "test",
+      dedupKey: "k1-account-conflicts",
       lines: ["alert"],
     });
     expect(r.dispatched).toBe(false);
@@ -207,7 +226,7 @@ describe("dispatchOperatorAlert", () => {
     expect(sendAdminIncidentStaffWebPushMock).toHaveBeenCalledOnce();
   });
 
-  it("does not send email when the channel is disabled", async () => {
+  it("repairs a stored attempt to disable critical email and still sends it", async () => {
     getConfigValueMock.mockImplementation(async (key: string) => {
       if (key === "operator_health_alert_config") return operatorConfig({ email: false });
       if (key === "admin_incident_alert_config") return "";
@@ -217,9 +236,17 @@ describe("dispatchOperatorAlert", () => {
       telegram: ["111"], max: [], sms: [], email: ["operator-email-recipient"],
     });
 
-    await dispatchOperatorAlert({ block: "critical", topic: "test", dedupKey: "email-disabled", lines: ["line"] });
+    const result = await dispatchOperatorAlert({
+      block: "critical",
+      topic: "test",
+      dedupKey: "email-disabled",
+      lines: ["line"],
+    });
 
-    expect(relayOutboundMock).not.toHaveBeenCalledWith(expect.objectContaining({ channel: "email" }));
+    expect(result.dispatched).toBe(true);
+    expect(relayOutboundMock).toHaveBeenCalledWith(
+      expect.objectContaining({ channel: "email", recipient: "operator-email-recipient" }),
+    );
     expect(relayOutboundMock).toHaveBeenCalledWith(expect.objectContaining({ channel: "telegram" }));
   });
 
