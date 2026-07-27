@@ -4,6 +4,8 @@
 
 > ## 🔴 ЧАСТИЧНО ОТМЕНЕНО ВЛАДЕЛЬЦЕМ 2026-07-27 — читать ПЕРЕД §3
 >
+> **SUPERSEDED AS TARGET — 2026-07-27:** владелец отменил не только три клетки, но и саму жёсткую форму channel matrix и push-only target ниже; полный заменяющий канон — §21–§25. Точка входа: строка **«Уведомления»** в [`CURRENT_AUTHORITY_MAP.md`](../../../CURRENT_AUTHORITY_MAP.md).
+>
 > Владелец дал прямые указания, которые ОТМЕНЯЮТ три клетки матрицы §3. Источник и дословные цитаты —
 > [`docs/ARCHITECTURE/OWNER_PRODUCT_RULES.md` §15](../../../ARCHITECTURE/OWNER_PRODUCT_RULES.md)
 > (сообщение `#2817`, с пометкой «повторяю уже много раз, прекрати переспрашивать, просто делай»).
@@ -36,6 +38,8 @@
 
 ## Цель
 
+> **SUPERSEDED AS TARGET — 2026-07-27.** Цель auth-only/push-only ниже — исторический stage scope; актуальная topology/content policy дана строкой **«Уведомления»** в карте authority (§21–§25).
+
 Отделить аутентификацию от продуктовых коммуникаций:
 
 - Telegram/MAX: только login/bind code и минимальный auth handshake;
@@ -48,6 +52,8 @@
 разрешены, произвольный clinical/free-text payload остаётся внутри авторизованного приложения.
 
 ## 1. Зафиксированное owner ruling (`G-15`)
+
+> **SUPERSEDED AS TARGET — 2026-07-27.** Ruling ниже заменён последующими §21–§25; не исполнять его как закрывающую policy.
 
 - Telegram/MAX не являются notification/inbox/support surface.
 - Разрешены только: запрос/получение одноразового кода, contact step для привязки, отмена auth flow и короткая
@@ -82,6 +88,8 @@ Read-only audit 2026-07-19 подтвердил:
 
 ## 3. Матрица message classes и каналов
 
+> **SUPERSEDED AS TARGET — 2026-07-27.** Заменена не только отдельная клетка, но и жёсткая shape этой матрицы: каналы вычисляются по §21, content — §2/§15/§22, DEV/TEST filter — §23. См. строку **«Уведомления»** в карте authority.
+
 | Class | Примеры | In-app | App push | Telegram/MAX | Email/SMS |
 |---|---|---:|---:|---:|---:|
 | `auth_code` | login/bind OTP, contact handshake | да | нет | **да** | существующие email auth/recovery flows отдельно |
@@ -90,6 +98,8 @@ Read-only audit 2026-07-19 подтвердил:
 | `broadcast_event` | врачебная рассылка | **да** | **да** | нет | нет |
 | `account_service` | invite, reset, receipt, договор, export/deletion notices | по событию | по policy | нет | **да по allowlist** |
 | `operator_security` | provider outage, security incident, health alert | admin/monitoring | по принятому contour | нет | отдельный monitoring allowlist |
+
+> **SUPERSEDED AS TARGET — 2026-07-27.** Этот default-deny для messenger/email/SMS заменён §21–§23; historical guard не является целевым разрешением или запретом.
 
 Новый/неизвестный class = default deny для messenger/email/SMS. Allowlist хранится централизованно в typed policy,
 а не размножается по feature modules.
@@ -446,6 +456,8 @@ Checks: wrong-org, multiple devices, token rotation, duplicate/retry, provider f
 
 ### N3 — migrate product families to in-app + push (`AI`, independent vertical slices)
 
+> **SUPERSEDED AS TARGET — 2026-07-27.** В том числе checklist «нет product messenger/email/SMS job» ниже заменён §21–§23; читать только как историю planned migration.
+
 Owner correction 2026-07-21 for the booking slice: hard-coded `24h/2h` is only the current legacy default, not the
 target schedule model. Each specialist configures the reminder options/default proposed for appointments with that
 specialist; after confirmation the client may override or disable reminders for that exact appointment. The client
@@ -472,6 +484,8 @@ booking-reminder stage rather than freezing `24h/2h` into the new channel policy
 
 ### N4 — bots auth-only (`AI`, after replacement surfaces)
 
+> **SUPERSEDED AS TARGET — 2026-07-27.** Перечень отключаемых product bot paths заменён §15 и §21–§23; врачебный Telegram имеет ровно два notification flows (§15).
+
 - [ ] Сохранить phone auth/messenger bind contact/code/cancel/open-app flows и их rate limits.
 - [ ] Отключить mini-app init login, product menus, booking/reminder/program callbacks, support relay, clinical
       inbound/outbound text и admin reply surfaces.
@@ -482,6 +496,8 @@ booking-reminder stage rather than freezing `24h/2h` into the new channel policy
 - [ ] Bot capability docs/scripts/tests отражают auth-only allowlist; stale callback не вызывает product action.
 
 ### N5 — settings and compatibility (`AI`, waits stable S5-7 and free Doctor DNA scope)
+
+> **SUPERSEDED AS TARGET — 2026-07-27.** Settings не могут исключать Telegram/MAX/email/SMS как product channels: актуальный выбор определяют §21 и §27 через кабинет.
 
 - [ ] Notification settings UI показывает product topics и app push/preview policy, но не Telegram/MAX/email/SMS
       как каналы product delivery.
@@ -499,6 +515,8 @@ booking-reminder stage rather than freezing `24h/2h` into the new channel policy
 - [ ] `SENSITIVE_TEST_MARKER` отсутствует во внешнем payload, SQL/error/provider logs и retained queue state.
 
 ### N7 — TEST, rollout and documentation (`AI + owner`)
+
+> **SUPERSEDED AS TARGET — 2026-07-27.** Push-only proof и запрет fallback ниже заменены §21–§23; DEV/TEST filter обязан покрывать каждый канал.
 
 - [ ] Synthetic send-safe matrix доказывает: product event → in-app + push only; auth code → selected auth channel.
 - [ ] Проверены permission denied, no/expired token, multiple devices, muted topic, retry/dedup, provider outage,
@@ -521,6 +539,8 @@ booking-reminder stage rather than freezing `24h/2h` into the new channel policy
 - `CRYPTO-01/C4`, `SEC-04` и `PR-04A` требуют закрытых NTF/LOG evidence.
 
 ## 7. Definition of Done
+
+> **SUPERSEDED — 2026-07-27.** В частности, DoD «Ни один product runtime path не отправляет Telegram/MAX/email/SMS» и auth-only allowlist ниже инвертированы/уточнены §15 и §21–§23. Не использовать их как release criterion; см. строку **«Уведомления»** в карте authority.
 
 - [ ] Ни один product runtime path не отправляет Telegram/MAX/email/SMS.
 - [ ] Telegram/MAX технически способны только на login/bind code/auth handshake allowlist.

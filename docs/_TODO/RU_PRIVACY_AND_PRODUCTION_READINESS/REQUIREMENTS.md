@@ -76,6 +76,8 @@
 
 ### COMM — внешние каналы, push и вторичные copies
 
+> **SUPERSEDED AS TARGET — 2026-07-27.** Требования о product push-only/auth-only bots ниже заменены строкой **«Уведомления»** в [`CURRENT_AUTHORITY_MAP.md`](../../CURRENT_AUTHORITY_MAP.md) (`OWNER_PRODUCT_RULES.md` §2, §15, §21–§25); оставить как историческую baseline.
+
 - Telegram/MAX используются только для login/bind code и минимального auth handshake; product chat, reminders,
   booking lifecycle, broadcasts, support и operator alerts не используют пользовательские messenger bots;
 - product event имеет canonical in-app state и доставляется только через app push: Web Push для browser/PWA,

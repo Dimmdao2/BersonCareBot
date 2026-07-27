@@ -6,6 +6,8 @@
 > [`../design/bersoncare-карточка-пациента-CURRENT-SPEC.md`](../design/bersoncare-карточка-пациента-CURRENT-SPEC.md).
 > Остальные этапы (0–5, 7–9) и разделы про CMS/каталоги/меню остаются в силе как исторический и частично ещё живой
 > roadmap.
+>
+> **2026-07-27:** разделы о коммуникациях не сертифицируются этим блоком как актуальные; см. строку **«Уведомления»** в [`CURRENT_AUTHORITY_MAP.md`](../CURRENT_AUTHORITY_MAP.md).
 
 **Статус:** живой документ. Обновляется по мере приёма решений.
 **Дата старта:** 2026-05-01.
@@ -397,6 +399,7 @@
 - Миграция: `DROP TABLE news_items` (с экспортом контента в `.md`/`.csv` для архива редактора — **ops, не в репо;** см. [`LOG.md`](LOG.md)).
 - Удалить страницу `/app/doctor/content/news`, пункт «Новости» в `ContentPagesSidebar`. **Факт:** редирект на мотивацию + сайдбар без пункта «Новости».
 - В `broadcasts` добавить колонку `channels text[] not null default '{bot_message,sms}'`. Бэк отправки по каналам — **не** расширялся в рамках этапа; аудит фиксирует намерение.
+- **SUPERSEDED AS TARGET — 2026-07-27:** form must not select channels; §21 resolves them. См. строку **«Уведомления»** в [`CURRENT_AUTHORITY_MAP.md`](../CURRENT_AUTHORITY_MAP.md).
 - В `BroadcastForm` добавить multiselect каналов; неактивные опции (`push`, `home_banner`, `notification_bell`) показывать `disabled` с подписью «скоро».
 - ~~Заодно автоматически закрывается архитектурный долг: `pool.query` из `news/page.tsx` уходит вместе со страницей.~~ **Сделано;** чтение списка мотивации вынесено в порт (см. [`LOG.md`](LOG.md)).
 

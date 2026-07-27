@@ -16,6 +16,8 @@ Signed integrator `admin-reply` не устанавливает tenant principal
 
 ## Что попадает в чат
 
+> **SUPERSEDED AS NOTIFICATION POLICY — 2026-07-27.** «Preview + ссылка» and hard-coded channel rows below are replaced by the **«Уведомления»** row in [`CURRENT_AUTHORITY_MAP.md`](../CURRENT_AUTHORITY_MAP.md): chat/task notice is fact + date/time + link only (§22), with channels resolved under §21.
+
 | Событие | Текст в чате | Web Push `openUrl` | Telegram / MAX / SMS |
 |--------|--------------|-------------------|----------------------|
 | Ответ врача в чате (1:1) | Текст ответа | `/app/patient/messages` (`notifyPatientDoctorReply`) | Preview + ссылка на чат |

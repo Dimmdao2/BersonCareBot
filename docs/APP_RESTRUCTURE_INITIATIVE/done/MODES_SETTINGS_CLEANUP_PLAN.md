@@ -34,5 +34,6 @@ todos:
 - Один экран **«Режимы»**: админ (`admin_*` первый слот), тестовые аккаунты (`test_account_identifiers`), техработы patient app, dev/debug/merge/fallback.
 - **Сохранение «Режимы»:** один HTTP `PATCH` с `{ items }` (см. [`MODES_BATCH_PATCH_AND_PHONE_PREVIEW_PLAN.md`](MODES_BATCH_PATCH_AND_PHONE_PREVIEW_PLAN.md)).
 - Вкладка **«Доступ и роли»** снята с `/app/settings`; `AccessListsSection` остаётся в репозитории как legacy (не монтируется).
+- **KNOWN GAP — 2026-07-27:** telegram/max-only dev filter below is superseded as target by §23, which requires every channel including SMS/email; см. строку **«Уведомления»** в [`CURRENT_AUTHORITY_MAP.md`](../../CURRENT_AUTHORITY_MAP.md).
 - **Dev_mode relay:** только `channel` + `recipient` против `telegramIds` / `maxIds` в `test_account_identifiers`.
 - **Техработы:** тестовые аккаунты видят полный patient UI; fail-closed при ошибке чтения настроек.

@@ -34,6 +34,8 @@ production window, находится в [`OWNER_ACTIONS.md`](OWNER_ACTIONS.md) 
 
 ### Product direction, 2026-07-19 — `G-15 decided`
 
+> **PARTIALLY SUPERSEDED — 2026-07-27.** Только channel-topology часть блока ниже заменена строкой **«Уведомления»** в [`CURRENT_AUTHORITY_MAP.md`](../../CURRENT_AUTHORITY_MAP.md) (`OWNER_PRODUCT_RULES.md` §15, §21, §23, §25). Позиция против blanket masking остаётся историческим решением; применимый content rule — §2/§15/§22.
+
 - Telegram/MAX остаются только для login/bind code и минимального auth handshake. Mini-app/product menu, chat,
   reminders, booking callbacks, broadcasts, support/admin replies и product notifications выводятся.
 - Product notifications/reminders имеют in-app source of truth и доставляются через app push: Web Push для browser/
