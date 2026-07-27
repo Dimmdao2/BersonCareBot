@@ -47,6 +47,7 @@ function makePort(overrides: Partial<SystemSettingsPort> = {}): SystemSettingsPo
         updatedBy: r.updatedBy,
       }))
     ),
+    delete: vi.fn().mockResolvedValue(true),
     ...overrides,
   };
 }
@@ -83,6 +84,11 @@ describe("SystemSettingsService", () => {
       valueJson: { value: true },
       updatedBy: "user-uuid",
     });
+  });
+  it("clearSetting removes the override", async () => {
+    const port = makePort();
+    await expect(createSystemSettingsService(port).clearSetting("operator_health_probe_config", "admin", "u")).resolves.toBe(true);
+    expect(port.delete).toHaveBeenCalled();
   });
 
   it("writes the global booking location palette through runtime UoW and mirror sync", async () => {

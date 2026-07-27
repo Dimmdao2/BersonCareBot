@@ -255,6 +255,17 @@ export function createSystemSettingsService(port: SystemSettingsPort, dependenci
     value: unknown,
     options: SystemSettingsWriteOptions,
   ): Promise<unknown> {
+    if (key === "operator_health_imap" && scope === "admin") {
+      const env = normalizeValueJson(value);
+      const inner = env.value;
+      if (inner && typeof inner === "object" && !Array.isArray(inner) && !(inner as Record<string, unknown>).password) {
+        const previous = await port.getByKey("operator_health_imap", "admin", options);
+        const previousInner = previous?.valueJson && typeof previous.valueJson === "object" && "value" in previous.valueJson ? (previous.valueJson as Record<string, unknown>).value : null;
+        const password = previousInner && typeof previousInner === "object" ? (previousInner as Record<string, unknown>).password : "";
+        return { value: { ...(inner as Record<string, unknown>), password } };
+      }
+      return env;
+    }
     return key === "smtp_outbound" && scope === "admin"
       ? mergeSmtpOutboundPasswordRetain(port, value, options)
       : key === "web_push_vapid" && scope === "admin"
@@ -388,6 +399,14 @@ export function createSystemSettingsService(port: SystemSettingsPort, dependenci
       });
       invalidateConfigKey(key);
       return result;
+    },
+    async clearSetting(key: string, scope: SystemSettingScope, updatedBy: string | null, options: SystemSettingsWriteOptions = {}): Promise<boolean> {
+      if (!isAllowedKey(key)) throw new Error(`unknown_setting_key: ${key}`);
+      const organizationId = resolveWriteOrganizationId(key, options);
+      if (!port.delete) throw new Error("system_settings_delete_unavailable");
+      const deleted = await port.delete(key, scope, updatedBy, { organizationId });
+      if (deleted) invalidateConfigKey(key);
+      return deleted;
     },
 
     /**

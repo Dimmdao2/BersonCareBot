@@ -84,6 +84,15 @@ export function redactAdminSettingsForClient(settings: SystemSetting[]): SystemS
     if (s.key === "smsc_api_key") {
       return { ...s, valueJson: { value: "[REDACTED]" } };
     }
+    if (s.key === "operator_health_imap") {
+      const value = s.valueJson && typeof s.valueJson === "object" && "value" in s.valueJson ? (s.valueJson as Record<string, unknown>).value : null;
+      if (value && typeof value === "object" && !Array.isArray(value)) {
+        const redacted = { ...(value as Record<string, unknown>) };
+        const hasStoredPassword = typeof redacted.password === "string" && redacted.password.trim().length > 0;
+        delete redacted.password;
+        return { ...s, valueJson: { value: { ...redacted, hasStoredPassword } } };
+      }
+    }
     if (s.key === "web_push_vapid") return redactWebPushVapidSettingForClient(s);
     if (s.key === "booking_payment_providers") return redactBookingPaymentProvidersSettingForClient(s);
     if (s.key === "saas_billing_payment_provider") {

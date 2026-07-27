@@ -17,9 +17,9 @@ describe("operator health probe settings", () => {
       quietUntil: string | null;
     };
     tooFast.max.timeoutMs = 999;
-    expect(() => assertOperatorHealthProbeConfig({ value: tooFast })).toThrow("1000–60000 ms");
+    expect(() => assertOperatorHealthProbeConfig({ value: tooFast })).toThrow("от 1 до 60 секунд");
     tooFast.max.timeoutMs = 5_000;
     tooFast.max.intervalMs = 5_000;
-    expect(() => assertOperatorHealthProbeConfig({ value: tooFast })).toThrow("can DoS the provider");
+    expect(() => assertOperatorHealthProbeConfig({ value: tooFast })).toThrow("могут перегрузить провайдера");
   });
 });
