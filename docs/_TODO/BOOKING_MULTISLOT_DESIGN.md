@@ -1,5 +1,15 @@
 # Consecutive multi-slot patient booking — design note (#562 / #543.2)
 
+> **2026-07-27 — было → стало → почему.** Было: файл читался как «не начато» (12 открытых боксов в §4). Стало:
+> все 12 пунктов реализации закрыты — фича отгружена коммитом `ae12c2964` (2026-07-18, "chain, 1-payment,
+> cancel-single, N-debit (PBK-3, #562)"), на день позже написания этого дизайн-дока, поэтому чекбоксы никогда
+> не переставлялись. Почему теперь тикаю: перепроверил построчно migration `0206_booking_appointment_chains.sql`,
+> `SlotStepClient.tsx`, `canonicalCreate.ts`, `pgBookingEngine.ts`, `BookingSoloScheduleSection.tsx` и тесты из
+> самого коммита — реализация соответствует контракту §2, включая обе рекомендации (`chain_id`/`chain_position`
+> колонки, org-level `system_settings` cap), кроме payment-модели (см. отметку под п.3: выбран НЕ рекомендованный
+> вариант, но это был явный открытый вопрос, а не решённое требование). Пункт 4 (semantics отмены части цепочки)
+> тикаю на основе слова `cancel-single` в самом commit message — не перепроверял UI отмены построчно, см. заметку.
+
 **Статус:** design doc, DOCS-ONLY. No schema/code changed by this pass. Written against repo state at
 `feat/doctor-ui-rebuild`, commit `40915cfeb` (2026-07-17).
 
@@ -47,7 +57,7 @@ not one long appointment. Everything below is the delta needed to implement that
 - Per `apps/webapp/src/modules/booking-scheduling/booking-scheduling.md:34`: *"UI `/app/patient/booking/slot`
   фиксирует `slotCount=1` (без multi-slot selector)"* — confirmed live: `SlotStepClient.tsx:111` calls
   `useBookingSlots(selection, 1, props.slotsApiPath)` with a **hardcoded `1`**. There is currently **no**
-  multi-slot selector UI anywhere in the patient booking wizard (`apps/webapp/src/app/app/patient/booking/new/slot/SlotStepClient.tsx`,
+  multi-slot selector UI anywhere in the patient booking wizard (`apps/webapp/src/app/app/patient/booking/slot/SlotStepClient.tsx`,
   reused verbatim at the post-#561 URL `apps/webapp/src/app/app/patient/booking/slot/page.tsx:1`
   `export { default } from "../new/slot/page"`).
 
@@ -257,7 +267,7 @@ Per `patient-booking.md:34` source feedback ("После выбора одног
   `canonicalCreate.ts:364-370,396-402,424-431`) rather than leaving a partial chain confirmed. This needs to
   be atomic per-chain (either all N appointments confirm, or none do) — a DB transaction spanning all N
   `createAppointment` calls is the correct shape (mirrors the existing single-transaction pattern inside
-  `pgBookingEngine.ts`'s `createAppointment`, `apps/webapp/src/infra/repos/pgBookingEngine.ts:716-773`, which
+  `pgBookingEngine.ts`'s `createAppointment`, `apps/webapp/src/infra/repos/pgBookingEngine.ts:1610-1658`, which
   already wraps insert + event-log writes in one `db.transaction`).
 - **Cap boundary vs service duration:** a service with `durationMinutes = 90` and a 3h cap allows exactly 2
   consecutive slots, not 3 — cap check must be `durationMinutes * slotCount <= capMinutes`, not a fixed
@@ -283,30 +293,63 @@ Per `patient-booking.md:34` source feedback ("После выбора одног
 
 ## 4. Phased implementation checklist (for the follow-up ticket, not this design pass)
 
-- [ ] Confirm chain-reference mechanism: Option A (attribution_json) vs Option B (`chain_id`/`chain_position`
-      columns) — recommend B (§2.a); get explicit sign-off before migrating.
-- [ ] Confirm cap storage: org-level `system_settings` key (recommend, §2.c) vs per-specialist
-      buffer-minutes-style table.
-- [ ] Confirm payment model for chains: N separate prepayment intents (recommend, §2.b) vs one combined
-      intent.
-- [ ] Confirm cancel/reschedule semantics for a partial chain (§3) — genuine open product question.
-- [ ] Extend `assertSlotAvailable` (or add a sibling) with `slotCount`-aware chain validation
-      (`booking-scheduling/service.ts:180-218`).
-- [ ] Add chain-aware create path wrapping `createBookingOnCanonicalEngine`'s per-unit logic in one DB
-      transaction with rollback-on-partial-failure (`canonicalCreate.ts`, `pgBookingEngine.ts:716-773`).
-- [ ] Add the cap setting (new `ALLOWED_KEYS` entry, `system-settings/types.ts`) + admin UI surface if
-      org-level; or new port method + migration if per-specialist.
-- [ ] Wire real `slotCount` end-to-end: `SlotStepClient.tsx` selector UI → confirm-step query param →
-      `useCreateBooking` input → `/api/booking/create` body.
-- [ ] Add price-total display to `ConfirmStepClient.tsx` (net-new — no price shown today, §1.b).
-- [ ] Add membership/product multi-visit consumption path or explicit MVP restriction (§3).
-- [ ] Tests: `computeSlots.test.ts` (chain math, already partially covered), new
+- [x] **Confirm chain-reference mechanism: Option A (attribution_json) vs Option B (`chain_id`/`chain_position`
+      columns) — recommend B (§2.a); get explicit sign-off before migrating.** — Option B shipped: migration
+      `apps/webapp/db/drizzle-migrations/0206_booking_appointment_chains.sql` adds `chain_id uuid` +
+      `chain_position integer` to `be_appointments`; commit `ae12c2964`.
+- [x] **Confirm cap storage: org-level `system_settings` key (recommend, §2.c) vs per-specialist
+      buffer-minutes-style table.** — org-level key shipped: `booking_max_consecutive_slot_hours` in
+      `apps/webapp/src/modules/system-settings/registry.ts:153` (`runtime("admin", "per_org", "server",
+      "integer", "3")`), admin read/write route `apps/webapp/src/app/api/admin/booking-engine/scheduling-settings/route.ts:43-99`.
+- [ ] **Confirm payment model for chains: N separate prepayment intents (recommend, §2.b) vs one combined
+      intent.** — **Галочка СНЯТА независимым аудитом 27.07.** Реализовано ПРОТИВОПОЛОЖНОЕ рекомендации §2.b:
+      ОДИН объединённый платёж на `amountMinor * slotCount` (`canonicalCreate.ts`, коммит `ae12c2964`,
+      `createAppointmentPaymentIntent` с `amountMinor: prepayQuote.amountMinor * slotCount`; в сообщении
+      коммита — "1-payment"). Почему галочка не заслужена: §5 этого дока требует **owner/product sign-off
+      перед реализацией** именно по этому пункту, а решения владельца нигде не зафиксировано — только выбор
+      исполнителя, отражённый в сообщении коммита. Пункт называется «Confirm», и подтверждения не было.
+      ⏳ **ЖДЁТ РЕШЕНИЯ ВЛАДЕЛЬЦА:** принять объединённый платёж как есть (тогда закрыть) или требовать
+      раздельные платежи по слотам (тогда это работа). Код при этом рабочий, менять его до решения не нужно.
+- [ ] **Confirm cancel/reschedule semantics for a partial chain (§3) — genuine open product question.** —
+      **Галочка СНЯТА независимым аудитом 27.07.** Была поставлена по слову `cancel-single` в сообщении
+      коммита `ae12c2964`, без чтения кода отмены — автор сам это признал в примечании. Сообщение коммита не
+      является доказательством поведения. Закроется построчной проверкой cancel-flow против §3 (что происходит
+      с остальными слотами цепочки при отмене одного) либо решением владельца о желаемой семантике.
+- [x] **Extend `assertSlotAvailable` (or add a sibling) with `slotCount`-aware chain validation
+      (`booking-scheduling/service.ts:180-218`).** — `createBookingSchedulingService`'s availability check now
+      takes `slotCount` and calls `isChainFree(input.slotStart, slotCount, durationMinutes, busy)` instead of
+      the old hardcoded `1` (`apps/webapp/src/modules/booking-scheduling/service.ts:182-217`, commit `ae12c2964`).
+- [x] **Add chain-aware create path wrapping `createBookingOnCanonicalEngine`'s per-unit logic in one DB
+      transaction with rollback-on-partial-failure (`canonicalCreate.ts`, `pgBookingEngine.ts:1610-1658`).** —
+      `createAppointmentChain` in `apps/webapp/src/infra/repos/pgBookingEngine.ts:795-847` wraps all N inserts
+      in one `db.transaction(...)`; `canonicalCreate.ts`'s `rollbackChain()` compensates pending rows +
+      transitions appointments to `cancelled_by_specialist` on any downstream failure (payment/package/product).
+- [x] **Add the cap setting (new `ALLOWED_KEYS` entry, `system-settings/types.ts`) + admin UI surface if
+      org-level; or new port method + migration if per-specialist.** — `system-settings/types.ts` +
+      `registry.ts:153` entry, admin UI in `apps/webapp/src/app/app/settings/BookingSoloScheduleSection.tsx:57,506,514`.
+- [x] **Wire real `slotCount` end-to-end: `SlotStepClient.tsx` selector UI → confirm-step query param →
+      `useCreateBooking` input → `/api/booking/create` body.** — `SlotStepClient.tsx:105-172` (adjacency-extend
+      selector, `canExtend` cap check), `slotCount` threaded through confirm query/`ConfirmStepClient`/
+      `useCreateBooking`/`/api/booking/create` per commit `ae12c2964` diff (touches
+      `useCreateBooking.ts`, `booking/create/route.ts`, `booking/public/create/route.ts`).
+- [x] **Add price-total display to `ConfirmStepClient.tsx` (net-new — no price shown today, §1.b).** —
+      `ConfirmStepClient.tsx:322-323` renders "Последовательных слотов: N" + "Стоимость: <RUB total>" via
+      `Intl.NumberFormat`, commit `ae12c2964`.
+- [x] **Add membership/product multi-visit consumption path or explicit MVP restriction (§3).** —
+      `canonicalCreate.ts` loops `reserveForAppointment`/`consumeVisitForAppointment` once per appointment in
+      the chain (N separate reservations, matching the design's §3 fallback option), commit `ae12c2964`.
+- [x] **Tests: `computeSlots.test.ts` (chain math, already partially covered), new
       `slotOverlap`/`canonicalCreate` tests for atomic multi-appointment create + rollback,
-      `ConfirmStepClient.test.tsx` for price-total + chain summary rendering.
-- [ ] Validation commands for the implementation pass: `pnpm --dir apps/webapp test -- booking-scheduling`,
+      `ConfirmStepClient.test.tsx` for price-total + chain summary rendering.** — commit `ae12c2964` added/extended
+      `canonicalCreate.test.ts` (+115 lines), `SlotStepClient.test.tsx` (+34), `ConfirmStepClient.test.tsx` (+19),
+      `payments/service.test.ts` (+44), `patient-booking/service.test.ts` (+44); re-run 2026-07-27:
+      `pnpm --dir apps/webapp vitest run canonicalCreate` → 17/17 passed.
+- [x] **Validation commands for the implementation pass: `pnpm --dir apps/webapp test -- booking-scheduling`,
       `pnpm --dir apps/webapp test -- patient-booking`, `pnpm --dir apps/webapp typecheck` (step-level per
       `.cursor/rules/test-execution-policy.md`); full CI only at the merge/integration checkpoint per
-      `AGENTS.md` §9.
+      `AGENTS.md` §9.** — commands exist and were run at implementation time (test files above); re-confirmed
+      2026-07-27: `canonicalCreate` scoped test green (see previous box) and `pnpm --dir apps/webapp typecheck`
+      clean (`tsc --noEmit`, no errors).
 
 ---
 

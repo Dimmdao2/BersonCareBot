@@ -8,6 +8,16 @@
 > закрытых технических пунктов (B4-core patient wall, B4-fanout GUC alignment) зафиксирована как DONE и
 > остаётся исторически верной.
 
+> **Разметка чекбоксов 2026-07-27.** Было: 8 открытых `- [ ]` считались живым бэклогом при сплошном подсчёте,
+> хотя шапка выше уже 2026-07-11 объявила файл неактуальным. Стало: все 8 — `- [-]` ↪️ ВЫТЕСНЕНО, каждый со
+> ссылкой на конкретное место в `SAAS_ENFORCE_ROADMAP.md` (§«R2 — TEST enforced product parity plus
+> isolation») и/или `R2_MVP_MASTER_CHECKLIST.md`, где та же работа отслеживается вживую (часть — уже
+> закрыта там, часть — всё ещё открыта, см. пометки на каждом боксе). Почему:
+> `docs/_TODO/BACKLOG_CONSOLIDATION_2026-07-26.md` §6.3 канон. На проде это НЕ значит «прод никогда не
+> обновится» — 27.07 владелец уточнил: текущий хост не трогают, но НОВЫЙ прод-хост строится и на него
+> мигрируют (`docs/ARCHITECTURE/OWNER_PRODUCT_RULES.md` §6); формулировка выше про «no prod cutover — ever»
+> не переписана, только это примечание не должно читаться как противоречащее.
+
 Single source of "done" for the pre-flip engineering work (owner rule #1). Ops/deploy/flip
 (Trek A steps 2-3, Trek C steps 9-10) are owner-gated and NOT in this file. Report = closed X/N
 against this checklist + a "НЕ СДЕЛАНО" section. Each item: worker → independent audit → owner.
@@ -23,11 +33,14 @@ touching test/prod. All work is code + scratch-DB only. No push to main/test, no
 
 ## Checklist
 
-- [ ] **B6 — real-policies 2-org proof.** Upgrade the pattern smoke to the ACTUAL migration-generated
+- [-] ~~**B6 — real-policies 2-org proof.** Upgrade the pattern smoke to the ACTUAL migration-generated
       policies on the REAL schema: fresh scratch DB → apply real webapp Drizzle (0141–0168) + integrator
       (I1–I4, C1) migrations → seed a 2nd org + 2nd patient → NOBYPASSRLS role → assert cross-tenant deny
       across a representative set of the real SCOPED policies (not just the ~10 hand-picked ones).
-      Gate: org wall + patient wall + fail-closed hold under the real generated policies. Scratch only.
+      Gate: org wall + patient wall + fail-closed hold under the real generated policies. Scratch only.~~
+      — ↪️ ВЫТЕСНЕНО 2026-07-27: real-policy 2-org isolation proof now tracked in
+      `R2_MVP_MASTER_CHECKLIST.md` (`smoke-r2-real-policy-isolation.mjs`, line 106) and
+      `SAAS_ENFORCE_ROADMAP.md` §"R2 — TEST enforced product parity plus isolation".
 - [x] **B4-core — patient-wall in real policies (Opus design + Sonnet impl).** DONE 2026-07-11
       (taskdb `#653`, LOG.md entry "B4-core patient wall in real RLS policies"). OWNER DECISION
       (2026-07-11): doctor visibility = **org-wide (variant A)** — NO assignment predicate in RLS.
@@ -66,26 +79,41 @@ touching test/prod. All work is code + scratch-DB only. No push to main/test, no
       code; fixed here, same bug flagged as a separate follow-up in 4 sibling smoke/fixture files not
       touched by this pass). The B4-fanout READ-CONTEXT WRAPPER (who sets these GUCs per request) is
       untouched — that is the separate checklist item below, not yet started.
-- [ ] **B4-fanout — read-context wrapper + coverage.** The chokepoint read wrapper sets `app.org` +
+- [-] ~~**B4-fanout — read-context wrapper + coverage.** The chokepoint read wrapper sets `app.org` +
       `app.actor` (+ `app.patient_user_id` for patient sessions) on every SCOPED read, per session type.
       Apply per process family (webapp readers, integrator DbPort/pool, scheduler, media). Unset → dormant.
       **MODEL SPLIT:** wrapper contract = Opus design; the uniform mechanical sweep across N reader
       call-sites is a **Codex candidate** once the wrapper is designed (bulk, repetitive, well-specified —
-      Codex's sweet spot). Security-sensitive spots stay Sonnet-under-audit.
-- [ ] **DEFERRED (not now, owner 2026-07-11):** "my patients" soft default filter (UX relevance, not a
+      Codex's sweet spot). Security-sensitive spots stay Sonnet-under-audit.~~
+      — ↪️ ВЫТЕСНЕНО 2026-07-27: read-context wrapper contract tracked live as `R2_MVP_MASTER_CHECKLIST.md`
+      line 145, "B4-fanout — read-context wrapper contract (Opus design)", still open there too.
+- [-] ~~**DEFERRED (not now, owner 2026-07-11):** "my patients" soft default filter (UX relevance, not a
       security wall) — try at port level later if needed, no toggle for now. Hard assignment/handoff RLS
-      (variants B/C) — only under a future large-clinic business order.
-- [ ] **be_organization_members tier review:** currently BOOTSTRAP-global (membership cross-tenant
-      readable). Decide if it should be BOOTSTRAP-hybrid before flip. (B6 finding, minor.)
-- [ ] **B4-fanout — apply read context per process family (Sonnet, one worker each).** webapp route
+      (variants B/C) — only under a future large-clinic business order.~~
+      — ↪️ ВЫТЕСНЕНО 2026-07-27: this file is superseded wholesale (header, 2026-07-11); current tracking
+      is `SAAS_ENFORCE_ROADMAP.md` §"R2 — TEST enforced product parity plus isolation" /
+      `R2_MVP_MASTER_CHECKLIST.md`. Deferral itself still stands — no owner reversal found.
+- [-] ~~**be_organization_members tier review:** currently BOOTSTRAP-global (membership cross-tenant
+      readable). Decide if it should be BOOTSTRAP-hybrid before flip. (B6 finding, minor.)~~
+      — ↪️ ВЫТЕСНЕНО 2026-07-27: same open item live in `R2_MVP_MASTER_CHECKLIST.md` lines 165-166,
+      "be_organization_members tier review (BOOTSTRAP-global → hybrid?) decided" — still open there too.
+- [-] ~~**B4-fanout — apply read context per process family (Sonnet, one worker each).** webapp route
       readers; integrator `DbPort.query`/pool Drizzle paths; scheduler/queue; media claim/reclaim.
-      Each: reads run under principal; unset context preserves dormant behavior; targeted tests + audit.
-- [ ] **B5 — non-bypass DB app role.** Materialize the `NOBYPASSRLS` app role + grants (P0.5), scratch
-      prod-parity proof that the app's queries work under it with policies dormant. Runtime role flip = ops (owner).
-- [ ] **B7 — shadow-mode toggle.** A GUC/flag "log RLS violations, don't deny" mode so a staging
-      shadow-run can surface any query that would break under enforcement. Code + unit only.
-- [ ] **B8 — flip plan + rollback (Opus).** Draft the controlled permissive→FORCE + role-switch plan
-      with rollback, behind a flag/GUC. Owner approves; execution is ops.
+      Each: reads run under principal; unset context preserves dormant behavior; targeted tests + audit.~~
+      — ↪️ ВЫТЕСНЕНО 2026-07-27: same B4-fanout deliverable as above, tracked in
+      `R2_MVP_MASTER_CHECKLIST.md` line 145 area (and its residual notes at lines 216-217).
+- [-] ~~**B5 — non-bypass DB app role.** Materialize the `NOBYPASSRLS` app role + grants (P0.5), scratch
+      prod-parity proof that the app's queries work under it with policies dormant. Runtime role flip = ops (owner).~~
+      — ↪️ ВЫТЕСНЕНО 2026-07-27: recorded DONE elsewhere — `R2_MVP_MASTER_CHECKLIST.md` line 114,
+      "[x] B5 — non-bypass app DB role + grants materialized (P0.5), static check green; live scratch...".
+- [-] ~~**B7 — shadow-mode toggle.** A GUC/flag "log RLS violations, don't deny" mode so a staging
+      shadow-run can surface any query that would break under enforcement. Code + unit only.~~
+      — ↪️ ВЫТЕСНЕНО 2026-07-27: same open item live in `R2_MVP_MASTER_CHECKLIST.md` line 158,
+      "[ ] B7 — shadow-mode toggle" — still open there too.
+- [-] ~~**B8 — flip plan + rollback (Opus).** Draft the controlled permissive→FORCE + role-switch plan
+      with rollback, behind a flag/GUC. Owner approves; execution is ops.~~
+      — ↪️ ВЫТЕСНЕНО 2026-07-27: same open item live in `R2_MVP_MASTER_CHECKLIST.md` line 162,
+      "[ ] B8 — flip plan + rollback drafted" — still open there too.
 
 ## Done today
 - [x] Pattern isolation proof re-run green (`smoke-p0-13-db-isolation.mjs`).

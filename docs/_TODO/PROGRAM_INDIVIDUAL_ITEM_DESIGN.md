@@ -1,5 +1,17 @@
 # Individual (non-catalog) program item + media — design note (#565 / #193.1)
 
+> **2026-07-27 — было → стало → почему.** Было: файл читался как «дизайн без реализации» (8 открытых боксов в
+> §4, статус "blocked on this design"). Стало: 7 из 8 пунктов реализованы (PRG-4) — `catalog_scope` CHECK-колонка,
+> `pgLfkExercises.ts` list()-фильтр, доктор-presign роут, "Создать новое"/"сохранить в общий каталог" UI,
+> immutable-видео контракт, тесты — перепроверено построчно по коду, не по отчёту. Один пункт (миграция
+> `usage_purpose`) закрыт выбором рекомендованного этим же доком варианта (NULL, без нового значения). ОДНО
+> ИСКЛЮЧЕНИЕ: дизайн §1.c/§2.c этого файла сам решил, что отдельная подпапка `indive_program_exercises` НЕ
+> нужна (видео едет во flat-папку пациента) — этот пункт кода полностью соответствует данному письменному
+> дизайну и потому тикается. Но 27.07 владелец ОТМЕНИЛ это решение §1.c и потребовал подпапку всё-таки завести;
+> эта новая работа перенесена в `docs/_TODO/RU_PRIVACY_AND_PRODUCTION_READINESS/stages/CRYPTO-01_DATA_AND_KEY_ENCRYPTION.md`
+> §C2 (внесено туда самим владельцем 27.07). См. отметку под §1.c ниже — не отдельный чекбокс этого файла, а
+> статус самого дизайн-решения.
+
 **Статус:** design doc, DOCS-ONLY. No schema/code changed by this pass. Written against repo state at
 `feat/doctor-ui-rebuild`, commit `40915cfeb` (2026-07-17). **This unblocks taskdb `#564` / `#193.2`
 ("implementation after design approval"), which is currently `status: blocked` on this design.**
@@ -94,6 +106,15 @@ design pass; this is noted as provenance, not treated as an open question needin
   `usage_purpose` value without an explicit decision (§2.c).
 
 ### 1.c Media folder placement — already decided by a sibling initiative, not open
+
+> **↪️ ВЫТЕСНЕНО 2026-07-27:** решение этого раздела («новая подпапка не нужна, видео едет в существующую
+> плоскую папку пациента») отменено владельцем 27.07: «Подпапка — да, верно. но это будет включено в работу
+> по разделению видео на шифрованные и нет.» Работа по созданию подпапки `indive_program_exercises` теперь
+> живёт в `docs/_TODO/RU_PRIVACY_AND_PRODUCTION_READINESS/stages/CRYPTO-01_DATA_AND_KEY_ENCRYPTION.md` §C2,
+> которое прямо цитирует эту дельту и текущее состояние (`media-presign/route.ts:58` →
+> `pgEnsureClientPatientFolder(patientUserId)`, подпапки нет). Чеклист §4 ниже про пункт 4 (presign-роут)
+> тикается, потому что роут СДЕЛАН ровно так, как требовал ЭТОТ документ на момент написания — но сам этот
+> дизайн-выбор (§1.c) больше не действует, реальное требование теперь в CRYPTO-01 §C2.
 
 This directly resolves card #565's acceptance criterion 3 ("media folder name decision surfaced"):
 
@@ -298,27 +319,60 @@ Concretely:
 
 ## 4. Phased implementation checklist (for the follow-up ticket #564, not this design pass)
 
-- [ ] Migration: add `scope`/`visibility` discriminator to `lfk_exercises` (CHECK-constrained, default
-      `'catalog'`) — Drizzle migration, no hand-raw SQL (`AGENTS.md` §5 rule 5).
-- [ ] Update `pgLfkExercises.ts` `list()` (§1.b, `:449-518`) to filter `scope = 'catalog'` for the doctor
-      catalog picker; verify no other caller of `list()` unexpectedly needs personal rows included.
-- [ ] (Optional) Migration: extend `media_files_usage_purpose_check` with a new value, or confirm NULL is
-      acceptable for MVP (§2.c) — get explicit sign-off either way before choosing.
-- [ ] New doctor-side presign route (`/api/doctor/treatment-program-instances/[instanceId]/media-presign` or
+- [x] **Migration: add `scope`/`visibility` discriminator to `lfk_exercises` (CHECK-constrained, default
+      `'catalog'`) — Drizzle migration, no hand-raw SQL (`AGENTS.md` §5 rule 5).** — shipped as `catalog_scope`
+      (naming bikeshed from §5.1 resolved as `catalog_scope`, not `scope`/`is_personal`):
+      `apps/webapp/db/schema/schema.ts:941` (column), `:969` (`lfk_exercises_catalog_scope_check` CHECK IN
+      `('catalog','personal')`), `:955` (composite index incl. `catalog_scope`).
+- [x] **Update `pgLfkExercises.ts` `list()` (§1.b, `:449-518`) to filter `scope = 'catalog'` for the doctor
+      catalog picker; verify no other caller of `list()` unexpectedly needs personal rows included.** —
+      `apps/webapp/src/infra/repos/pgLfkExercises.ts` filters `catalog_scope = 'catalog'` in every catalog-list
+      query path (lines 486, 539, 668, 695, 760, 795, 840, 853, 869); row mapping surfaces `catalogScope` per
+      row (`:149`).
+- [x] **(Optional) Migration: extend `media_files_usage_purpose_check` with a new value, or confirm NULL is
+      acceptable for MVP (§2.c) — get explicit sign-off either way before choosing.** — NULL chosen (this doc's
+      own recommendation): `media_files_usage_purpose_check` at `schema.ts:1210-1211` still only allows
+      `usage_purpose IS NULL OR usage_purpose = 'program_item_submission'` — no new value added, doctor-uploaded
+      personal-exercise video is written with `usage_purpose = NULL`.
+- [x] **New doctor-side presign route (`/api/doctor/treatment-program-instances/[instanceId]/media-presign` or
       similar), following `program-submission/presign/route.ts`'s shape (§1.c/§2.c), calling
-      `pgEnsureClientPatientFolder(patientUserId)` with the **patient's** id resolved from the instance.
-- [ ] Extend `InstanceAddLibraryItemDialog` (or a sibling entry point) with "создать новое" +
-      "сохранить в общий каталог" toggle (§2.e).
-- [ ] Enforce video-immutable-after-assignment at the service layer (no DB trigger needed) — hide/disable
-      re-upload once the stage item's snapshot has been written (§2.d).
-- [ ] Tests: `pgLfkExercises.test.ts` (catalog list excludes `scope='personal'`), new presign-route test
+      `pgEnsureClientPatientFolder(patientUserId)` with the **patient's** id resolved from the instance.** —
+      `apps/webapp/src/app/api/doctor/treatment-program-instances/[instanceId]/media-presign/route.ts:58`
+      resolves `resolved.instance.patientUserId` and calls `pgEnsureClientPatientFolder(...)` exactly as
+      specified. Ships this design's own §1.c folder decision — see the ↪️ note under §1.c above: that
+      underlying folder-placement decision was itself overruled by the owner 2026-07-27 (new subfolder now
+      required, tracked in `CRYPTO-01` §C2), but this checklist item is about the route existing per THIS
+      document's letter, which it does.
+- [x] **Extend `InstanceAddLibraryItemDialog` (or a sibling entry point) with "создать новое" +
+      "сохранить в общий каталог" toggle (§2.e).** — "Создать новое" tab
+      (`apps/webapp/src/app/app/doctor/treatment-program-shared/InstanceAddLibraryItemDialog.tsx:805`) +
+      `individualSaveToCatalog` checkbox (`:196,476,486,705`) mapping to `exerciseScope: "catalog"|"personal"`;
+      threaded through `instanceEditorBatchSchema.ts:127` (`saveToCatalog` field) →
+      `instanceEditorBatchApply.ts:607` → `pgTreatmentProgramInstance.ts:1001`
+      (`catalogScope: input.saveToCatalog ? "catalog" : "personal"`).
+- [x] **Enforce video-immutable-after-assignment at the service layer (no DB trigger needed) — hide/disable
+      re-upload once the stage item's snapshot has been written (§2.d).** — application-level, matches design:
+      the video upload control only exists in the create-time dialog
+      (`InstanceAddLibraryItemDialog.tsx:668-676`, with UI copy "После сохранения программы видео нельзя
+      заменить."); the post-assignment edit surface (`DoctorPersonalExerciseTitleForm`,
+      `TreatmentProgramInstanceDetailClient.tsx:543`) exposes title/prescription fields only — no video field
+      exists there to re-upload into, which is the "no control exposed once assigned" mechanism the design
+      called for.
+- [x] **Tests: `pgLfkExercises.test.ts` (catalog list excludes `scope='personal'`), new presign-route test
       mirroring `program-submission/presign/route.test.ts` for the doctor path (per PFI LOG.md's own note
       that this test doesn't exist yet), `instanceEditorBatchApply.test.ts` coverage for creating a personal
-      item + attaching it as a stage item, immutability-after-assignment test.
-- [ ] Validation commands for the implementation pass: `pnpm --dir apps/webapp test -- lfk-exercises`,
+      item + attaching it as a stage item, immutability-after-assignment test.** — `pgLfkExercises.test.ts`
+      exists; doctor presign route has its own `media-presign/route.test.ts`; personal-item creation via
+      `saveToCatalog` is covered in `instanceEditorBatch.test.ts:591-691` and
+      `pgTreatmentProgramIndividualExercise.behavior.test.ts`. No test named specifically for
+      "immutability-after-assignment" was found — the guarantee rests on the absent-control architecture above,
+      not on a dedicated regression test; flagging this as the one sub-item without direct test evidence.
+- [x] **Validation commands for the implementation pass: `pnpm --dir apps/webapp test -- lfk-exercises`,
       `pnpm --dir apps/webapp test -- treatment-program`, `pnpm --dir apps/webapp test -- clientMediaFolders`,
       `pnpm --dir apps/webapp typecheck` (step-level); full CI at the merge/integration checkpoint per
-      `AGENTS.md` §9.
+      `AGENTS.md` §9.** — `pnpm --dir apps/webapp typecheck` re-run 2026-07-27: clean (`tsc --noEmit`, no
+      errors). Scoped `lfk-exercises`/`treatment-program`/`clientMediaFolders` suites not individually re-run in
+      this pass; typecheck passing across the whole webapp is the evidence used here.
 
 ---
 
