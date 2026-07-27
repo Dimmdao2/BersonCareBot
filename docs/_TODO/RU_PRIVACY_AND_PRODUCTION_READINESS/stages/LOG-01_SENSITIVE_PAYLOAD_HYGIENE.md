@@ -1,5 +1,20 @@
 > RE-VERIFIED 2026-07-23 (all [x] audited vs code): see docs/_TODO/UI_FINISH_AND_REAUDIT_2026-07-22/PRODUCTION_READINESS_LEDGER_2026-07-23.md
 
+> ## 🔴 ПРАВКА 2026-07-27 — компаунд-бокс расщеплён по прямому указанию владельца
+>
+> **Было:** один пункт L2 покрывал сразу четыре независимых семейства (reminder/booking/broadcast/support), одной
+> галочкой на всех — хотя сегодняшняя правка (`fcd956395`, `d99c72d9d`, `e1c6f62a1`, `298c025d7`) закрыла требование
+> только для support, а reminder/booking/broadcast остаются как были.
+>
+> **Стало:** бокс расщеплён на 4 отдельных пункта, по одному на семейство, с сохранённой дословной формулировкой
+> и отдельным доказательством/причиной на каждый. Тот же приём применён к ещё двум найденным компаунд-боксам ниже
+> (`L3` про `SENSITIVE_TEST_MARKER`, `Definition of Done` про raw SQL/message/clinical fields) — в обоих одна часть
+> уже закрыта (`L1`, 2026-07-19), другая нет, и старая формулировка это скрывала.
+>
+> **Почему:** владелец, 27.07, дословно — «один пункт охватывает сразу четыре семейства - это не честнее а кривее,
+> если в одном пункте много подпунктов часть из которых сделана а часть нет - значит изменение не атомарно и
+> чек-лист сделан говняно». Разметка состояний — канон `docs/_TODO/BACKLOG_CONSOLIDATION_2026-07-26.md` §6.3.
+
 # LOG-01 — Sensitive payload hygiene in logs and queues
 
 Статус: `planned`; `L0/L1` могут исполняться в DEV после exact file lock.
@@ -72,16 +87,58 @@ terminal security audit `bcb-log01-l1-914-codex-terminal-reaudit-20260719` — P
       копирует clinical text.
 - [ ] Где payload неизбежен, он минимален, encrypted/tenant-bound, имеет явный TTL и удаляется после terminal state.
 - [ ] Delivery attempt хранит status/provider code/fingerprint/timing, но не raw recipient token или body.
-- [ ] Reminder/booking/broadcast/support retries не дублируют `{chatId,text}`, `logText`, patient summary или file
-      name в error/audit rows.
+
+> **Расщеплено 2026-07-27** (было одним пунктом на 4 семейства — см. header note). Формулировка "не дублируют
+> `{chatId,text}`, `logText`, patient summary или file name в error/audit rows" сохранена дословно на каждое
+> семейство; изменилось только доказательство/состояние.
+
+- [ ] Reminder retries не дублируют `{chatId,text}`, `logText`, patient summary или file name в error/audit rows.
+      **Не сделано.** `apps/integrator/src/kernel/domain/executor/handlers/reminders.ts:812-842` — `reminder_dispatch`
+      queue row по-прежнему хранит и полный `intent.payload.message.text`, и отдельное поле `logText: text` (строка
+      838); сегодняшние коммиты этот файл не трогали.
+- [ ] Booking retries не дублируют `{chatId,text}`, `logText`, patient summary или file name в error/audit rows.
+      **Не сделано.** `apps/integrator/src/integrations/bersoncare/bookingLifecycleRoute.ts:360-390` —
+      `message_retry_jobs` row (`kind=message.deliver`) хранит и рендеренный `message.text` внутри `payloadJson`, и
+      отдельный аргумент `messageText` в `enqueueMessageRetryJob`; не тронуто сегодняшними коммитами.
+- [ ] Broadcast retries не дублируют `{chatId,text}`, `logText`, patient summary или file name в error/audit rows.
+      **Не сделано, и с оговоркой.** `apps/webapp/src/modules/doctor-broadcasts/deliveryJobs.ts:183-249` — очередь
+      по-прежнему хранит полный `messengerText`/`smsText` в `payloadJson.intent.payload`. Технически требование не
+      выполнено, но по `OWNER_PRODUCT_RULES.md` §15 («текст в рассылке НЕ прячем — это не медицинские данные»)
+      содержание рассылки больше не является чувствительным, поэтому дублирование текста в этой очереди не
+      privacy-риск того же класса, что для reminder/booking; TTL/minimization общей политики (см. пункт выше) всё
+      ещё применим.
+- [x] Support retries не дублируют `{chatId,text}`, `logText`, patient summary или file name в error/audit rows.
+      **Сделано.** Коммиты `fcd956395`, `e1c6f62a1`, `298c025d7` (2026-07-27): `executeAction.ts` больше не строит
+      intent с `message: { text: adminText || draftTextCurrent }` / `message: { text: messageText }` для
+      уведомления врачу о сообщении пациента — вместо этого `buildDoctorPatientMessageNotificationIntents`
+      (`apps/integrator/src/kernel/domain/executor/handlers/supportRelay.ts:71-149`) либо не шлёт intent вовсе
+      (сообщение зеркалится в канонический `support_conversation_messages`, `intents: []`, проверено
+      `supportRelay.test.ts:111-112`), либо шлёт только нейтральный `buildDoctorPatientMessageNotificationText`
+      ("новое сообщение от …", без текста) — проверено `supportRelay.test.ts:161-167`. Раздельно проверять
+      error/audit rows на этом пути больше нечего дублировать: сам intent уже не несёт `text` пациента.
 - [ ] Dead-letter inspection использует controlled privileged fetch; обычная admin diagnostics не показывает
       clinical payload.
 - [ ] Schema cleanup/backfill/purge имеет legal retention gate, backward-compatible deploy order и TEST rehearsal.
 
 ## L3 — invariants and operations (`AI + owner`)
 
-- [ ] `SENSITIVE_TEST_MARKER` принудительно проходит через DB/provider/queue/retry failures и отсутствует в Pino,
-      stdout/stderr, journald-compatible output, delivery attempts, audit, metrics и terminal queue rows.
+> **Расщеплено 2026-07-27** — тот же дефект компаунда: одна половина (DB/provider → Pino/stdout/stderr) закрыта
+> `L1` ещё 2026-07-19, вторая (queue/retry → delivery attempts/audit/metrics/terminal queue rows) не начата и
+> заблокирована на `L2`. Проверено: `grep -rn SENSITIVE_TEST_MARKER` находит маркер только в
+> `apps/integrator/src/infra/db/client.test.ts` и трёх `logger.test.ts` (integrator/webapp/media-worker) — ни в одном
+> queue/delivery-attempt/retry тесте маркера нет.
+
+- [x] `SENSITIVE_TEST_MARKER` отсутствует в Pino, stdout/stderr, journald-compatible output при DB/provider failures.
+      **Сделано.** `L1` closure 2026-07-19: `client.test.ts`, `apps/integrator/src/infra/observability/logger.test.ts`,
+      `apps/webapp/src/infra/logging/logger.test.ts`, `apps/media-worker/src/logger.test.ts` — маркер в captured
+      stdout/stderr отсутствует при маркере в `Error.message`/`stack`/`cause`; independent audit
+      `bcb-log01-l1-914-codex-terminal-reaudit-20260719` PASS.
+- [ ] `SENSITIVE_TEST_MARKER` принудительно проходит через queue/retry failures и отсутствует в delivery attempts,
+      audit, metrics и terminal queue rows.
+      **Не начато.** Нет ни одного теста, использующего маркер вне трёх logger-suite; заблокировано на `L2`
+      (queue-минимизация не построена — см. расщеплённый пункт выше: reminder/booking/broadcast queues всё ещё
+      хранят рендеренный текст, и `dispatchPort.ts:75` (`sanitizePayloadForLogs`) логирует полный `intent.payload`
+      в `delivery_attempt_logs.payload_json` для любого не-OTP intent).
 - [ ] Security/clinical access events сохраняют actor/action/resource/result, но не protected value.
 - [ ] Retention/cleanup jobs идемпотентны, observable и не удаляют evidence, которое должно храниться по принятой
       policy/legal hold.
@@ -96,7 +153,20 @@ terminal security audit `bcb-log01-l1-914-codex-terminal-reaudit-20260719` — P
 
 ## Definition of Done
 
-- [ ] Raw SQL params/body/message/clinical fields/secrets не попадают в application/provider/error logs.
+> **Расщеплено 2026-07-27** — раньше один пункт смешивал SQL params (закрыто `L1`) с message/clinical
+> fields/secrets (не закрыто: `dispatchPort.ts` до сих пор логирует полный non-OTP `intent.payload` в
+> `delivery_attempt_logs.payload_json` — см. "Подтверждённый baseline" выше, сегодняшние коммиты этот файл не
+> меняли).
+
+- [x] Raw SQL params не попадают в application/provider/error logs.
+      **Сделано.** `L1`, `apps/integrator/src/infra/db/client.ts` — все `query`/`tx` error paths логируют только
+      `queryFingerprint`/`pgCode`/`pgClass`/`dbPrincipalSource`, без `sql`/`params`; independent audit
+      `bcb-log01-l1-914-codex-terminal-reaudit-20260719` PASS.
+- [ ] Body/message/clinical fields/secrets не попадают в application/provider/error logs.
+      **Не сделано.** `apps/integrator/src/infra/adapters/dispatchPort.ts:30-39,75` (`sanitizePayloadForLogs`)
+      редактирует только OTP-intent (`kind: 'otp_redacted'`); любой другой intent логируется в
+      `delivery_attempt_logs.payload_json` целиком, включая текущий рендеренный текст (для reminder/booking/broadcast
+      — см. расщеплённый пункт L2 выше). Не тронуто сегодняшними коммитами.
 - [ ] Queue/attempt/dead-letter data минимизированы и имеют утверждённый retention/cleanup contract.
 - [ ] Marker negative tests покрывают каждый runtime process и terminal delivery path.
 - [ ] Correlation/status/error-code observability остаётся достаточной для эксплуатации.

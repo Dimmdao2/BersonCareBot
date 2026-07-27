@@ -32,6 +32,21 @@
 > `2026-07-27T16:41:58+03`. Это ровно тот незакрытый пункт, что стоит ниже строкой
 > «Ни один product runtime path не отправляет Telegram/MAX/email/SMS».
 
+> ## 🔴 ПРАВКА 2026-07-27 (вторая) — все 38 открытых пунктов размечены, ни один не оставлен пустым
+>
+> **Было:** после отмены push-only/messenger-auth-only target'а (см. блок выше) 38 боксов ниже (N1B1, N2, N3-slice,
+> N4, N5, N6, N7, Definition of Done) остались открытыми `- [ ]` без разбора — часть из них прямо противоречит
+> новому решению владельца, часть переживает его без изменений, ни одна из них сегодняшними коммитами
+> (`fcd956395`, `d99c72d9d`, `e1c6f62a1`, `298c025d7`) целиком не закрыта.
+>
+> **Стало:** каждый из 38 пунктов размечен инлайн одним из трёх исходов — `↪️ ВЫТЕСНЕНО` (противоречит §15/§21–§28,
+> вычёркивается с сохранением дословного текста), `ПЕРЕЖИВАЕТ` (остаётся `- [ ]`, с однострочной причиной почему
+> требование живо), либо `[x]` с доказательством, если найдено. Разметка — канон
+> `docs/_TODO/BACKLOG_CONSOLIDATION_2026-07-26.md` §6.3.
+>
+> **Почему:** владелец, 27.07, дословно — «Открытые пункты NTF-01 - значит пометить что решения изменены, не
+> оставлять пустыми.»
+
 Статус: `owner_gated`; N0, N1, N1A и N1B0 repository slices закрыты 2026-07-21. N1B1 выполняется позже внутри
 соответствующих N3 family children после единого owner field-matrix gate `#913`; editor foundation не означает adoption/send cutover.
 Текущий runtime всё ещё многоканальный до N3/N4/N6 cutover.
@@ -423,9 +438,14 @@ second template store or channel sender.
 - [x] Branding changes presentation only after the existing organization `branding` entitlement and published
       assets/readiness. Core organization identification remains available without paid branding; custom sender
       identity/readiness remains the separate U8/branding-domain contract. (✓ managedNotifTemplate.ts branding gating + test)
-- [ ] `N1B1 adoption` is executed inside the matching N3 family child: appointment reminder, exercise reminder and
+- [-] ~~`N1B1 adoption` is executed inside the matching N3 family child: appointment reminder, exercise reminder and
       neutral message/comment builders bind to exact template ids/classes and channel allowlists. Generic email or
-      messenger relay never becomes a template escape hatch.
+      messenger relay never becomes a template escape hatch.~~
+      ↪️ ВЫТЕСНЕНО 2026-07-27: адопция «внутри соответствующего N3 family child» опиралась на порядок N3
+      (§21–§25 заменил его типизированным резолвером канала). **Не вытеснено:** «generic relay никогда не
+      становится template escape hatch» — эта половина дословно продолжает действовать (см. верхний блок
+      "SUPERSEDED AS TARGET", строка "Что НЕ отменено") и переносится в builders через типизированный
+      event/audience/channel реестр `N1B0` (`managedNotifTemplate.ts`), а не через порядок N3.
 
 Acceptance: current created/cancelled/rescheduled templates migrate without silent loss; platform/org ownership and
 two-org negatives pass; unsafe variable/render attempts fail server-side; HTML/plain and messenger renderer fixtures
@@ -446,11 +466,21 @@ provider call, sender adoption, deploy, TEST or PROD action occurred.
 ### N2 — provider-neutral push target and delivery (`AI`, coordinated with `MOB-03`)
 
 - [ ] Notification intent отделён от transport; Web Push/APNs/FCM — adapters одного push capability.
+      ПЕРЕЖИВАЕТ 27.07: не противоречит §21–§25 (транспорт push остаётся одним из каналов резолвера); реально не
+      начато, отложено вместе с native mobile app — владелец 27.07: «инициатива нативного мобильного приложения не
+      выдумана - просто не сейчас. Пока pwa» (см. `docs/_TODO/BACKLOG_CONSOLIDATION_2026-07-26.md` §6.1).
 - [ ] Native targets имеют отдельную модель от `user_web_push_subscriptions`; token lifecycle/retention/revoke
       описаны в mobile plan.
+      ПЕРЕЖИВАЕТ 27.07: та же причина — часть native mobile initiative, отложенной владельцем, не отменённой.
 - [ ] Org-scoped event несёт `organizationId`; target resolution не превращает device token в tenant bypass.
+      ПЕРЕЖИВАЕТ 27.07: tenant-safety требование не зависит от того, push-only канал или один из многих; отложено
+      вместе с native.
 - [ ] Provider credentials читаются через restricted DB-backed settings после S5/CRYPTO gates, не из новых env.
+      ПЕРЕЖИВАЕТ 27.07: усилено, не отменено — §19/§25 требуют ровно того же (креды/боты — данные кабинета, не env);
+      применимо к native push-провайдерам так же, как к Telegram/MAX/SMTP.
 - [ ] Provider response/metrics не содержат payload/token; invalid token деактивируется идемпотентно.
+      ПЕРЕЖИВАЕТ 27.07: общая гигиена доставки, не завязана на push-only target; ср. §28.4 (пуш меряется ответом
+      службы и телеметрией приложения, а не тестовой отправкой).
 
 Checks: wrong-org, multiple devices, token rotation, duplicate/retry, provider failure, no-target, payload marker.
 
@@ -476,56 +506,115 @@ booking-reminder stage rather than freezing `24h/2h` into the new channel policy
 Для каждого slice:
 
 - [ ] canonical in-app record/linked object существует до send intent;
+      ПЕРЕЖИВАЕТ 27.07: хорошая архитектура сама по себе, не завязана на «push-only»; наличие messenger-канала
+      этому не противоречит.
 - [ ] content tier builder единственный и покрыт positive/negative fixtures;
-- [ ] нет product messenger/email/SMS job, callback или fallback;
+      ПЕРЕЖИВАЕТ 27.07 (T0–T3 census — прямо названная владельцем/каноном surviving-часть): для personal-chat/task
+      семейств содержание сузилось (§22 — только факт+ссылка, ещё строже, чем было), но для broadcast T2/T0
+      определение "tier" меняется на "открытый текст как есть" (§15) — единый builder должен это отражать, не
+      маскировать рассылку.
+- [-] ~~нет product messenger/email/SMS job, callback или fallback;~~
+      ↪️ ВЫТЕСНЕНО 2026-07-27: прямо противоречит §21/§25 — Telegram/MAX/email/SMS теперь легитимные каналы
+      доставки, выбираемые резолвером (доступно ∩ разрешено клиникой ∩ разрешено получателем), а не запрещённый
+      job/callback/fallback.
 - [ ] no push target даёт `no_active_target`, сохраняет unread/in-app state и health metric;
+      ПЕРЕЖИВАЕТ 27.07 в обобщённом виде: концепция «пустое пересечение — законный исход, видимый и посчитанный»
+      прямо сохранена и расширена §21 («Пересечение пусто → уведомление не уходит никуда, и это НЕ ошибка доставки:
+      это законный исход… обязан быть виден… и посчитан в метрике») — только не только для push, а для любого канала.
 - [ ] muting/topic preferences не уничтожают canonical event;
+      ПЕРЕЖИВАЕТ 27.07: не затронуто; согласуется с §21 п.2 (получатель разрешает канал ПО ТИПУ уведомления, не
+      «вообще») и §25.2 (клиника тоже решает что слать).
 - [ ] tenant/dedup/retry/deep-link tests зелёные.
+      ПЕРЕЖИВАЕТ 27.07: общий тестовый бар, не зависит от модели каналов.
 
 ### N4 — bots auth-only (`AI`, after replacement surfaces)
 
 > **SUPERSEDED AS TARGET — 2026-07-27.** Перечень отключаемых product bot paths заменён §15 и §21–§23; врачебный Telegram имеет ровно два notification flows (§15).
 
 - [ ] Сохранить phone auth/messenger bind contact/code/cancel/open-app flows и их rate limits.
-- [ ] Отключить mini-app init login, product menus, booking/reminder/program callbacks, support relay, clinical
-      inbound/outbound text и admin reply surfaces.
+      ПЕРЕЖИВАЕТ 27.07: не затронуто ни одним новым решением — auth-флоу остаются в любом варианте канальной модели.
+- [-] ~~Отключить mini-app init login, product menus, booking/reminder/program callbacks, support relay, clinical
+      inbound/outbound text и admin reply surfaces.~~
+      ↪️ ВЫТЕСНЕНО 2026-07-27: §15 прямо оставляет во врачебном Telegram-чате ровно два уведомления («сообщение от
+      пациента», «новая запись») — то есть booking- и support-related notification flows не отключаются целиком, а
+      сужаются до типа/факта. Что НЕ вытеснено и остаётся в силе: `clinical inbound/outbound text` по-прежнему не
+      течёт через бота (§22 — только факт и ссылка), mini-app product login/menus по-прежнему выводятся (это не
+      входит в два разрешённых уведомления).
 - [ ] Старые product callback/free-text получают короткий safe redirect в app; clinical text не сохраняется как
       новая bot conversation.
-- [ ] `#822` поглощается этим stage; `#816` помечается superseded после push-only deep-link replacement, а не
-      исполняется ради выводимого messenger feature.
-- [ ] Bot capability docs/scripts/tests отражают auth-only allowlist; stale callback не вызывает product action.
+      ПЕРЕЖИВАЕТ 27.07: прямо усилено §22 — ни текст сообщения, ни текст задачи, ни превью не идут ни в один канал;
+      механика safe-redirect для отмирающих product callback-ов (которые НЕ входят в два разрешённых уведомления
+      §15) остаётся нужной.
+- [-] ~~`#822` поглощается этим stage; `#816` помечается superseded после push-only deep-link replacement, а не
+      исполняется ради выводимого messenger feature.~~
+      ↪️ ВЫТЕСНЕНО 2026-07-27: посылка "push-only deep-link replacement" мертва вместе с push-only target; судьбу
+      `#822`/`#816` нужно пересмотреть отдельно против §21–§25, это не сделано этой правкой (не решение, а вопрос
+      к владельцу/taskdb, вне рамок этой задачи).
+- [-] ~~Bot capability docs/scripts/tests отражают auth-only allowlist; stale callback не вызывает product action.~~
+      ↪️ ВЫТЕСНЕНО 2026-07-27 частично: «auth-only allowlist» как рамка мертва — бот легитимно несёт два
+      notification-flow сверх auth (§15), это не allowlist из одних кодов. **Не вытеснено:** «stale callback не
+      вызывает product action» — общая security-гигиена, остаётся требованием для любых отмирающих product
+      callback-ов (см. пункт выше).
 
 ### N5 — settings and compatibility (`AI`, waits stable S5-7 and free Doctor DNA scope)
 
 > **SUPERSEDED AS TARGET — 2026-07-27.** Settings не могут исключать Telegram/MAX/email/SMS как product channels: актуальный выбор определяют §21 и §27 через кабинет.
 
-- [ ] Notification settings UI показывает product topics и app push/preview policy, но не Telegram/MAX/email/SMS
-      как каналы product delivery.
+- [-] ~~Notification settings UI показывает product topics и app push/preview policy, но не Telegram/MAX/email/SMS
+      как каналы product delivery.~~
+      ↪️ ВЫТЕСНЕНО 2026-07-27: прямо противоположно новому решению — §21/§25/§25.2 требуют, чтобы клиника и
+      получатель ВИДЕЛИ и выбирали Telegram/MAX/email/SMS как каналы именно product delivery, по типу уведомления.
 - [ ] Auth channel bindings/preferences остаются отдельной настройкой и не удаляются.
+      ПЕРЕЖИВАЕТ 27.07: не затронуто; согласуется с §3 («ничего не вырезаем из кода») и уже реализовано N1A
+      (`authChannelPolicy.ts`) как отдельный от product-notification слой.
 - [ ] Legacy DB enum/rows сначала ignored-at-runtime + compatibility read; cleanup migration только после zero-caller
       census и отдельного backward-compatible manifest.
+      ПЕРЕЖИВАЕТ 27.07: общая миграционная гигиена, не зависит от того, какая канальная модель целевая.
 - [ ] Web Push subscription UI остаётся только browser surface; native app не показывает PWA install/SW controls.
+      ПЕРЕЖИВАЕТ 27.07: согласуется с «пока PWA, native не сейчас» (владелец 27.07, см. N2 выше).
 
 ### N6 — content, logs and queues (`AI`, linked `LOG-01`)
 
 - [ ] Все event families назначены `T0–T3`; arbitrary sensitive fixtures не попадают в push.
+      ПЕРЕЖИВАЕТ 27.07 (T0–T3 census переживает целиком): для personal-chat/task — строже, чем было (§22); для
+      broadcast T2/T0 — определение "sensitive" сузилось: текст рассылки по §15 сам по себе не sensitive и не
+      маскируется, тир остаётся для маршрутизации/минимизации иных полей, не для сокрытия текста рассылки.
 - [ ] Delivery attempts/queues/dead-letter/provider errors не создают дополнительные clinical copies.
-- [ ] Pending legacy messenger product jobs перед TEST/PROD cutover классифицированы: cancel/archive metadata-only;
-      auth jobs не затрагиваются.
+      ПЕРЕЖИВАЕТ 27.07, реально не сделано: это ровно `LOG-01/L2`, не завершено — `reminders.ts:812-842`
+      (`logText`), `bookingLifecycleRoute.ts:360-390` и `deliveryJobs.ts:183-249` всё ещё хранят рендеренный текст
+      в queue payload; сегодняшние коммиты (`fcd956395` и др.) этих файлов не касались. См.
+      `LOG-01_SENSITIVE_PAYLOAD_HYGIENE.md` L2 (расщеплено 2026-07-27).
+- [-] ~~Pending legacy messenger product jobs перед TEST/PROD cutover классифицированы: cancel/archive metadata-only;
+      auth jobs не затрагиваются.~~
+      ↪️ ВЫТЕСНЕНО 2026-07-27: посылка «messenger — запрещённый канал, поэтому pending-строки гасим» мертва;
+      messenger — легитимный канал по §21/§25, pending `reminder_dispatch`/`doctor_broadcast_intent`/
+      `message_retry_jobs` строки нужно оценивать на предмет реальной доставки, а не массово cancel/archive.
 - [ ] `SENSITIVE_TEST_MARKER` отсутствует во внешнем payload, SQL/error/provider logs и retained queue state.
+      ПЕРЕЖИВАЕТ 27.07, реально не сделано: см. расщеплённый `LOG-01` L3 — маркер проверен только для
+      DB/logger-пути (`L1`, закрыто), не для queue/retry/delivery-attempt пути.
 
 ### N7 — TEST, rollout and documentation (`AI + owner`)
 
 > **SUPERSEDED AS TARGET — 2026-07-27.** Push-only proof и запрет fallback ниже заменены §21–§23; DEV/TEST filter обязан покрывать каждый канал.
 
-- [ ] Synthetic send-safe matrix доказывает: product event → in-app + push only; auth code → selected auth channel.
+- [-] ~~Synthetic send-safe matrix доказывает: product event → in-app + push only; auth code → selected auth channel.~~
+      ↪️ ВЫТЕСНЕНО 2026-07-27: «push only» прямо противоречит §21/§25 (product event → резолвер каналов:
+      платформа ∩ клиника ∩ получатель, не «только push»); auth-часть не меняется.
 - [ ] Проверены permission denied, no/expired token, multiple devices, muted topic, retry/dedup, provider outage,
       background/killed state для native и browser compatibility.
-- [ ] До native release Web Push migration population и undeliverable metric видимы; messenger fallback не
-      возвращается для улучшения процента доставки.
+      ПЕРЕЖИВАЕТ 27.07 в обобщённом виде: тестовая матрица для push-канала остаётся нужной, когда бы он ни
+      использовался — независимо от того, единственный он канал или один из многих.
+- [-] ~~До native release Web Push migration population и undeliverable metric видимы; messenger fallback не
+      возвращается для улучшения процента доставки.~~
+      ↪️ ВЫТЕСНЕНО 2026-07-27: «messenger fallback не возвращается» прямо противоречит новой модели — messenger
+      теперь легитимный первичный канал по выбору получателя/клиники (§21/§25), а не запрещённый fallback ради
+      процента доставки.
 - [ ] Runtime docs обновляются только после фактического cutover: `NOTIFICATION_CHANNELS`, inbox/broadcast/bot/MAX/
       auth/integrator/reminder contracts.
+      ПЕРЕЖИВАЕТ 27.07 в обобщённом виде: дисциплина «доки синхронизируются после факта, не раньше» остаётся;
+      «cutover» теперь означает раскатку §21–§28 архитектуры, а не push-only.
 - [ ] PROD drain/config/provider rollout — отдельный owner-approved change window с rollback, не часть DEV worker.
+      ПЕРЕЖИВАЕТ 27.07: не затронуто; согласуется с §6 (прод — отдельное owner-approved окно).
 
 ## 6. Dependencies and non-overlap
 
@@ -542,11 +631,27 @@ booking-reminder stage rather than freezing `24h/2h` into the new channel policy
 
 > **SUPERSEDED — 2026-07-27.** В частности, DoD «Ни один product runtime path не отправляет Telegram/MAX/email/SMS» и auth-only allowlist ниже инвертированы/уточнены §15 и §21–§23. Не использовать их как release criterion; см. строку **«Уведомления»** в карте authority.
 
-- [ ] Ни один product runtime path не отправляет Telegram/MAX/email/SMS.
-- [ ] Telegram/MAX технически способны только на login/bind code/auth handshake allowlist.
+- [-] ~~Ни один product runtime path не отправляет Telegram/MAX/email/SMS.~~
+      ↪️ ВЫТЕСНЕНО 2026-07-27: полностью и прямо противоположно — §21/§24/§25 ТРЕБУЮТ, чтобы product-пути умели
+      слать в Telegram/MAX/email/SMS, когда это выбрано резолвером каналов.
+- [-] ~~Telegram/MAX технически способны только на login/bind code/auth handshake allowlist.~~
+      ↪️ ВЫТЕСНЕНО 2026-07-27: §15 прямо разрешает два product notification flow сверх auth-allowlist
+      («сообщение от пациента», «новая запись»).
 - [ ] Product events имеют canonical in-app state и push transport; no target не включает hidden fallback.
+      ПЕРЕЖИВАЕТ 27.07 в обобщённом виде: «canonical in-app state» и «no hidden fallback у пустого пересечения»
+      сохранены §21 буквально; «push transport» узко — сейчас транспортов несколько по выбору, не только push.
 - [ ] Booking/reminder push не зависит от messenger target/job success.
+      ПЕРЕЖИВАЕТ 27.07: реальная незакрытая инженерная работа, не про запрет messenger — про то, что push не
+      должен молчать/падать из-за messenger-биндинга (см. NTF-01 census, `active_dependency`,
+      `bookingLifecycleRoute.ts`/`jobExecutor.ts`); не тронуто сегодняшними коммитами.
 - [ ] `T0–T3` policy сохраняет полезные routine details и исключает raw clinical/free-text/file/secret payload.
-- [ ] Pending queues, bot callbacks, settings UI и legacy rows прошли controlled migration.
+      ПЕРЕЖИВАЕТ 27.07 (T0–T3 census — surviving часть по прямому указанию): для personal-chat/task ужесточено
+      §22; carve-out — broadcast-текст по §15 открыт и не маскируется, это не «raw clinical» класс.
+- [-] ~~Pending queues, bot callbacks, settings UI и legacy rows прошли controlled migration.~~
+      ↪️ ВЫТЕСНЕНО 2026-07-27 частично: премиса «settings UI прячет messenger-каналы» и «bot callbacks отключены»
+      вытеснена (см. N4/N5 выше). **Не вытеснено, реальная работа:** pending queue/legacy rows всё ещё хранят
+      рендеренный текст без TTL/минимизации — см. `LOG-01` L2 (расщеплено 2026-07-27) и N6 выше.
 - [ ] Auth, push, in-app, tenant-negative, marker, real-device/TEST tests и independent security audit зелёные.
+      ПЕРЕЖИВАЕТ 27.07: общий тестовый/аудиторский бар, не зависит от канальной модели.
 - [ ] Один full CI выполнен на integration/release checkpoint; owner принял real-device behavior.
+      ПЕРЕЖИВАЕТ 27.07: общая дисциплина релизного гейта, не затронута.
