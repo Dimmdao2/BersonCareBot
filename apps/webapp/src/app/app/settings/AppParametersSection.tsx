@@ -1,23 +1,15 @@
 "use client";
 
 import { useMemo, useState, useTransition } from "react";
+import TimezoneSelect, { type ITimezoneOption } from "react-timezone-select";
 import { Card, CardContent, CardHeader, CardTitle } from "@/shared/ui/doctor/primitives/card";
 import { Button } from "@/shared/ui/doctor/primitives/button";
 import { Input } from "@/shared/ui/doctor/primitives/input";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/shared/ui/doctor/primitives/select";
 import { isValidSupportContactSetting } from "@/lib/url/isValidSupportContactSetting";
-import {
-  getCachedIanaTimezonesSorted,
-  isValidIanaTimeZoneId,
-  prioritizeMoscowFirst,
-} from "@/shared/timezone/ianaTimezonesForAdminUi";
+import { isValidIanaTimeZoneId } from "@/shared/timezone/ianaTimezonesForAdminUi";
+import { mergePatientTimezoneSelectLabels } from "@/shared/timezone/patientTimezoneSelectLabels";
 import { patchAdminSetting } from "./patchAdminSetting";
+import { doctorTimezoneSelectStyles } from "./DoctorTimezoneSection";
 
 export type AppParametersSectionProps = {
   /** Публичный origin веб-приложения (https://…), без завершающего слеша. */
@@ -41,28 +33,14 @@ export function AppParametersSection({ appBaseUrl, supportContactUrl, appDisplay
   const [appUrl, setAppUrl] = useState(appBaseUrl);
   const [support, setSupport] = useState(supportContactUrl);
   const [timezone, setTimezone] = useState(appDisplayTimezone);
-  const [tzFilter, setTzFilter] = useState("");
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
 
-  const baseIanaIds = useMemo(() => {
-    const all = getCachedIanaTimezonesSorted();
-    const cur = timezone.trim() || "Europe/Moscow";
-    if (all.includes(cur)) return all;
-    return [cur, ...all];
-  }, [timezone]);
-
-  const filteredIanaIds = useMemo(() => {
-    const cur = timezone.trim() || "Europe/Moscow";
-    const q = tzFilter.trim().toLowerCase();
-    if (q) {
-      return baseIanaIds.filter((z) => z.toLowerCase().includes(q));
-    }
-    const list = prioritizeMoscowFirst(baseIanaIds);
-    if (!list.includes(cur)) return [cur, ...list];
-    return list;
-  }, [baseIanaIds, tzFilter, timezone]);
+  const timezoneLabels = useMemo(
+    () => mergePatientTimezoneSelectLabels(timezone.trim() || "Europe/Moscow"),
+    [timezone],
+  );
 
   function handleSave() {
     setSaved(false);
@@ -148,42 +126,23 @@ export function AppParametersSection({ appBaseUrl, supportContactUrl, appDisplay
 
         <section className="flex flex-col gap-2">
           <p className="text-sm font-semibold">Таймзона отображения записей</p>
-          <Input
-            type="search"
-            placeholder="Поиск по названию зоны…"
-            value={tzFilter}
-            onChange={(e) => setTzFilter(e.target.value)}
-            disabled={isPending}
-            autoComplete="off"
-            className="max-w-lg"
-          />
-          <Select
-            value={timezone.trim() || "Europe/Moscow"}
-            onValueChange={(v) => {
-              if (v) {
-                setTimezone(v);
-                setTzFilter("");
-              }
-            }}
-            disabled={isPending}
-          >
-            <SelectTrigger id="app-display-timezone" className="w-full max-w-lg">
-              {/* IANA id = value = visible label; explicit SelectValue children not required */}
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent className="max-h-72">
-              {filteredIanaIds.length > 0 ? (
-                filteredIanaIds.map((id) => (
-                  <SelectItem key={id} value={id}>
-                    {id}
-                  </SelectItem>
-                ))
-              ) : (
-                <div className="px-2 py-2 text-xs text-muted-foreground">Нет результатов</div>
-              )}
-            </SelectContent>
-          </Select>
-          <span className="text-xs text-muted-foreground">Найдено зон: {filteredIanaIds.length}</span>
+          <div className="max-w-lg">
+            <TimezoneSelect
+              instanceId="app-display-timezone"
+              inputId="app-display-timezone"
+              value={(timezone.trim() || "Europe/Moscow") as never}
+              onChange={(tz: ITimezoneOption) => setTimezone(tz.value)}
+              timezones={timezoneLabels}
+              labelStyle="original"
+              displayValue="UTC"
+              isDisabled={isPending}
+              isSearchable
+              styles={doctorTimezoneSelectStyles as never}
+              menuPortalTarget={typeof document !== "undefined" ? document.body : null}
+              menuPosition="fixed"
+              maxMenuHeight={280}
+            />
+          </div>
           <span className="text-xs text-muted-foreground">
             IANA-зона для времени слотов и записей в кабинете. По умолчанию — Europe/Moscow.
           </span>

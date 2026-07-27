@@ -104,27 +104,6 @@ describe("/api/platform/settings", () => {
     );
   });
 
-  it("writes normalized global-admin email allowlists only through the platform service", async () => {
-    const response = await PATCH(new Request("http://localhost/api/platform/settings", {
-      method: "PATCH", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ key: "admin_emails", value: [" DimmDao@Gmail.com "] }),
-    }));
-    expect(response.status).toBe(200);
-    expect(updateMock).toHaveBeenCalledWith(
-      "admin_emails", "admin", { value: ["dimmdao@gmail.com"] },
-      platformSession.user.userId, { organizationId: null },
-    );
-  });
-
-  it("rejects malformed or duplicate global-admin emails before the service", async () => {
-    const response = await PATCH(new Request("http://localhost/api/platform/settings", {
-      method: "PATCH", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ key: "admin_emails", value: ["not-an-email", "not-an-email"] }),
-    }));
-    expect(response.status).toBe(400);
-    expect(updateMock).not.toHaveBeenCalled();
-  });
-
   it("rejects a non-boolean auth-channel value before the service", async () => {
     const response = await PATCH(new Request("http://localhost/api/platform/settings", {
       method: "PATCH", headers: { "Content-Type": "application/json" },

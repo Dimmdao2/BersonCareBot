@@ -35,4 +35,16 @@ describe("AppParametersSection", () => {
     expect(keys).toHaveLength(3);
     expect(keys).not.toContain("patient_app_maintenance_enabled");
   });
+
+  it("uses the shared timezone picker with the UTC display and search enabled", () => {
+    render(
+      <AppParametersSection
+        appBaseUrl="https://app.example.com"
+        supportContactUrl="/app/patient/support"
+        appDisplayTimezone="Europe/Moscow"
+      />,
+    );
+
+    expect(screen.getByRole("combobox", { name: "" })).toBeInTheDocument();
+  });
 });

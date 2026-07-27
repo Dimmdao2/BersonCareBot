@@ -13,7 +13,7 @@ import { mergePatientTimezoneSelectLabels } from "@/shared/timezone/patientTimez
  * Styles for react-timezone-select adapted to the doctor Shadcn theme.
  * Uses standard Shadcn CSS custom properties so it matches the rest of the UI.
  */
-const doctorTzSelectStyles: StylesConfig<ITimezone, false> = {
+export const doctorTimezoneSelectStyles: StylesConfig<ITimezone, false> = {
   control: (base, state) => ({
     ...base,
     minHeight: 36,
@@ -147,7 +147,7 @@ export function DoctorTimezoneSection({ initialTimezone }: DoctorTimezoneSection
           displayValue="UTC"
           isDisabled={saving}
           isSearchable
-          styles={doctorTzSelectStyles as never}
+          styles={doctorTimezoneSelectStyles as never}
           menuPortalTarget={typeof document !== "undefined" ? document.body : null}
           menuPosition="fixed"
           maxMenuHeight={280}

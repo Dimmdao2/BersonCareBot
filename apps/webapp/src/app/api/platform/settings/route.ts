@@ -3,7 +3,6 @@ import { z } from "zod";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import { requirePlatformOperationsApiContext } from "@/app-layer/guards/requireRole";
 import { normalizeValueJson } from "@/modules/system-settings/adminSettingsPatchNormalize";
-import { normalizeEmail } from "@/modules/auth/emailAuth";
 import { SYSTEM_SETTING_REGISTRY, type SystemSettingKey } from "@/modules/system-settings/registry";
 import type { SystemSetting } from "@/modules/system-settings/types";
 import {
@@ -34,7 +33,6 @@ export const PLATFORM_GLOBAL_SETTINGS_API_KEYS = [
   "auth_oauth_google_enabled",
   "auth_oauth_yandex_enabled",
   "auth_2fa_enabled",
-  "admin_emails",
   "booking_location_default_palette",
 ] as const satisfies readonly SystemSettingKey[];
 
@@ -51,17 +49,6 @@ function isPlatformGlobalSetting(setting: SystemSetting): boolean {
 
 function normalizePlatformValue(key: (typeof PLATFORM_GLOBAL_SETTINGS_API_KEYS)[number], value: unknown): unknown | null {
   const normalized = normalizeValueJson(value);
-  if (key === "admin_emails") {
-    if (!Array.isArray(normalized.value)) return null;
-    const emails = normalized.value.map((item) => typeof item === "string" ? normalizeEmail(item) : "");
-    if (
-      emails.some((email) => !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) ||
-      new Set(emails).size !== emails.length
-    ) {
-      return null;
-    }
-    return { value: emails };
-  }
   if (key === BOOKING_LOCATION_PALETTE_SETTING_KEY) {
     const palette = normalizeBookingLocationPalette(normalized);
     return palette ? bookingLocationPaletteEnvelope(palette) : null;
