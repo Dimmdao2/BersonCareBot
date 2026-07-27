@@ -1,5 +1,7 @@
 # Operator alerting and notification routing — design decisions, 2026-07-26
 
+> **УТОЧНЕНИЕ ВЛАДЕЛЬЦА 2026-07-27 — вопрос закрыт.** Аварийные алерты оператору идут во ВСЕ каналы по умолчанию, мимо пользовательских предпочтений (§21) и мимо dev-фильтра (§23); набор каналов и адресов — настройка владельца в кабинете. Обычные уведомления админу (поддержка, статусы) — по §21, «туда куда настроено». Действующее правило: `docs/ARCHITECTURE/OWNER_PRODUCT_RULES.md` §28.
+
 Authority: `docs/_TODO/NIGHT_PLAN_2026-07-26.md` items **D-1, D-2, C-4**. Owner rulings: recipients derive
 from roles rather than a hand-kept allowlist; a settings matrix picks the channel per event type; SMS is
 mechanism-only for now; **he is the only administrator and specialists are not on support duty**.

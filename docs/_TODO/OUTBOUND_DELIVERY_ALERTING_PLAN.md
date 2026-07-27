@@ -2,6 +2,8 @@
 
 # План: громкий алертинг на отказ доставки (email/SMS/любой провайдер)
 
+> **УТОЧНЕНИЕ ВЛАДЕЛЬЦА 2026-07-27 — вопрос закрыт.** Аварийные алерты оператору идут во ВСЕ каналы по умолчанию, мимо пользовательских предпочтений (§21) и мимо dev-фильтра (§23); набор каналов и адресов — настройка владельца в кабинете. Обычные уведомления админу (поддержка, статусы) — по §21, «туда куда настроено». Действующее правило: `docs/ARCHITECTURE/OWNER_PRODUCT_RULES.md` §28.
+
 Статус: APPROVED-DIRECTION владельцем 2026-07-21 · автор: оркестратор (Opus)
 Execution authority/status: subordinate artifact of
 `SAAS_PRODUCT_UX_INITIATIVE/IMPLEMENTATION_ROADMAP.md`, taskdb `#950`; this file does not define a parallel DAG.
