@@ -300,7 +300,12 @@ cancelled or superseded work and is excluded from both totals. Detail and eviden
       Побочно: тихий откат в память теперь пишет `warn` ОДИН раз — раньше он молчал, и именно поэтому
       поломка прожила незамеченной. Сам механизм отката не переделывался: нужен ли ему сброс или ретрай —
       **вопрос владельцу**, не наша инициатива.
-- [ ] **C-3 (#1005) Delivery-channel fallback.** Phone entered → SMS if enabled → web-push if subscribed →
+- [ ] **C-3 (#1005) Delivery-channel fallback.**
+      🔴 **ЦЕПОЧКА НИЖЕ ПРОТИВОРЕЧИТ РЕШЕНИЮ ВЛАДЕЛЬЦА 27.07 — не брать в работу как написано.** Он дословно:
+      «ТОЧНО НЕ ВЕБ-ПУШ будет способом регистрации и получения кода. Это маразм». Веб-пуш остаётся каналом
+      доставки ОБЫЧНЫХ уведомлений по выбору пациента, но НЕ каналом доставки кода входа. Переписать цепочку
+      без веб-пуша перед исполнением; канон — `docs/ARCHITECTURE/OWNER_PRODUCT_RULES.md` §25.1/§27.
+      Исходная формулировка: Phone entered → SMS if enabled → web-push if subscribed →
       e-mail if bound. NIST 800-63B treats SMS as restricted and expects an alternative. Two hard edges:
       uniform response/timing so it cannot be used to test whether a phone has an e-mail; and a code
       delivered to e-mail proves control of the E-MAIL — it must never stamp phone trust.

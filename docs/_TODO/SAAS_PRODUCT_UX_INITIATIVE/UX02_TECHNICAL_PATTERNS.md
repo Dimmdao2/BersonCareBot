@@ -20,7 +20,11 @@
 
 - один канонический `platform_user`; email/password/OAuth или доверенный телефон могут дать patient tier, но native booking отдельно требует trusted phone;
 - onboarding patient не выполняет business actions вне серверного activation whitelist;
-- Web Push — основной канал после активной подписки; SMS сейчас не входит в patient topic-channel contract;
+- ~~Web Push — основной канал после активной подписки~~ — ↪️ **ВЫТЕСНЕНО 27.07 РЕШЕНИЕМ ВЛАДЕЛЬЦА.**
+  Дословно: «нет никакого основного канала. Есть разрешенные глобал админом способы логина. из них
+  выбирается любой удобный клиенту. Это же и канал доставки». Канон — `docs/ARCHITECTURE/OWNER_PRODUCT_RULES.md`
+  §21/§25/§27. Эта строка — вероятный источник, из которого карточка #1036 взяла опровергнутый тезис;
+  не цитировать её как продуктовое решение. SMS не входит в patient topic-channel contract — это остаётся верным;
 - patient и staff уже имеют разные manifest identity, но используют один service worker scope `/app`;
 - tenant = `Organization`; host/domain может подсказать entry context, но не заменяет membership, enrollment и authorization;
 - один staff login имеет одну активную организацию; multi-org staff switcher не проектируется;

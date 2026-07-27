@@ -264,7 +264,12 @@ apply, TEST/PROD or deploy is claimed.
       staff user/process/30с. Локальная revoke немедленна, другие процессы fail closed не позднее 30с. `jti` denylist
       отклонён: без registry всех выданных jti он не реализует logout-everywhere. Приёмка: p95 auth не вырос.
 
-      **Owner gate до worker:** выбрать sliding inactivity TTL врача и global admin (рекомендация `7` дней обоим)
+      ✅ **ГЕЙТ ЗАКРЫТ 24-26.07 — РЕШЕНО И РЕАЛИЗОВАНО, не спрашивать заново.** Итоговые значения:
+      **idle 12 ч staff / 30 д пациент, абсолютный потолок 7 д / 90 д** (`NIGHT_PLAN_2026-07-26.md:241`).
+      В коде: `apps/webapp/src/modules/auth/sessionCookie.ts:12-13,27-37`; врач и глобал-админ в одной
+      корзине `staff` (`:52-65`). Отзыв сессий строже, чем требовал план: не кэш с задержкой ≤30 с, а сверка
+      `platform_users.session_epoch` на каждый запрос (миграция `0244`, `auth/service.ts:992-1003`).
+      ~~**Owner gate до worker:** выбрать sliding inactivity TTL врача и global admin (рекомендация `7` дней обоим)~~
       и подтвердить bounded межпроцессный revoke SLA `≤30с`; patient остаётся `90` дней.
 
       Exact checklist после source-backed discovery:
