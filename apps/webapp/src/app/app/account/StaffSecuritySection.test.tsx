@@ -126,6 +126,58 @@ describe('StaffSecuritySection first-run acceptance', () => {
     expect(screen.queryByRole('button', { name: 'Выйти' })).not.toBeInTheDocument();
   });
 
+  it('keeps the shared password and factor controls but hides specialist onboarding in the platform console', () => {
+    render(
+      <StaffSecuritySection
+        initialStatus={{
+          enrolled: false,
+          recoveryConfirmed: false,
+          replacementRequired: false,
+          lockedUntil: null,
+        }}
+        hasProfileName
+        hasTimezone
+        hasOrganization={false}
+        hasSpecialistBinding={false}
+        showSpecialistFirstRun={false}
+      />,
+    );
+
+    expect(screen.queryByRole('heading', { name: 'Первый запуск' })).not.toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Защита аккаунта' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Сменить пароль' })).toBeInTheDocument();
+    expect(
+      screen.getByRole('button', { name: 'Подключить приложение-аутентификатор' }),
+    ).toBeInTheDocument();
+  });
+
+  it('handles a non-JSON enrollment failure without an unhandled response parser rejection', async () => {
+    vi.mocked(fetch).mockResolvedValue(
+      new Response('<html>server error</html>', { status: 500 }),
+    );
+
+    render(
+      <StaffSecuritySection
+        initialStatus={{
+          enrolled: false,
+          recoveryConfirmed: false,
+          replacementRequired: false,
+          lockedUntil: null,
+        }}
+        hasProfileName
+        hasTimezone
+        hasOrganization
+        hasSpecialistBinding
+      />,
+    );
+
+    await userEvent.click(
+      screen.getByRole('button', { name: 'Подключить приложение-аутентификатор' }),
+    );
+
+    expect(toastErrorMock).toHaveBeenCalledWith('Не удалось начать настройку защиты');
+  });
+
   it.each([
     ['wrong_current_password', 'Текущий пароль указан неверно.'],
     ['weak_new_password', 'Новый пароль должен содержать от 8 до 128 символов.'],

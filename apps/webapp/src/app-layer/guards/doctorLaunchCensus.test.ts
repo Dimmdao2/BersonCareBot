@@ -233,6 +233,7 @@ describe("U1 finite doctor launch manifest", () => {
     const doctorLayout = readFileSync(new URL("app/doctor/layout.tsx", appRoot), "utf8");
     const platformLayout = readFileSync(new URL("app/(global-admin)/doctor/layout.tsx", appRoot), "utf8");
     const adminLayout = readFileSync(new URL("app/admin/layout.tsx", appRoot), "utf8");
+    const accountLayout = readFileSync(new URL("app/account/layout.tsx", appRoot), "utf8");
     expect(doctorLayout).toContain('redirect("/app/admin/system-health")');
     expect(platformLayout).toContain("requirePlatformOperationsPage()");
     expect(platformLayout).toContain("enableTenantRuntime={false}");
@@ -242,5 +243,7 @@ describe("U1 finite doctor launch manifest", () => {
     expect(adminLayout).toContain("requirePlatformOperationsPage()");
     expect(adminLayout).toContain("enableTenantRuntime={false}");
     expect(adminLayout).toContain('menuKind="platform"');
+    expect(accountLayout).toContain('session.user.role === "admin" && session.adminMode === true');
+    expect(accountLayout).toContain('menuKind={isPlatformConsole ? "platform" : "doctor"}');
   });
 });

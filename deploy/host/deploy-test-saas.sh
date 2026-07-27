@@ -1919,6 +1919,80 @@ assert_webapp_test_operational_env_available(){
   echo "   webapp TEST unit operational env: OK (DATABASE_URL_WEB_PUSH_REMINDER available)"
 }
 
+assert_webapp_test_staff_security_keyring_available(){
+  sudo -u deploy test -r "$WEBAPP_ENV" || {
+    echo "FATAL: deploy cannot read $WEBAPP_ENV before staff-security keyring preflight" >&2
+    exit 1
+  }
+  # TOTP start first touches this keyring only after its DB profile/accessor calls succeed. Before
+  # this gate an absent or malformed TEST keyring reached createLazyStaffSecurityCryptoFromEnv() at
+  # request time and produced an unhandled 500. Validate shape and active 32-byte key without ever
+  # printing the env value, key id, key material, or parsed object.
+  sudo -u deploy bash -lc "set -a && . '$WEBAPP_ENV' && set +a && node -e '
+    const raw = process.env.STAFF_SECURITY_KEYRING_JSON;
+    if (!raw || !raw.trim()) process.exit(2);
+    let parsed;
+    try { parsed = JSON.parse(raw); } catch { process.exit(3); }
+    if (!parsed || typeof parsed !== \"object\" || Array.isArray(parsed)) process.exit(4);
+    if (typeof parsed.activeKeyId !== \"string\" || !/^[a-zA-Z0-9_-]{1,48}$/.test(parsed.activeKeyId)) process.exit(5);
+    if (!parsed.keys || typeof parsed.keys !== \"object\" || Array.isArray(parsed.keys)) process.exit(6);
+    const entries = Object.entries(parsed.keys);
+    if (entries.length === 0 || entries.some(([keyId, encoded]) =>
+      !/^[a-zA-Z0-9_-]{1,48}$/.test(keyId) ||
+      typeof encoded !== \"string\" ||
+      Buffer.from(encoded, \"base64\").length !== 32
+    )) process.exit(7);
+    if (!Object.prototype.hasOwnProperty.call(parsed.keys, parsed.activeKeyId)) process.exit(8);
+  '" || {
+    echo "FATAL: webapp TEST STAFF_SECURITY_KEYRING_JSON is missing or invalid" >&2
+    echo "       Install a valid protected TEST keyring before deploying; its value must never enter the repo or logs." >&2
+    exit 1
+  }
+  echo "   webapp TEST staff-security keyring: OK (valid shape + active 32-byte key; value not printed)"
+}
+
+assert_staff_security_self_runtime_acl_ready(){
+  local ready
+  # The account-security guard deliberately has no clinic membership: it stamps the exact session
+  # platform_user_id as a patient/self principal. The routed pool therefore uses the nonstaff base
+  # login and SET ROLE app_patient. Exercise that exact transport/role transition here, then pin
+  # only the four functions needed before/during TOTP start:
+  #   - get_staff_security_session_state: reads the caller's profile during session resolution;
+  #   - ensure_staff_security_profile: inserts the exact signed self row when absent;
+  #   - get_staff_security_profile: reads only that self row;
+  #   - save_pending_staff_totp: writes only that row's encrypted pending factor secret.
+  # All remain existing table-owner SECURITY DEFINER functions from 0215/the canonical overlay.
+  # No new function or GRANT is introduced, so expected_secdef_count stays 106.
+  ready="$(sudo -u deploy bash -lc "set -a && . '$WEBAPP_ENV' && set +a && db_url=\"\${DATABASE_URL_NONSTAFF:-\${DATABASE_URL:-}}\" && [ -n \"\$db_url\" ] && psql \"\$db_url\" -X -v ON_ERROR_STOP=1 -tAc \"
+RESET ROLE;
+SET ROLE app_patient;
+SELECT (
+  current_user = 'app_patient'
+  AND has_schema_privilege(current_user, 'app', 'USAGE')
+  AND has_function_privilege(current_user, 'app.get_staff_security_session_state()', 'EXECUTE')
+  AND has_function_privilege(current_user, 'app.ensure_staff_security_profile()', 'EXECUTE')
+  AND has_function_privilege(current_user, 'app.get_staff_security_profile()', 'EXECUTE')
+  AND has_function_privilege(current_user, 'app.save_pending_staff_totp(text)', 'EXECUTE')
+  AND NOT has_table_privilege(
+    current_user,
+    'public.staff_security_profiles',
+    'SELECT,INSERT,UPDATE,DELETE,TRUNCATE,REFERENCES,TRIGGER'
+  )
+  AND NOT has_any_column_privilege(
+    current_user,
+    'public.staff_security_profiles',
+    'SELECT,INSERT,UPDATE,REFERENCES'
+  )
+)::text;
+\"")"
+  [ "$ready" = "true" ] || {
+    echo "FATAL: webapp TEST account-security self runtime ACL is not exact" >&2
+    echo "       Expected nonstaff login -> SET ROLE app_patient -> four narrow functions, with no vault table privilege." >&2
+    exit 1
+  }
+  echo "   account-security self runtime ACL: OK (app_patient 4 function EXECUTEs; vault table invisible)"
+}
+
 assert_test_health_ok(){
   local health_response
   health_response="$(curl -fsk --max-time 10 https://test.bersoncare.ru/api/health)"
@@ -2039,6 +2113,7 @@ run_strict_post_migration_closure(){
   # HTTP-facing smoke that exercises the login role's email-auth surface runs later, after the TEST
   # units are restarted below.
   grant_webapp_bootstrap_base_login_d3_4
+  assert_staff_security_self_runtime_acl_ready
 
   assert_c4_operational_runtime_ready
   assert_integrator_server_runtime_config_ready
@@ -2120,6 +2195,7 @@ assert_strict_closure_deploy_checkout_ready(){
       exit 1
     }
   fi
+  assert_webapp_test_staff_security_keyring_available
   assert_test_runtime_mode_ready
   assert_locked_product_smoke_fixture_ready
 }

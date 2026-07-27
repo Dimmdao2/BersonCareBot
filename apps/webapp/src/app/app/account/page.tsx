@@ -37,6 +37,7 @@ export default async function AccountPage({
   const requestedTab = parseTab(sp.tab);
   const { session, workspaceContext } = await loadStaffAccountPageContext();
   const restrictedSecuritySession = await isRestrictedStaffSecuritySession(session);
+  const isPlatformConsole = session.user.role === "admin" && session.adminMode === true;
   const recoveryOnly =
     session.staffSecurity?.assurance === "recovery" ||
     session.staffSecurity?.assurance === "recovery_confirmation";
@@ -74,6 +75,7 @@ export default async function AccountPage({
         hasTimezone={Boolean(timezone)}
         hasOrganization={workspaceContext !== null}
         hasSpecialistBinding={workspaceContext?.specialistId != null}
+        showSpecialistFirstRun={!isPlatformConsole}
         recoveryOnly={recoveryOnly}
       />
     );

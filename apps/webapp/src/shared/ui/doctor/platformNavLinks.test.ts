@@ -15,8 +15,9 @@ describe("platform menu structure — flat by owner ruling 2026-07-26", () => {
     }
   });
 
-  it("has the exact 10 flat entries, in order, none of them a cluster wrapper", () => {
+  it("has the exact 11 flat entries, in order, none of them a cluster wrapper", () => {
     expect(PLATFORM_MENU_LINKS.map((i) => i.id)).toEqual([
+      "account-security",
       "analytics",
       "commercial",
       "admin-app-settings",
@@ -33,6 +34,7 @@ describe("platform menu structure — flat by owner ruling 2026-07-26", () => {
   it("keeps every historical label — no un-nesting collision (see report)", () => {
     const labels = PLATFORM_MENU_LINKS.map((i) => i.label);
     expect(labels).toEqual([
+      "Безопасность аккаунта",
       "Аналитика",
       "Тарифы и триал",
       "Настройки приложения",
@@ -50,6 +52,7 @@ describe("platform menu structure — flat by owner ruling 2026-07-26", () => {
 
   it("system-health, health-archive, audit-log, commercial and the admin/* subtree point at /app/admin/* URLs; only analytics is unmoved (slices 5-7)", () => {
     const byId = new Map(PLATFORM_MENU_LINKS.map((i) => [i.id, i]));
+    expect(byId.get("account-security")).toMatchObject({ href: "/app/account?tab=security" });
     expect(byId.get("system-health")).toMatchObject({ href: "/app/admin/system-health" });
     expect(byId.get("analytics")).toMatchObject({ href: "/app/doctor/analytics" });
     expect(byId.get("commercial")).toMatchObject({ href: "/app/admin/commercial" });
@@ -81,5 +84,20 @@ describe("platform menu structure — flat by owner ruling 2026-07-26", () => {
     for (const access of [doctorAccess, clinicAdminAccess]) {
       expect(getPlatformMenuItems(access)).toEqual([]);
     }
+  });
+
+  it("mounts the shared account-security destination only in the platform console", () => {
+    expect(getPlatformMenuItems(platformOnlyAccess)).toContainEqual(
+      expect.objectContaining({
+        id: "account-security",
+        href: "/app/account?tab=security",
+      }),
+    );
+    expect(getPlatformMenuItems(doctorAccess)).not.toContainEqual(
+      expect.objectContaining({ id: "account-security" }),
+    );
+    expect(getPlatformMenuItems(clinicAdminAccess)).not.toContainEqual(
+      expect.objectContaining({ id: "account-security" }),
+    );
   });
 });
