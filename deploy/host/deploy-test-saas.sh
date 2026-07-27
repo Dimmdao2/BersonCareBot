@@ -352,6 +352,42 @@ assert_locked_product_smoke_fixture_ready(){
     echo "FATAL: locked product-smoke fixture is not readable by deploy" >&2
     exit 1
   }
+  warn_if_smoke_fixture_sessions_expired "$LOCKED_PRODUCT_SMOKE_FIXTURE_CANONICAL"
+}
+
+# The fixture holds pre-minted SESSION COOKIES. A staff session dies after
+# SESSION_SLIDING_TTL_STAFF_SECONDS of idle, so a fixture older than that produces a wall of 307/401 on
+# every staff scenario while patient/public scenarios still pass — which reads exactly like product
+# breakage and has been misdiagnosed as such more than once. Proven 2026-07-27: fixture minted 15:16 on
+# 07-26, smoke ran 03:31 on 07-27 (12h15m later, staff TTL is 12h) -> all 13 staff scenarios failed, all
+# 8 patient/public scenarios passed. Say so out loud BEFORE the smoke runs, so nobody hunts a product bug.
+# The TTL is read from the source constant, never hardcoded here, so the two cannot drift apart.
+warn_if_smoke_fixture_sessions_expired(){
+  local fixture="$1"
+  local ttl_source="$DEPLOY_REPO/apps/webapp/src/modules/auth/sessionCookie.ts"
+  local ttl_expr staff_ttl fixture_mtime age
+  [ -r "$ttl_source" ] || {
+    echo "   note: cannot read $ttl_source — skipping fixture-age check (not inventing a TTL)." >&2
+    return 0
+  }
+  ttl_expr="$(sed -n 's/.*SESSION_SLIDING_TTL_STAFF_SECONDS *= *\([0-9 *]*\);.*/\1/p' "$ttl_source" | head -1)"
+  [ -n "$ttl_expr" ] || {
+    echo "   note: could not parse SESSION_SLIDING_TTL_STAFF_SECONDS — skipping fixture-age check." >&2
+    return 0
+  }
+  staff_ttl="$(( ttl_expr ))" 2>/dev/null || return 0
+  [ "$staff_ttl" -gt 0 ] 2>/dev/null || return 0
+  fixture_mtime="$(sudo stat -c %Y "$fixture" 2>/dev/null)" || return 0
+  age="$(( $(date +%s) - fixture_mtime ))"
+  [ "$age" -gt "$staff_ttl" ] || return 0
+  echo "   ⚠️  FIXTURE EXPIRED — the staff scenarios below WILL fail, and that is NOT a product regression." >&2
+  echo "       fixture age: $(( age / 3600 ))h$(( (age % 3600) / 60 ))m; staff session idle TTL: $(( staff_ttl / 3600 ))h." >&2
+  echo "       Expect every doctor/clinic_admin/global_admin scenario to return 307/401 while every" >&2
+  echo "       patient and public scenario passes. That exact split IS the signature of this, not of a bug." >&2
+  echo "       Do NOT triage product code from this run. Re-mint sessions first:" >&2
+  echo "         deploy/host/mint-smoke-session.mjs --base-url=<url> --out=$fixture" >&2
+  echo "       (see docs/ARCHITECTURE/OWNER_PRODUCT_RULES.md section 10 for why this exists)" >&2
+  return 0
 }
 
 assert_test_writers_stopped(){
