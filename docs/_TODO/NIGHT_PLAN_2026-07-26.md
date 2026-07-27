@@ -477,11 +477,30 @@ part of their own text is provably not done. Detail is inline on each item below
       `deploy/host/deploy-test.sh` points at `~/.local/state/bersoncarebot/deploy-logs/`; confirmed live
       during this reconciliation — 11 real log files there, 91KB–166KB each, timestamps spanning
       tonight's deploy attempts through 23:23.
-- [ ] **G-2** Land the docs-only branches so the audit trail stops living on side branches; delete the
+- [x] **G-2** Land the docs-only branches so the audit trail stops living on side branches; delete the
       remote branches already merged. **Checked, unchanged:** 7 `docs/*` branches still on `origin`
       (`docs/dna-reconcile-20260723`, `docs/dna-settings-live-20260723`, `docs/ui1-appointment-live-20260723`,
       `docs/ui2-reconcile-20260723`, `docs/ui6-settings-live-20260723`, `docs/uip-messages-blocker-20260723`,
       `docs/uip-mobile-menu-live-20260723`), none merged into `main`. No work done on this tonight.
+      ✅ **ЗАКРЫТО 27.07 — и закрыто НЕ ТАК, как пункт предписывал буквально.**
+      Пункт просит «влить, потом удалить влитое». Проверка показала, что вливать нечего и **вливание
+      навредило бы**: все семь веток — дубликаты после ребейза, их содержимое уже в `feat`, причём в
+      строго более новом виде. Доказано двумя независимыми способами: `git cherry` помечает шесть из семи
+      как уже вышестоящие по patch-id, а седьмую (`f678d13b8`) сверил вручную — её файл аудита идентичен
+      `feat`, а её матрица доказательств на пять дней старше (A-DNA-001 там `partial` «нет живого PNG»,
+      в `feat` — `real-done` с замерами цвета на именованном SHA).
+      **Вливание откатило бы матрицу назад:** `uip-mobile-menu` → 40/49 (−5 доказанных строк),
+      `dna-reconcile` → 41/48 (−4), `ui2-reconcile` → 44/45 (−1) против нынешних **45 доказанных / 44
+      частичных**; `uip-messages-blocker` уронил бы отдельный отчёт с 14/14 до 11/14, стерев закрытие на
+      TEST и повторный аудит под locked-принципалом. Риск потери доказательств здесь был во ВЛИВАНИИ,
+      а не в удалении.
+      Удалены с `origin` семь веток; хеши сохранены здесь, чтобы след пережил удаление:
+      `33d939dec` dna-reconcile · `a857b8eee` dna-settings-live · `2180226ec` ui1-appointment-live ·
+      `d7674d56a` ui2-reconcile · `73adb5426` ui6-settings-live · `172cf6638` uip-messages-blocker ·
+      `f678d13b8` uip-mobile-menu-live.
+      **Остаточный риск, не связанный с ветками:** сами PNG и манифесты, на которые ссылаются эти доки,
+      лежат ВНЕ git — в `/home/dev/dev-projects/.lead/runs/…`. Удаление веток их не трогает, но если тот
+      каталог когда-нибудь почистят, доказательная база исчезнет независимо от веток.
 - [x] **G-3** Mark #970 superseded by the owner's confirmed session numbers — done, in taskdb.
       `node taskdb.mjs get 970` shows status `done`, note `SUPERSEDED 26.07 решением владельца по срокам
       сессий (пункт C-1 плана...)`, pointing at commit `988f0decd` (the C-1 epoch mechanism). This is the
