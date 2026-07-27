@@ -3,14 +3,9 @@
 **This file is the single source of "todo" and "done".** Not the chat, not any audit report. An auditor
 finding that has no line here is a QUESTION for the owner, never work (see `docs/ORCHESTRATION_BINDINGS.md`).
 
-**Reconciliation pass 2026-07-26 late night.** The open count was inflated — work had landed and was never
-ticked. Every open item was re-checked against the repo (commits, re-run tests) and TEST (live curl/psql
-SELECT/systemctl, read-only). Result: **23 closed / 25 open** (was 13/35). Of the 25 still open, **9 have
-real landed work** (commits, some with passing tests) that does not yet satisfy the item's full text —
-`A-1, A-2, B-1, C-2, C-4, F-3, F-4, G-4, H-3` — and **16 have no work done at all** —
-`A-4, B-3, B-4, C-3, C-5, D-1, D-3, E-2, E-3, F-6, G-2, H-2, H-4, H-5, H-6, H-7`. Nothing was ticked to make
-the number smaller; two items with substantial live-verified work (B-1, C-4) stayed open because a named
-part of their own text is provably not done. Detail is inline on each item below.
+**Reconciliation pass 2026-07-27.** Markers were re-counted in this file after the audit corrections:
+**32 closed / 15 open / 5 cancelled or superseded**. `[x]` is used only for work that is done; `[-]` records
+cancelled or superseded work and is excluded from both totals. Detail and evidence are inline on each item.
 
 ## Standing rules the owner restated tonight
 
@@ -79,6 +74,12 @@ part of their own text is provably not done. Detail is inline on each item below
       0245 — the A-3 public-booking OTP seam this branch shipped, which is also why `expected_secdef_count`
       moved 56→58. The two numbers this new gate pins (28 and 1) reproduced **exactly**.
       Stages 2 (owner split behind WARN-then-FATAL) and 3 (structural allowlist instead of a count) remain.
+      **Privilege-sweep update 27.07:** group A is closed by `5b9bc3935`: 22 narrow
+      `SECURITY DEFINER` accessors cover PIN, channel-link secrets, e-mail setup tokens, OAuth bindings and
+      login tokens; the pinned secdef count moved 83→105. Group C is closed by `e212a50c7`: staff `SELECT`
+      on all three playback-analytics tables is restored. Group B (the patient's delivery telemetry) has the
+      owner's decision in `OWNER_PRODUCT_RULES.md` §18 — revoke the grant — but that revocation is **not
+      implemented**. Group D is only partly done. These closures do not complete A-1 stages 2–3.
 - [ ] **A-2 (C2) Public read surface.** Owner: study which actions genuinely need it; do not serve public
       data under system roles. External research says a policy over a mixed table is NOT enough (RLS is
       row-granular; covert channels are documented by PostgreSQL itself) — the shape is a **separate public
@@ -137,7 +138,8 @@ part of their own text is provably not done. Detail is inline on each item below
       Proven: `og:url` was `http://127.0.0.1:5200`, is now `https://test.bersoncare.ru`. Also settled: `/` is
       dynamic, not statically rendered, so the wrong origin was never frozen beyond the 60 s cache.
 
-- [x] **A-5 first pass, SUPERSEDED — its gate was false assurance.**
+- [-] ~~**A-5 first pass, SUPERSEDED — its gate was false assurance.**~~ — ↪️ **ВЫТЕСНЕНО** 27.07:
+      live A-5 is the AST gate in `0f4035e7b` above.
       The independent auditor kept all four assertions green with a live instance of the bug present, and the
       headline assertion stayed green when the fix it protects was reverted. Two causes: the establisher regex
       matches a guard's own DEFINITION site (17 guards live under `src/app`), so merely *importing* a guard
@@ -159,7 +161,8 @@ part of their own text is provably not done. Detail is inline on each item below
       setting name — poisoning it for ~60 s for authenticated consumers too: clinic invite links, booking
       confirmation e-mails, OAuth redirect base. Being fixed with the gate.
 
-- [x] **A-5 first pass (superseded above)** (`bf7e951f7`).
+- [-] ~~**A-5 first pass (superseded above)** (`bf7e951f7`).~~ — ↪️ **ВЫТЕСНЕНО** 27.07:
+      live A-5 is the AST gate in `0f4035e7b` above.
       **The class was far smaller than the denial count implied, and the count was misleading.** Census: 173
       page/layout entries, 88 read the DB in their own scope, **87 already stamped a principal, exactly 1 did
       not** — now fixed. Server actions swept too: 0 unstamped. Route handlers are outside the class by
@@ -185,7 +188,7 @@ part of their own text is provably not done. Detail is inline on each item below
 
 ## B. Security — host, secrets, database access
 
-- [x] **B-1 (A1) Split OS identities.** Owner authorised configuring users on THIS box under deploy rights.
+- [ ] **B-1 (A1) Split OS identities.** Owner authorised configuring users on THIS box under deploy rights.
       Runtime account with no sudo and **no `docker` group** (docker membership is root by itself and
       survives any sudo trim); deploy stays separate; delete the dormant old deploy path. Also: create a
       root-capable account for me with **no external access** (no SSH, no password login).
@@ -197,12 +200,15 @@ part of their own text is provably not done. Detail is inline on each item below
       scope). Both new accounts: `id` shows no `sudo`, no `docker`, only their own primary group.
       Cross-read provably blocked: `sudo -u bcb-web-test cat /opt/env/bersoncarebot/api.test` →
       `Permission denied`, and the reverse. `/api/health` → `200 {"ok":true,"db":"up"}`.
-      **Not done, explicitly deferred to the owner by the runbook itself, not guessed:** "delete the
-      dormant old deploy path" (two candidate SSH keys found under `deploy/.ssh/`, ambiguous which one
-      is meant) and "root-capable account for me with no external access" (`dev` already matches that
-      shape — unclear if a second identity is wanted). Both need an owner answer before they can close.
-      ✅ **ЗАКРЫТО 27.07, полный CI зелёный** (10 919 тестов, 0 падений; единственная красная строка — известная
-      уязвимость в dev-инструментах, #1014, решение владельца «деплоим с ней»). разделение пользователей выполнено и проверено живьём: веб под `bcb-web-test`, интегратор с воркером и планировщиком под `bcb-api-test`, службы отвечают, веб не может прочитать ключи интегратора.
+      - [x] **B-1: finished identity split.** Web runs as `bcb-web-test`; integrator, worker and scheduler
+        run as `bcb-api-test`; both have neither `sudo` nor `docker`, services answer, and the web identity
+        cannot read integrator keys. This was re-verified live; full CI was green at `8393cb4f5` (10,919
+        tests, 0 failures; the known dev-tool advisory is separately dispositioned in G-5).
+      - [ ] **B-1 remainder: remove the dormant old deploy path.** Two candidate SSH keys under
+        `deploy/.ssh/` still make the exact target ambiguous; this is open, not owner-deferred.
+      - [ ] **B-1 remainder: create the separate root-capable identity with no external access.** `dev`
+        already resembles that shape, but the requested separate identity has not been created; this is open,
+        not owner-deferred.
 - [x] **B-2 (A2) Postgres host trust** — narrowing done and verified live; break-glass requirement was
       already met, not newly built. `pg_hba.conf` today: `local all postgres peer`, `local tgcarebot
       tgcarebot peer`, then straight to `host ... scram-sha-256` — the catch-all `local all all peer` line
@@ -332,6 +338,14 @@ part of their own text is provably not done. Detail is inline on each item below
 - [ ] **D-1 (D5) Routing by role + an owner-facing matrix**: per notification/error type choose push /
       e-mail / SMS. SMS is mechanism-only for now. Operational alerts get their own channel (the July
       SMTP-quota outage went unnoticed for a day because alerts shared a channel).
+      **Landed subset, not closure:** `b81b539db` added the admin e-mail alert channel, but audit found it
+      never reached SMTP. `85b58b536` routes it through the dedicated operator relay; neighbouring channel
+      failures were fixed in `8393cb4f5`, where full CI was green (10,919 tests, 0 failures). The routing
+      matrix and the per-notification decision remain open.
+      **Reminder-queue incident (24.07 20:00 → 27.07 17:20):** migration
+      `0260_outgoing_delivery_scope_text_ids.sql` fixed the text/uuid comparison; the lead applied it to
+      TEST and proved it on a real stuck row. `5af05df70` stops scope failures retrying forever. Full
+      chronology and evidence are in [OUTBOUND_DELIVERY_ALERTING_PLAN.md](OUTBOUND_DELIVERY_ALERTING_PLAN.md#инцидент-2026-07-24--2026-07-27--напоминания-пациентам-не-уходили); do not duplicate it here.
 - [x] **D-2 DONE 2026-07-26 (`eb62b6544`) — and the defect was worse than this line said.**
       Both routes (`api/patient/support`, `api/public/support`) hardcoded `ADMIN_TELEGRAM_ID` and relayed
       to Telegram only: unset id → 503 before anything was attempted, relay failure → 502. **Neither route
@@ -354,7 +368,8 @@ part of their own text is provably not done. Detail is inline on each item below
 
 ## E. Messengers
 
-- [x] **E-1 — CANCELLED 2026-07-26 by the owner. Nothing is cut; both stay, switchable.**
+- [-] ~~**E-1 — CANCELLED 2026-07-26 by the owner. Nothing is cut; both stay, switchable.**~~ — ⛔
+      **ОТМЕНЕНО ВЛАДЕЛЬЦЕМ 26.07:** «тг мы не вырезаем тогда, оставляем просто отключаемым в настройках».
       Owner, verbatim: «тг мы не вырезаем тогда, оставляем просто отключаемым в настройках» — and earlier,
       that MAX may come back as a login method. So the original instruction («MAX тоже нахер пока») is
       **superseded**: no kill-switch to build, no code to delete, no `telegram_state` retirement, no data
@@ -536,14 +551,14 @@ part of their own text is provably not done. Detail is inline on each item below
       `node taskdb.mjs get 970` shows status `done`, note `SUPERSEDED 26.07 решением владельца по срокам
       сессий (пункт C-1 плана...)`, pointing at commit `988f0decd` (the C-1 epoch mechanism). This is the
       correct target — see C-1 above.
-- [x] **G-5 Dependency advisories** — owner instruction 2026-07-26 «обновляй зависимости». Done as far as it
-      goes, with one item deliberately left open and the reason recorded so nobody retries it blindly.
+- [x] **G-5 Dependency advisories** — owner instruction 2026-07-26 «обновляй зависимости». Done with an
+      explicit, expiring advisory exception rather than a falsely red CI outcome.
       Of the 12 advisories `registry-prod-audit` reported, **10 were already closed** by `bc41c566d` and
       `d60cb1222` (2026-07-23). Of the 3 live ones — all dev/build tooling, none in a production runtime
       dependency — **2 are fixed** in `6a793fb8c` by moving override floors that had gone stale by two days
       (both advisories were published 2026-07-24, after the last override bump): `postcss >=8.5.10 → >=8.5.18`,
       `minimatch@10>brace-expansion 5.0.7 → 5.0.8`.
-      **The third cannot be fixed and the CI `audit` step stays red on it.** GHSA-mh99-v99m-4gvg,
+      **The third cannot be fixed upstream today:** GHSA-mh99-v99m-4gvg,
       `brace-expansion@1.1.16`: the 1.x line is end-of-life (1.1.16 is its last release ever and carries the
       advisory) and the only consumer left is `eslint@9.39.4` itself, which depends on `minimatch@3` directly.
       **Three routes were tried and all failed — do not repeat them:**
@@ -561,8 +576,10 @@ part of their own text is provably not done. Detail is inline on each item below
       is a wrapper around a broken third-party plugin, not a fix, and not worth taking on for a DoS in a
       lint-time glob expander that no request path reaches. **Revisit when `eslint-config-next` ships an
       ESLint-10-compatible `eslint-plugin-react`** — watch the issue above.
-      Consequence to carry forward: `pnpm run ci` cannot be fully green until then. Everything else in the
-      chain passes; the `audit` step is red on this one advisory alone.
+      `4d20bd705` records **GHSA-mh99-v99m-4gvg** as an advisory allowlist entry, not a hidden dismissal:
+      it expires and the registry audit fails again unless its review-date gate is renewed deliberately.
+      Full CI passed at `8393cb4f5`. Revisit by the allowlist review date or when the upstream
+      `eslint-config-next` compatibility issue is fixed.
 
 - [x] **G-4 DONE 2026-07-27 (`976c59bbf`) — 570 probes, 114 routes × 5 roles, zero breaks.**
       Redirects were not followed, and this was not a status-code count: every one of the 134 `200 OK`
@@ -639,6 +656,10 @@ part of their own text is provably not done. Detail is inline on each item below
       migrations 0243/0244/0245 pending-but-correct, they apply on the next ordinary deploy.
       Unexplained and judged inert, recorded rather than dismissed: `app_owner|org_brand_revisions|SELECT`
       exists on DEV, on TEST it does not, and no committed file grants it.
+      **Related TEST-only migration evidence:** SaaS billing foundation `53dd848c2`, then audit-block closure
+      `f773c5d8c`, closed all five audit defects. Migration 0259 was executed against the real TEST schema
+      inside a rolled-back transaction; an injected active trial proved the trial-vs-manual discriminator.
+      This is evidence for the release/process gate, not a claim that G-4's GET-only route walk proves billing.
 
 ## Done tonight (evidence)
 
@@ -646,7 +667,8 @@ part of their own text is provably not done. Detail is inline on each item below
 - [x] Global-admin settings page — grant moved into the closure where it survives deploys, `80cc09abe`.
 - [x] Two 500s were a missing PRINCIPAL, not a missing grant — `19f52fed2` (my diagnosis was wrong; the
       worker refuted it with PostgreSQL's own logs).
-- [x] Session-revocation code restored and finished — `12e263e63` (unproven against a DB).
+- [-] ~~Session-revocation code restored and finished — `12e263e63` (unproven against a DB).~~ — ↪️
+      **ВЫТЕСНЕНО** 27.07: C-1's live mechanism is `988f0decd`, proven against a DB; see C-1 above.
 - [x] Unmerged branches reconciled — no side branch explains any broken page.
 - [x] Pre-production list opened — `docs/_TODO/PRE_PRODUCTION_TODO.md`.
 
@@ -665,20 +687,22 @@ part of their own text is provably not done. Detail is inline on each item below
       `modules/booking-scheduling/` (checked directly). Added 3 tests at the service level pinning all
       three branches of the rule, including the no-schedule-at-all → zero-slots case. 10/10 tests re-run
       clean during this reconciliation.
-- [x] **H-2 (#913) Что видно в уведомлении.** Запись и напоминания о занятиях — **открыто, как было**;
-      личный чат — только «новое сообщение от <имя>»; рассылка — тема открыто, содержание при переходе.
-      Принцип: логистика записи открыта, содержание переписки о здоровье закрыто.
+- [-] ~~**H-2 (#913) Что видно в уведомлении.** Запись и напоминания о занятиях — **открыто, как было**;
+      личный чат — только «новое сообщение от <имя>»; рассылка — тема открыто, содержание при переходе.~~
+      — ↪️ **ВЫТЕСНЕНО** 27.07 для рассылки: `fcd956395` восстановил полное тело в
+      `fanOutBroadcastEmail.ts` и `deliveryJobs.ts`; действующее правило владельца —
+      `OWNER_PRODUCT_RULES.md` §15: «текст открыто, как есть».
       **Проверено 26.07: только решение, кода нет.** Строка «новое сообщение от» нигде не встречается в
       `apps/webapp/src`/`apps/integrator/src` (прямой grep). taskdb #913 подтверждает: статус `blocked`,
       решение записано в заметке, но реализации нет.
-      ✅ **СДЕЛАНО 27.07** (`298c025d7` → correction `e1c6f62a1` → correction `d99c72d9d`; полный CI зелёный,
-      9470 тестов). Два независимых адверсарных аудита, оба вернули находки, оба закрыты.
+      ~~✅ **СДЕЛАНО 27.07** (`298c025d7` → correction `e1c6f62a1` → correction `d99c72d9d`; полный CI зелёный,
+      9470 тестов).~~ Реализация рассылки из этих коммитов вытеснена `fcd956395`.
       **Личный чат:** было — текст сообщения до 500 символов плюс описания вложений; стало — только
       «новое сообщение от <имя>» и ссылка, во всех четырёх каналах (пуш, Telegram, MAX, почта). Хелпер
       `previewText`, который резал и отправлял текст, удалён — живых вызывающих не осталось.
-      **Рассылка:** тема и ссылка, тело не уходит. Включая SMS — первый исполнитель вывел SMS из-под
+      ~~**Рассылка:** тема и ссылка, тело не уходит. Включая SMS — первый исполнитель вывел SMS из-под
       правила НАМЕРЕННО и переименовал тест, чтобы это узаконить («sms keeps its existing full-content
-      rendition»); правило владельца каналов не исключает, исключение снято.
+      rendition»); правило владельца каналов не исключает, исключение снято.~~
       **Запись и напоминания о занятиях — байт в байт не тронуты.** Это половина правила, которую легче
       всего сломать по инерции; проверено сторожевым тестом и диффом по всем трём коммитам.
       **Имя отправителя** — единственное живое содержимое уведомления, поэтому пропущено через фильтр:
@@ -693,6 +717,9 @@ part of their own text is provably not done. Detail is inline on each item below
       рассылки (уходит целиком в Telegram и в письмо); уведомление о заявке (несёт имя пациента и 200
       символов жалобы, в §2 такого вида нет); подпись врача при ответе из бота берётся из имени его
       Telegram-профиля, а не из ФИО в системе.
+- [x] **H-2: оставшаяся половина — уведомления личного чата.** `298c025d7` / `e1c6f62a1` /
+      `d99c72d9d` остаются действующим доказательством для чата: без текста и превью, только факт,
+      дата-время и ссылка по `OWNER_PRODUCT_RULES.md` §22. `fcd956395` не отменяет эту половину.
 - [x] **H-3 (#1018) «Отложить» и «пропустить» у пациента** — через узкую служебную процедуру
       (`SECURITY DEFINER`), НЕ грантом на таблицу. Владелец подтвердил, что это стандартная практика.
       **Наполовину сделано.** `699604a8e` дал `reminder_occurrence_history` пациентскую RLS-ветку — это
@@ -765,3 +792,22 @@ part of their own text is provably not done. Detail is inline on each item below
 **Осталось за владельцем, не наша работа:** #881 (отзыв старых ключей — он отзовёт сам, живём с этим),
 #899 (ответственный за ПДн и юрист), #1035 (юрист по 149-ФЗ), #1039 (остаток абонемента уходит в минус —
 это ВОПРОС, в плане владельца такой строки нет).
+
+## НЕ СДЕЛАНО
+
+Открытые пункты и их честный остаток (эта сводка не добавляет новых чекбоксов):
+
+- **A-1:** stages 2–3 — отдельный владелец для 28 definer-функций и структурный allowlist; группы A/C
+  privilege sweep закрыты, B не реализована, D частична.
+- **A-2:** отдельная публичная read-model/роль и остальные названные поверхности.
+- **A-4:** rebuild `platform_users` и связанных identity-сurface.
+- **B-1:** удалить старый deploy path и создать запрошенную отдельную root-capable identity без внешнего
+  доступа; выполнен только split runtime OS identities.
+- **B-3, B-4:** разделение секретов по потребителям и key IDs для ротации.
+- **C-3:** fallback каналов доставки OTP.
+- **D-1:** owner-facing routing matrix и решение по каждому типу уведомления; e-mail relay и outage fix —
+  только закрытые части этого более широкого пункта.
+- **D-3:** PWA/push глобального администратора.
+- **E-2, E-3:** retirement plaintext bot token и предупреждение messenger-only accounts до pre-production.
+- **F-3:** scheduled messages.
+- **H-5:** независимый анонимный TEST click-through публичной записи.
