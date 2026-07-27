@@ -1,12 +1,17 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { AuthRateLimitCheckParams } from "@/modules/auth/authRateLimitPort";
 
-const { dbMock } = vi.hoisted(() => ({
+const { dbMock, loggerWarnMock } = vi.hoisted(() => ({
   dbMock: vi.fn<(params: AuthRateLimitCheckParams) => Promise<boolean>>(),
+  loggerWarnMock: vi.fn(),
 }));
 
 vi.mock("@/config/env", () => ({
   env: { DATABASE_URL: "postgres://synthetic.test/db" },
+}));
+
+vi.mock("@/infra/logging/logger", () => ({
+  logger: { warn: loggerWarnMock },
 }));
 
 import { createSlidingWindowRateLimit } from "@/modules/auth/createSlidingWindowRateLimit";
@@ -16,6 +21,7 @@ describe("sliding-window scope prune cadence", () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date("2026-07-21T12:00:00.000Z"));
     dbMock.mockReset();
+    loggerWarnMock.mockReset();
   });
 
   afterEach(() => {
@@ -64,6 +70,26 @@ describe("sliding-window scope prune cadence", () => {
     expect(dbMock.mock.calls[3]?.[0].scopePrune).toEqual({
       retentionMs: 3_600_000,
       batchSize: 500,
+    });
+  });
+
+  it("logs the permanent memory fallback once and does not retry the latched DB leg", async () => {
+    dbMock.mockRejectedValue(new Error("synthetic database failure"));
+    const isLimited = createSlidingWindowRateLimit({
+      scope: "auth.confirm",
+      windowMs: 600_000,
+      maxPerWindow: 1,
+      db: { checkAndRecord: (params) => dbMock(params) },
+    });
+
+    await expect(isLimited("198.51.100.7")).resolves.toBe(false);
+    await expect(isLimited("198.51.100.7")).resolves.toBe(true);
+
+    expect(dbMock).toHaveBeenCalledTimes(1);
+    expect(loggerWarnMock).toHaveBeenCalledTimes(1);
+    expect(loggerWarnMock.mock.calls[0]?.[0]).toMatchObject({
+      scope: "auth.confirm",
+      event: "auth_rate_limit_db_fallback",
     });
   });
 });

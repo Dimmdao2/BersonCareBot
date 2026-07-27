@@ -1254,6 +1254,11 @@ WITH required(tbl, priv) AS (
     ('public.phone_otp_locks', 'INSERT'),
     ('public.phone_otp_locks', 'UPDATE'),
     ('public.phone_otp_locks', 'DELETE'),
+    -- 0254 shared auth limiter action accessors: scope/key pruning requires SELECT+DELETE, counting
+    -- requires SELECT, and recording requires INSERT. Runtime callers retain no direct table grant.
+    ('public.auth_rate_limit_events', 'SELECT'),
+    ('public.auth_rate_limit_events', 'INSERT'),
+    ('public.auth_rate_limit_events', 'DELETE'),
     -- 0248 decaying OTP lockout (night plan C-2 step 3): app.email_auth_find_email_otp_lock(uuid),
     -- app.email_auth_register_email_otp_lockout(uuid) and app.email_auth_reset_email_otp_lockout(uuid)
     -- read/write the new email_otp_locks table. It has no dedicated deploy/postgres overlay (a
@@ -1425,7 +1430,10 @@ SELECT has_column_privilege('app_owner', 'public.operator_incidents', 'alert_sen
   # and app.patient_skip_reminder_occurrence(uuid,text,text). Both read public.platform_users and
   # public.reminder_occurrence_history, and UPDATE only public.reminder_occurrence_history; the two
   # newly required reminder-occurrence SELECT/UPDATE rows are in the VALUES set above.
-  local expected_secdef_count=76
+  # 76 -> 80 (2026-07-27, taskdb #1055): migration 0254_auth_rate_limit_action_accessors adds four
+  # reviewed app_owner SECURITY DEFINER functions: exact-scope bounded prune, exact scope/key prune,
+  # exact scope/key count, and one-event record. Their SELECT/INSERT/DELETE grants are pinned above.
+  local expected_secdef_count=80
   local actual_secdef_count
   actual_secdef_count="$(sudo -u postgres psql -d "$DB" -X -v ON_ERROR_STOP=1 -tAc "
 SELECT count(*) FROM pg_proc p WHERE pg_get_userbyid(p.proowner) = 'app_owner' AND p.prosecdef;
@@ -1438,7 +1446,7 @@ SELECT count(*) FROM pg_proc p WHERE pg_get_userbyid(p.proowner) = 'app_owner' A
     exit 1
   }
 
-  echo "   app_owner SECURITY DEFINER table-grant completeness: OK (39 required table grants + 1 column grant present, $actual_secdef_count/$expected_secdef_count secdef functions pinned)"
+  echo "   app_owner SECURITY DEFINER table-grant completeness: OK (42 required table grants + 1 column grant present, $actual_secdef_count/$expected_secdef_count secdef functions pinned)"
 }
 
 assert_c5a_clinical_test_measure_kinds_closure(){

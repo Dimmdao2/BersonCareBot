@@ -56,7 +56,7 @@ describe("checkAndRecordAuthRateLimitEvent", () => {
     expect(limited).toBe(false);
     expect(runWebappPgTextMock).toHaveBeenCalledTimes(3);
     const insertSql = String(runWebappPgTextMock.mock.calls[2]?.[0] ?? "");
-    expect(insertSql).toContain("INSERT INTO auth_rate_limit_events");
+    expect(insertSql).toContain("app.auth_rate_limit_record($1, $2)");
   });
 
   it("prunes stale rows for the full F0 scope before checking a pseudonymous key", async () => {
@@ -86,10 +86,7 @@ describe("checkAndRecordAuthRateLimitEvent", () => {
       "auth-rate-limit-scope-prune:patient.client_boot_report",
     ]);
     const pruneSql = String(runWebappPgTextMock.mock.calls[1]?.[0] ?? "");
-    expect(pruneSql).toContain("WHERE scope = $1 AND occurred_at <= $2");
-    expect(pruneSql).toContain("ORDER BY occurred_at");
-    expect(pruneSql).toContain("LIMIT $3");
-    expect(pruneSql).toContain("FOR UPDATE SKIP LOCKED");
+    expect(pruneSql).toContain("app.auth_rate_limit_prune_scope($1, $2, $3)");
     expect(runWebappPgTextMock.mock.calls[1]?.[1]).toEqual([
       "patient.client_boot_report",
       expect.any(Date),
@@ -121,7 +118,7 @@ describe("checkAndRecordAuthRateLimitEvent", () => {
 
     expect(runWebappPgTextMock).toHaveBeenCalledTimes(3);
     expect(String(runWebappPgTextMock.mock.calls[1]?.[0] ?? "")).toContain(
-      "WHERE scope = $1 AND key = $2",
+      "app.auth_rate_limit_prune_key($1, $2, $3)",
     );
   });
 });

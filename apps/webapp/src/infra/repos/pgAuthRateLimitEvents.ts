@@ -35,17 +35,7 @@ export async function checkAndRecordAuthRateLimitEvent(params: AuthRateLimitChec
           Math.min(AUTH_RATE_LIMIT_SCOPE_PRUNE_MAX_BATCH, Math.floor(scopePrune.batchSize)),
         );
         await runWebappPgText(
-          `WITH stale AS (
-             SELECT ctid
-             FROM auth_rate_limit_events
-             WHERE scope = $1 AND occurred_at <= $2
-             ORDER BY occurred_at
-             LIMIT $3
-             FOR UPDATE SKIP LOCKED
-           )
-           DELETE FROM auth_rate_limit_events AS events
-           USING stale
-           WHERE events.ctid = stale.ctid`,
+          "SELECT app.auth_rate_limit_prune_scope($1, $2, $3)",
           [scope, retentionCutoff, batchSize],
           tx,
         );
@@ -56,13 +46,13 @@ export async function checkAndRecordAuthRateLimitEvent(params: AuthRateLimitChec
 
     const windowStart = new Date(Date.now() - windowMs);
     await runWebappPgText(
-      "DELETE FROM auth_rate_limit_events WHERE scope = $1 AND key = $2 AND occurred_at <= $3",
+      "SELECT app.auth_rate_limit_prune_key($1, $2, $3)",
       [scope, key, windowStart],
       tx,
     );
 
     const countResult = await runWebappPgText<{ c: string }>(
-      "SELECT COUNT(*)::text AS c FROM auth_rate_limit_events WHERE scope = $1 AND key = $2",
+      "SELECT app.auth_rate_limit_count($1, $2)::text AS c",
       [scope, key],
       tx,
     );
@@ -72,7 +62,7 @@ export async function checkAndRecordAuthRateLimitEvent(params: AuthRateLimitChec
     }
 
     await runWebappPgText(
-      "INSERT INTO auth_rate_limit_events (scope, key, occurred_at) VALUES ($1, $2, now())",
+      "SELECT app.auth_rate_limit_record($1, $2)",
       [scope, key],
       tx,
     );

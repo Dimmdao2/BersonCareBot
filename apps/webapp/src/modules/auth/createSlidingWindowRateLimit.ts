@@ -1,4 +1,5 @@
 import { env } from "@/config/env";
+import { logger } from "@/infra/logging/logger";
 import type { AuthRateLimitDbPort } from "@/modules/auth/authRateLimitPort";
 
 export type SlidingWindowRateLimitConfig = {
@@ -74,8 +75,19 @@ export function createSlidingWindowRateLimit(config: SlidingWindowRateLimitConfi
             }
           : {}),
       });
-    } catch {
+    } catch (err) {
+      const shouldLogFallback = !dbUnavailable;
       dbUnavailable = true;
+      if (shouldLogFallback) {
+        logger.warn(
+          {
+            err,
+            scope: config.scope,
+            event: "auth_rate_limit_db_fallback",
+          },
+          "[auth-rate-limit] database unavailable; permanently using in-memory fallback",
+        );
+      }
       return isLimitedInMemory(key);
     } finally {
       if (shouldPrune) scopePruneInFlight = false;

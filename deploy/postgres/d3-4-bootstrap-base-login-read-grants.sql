@@ -281,6 +281,27 @@ SELECT format(
   :'d3_4_bootstrap_base_role'
 )
 WHERE to_regprocedure('app.phone_auth_reset_otp_lockout(text)') IS NOT NULL \gexec
+-- 0254 shared auth limiter: anonymous confirm routes stay on this bare NOINHERIT login.
+SELECT format(
+  'REVOKE EXECUTE ON FUNCTION app.auth_rate_limit_prune_scope(text, timestamptz, integer) FROM %I',
+  :'d3_4_bootstrap_base_role'
+)
+WHERE to_regprocedure('app.auth_rate_limit_prune_scope(text, timestamptz, integer)') IS NOT NULL \gexec
+SELECT format(
+  'REVOKE EXECUTE ON FUNCTION app.auth_rate_limit_prune_key(text, text, timestamptz) FROM %I',
+  :'d3_4_bootstrap_base_role'
+)
+WHERE to_regprocedure('app.auth_rate_limit_prune_key(text, text, timestamptz)') IS NOT NULL \gexec
+SELECT format(
+  'REVOKE EXECUTE ON FUNCTION app.auth_rate_limit_count(text, text) FROM %I',
+  :'d3_4_bootstrap_base_role'
+)
+WHERE to_regprocedure('app.auth_rate_limit_count(text, text)') IS NOT NULL \gexec
+SELECT format(
+  'REVOKE EXECUTE ON FUNCTION app.auth_rate_limit_record(text, text) FROM %I',
+  :'d3_4_bootstrap_base_role'
+)
+WHERE to_regprocedure('app.auth_rate_limit_record(text, text)') IS NOT NULL \gexec
 REVOKE EXECUTE ON FUNCTION app.email_auth_find_email_send_cooldown(uuid, text) FROM :"d3_4_bootstrap_base_role";
 REVOKE EXECUTE ON FUNCTION app.email_auth_delete_email_challenges_for_user(uuid) FROM :"d3_4_bootstrap_base_role";
 REVOKE EXECUTE ON FUNCTION app.email_auth_insert_email_challenge(uuid, text, text, bigint) FROM :"d3_4_bootstrap_base_role";
@@ -609,6 +630,27 @@ SELECT format(
   :'d3_4_bootstrap_base_role'
 )
 WHERE to_regprocedure('app.phone_auth_reset_otp_lockout(text)') IS NOT NULL \gexec
+-- 0254: same bare-login reachability rule as the bootstrap phone-auth accessors above.
+SELECT format(
+  'GRANT EXECUTE ON FUNCTION app.auth_rate_limit_prune_scope(text, timestamptz, integer) TO %I',
+  :'d3_4_bootstrap_base_role'
+)
+WHERE to_regprocedure('app.auth_rate_limit_prune_scope(text, timestamptz, integer)') IS NOT NULL \gexec
+SELECT format(
+  'GRANT EXECUTE ON FUNCTION app.auth_rate_limit_prune_key(text, text, timestamptz) TO %I',
+  :'d3_4_bootstrap_base_role'
+)
+WHERE to_regprocedure('app.auth_rate_limit_prune_key(text, text, timestamptz)') IS NOT NULL \gexec
+SELECT format(
+  'GRANT EXECUTE ON FUNCTION app.auth_rate_limit_count(text, text) TO %I',
+  :'d3_4_bootstrap_base_role'
+)
+WHERE to_regprocedure('app.auth_rate_limit_count(text, text)') IS NOT NULL \gexec
+SELECT format(
+  'GRANT EXECUTE ON FUNCTION app.auth_rate_limit_record(text, text) TO %I',
+  :'d3_4_bootstrap_base_role'
+)
+WHERE to_regprocedure('app.auth_rate_limit_record(text, text)') IS NOT NULL \gexec
 GRANT EXECUTE ON FUNCTION app.email_auth_find_email_send_cooldown(uuid, text) TO :"d3_4_bootstrap_base_role";
 GRANT EXECUTE ON FUNCTION app.email_auth_delete_email_challenges_for_user(uuid) TO :"d3_4_bootstrap_base_role";
 GRANT EXECUTE ON FUNCTION app.email_auth_insert_email_challenge(uuid, text, text, bigint) TO :"d3_4_bootstrap_base_role";
