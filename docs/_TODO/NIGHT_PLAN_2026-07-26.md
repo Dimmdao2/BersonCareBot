@@ -405,7 +405,7 @@ part of their own text is provably not done. Detail is inline on each item below
       click to reschedule or cancel; pending messages last in the thread under a divider; collapsing later.
       ~3000 lines exist on `agent/ui964-20260722`; migration must be renumbered, `DoctorCommentsTab` was
       rewritten in feat.
-- [ ] **F-4 (#988)** — REOPENED 2026-07-26 by the lead. Code fix `ad70a0da9` is correct and was proven live
+- [x] **F-4 (#988)** — REOPENED 2026-07-26 by the lead, CLOSED 2026-07-27. Code fix `ad70a0da9` is correct and was proven live
       over HTTP (unread 2 → 1, the untouched conversation stays unread) — **but only on DEV, and only after a
       worker applied the required grant BY HAND.** Verified read-only on TEST: `app_patient` has SELECT and
       INSERT on `support_conversation_messages.read_at` and **no UPDATE**, and
@@ -430,6 +430,20 @@ part of their own text is provably not done. Detail is inline on each item below
       **Not separately proven:** the `treatment_program_instance_stages`/`_stage_items` UPDATE grants — this
       patient's active program has no `available` stage containing items, so the guarded write path is
       unreachable. A data state, not a defect; needs another patient/instance or a doctor unlocking a stage.
+      ✅ **ЗАКРЫТО 27.07 — обе половины доказаны живьём.** Половина с правами (mark-read) была закрыта
+      26.07. Половина с напоминаниями закрыта работой по H-3: патч RLS `699604a8e` дал пациентскую ветку
+      для «выполнено», миграция `0253` (`170eddc7c`) добавила две узкие `SECURITY DEFINER`-процедуры для
+      «отложить» и «пропустить» — по решению владельца §4, не грантом на таблицу.
+      **Сквозная проверка 27.07 настоящими HTTP-запросами под живой пациентской сессией владельца**
+      (та самая, что раньше отдавала 404 на все три действия):
+      `POST .../occurrences/{id}/snooze` → **200** `{"ok":true,"snoozedUntil":…}`;
+      `POST .../occurrences/{id}/skip` → **200** `{"ok":true,"skippedAt":…}`;
+      `POST /api/patient/reminders/{id}/done` → **200** `{"ok":true,"doneAt":…,"firstDoneForOccurrence":true}`.
+      Это же закрывает пробел, который аудит H-3 честно пометил как непроверяемый без живой сессии.
+      Данные при проверке изменены по-настоящему: три напоминания владельца на TEST отложено/пропущено/
+      выполнено. TEST — площадка для этого, но факт записан, чтобы он не выглядел неожиданностью.
+      Остаётся непроверенным ровно то, что и было: гранты `treatment_program_instance_stages`/`_stage_items`
+      — у этого пациента нет этапа `available` с пунктами, путь записи недостижим. Состояние данных, не дефект.
 - [x] **F-5** — closed conversation renders read-only `ad70a0da9`: opens 200 with history and `readOnly`, the composer is not rendered, posting answers 409 `conversation_closed` instead of the rejected 404. Closed support conversation renders read-only — never "not found".
 - [ ] **F-6** Clinic slug, public page and the booking screens (worker was stopped mid-flight; migration 0243
       and its `expected_secdef_count` 56→57 sit uncommitted).
