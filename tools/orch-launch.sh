@@ -25,7 +25,11 @@ set -euo pipefail
 MAIN=/home/dev/dev-projects/BersonCareBot
 FEAT=feat/doctor-ui-rebuild
 QUEUE="$MAIN/docs/_TODO/NIGHT_WAVE_AUDIT_QUEUE_2026-07-28.md"
-MAX_AGENTS=${ORCH_MAX_AGENTS:-3}
+# Потолки разные по роли. Воркеры пишут в дерево и жгут CPU — их 3 (AGENTS.md §24).
+# Аудиторы только читают, конфликтовать им нечем — их 5. Владелец 28.07: «почему аудит идёт
+# в ОДИН ПОТОК? уж тут то можно хоть в пять».
+MAX_WORKERS=${ORCH_MAX_WORKERS:-3}
+MAX_AUDITORS=${ORCH_MAX_AUDITORS:-5}
 PORT=/home/dev/brain/host-orch/agent-run.mjs
 
 die() { echo "ОТКАЗ: $*" >&2; exit 1; }
@@ -41,8 +45,15 @@ case "$ROLE" in
 esac
 
 # 1. Потолок агентов.
-LIVE=$(ps -eo args | grep -c '[a]gent-run\.mjs' || true)
-[ "$LIVE" -lt "$MAX_AGENTS" ] || die "уже запущено $LIVE агентов, потолок $MAX_AGENTS (AGENTS.md §24). Ставь в очередь, не веером."
+LIVE_W=$(ps -eo args | grep '[a]gent-run\.mjs' | grep -c -- '--role worker' || true)
+LIVE_A=$(ps -eo args | grep '[a]gent-run\.mjs' | grep -c -- '--role auditor' || true)
+if [ "$ROLE" = worker ]; then
+  [ "$LIVE_W" -lt "$MAX_WORKERS" ] || die "уже $LIVE_W воркеров, потолок $MAX_WORKERS (AGENTS.md §24). В очередь, не веером."
+  LIVE=$LIVE_W; CAP=$MAX_WORKERS
+else
+  [ "$LIVE_A" -lt "$MAX_AUDITORS" ] || die "уже $LIVE_A аудиторов, потолок $MAX_AUDITORS. В очередь."
+  LIVE=$LIVE_A; CAP=$MAX_AUDITORS
+fi
 
 # 2. Клон: существует, чистый, на текущей голове feat.
 [ -d "$CLONE/.git" ] || die "клон $CLONE не найден"
@@ -72,7 +83,7 @@ fi
 # 5. Запуск. Лог рядом с брифом, run-id — в имени.
 LOG="$(dirname "$BRIEF")/$RUN_ID.log"
 echo "запуск: роль=$ROLE клон=$CLONE_NAME модель=$MODEL effort=$EFFORT слой=$PLAN_SLICE"
-echo "  клон и feat совпадают на ${HEAD_MAIN:0:9}; агентов было $LIVE из $MAX_AGENTS; лог $LOG"
+echo "  клон и feat совпадают на ${HEAD_MAIN:0:9}; агентов роли было $LIVE из $CAP; лог $LOG"
 [ -z "${ORCH_DRY:-}" ] || { echo "  ORCH_DRY=1 — все проверки пройдены, агент НЕ запущен"; exit 0; }
 nohup node "$PORT" --provider codex --model "$MODEL" --effort "$EFFORT" \
   --role "$ROLE" --sandbox "$SANDBOX" --cwd "$CLONE" --run-id "$RUN_ID" \
