@@ -16,6 +16,9 @@ REVOKE EXECUTE ON FUNCTION app.read_global_server_runtime_setting(text)
   FROM :"integrator_runtime_config_role";
 REVOKE EXECUTE ON FUNCTION app.read_integrator_smtp_outbound_setting()
   FROM :"integrator_runtime_config_role";
+REVOKE EXECUTE ON FUNCTION app.record_global_email_delivery_attempt(
+  text, text, text, text, text, integer, text, jsonb, timestamptz
+) FROM :"integrator_runtime_config_role";
 REVOKE EXECUTE ON FUNCTION app.release_principal_context()
   FROM :"integrator_runtime_config_role";
 \echo 'Integrator server-runtime config grants DOWN complete.'
@@ -68,6 +71,9 @@ SELECT 1 / (
   )
   AND to_regprocedure('app.read_global_server_runtime_setting(text)') IS NOT NULL
   AND to_regprocedure('app.read_integrator_smtp_outbound_setting()') IS NOT NULL
+  AND to_regprocedure(
+    'app.record_global_email_delivery_attempt(text,text,text,text,text,integer,text,jsonb,timestamptz)'
+  ) IS NOT NULL
   AND to_regprocedure('app.install_signed_context(text,integer,bigint,uuid,uuid,bigint,text)') IS NOT NULL
   AND to_regprocedure('app.release_principal_context()') IS NOT NULL
 )::int AS integrator_server_runtime_config_preflight;
@@ -87,9 +93,16 @@ ORDER BY granted_role.rolname
 \gexec
 REVOKE SELECT ON TABLE public.app_runtime_settings, public.system_settings
   FROM :"integrator_runtime_config_role";
+REVOKE INSERT ON TABLE integrator.delivery_attempt_logs
+  FROM :"integrator_runtime_config_role";
+REVOKE USAGE ON SEQUENCE integrator.delivery_attempt_logs_id_seq
+  FROM :"integrator_runtime_config_role";
 GRANT SELECT ON TABLE public.app_runtime_settings TO app_owner;
 ALTER FUNCTION app.read_global_server_runtime_setting(text) OWNER TO app_owner;
 ALTER FUNCTION app.read_integrator_smtp_outbound_setting() OWNER TO app_owner;
+ALTER FUNCTION app.record_global_email_delivery_attempt(
+  text, text, text, text, text, integer, text, jsonb, timestamptz
+) OWNER TO app_owner;
 
 -- 0244_public_app_base_url_runtime_setting registered app_base_url in the projection at
 -- audience='public' for the anonymous landing page. The unique index backing this projection is
@@ -160,6 +173,42 @@ $smtp_acl_scrub$;
 REVOKE ALL ON FUNCTION app.read_integrator_smtp_outbound_setting() FROM PUBLIC;
 REVOKE ALL ON FUNCTION app.read_integrator_smtp_outbound_setting()
   FROM app_staff, app_patient, app_worker;
+-- Reset the delivery-audit capability just as strictly: the exact API login gets EXECUTE only,
+-- while direct table INSERT and sequence USAGE stay revoked above.
+REVOKE ALL PRIVILEGES ON FUNCTION app.record_global_email_delivery_attempt(
+  text, text, text, text, text, integer, text, jsonb, timestamptz
+) FROM :"integrator_runtime_config_role" CASCADE;
+DO $delivery_audit_acl_scrub$
+DECLARE
+  v_grantee_oid oid;
+  v_grantee_name text;
+BEGIN
+  FOR v_grantee_oid, v_grantee_name IN
+    SELECT DISTINCT privilege.grantee, role.rolname
+    FROM pg_proc AS procedure
+    CROSS JOIN LATERAL aclexplode(
+      COALESCE(procedure.proacl, acldefault('f', procedure.proowner))
+    ) AS privilege
+    LEFT JOIN pg_roles AS role ON role.oid = privilege.grantee
+    WHERE procedure.oid =
+      'app.record_global_email_delivery_attempt(text,text,text,text,text,integer,text,jsonb,timestamptz)'::regprocedure
+      AND privilege.grantee <> procedure.proowner
+  LOOP
+    IF v_grantee_oid = 0 THEN
+      EXECUTE
+        'REVOKE ALL PRIVILEGES ON FUNCTION app.record_global_email_delivery_attempt(text,text,text,text,text,integer,text,jsonb,timestamptz) FROM PUBLIC CASCADE';
+    ELSE
+      EXECUTE format(
+        'REVOKE ALL PRIVILEGES ON FUNCTION app.record_global_email_delivery_attempt(text,text,text,text,text,integer,text,jsonb,timestamptz) FROM %I CASCADE',
+        v_grantee_name
+      );
+    END IF;
+  END LOOP;
+END
+$delivery_audit_acl_scrub$;
+REVOKE ALL ON FUNCTION app.record_global_email_delivery_attempt(
+  text, text, text, text, text, integer, text, jsonb, timestamptz
+) FROM PUBLIC, app_staff, app_patient, app_worker;
 REVOKE EXECUTE ON FUNCTION
   app.install_signed_context(text, integer, bigint, uuid, uuid, bigint, text),
   app.current_org_id(),
@@ -174,6 +223,9 @@ GRANT EXECUTE ON FUNCTION app.read_global_server_runtime_setting(text)
   TO :"integrator_runtime_config_role";
 GRANT EXECUTE ON FUNCTION app.read_integrator_smtp_outbound_setting()
   TO :"integrator_runtime_config_role";
+GRANT EXECUTE ON FUNCTION app.record_global_email_delivery_attempt(
+  text, text, text, text, text, integer, text, jsonb, timestamptz
+) TO :"integrator_runtime_config_role";
 -- Bootstrap/infra cleanup runs before any SET ROLE. Scoped install/release runs after the
 -- classified app_staff/app_patient switch and remains granted through those roles by P2-B.
 GRANT EXECUTE ON FUNCTION app.release_principal_context()
@@ -201,6 +253,11 @@ SELECT 1 / (
   AND has_function_privilege(
     :'integrator_runtime_config_role',
     'app.read_integrator_smtp_outbound_setting()',
+    'EXECUTE'
+  )
+  AND has_function_privilege(
+    :'integrator_runtime_config_role',
+    'app.record_global_email_delivery_attempt(text,text,text,text,text,integer,text,jsonb,timestamptz)',
     'EXECUTE'
   )
   AND (
@@ -245,6 +302,52 @@ SELECT 1 / (
   AND NOT has_function_privilege(
     'app_worker',
     'app.read_integrator_smtp_outbound_setting()',
+    'EXECUTE'
+  )
+  AND (
+    SELECT count(*)
+    FROM pg_proc AS procedure
+    CROSS JOIN runtime_role
+    JOIN pg_roles AS owner ON owner.oid = procedure.proowner
+    CROSS JOIN LATERAL aclexplode(
+      COALESCE(procedure.proacl, acldefault('f', procedure.proowner))
+    ) AS privilege
+    WHERE procedure.oid =
+      'app.record_global_email_delivery_attempt(text,text,text,text,text,integer,text,jsonb,timestamptz)'::regprocedure
+      AND procedure.prosecdef
+      AND owner.rolname = 'app_owner'
+      AND privilege.grantee IN (procedure.proowner, runtime_role.oid)
+      AND privilege.privilege_type = 'EXECUTE'
+      AND NOT privilege.is_grantable
+  ) = 2
+  AND NOT EXISTS (
+    SELECT 1
+    FROM pg_proc AS procedure
+    CROSS JOIN runtime_role
+    CROSS JOIN LATERAL aclexplode(
+      COALESCE(procedure.proacl, acldefault('f', procedure.proowner))
+    ) AS privilege
+    WHERE procedure.oid =
+      'app.record_global_email_delivery_attempt(text,text,text,text,text,integer,text,jsonb,timestamptz)'::regprocedure
+      AND (
+        privilege.grantee NOT IN (procedure.proowner, runtime_role.oid)
+        OR privilege.privilege_type <> 'EXECUTE'
+        OR privilege.is_grantable
+      )
+  )
+  AND NOT has_function_privilege(
+    'app_staff',
+    'app.record_global_email_delivery_attempt(text,text,text,text,text,integer,text,jsonb,timestamptz)',
+    'EXECUTE'
+  )
+  AND NOT has_function_privilege(
+    'app_patient',
+    'app.record_global_email_delivery_attempt(text,text,text,text,text,integer,text,jsonb,timestamptz)',
+    'EXECUTE'
+  )
+  AND NOT has_function_privilege(
+    'app_worker',
+    'app.record_global_email_delivery_attempt(text,text,text,text,text,integer,text,jsonb,timestamptz)',
     'EXECUTE'
   )
   AND has_function_privilege(
@@ -303,6 +406,16 @@ SELECT 1 / (
     ) privilege
     WHERE privilege.privilege_type = 'SELECT'
       AND privilege.grantee IN (0, runtime_role.oid)
+  )
+  AND NOT has_table_privilege(
+    :'integrator_runtime_config_role',
+    'integrator.delivery_attempt_logs',
+    'INSERT'
+  )
+  AND NOT has_sequence_privilege(
+    :'integrator_runtime_config_role',
+    'integrator.delivery_attempt_logs_id_seq',
+    'USAGE'
   )
   AND NOT EXISTS (
     SELECT 1

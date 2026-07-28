@@ -44,13 +44,6 @@ export function createPgEmailOtpPublicPort(): EmailOtpPublicDbPort {
       return { ok: true, userId: row.user_id, wasCreated: row.was_created };
     },
 
-    async deleteUnverifiedPublicEmailRegistration(userId) {
-      await runWebappPgText(
-        "SELECT app.email_otp_public_delete_unverified_registration($1::uuid)",
-        [userId],
-      );
-    },
-
     async consumeLatestEmailChallenge(emailNorm, codeHash) {
       const result = await runWebappPgText<{
         ok: boolean;
@@ -118,10 +111,6 @@ export const inMemoryEmailOtpPublicPort: EmailOtpPublicDbPort = {
     const userId = crypto.randomUUID();
     memEmailUserByNorm.set(emailNormalized, userId);
     return { ok: true, userId, wasCreated: true };
-  },
-
-  async deleteUnverifiedPublicEmailRegistration(userId) {
-    for (const [email, id] of memEmailUserByNorm) if (id === userId) memEmailUserByNorm.delete(email);
   },
 
   async consumeLatestEmailChallenge(_emailNorm, _codeHash) {

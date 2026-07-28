@@ -300,12 +300,16 @@ Immediately after the migration cleanup/schema assertions and before any TEST se
 - apply `deploy/postgres/integrator-server-runtime-config.sql`: normalize that API base-login to `NOINHERIT` and,
   for PostgreSQL 16, normalize its three existing runtime membership edges to `INHERIT FALSE, SET TRUE`,
   revoke any direct SELECT residue on `public.app_runtime_settings` / `public.system_settings`, and grant only
-  EXECUTE on `app.read_global_server_runtime_setting(text)` plus idempotent `app.release_principal_context()` needed
-  by bootstrap/infra cleanup before any role switch. Ambient `install_signed_context`, reset/current helpers and
-  identity maintenance remain denied; scoped install/release stays behind classified `SET ROLE`. Membership needed
-  for classified locked `SET ROLE` remains intact; ambient base-login access through inherited role ACLs is
-  forbidden. Final readiness must make an actual base-login release call and prove helper denials, `NOINHERIT`, both
-  table denials, accessor EXECUTE and a valid redacted HTTP(S)-shape result before services restart;
+  EXECUTE on `app.read_global_server_runtime_setting(text)`,
+  `app.read_integrator_smtp_outbound_setting()` and the narrow
+  `app.record_global_email_delivery_attempt(...)` SECURITY DEFINER capability, plus idempotent
+  `app.release_principal_context()` needed by bootstrap/infra cleanup before any role switch. The API login keeps no
+  direct INSERT/sequence privilege on `integrator.delivery_attempt_logs`. Ambient `install_signed_context`,
+  reset/current helpers and identity maintenance remain denied; scoped install/release stays behind classified
+  `SET ROLE`. Membership needed for classified locked `SET ROLE` remains intact; ambient base-login access through
+  inherited role ACLs is forbidden. Final readiness must make an actual base-login release call and prove helper
+  denials, `NOINHERIT`, table denials, exact accessor/capability ACL and a valid redacted HTTP(S)-shape result before
+  services restart;
 - grant only `USAGE` on schema `integrator` and `SELECT` on table `integrator.schema_migrations` to that role;
 - verify through the `api.test` runtime `DATABASE_URL` that `SELECT count(*) FROM integrator.schema_migrations`
   succeeds and returns at least one row.

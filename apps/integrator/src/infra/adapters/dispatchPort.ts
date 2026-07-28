@@ -13,9 +13,16 @@ import {
   resolveDevRedirect,
 } from '../../shared/devDeliveryRedirect.js';
 import { logger } from '../observability/logger.js';
-import { getCurrentOrganizationPrincipalId } from '../principal/organizationPrincipal.js';
+import {
+  getCurrentDatabasePrincipal,
+  getCurrentOrganizationPrincipalId,
+  runWithInfraPrincipal,
+} from '../principal/organizationPrincipal.js';
 import { readChannel } from './channelRouting.js';
 import { assertOutboundMessagePolicy } from './outboundMessagePolicy.js';
+
+const DELIVERY_ATTEMPT_AUDIT_PERSIST_FAILED = 'DELIVERY_ATTEMPT_AUDIT_PERSIST_FAILED';
+let deliveryAttemptAuditPersistFailureCount = 0;
 
 type DeliveryPayload = {
   recipient?: { chatId?: unknown; phoneNormalized?: unknown };
@@ -61,21 +68,75 @@ async function logDeliveryAttempt(
 ): Promise<void> {
   if (!writePort) return;
   const safeCorrelationId = isOtpIntent(intent) ? null : intent.meta.correlationId ?? null;
-  await writePort.writeDb({
-    type: 'delivery.attempt.log',
-    params: {
-      intentType: intent.type,
-      intentEventId: intent.meta.eventId,
-      correlationId: safeCorrelationId,
-      channel,
-      status,
-      attempt,
-      reason: reason ?? null,
-      organizationId: getCurrentOrganizationPrincipalId(),
-      payload: sanitizePayloadForLogs(intent),
-      occurredAt: new Date().toISOString(),
-    },
-  });
+  const organizationId = getCurrentOrganizationPrincipalId();
+  const writeAttempt = () =>
+    writePort.writeDb({
+      type: 'delivery.attempt.log',
+      params: {
+        intentType: intent.type,
+        intentEventId: intent.meta.eventId,
+        correlationId: safeCorrelationId,
+        channel,
+        status,
+        attempt,
+        reason: reason ?? null,
+        organizationId,
+        payload: sanitizePayloadForLogs(intent),
+        occurredAt: new Date().toISOString(),
+      },
+    });
+
+  // Signed M2M auth-code sends have no tenant principal. In locked mode an unclassified DB access
+  // is rejected before pool.connect(), which used to make the post-send audit look like pool
+  // exhaustion. Preserve every existing tenant/worker principal; classify only the truly global
+  // no-principal delivery audit as the already allowlisted delivery-handler infrastructure scope.
+  if (getCurrentDatabasePrincipal()) {
+    await writeAttempt();
+    return;
+  }
+  await runWithInfraPrincipal({ source: 'delivery-handler' }, writeAttempt);
+}
+
+function reportDeliveryAttemptAuditPersistFailure(
+  auditError: unknown,
+  intent: OutgoingIntent,
+  channel: string,
+  status: 'success' | 'failed',
+): void {
+  deliveryAttemptAuditPersistFailureCount += 1;
+  const fields = {
+    auditError,
+    code: DELIVERY_ATTEMPT_AUDIT_PERSIST_FAILED,
+    deliveryAttemptAuditPersistFailureCount,
+    channel,
+    status,
+    intentType: intent.type,
+  };
+  const message = status === 'success'
+    ? 'Delivery succeeded but its attempt audit could not be persisted'
+    : 'Delivery provider failed and its attempt audit could not be persisted';
+  try {
+    logger.error(fields, message);
+  } catch {
+    // Delivery remains authoritative even if the structured logger transport is degraded.
+    // The fallback deliberately excludes the original error and intent payload.
+    try {
+      console.error(message, {
+        code: DELIVERY_ATTEMPT_AUDIT_PERSIST_FAILED,
+        deliveryAttemptAuditPersistFailureCount,
+        channel,
+        status,
+        intentType: intent.type,
+      });
+    } catch {
+      /* observability failure must never replace the provider outcome */
+    }
+  }
+}
+
+/** @internal Test-only reset for the process-local observability counter. */
+export function resetDeliveryAttemptAuditPersistFailureCountForTests(): void {
+  deliveryAttemptAuditPersistFailureCount = 0;
 }
 
 /** Sentinel returned by the pre-fork redirect when a send must be suppressed. */
@@ -250,11 +311,8 @@ export function createDefaultDispatchPort(deps: {
         if (intent.type === 'message.send') {
           try {
             await logDeliveryAttempt(deps.writePort, intent, channel, 'failed', 1, 'provider_rejected');
-          } catch {
-            logger.error(
-              { channel, intentType: intent.type },
-              'Delivery provider failed and its attempt audit could not be persisted',
-            );
+          } catch (auditError) {
+            reportDeliveryAttemptAuditPersistFailure(auditError, intent, channel, 'failed');
           }
         }
         throw providerError;
@@ -263,10 +321,7 @@ export function createDefaultDispatchPort(deps: {
         try {
           await logDeliveryAttempt(deps.writePort, intent, channel, 'success', 1);
         } catch (auditError) {
-          logger.error(
-            { auditError, channel, intentType: intent.type },
-            'Delivery succeeded but its support audit could not be persisted',
-          );
+          reportDeliveryAttemptAuditPersistFailure(auditError, intent, channel, 'success');
         }
       }
       return sendResult ?? {};

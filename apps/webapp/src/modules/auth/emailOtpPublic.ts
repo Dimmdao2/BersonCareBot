@@ -98,11 +98,11 @@ export async function startPublicEmailOtpRegistration(
   });
   if (!registration.ok) return { ok: false, code: registration.reason };
 
-  const challenge = await startEmailChallenge(registration.userId, email, "public_registration");
-  if (!challenge.ok && registration.wasCreated) {
-    await publicDb.deleteUnverifiedPublicEmailRegistration(registration.userId);
-  }
-  return challenge;
+  // Keep a newly-created row when delivery fails. `registerPublicEmailPatient` already treats an
+  // unverified structured client as a pending registration and returns the same identity on retry
+  // without overwriting its FIO. Deleting here defeated that pending contract and forced the person
+  // to enter identity data again after an infrastructure failure.
+  return startEmailChallenge(registration.userId, email, "public_registration");
 }
 
 /**

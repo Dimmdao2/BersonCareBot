@@ -1,4 +1,5 @@
 import type { DbPort, DbWriteMutation } from '../../../kernel/contracts/index.js';
+import { getCurrentDbPrincipal } from '@bersoncare/db-principal';
 import { logger } from '../../observability/logger.js';
 import { getIntegratorDrizzleSession } from '../drizzle.js';
 import { deliveryAttemptLogs } from '../schema/integratorPublicProduct.js';
@@ -42,30 +43,69 @@ export async function insertDeliveryAttemptLog(db: DbPort, params: DeliveryAttem
   const status = asString(params.status);
   const attempt = asNumber(params.attempt);
   if (channel === null || status === null || attempt === null || attempt <= 0) {
-    logger.warn(safeAttemptFields(params), 'insertDeliveryAttemptLog: skip row with invalid channel/status/attempt');
-    return;
+    const error = new Error('DELIVERY_ATTEMPT_LOG_INVALID_FIELDS');
+    logger.error(
+      { code: 'DELIVERY_ATTEMPT_LOG_INVALID_FIELDS', ...safeAttemptFields(params) },
+      'insertDeliveryAttemptLog: cannot persist row with invalid channel/status/attempt',
+    );
+    throw error;
   }
   if (status !== 'success' && status !== 'failed') {
-    logger.warn(safeAttemptFields(params), 'insertDeliveryAttemptLog: skip row with status outside success|failed');
-    return;
+    const error = new Error('DELIVERY_ATTEMPT_LOG_INVALID_STATUS');
+    logger.error(
+      { code: 'DELIVERY_ATTEMPT_LOG_INVALID_STATUS', ...safeAttemptFields(params) },
+      'insertDeliveryAttemptLog: cannot persist row with status outside success|failed',
+    );
+    throw error;
   }
-  const d = getIntegratorDrizzleSession(db);
   try {
-    await d.insert(deliveryAttemptLogs).values({
-      intentType: asString(params.intentType),
-      intentEventId: asString(params.intentEventId),
-      correlationId: asString(params.correlationId),
-      channel,
-      status,
-      attempt,
-      reason: asString(params.reason),
-      payloadJson: typeof params.payload === 'object' && params.payload !== null
-        ? (params.payload as Record<string, unknown>)
-        : {},
-      occurredAt: asString(params.occurredAt) ?? new Date().toISOString(),
-    });
+    const intentType = asString(params.intentType);
+    const intentEventId = asString(params.intentEventId);
+    const correlationId = asString(params.correlationId);
+    const reason = asString(params.reason);
+    const payloadJson = typeof params.payload === 'object' && params.payload !== null
+      ? (params.payload as Record<string, unknown>)
+      : {};
+    const occurredAt = asString(params.occurredAt) ?? new Date().toISOString();
+    const principal = getCurrentDbPrincipal();
+
+    if (principal?.kind === 'infra' && principal.source === 'delivery-handler') {
+      await db.query(
+        `SELECT app.record_global_email_delivery_attempt(
+          $1, $2, $3, $4, $5, $6, $7, $8::jsonb, $9::timestamptz
+        )`,
+        [
+          intentType,
+          intentEventId,
+          correlationId,
+          channel,
+          status,
+          attempt,
+          reason,
+          payloadJson,
+          occurredAt,
+        ],
+      );
+    } else {
+      const d = getIntegratorDrizzleSession(db);
+      await d.insert(deliveryAttemptLogs).values({
+        intentType,
+        intentEventId,
+        correlationId,
+        channel,
+        status,
+        attempt,
+        reason,
+        payloadJson,
+        occurredAt,
+      });
+    }
   } catch (err) {
-    logger.error({ err, ...safeAttemptFields(params) }, 'insert delivery attempt log failed');
+    logger.error(
+      { err, code: 'DELIVERY_ATTEMPT_LOG_INSERT_FAILED', ...safeAttemptFields(params) },
+      'insert delivery attempt log failed',
+    );
+    throw err;
   }
 }
 

@@ -1,9 +1,13 @@
 import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest';
 import type { DeliveryAdapter, OutgoingIntent } from '../../kernel/contracts/index.js';
-import { createDefaultDispatchPort as createDefaultDispatchPortImpl } from './dispatchPort.js';
+import {
+  createDefaultDispatchPort as createDefaultDispatchPortImpl,
+  resetDeliveryAttemptAuditPersistFailureCountForTests,
+} from './dispatchPort.js';
 import { _resetDevRedirectActiveCache } from '../../shared/devDeliveryRedirect.js';
 import { readChannel } from './channelRouting.js';
-import { runWithDbOrganizationPrincipal } from '@bersoncare/db-principal';
+import { getCurrentDbPrincipal, runWithDbOrganizationPrincipal } from '@bersoncare/db-principal';
+import { logger } from '../observability/logger.js';
 
 const sendPrimaryMock = vi.fn().mockResolvedValue(undefined);
 const sendSecondaryMock = vi.fn().mockResolvedValue(undefined);
@@ -59,6 +63,7 @@ describe('createDefaultDispatchPort', () => {
     // Existing tests need production mode (redirect inactive) so adapters for
     // 'channel-a'/'channel-b' are reachable without being collapsed to telegram.
     setProdEnv();
+    resetDeliveryAttemptAuditPersistFailureCountForTests();
   });
 
   afterEach(() => {
@@ -106,7 +111,30 @@ describe('createDefaultDispatchPort', () => {
     }));
   });
 
+  it('classifies a global delivery attempt as the allowlisted delivery-handler infrastructure principal', async () => {
+    const seenPrincipals: unknown[] = [];
+    const writeDb = vi.fn(async () => {
+      seenPrincipals.push(getCurrentDbPrincipal());
+    });
+    const dispatchPort = createDefaultDispatchPort({ adapters: buildAdapters(), writePort: { writeDb } });
+    const intent: OutgoingIntent = {
+      type: 'message.send',
+      meta: { eventId: 'otp:email:global', occurredAt: '2026-03-03T00:00:00.000Z', source: 'email' },
+      payload: {
+        recipient: { email: 'redacted@example.com' },
+        message: { text: 'redacted auth code' },
+        delivery: { channels: [channelPrimary], maxAttempts: 1 },
+      },
+    };
+
+    await dispatchPort.dispatchOutgoing(intent);
+
+    expect(seenPrincipals).toEqual([{ kind: 'infra', source: 'delivery-handler' }]);
+    expect(getCurrentDbPrincipal()).toBeUndefined();
+  });
+
   it('does not turn a successful provider send into a retryable failure when support audit fails', async () => {
+    const loggerError = vi.spyOn(logger, 'error').mockImplementation(() => undefined);
     sendPrimaryMock.mockResolvedValueOnce({ providerMessageId: 'sent-1' });
     const writeDb = vi.fn().mockRejectedValueOnce(new Error('audit unavailable'));
     const dispatchPort = createDefaultDispatchPort({ adapters: buildAdapters(), writePort: { writeDb } });
@@ -122,6 +150,45 @@ describe('createDefaultDispatchPort', () => {
 
     await expect(dispatchPort.dispatchOutgoing(intent)).resolves.toEqual({ providerMessageId: 'sent-1' });
     expect(sendPrimaryMock).toHaveBeenCalledTimes(1);
+    expect(loggerError).toHaveBeenCalledWith(
+      expect.objectContaining({
+        code: 'DELIVERY_ATTEMPT_AUDIT_PERSIST_FAILED',
+        deliveryAttemptAuditPersistFailureCount: 1,
+        channel: channelPrimary,
+        status: 'success',
+      }),
+      'Delivery succeeded but its attempt audit could not be persisted',
+    );
+  });
+
+  it('keeps the successful provider result when both audit persistence and structured logging fail', async () => {
+    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    vi.spyOn(logger, 'error').mockImplementation(() => {
+      throw new Error('logger unavailable');
+    });
+    sendPrimaryMock.mockResolvedValueOnce({ providerMessageId: 'sent-logger-down' });
+    const writeDb = vi.fn().mockRejectedValueOnce(new Error('audit unavailable'));
+    const dispatchPort = createDefaultDispatchPort({ adapters: buildAdapters(), writePort: { writeDb } });
+    const intent: OutgoingIntent = {
+      type: 'message.send',
+      meta: { eventId: 'evt-audit-and-log-fail', occurredAt: '2026-03-03T00:00:00.000Z', source: 'adapter' },
+      payload: {
+        recipient: { chatId: 1 },
+        message: { text: 'hi' },
+        delivery: { channels: [channelPrimary], maxAttempts: 1 },
+      },
+    };
+
+    await expect(dispatchPort.dispatchOutgoing(intent)).resolves.toEqual({
+      providerMessageId: 'sent-logger-down',
+    });
+    expect(consoleError).toHaveBeenCalledWith(
+      'Delivery succeeded but its attempt audit could not be persisted',
+      expect.objectContaining({
+        code: 'DELIVERY_ATTEMPT_AUDIT_PERSIST_FAILED',
+        deliveryAttemptAuditPersistFailureCount: 1,
+      }),
+    );
   });
 
   it('does not fallback after primary failure', async () => {

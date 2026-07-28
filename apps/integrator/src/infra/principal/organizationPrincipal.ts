@@ -1,4 +1,5 @@
 import {
+  getCurrentDbPrincipal,
   getCurrentDbPrincipalIntegratorUserId,
   getCurrentDbPrincipalOrganizationId,
   runWithDbBootstrapPrincipal,
@@ -10,6 +11,7 @@ import type { DbBootstrapPrincipalInput, DbInfraPrincipalInput } from '@bersonca
 
 export const getCurrentOrganizationPrincipalId = getCurrentDbPrincipalOrganizationId;
 export const getCurrentIntegratorPrincipalUserId = getCurrentDbPrincipalIntegratorUserId;
+export const getCurrentDatabasePrincipal = getCurrentDbPrincipal;
 export const runWithOrganizationPrincipal = runWithDbOrganizationPrincipal;
 
 export function runWithIntegratorPrincipal<T>(

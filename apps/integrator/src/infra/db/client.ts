@@ -142,6 +142,7 @@ export function createDbPort(pool: Pool = db): DbPort {
 			} catch (err) {
 				logDbError({
 					err,
+					dbFailureStage: 'pool_checkout_or_principal_setup',
 					...databaseUrlDiagnostics(),
 					...safeErrorCodeContext(err),
 					db_env: {
@@ -151,7 +152,7 @@ export function createDbPort(pool: Pool = db): DbPort {
 						PGDATABASE: process.env.PGDATABASE,
 						PGPASSWORD: process.env.PGPASSWORD ? '[set]' : undefined,
 					}
-				}, '[db][tx] failed to connect');
+				}, '[db][tx] checkout or principal setup failed');
 				throw err;
 			}
 			try {
