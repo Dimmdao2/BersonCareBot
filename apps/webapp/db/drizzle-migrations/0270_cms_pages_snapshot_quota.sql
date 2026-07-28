@@ -20,6 +20,7 @@ AS $function$
 $function$;
 --> statement-breakpoint
 ALTER FUNCTION app.cms_pages_snapshot_usage(uuid) OWNER TO app_owner;
+GRANT SELECT ON TABLE public.content_pages TO app_owner;
 REVOKE ALL ON FUNCTION app.cms_pages_snapshot_usage(uuid)
   FROM PUBLIC, app_staff, app_patient, app_platform_settings;
 GRANT EXECUTE ON FUNCTION app.cms_pages_snapshot_usage(uuid)
@@ -40,10 +41,28 @@ BEGIN
   IF NEW.organization_id IS NULL THEN
     RAISE EXCEPTION 'cms_page_organization_required';
   END IF;
+  -- PostgreSQL keeps one transaction snapshot under REPEATABLE READ/SERIALIZABLE. A contender that
+  -- waited for the advisory lock would therefore recount from stale state. Application writes use
+  -- READ COMMITTED; reject stronger isolation fail-closed instead of silently exceeding the quota.
+  IF current_setting('transaction_isolation') <> 'read committed' THEN
+    RAISE EXCEPTION 'cms_pages_quota_requires_read_committed';
+  END IF;
 
   PERFORM pg_catalog.pg_advisory_xact_lock(
     pg_catalog.hashtextextended('saas_quota:cms_pages:' || NEW.organization_id::text, 0)
   );
+
+  -- INSERT ... ON CONFLICT DO UPDATE fires BEFORE INSERT before PostgreSQL resolves the conflict.
+  -- An existing same-tenant page is an update, not a newly consumed slot.
+  IF EXISTS (
+    SELECT 1
+    FROM public.content_pages AS existing_page
+    WHERE existing_page.organization_id = NEW.organization_id
+      AND existing_page.section = NEW.section
+      AND existing_page.slug = NEW.slug
+  ) THEN
+    RETURN NEW;
+  END IF;
 
   WITH active_trial AS (
     SELECT trial.*

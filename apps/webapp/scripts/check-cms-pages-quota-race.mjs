@@ -58,8 +58,12 @@ function selfTest() {
   const functionSql = extractQuotaFunction(migration);
   const usageSql = extractUsageFunction(migration);
   for (const fragment of [
+    "current_setting('transaction_isolation') <> 'read committed'",
+    "cms_pages_quota_requires_read_committed",
     "pg_advisory_xact_lock",
     "'saas_quota:cms_pages:' || NEW.organization_id::text",
+    "existing_page.section = NEW.section",
+    "existing_page.slug = NEW.slug",
     "app.cms_pages_snapshot_usage(NEW.organization_id)",
     "saas_quota_reached:cms_pages",
     "(v_count + 1) * 5 >= v_limit * 4",
@@ -74,6 +78,13 @@ function selfTest() {
     "WHERE organization_id = p_organization_id",
   ]) {
     if (!usageSql.includes(fragment)) fail(`migration usage function is missing ${fragment}`);
+  }
+  for (const fragment of [
+    "ALTER FUNCTION app.cms_pages_snapshot_usage(uuid) OWNER TO app_owner",
+    "GRANT SELECT ON TABLE public.content_pages TO app_owner",
+    "ALTER FUNCTION app.enforce_cms_pages_snapshot_quota() OWNER TO app_owner",
+  ]) {
+    if (!migration.includes(fragment)) fail(`migration deploy ACL is missing ${fragment}`);
   }
   console.log("CMS pages quota race proof self-test: OK (no PostgreSQL required)");
 }
@@ -132,6 +143,8 @@ async function installSchema() {
     await connection.query(`
       CREATE EXTENSION pgcrypto;
       CREATE SCHEMA app;
+      CREATE ROLE app_owner NOLOGIN BYPASSRLS;
+      GRANT USAGE, CREATE ON SCHEMA app TO app_owner;
       CREATE TABLE public.be_organizations (
         id uuid PRIMARY KEY,
         tariff_id uuid,
@@ -164,8 +177,16 @@ async function installSchema() {
         section text NOT NULL,
         slug text NOT NULL,
         title text NOT NULL,
-        deleted_at timestamptz
+        deleted_at timestamptz,
+        UNIQUE (section, slug)
       );
+      GRANT SELECT ON TABLE
+        public.be_organizations,
+        public.saas_tariffs,
+        public.saas_organization_trials,
+        public.saas_org_entitlement_overrides,
+        public.content_pages
+      TO app_owner;
       INSERT INTO public.saas_tariffs (id, quotas) VALUES (
         '10000000-0000-4000-8000-000000000001',
         '{"cms_pages":{"kind":"numeric","limit":1,"unit":"items","period":"snapshot","usagePolicy":"snapshot"}}'
@@ -175,7 +196,9 @@ async function installSchema() {
         '10000000-0000-4000-8000-000000000001'
       );
       ${usageFunction}
+      ALTER FUNCTION app.cms_pages_snapshot_usage(uuid) OWNER TO app_owner;
       ${quotaFunction}
+      ALTER FUNCTION app.enforce_cms_pages_snapshot_quota() OWNER TO app_owner;
       CREATE TRIGGER content_pages_snapshot_quota_guard
         BEFORE INSERT ON public.content_pages
         FOR EACH ROW EXECUTE FUNCTION app.enforce_cms_pages_snapshot_quota();
@@ -217,6 +240,46 @@ async function proveLastSlotRace() {
   }
 }
 
+async function proveAtLimitUpsert() {
+  await withClient(async (connection) => {
+    const result = await connection.query(
+      `INSERT INTO public.content_pages (organization_id, section, slug, title)
+       VALUES ($1, $2, $3, $4)
+       ON CONFLICT (section, slug) DO UPDATE SET title = EXCLUDED.title
+       RETURNING title`,
+      ["20000000-0000-4000-8000-000000000001", "lessons", "first", "Updated"],
+    );
+    if (result.rows[0]?.title !== "Updated") {
+      fail("at-limit upsert did not update the existing CMS page");
+    }
+    const countResult = await connection.query(
+      "SELECT count(*)::int AS count FROM public.content_pages",
+    );
+    if (countResult.rows[0]?.count !== 1) {
+      fail(`at-limit upsert consumed a new slot; found ${countResult.rows[0]?.count} pages`);
+    }
+  });
+}
+
+async function proveRepeatableReadFailsClosed() {
+  await withClient(async (connection) => {
+    await connection.query("BEGIN ISOLATION LEVEL REPEATABLE READ");
+    try {
+      await connection.query(
+        "INSERT INTO public.content_pages (organization_id, section, slug, title) VALUES ($1, $2, $3, $4)",
+        ["20000000-0000-4000-8000-000000000001", "lessons", "repeatable-read", "RR"],
+      );
+      fail("REPEATABLE READ insert unexpectedly bypassed the fail-closed isolation guard");
+    } catch (error) {
+      if (!String(error.message).includes("cms_pages_quota_requires_read_committed")) {
+        throw error;
+      }
+    } finally {
+      await connection.query("ROLLBACK");
+    }
+  });
+}
+
 try {
   if (!existsSync(path.join(pgBin, "initdb"))) fail("PostgreSQL 16 binaries are unavailable");
   port = await reservePort();
@@ -235,8 +298,10 @@ try {
   );
   await installSchema();
   await proveLastSlotRace();
+  await proveAtLimitUpsert();
+  await proveRepeatableReadFailsClosed();
   console.log(
-    "CMS pages quota race proof: OK — two private PostgreSQL connections preserve the final slot",
+    "CMS pages quota race proof: OK — owner ACL, final slot, at-limit upsert, and RR fail-closed",
   );
 } finally {
   if (serverStarted) {

@@ -15,6 +15,24 @@ SELECT 1 / (
   )
 )::int AS c5a_platform_role_is_safe;
 
+DO $c5a_clinic_billing_role$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'app_clinic_billing') THEN
+    CREATE ROLE app_clinic_billing NOLOGIN NOINHERIT NOBYPASSRLS;
+  END IF;
+END
+$c5a_clinic_billing_role$;
+ALTER ROLE app_clinic_billing
+  NOLOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT NOREPLICATION NOBYPASSRLS;
+
+-- app_staff is transport only. The clinic-management guard stamps a clinicBilling principal; the
+-- shared DB-principal chokepoint then switches to this role for that exact-org request. An ordinary
+-- staff principal remains app_staff and has no billing table ACL.
+GRANT app_clinic_billing TO app_staff WITH ADMIN FALSE, INHERIT FALSE, SET TRUE;
+GRANT USAGE ON SCHEMA public, app TO app_clinic_billing;
+GRANT EXECUTE ON FUNCTION app.current_org_id(), app.release_principal_context()
+  TO app_clinic_billing;
+
 BEGIN;
 
 -- Close ambient commercial DML left by historical overlays before extending the platform role.
@@ -84,6 +102,7 @@ BEGIN
   IF to_regprocedure('app.cms_pages_snapshot_usage(uuid)') IS NULL THEN
     RAISE WARNING '§10.2: app.cms_pages_snapshot_usage(uuid) does not exist -- skipping the guarded app_platform_settings EXECUTE grant.';
   ELSE
+    GRANT SELECT ON TABLE public.content_pages TO app_owner;
     REVOKE ALL ON FUNCTION app.cms_pages_snapshot_usage(uuid)
       FROM PUBLIC, app_staff, app_patient, app_platform_settings;
     GRANT EXECUTE ON FUNCTION app.cms_pages_snapshot_usage(uuid)
@@ -91,6 +110,46 @@ BEGIN
   END IF;
 END
 $c5a_cms_pages_snapshot_usage_grant$;
+
+-- #1069 / §10.1-10.2: the platform storefront reads only the two base tables needed by the
+-- enforced courses/seats counters. Both tables are FORCE-RLS, so the read-only table grants and
+-- their platform-only SELECT policies are one inseparable closure.
+DO $c5a_enforced_quota_usage_runtime$
+DECLARE
+  relation_name text;
+  relation_names constant text[] := ARRAY['courses', 'organization_member_invites'];
+BEGIN
+  IF EXISTS (
+    SELECT 1
+    FROM unnest(relation_names) AS expected(name)
+    WHERE to_regclass('public.' || expected.name) IS NULL
+  ) THEN
+    RAISE WARNING '§10.1-10.2: courses or organization_member_invites is missing -- skipping the guarded platform quota-usage grants.';
+    RETURN;
+  END IF;
+
+  FOREACH relation_name IN ARRAY relation_names LOOP
+    EXECUTE format(
+      'REVOKE INSERT, UPDATE, DELETE ON TABLE public.%I FROM app_platform_settings',
+      relation_name
+    );
+    EXECUTE format(
+      'GRANT SELECT ON TABLE public.%I TO app_platform_settings',
+      relation_name
+    );
+    EXECUTE format(
+      'DROP POLICY IF EXISTS %I ON public.%I',
+      relation_name || '_platform_quota_usage_select',
+      relation_name
+    );
+    EXECUTE format(
+      'CREATE POLICY %I ON public.%I FOR SELECT TO app_platform_settings USING (true)',
+      relation_name || '_platform_quota_usage_select',
+      relation_name
+    );
+  END LOOP;
+END
+$c5a_enforced_quota_usage_runtime$;
 -- A-6 / #1007: matching platform-side grant for the clinical_test_measure_kinds write-lock above.
 -- SELECT/UPDATE for catalog management; the platform principal never needs a fresh INSERT path of
 -- its own -- doctors already cover "add a new label" via the insert-only POST route.
@@ -129,7 +188,7 @@ BEGIN
 
   FOREACH relation_name IN ARRAY relation_names LOOP
     EXECUTE format(
-      'REVOKE INSERT, UPDATE, DELETE ON TABLE public.%I FROM app_staff',
+      'REVOKE ALL PRIVILEGES ON TABLE public.%I FROM app_staff',
       relation_name
     );
     EXECUTE format(
@@ -141,7 +200,11 @@ BEGIN
       relation_name
     );
     EXECUTE format(
-      'GRANT SELECT ON TABLE public.%I TO app_staff',
+      'REVOKE ALL PRIVILEGES ON TABLE public.%I FROM app_clinic_billing',
+      relation_name
+    );
+    EXECUTE format(
+      'GRANT SELECT ON TABLE public.%I TO app_clinic_billing',
       relation_name
     );
     EXECUTE format(
@@ -163,8 +226,13 @@ BEGIN
       relation_name
     );
     EXECUTE format(
-      'CREATE POLICY %I ON public.%I FOR SELECT TO app_staff USING (app.is_staff() AND app.current_org_id() IS NOT NULL AND organization_id = app.current_org_id())',
-      relation_name || '_staff_select',
+      'DROP POLICY IF EXISTS %I ON public.%I',
+      relation_name || '_clinic_billing_select',
+      relation_name
+    );
+    EXECUTE format(
+      'CREATE POLICY %I ON public.%I FOR SELECT TO app_clinic_billing USING (app.current_org_id() IS NOT NULL AND organization_id = app.current_org_id())',
+      relation_name || '_clinic_billing_select',
       relation_name
     );
     EXECUTE format(
@@ -558,6 +626,95 @@ SELECT 1 / (
   AND NOT has_column_privilege('app_platform_settings', 'public.be_organizations', 'is_active', 'UPDATE')
 )::int AS c5a_platform_operations_exact_role_wall;
 
+-- §10.1-10.2 exact platform usage wall: the storefront may only SELECT the two raw counter
+-- relations, while CMS usage stays behind its narrow app_owner SECURITY DEFINER accessor.
+DO $c5a_platform_enforced_quota_usage_exact_wall$
+DECLARE
+  inventory_ok boolean;
+BEGIN
+  IF to_regclass('public.courses') IS NULL
+     OR to_regclass('public.organization_member_invites') IS NULL
+     OR to_regclass('public.content_pages') IS NULL
+     OR to_regprocedure('app.cms_pages_snapshot_usage(uuid)') IS NULL THEN
+    RAISE WARNING '§10.1-10.2: enforced quota usage prerequisites are incomplete -- skipping the guarded exact wall.';
+    RETURN;
+  END IF;
+
+WITH expected(relation_name) AS (
+  VALUES ('courses'), ('organization_member_invites')
+), relations AS (
+  SELECT
+    expected.relation_name,
+    relation.oid,
+    relation.relowner,
+    relation.relacl,
+    relation.relrowsecurity,
+    relation.relforcerowsecurity
+  FROM expected
+  JOIN pg_class AS relation
+    ON relation.relname = expected.relation_name
+   AND relation.relnamespace = 'public'::regnamespace
+), expected_acl(relation_name, privilege_type, is_grantable) AS (
+  SELECT relation_name, 'SELECT'::text, false FROM relations
+), actual_acl AS (
+  SELECT relations.relation_name, privilege.privilege_type, privilege.is_grantable
+  FROM relations
+  CROSS JOIN LATERAL aclexplode(
+    COALESCE(relations.relacl, acldefault('r', relations.relowner))
+  ) AS privilege
+  WHERE privilege.grantee = 'app_platform_settings'::regrole
+), expected_policy(relation_name, policy_name) AS (
+  SELECT relation_name, relation_name || '_platform_quota_usage_select' FROM relations
+), actual_policy AS (
+  SELECT
+    expected_policy.relation_name,
+    policy.polname AS policy_name,
+    policy.polcmd,
+    policy.polpermissive,
+    policy.polroles,
+    pg_get_expr(policy.polqual, policy.polrelid) AS using_expression,
+    policy.polwithcheck
+  FROM expected_policy
+  LEFT JOIN pg_class AS relation
+    ON relation.relname = expected_policy.relation_name
+   AND relation.relnamespace = 'public'::regnamespace
+  LEFT JOIN pg_policy AS policy
+    ON policy.polrelid = relation.oid
+   AND policy.polname = expected_policy.policy_name
+)
+SELECT (
+  (SELECT count(*) FROM relations) = 2
+  AND (SELECT bool_and(relrowsecurity AND relforcerowsecurity) FROM relations)
+  AND NOT EXISTS (
+    (SELECT * FROM actual_acl EXCEPT SELECT * FROM expected_acl)
+    UNION ALL
+    (SELECT * FROM expected_acl EXCEPT SELECT * FROM actual_acl)
+  )
+  AND 2 = (
+    SELECT count(*)
+    FROM actual_policy
+    WHERE policy_name IS NOT NULL
+      AND polcmd = 'r'
+      AND polpermissive
+      AND polroles = ARRAY[(SELECT oid FROM pg_roles WHERE rolname = 'app_platform_settings')]
+      AND using_expression = 'true'
+      AND polwithcheck IS NULL
+  )
+  AND has_table_privilege('app_owner', 'public.content_pages', 'SELECT')
+  AND has_function_privilege(
+    'app_platform_settings',
+    'app.cms_pages_snapshot_usage(uuid)',
+    'EXECUTE'
+  )
+)
+INTO inventory_ok;
+
+  IF NOT inventory_ok THEN
+    RAISE EXCEPTION 'C5A enforced quota usage exact ACL/policy wall failed';
+  END IF;
+END
+$c5a_platform_enforced_quota_usage_exact_wall$;
+
 -- #1068 / owner D-5: exact platform clinic-account directory wall. The table remains on its
 -- established bootstrap/RLS-off path; platform access is therefore pinned at the ACL boundary to
 -- one non-grantable SELECT and no column grants. Identity is projected only through the reviewed
@@ -748,7 +905,7 @@ BEGIN
     JOIN pg_roles AS owner ON owner.oid = relation.relowner
   ), role_oids AS (
     SELECT
-      (SELECT oid FROM pg_roles WHERE rolname = 'app_staff') AS staff_oid,
+      (SELECT oid FROM pg_roles WHERE rolname = 'app_clinic_billing') AS clinic_billing_oid,
       (SELECT oid FROM pg_roles WHERE rolname = 'app_platform_settings') AS platform_oid
   ), expected_table_acl(relation_name, grantee, privilege_type, is_grantable) AS (
     SELECT relation_name, owner_name, privilege_type, false
@@ -757,7 +914,7 @@ BEGIN
       'SELECT', 'INSERT', 'UPDATE', 'DELETE', 'TRUNCATE', 'REFERENCES', 'TRIGGER'
     ]::text[]) AS privilege_type
     UNION
-    SELECT relation_name, 'app_staff', 'SELECT', false FROM relations
+    SELECT relation_name, 'app_clinic_billing', 'SELECT', false FROM relations
     UNION
     SELECT relation_name, 'app_platform_settings', privilege_type, false
     FROM relations
@@ -807,10 +964,10 @@ BEGIN
     CROSS JOIN LATERAL (
       VALUES
         (
-          '_staff_select',
+          '_clinic_billing_select',
           'r'::"char",
-          ARRAY[role_oids.staff_oid]::oid[],
-          '(app.is_staff() AND (app.current_org_id() IS NOT NULL) AND (organization_id = app.current_org_id()))'::text,
+          ARRAY[role_oids.clinic_billing_oid]::oid[],
+          '((app.current_org_id() IS NOT NULL) AND (organization_id = app.current_org_id()))'::text,
           NULL::text
         ),
         ('_platform_select', 'r'::"char", ARRAY[role_oids.platform_oid]::oid[], 'true'::text, NULL::text),
@@ -832,6 +989,29 @@ BEGIN
   SELECT (
     (SELECT count(*) FROM relations) = 4
     AND (SELECT bool_and(relrowsecurity AND relforcerowsecurity) FROM relations)
+    AND EXISTS (
+      SELECT 1
+      FROM pg_roles
+      WHERE rolname = 'app_clinic_billing'
+        AND NOT rolcanlogin
+        AND NOT rolsuper
+        AND NOT rolcreaterole
+        AND NOT rolcreatedb
+        AND NOT rolinherit
+        AND NOT rolreplication
+        AND NOT rolbypassrls
+    )
+    AND 1 = (
+      SELECT count(*)
+      FROM pg_auth_members AS membership
+      WHERE membership.roleid = 'app_clinic_billing'::regrole
+        AND membership.member = 'app_staff'::regrole
+        AND NOT membership.admin_option
+        AND NOT membership.inherit_option
+        AND membership.set_option
+    )
+    AND has_function_privilege('app_clinic_billing', 'app.current_org_id()', 'EXECUTE')
+    AND has_function_privilege('app_clinic_billing', 'app.release_principal_context()', 'EXECUTE')
     AND NOT EXISTS (
       (SELECT * FROM actual_table_acl EXCEPT SELECT * FROM expected_table_acl)
       UNION ALL

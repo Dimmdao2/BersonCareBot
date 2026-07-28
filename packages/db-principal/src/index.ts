@@ -1,5 +1,5 @@
-import { AsyncLocalStorage } from "node:async_hooks";
-import { createHmac, randomUUID } from "node:crypto";
+import { AsyncLocalStorage } from 'node:async_hooks';
+import { createHmac, randomUUID } from 'node:crypto';
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 /**
@@ -25,7 +25,7 @@ const PLATFORM_USER_UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-
 const POSITIVE_INTEGER_RE = /^[1-9][0-9]*$/;
 const MAX_SIGNED_BIGINT = 9_223_372_036_854_775_807n;
 
-export const BC_CORRELATION_ID_HEADER = "x-bc-correlation-id";
+export const BC_CORRELATION_ID_HEADER = 'x-bc-correlation-id';
 
 declare const correlationIdBrand: unique symbol;
 export type CorrelationId = string & { readonly [correlationIdBrand]: true };
@@ -41,48 +41,64 @@ export type ObservabilityContextInput = {
   organizationId?: string | null;
 };
 
-const APP_ORG_CONFIG_KEY = "app.org";
-const APP_PATIENT_USER_CONFIG_KEY = "app.patient_user_id";
-const APP_INTEGRATOR_USER_CONFIG_KEY = "app.integrator_user_id";
-export const DB_PRINCIPAL_CONTEXT_MODE_ENV = "DB_PRINCIPAL_CONTEXT_MODE";
-export const DB_PRINCIPAL_SIGNING_SECRET_ENV = "DB_PRINCIPAL_SIGNING_SECRET";
-export const DEFAULT_DB_PRINCIPAL_CONTEXT_MODE = "legacy-guc";
-export const DB_PRINCIPAL_STAFF_ROLE = "app_staff";
-export const DB_PRINCIPAL_PATIENT_ROLE = "app_patient";
-export const DB_PRINCIPAL_PLATFORM_SETTINGS_ROLE = "app_platform_settings";
+const APP_ORG_CONFIG_KEY = 'app.org';
+const APP_PATIENT_USER_CONFIG_KEY = 'app.patient_user_id';
+const APP_INTEGRATOR_USER_CONFIG_KEY = 'app.integrator_user_id';
+export const DB_PRINCIPAL_CONTEXT_MODE_ENV = 'DB_PRINCIPAL_CONTEXT_MODE';
+export const DB_PRINCIPAL_SIGNING_SECRET_ENV = 'DB_PRINCIPAL_SIGNING_SECRET';
+export const DEFAULT_DB_PRINCIPAL_CONTEXT_MODE = 'legacy-guc';
+export const DB_PRINCIPAL_STAFF_ROLE = 'app_staff';
+export const DB_PRINCIPAL_PATIENT_ROLE = 'app_patient';
+export const DB_PRINCIPAL_PLATFORM_SETTINGS_ROLE = 'app_platform_settings';
+export const DB_PRINCIPAL_CLINIC_BILLING_ROLE = 'app_clinic_billing';
 
 export type DbOperationalRuntimeRole =
-  | "app_operational_diagnostic"
-  | "app_operational_delivery_worker"
-  | "app_operational_media_worker"
-  | "app_operational_scheduler"
-  | "app_operational_web_push_reminder"
-  | "app_config_reader";
+  | 'app_operational_diagnostic'
+  | 'app_operational_delivery_worker'
+  | 'app_operational_media_worker'
+  | 'app_operational_scheduler'
+  | 'app_operational_web_push_reminder'
+  | 'app_config_reader';
 
-export type DbPrincipalKind = "organization" | "staff" | "patient" | "integrator" | "platform" | "bootstrap" | "infra";
+export type DbPrincipalKind =
+  | 'organization'
+  | 'staff'
+  | 'clinicBilling'
+  | 'patient'
+  | 'integrator'
+  | 'platform'
+  | 'bootstrap'
+  | 'infra';
 
 export type DbOrganizationPrincipal = {
-  kind: "organization";
+  kind: 'organization';
   organizationId: string;
   source?: string;
 };
 
 export type DbStaffPrincipal = {
-  kind: "staff";
+  kind: 'staff';
+  organizationId: string;
+  platformUserId: string;
+  source?: string;
+};
+
+export type DbClinicBillingPrincipal = {
+  kind: 'clinicBilling';
   organizationId: string;
   platformUserId: string;
   source?: string;
 };
 
 export type DbPatientPrincipal = {
-  kind: "patient";
+  kind: 'patient';
   organizationId?: string;
   platformUserId: string;
   source?: string;
 };
 
 export type DbIntegratorPrincipal = {
-  kind: "integrator";
+  kind: 'integrator';
   organizationId: string;
   integratorUserId: string;
   source?: string;
@@ -90,18 +106,18 @@ export type DbIntegratorPrincipal = {
 
 /** Platform operations are deliberately unscoped: they never borrow an organization. */
 export type DbPlatformPrincipal = {
-  kind: "platform";
+  kind: 'platform';
   platformUserId: string;
   source?: string;
 };
 
 export type DbBootstrapPrincipal = {
-  kind: "bootstrap";
+  kind: 'bootstrap';
   source?: string;
 };
 
 export type DbInfraPrincipal = {
-  kind: "infra";
+  kind: 'infra';
   organizationId?: string;
   source?: string;
 };
@@ -109,6 +125,7 @@ export type DbInfraPrincipal = {
 export type DbPrincipal =
   | DbOrganizationPrincipal
   | DbStaffPrincipal
+  | DbClinicBillingPrincipal
   | DbPatientPrincipal
   | DbIntegratorPrincipal
   | DbPlatformPrincipal
@@ -121,6 +138,12 @@ export type DbOrganizationPrincipalInput = {
 };
 
 export type DbStaffPrincipalInput = {
+  organizationId: string;
+  platformUserId: string;
+  source?: string;
+};
+
+export type DbClinicBillingPrincipalInput = {
   organizationId: string;
   platformUserId: string;
   source?: string;
@@ -152,7 +175,7 @@ export type DbInfraPrincipalInput = {
   source?: string;
 };
 
-type DbPrincipalApplyScope = "transaction" | "connection";
+type DbPrincipalApplyScope = 'transaction' | 'connection';
 
 type DbPrincipalContextCell = {
   current: DbPrincipal | undefined;
@@ -161,7 +184,10 @@ type DbPrincipalContextCell = {
 };
 
 type DbPrincipalQueryable = {
-  query(sql: string, values?: readonly unknown[]): Promise<{ rows?: readonly Record<string, unknown>[] } | unknown>;
+  query(
+    sql: string,
+    values?: readonly unknown[],
+  ): Promise<{ rows?: readonly Record<string, unknown>[] } | unknown>;
 };
 
 export async function setDbOperationalRuntimeRole(
@@ -170,38 +196,45 @@ export async function setDbOperationalRuntimeRole(
 ): Promise<void> {
   let statement: string;
   switch (role) {
-    case "app_operational_diagnostic":
-      statement = "SET ROLE app_operational_diagnostic";
+    case 'app_operational_diagnostic':
+      statement = 'SET ROLE app_operational_diagnostic';
       break;
-    case "app_operational_delivery_worker":
-      statement = "SET ROLE app_operational_delivery_worker";
+    case 'app_operational_delivery_worker':
+      statement = 'SET ROLE app_operational_delivery_worker';
       break;
-    case "app_operational_media_worker":
-      statement = "SET ROLE app_operational_media_worker";
+    case 'app_operational_media_worker':
+      statement = 'SET ROLE app_operational_media_worker';
       break;
-    case "app_operational_scheduler":
-      statement = "SET ROLE app_operational_scheduler";
+    case 'app_operational_scheduler':
+      statement = 'SET ROLE app_operational_scheduler';
       break;
-    case "app_operational_web_push_reminder":
-      statement = "SET ROLE app_operational_web_push_reminder";
+    case 'app_operational_web_push_reminder':
+      statement = 'SET ROLE app_operational_web_push_reminder';
       break;
-    case "app_config_reader":
-      statement = "SET ROLE app_config_reader";
+    case 'app_config_reader':
+      statement = 'SET ROLE app_config_reader';
       break;
     default:
-      throw new Error("Unsupported DB operational runtime role");
+      throw new Error('Unsupported DB operational runtime role');
   }
   await client.query(statement);
 }
 
 /** Selects the only runtime role permitted for platform-global settings requests. */
-export async function setDbPlatformSettingsRuntimeRole(client: DbPrincipalQueryable): Promise<void> {
+export async function setDbPlatformSettingsRuntimeRole(
+  client: DbPrincipalQueryable,
+): Promise<void> {
   await client.query(`SET ROLE ${DB_PRINCIPAL_PLATFORM_SETTINGS_ROLE}`);
+}
+
+/** Selects the organization-scoped billing role after the clinic-management guard authorizes it. */
+export async function setDbClinicBillingRuntimeRole(client: DbPrincipalQueryable): Promise<void> {
+  await client.query(`SET ROLE ${DB_PRINCIPAL_CLINIC_BILLING_ROLE}`);
 }
 
 /** Clears a role selected through `setDbOperationalRuntimeRole` at the shared DB chokepoint. */
 export async function resetDbOperationalRuntimeRole(client: DbPrincipalQueryable): Promise<void> {
-  await client.query("RESET ROLE");
+  await client.query('RESET ROLE');
 }
 
 /** Installs only an organization context for a narrow operational capability after its SET ROLE. */
@@ -210,22 +243,22 @@ export async function applyDbOperationalOrganizationContextToConnection(
   organizationId: string | undefined,
   options: DbPrincipalApplyOptions = {},
 ): Promise<void> {
-  if (options.mode === "locked" || options.mode === "shadow") {
+  if (options.mode === 'locked' || options.mode === 'shadow') {
     if (organizationId === undefined) {
-      await client.query("SELECT app.release_principal_context()");
+      await client.query('SELECT app.release_principal_context()');
       return;
     }
     await installSignedDbPrincipalContext(
       client,
-      createDbOrganizationPrincipal({ organizationId, source: "operational-config-reader" }),
+      createDbOrganizationPrincipal({ organizationId, source: 'operational-config-reader' }),
       options.signer,
     );
     return;
   }
 
-  await setDbPrincipalConfig(client, APP_ORG_CONFIG_KEY, organizationId ?? "", "connection");
-  await setDbPrincipalConfig(client, APP_PATIENT_USER_CONFIG_KEY, "", "connection");
-  await setDbPrincipalConfig(client, APP_INTEGRATOR_USER_CONFIG_KEY, "", "connection");
+  await setDbPrincipalConfig(client, APP_ORG_CONFIG_KEY, organizationId ?? '', 'connection');
+  await setDbPrincipalConfig(client, APP_PATIENT_USER_CONFIG_KEY, '', 'connection');
+  await setDbPrincipalConfig(client, APP_INTEGRATOR_USER_CONFIG_KEY, '', 'connection');
 }
 
 /** Clears the operational organization context without changing the caller-selected capability role. */
@@ -233,11 +266,11 @@ export async function clearDbOperationalOrganizationContextFromConnection(
   client: DbPrincipalQueryable,
   options: DbPrincipalApplyOptions = {},
 ): Promise<void> {
-  if (options.mode === "locked" || options.mode === "shadow") {
-    await client.query("SELECT app.release_principal_context()");
+  if (options.mode === 'locked' || options.mode === 'shadow') {
+    await client.query('SELECT app.release_principal_context()');
     return;
   }
-  await clearDbPrincipalConfig(client, "connection");
+  await clearDbPrincipalConfig(client, 'connection');
 }
 
 export type DbPrincipalSigner = {
@@ -249,18 +282,18 @@ export type DbPrincipalSigner = {
 
 export type DbPrincipalApplyOptions =
   | {
-      mode?: "legacy-guc";
+      mode?: 'legacy-guc';
     }
   | {
-      mode: "shadow";
+      mode: 'shadow';
       signer: DbPrincipalSigner;
     }
   | {
-      mode: "locked";
+      mode: 'locked';
       signer: DbPrincipalSigner;
     };
 
-export type DbPrincipalContextMode = "legacy-guc" | "shadow" | "locked";
+export type DbPrincipalContextMode = 'legacy-guc' | 'shadow' | 'locked';
 
 export type DbPrincipalApplyOptionsInput = {
   mode?: string | null | undefined;
@@ -273,7 +306,7 @@ export type DbPrincipalApplyOptionsInput = {
 const principalStorage = new AsyncLocalStorage<DbPrincipalContextCell>();
 
 export function normalizeDbPrincipalOrganizationId(organizationId: string): string {
-  return normalizeUuid(organizationId, "Invalid DB principal organization id");
+  return normalizeUuid(organizationId, 'Invalid DB principal organization id');
 }
 
 /**
@@ -289,58 +322,64 @@ export function isDbPrincipalPlatformUserId(platformUserId: string): boolean {
 export function normalizeDbPrincipalPlatformUserId(platformUserId: string): string {
   const trimmed = platformUserId.trim();
   if (!isDbPrincipalPlatformUserId(trimmed)) {
-    throw new Error("Invalid DB principal platform user id");
+    throw new Error('Invalid DB principal platform user id');
   }
   return trimmed.toLowerCase();
 }
 
-export function normalizeDbPrincipalIntegratorUserId(integratorUserId: string | number | bigint): string {
-  if (typeof integratorUserId === "bigint") {
+export function normalizeDbPrincipalIntegratorUserId(
+  integratorUserId: string | number | bigint,
+): string {
+  if (typeof integratorUserId === 'bigint') {
     if (integratorUserId <= 0n || integratorUserId > MAX_SIGNED_BIGINT) {
-      throw new Error("Invalid DB principal integrator user id");
+      throw new Error('Invalid DB principal integrator user id');
     }
     return integratorUserId.toString();
   }
 
-  if (typeof integratorUserId === "number") {
+  if (typeof integratorUserId === 'number') {
     if (!Number.isSafeInteger(integratorUserId) || integratorUserId <= 0) {
-      throw new Error("Invalid DB principal integrator user id");
+      throw new Error('Invalid DB principal integrator user id');
     }
     return String(integratorUserId);
   }
 
   const trimmed = integratorUserId.trim();
   if (!POSITIVE_INTEGER_RE.test(trimmed)) {
-    throw new Error("Invalid DB principal integrator user id");
+    throw new Error('Invalid DB principal integrator user id');
   }
   if (BigInt(trimmed) > MAX_SIGNED_BIGINT) {
-    throw new Error("Invalid DB principal integrator user id");
+    throw new Error('Invalid DB principal integrator user id');
   }
   return trimmed;
 }
 
 export function normalizeDbPrincipal(principal: DbPrincipal): DbPrincipal {
   switch (principal.kind) {
-    case "organization":
+    case 'organization':
       return createDbOrganizationPrincipal(principal);
-    case "staff":
+    case 'staff':
       return createDbStaffPrincipal(principal);
-    case "patient":
+    case 'clinicBilling':
+      return createDbClinicBillingPrincipal(principal);
+    case 'patient':
       return createDbPatientPrincipal(principal);
-    case "integrator":
+    case 'integrator':
       return createDbIntegratorPrincipal(principal);
-    case "platform":
+    case 'platform':
       return createDbPlatformPrincipal(principal);
-    case "bootstrap":
+    case 'bootstrap':
       return createDbBootstrapPrincipal(principal);
-    case "infra":
+    case 'infra':
       return createDbInfraPrincipal(principal);
   }
 }
 
-export function createDbOrganizationPrincipal(input: DbOrganizationPrincipalInput): DbOrganizationPrincipal {
+export function createDbOrganizationPrincipal(
+  input: DbOrganizationPrincipalInput,
+): DbOrganizationPrincipal {
   return {
-    kind: "organization",
+    kind: 'organization',
     organizationId: normalizeDbPrincipalOrganizationId(input.organizationId),
     ...copyOptionalSource(input),
   };
@@ -348,7 +387,18 @@ export function createDbOrganizationPrincipal(input: DbOrganizationPrincipalInpu
 
 export function createDbStaffPrincipal(input: DbStaffPrincipalInput): DbStaffPrincipal {
   return {
-    kind: "staff",
+    kind: 'staff',
+    organizationId: normalizeDbPrincipalOrganizationId(input.organizationId),
+    platformUserId: normalizeDbPrincipalPlatformUserId(input.platformUserId),
+    ...copyOptionalSource(input),
+  };
+}
+
+export function createDbClinicBillingPrincipal(
+  input: DbClinicBillingPrincipalInput,
+): DbClinicBillingPrincipal {
+  return {
+    kind: 'clinicBilling',
     organizationId: normalizeDbPrincipalOrganizationId(input.organizationId),
     platformUserId: normalizeDbPrincipalPlatformUserId(input.platformUserId),
     ...copyOptionalSource(input),
@@ -357,7 +407,7 @@ export function createDbStaffPrincipal(input: DbStaffPrincipalInput): DbStaffPri
 
 export function createDbPatientPrincipal(input: DbPatientPrincipalInput): DbPatientPrincipal {
   return {
-    kind: "patient",
+    kind: 'patient',
     ...(input.organizationId == null
       ? {}
       : { organizationId: normalizeDbPrincipalOrganizationId(input.organizationId) }),
@@ -366,9 +416,11 @@ export function createDbPatientPrincipal(input: DbPatientPrincipalInput): DbPati
   };
 }
 
-export function createDbIntegratorPrincipal(input: DbIntegratorPrincipalInput): DbIntegratorPrincipal {
+export function createDbIntegratorPrincipal(
+  input: DbIntegratorPrincipalInput,
+): DbIntegratorPrincipal {
   return {
-    kind: "integrator",
+    kind: 'integrator',
     organizationId: normalizeDbPrincipalOrganizationId(input.organizationId),
     integratorUserId: normalizeDbPrincipalIntegratorUserId(input.integratorUserId),
     ...copyOptionalSource(input),
@@ -377,22 +429,24 @@ export function createDbIntegratorPrincipal(input: DbIntegratorPrincipalInput): 
 
 export function createDbPlatformPrincipal(input: DbPlatformPrincipalInput): DbPlatformPrincipal {
   return {
-    kind: "platform",
+    kind: 'platform',
     platformUserId: normalizeDbPrincipalPlatformUserId(input.platformUserId),
     ...copyOptionalSource(input),
   };
 }
 
-export function createDbBootstrapPrincipal(input: DbBootstrapPrincipalInput = {}): DbBootstrapPrincipal {
+export function createDbBootstrapPrincipal(
+  input: DbBootstrapPrincipalInput = {},
+): DbBootstrapPrincipal {
   return {
-    kind: "bootstrap",
+    kind: 'bootstrap',
     ...copyOptionalSource(input),
   };
 }
 
 export function createDbInfraPrincipal(input: DbInfraPrincipalInput = {}): DbInfraPrincipal {
   return {
-    kind: "infra",
+    kind: 'infra',
     ...(input.organizationId == null
       ? {}
       : { organizationId: normalizeDbPrincipalOrganizationId(input.organizationId) }),
@@ -406,7 +460,7 @@ export function getCurrentDbPrincipal(): DbPrincipal | undefined {
 
 /** Accepts only a canonical UUID. Arbitrary caller text is never copied into logs/headers. */
 export function parseCorrelationId(value: unknown): CorrelationId | undefined {
-  if (typeof value !== "string") return undefined;
+  if (typeof value !== 'string') return undefined;
   const normalized = value.trim().toLowerCase();
   return UUID_RE.test(normalized) ? (normalized as CorrelationId) : undefined;
 }
@@ -482,7 +536,9 @@ export function getCurrentObservabilityContext(): Partial<ObservabilityContext> 
 }
 
 /** Header fragment for an existing context; does not create ambient state outside a request/job. */
-export function getCurrentCorrelationIdHeader(): Record<typeof BC_CORRELATION_ID_HEADER, string> | Record<string, never> {
+export function getCurrentCorrelationIdHeader():
+  | Record<typeof BC_CORRELATION_ID_HEADER, string>
+  | Record<string, never> {
   const correlationId = getCurrentCorrelationId();
   return correlationId === undefined ? {} : { [BC_CORRELATION_ID_HEADER]: correlationId };
 }
@@ -492,10 +548,10 @@ export function getCurrentDbPrincipalOrganizationId(): string | undefined {
   // A patient identity may be organization-agnostic (multi-clinic overview) or carry the
   // application-selected organization for clinic-specific screens. Expose only that explicit
   // selection; never derive or guess an organization here.
-  if (principal?.kind === "patient") {
+  if (principal?.kind === 'patient') {
     return principal.organizationId;
   }
-  if (principal?.kind === "infra") {
+  if (principal?.kind === 'infra') {
     return principal.organizationId;
   }
   return isOrganizationScopedPrincipal(principal) ? principal.organizationId : undefined;
@@ -503,7 +559,11 @@ export function getCurrentDbPrincipalOrganizationId(): string | undefined {
 
 export function getCurrentDbPrincipalPlatformUserId(): string | undefined {
   const principal = getCurrentDbPrincipal();
-  if (principal?.kind === "staff" || principal?.kind === "patient" || principal?.kind === "platform") {
+  if (
+    principal?.kind === 'staff' ||
+    principal?.kind === 'patient' ||
+    principal?.kind === 'platform'
+  ) {
     return principal.platformUserId;
   }
   return undefined;
@@ -511,7 +571,7 @@ export function getCurrentDbPrincipalPlatformUserId(): string | undefined {
 
 export function getCurrentDbPrincipalIntegratorUserId(): string | undefined {
   const principal = getCurrentDbPrincipal();
-  return principal?.kind === "integrator" ? principal.integratorUserId : undefined;
+  return principal?.kind === 'integrator' ? principal.integratorUserId : undefined;
 }
 
 export function runWithDbPrincipal<T>(principal: DbPrincipal, fn: () => T): T {
@@ -600,6 +660,17 @@ export function enterWithDbStaffPrincipal(input: DbStaffPrincipalInput): void {
   enterWithDbPrincipal(createDbStaffPrincipal(input));
 }
 
+export function runWithDbClinicBillingPrincipal<T>(
+  input: DbClinicBillingPrincipalInput,
+  fn: () => T,
+): T {
+  return runWithDbPrincipal(createDbClinicBillingPrincipal(input), fn);
+}
+
+export function enterWithDbClinicBillingPrincipal(input: DbClinicBillingPrincipalInput): void {
+  enterWithDbPrincipal(createDbClinicBillingPrincipal(input));
+}
+
 export function runWithDbPatientPrincipal<T>(input: DbPatientPrincipalInput, fn: () => T): T {
   return runWithDbPrincipal(createDbPatientPrincipal(input), fn);
 }
@@ -640,15 +711,19 @@ export function enterWithDbInfraPrincipal(input: DbInfraPrincipalInput = {}): vo
   enterWithDbPrincipal(createDbInfraPrincipal(input));
 }
 
-export function buildDbPrincipalApplyOptions(input: DbPrincipalApplyOptionsInput = {}): DbPrincipalApplyOptions {
+export function buildDbPrincipalApplyOptions(
+  input: DbPrincipalApplyOptionsInput = {},
+): DbPrincipalApplyOptions {
   const mode = normalizeDbPrincipalContextMode(input.mode);
-  if (mode === "legacy-guc") {
+  if (mode === 'legacy-guc') {
     return { mode };
   }
 
-  const secret = (input.signingSecret ?? "").trim();
+  const secret = (input.signingSecret ?? '').trim();
   if (!secret) {
-    throw new Error(`${DB_PRINCIPAL_SIGNING_SECRET_ENV} is required when ${DB_PRINCIPAL_CONTEXT_MODE_ENV}=${mode}`);
+    throw new Error(
+      `${DB_PRINCIPAL_SIGNING_SECRET_ENV} is required when ${DB_PRINCIPAL_CONTEXT_MODE_ENV}=${mode}`,
+    );
   }
 
   return {
@@ -671,7 +746,9 @@ export function buildDbPrincipalApplyOptionsFromEnv(
   });
 }
 
-export function assertDbPrincipalRequestPoolCheckoutAllowed(options: DbPrincipalApplyOptions = {}): void {
+export function assertDbPrincipalRequestPoolCheckoutAllowed(
+  options: DbPrincipalApplyOptions = {},
+): void {
   assertDbPrincipalRequestPoolCheckoutAllowedForPrincipal(getCurrentDbPrincipal(), options);
 }
 
@@ -679,15 +756,17 @@ export function assertDbPrincipalRequestPoolCheckoutAllowedForPrincipal(
   principal: DbPrincipal | undefined,
   options: DbPrincipalApplyOptions = {},
 ): void {
-  if (options.mode !== "locked") {
+  if (options.mode !== 'locked') {
     return;
   }
 
   if (!principal) {
-    throw new Error("DB principal context is required before scoped DB access in locked mode");
+    throw new Error('DB principal context is required before scoped DB access in locked mode');
   }
-  if (principal.kind === "infra") {
-    throw new Error("DB infra principal is not allowed to use the webapp request DB pool in locked mode");
+  if (principal.kind === 'infra') {
+    throw new Error(
+      'DB infra principal is not allowed to use the webapp request DB pool in locked mode',
+    );
   }
 }
 
@@ -703,11 +782,11 @@ export async function applyDbPrincipalToTransaction(
   principal: DbPrincipal | undefined,
   options: DbPrincipalApplyOptions = {},
 ): Promise<boolean> {
-  if (principal?.kind === "platform") {
-    await applyDbPrincipal(client, principal, "transaction");
+  if (principal?.kind === 'platform') {
+    await applyDbPrincipal(client, principal, 'transaction');
     return true;
   }
-  if (options.mode === "locked" || options.mode === "shadow") {
+  if (options.mode === 'locked' || options.mode === 'shadow') {
     return applySignedDbPrincipal(client, principal, options);
   }
 
@@ -715,12 +794,12 @@ export async function applyDbPrincipalToTransaction(
     return false;
   }
 
-  if (principal.kind === "organization") {
+  if (principal.kind === 'organization') {
     await client.query("SELECT set_config('app.org', $1, true)", [principal.organizationId]);
     return true;
   }
 
-  await applyDbPrincipal(client, principal, "transaction");
+  await applyDbPrincipal(client, principal, 'transaction');
   return true;
 }
 
@@ -736,11 +815,11 @@ export async function applyDbPrincipalToConnection(
   principal: DbPrincipal | undefined,
   options: DbPrincipalApplyOptions = {},
 ): Promise<boolean> {
-  if (principal?.kind === "platform") {
-    await applyDbPrincipal(client, principal, "connection");
+  if (principal?.kind === 'platform') {
+    await applyDbPrincipal(client, principal, 'connection');
     return true;
   }
-  if (options.mode === "locked" || options.mode === "shadow") {
+  if (options.mode === 'locked' || options.mode === 'shadow') {
     return applySignedDbPrincipal(client, principal, options);
   }
 
@@ -748,7 +827,7 @@ export async function applyDbPrincipalToConnection(
     return false;
   }
 
-  await applyDbPrincipal(client, principal, "connection");
+  await applyDbPrincipal(client, principal, 'connection');
   return true;
 }
 
@@ -757,19 +836,31 @@ export async function clearDbPrincipalFromConnection(
   options: DbPrincipalApplyOptions = {},
   principal?: DbPrincipal,
 ): Promise<void> {
-  if (principal?.kind === "platform") {
+  if (principal?.kind === 'platform') {
     try {
-      await clearDbPrincipalConfig(client, "connection");
+      await clearDbPrincipalConfig(client, 'connection');
     } finally {
       await resetDbOperationalRuntimeRole(client);
     }
     return;
   }
-  if (options.mode === "locked" || options.mode === "shadow") {
+  if (principal?.kind === 'clinicBilling') {
+    try {
+      if (options.mode === 'locked' || options.mode === 'shadow') {
+        await client.query('SELECT app.release_principal_context()');
+      } else {
+        await clearDbPrincipalConfig(client, 'connection');
+      }
+    } finally {
+      await resetDbOperationalRuntimeRole(client);
+    }
+    return;
+  }
+  if (options.mode === 'locked' || options.mode === 'shadow') {
     await releaseSignedDbPrincipal(client, options);
     return;
   }
-  await clearDbPrincipalConfig(client, "connection");
+  await clearDbPrincipalConfig(client, 'connection');
 }
 
 export async function clearDbPrincipalFromTransaction(
@@ -777,19 +868,31 @@ export async function clearDbPrincipalFromTransaction(
   options: DbPrincipalApplyOptions = {},
   principal?: DbPrincipal,
 ): Promise<void> {
-  if (principal?.kind === "platform") {
+  if (principal?.kind === 'platform') {
     try {
-      await clearDbPrincipalConfig(client, "transaction");
+      await clearDbPrincipalConfig(client, 'transaction');
     } finally {
       await resetDbOperationalRuntimeRole(client);
     }
     return;
   }
-  if (options.mode === "locked" || options.mode === "shadow") {
+  if (principal?.kind === 'clinicBilling') {
+    try {
+      if (options.mode === 'locked' || options.mode === 'shadow') {
+        await client.query('SELECT app.release_principal_context()');
+      } else {
+        await clearDbPrincipalConfig(client, 'transaction');
+      }
+    } finally {
+      await resetDbOperationalRuntimeRole(client);
+    }
+    return;
+  }
+  if (options.mode === 'locked' || options.mode === 'shadow') {
     await releaseSignedDbPrincipal(client, options);
     return;
   }
-  await clearDbPrincipalConfig(client, "transaction");
+  await clearDbPrincipalConfig(client, 'transaction');
 }
 
 function normalizeUuid(value: string, errorMessage: string): string {
@@ -801,8 +904,9 @@ function normalizeUuid(value: string, errorMessage: string): string {
 }
 
 function normalizeDbPrincipalContextMode(mode: string | null | undefined): DbPrincipalContextMode {
-  const normalized = (mode ?? DEFAULT_DB_PRINCIPAL_CONTEXT_MODE).trim() || DEFAULT_DB_PRINCIPAL_CONTEXT_MODE;
-  if (normalized === "legacy-guc" || normalized === "shadow" || normalized === "locked") {
+  const normalized =
+    (mode ?? DEFAULT_DB_PRINCIPAL_CONTEXT_MODE).trim() || DEFAULT_DB_PRINCIPAL_CONTEXT_MODE;
+  if (normalized === 'legacy-guc' || normalized === 'shadow' || normalized === 'locked') {
     return normalized;
   }
   throw new Error(`${DB_PRINCIPAL_CONTEXT_MODE_ENV} must be legacy-guc, shadow, or locked`);
@@ -815,15 +919,24 @@ function copyOptionalSource(input: { source?: string }): { source?: string } {
 
   const source = input.source.trim();
   if (!source) {
-    throw new Error("Invalid DB principal source");
+    throw new Error('Invalid DB principal source');
   }
   return { source };
 }
 
 function isOrganizationScopedPrincipal(
   principal: DbPrincipal | undefined,
-): principal is DbOrganizationPrincipal | DbStaffPrincipal | DbIntegratorPrincipal {
-  return principal?.kind === "organization" || principal?.kind === "staff" || principal?.kind === "integrator";
+): principal is
+  | DbOrganizationPrincipal
+  | DbStaffPrincipal
+  | DbClinicBillingPrincipal
+  | DbIntegratorPrincipal {
+  return (
+    principal?.kind === 'organization' ||
+    principal?.kind === 'staff' ||
+    principal?.kind === 'clinicBilling' ||
+    principal?.kind === 'integrator'
+  );
 }
 
 async function applyDbPrincipal(
@@ -832,83 +945,105 @@ async function applyDbPrincipal(
   scope: DbPrincipalApplyScope,
 ): Promise<void> {
   switch (principal.kind) {
-    case "organization":
+    case 'organization':
       await setDbPrincipalConfig(client, APP_ORG_CONFIG_KEY, principal.organizationId, scope);
-      await setDbPrincipalConfig(client, APP_PATIENT_USER_CONFIG_KEY, "", scope);
-      await setDbPrincipalConfig(client, APP_INTEGRATOR_USER_CONFIG_KEY, "", scope);
+      await setDbPrincipalConfig(client, APP_PATIENT_USER_CONFIG_KEY, '', scope);
+      await setDbPrincipalConfig(client, APP_INTEGRATOR_USER_CONFIG_KEY, '', scope);
       return;
-    case "staff":
+    case 'staff':
       await setDbPrincipalConfig(client, APP_ORG_CONFIG_KEY, principal.organizationId, scope);
-      await setDbPrincipalConfig(client, APP_PATIENT_USER_CONFIG_KEY, "", scope);
-      await setDbPrincipalConfig(client, APP_INTEGRATOR_USER_CONFIG_KEY, "", scope);
+      await setDbPrincipalConfig(client, APP_PATIENT_USER_CONFIG_KEY, '', scope);
+      await setDbPrincipalConfig(client, APP_INTEGRATOR_USER_CONFIG_KEY, '', scope);
       return;
-    case "patient":
-      await setDbPrincipalConfig(client, APP_ORG_CONFIG_KEY, principal.organizationId ?? "", scope);
-      await setDbPrincipalConfig(client, APP_PATIENT_USER_CONFIG_KEY, principal.platformUserId, scope);
-      await setDbPrincipalConfig(client, APP_INTEGRATOR_USER_CONFIG_KEY, "", scope);
-      return;
-    case "integrator":
+    case 'clinicBilling':
+      await setDbClinicBillingRuntimeRole(client);
       await setDbPrincipalConfig(client, APP_ORG_CONFIG_KEY, principal.organizationId, scope);
-      await setDbPrincipalConfig(client, APP_PATIENT_USER_CONFIG_KEY, "", scope);
-      await setDbPrincipalConfig(client, APP_INTEGRATOR_USER_CONFIG_KEY, principal.integratorUserId, scope);
+      await setDbPrincipalConfig(client, APP_PATIENT_USER_CONFIG_KEY, '', scope);
+      await setDbPrincipalConfig(client, APP_INTEGRATOR_USER_CONFIG_KEY, '', scope);
       return;
-    case "platform":
+    case 'patient':
+      await setDbPrincipalConfig(client, APP_ORG_CONFIG_KEY, principal.organizationId ?? '', scope);
+      await setDbPrincipalConfig(
+        client,
+        APP_PATIENT_USER_CONFIG_KEY,
+        principal.platformUserId,
+        scope,
+      );
+      await setDbPrincipalConfig(client, APP_INTEGRATOR_USER_CONFIG_KEY, '', scope);
+      return;
+    case 'integrator':
+      await setDbPrincipalConfig(client, APP_ORG_CONFIG_KEY, principal.organizationId, scope);
+      await setDbPrincipalConfig(client, APP_PATIENT_USER_CONFIG_KEY, '', scope);
+      await setDbPrincipalConfig(
+        client,
+        APP_INTEGRATOR_USER_CONFIG_KEY,
+        principal.integratorUserId,
+        scope,
+      );
+      return;
+    case 'platform':
       await setDbPlatformSettingsRuntimeRole(client);
       await clearDbPrincipalConfig(client, scope);
       return;
-    case "bootstrap":
-    case "infra":
+    case 'bootstrap':
+    case 'infra':
       await clearDbPrincipalConfig(client, scope);
       return;
   }
 }
 
-async function clearDbPrincipalConfig(client: DbPrincipalQueryable, scope: DbPrincipalApplyScope): Promise<void> {
-  await setDbPrincipalConfig(client, APP_ORG_CONFIG_KEY, "", scope);
-  await setDbPrincipalConfig(client, APP_PATIENT_USER_CONFIG_KEY, "", scope);
-  await setDbPrincipalConfig(client, APP_INTEGRATOR_USER_CONFIG_KEY, "", scope);
+async function clearDbPrincipalConfig(
+  client: DbPrincipalQueryable,
+  scope: DbPrincipalApplyScope,
+): Promise<void> {
+  await setDbPrincipalConfig(client, APP_ORG_CONFIG_KEY, '', scope);
+  await setDbPrincipalConfig(client, APP_PATIENT_USER_CONFIG_KEY, '', scope);
+  await setDbPrincipalConfig(client, APP_INTEGRATOR_USER_CONFIG_KEY, '', scope);
 }
 
 async function setDbPrincipalConfig(
   client: DbPrincipalQueryable,
-  key: typeof APP_ORG_CONFIG_KEY | typeof APP_PATIENT_USER_CONFIG_KEY | typeof APP_INTEGRATOR_USER_CONFIG_KEY,
+  key:
+    | typeof APP_ORG_CONFIG_KEY
+    | typeof APP_PATIENT_USER_CONFIG_KEY
+    | typeof APP_INTEGRATOR_USER_CONFIG_KEY,
   value: string,
   scope: DbPrincipalApplyScope,
 ): Promise<void> {
-  const local = scope === "transaction" ? "true" : "false";
+  const local = scope === 'transaction' ? 'true' : 'false';
   await client.query(`SELECT set_config('${key}', $1, ${local})`, [value]);
 }
 
 async function applySignedDbPrincipal(
   client: DbPrincipalQueryable,
   principal: DbPrincipal | undefined,
-  options: Extract<DbPrincipalApplyOptions, { mode: "shadow" | "locked" }>,
+  options: Extract<DbPrincipalApplyOptions, { mode: 'shadow' | 'locked' }>,
 ): Promise<boolean> {
   if (!principal) {
-    if (options.mode === "locked") {
+    if (options.mode === 'locked') {
       await releaseSignedDbPrincipal(client, options);
-      throw new Error("DB principal context is required before scoped DB access in locked mode");
+      throw new Error('DB principal context is required before scoped DB access in locked mode');
     }
     await releaseSignedDbPrincipal(client, options);
-    console.warn("DB principal context is missing before scoped DB access in shadow mode");
+    console.warn('DB principal context is missing before scoped DB access in shadow mode');
     return false;
   }
 
-  if (principal.kind === "bootstrap" || principal.kind === "infra") {
+  if (principal.kind === 'bootstrap' || principal.kind === 'infra') {
     await releaseSignedDbPrincipal(client, options);
     return false;
   }
 
   // Platform settings never use the signed organization/patient context: their
   // dedicated role is the complete DB authority boundary and has no tenant id.
-  if (principal.kind === "platform") {
+  if (principal.kind === 'platform') {
     await setDbPlatformSettingsRuntimeRole(client);
-    await clearDbPrincipalConfig(client, "connection");
+    await clearDbPrincipalConfig(client, 'connection');
     return true;
   }
 
-  if (options.mode === "locked") {
-    await client.query("RESET ROLE");
+  if (options.mode === 'locked' || principal.kind === 'clinicBilling') {
+    await client.query('RESET ROLE');
     await client.query(`SET ROLE ${dbRuntimeRoleForPrincipal(principal)}`);
   }
 
@@ -918,41 +1053,59 @@ async function applySignedDbPrincipal(
 
 async function releaseSignedDbPrincipal(
   client: DbPrincipalQueryable,
-  options: Extract<DbPrincipalApplyOptions, { mode: "shadow" | "locked" }>,
+  options: Extract<DbPrincipalApplyOptions, { mode: 'shadow' | 'locked' }>,
 ): Promise<void> {
   try {
-    await client.query("SELECT app.release_principal_context()");
+    await client.query('SELECT app.release_principal_context()');
   } finally {
-    if (options.mode === "locked") {
-      await client.query("RESET ROLE");
+    if (options.mode === 'locked') {
+      await client.query('RESET ROLE');
     }
   }
 }
 
 function dbRuntimeRoleForPrincipal(
-  principal: DbOrganizationPrincipal | DbStaffPrincipal | DbPatientPrincipal | DbIntegratorPrincipal,
-): typeof DB_PRINCIPAL_STAFF_ROLE | typeof DB_PRINCIPAL_PATIENT_ROLE {
+  principal:
+    | DbOrganizationPrincipal
+    | DbStaffPrincipal
+    | DbClinicBillingPrincipal
+    | DbPatientPrincipal
+    | DbIntegratorPrincipal,
+):
+  | typeof DB_PRINCIPAL_STAFF_ROLE
+  | typeof DB_PRINCIPAL_CLINIC_BILLING_ROLE
+  | typeof DB_PRINCIPAL_PATIENT_ROLE {
   switch (principal.kind) {
-    case "organization":
-    case "staff":
+    case 'organization':
+    case 'staff':
       return DB_PRINCIPAL_STAFF_ROLE;
-    case "patient":
-    case "integrator":
+    case 'clinicBilling':
+      return DB_PRINCIPAL_CLINIC_BILLING_ROLE;
+    case 'patient':
+    case 'integrator':
       return DB_PRINCIPAL_PATIENT_ROLE;
   }
 }
 
 async function installSignedDbPrincipalContext(
   client: DbPrincipalQueryable,
-  principal: DbOrganizationPrincipal | DbStaffPrincipal | DbPatientPrincipal | DbIntegratorPrincipal,
+  principal:
+    | DbOrganizationPrincipal
+    | DbStaffPrincipal
+    | DbClinicBillingPrincipal
+    | DbPatientPrincipal
+    | DbIntegratorPrincipal,
   signer: DbPrincipalSigner,
 ): Promise<void> {
   const backendPid = await readBackendPid(client);
-  const expiresEpoch = Math.floor(((signer.now?.() ?? new Date()).getTime() + (signer.ttlMs ?? 30_000)) / 1000);
+  const expiresEpoch = Math.floor(
+    ((signer.now?.() ?? new Date()).getTime() + (signer.ttlMs ?? 30_000)) / 1000,
+  );
   const nonce = signer.nonce?.() ?? randomUUID();
-  const patientUserId = principal.kind === "patient" ? principal.platformUserId : "";
-  const integratorUserId = principal.kind === "integrator" ? principal.integratorUserId : "";
-  const organizationId = principal.kind === "patient" ? (principal.organizationId ?? "") : principal.organizationId;
+  const patientUserId = principal.kind === 'patient' ? principal.platformUserId : '';
+  const integratorUserId = principal.kind === 'integrator' ? principal.integratorUserId : '';
+  const organizationId =
+    principal.kind === 'patient' ? (principal.organizationId ?? '') : principal.organizationId;
   const canonicalPayload = buildCanonicalSignedPrincipalPayload({
     backendPid,
     expiresEpoch,
@@ -964,11 +1117,11 @@ async function installSignedDbPrincipalContext(
 
   await client.query(
     [
-      "SELECT app.install_signed_context(",
-      "$1::text, $2::integer, $3::bigint, $4::uuid,",
-      "$5::uuid, $6::bigint, $7::text",
-      ")",
-    ].join(" "),
+      'SELECT app.install_signed_context(',
+      '$1::text, $2::integer, $3::bigint, $4::uuid,',
+      '$5::uuid, $6::bigint, $7::text',
+      ')',
+    ].join(' '),
     [
       nonce,
       backendPid,
@@ -976,7 +1129,7 @@ async function installSignedDbPrincipalContext(
       organizationId || null,
       patientUserId || null,
       integratorUserId || null,
-      createHmac("sha256", signer.secret).update(canonicalPayload).digest("hex"),
+      createHmac('sha256', signer.secret).update(canonicalPayload).digest('hex'),
     ],
   );
 }
@@ -990,45 +1143,45 @@ function buildCanonicalSignedPrincipalPayload(input: {
   patientUserId: string;
 }): string {
   return [
-    "v1",
+    'v1',
     input.nonce,
     String(input.backendPid),
     String(input.expiresEpoch),
     input.organizationId,
     input.patientUserId,
     input.integratorUserId,
-  ].join("|");
+  ].join('|');
 }
 
 async function readBackendPid(client: DbPrincipalQueryable): Promise<number> {
-  const result = await client.query("SELECT pg_backend_pid() AS backend_pid");
+  const result = await client.query('SELECT pg_backend_pid() AS backend_pid');
   const rows = (result as { rows?: readonly Record<string, unknown>[] }).rows;
   const raw = rows?.[0]?.backend_pid;
-  const backendPid = typeof raw === "number" ? raw : Number(raw);
+  const backendPid = typeof raw === 'number' ? raw : Number(raw);
   if (!Number.isInteger(backendPid) || backendPid <= 0) {
-    throw new Error("Could not read PostgreSQL backend pid for DB principal context");
+    throw new Error('Could not read PostgreSQL backend pid for DB principal context');
   }
   return backendPid;
 }
 
 export type SaasIsolationTelemetryEventClass =
-  | "missing_principal"
-  | "invalid_signature_or_install"
-  | "role_pool_mismatch"
-  | "rls_denial"
-  | "cleanup_failure"
-  | "unclassified_background_operation";
+  | 'missing_principal'
+  | 'invalid_signature_or_install'
+  | 'role_pool_mismatch'
+  | 'rls_denial'
+  | 'cleanup_failure'
+  | 'unclassified_background_operation';
 export type SaasIsolationBackgroundSource =
-  | { service: "integrator"; operation: "integrator_http_request" | "integrator_projection" }
+  | { service: 'integrator'; operation: 'integrator_http_request' | 'integrator_projection' }
   | {
-      service: "worker";
-      operation: "worker_queue_drain" | "worker_projection_delivery" | "worker_outgoing_delivery";
+      service: 'worker';
+      operation: 'worker_queue_drain' | 'worker_projection_delivery' | 'worker_outgoing_delivery';
     }
-  | { service: "scheduler"; operation: "scheduler_lock" | "scheduler_dispatch_tick" }
-  | { service: "media_worker"; operation: "media_transcode_tick" };
+  | { service: 'scheduler'; operation: 'scheduler_lock' | 'scheduler_dispatch_tick' }
+  | { service: 'media_worker'; operation: 'media_transcode_tick' };
 
 export type SaasIsolationTelemetryTransportStatus = {
-  state: "idle" | "ready" | "degraded";
+  state: 'idle' | 'ready' | 'degraded';
   queueLength: number;
   acceptedEvents: number;
   persistedEvents: number;
@@ -1048,37 +1201,45 @@ export type SaasIsolationBackgroundReporter = ((error: unknown) => void) & {
 };
 
 export function classifySaasIsolationFailure(error: unknown): SaasIsolationTelemetryEventClass {
-  const value = typeof error === "object" && error !== null ? (error as { code?: unknown; message?: unknown }) : {};
+  const value =
+    typeof error === 'object' && error !== null
+      ? (error as { code?: unknown; message?: unknown })
+      : {};
   const message =
-    typeof error === "string"
+    typeof error === 'string'
       ? error
-      : typeof value.message === "string"
+      : typeof value.message === 'string'
         ? value.message
         : error instanceof Error
           ? error.message
-          : "";
-  if (/principal context is required/i.test(message)) return "missing_principal";
-  if (/signed context|signature|install_signed_context/i.test(message)) return "invalid_signature_or_install";
+          : '';
+  if (/principal context is required/i.test(message)) return 'missing_principal';
+  if (/signed context|signature|install_signed_context/i.test(message))
+    return 'invalid_signature_or_install';
   if (
-    (value.code === "42501" || value.code === undefined) &&
+    (value.code === '42501' || value.code === undefined) &&
     /row-level security|row level security|policy/i.test(message)
   )
-    return "rls_denial";
+    return 'rls_denial';
   if (
-    (value.code === "42501" || value.code === undefined) &&
+    (value.code === '42501' || value.code === undefined) &&
     /permission denied for (table|schema|sequence|function|relation)/i.test(message)
   ) {
-    return "role_pool_mismatch";
+    return 'role_pool_mismatch';
   }
-  if (/release_principal_context|cleanup/i.test(message)) return "cleanup_failure";
-  return "unclassified_background_operation";
+  if (/release_principal_context|cleanup/i.test(message)) return 'cleanup_failure';
+  return 'unclassified_background_operation';
 }
 
 export function isRecognizedSaasIsolationFailure(error: unknown): boolean {
-  const value = typeof error === "object" && error !== null ? (error as { code?: unknown; message?: unknown }) : {};
-  const message = typeof error === "string" ? error : typeof value.message === "string" ? value.message : "";
+  const value =
+    typeof error === 'object' && error !== null
+      ? (error as { code?: unknown; message?: unknown })
+      : {};
+  const message =
+    typeof error === 'string' ? error : typeof value.message === 'string' ? value.message : '';
   return (
-    value.code === "42501" ||
+    value.code === '42501' ||
     /principal context is required|signed context|signature|install_signed_context|release_principal_context|permission denied for (table|schema|sequence|function|relation)|row-level security|row level security/i.test(
       message,
     )
@@ -1102,7 +1263,7 @@ export function createSaasIsolationBackgroundReporter(input: {
   const timeoutMs = input.timeoutMs ?? 250;
   let draining = false;
   let circuitOpenUntil = 0;
-  let state: SaasIsolationTelemetryTransportStatus["state"] = "idle";
+  let state: SaasIsolationTelemetryTransportStatus['state'] = 'idle';
   let acceptedEvents = 0;
   let persistedEvents = 0;
   let transportFailures = 0;
@@ -1158,21 +1319,24 @@ export function createSaasIsolationBackgroundReporter(input: {
         let timer: ReturnType<typeof setTimeout> | undefined;
         try {
           await Promise.race([
-            input.query("SELECT app.report_saas_isolation_event($1, $2, $3, $4)", [
+            input.query('SELECT app.report_saas_isolation_event($1, $2, $3, $4)', [
               eventClass,
               input.source.service,
               input.source.operation,
-              "unexplained",
+              'unexplained',
             ]),
             new Promise<never>((_, reject) => {
-              timer = setTimeout(() => reject(new Error("saas_isolation_telemetry_timeout")), timeoutMs);
+              timer = setTimeout(
+                () => reject(new Error('saas_isolation_telemetry_timeout')),
+                timeoutMs,
+              );
             }),
           ]);
           persistedEvents = increment(persistedEvents);
-          state = "ready";
+          state = 'ready';
         } catch {
           transportFailures = increment(transportFailures);
-          state = "degraded";
+          state = 'degraded';
           circuitOpenUntil = now() + 30_000;
           queue.length = 0;
           publishStatus();
@@ -1206,20 +1370,20 @@ export function createSaasIsolationBackgroundReporter(input: {
     probeAttempts = increment(probeAttempts);
     if (!input.probe) {
       probeFailures = increment(probeFailures);
-      state = "degraded";
+      state = 'degraded';
       publishStatus();
       return false;
     }
     try {
       await input.probe();
-      state = "ready";
+      state = 'ready';
       circuitOpenUntil = 0;
       publishStatus();
       return true;
     } catch {
       probeFailures = increment(probeFailures);
       transportFailures = increment(transportFailures);
-      state = "degraded";
+      state = 'degraded';
       circuitOpenUntil = now() + 30_000;
       publishStatus();
       return false;

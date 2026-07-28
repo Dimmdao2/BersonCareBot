@@ -1,21 +1,26 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const guardMock = vi.hoisted(() => vi.fn());
 const buildAppDepsMock = vi.hoisted(() => vi.fn());
 const getOrganizationBillingOverviewMock = vi.hoisted(() => vi.fn());
+const enterWithDbClinicBillingPrincipalMock = vi.hoisted(() => vi.fn());
 
-vi.mock("@/app-layer/guards/requireRole", () => ({
+vi.mock('@bersoncare/db-principal', () => ({
+  enterWithDbClinicBillingPrincipal: enterWithDbClinicBillingPrincipalMock,
+}));
+
+vi.mock('@/app-layer/guards/requireRole', () => ({
   requireClinicManagementApiContext: guardMock,
 }));
 
-vi.mock("@/app-layer/di/buildAppDeps", () => ({
+vi.mock('@/app-layer/di/buildAppDeps', () => ({
   buildAppDeps: buildAppDepsMock,
 }));
 
-import { GET } from "./route";
+import { GET } from './route';
 
-const OWNER_ORGANIZATION_ID = "11111111-1111-4111-8111-111111111111";
-const FOREIGN_ORGANIZATION_ID = "22222222-2222-4222-8222-222222222222";
+const OWNER_ORGANIZATION_ID = '11111111-1111-4111-8111-111111111111';
+const FOREIGN_ORGANIZATION_ID = '22222222-2222-4222-8222-222222222222';
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -26,8 +31,8 @@ beforeEach(() => {
   });
 });
 
-describe("GET /api/clinic/billing", () => {
-  it("returns only the organization resolved from the owner membership", async () => {
+describe('GET /api/clinic/billing', () => {
+  it('returns only the organization resolved from the owner membership', async () => {
     const billing = {
       organizationId: OWNER_ORGANIZATION_ID,
       subscriptions: [],
@@ -38,7 +43,8 @@ describe("GET /api/clinic/billing", () => {
       ok: true,
       ctx: {
         organizationId: OWNER_ORGANIZATION_ID,
-        membershipRole: "owner",
+        membershipRole: 'owner',
+        session: { user: { userId: '33333333-3333-4333-8333-333333333333' } },
       },
     });
     getOrganizationBillingOverviewMock.mockResolvedValue(billing);
@@ -55,16 +61,21 @@ describe("GET /api/clinic/billing", () => {
       },
     });
     expect(getOrganizationBillingOverviewMock).toHaveBeenCalledWith(OWNER_ORGANIZATION_ID);
+    expect(enterWithDbClinicBillingPrincipalMock).toHaveBeenCalledWith({
+      organizationId: OWNER_ORGANIZATION_ID,
+      platformUserId: '33333333-3333-4333-8333-333333333333',
+      source: 'clinic-billing-read',
+    });
     expect(getOrganizationBillingOverviewMock).not.toHaveBeenCalledWith(FOREIGN_ORGANIZATION_ID);
     expect(guardMock.mock.invocationCallOrder[0]).toBeLessThan(
       buildAppDepsMock.mock.invocationCallOrder[0]!,
     );
   });
 
-  it("denies an ordinary doctor from a foreign clinic before billing repository access", async () => {
+  it('denies an ordinary doctor from a foreign clinic before billing repository access', async () => {
     guardMock.mockResolvedValue({
       ok: false,
-      response: Response.json({ ok: false, error: "forbidden" }, { status: 403 }),
+      response: Response.json({ ok: false, error: 'forbidden' }, { status: 403 }),
     });
 
     const response = await GET();
@@ -73,22 +84,38 @@ describe("GET /api/clinic/billing", () => {
     expect(buildAppDepsMock).not.toHaveBeenCalled();
   });
 
-  it("keeps the billing role narrower than general clinic management", async () => {
+  it('allows the clinic admin through the dedicated billing read path', async () => {
     guardMock.mockResolvedValue({
       ok: true,
       ctx: {
         organizationId: OWNER_ORGANIZATION_ID,
-        membershipRole: "admin",
+        membershipRole: 'admin',
+        session: { user: { userId: '44444444-4444-4444-8444-444444444444' } },
       },
+    });
+    getOrganizationBillingOverviewMock.mockResolvedValue({
+      organizationId: OWNER_ORGANIZATION_ID,
+      subscriptions: [],
+      invoices: [],
+      providerEvents: [],
     });
 
     const response = await GET();
 
-    expect(response.status).toBe(403);
+    expect(response.status).toBe(200);
     await expect(response.json()).resolves.toEqual({
-      ok: false,
-      error: "billing_owner_required",
+      ok: true,
+      billing: {
+        organizationId: OWNER_ORGANIZATION_ID,
+        subscriptions: [],
+        invoices: [],
+      },
     });
-    expect(buildAppDepsMock).not.toHaveBeenCalled();
+    expect(getOrganizationBillingOverviewMock).toHaveBeenCalledWith(OWNER_ORGANIZATION_ID);
+    expect(enterWithDbClinicBillingPrincipalMock).toHaveBeenCalledWith({
+      organizationId: OWNER_ORGANIZATION_ID,
+      platformUserId: '44444444-4444-4444-8444-444444444444',
+      source: 'clinic-billing-read',
+    });
   });
 });
