@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { stampBootstrapPrincipal } from "@/app-layer/principal/bootstrapPrincipal";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
+import { ensureAuthModulePortsBound } from "@/app-layer/di/bindAuthModulePorts";
 import { getSpecialistSignupEnabled } from "@/modules/auth/specialistSignupRollout";
 import {
   AUTH_CONFIRM_RATE_LIMIT_SEC,
@@ -15,6 +16,7 @@ const bodySchema = z.object({
 export async function POST(request: Request) {
   stampBootstrapPrincipal("api/auth/specialist-signup/slug:POST", request);
 
+  ensureAuthModulePortsBound();
   const rateLimit = await checkAuthConfirmRateLimit(request, "specialist_signup_slug");
   if (rateLimit.limited) {
     if (rateLimit.reason === "proxy_configuration") {

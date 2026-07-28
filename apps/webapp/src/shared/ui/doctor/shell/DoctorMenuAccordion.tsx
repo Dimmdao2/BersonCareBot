@@ -66,7 +66,6 @@ function getIconForMenuId(id: string): ElementType | null {
     case "clients": return Users;
     case "schedule": return Calendar;
     case "communications": return MessageCircle;
-    case "support": return MessageCircle;
     case "library": return BookOpen;
     case "content": return FileText;
     case "files-and-media": return FolderOpen;

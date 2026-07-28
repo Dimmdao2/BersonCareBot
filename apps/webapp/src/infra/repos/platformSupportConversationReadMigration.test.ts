@@ -19,26 +19,27 @@ const journal = readFileSync(
   new URL("../../../db/drizzle-migrations/meta/_journal.json", import.meta.url),
   "utf8",
 );
-const platformInbox = readFileSync(
-  new URL(
-    "../../app/app/admin/support/PlatformSupportInbox.tsx",
-    import.meta.url,
-  ),
+const platformNavigation = readFileSync(
+  new URL("../../shared/ui/doctor/platformNavLinks.ts", import.meta.url),
+  "utf8",
+);
+const repository = readFileSync(
+  new URL("./pgSupportCommunication.ts", import.meta.url),
   "utf8",
 );
 
-describe("platform support read boundary", () => {
-  it("grants the platform role SELECT-only access to the two support thread tables", () => {
+describe("platform support conversation isolation", () => {
+  it("revokes the platform role from the patient-to-clinic communication tables", () => {
     expect(migration).toContain("public.support_conversations");
     expect(migration).toContain("public.support_conversation_messages");
-    expect(migration).toContain("TO app_platform_settings");
-    expect(migration).toContain("FOR SELECT TO app_platform_settings");
-    expect(migration).not.toMatch(/GRANT\\s+(?:INSERT|UPDATE|DELETE)/i);
-    expect(migration).not.toContain("GRANT SELECT ON TABLE public.platform_users");
+    expect(migration).toContain("FROM app_platform_settings");
+    expect(migration).toContain("REVOKE ALL PRIVILEGES");
+    expect(migration).not.toContain("FOR SELECT TO app_platform_settings");
   });
 
-  it("rehydrates the same policies after a no-ACL TEST restore", () => {
-    expect(overlay).toContain("$c5a_platform_support_read$");
+  it("rehydrates the same deny boundary after a no-ACL TEST restore", () => {
+    expect(overlay).toContain("$c5a_platform_support_isolation$");
+    expect(overlay).toContain("REVOKE ALL PRIVILEGES");
     expect(overlay).toContain(
       "support_conversations_platform_operations_select",
     );
@@ -47,16 +48,16 @@ describe("platform support read boundary", () => {
     );
   });
 
-  it("registers the additive migration", () => {
+  it("keeps the historical migration slot registered", () => {
     expect(journal).toContain(
       '"tag": "0265_platform_support_conversations_read"',
     );
   });
 
-  it("keeps the platform card outside clinical patient navigation", () => {
-    expect(platformInbox).not.toContain("patientCardHref");
-    expect(platformInbox).not.toContain("ChatClientOverviewPanel");
-    expect(platformInbox).not.toMatch(/diagnos|treatmentProgram|patientClinical/i);
-    expect(platformInbox).not.toContain("<Link");
+  it("does not expose the mixed communication store through platform code or navigation", () => {
+    expect(repository).not.toContain("listPlatformSupportConversations");
+    expect(repository).not.toContain("getPlatformSupportConversation");
+    expect(platformNavigation).not.toContain('id: "support"');
+    expect(platformNavigation).not.toContain('href: "/app/admin/support"');
   });
 });

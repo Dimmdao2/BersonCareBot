@@ -99,7 +99,7 @@ export function PatientSupportForm({ defaultEmail, supportSubmitPath = "/api/pat
           className="min-h-[140px]"
           value={message}
           onChange={(e) => setMessage(e.target.value)}
-          placeholder="Опишите вопрос или проблему"
+          placeholder="Опишите вопрос о работе приложения"
           maxLength={MAX_LEN}
           disabled={loading}
         />

@@ -39,8 +39,10 @@ vi.mock("@/modules/auth/authRateLimits", () => ({
 }));
 
 import {
+  inspectPasswordAccountLock,
   inspectPasswordIdentifierLock,
   passwordFailureDelaySeconds,
+  recordPasswordAccountFailure,
   recordPasswordIdentifierFailure,
   resetPasswordIdentifierFailures,
 } from "./passwordLoginProtection";
@@ -93,6 +95,21 @@ describe("password login protection", () => {
       delaySeconds: 0,
       locked: false,
     });
+  });
+
+  it("enforces and self-clears the lock by account id independently of email", async () => {
+    const accountId = "11111111-1111-4111-8111-111111111111";
+    for (let attempt = 0; attempt < 10; attempt += 1) {
+      await recordPasswordAccountFailure(accountId);
+    }
+
+    await expect(inspectPasswordAccountLock(accountId)).resolves.toMatchObject({
+      attempts: 10,
+      locked: true,
+    });
+
+    await vi.advanceTimersByTimeAsync(15 * 60 * 1000 + 1);
+    await expect(inspectPasswordAccountLock(accountId)).resolves.toBeNull();
   });
 
   it("keeps consecutive failures through the accepted delays even when their total exceeds fifteen minutes", async () => {

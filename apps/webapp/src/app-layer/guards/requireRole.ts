@@ -365,6 +365,10 @@ async function resolveDoctorWorkspaceAccessContext(
   if (securityRestricted && context.role !== "owner") {
     return { ok: false, reason: "forbidden" };
   }
+  const canAccessClinicalWorkspace =
+    !securityRestricted &&
+    (context.canAccessClinicalWorkspace ??
+      ((context.role === "owner" || context.role === "doctor") && context.specialistId !== null));
   return {
     ok: true,
     ctx: {
@@ -375,9 +379,7 @@ async function resolveDoctorWorkspaceAccessContext(
       specialistId: context.specialistId,
       canManageOrganization: context.canManageOrganization,
       canManageAllSpecialists: context.canManageAllSpecialists,
-      canAccessClinicalWorkspace:
-        context.canAccessClinicalWorkspace ??
-        ((context.role === "owner" || context.role === "doctor") && context.specialistId !== null),
+      canAccessClinicalWorkspace,
       capabilities: Array.from(
         resolveLaunchCapabilities({
           sessionRole: session.user.role,
@@ -385,7 +387,7 @@ async function resolveDoctorWorkspaceAccessContext(
           membershipRole: context.role,
           specialistId: context.specialistId,
           canManageOrganization: context.canManageOrganization,
-          canAccessClinicalWorkspace: context.canAccessClinicalWorkspace,
+          canAccessClinicalWorkspace,
         }),
       ),
     },
@@ -438,8 +440,11 @@ export async function requireOrganizationManagementContext(): Promise<DoctorWork
 export async function requireDoctorWorkspaceContext(): Promise<DoctorWorkspaceAccessContext> {
   const ctx = await requireOrganizationWorkspaceContext();
   if (!contextHasCapability(ctx, "clinical.workspace")) {
+    const securitySetupRequired = await isRestrictedStaffSecuritySession(ctx.session);
     redirect(
-      contextHasCapability(ctx, "organization.management")
+      securitySetupRequired
+        ? `${routePaths.account}?tab=security`
+        : contextHasCapability(ctx, "organization.management")
         ? `${routePaths.settings}?tab=organization`
         : routePaths.account,
     );

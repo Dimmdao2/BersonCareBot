@@ -1,6 +1,7 @@
 import { stampBootstrapPrincipal } from "@/app-layer/principal/bootstrapPrincipal";
 import { z } from "zod";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
+import { ensureAuthModulePortsBound } from "@/app-layer/di/bindAuthModulePorts";
 import {
   AUTH_CHANNEL_DISABLED_ERROR,
   isAuthChannelEnabled,
@@ -44,6 +45,7 @@ const PROVISIONING_ERROR_RULES = {
 export async function POST(request: Request) {
   stampBootstrapPrincipal("api/auth/specialist-signup/confirm:POST", request);
 
+  ensureAuthModulePortsBound();
   const rateLimit = await checkAuthConfirmRateLimit(request, "specialist_signup_confirm");
   if (rateLimit.limited) {
     if (rateLimit.reason === "proxy_configuration") {

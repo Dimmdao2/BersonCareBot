@@ -32,7 +32,9 @@ async function postJson<T>(url: string, body?: unknown): Promise<T> {
     headers: body === undefined ? undefined : { "content-type": "application/json" },
     body: body === undefined ? undefined : JSON.stringify(body),
   });
-  return await response.json() as T;
+  const result = await response.json().catch(() => null) as T | null;
+  if (result !== null && typeof result === "object") return result;
+  return { ok: false, error: "unexpected_response" } as T;
 }
 
 export function StaffSecuritySection(props: Props) {
@@ -47,13 +49,6 @@ export function StaffSecuritySection(props: Props) {
   const [passwordBusy, setPasswordBusy] = useState(false);
 
   const securityReady = status.enrolled && status.recoveryConfirmed && !status.replacementRequired;
-
-  async function refreshStatus() {
-    const result = await fetch("/api/account/security/status").then((response) => response.json()) as {
-      status?: SecurityStatus;
-    };
-    if (result.status) setStatus(result.status);
-  }
 
   async function startEnrollment() {
     setBusy(true);
@@ -90,7 +85,13 @@ export function StaffSecuritySection(props: Props) {
       setSecret(null);
       setUri(null);
       setRecoveryCodes(result.recoveryCodes);
-      await refreshStatus();
+      setStatus((current) => ({
+        ...current,
+        enrolled: true,
+        recoveryConfirmed: false,
+        replacementRequired: false,
+        lockedUntil: null,
+      }));
     } catch {
       toast.error(staffSecurityNetworkErrorText("verify_enrollment"));
     } finally {

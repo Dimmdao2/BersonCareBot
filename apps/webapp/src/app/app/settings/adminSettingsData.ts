@@ -173,6 +173,7 @@ export type AdminSettingsPageData = {
     googleClientId: string;
     googleClientSecret: string;
     googleOauthLoginRedirectUri: string;
+    googleCalendarRedirectUri: string;
     appleOauthClientId: string;
     appleOauthTeamId: string;
     appleOauthKeyId: string;
@@ -399,6 +400,7 @@ export async function loadAdminSettingsPageData(): Promise<AdminSettingsPageData
       googleClientId: adminStr("google_client_id"),
       googleClientSecret: adminStr("google_client_secret"),
       googleOauthLoginRedirectUri: adminStr("google_oauth_login_redirect_uri"),
+      googleCalendarRedirectUri: adminStr("google_redirect_uri"),
       appleOauthClientId: adminStr("apple_oauth_client_id"),
       appleOauthTeamId: adminStr("apple_oauth_team_id"),
       appleOauthKeyId: adminStr("apple_oauth_key_id"),

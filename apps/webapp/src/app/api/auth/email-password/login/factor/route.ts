@@ -2,6 +2,7 @@ import { stampBootstrapPrincipal } from "@/app-layer/principal/bootstrapPrincipa
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
+import { ensureAuthModulePortsBound } from "@/app-layer/di/bindAuthModulePorts";
 import {
   clearStaffLoginContinuation,
   readStaffLoginContinuation,
@@ -27,8 +28,9 @@ export async function POST(request: Request) {
   // C-2 remainder: this route verifies a TOTP/recovery code with no route-level rate limit at
   // all -- per-account lockout exists inside staffSecurity.completeLogin (factor_locked), but
   // nothing capped the per-IP attempt rate, so the code space could be attacked from many
-  // addresses. Same chokepoint the other eight confirm routes use, same position (before body
+  // addresses. Same chokepoint the other protected auth routes use, same position (before body
   // parsing), same shape mapping.
+  ensureAuthModulePortsBound();
   const rateLimit = await checkAuthConfirmRateLimit(request, "email_password_login_factor");
   if (rateLimit.limited) {
     if (rateLimit.reason === "proxy_configuration") {

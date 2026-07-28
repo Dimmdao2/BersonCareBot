@@ -65,6 +65,10 @@ export function staffSecurityErrorText(error: string | undefined, action: Securi
       return "Заявка на создание кабинета не найдена. Начните регистрацию кабинета заново.";
     case "provisioning_pending":
       return "Настройка аккаунта ещё выполняется. Подождите немного и повторите.";
+    case "doctor_workspace_membership_required":
+      return "Рабочий кабинет не найден. Завершите настройку кабинета и повторите действие.";
+    case "security_setup_required":
+      return "Сначала подключите двухфакторную защиту в разделе «Аккаунт» → «Безопасность».";
     case "login_challenge_expired":
       return "Время подтверждения истекло. Войдите снова и запросите новый код.";
     case "factor_replacement_required":

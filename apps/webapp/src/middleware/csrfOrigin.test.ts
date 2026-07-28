@@ -263,13 +263,15 @@ describe("frozen webapp mutation census", () => {
     // `requirePlatformOperationsApiContext`; the clinic endpoint uses
     // `requireClinicManagementApiContext` and additionally requires owner membership. Neither is a
     // mutation or a CSRF exemption, so all unsafe-file/handler/class counts remain unchanged.
+    // 509 -> 507: #1070 correction removed the two GET-only platform support routes because their
+    // backing store contains patient-to-clinic clinical messages. Unsafe counts remain unchanged.
     expect(routeInventory).toContain("admin/appointment-records/[integratorRecordId]/soft-delete/route.ts");
     expect(routeInventory).toContain("admin/organizations/route.ts");
     expect(routeInventory).toContain("admin/organizations/[organizationId]/members/route.ts");
     expect(routeInventory).toContain("admin/organizations/[organizationId]/billing/route.ts");
     expect(routeInventory).toContain("clinic/billing/route.ts");
-    expect(routeFiles).toHaveLength(509);
-    expect(sha256Lines(routeInventory)).toBe("ad73af224b6d0c7c424bbc0a37127d9689324ddfcc82378267879fc255c6b0a9");
+    expect(routeFiles).toHaveLength(507);
+    expect(sha256Lines(routeInventory)).toBe("50c692792ebceda295902f7026f12990355ac7a9286926dde234982df37bc15e");
     expect(unsafeInventory).toHaveLength(339);
     expect(unsafeInventory.reduce((count, entry) => count + entry.methods.length, 0)).toBe(373);
     expect(sha256Lines(unsafeInventoryLines)).toBe("0285e65270f53a3222ad681c1d2a94a8bbb5d1fe2659dfcf4f823dc62a8a598f");

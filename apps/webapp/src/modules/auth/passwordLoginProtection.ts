@@ -22,7 +22,12 @@ export type PasswordFailureState = {
 
 export type PasswordVerificationResult =
   | { ok: true; userId: string; emailVerified: boolean }
-  | ({ ok: false; accountUserId?: string } & PasswordFailureState);
+  | ({
+      ok: false;
+      accountUserId?: string;
+      /** True only when this request actually performed a password proof and recorded its identifier failure. */
+      passwordChecked: boolean;
+    } & PasswordFailureState);
 
 function isUnboundPortError(error: unknown): boolean {
   return error instanceof Error && error.message.startsWith("AuthRateLimitDbPort is not bound.");
@@ -117,6 +122,24 @@ export async function inspectPasswordIdentifierLock(
     if (!isUnboundPortError(error)) throw error;
     return memoryInspect(key);
   }
+}
+
+/** Account-keyed lock gate. Unlike the identifier gate, it survives a verified email change. */
+export async function inspectPasswordAccountLock(
+  accountPrincipalId: string,
+): Promise<PasswordFailureState | null> {
+  const activeFailures = await getAuthRateLimitDbPort().countActive({
+    scope: ACCOUNT_FAILURE_SCOPE,
+    key: accountPrincipalId,
+    windowMs: LOCK_MS,
+  });
+  if (activeFailures < PASSWORD_LOCK_ATTEMPTS) return null;
+  return {
+    attempts: PASSWORD_LOCK_ATTEMPTS,
+    delaySeconds: 0,
+    locked: true,
+    retryAfterSeconds: PASSWORD_LOCK_SECONDS,
+  };
 }
 
 /** Records an indistinguishable failed identifier attempt and derives the accepted backoff. */

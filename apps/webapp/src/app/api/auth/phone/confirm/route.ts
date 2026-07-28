@@ -2,6 +2,7 @@ import { stampBootstrapPrincipal } from "@/app-layer/principal/bootstrapPrincipa
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
+import { ensureAuthModulePortsBound } from "@/app-layer/di/bindAuthModulePorts";
 import {
   recordAuthRegistrationFailure,
   recordAuthRegistrationSuccess,
@@ -33,6 +34,7 @@ const bodySchema = z.object({
 export async function POST(request: Request) {
   stampBootstrapPrincipal("api/auth/phone/confirm:POST", request);
 
+  ensureAuthModulePortsBound();
   const rateLimit = await checkAuthConfirmRateLimit(request, "phone_confirm");
   if (rateLimit.limited) {
     if (rateLimit.reason === "proxy_configuration") {

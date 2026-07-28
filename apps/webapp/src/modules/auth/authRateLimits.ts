@@ -131,11 +131,9 @@ export const isPatientInviteEmailConfirmRateLimitedByKey = createSlidingWindowRa
 });
 
 /**
- * Per-IP limit shared by every OTP/code CONFIRM route that had none (night plan C-2, step 2):
- * `phone/confirm`, `email-otp/confirm`, `email-password/reset`, `email-password/setup-code/complete`,
- * `specialist-signup/confirm`, `email/confirm`, `phone/messenger-bind/finish`, `patient/diary/purge`.
- * ONE shared scope rather than 8 near-identical ones (single chokepoint) -- an attacker rotating
- * across these routes from the same IP is bounded by the same budget, not 8 separate ones.
+ * Per-IP limit shared by confirm-shaped and password-proof routes.
+ * ONE shared scope (single chokepoint) means an attacker rotating across these routes from the same
+ * IP is bounded by the same budget instead of receiving a separate budget for every route.
  *
  * Threshold 30/10min matches `booking.public_create_confirm` (already proven in this repo) rather
  * than Cloudflare's stricter 5/5min OTP guidance, deliberately: a clinic's shared front-desk IP

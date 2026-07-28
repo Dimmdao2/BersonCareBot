@@ -2,7 +2,9 @@
 import { runWebappPgText, runWebappTransaction } from "@/infra/db/runWebappSql";
 import argon2 from "argon2";
 import {
+  inspectPasswordAccountLock,
   inspectPasswordIdentifierLock,
+  passwordFailurePrincipalId,
   recordPasswordAccountFailure,
   recordPasswordIdentifierFailure,
   resetPasswordAccountFailureEvents,
@@ -113,15 +115,27 @@ export function createPgUserPasswordCredentialsPort(): UserPasswordCredentialsPo
     emailNormalized: string,
     plainPassword: string,
   ): Promise<PasswordVerificationResult> {
-    const activeLock = await inspectPasswordIdentifierLock(emailNormalized);
-    if (activeLock) return { ok: false, ...activeLock };
-
     const r = await runWebappPgText<{ user_id: string; password_hash: string; email_verified: boolean }>(
       `SELECT user_id::text AS user_id, password_hash, email_verified
        FROM app.email_password_find_login_candidate($1)`,
       [emailNormalized],
     );
     const row = r.rows[0];
+    const accountPrincipalId = row?.user_id ?? passwordFailurePrincipalId(emailNormalized);
+    const [identifierLock, accountLock] = await Promise.all([
+      inspectPasswordIdentifierLock(emailNormalized),
+      inspectPasswordAccountLock(accountPrincipalId),
+    ]);
+    const activeLock = accountLock ?? identifierLock;
+    if (activeLock) {
+      return {
+        ok: false,
+        ...(row ? { accountUserId: row.user_id } : {}),
+        passwordChecked: false,
+        ...activeLock,
+      };
+    }
+
     let verified = false;
     try {
       verified = await argon2.verify(row?.password_hash ?? DUMMY_PASSWORD_HASH, plainPassword);
@@ -135,6 +149,7 @@ export function createPgUserPasswordCredentialsPort(): UserPasswordCredentialsPo
     return {
       ok: false,
       ...(row ? { accountUserId: row.user_id } : {}),
+      passwordChecked: true,
       ...failure,
     };
   }
@@ -255,10 +270,10 @@ export const inMemoryUserPasswordCredentialsPort: UserPasswordCredentialsPort = 
     return { ok: false };
   },
   async tryVerifyLogin() {
-    return { ok: false, attempts: 1, delaySeconds: 0, locked: false };
+    return { ok: false, passwordChecked: true, attempts: 1, delaySeconds: 0, locked: false };
   },
   async verifyEmailPasswordForLogin() {
-    return { ok: false, attempts: 1, delaySeconds: 0, locked: false };
+    return { ok: false, passwordChecked: true, attempts: 1, delaySeconds: 0, locked: false };
   },
   async recordFailedPasswordAttempt() {},
   async resetFailedPasswordAttempts() {},

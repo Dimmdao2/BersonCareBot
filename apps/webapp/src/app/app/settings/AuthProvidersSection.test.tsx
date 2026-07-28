@@ -25,6 +25,7 @@ const props: AuthProvidersSectionProps = {
   googleClientId: '',
   googleClientSecret: '',
   googleOauthLoginRedirectUri: '',
+  googleCalendarRedirectUri: '',
   appleOauthClientId: '',
   appleOauthTeamId: '',
   appleOauthKeyId: '',

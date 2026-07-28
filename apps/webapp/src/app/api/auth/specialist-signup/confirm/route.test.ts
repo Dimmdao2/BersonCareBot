@@ -11,6 +11,10 @@ const getCurrentSessionMock = vi.fn();
 const ensureProfileMock = vi.fn();
 const getSpecialistSignupEnabledMock = vi.fn();
 
+vi.mock("@/app-layer/di/bindAuthModulePorts", () => ({
+  ensureAuthModulePortsBound: vi.fn(),
+}));
+
 vi.mock("@/app-layer/di/buildAppDeps", () => ({
   buildAppDeps: () => ({
     userPasswordCredentials: {

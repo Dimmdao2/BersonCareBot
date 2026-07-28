@@ -53,7 +53,11 @@ export function createPasswordChangeService(deps: PasswordChangeDeps) {
         input.currentPassword,
       );
       if (!verified.ok || verified.userId !== input.userId || !verified.emailVerified) {
-        if (!verified.ok && verified.accountUserId === input.userId) {
+        if (
+          !verified.ok &&
+          verified.passwordChecked &&
+          verified.accountUserId === input.userId
+        ) {
           await deps.credentials.recordFailedPasswordAttempt(input.userId);
         }
         if (!verified.ok) {

@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const runWebappPgTextMock = vi.hoisted(() => vi.fn());
 const argonVerifyMock = vi.hoisted(() => vi.fn());
 const inspectLockMock = vi.hoisted(() => vi.fn());
+const inspectAccountLockMock = vi.hoisted(() => vi.fn());
 const recordIdentifierFailureMock = vi.hoisted(() => vi.fn());
 const resetIdentifierFailuresMock = vi.hoisted(() => vi.fn());
 
@@ -15,6 +16,8 @@ vi.mock("argon2", () => ({
 }));
 vi.mock("@/modules/auth/passwordLoginProtection", () => ({
   inspectPasswordIdentifierLock: (...args: unknown[]) => inspectLockMock(...args),
+  inspectPasswordAccountLock: (...args: unknown[]) => inspectAccountLockMock(...args),
+  passwordFailurePrincipalId: () => "22222222-2222-4222-8222-222222222222",
   recordPasswordIdentifierFailure: (...args: unknown[]) => recordIdentifierFailureMock(...args),
   resetPasswordIdentifierFailures: (...args: unknown[]) => resetIdentifierFailuresMock(...args),
   recordPasswordAccountFailure: vi.fn(),
@@ -27,6 +30,7 @@ describe("pg user password credential brute-force behavior", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     inspectLockMock.mockResolvedValue(null);
+    inspectAccountLockMock.mockResolvedValue(null);
     argonVerifyMock.mockResolvedValue(false);
     recordIdentifierFailureMock.mockResolvedValue({
       attempts: 5,
@@ -45,6 +49,7 @@ describe("pg user password credential brute-force behavior", () => {
       ),
     ).resolves.toEqual({
       ok: false,
+      passwordChecked: true,
       attempts: 5,
       delaySeconds: 30,
       locked: false,
@@ -53,6 +58,45 @@ describe("pg user password credential brute-force behavior", () => {
     expect(argonVerifyMock).toHaveBeenCalledOnce();
     expect(argonVerifyMock.mock.calls[0]?.[0]).toMatch(/^\$argon2id\$/u);
     expect(recordIdentifierFailureMock).toHaveBeenCalledWith("missing@example.test");
+    expect(inspectAccountLockMock).toHaveBeenCalledWith(
+      "22222222-2222-4222-8222-222222222222",
+    );
+  });
+
+  it("rejects a correct password while the account-keyed lock is active", async () => {
+    runWebappPgTextMock.mockResolvedValueOnce({
+      rows: [{
+        user_id: "11111111-1111-4111-8111-111111111111",
+        password_hash: "$argon2id$real",
+        email_verified: true,
+      }],
+    });
+    inspectAccountLockMock.mockResolvedValueOnce({
+      attempts: 10,
+      delaySeconds: 0,
+      locked: true,
+      retryAfterSeconds: 900,
+    });
+
+    await expect(
+      createPgUserPasswordCredentialsPort().verifyEmailPasswordForLogin(
+        "new-owner-email@example.test",
+        "correct-password",
+      ),
+    ).resolves.toEqual({
+      ok: false,
+      accountUserId: "11111111-1111-4111-8111-111111111111",
+      passwordChecked: false,
+      attempts: 10,
+      delaySeconds: 0,
+      locked: true,
+      retryAfterSeconds: 900,
+    });
+
+    expect(inspectAccountLockMock).toHaveBeenCalledWith(
+      "11111111-1111-4111-8111-111111111111",
+    );
+    expect(argonVerifyMock).not.toHaveBeenCalled();
   });
 
   it("returns the same public failure state for a real account with a wrong password", async () => {
@@ -70,6 +114,7 @@ describe("pg user password credential brute-force behavior", () => {
     expect(result).toEqual({
       ok: false,
       accountUserId: "11111111-1111-4111-8111-111111111111",
+      passwordChecked: true,
       attempts: 5,
       delaySeconds: 30,
       locked: false,

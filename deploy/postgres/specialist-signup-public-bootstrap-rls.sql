@@ -533,7 +533,7 @@ BEGIN
     p_challenge_id,
     lower(btrim(p_email_normalized)),
     btrim(p_organization_title),
-    p_organization_slug,
+    lower(p_organization_slug),
     btrim(p_specialist_full_name)
   )
   RETURNING id INTO v_intent_id;
@@ -665,7 +665,7 @@ BEGIN
 
   UPDATE public.specialist_signup_intents AS intent
   SET challenge_id = p_challenge_id,
-      organization_slug = p_organization_slug
+      organization_slug = lower(p_organization_slug)
   WHERE intent.id = v_intent_id;
   RETURN FOUND;
 END

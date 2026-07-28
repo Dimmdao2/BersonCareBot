@@ -3,7 +3,10 @@ import { logger } from '../infra/observability/logger.js';
 import { getMaxBotInfo } from '../integrations/max/client.js';
 import { maxConfig } from '../integrations/max/config.js';
 import { probeGoogleCalendarAccess } from '../integrations/google-calendar/probe.js';
-import { getGoogleCalendarConfig } from '../integrations/google-calendar/runtimeConfig.js';
+import {
+  getGoogleCalendarConfig,
+  listGoogleCalendarProbeOrganizationIds,
+} from '../integrations/google-calendar/runtimeConfig.js';
 import { getBotInstance } from '../integrations/telegram/client.js';
 import { telegramConfig } from '../integrations/telegram/config.js';
 import { reportOperatorFailure } from '../infra/operatorIncident/reportOperatorFailure.js';
@@ -129,27 +132,39 @@ export async function runOperatorHealthProbes(input: {
 
   if (shouldProbe('google_calendar')) {
     try {
-    const gcalConfig = await getGoogleCalendarConfig();
-    if (gcalConfig.enabled && gcalConfig.refreshToken?.trim()) {
-      await probeGoogleCalendarAccess(
-        fetchWithTimeout(config.google_calendar.timeoutMs),
-        async () => gcalConfig,
-      );
-      google_calendar = 'ok';
-      details.google_calendar = 'ok';
-      const n = await resolveOpenOperatorIncidentsByDedupKeyPrefix('outbound:google_calendar:');
-      if (n > 0) details.google_calendarResolved = String(n);
-    } else {
-      details.google_calendar = 'skipped_not_configured';
-    }
+      const organizationIds = await listGoogleCalendarProbeOrganizationIds();
+      let gcalConfig: Awaited<ReturnType<typeof getGoogleCalendarConfig>> | null = null;
+      let probedOrganizationId: string | null = null;
+      for (const organizationId of organizationIds) {
+        const candidate = await getGoogleCalendarConfig(organizationId);
+        if (candidate.enabled && candidate.refreshToken?.trim()) {
+          gcalConfig = candidate;
+          probedOrganizationId = organizationId;
+          break;
+        }
+      }
+      const selectedConfig = gcalConfig;
+      if (selectedConfig && probedOrganizationId) {
+        await probeGoogleCalendarAccess(
+          fetchWithTimeout(config.google_calendar.timeoutMs),
+          async () => selectedConfig,
+        );
+        google_calendar = 'ok';
+        details.google_calendar = 'ok';
+        details.google_calendarConfiguredOrganizations = String(organizationIds.length);
+        const n = await resolveOpenOperatorIncidentsByDedupKeyPrefix('outbound:google_calendar:');
+        if (n > 0) details.google_calendarResolved = String(n);
+      } else {
+        details.google_calendar = 'skipped_not_configured';
+      }
     } catch (err) {
-    const msg = err instanceof Error ? err.message : String(err);
-    if (msg === 'not_configured') {
-      details.google_calendar = 'skipped_not_configured';
-    } else {
-      google_calendar = 'fail';
-      details.google_calendar = msg;
-    }
+      const msg = err instanceof Error ? err.message : String(err);
+      if (msg === 'not_configured') {
+        details.google_calendar = 'skipped_not_configured';
+      } else {
+        google_calendar = 'fail';
+        details.google_calendar = msg;
+      }
     }
   }
 

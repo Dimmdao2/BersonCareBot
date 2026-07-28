@@ -24,6 +24,13 @@ import { assertOutboundMessagePolicy } from './outboundMessagePolicy.js';
 const DELIVERY_ATTEMPT_AUDIT_PERSIST_FAILED = 'DELIVERY_ATTEMPT_AUDIT_PERSIST_FAILED';
 let deliveryAttemptAuditPersistFailureCount = 0;
 
+export type DispatchPlatformIntegrationId =
+  | 'telegram'
+  | 'max'
+  | 'email'
+  | 'smsc'
+  | 'web_push';
+
 type DeliveryPayload = {
   recipient?: { chatId?: unknown; phoneNormalized?: unknown };
   message?: { text?: unknown };
@@ -56,6 +63,21 @@ function withChannel(intent: OutgoingIntent, channel: string): OutgoingIntent {
       delivery,
     },
   };
+}
+
+function platformIntegrationIdForChannel(
+  channel: string,
+): DispatchPlatformIntegrationId | null {
+  if (channel === 'sms' || channel === 'smsc') return 'smsc';
+  if (
+    channel === 'telegram' ||
+    channel === 'max' ||
+    channel === 'email' ||
+    channel === 'web_push'
+  ) {
+    return channel;
+  }
+  return null;
 }
 
 async function logDeliveryAttempt(
@@ -273,6 +295,9 @@ export function createDefaultDispatchPort(deps: {
   adapters: DeliveryAdapter[];
   writePort?: DbWritePort;
   readPort?: unknown;
+  isPlatformIntegrationEnabled?: (
+    integrationId: DispatchPlatformIntegrationId,
+  ) => Promise<boolean>;
 }): DispatchPort {
   return {
     async dispatchOutgoing(intent: OutgoingIntent): Promise<DeliverySendResult> {
@@ -301,6 +326,14 @@ export function createDefaultDispatchPort(deps: {
 
       const channel = readChannel(safeIntent);
       if (!channel) throw new Error('CHANNEL_NOT_SPECIFIED');
+      const integrationId = platformIntegrationIdForChannel(channel);
+      if (
+        integrationId &&
+        deps.isPlatformIntegrationEnabled &&
+        !(await deps.isPlatformIntegrationEnabled(integrationId))
+      ) {
+        throw new Error(`PLATFORM_INTEGRATION_DISABLED:${integrationId}`);
+      }
       const intentForChannel = withChannel(safeIntent, channel);
       const adapter = deps.adapters.find((item) => item.canHandle(intentForChannel));
       if (!adapter) throw new Error(`CHANNEL_NOT_SUPPORTED:${channel}`);

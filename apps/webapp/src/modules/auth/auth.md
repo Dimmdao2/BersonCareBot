@@ -43,8 +43,10 @@
   Вход использует общий per-IP чокпоинт `auth.confirm` (30 запросов / 10 минут) и отдельный счётчик
   последовательных неудач в `user_password_credentials`: с 5-й неудачи задержка
   30/60/120/240/480 секунд, на 10-й — временная блокировка 15 минут. Успешная проверка пароля сбрасывает
-  счётчик. Для неизвестного email выполняется Argon2 dummy-verification и тот же псевдонимный identifier
-  backoff, поэтому тело, статус и задержка неверного пароля не раскрывают существование аккаунта.
+  счётчик; запросы во время уже активной блокировки не записываются как новые ошибки и не сдвигают её срок.
+  Для неизвестного email выполняется Argon2 dummy-verification и тот же псевдонимный identifier backoff,
+  поэтому тело, статус и заданная приложением задержка неверного пароля совпадают. Статистическая
+  неразличимость полного времени выполнения отдельно не заявляется без runtime-замера.
 - **`POST /api/auth/email-password/forgot`** — сброс: код на почту для **verified + password**; для **contact-only** (`needs_email_setup`) — setup-код и `challengeId` для текущей формы (после lookup UI уже знает, что это setup flow). Если вкладка потеряла `challengeId`, `setup-code/complete` принимает код через latest active challenge пользователя.
 - **`POST /api/auth/email-password/setup-code/complete`** — contact-only setup по коду: подтверждает email, создаёт/обновляет пароль и ставит сессию.
 - **`POST /api/auth/email-password/reset`** — проверка кода через `consumeEmailChallengeCode` (если передан `challengeId`) или `consumeLatestEmailChallengeCodeForUser`, обновление хэша пароля; ошибки верификации кода (включая случай отсутствия пользователя) нормализуются в нейтральный `invalid_code`.

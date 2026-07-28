@@ -642,9 +642,9 @@ describe("RSC page DB-principal census (night plan A-5, bug class of 19f52fed2)"
     // `app/admin/clinics/[organizationId]/page.tsx`. Both await `requirePlatformOperationsPage()`
     // and render the client console; they do not build deps or read the DB in their RSC context.
     // Data comes later through guarded GET `/api/admin/organizations`, so readers remain exactly 12.
-    // 165 -> 166: `app/admin/support/page.tsx` is a global platform-operations page. It awaits
-    // `requirePlatformOperationsPage()` and delegates reads to guarded GET APIs, so readers stay 12.
-    expect(pageEntries).toHaveLength(166);
+    // The unsafe platform support page was removed again after audit proved its backing store mixes
+    // patient-to-doctor and rehabilitation text. Page entries return 166 -> 165; readers stay 12.
+    expect(pageEntries).toHaveLength(165);
     expect(readers).toHaveLength(12);
   });
 

@@ -212,3 +212,32 @@ describe("pgSystemSettings audit trail — upsertManyInTransaction", () => {
     expect(runWebappTransactionMock).not.toHaveBeenCalled();
   });
 });
+
+describe("pgSystemSettings audit trail — delete", () => {
+  beforeEach(() => {
+    runWebappPgTextMock.mockReset();
+    runWebappTransactionMock.mockReset();
+    setupTransactionMock();
+  });
+
+  it("redacts a scalar secret before persisting the deleted value", async () => {
+    runWebappPgTextMock
+      .mockResolvedValueOnce({ rows: [{ value_json: { value: "vk-secret" } }] })
+      .mockResolvedValueOnce({ rows: [] })
+      .mockResolvedValueOnce({ rows: [] });
+
+    const port = createPgSystemSettingsPort();
+    await expect(
+      port.delete!("vk_id_client_secret", "admin", "platform-admin"),
+    ).resolves.toBe(true);
+
+    const [auditSql, auditParams] = runWebappPgTextMock.mock.calls[2] as [
+      string,
+      unknown[],
+    ];
+    expect(auditSql).toMatch(/INSERT INTO system_settings_audit/i);
+    expect(auditParams[3]).toBe(JSON.stringify("[REDACTED]"));
+    expect(JSON.stringify(auditParams)).not.toContain("vk-secret");
+    expect(auditParams[5]).toBe("system_settings_repo_delete");
+  });
+});

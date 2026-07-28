@@ -4,6 +4,7 @@ const googleMocks = vi.hoisted(() => ({
   getGoogleClientId: vi.fn().mockResolvedValue("cid"),
   getGoogleClientSecret: vi.fn().mockResolvedValue("csec"),
   getGoogleRefreshToken: vi.fn().mockResolvedValue("rt"),
+  isGoogleCalendarPlatformAvailable: vi.fn().mockResolvedValue(true),
 }));
 
 vi.mock("@/modules/system-settings/integrationRuntime", async (importOriginal) => {
@@ -13,6 +14,7 @@ vi.mock("@/modules/system-settings/integrationRuntime", async (importOriginal) =
     getGoogleClientId: googleMocks.getGoogleClientId,
     getGoogleClientSecret: googleMocks.getGoogleClientSecret,
     getGoogleRefreshToken: googleMocks.getGoogleRefreshToken,
+    isGoogleCalendarPlatformAvailable: googleMocks.isGoogleCalendarPlatformAvailable,
   };
 });
 
@@ -23,28 +25,29 @@ vi.mock("@/modules/google-calendar/googleOAuthHelpers", () => ({
   fetchGoogleCalendarList: listMock,
 }));
 
-const platformGateMock = vi.hoisted(() => vi.fn());
+const clinicGateMock = vi.hoisted(() => vi.fn());
 vi.mock("@/app-layer/guards/requireRole", () => ({
-  requirePlatformOperationsApiContext: platformGateMock,
+  requireClinicManagementApiContext: clinicGateMock,
 }));
 
 import { GET } from "./route";
 
 describe("GET /api/admin/google-calendar/calendars", () => {
   beforeEach(() => {
-    platformGateMock.mockReset().mockResolvedValue({
+    clinicGateMock.mockReset().mockResolvedValue({
       ok: true,
-      session: { user: { role: "admin", userId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa" }, adminMode: true },
+      ctx: { organizationId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa", session: { user: { role: "doctor", userId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa" } } },
     });
     googleMocks.getGoogleClientId.mockResolvedValue("cid");
     googleMocks.getGoogleClientSecret.mockResolvedValue("csec");
     googleMocks.getGoogleRefreshToken.mockResolvedValue("rt");
+    googleMocks.isGoogleCalendarPlatformAvailable.mockResolvedValue(true);
     refreshMock.mockReset();
     listMock.mockReset();
   });
 
   it("returns 401 when not authenticated", async () => {
-    platformGateMock.mockResolvedValue({
+    clinicGateMock.mockResolvedValue({
       ok: false,
       response: new Response(JSON.stringify({ ok: false, error: "unauthorized" }), { status: 401 }),
     });
@@ -53,7 +56,7 @@ describe("GET /api/admin/google-calendar/calendars", () => {
   });
 
   it("returns 403 when the platform guard rejects a foreign audience", async () => {
-    platformGateMock.mockResolvedValue({
+    clinicGateMock.mockResolvedValue({
       ok: false,
       response: new Response(JSON.stringify({ ok: false, error: "forbidden" }), { status: 403 }),
     });

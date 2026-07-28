@@ -1,9 +1,9 @@
--- 0265: password brute-force protection (#1065 / OWNER_PUNCHLIST §3.1, §3.3).
+-- 0266: password brute-force protection (#1065 / OWNER_PUNCHLIST §3.1, §3.3).
 --
--- The canonical consecutive-failure state lives on user_password_credentials. The existing
--- auth_rate_limit_events accessors additionally keep pseudonymous identifier timing indistinguishable
--- when no account exists. Existing functions and grants are reused; this migration adds no role grant
--- and changes no RLS policy.
+-- The credential row mirrors the consecutive-failure state for account audit/backoff, while the
+-- existing account-keyed auth_rate_limit_events bucket is the pre-Argon2 enforcement gate. A second
+-- pseudonymous identifier bucket gives nonexistent identifiers the same response/backoff shape.
+-- Existing functions and grants are reused; this migration adds no role grant and changes no RLS policy.
 
 ALTER TABLE public.user_password_credentials
   ADD COLUMN IF NOT EXISTS failed_attempts integer NOT NULL DEFAULT 0,

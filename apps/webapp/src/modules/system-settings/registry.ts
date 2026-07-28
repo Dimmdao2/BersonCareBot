@@ -200,10 +200,12 @@ export const SYSTEM_SETTING_REGISTRY = {
   google_client_id: restricted("admin", "global", "secret_envelope"),
   google_client_secret: restricted("admin", "global", "secret_envelope"),
   google_redirect_uri: restricted("admin", "global", "url"),
-  google_refresh_token: restricted("admin", "global", "secret_envelope"),
-  google_calendar_id: restricted("admin", "global", "string"),
-  google_calendar_enabled: restricted("admin", "global", "boolean", "false"),
-  google_connected_email: restricted("admin", "global", "string"),
+  // OAuth application identity is platform-owned; each clinic owns the Google account and
+  // calendar it authorizes. Do not restore a global fallback for these connection rows.
+  google_refresh_token: restricted("admin", "per_org", "secret_envelope"),
+  google_calendar_id: restricted("admin", "per_org", "string"),
+  google_calendar_enabled: restricted("admin", "per_org", "boolean", "false"),
+  google_connected_email: restricted("admin", "per_org", "string"),
   google_oauth_login_redirect_uri: restricted("admin", "global", "url", "absent", "derived", "oauth_google_enabled"),
   apple_oauth_client_id: restricted("admin", "global", "secret_envelope", "absent", "derived", "oauth_apple_enabled"),
   apple_oauth_team_id: restricted("admin", "global", "secret_envelope", "absent", "derived", "oauth_apple_enabled"),

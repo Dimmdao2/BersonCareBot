@@ -251,7 +251,7 @@ BEGIN
         updated_at
       )
       VALUES (
-        v_intent.organization_slug,
+        lower(v_intent.organization_slug),
         'current',
         v_organization_id,
         v_user.id,
@@ -279,7 +279,7 @@ BEGIN
     )
     VALUES (
       v_organization_id,
-      v_intent.organization_slug,
+      lower(v_intent.organization_slug),
       v_intent.organization_title,
       true,
       now(),

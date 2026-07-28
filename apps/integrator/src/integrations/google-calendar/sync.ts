@@ -27,6 +27,7 @@ type SyncDeps = {
 export type CanonicalCalendarSyncEvent = {
   action: 'created' | 'updated' | 'canceled';
   appointmentId: string;
+  organizationId: string;
   startAt: string;
   endAt: string;
   clientName?: string;
@@ -80,11 +81,11 @@ export async function syncCanonicalAppointmentToCalendar(
   input: CanonicalCalendarSyncEvent,
   deps: SyncDeps = {},
 ): Promise<string | null> {
-  const config = deps.config ?? await getGoogleCalendarConfig();
+  const config = deps.config ?? await getGoogleCalendarConfig(input.organizationId);
   if (!isGoogleCalendarConfigured(config)) return null;
 
   const db = deps.db ?? createDbPort();
-  const client = deps.client ?? createGoogleCalendarClient();
+  const client = deps.client ?? createGoogleCalendarClient(globalThis.fetch, async () => config);
   const appointmentKey = canonicalCalendarMapKey(input.appointmentId);
   const existingGoogleEventId = await getGoogleEventIdByAppointmentKey(db, appointmentKey);
 

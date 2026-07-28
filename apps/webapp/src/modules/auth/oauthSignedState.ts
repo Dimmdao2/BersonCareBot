@@ -32,7 +32,7 @@ function hmacSha256(secret: string, message: string): Buffer {
   return createHmac("sha256", secret).update(message, "utf8").digest();
 }
 
-type Payload = { p: OAuthStatePurpose; exp: number; n: string; nonce?: string; tz?: string };
+type Payload = { p: OAuthStatePurpose; exp: number; n: string; nonce?: string; tz?: string; org?: string };
 
 function signPayload(payload: Payload): string {
   const secret = requireSigningSecret();
@@ -49,13 +49,17 @@ function signPayload(payload: Payload): string {
 export function createSignedOAuthState(
   purpose: OAuthStatePurpose,
   ttlSeconds: number,
-  options?: { browserCalendarIana?: string | null },
+  options?: { browserCalendarIana?: string | null; organizationId?: string | null },
 ): string {
   const exp = Math.floor(Date.now() / 1000) + ttlSeconds;
   const payload: Payload = { p: purpose, exp, n: randomUUID() };
   const rawTz = options?.browserCalendarIana?.trim();
   if (rawTz && rawTz.length <= 120) {
     payload.tz = rawTz;
+  }
+  const organizationId = options?.organizationId?.trim();
+  if (organizationId && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(organizationId)) {
+    payload.org = organizationId;
   }
   return signPayload(payload);
 }
@@ -75,7 +79,7 @@ export function createAppleSignedOAuthState(
   return { state: signPayload(payload), nonce };
 }
 
-export type VerifiedOAuthState = { attemptId?: string; nonce?: string; browserCalendarIana?: string };
+export type VerifiedOAuthState = { attemptId?: string; nonce?: string; browserCalendarIana?: string; organizationId?: string };
 
 function verifyTokenInternal(
   token: string,
@@ -110,7 +114,7 @@ function verifyTokenInternal(
     return null;
   }
 
-  const { p, exp, n, nonce, tz } = payloadRaw as Record<string, unknown>;
+  const { p, exp, n, nonce, tz, org } = payloadRaw as Record<string, unknown>;
   if (p !== expectedPurpose || typeof exp !== "number" || typeof n !== "string" || !n) {
     return null;
   }
@@ -130,12 +134,14 @@ function verifyTokenInternal(
 
   if (nonce !== undefined && typeof nonce !== "string") return null;
   if (tz !== undefined && (typeof tz !== "string" || tz.length > 120)) return null;
+  if (org !== undefined && (typeof org !== "string" || !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(org))) return null;
 
   const out: VerifiedOAuthState = { attemptId: n };
   if (typeof nonce === "string") out.nonce = nonce;
   if (typeof tz === "string" && tz.trim().length > 0) {
     out.browserCalendarIana = tz.trim();
   }
+  if (typeof org === "string") out.organizationId = org;
   return out;
 }
 

@@ -4,6 +4,7 @@ const googleMocks = vi.hoisted(() => ({
   getGoogleClientId: vi.fn().mockResolvedValue("cid"),
   getGoogleClientSecret: vi.fn().mockResolvedValue("csec"),
   getGoogleRedirectUri: vi.fn().mockResolvedValue("http://localhost/cb"),
+  isGoogleCalendarPlatformAvailable: vi.fn().mockResolvedValue(true),
 }));
 
 vi.mock("@/modules/system-settings/integrationRuntime", async (importOriginal) => {
@@ -13,6 +14,7 @@ vi.mock("@/modules/system-settings/integrationRuntime", async (importOriginal) =
     getGoogleClientId: googleMocks.getGoogleClientId,
     getGoogleClientSecret: googleMocks.getGoogleClientSecret,
     getGoogleRedirectUri: googleMocks.getGoogleRedirectUri,
+    isGoogleCalendarPlatformAvailable: googleMocks.isGoogleCalendarPlatformAvailable,
   };
 });
 
@@ -23,9 +25,9 @@ vi.mock("@/modules/google-calendar/googleOAuthHelpers", () => ({
   fetchGoogleUserEmail: emailMock,
 }));
 
-const platformGateMock = vi.hoisted(() => vi.fn());
+const clinicGateMock = vi.hoisted(() => vi.fn());
 vi.mock("@/app-layer/guards/requireRole", () => ({
-  requirePlatformOperationsApiContext: platformGateMock,
+  requireClinicManagementApiContext: clinicGateMock,
 }));
 
 const updateSettingMock = vi.hoisted(() => vi.fn());
@@ -60,23 +62,24 @@ function makeRequest(params: Record<string, string>): Request {
 }
 
 function validGcalState(): string {
-  return createSignedOAuthState("gcal", 600);
+  return createSignedOAuthState("gcal", 600, { organizationId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa" });
 }
 
 describe("GET /api/admin/google-calendar/callback", () => {
   beforeEach(() => {
-    platformGateMock.mockReset().mockResolvedValue({
+    clinicGateMock.mockReset().mockResolvedValue({
       ok: true,
-      session: { user: { role: "admin", userId: "admin-1" }, adminMode: true },
+      ctx: { organizationId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa", session: { user: { role: "doctor", userId: "admin-1" } } },
     });
     exchangeMock.mockReset();
     emailMock.mockReset();
     updateSettingMock.mockReset().mockResolvedValue({ key: "google_refresh_token", valueJson: {} });
+    googleMocks.isGoogleCalendarPlatformAvailable.mockResolvedValue(true);
     emailMock.mockResolvedValue(null);
   });
 
   it("redirects with error when not authenticated", async () => {
-    platformGateMock.mockResolvedValue({
+    clinicGateMock.mockResolvedValue({
       ok: false,
       response: new Response(JSON.stringify({ ok: false, error: "unauthorized" }), { status: 401 }),
     });
@@ -86,7 +89,7 @@ describe("GET /api/admin/google-calendar/callback", () => {
   });
 
   it("keeps the redirect contract when the platform guard rejects a foreign audience", async () => {
-    platformGateMock.mockResolvedValue({
+    clinicGateMock.mockResolvedValue({
       ok: false,
       response: new Response(JSON.stringify({ ok: false, error: "forbidden" }), { status: 403 }),
     });
@@ -128,12 +131,14 @@ describe("GET /api/admin/google-calendar/callback", () => {
       "admin",
       { value: "rt" },
       "admin-1",
+      { organizationId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa" },
     );
     expect(updateSettingMock).toHaveBeenCalledWith(
       "google_connected_email",
       "admin",
       { value: "user@gmail.com" },
       "admin-1",
+      { organizationId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa" },
     );
   });
 
