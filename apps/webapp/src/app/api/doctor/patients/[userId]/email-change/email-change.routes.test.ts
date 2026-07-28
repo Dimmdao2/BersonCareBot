@@ -22,6 +22,7 @@ import { randomUUID } from "node:crypto";
 const {
   getCurrentSessionMock,
   requireDoctorWorkspaceApiContextMock,
+  requirePatientApiSessionMock,
   withDoctorWorkspacePrincipalMock,
   buildAppDepsMock,
   getClientIdentityForOrganizationMock,
@@ -34,6 +35,7 @@ const {
 } = vi.hoisted(() => ({
   getCurrentSessionMock: vi.fn(),
   requireDoctorWorkspaceApiContextMock: vi.fn(),
+  requirePatientApiSessionMock: vi.fn(),
   withDoctorWorkspacePrincipalMock: vi.fn((_: unknown, sourceOrFn: string | (() => unknown), maybeFn?: () => unknown) => {
   const fn = typeof sourceOrFn === "function" ? sourceOrFn : maybeFn;
   if (!fn) throw new Error("principal_callback_required");
@@ -55,6 +57,9 @@ vi.mock("@/modules/auth/service", () => ({
 
 vi.mock("@/app-layer/guards/requireRole", () => ({
   requireDoctorWorkspaceApiContext: () => requireDoctorWorkspaceApiContextMock(),
+  // patient/email-change/confirm moved off raw session access onto an approved guard (route guard
+  // census remediation, 2026-07-28); the double must expose it or the route fails on the mock.
+  requirePatientApiSession: () => requirePatientApiSessionMock(),
 }));
 
 vi.mock("@/app-layer/guards/doctorWorkspacePrincipal", () => ({
@@ -135,6 +140,22 @@ const FAKE_PARAMS = { params: Promise.resolve({ userId: VALID_UUID }) };
 
 describe("POST /api/doctor/patients/[userId]/email-change", () => {
   beforeEach(() => {
+    // The confirm route now goes through an approved guard instead of reading the session itself.
+    // Keep the tests' existing lever (getCurrentSessionMock) authoritative: the guard simply reflects
+    // whatever session the case set up, so "not authenticated" still means "no session".
+    requirePatientApiSessionMock.mockReset();
+    requirePatientApiSessionMock.mockImplementation(async () => {
+      const session = await getCurrentSessionMock();
+      return session
+        ? { ok: true as const, session }
+        : {
+            ok: false as const,
+            response: new Response(JSON.stringify({ ok: false, error: "unauthorized" }), {
+              status: 401,
+              headers: { "content-type": "application/json" },
+            }),
+          };
+    });
     requireDoctorWorkspaceApiContextMock.mockReset();
     withDoctorWorkspacePrincipalMock.mockReset();
     buildAppDepsMock.mockReset();
