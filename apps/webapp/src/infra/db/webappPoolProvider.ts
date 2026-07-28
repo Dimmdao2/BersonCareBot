@@ -212,7 +212,10 @@ function choosePoolKindForPrincipal(
   // This is the routing decision, not an independent record of the pool checkout.
   // Actual role/pool failures are reported only from the PostgreSQL 42501 classifier.
   const poolKind: WebappRuntimePoolKind =
-    principal?.kind === "organization" || principal?.kind === "staff" || principal?.kind === "platform"
+    principal?.kind === "organization" ||
+    principal?.kind === "staff" ||
+    principal?.kind === "clinicBilling" ||
+    principal?.kind === "platform"
       ? "staff"
       : "nonstaff";
 

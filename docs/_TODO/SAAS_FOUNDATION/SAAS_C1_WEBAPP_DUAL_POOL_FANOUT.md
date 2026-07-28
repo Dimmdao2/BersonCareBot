@@ -6,7 +6,7 @@ Status: Phase C1 repo-side webapp stage. No live runtime credential flip.
 
 This stage hardens the existing webapp dual-pool baseline:
 
-- staff and organization principals select the staff pool before checkout;
+- staff, organization, and clinic-billing principals select the staff pool before checkout;
 - patient, integrator, and bootstrap principals select the nonstaff pool before checkout;
 - missing and infra principals fail closed in locked mode before checkout;
 - protected-context apply and clear still bracket checked-out clients;
