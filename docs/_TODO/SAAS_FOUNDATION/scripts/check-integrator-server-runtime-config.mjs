@@ -6,7 +6,7 @@ const paths = {
   restrictedMigration:
     'apps/webapp/db/drizzle-migrations/0235_integrator_smtp_restricted_accessor.sql',
   deliveryAuditMigration:
-    'apps/webapp/db/drizzle-migrations/0269_integrator_global_delivery_attempt_audit.sql',
+    'apps/webapp/db/drizzle-migrations/0268_integrator_global_delivery_attempt_audit.sql',
   overlay: 'deploy/postgres/integrator-server-runtime-config.sql',
   reader: 'apps/integrator/src/infra/db/publicRuntimeSettings.ts',
   restrictedReader: 'apps/integrator/src/infra/db/publicRestrictedSettings.ts',
@@ -250,6 +250,8 @@ function run(overrides = {}) {
     'Integrator не имеет ambient SELECT на обе таблицы для этого чтения',
     'не использует `APP_BASE_URL` env fallback',
   ]);
+  // 269 -> 268: the unused 0267 reservation was closed, shifting the unchanged delivery-audit
+  // migration and its journal entry down one slot.
   requireFragments('migration journal', files.journal, [
     '"idx": 190',
     '"tag": "0190_curated_system_health_diagnostics"',
@@ -257,8 +259,8 @@ function run(overrides = {}) {
     '"tag": "0191_integrator_server_runtime_config"',
     '"idx": 235',
     '"tag": "0235_integrator_smtp_restricted_accessor"',
-    '"idx": 267',
-    '"tag": "0269_integrator_global_delivery_attempt_audit"',
+    '"idx": 268',
+    '"tag": "0268_integrator_global_delivery_attempt_audit"',
   ]);
   requireFragments('TEST deploy wiring', files.deploy, [
     'INTEGRATOR_SERVER_RUNTIME_CONFIG=deploy/postgres/integrator-server-runtime-config.sql',
@@ -296,7 +298,7 @@ function run(overrides = {}) {
     'initdb',
     'pg_ctl',
     '0235_integrator_smtp_restricted_accessor.sql',
-    '0269_integrator_global_delivery_attempt_audit.sql',
+    '0268_integrator_global_delivery_attempt_audit.sql',
     'integrator-server-runtime-config.sql',
     'TO smtp_stale WITH GRANT OPTION',
     'SET ROLE smtp_stale',

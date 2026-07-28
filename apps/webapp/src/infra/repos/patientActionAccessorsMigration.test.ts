@@ -175,8 +175,9 @@ describe("0252 patient action accessors", () => {
 
   it("pins the reviewed count/grants without entering the deploy ownership trap", () => {
     const deploy = readFileSync(deployPath, "utf8");
-    // 106 -> 107: migration 0268 adds the reviewed platform staff-directory projector.
-    expect(deploy).toContain("local expected_secdef_count=106");
+    // 106 -> 107: 0267 adds the staff-name directory accessor, 0268 adds the delivery-audit
+    // writer, and 0269 removes the superseded signup-slug reservation function.
+    expect(deploy).toContain("local expected_secdef_count=107");
     for (const row of [
       "('public.lfk_complexes', 'SELECT')",
       "('public.lfk_complex_exercises', 'SELECT')",

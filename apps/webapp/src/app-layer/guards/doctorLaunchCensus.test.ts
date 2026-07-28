@@ -3,7 +3,12 @@ import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 
 type LaunchClass = "platform" | "clinical";
-type ObjectPolicy = "platform-config" | "platform-neutral-no-pii" | "workspace-media" | "workspace-clinical";
+type ObjectPolicy =
+  | "platform-config"
+  | "platform-support"
+  | "platform-neutral-no-pii"
+  | "workspace-media"
+  | "workspace-clinical";
 
 type LaunchManifestEntry = Readonly<{
   route: string;
@@ -78,6 +83,9 @@ const newPlatformLaunchManifest: readonly LaunchManifestEntry[] = [
   { route: "booking/payments/page.tsx", launchClass: "platform", capability: "platform-operations", objectPolicy: "platform-config" },
   { route: "clinics/page.tsx", launchClass: "platform", capability: "platform-operations", objectPolicy: "platform-config" },
   { route: "clinics/[organizationId]/page.tsx", launchClass: "platform", capability: "platform-operations", objectPolicy: "platform-config" },
+  // 15 -> 16 app/admin pages: the support inbox is for global platform operators, guarded by
+  // requirePlatformOperationsPage, and exposes support conversations rather than clinic workspace data.
+  { route: "support/page.tsx", launchClass: "platform", capability: "platform-operations", objectPolicy: "platform-support" },
   { route: "integrations/page.tsx", launchClass: "platform", capability: "platform-operations", objectPolicy: "platform-config" },
   { route: "technical/page.tsx", launchClass: "platform", capability: "platform-operations", objectPolicy: "platform-config" },
   // Pre-existing legacy redirect stub, unrelated to the PLAT-01…09 moves — kept as-is (see

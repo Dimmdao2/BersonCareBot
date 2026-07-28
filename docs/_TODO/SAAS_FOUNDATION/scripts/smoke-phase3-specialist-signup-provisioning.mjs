@@ -93,13 +93,15 @@ const paths = {
     repoRoot,
     'apps/webapp/db/drizzle-migrations/0257_specialist_signup_slug_reservation.sql',
   ),
-  migration0268: path.join(
+  // 0268 -> 0267 and 0270 -> 0269: the reserved 0267 work needed no migration, so both unchanged
+  // contracts move down when the numbering gap closes.
+  migration0267: path.join(
     repoRoot,
-    'apps/webapp/db/drizzle-migrations/0268_platform_organization_members_directory.sql',
+    'apps/webapp/db/drizzle-migrations/0267_platform_organization_members_directory.sql',
   ),
-  migration0270: path.join(
+  migration0269: path.join(
     repoRoot,
-    'apps/webapp/db/drizzle-migrations/0270_remove_specialist_signup_slug_reservation.sql',
+    'apps/webapp/db/drizzle-migrations/0269_remove_specialist_signup_slug_reservation.sql',
   ),
   c5aPlatformOperations: path.join(repoRoot, 'deploy/postgres/c5a-platform-operations-runtime.sql'),
   ownerProvisioningOverlay: path.join(
@@ -381,8 +383,8 @@ function installCanonicalSchema() {
     paths.migration0218,
     paths.migration0225,
     paths.migration0257,
-    paths.migration0268,
-    paths.migration0270,
+    paths.migration0267,
+    paths.migration0269,
   ]) {
     psqlFile(migrationPath, {
       prefix: `BEGIN;\nSET ROLE ${quoteIdent(appOwnerRole)};`,
@@ -1167,11 +1169,11 @@ function assertStaticSourceGuards() {
     'canonical provisioning must claim current directly and map only the global slug unique race',
   );
   assert(
-    source.migration0270.includes(
+    source.migration0269.includes(
       'DROP FUNCTION IF EXISTS app.reserve_specialist_signup_slug(uuid, text)',
     ) &&
-      source.migration0270.includes('DROP COLUMN signup_intent_id') &&
-      source.migration0270.includes('ALTER COLUMN organization_id SET NOT NULL'),
+      source.migration0269.includes('DROP COLUMN signup_intent_id') &&
+      source.migration0269.includes('ALTER COLUMN organization_id SET NOT NULL'),
     '0270 must remove signup-owned slug reservation state without removing the intent slug',
   );
   assert(
@@ -1214,9 +1216,9 @@ function assertStaticSourceGuards() {
       source.c5aPlatformOperations.includes(
         'c5a_platform_organization_members_directory_exact_wall',
       ) &&
-      source.migration0268.includes('WHERE membership.organization_id = p_organization_id') &&
-      !source.migration0268.includes('phone_normalized') &&
-      !source.migration0268.includes('email_normalized') &&
+      source.migration0267.includes('WHERE membership.organization_id = p_organization_id') &&
+      !source.migration0267.includes('phone_normalized') &&
+      !source.migration0267.includes('email_normalized') &&
       source.c5aPlatformOperations.includes(
         'GRANT UPDATE (tariff_id, commercial_access_state, updated_at)',
       ) &&

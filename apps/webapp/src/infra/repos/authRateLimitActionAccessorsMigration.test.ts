@@ -126,8 +126,9 @@ describe("0254 auth rate-limit action accessors", () => {
 
   it("pins the four reviewed definers and their three app_owner table privileges", () => {
     const deploy = readFileSync(deployPath, "utf8");
-    // 106 -> 107: migration 0268 adds the reviewed platform staff-directory projector.
-    expect(deploy).toContain("local expected_secdef_count=106");
+    // 106 -> 107: 0267 adds the staff-name directory accessor, 0268 adds the delivery-audit
+    // writer, and 0269 removes the superseded signup-slug reservation function.
+    expect(deploy).toContain("local expected_secdef_count=107");
     for (const row of [
       "('public.auth_rate_limit_events', 'SELECT')",
       "('public.auth_rate_limit_events', 'INSERT')",

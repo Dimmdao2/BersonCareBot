@@ -69,8 +69,9 @@ describe("0253 patient reminder occurrence actions", () => {
     const deploy = readFileSync(deployPath, "utf8");
     expect(deploy).toContain("('public.reminder_occurrence_history', 'SELECT')");
     expect(deploy).toContain("('public.reminder_occurrence_history', 'UPDATE')");
-    // 106 -> 107: migration 0268 adds the reviewed platform staff-directory projector.
-    expect(deploy).toContain("local expected_secdef_count=106");
+    // 106 -> 107: 0267 adds the staff-name directory accessor, 0268 adds the delivery-audit
+    // writer, and 0269 removes the superseded signup-slug reservation function.
+    expect(deploy).toContain("local expected_secdef_count=107");
 
     const ownershipOverlay = readFileSync(inviteOwnershipPath, "utf8");
     expect(ownershipOverlay).not.toContain("patient_snooze_reminder_occurrence");

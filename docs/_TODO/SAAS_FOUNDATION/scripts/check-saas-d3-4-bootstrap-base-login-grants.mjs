@@ -10,8 +10,10 @@ const files = {
   organizationMemberInvitesSql: "deploy/postgres/organization-member-invites-rls.sql",
   storeEntitlementsSql: "deploy/postgres/store-p0-entitlements-rls.sql",
   c5aMigrationSql: "apps/webapp/db/drizzle-migrations/0225_saas_tariff_quotas_trial.sql",
+  // 0268 -> 0267: the reserved 0267 work needed no migration, so this unchanged accessor migration
+  // closes the numbering gap.
   platformOrganizationMembersMigration:
-    "apps/webapp/db/drizzle-migrations/0268_platform_organization_members_directory.sql",
+    "apps/webapp/db/drizzle-migrations/0267_platform_organization_members_directory.sql",
   c5aRuntimeSql: "deploy/postgres/c5a-platform-operations-runtime.sql",
   patientCourseWallSql: "deploy/postgres/patient-course-assignment-wall.sql",
   publicBootstrapSql: "deploy/postgres/specialist-signup-public-bootstrap-rls.sql",
@@ -552,7 +554,9 @@ function runChecks(overrides = {}) {
   requireFragments(files.testDeploySaas, loaded.testDeploySaas, [
     "assert_c5a_platform_organization_members_closure",
     'run_closure_gate "platform organization-members directory exact ACL" assert_c5a_platform_organization_members_closure',
-    "local expected_secdef_count=106",
+    // 106 -> 107: 0267 adds the directory accessor, 0268 adds the delivery-audit writer, and 0269
+    // removes the obsolete signup-slug reservation function.
+    "local expected_secdef_count=107",
   ]);
   requireFragments(files.patientCourseWallSql, loaded.patientCourseWallSql, [
     "patient-course-assignment-wall UP complete",

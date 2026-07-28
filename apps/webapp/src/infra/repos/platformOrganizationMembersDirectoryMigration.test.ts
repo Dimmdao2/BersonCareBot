@@ -58,17 +58,21 @@ describe('platform organization-members directory boundary', () => {
       "NOT has_table_privilege('app_platform_settings', 'public.platform_users', 'SELECT')",
     );
     expect(deployGate).toContain('assert_c5a_platform_organization_members_closure');
-    expect(deployGate).toContain('local expected_secdef_count=106');
+    // 106 -> 107: 0267 adds this staff-name directory accessor, 0268 adds the delivery-audit
+    // writer, and 0269 removes the superseded signup-slug reservation function.
+    expect(deployGate).toContain('local expected_secdef_count=107');
   });
 
-  it('registers reserved migration 0268 exactly', () => {
+  it('registers the renumbered migration 0267 exactly', () => {
     const entries = (
       JSON.parse(journal) as {
         entries: Array<Record<string, unknown>>;
       }
     ).entries;
-    expect(entries.find((entry) => entry.idx === 268)).toEqual({
-      idx: 268,
+    // 268 -> 267: the reserved 0267 work needed no migration, so the directory migration closes
+    // that gap while preserving its SQL and timestamp.
+    expect(entries.find((entry) => entry.idx === 267)).toEqual({
+      idx: 267,
       version: '7',
       when: 1793539200065,
       tag: '0267_platform_organization_members_directory',

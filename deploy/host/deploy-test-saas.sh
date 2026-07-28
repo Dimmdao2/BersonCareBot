@@ -1462,19 +1462,19 @@ SELECT has_column_privilege('app_owner', 'public.operator_incidents', 'alert_sen
   # registration funnel". This is what lets the platform-operations role read the registration-event
   # panel WITHOUT any SELECT on platform_users, which the platform role wall forbids by assertion.
   # No new table grant is required: app_owner already owns both tables.
-  # 106 -> 107 (2026-07-28, #1068 / owner D-5): migration 0268 adds exactly one reviewed app_owner
+  # 106 -> 107 (2026-07-28, #1068 / owner D-5): migration 0267 adds exactly one reviewed app_owner
   # SECURITY DEFINER function, app.list_platform_organization_members(uuid). It reads only
   # public.be_organization_members and public.platform_users, both already present in the required
   # table-grant set above, filters by the exact organization argument, and returns only display_name
   # plus membership metadata. It never returns phone, email, channel bindings or patient data.
-  # 107 -> 106 (2026-07-28, #1058 / owner plan 8.1-8.4): migration 0270 removes
+  # 107 -> 106 (2026-07-28, #1058 / owner plan 8.1-8.4): migration 0269 removes
   # app.reserve_specialist_signup_slug(uuid,text). Signup intents still carry organization_slug,
   # while app.provision_specialist_owner(uuid) INSERTs the durable current claim and lets the global
   # UNIQUE(slug) index decide races. The removed function's claims UPDATE grant is removed above;
   # provisioning retains only the reviewed SELECT+INSERT claim privileges.
   # 106 -> 107 (2026-07-28, ночная волна). Арифметика, проверенная прогоном на живой базе TEST внутри
-  # откатываемой транзакции: базовые 106 + 0268 (узкий accessor имени сотрудника для панели аккаунтов)
-  # + 0269 (capability записи следа доставки) - 0270 (снята reserve_specialist_signup_slug вместе с бронью
+  # откатываемой транзакции: базовые 106 + 0267 (узкий accessor имени сотрудника для панели аккаунтов)
+  # + 0268 (capability записи следа доставки) - 0269 (снята reserve_specialist_signup_slug вместе с бронью
   # слага) = 107. Два параллельных потока считали независимо и каждый получил своё число; итог сверен лидом.
   local expected_secdef_count=107
   local actual_secdef_count

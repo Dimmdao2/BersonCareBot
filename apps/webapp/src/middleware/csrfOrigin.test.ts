@@ -259,11 +259,17 @@ describe("frozen webapp mutation census", () => {
     // 506 -> 507: the read-only clinic-account panel added
     // `api/admin/organizations/[organizationId]/members/route.ts`. It has the same platform guard,
     // exports GET only, and therefore changes only the route-file inventory/hash.
+    // 507 -> 509: billing added two read-only GET routes. The platform organization endpoint uses
+    // `requirePlatformOperationsApiContext`; the clinic endpoint uses
+    // `requireClinicManagementApiContext` and additionally requires owner membership. Neither is a
+    // mutation or a CSRF exemption, so all unsafe-file/handler/class counts remain unchanged.
     expect(routeInventory).toContain("admin/appointment-records/[integratorRecordId]/soft-delete/route.ts");
     expect(routeInventory).toContain("admin/organizations/route.ts");
     expect(routeInventory).toContain("admin/organizations/[organizationId]/members/route.ts");
-    expect(routeFiles).toHaveLength(507);
-    expect(sha256Lines(routeInventory)).toBe("44f50a82b2202180509c11768199bae196322c5ac1adacc7fcbd575d047ae0f4");
+    expect(routeInventory).toContain("admin/organizations/[organizationId]/billing/route.ts");
+    expect(routeInventory).toContain("clinic/billing/route.ts");
+    expect(routeFiles).toHaveLength(509);
+    expect(sha256Lines(routeInventory)).toBe("ad73af224b6d0c7c424bbc0a37127d9689324ddfcc82378267879fc255c6b0a9");
     expect(unsafeInventory).toHaveLength(339);
     expect(unsafeInventory.reduce((count, entry) => count + entry.methods.length, 0)).toBe(373);
     expect(sha256Lines(unsafeInventoryLines)).toBe("0285e65270f53a3222ad681c1d2a94a8bbb5d1fe2659dfcf4f823dc62a8a598f");

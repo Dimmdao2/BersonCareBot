@@ -19,7 +19,8 @@ const migrationPath = resolve(
 );
 const deliveryAuditMigrationPath = resolve(
   repoRoot,
-  "apps/webapp/db/drizzle-migrations/0269_integrator_global_delivery_attempt_audit.sql",
+  // 0269 -> 0268: closing the unused 0267 reservation shifts this unchanged audit migration down.
+  "apps/webapp/db/drizzle-migrations/0268_integrator_global_delivery_attempt_audit.sql",
 );
 const overlayPath = resolve(repoRoot, "deploy/postgres/integrator-server-runtime-config.sql");
 const runtimeProbePath = join(scratchRoot, "smtp-runtime-path.probe.mts");
