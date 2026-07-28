@@ -65,3 +65,7 @@ _old/logs/
 # file itself) -- stays on this box, never in the repo. Do NOT "helpfully" re-add it; see
 # docs/_TODO/SAAS_FOUNDATION/LOG.md for the pointer/rationale.
 docs/_TODO/SAAS_FOUNDATION/scripts/regenerate-saas-smoke-fixture.mjs
+
+# Снимок фактов живой TEST-базы для агентов-аудиторов (tools/db-facts-snapshot.sh).
+# Не версионируется: снимается заново перед каждым аудитом.
+.agent-facts.md
