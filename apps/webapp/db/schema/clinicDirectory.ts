@@ -29,7 +29,7 @@ export const clinicPublicDirectoryEntries = pgTable(
   (table) => [
     uniqueIndex("uq_clinic_public_directory_entries_slug").using(
       "btree",
-      table.slug.asc().nullsLast().op("text_ops"),
+      sql`lower(${table.slug})`,
     ),
     index("idx_clinic_public_directory_entries_published").using(
       "btree",
@@ -73,7 +73,7 @@ export const organizationSlugClaims = pgTable(
   (table) => [
     uniqueIndex('uq_organization_slug_claims_slug').using(
       'btree',
-      table.slug.asc().nullsLast().op('text_ops'),
+      sql`lower(${table.slug})`,
     ),
     uniqueIndex('uq_organization_slug_claims_current_org')
       .using('btree', table.organizationId.asc().nullsLast().op('uuid_ops'))
@@ -145,6 +145,10 @@ export const organizationSlugRenameEvents = pgTable(
     check(
       'organization_slug_rename_events_slug_change_check',
       sql`${table.previousSlug} <> ${table.nextSlug}`,
+    ),
+    check(
+      'organization_slug_rename_events_slugs_lower_check',
+      sql`${table.previousSlug} = lower(${table.previousSlug}) AND ${table.nextSlug} = lower(${table.nextSlug})`,
     ),
   ],
 );
