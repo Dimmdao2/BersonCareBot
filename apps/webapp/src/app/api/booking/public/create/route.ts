@@ -159,7 +159,10 @@ export async function POST(request: Request) {
       // owner, so a 403 tells them their own status; on the anonymous branch the same 403 was the
       // third existence oracle and is now unreachable, because nothing looks the person up.
       try {
-        const booking = await createVerifiedPublicBooking(deps, intent, true);
+        const booking = await withExplicitOrganizationPrincipal(
+          { organizationId: ctx.organizationId, source: "api/booking/public/create:POST" },
+          () => createVerifiedPublicBooking(deps, intent, true),
+        );
         return jsonOk({ booking: redactPublicBookingRecord(booking) }, { status: 200 });
       } catch (error) {
         if (error instanceof Error && error.message === "booking_blocked") {

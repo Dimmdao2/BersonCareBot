@@ -51,10 +51,14 @@ export async function POST(request: Request) {
   // path still mints phone trust from an unauthenticated request. It is the same class of defect
   // and is raised for the owner rather than silently altered here — changing it is a product
   // decision about the public product-purchase flow, not part of this item.
-  const resolved = await resolveOrCreateUserByPhone(
-    parsed.data.contactPhone,
-    parsed.data.contactPhone,
-    true,
+  const resolved = await withExplicitOrganizationPrincipal(
+    { organizationId, source: "api/booking/public/products/payments/mock-complete:resolve-user" },
+    () =>
+      resolveOrCreateUserByPhone(
+        parsed.data.contactPhone,
+        parsed.data.contactPhone,
+        true,
+      ),
   );
   if (!resolved.ok) {
     return NextResponse.json({ ok: false, error: resolved.error }, { status: 400 });

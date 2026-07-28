@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { getCurrentDbPrincipalOrganizationId } from "@bersoncare/db-principal";
 
 const rateLimitMock = vi.hoisted(() => vi.fn());
 const resolveUserMock = vi.hoisted(() => vi.fn());
@@ -16,6 +17,7 @@ const isBookingBlockedMock = vi.hoisted(() => vi.fn());
 const ORG_ID = "11111111-1111-4111-8111-111111111111";
 const BRANCH_ID = "550e8400-e29b-41d4-a716-446655440001";
 const SERVICE_ID = "550e8400-e29b-41d4-a716-446655440002";
+let organizationSeenByFinalWrite: string | undefined;
 
 vi.mock("@/modules/public-booking/publicBookingRateLimit", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/modules/public-booking/publicBookingRateLimit")>();
@@ -74,10 +76,13 @@ function inPersonBody(overrides: Record<string, unknown> = {}) {
 describe("POST /api/booking/public/create", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    organizationSeenByFinalWrite = undefined;
     rateLimitMock.mockResolvedValue(false);
     resolveUserMock.mockResolvedValue({ ok: true, userId: "user-1" });
     createBookingMock.mockResolvedValue({ id: "pb-1", userId: "user-1", canonicalAppointmentId: "appt-1", status: "confirmed" });
-    recordMergeMock.mockResolvedValue(undefined);
+    recordMergeMock.mockImplementation(async () => {
+      organizationSeenByFinalWrite = getCurrentDbPrincipalOrganizationId();
+    });
     resolvePublicBookingOrganizationMock.mockResolvedValue(ORG_ID);
     resolveOrganizationIdBySlugMock.mockResolvedValue(ORG_ID);
     resolveCanonicalInPersonContextMock.mockResolvedValue({ organizationId: ORG_ID, branchId: BRANCH_ID, serviceId: SERVICE_ID });
@@ -93,7 +98,11 @@ describe("POST /api/booking/public/create", () => {
     const response = await POST(request(inPersonBody({ attribution: { utmSource: "tilda" } })));
 
     expect(response.status).toBe(200);
-    const json = await response.json();
+    const text = await response.text();
+    expect(text).toMatch(
+      /^\{"ok":true,"verification":\{"challengeId":"[^"]+","expiresInSeconds":600,"retryAfterSeconds":60\}\}$/,
+    );
+    const json = JSON.parse(text);
     // The id is minted server-side per request; the caller only has to be handed one.
     expect(typeof json.verification.challengeId).toBe("string");
     expect(json.verification.challengeId.length).toBeGreaterThan(0);
@@ -189,10 +198,24 @@ describe("POST /api/booking/public/create", () => {
       const response = await POST(request(inPersonBody()));
 
       expect(response.status).toBe(200);
+      await expect(response.text()).resolves.toBe(
+        '{"ok":true,"booking":{"id":"pb-1","canonicalAppointmentId":"appt-1","status":"confirmed"}}',
+      );
       expect(createBookingMock).toHaveBeenCalledTimes(1);
       expect(issueChallengeMock).not.toHaveBeenCalled();
       // Session-proved phone: trust may be stamped.
       expect(resolveUserMock).toHaveBeenCalledWith(EXISTING_PHONE, "Иван", true);
+      expect(organizationSeenByFinalWrite).toBe(ORG_ID);
+    });
+
+    it("keeps booking_blocked visible only on the session-proved branch", async () => {
+      getCurrentSessionMock.mockResolvedValue({ user: { role: "client", phone: EXISTING_PHONE } });
+      createBookingMock.mockRejectedValueOnce(new Error("booking_blocked"));
+
+      const response = await POST(request(inPersonBody()));
+
+      expect(response.status).toBe(403);
+      await expect(response.text()).resolves.toBe('{"ok":false,"error":"booking_blocked"}');
     });
 
     it("still demands a code when a logged-in patient submits somebody else's phone", async () => {
