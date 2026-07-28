@@ -4,6 +4,8 @@ import Fastify from 'fastify';
 import type { DbPort } from '../../kernel/contracts/index.js';
 import * as appTimezone from '../../config/appTimezone.js';
 import * as messengerStaffIds from '../../infra/db/messengerStaffIds.js';
+import * as platformIntegrationAvailability from '../../infra/db/platformIntegrationAvailability.js';
+import * as googleCalendarRuntimeConfig from '../google-calendar/runtimeConfig.js';
 import { drizzleSqlFragmentToApproximateSql } from '../../infra/db/drizzleSqlDebugText.js';
 import { runIntegratorSql } from '../../infra/db/runIntegratorSql.js';
 import { registerBersoncareSettingsSyncRoute } from './settingsSyncRoute.js';
@@ -160,6 +162,51 @@ describe('POST /api/integrator/settings/sync', () => {
     expect(res.statusCode).toBe(200);
     expect(invalidateSpy).toHaveBeenCalledWith('doctor_telegram_ids');
     expect(runIntegratorSql).toHaveBeenCalledTimes(1);
+  });
+
+  it('invalidates shared availability and Google caches when the platform registry syncs', async () => {
+    const availabilitySpy = vi.spyOn(
+      platformIntegrationAvailability,
+      'invalidatePlatformIntegrationAvailabilityCache',
+    );
+    const googleSpy = vi.spyOn(
+      googleCalendarRuntimeConfig,
+      'invalidateGoogleCalendarConfigCache',
+    );
+    const app = Fastify();
+    await registerBersoncareSettingsSyncRoute(app, {
+      db: makeDbPort(vi.fn()),
+      sharedSecret: TEST_SECRET,
+    });
+
+    const body = JSON.stringify({
+      key: 'platform_integration_availability',
+      scope: 'admin',
+      valueJson: {
+        value: {
+          version: 1,
+          integrations: {
+            telegram: true,
+            max: true,
+            email: true,
+            smsc: true,
+            web_push: true,
+            google_calendar: false,
+            yandex_calendar: false,
+          },
+        },
+      },
+    });
+    const res = await app.inject({
+      method: 'POST',
+      url: '/api/integrator/settings/sync',
+      headers: makeHeaders(body),
+      body,
+    });
+
+    expect(res.statusCode).toBe(200);
+    expect(availabilitySpy).toHaveBeenCalledTimes(1);
+    expect(googleSpy).toHaveBeenCalledTimes(1);
   });
 
   it('returns 401 for invalid signature', async () => {

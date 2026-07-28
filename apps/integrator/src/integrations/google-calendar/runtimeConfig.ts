@@ -6,9 +6,11 @@ import { createDbPort } from '../../infra/db/client.js';
 import { googleCalendarConfig, type GoogleCalendarConfig } from './config.js';
 import { logger } from '../../infra/observability/logger.js';
 import {
+  listExactOrganizationIdsWithTruePublicSystemSetting,
   readExactOrganizationPublicSystemSettingString,
   readPublicSystemSettingString,
 } from '../../infra/db/publicSystemSettings.js';
+import { isPlatformIntegrationAvailable } from '../../infra/db/platformIntegrationAvailability.js';
 
 const TTL_MS = 60_000;
 type CacheEntry = { config: GoogleCalendarConfig; expiresAt: number };
@@ -28,16 +30,6 @@ async function readDbSetting(key: string, organizationId: string | null = null):
   }
 }
 
-function isGoogleCalendarPlatformAvailable(raw: string | null): boolean {
-  if (!raw) return false;
-  try {
-    const value = JSON.parse(raw) as { version?: unknown; integrations?: { google_calendar?: unknown } };
-    return value.version === 1 && value.integrations?.google_calendar === true;
-  } catch {
-    return false;
-  }
-}
-
 /**
  * Platform OAuth identity keeps its bounded legacy env fallback. Clinic-owned connection
  * values are exact organization rows and never inherit an env or global setting.
@@ -48,18 +40,38 @@ async function mergeConfigFromDbWithEnv(
 ): Promise<GoogleCalendarConfig> {
   try {
     const db = createDbPort();
-    const [enabledRaw, clientId, clientSecret, redirectUri, calendarId, refreshToken, availability] = await Promise.all([
-      readExactOrganizationPublicSystemSettingString(db, 'google_calendar_enabled', organizationId),
+    const [
+      enabledRaw,
+      clientId,
+      clientSecret,
+      redirectUri,
+      calendarId,
+      refreshToken,
+      platformAvailable,
+    ] = await Promise.all([
+      readExactOrganizationPublicSystemSettingString(
+        db,
+        'google_calendar_enabled',
+        organizationId,
+      ),
       readDbSetting('google_client_id'),
       readDbSetting('google_client_secret'),
       readDbSetting('google_redirect_uri'),
-      readExactOrganizationPublicSystemSettingString(db, 'google_calendar_id', organizationId),
-      readExactOrganizationPublicSystemSettingString(db, 'google_refresh_token', organizationId),
-      readDbSetting('platform_integration_availability'),
+      readExactOrganizationPublicSystemSettingString(
+        db,
+        'google_calendar_id',
+        organizationId,
+      ),
+      readExactOrganizationPublicSystemSettingString(
+        db,
+        'google_refresh_token',
+        organizationId,
+      ),
+      isPlatformIntegrationAvailable(db, 'google_calendar'),
     ]);
     return {
       enabled:
-        isGoogleCalendarPlatformAvailable(availability) &&
+        platformAvailable &&
         (enabledRaw !== null ? enabledRaw === 'true' || enabledRaw === '1' : false),
       clientId: clientId ?? env.clientId,
       clientSecret: clientSecret ?? env.clientSecret,
@@ -71,6 +83,22 @@ async function mergeConfigFromDbWithEnv(
   } catch (err) {
     logger.warn({ err }, '[google-calendar] failed to read clinic config from DB');
     return { ...env, enabled: false, calendarId: '', refreshToken: '' };
+  }
+}
+
+/**
+ * Operator health needs an actual clinic context after calendar credentials became per-org.
+ * Return all explicitly enabled clinic rows; the probe chooses the first fully configured one.
+ */
+export async function listGoogleCalendarProbeOrganizationIds(): Promise<string[]> {
+  try {
+    return await listExactOrganizationIdsWithTruePublicSystemSetting(
+      createDbPort(),
+      'google_calendar_enabled',
+    );
+  } catch (err) {
+    logger.warn({ err }, '[google-calendar] failed to list clinic configs for operator probe');
+    return [];
   }
 }
 

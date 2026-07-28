@@ -89,6 +89,47 @@ describe('createDefaultDispatchPort', () => {
     expect(writeDb).toHaveBeenCalledTimes(1);
   });
 
+  it.each([
+    ['telegram', 'telegram'],
+    ['max', 'max'],
+    ['email', 'email'],
+    ['smsc', 'smsc'],
+    ['web_push', 'web_push'],
+  ] as const)(
+    'blocks %s before adapter delivery when the platform disables %s',
+    async (channel, integrationId) => {
+      const adapter = {
+        canHandle: vi.fn().mockReturnValue(true),
+        send: vi.fn().mockResolvedValue({}),
+      } satisfies DeliveryAdapter;
+      const isPlatformIntegrationEnabled = vi.fn().mockResolvedValue(false);
+      const dispatchPort = createDefaultDispatchPort({
+        adapters: [adapter],
+        isPlatformIntegrationEnabled,
+      });
+
+      await expect(
+        dispatchPort.dispatchOutgoing({
+          type: 'message.send',
+          meta: {
+            eventId: `evt-disabled-${channel}`,
+            occurredAt: '2026-03-03T00:00:00.000Z',
+            source: channel,
+          },
+          payload: {
+            recipient: { chatId: 1 },
+            message: { text: 'hi' },
+            delivery: { channels: [channel], maxAttempts: 1 },
+          },
+        }),
+      ).rejects.toThrow(`PLATFORM_INTEGRATION_DISABLED:${integrationId}`);
+
+      expect(isPlatformIntegrationEnabled).toHaveBeenCalledWith(integrationId);
+      expect(adapter.canHandle).not.toHaveBeenCalled();
+      expect(adapter.send).not.toHaveBeenCalled();
+    },
+  );
+
   it('propagates the current organization principal into the delivery attempt log', async () => {
     const writeDb = vi.fn().mockResolvedValue(undefined);
     const dispatchPort = createDefaultDispatchPort({ adapters: buildAdapters(), writePort: { writeDb } });

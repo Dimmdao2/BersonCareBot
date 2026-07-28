@@ -599,19 +599,29 @@ community-лицензия).
 
 - [x] **12.1** Убрать настройку гугл-календаря с платформенной страницы интеграций — `a1d74e46c`;
       сама интеграция, синхронизация и проба живы.
+      Коррекция после независимого аудита: probe выбирает реальную org-scoped связь
+      `apps/integrator/src/app/operatorHealthProbeRunner.ts:133`, а не вызывает конфиг без организации;
+      `pnpm --dir apps/integrator exec vitest run src/app/operatorHealthProbeRunner.test.ts src/integrations/google-calendar/runtimeConfig.test.ts` — PASS.
 - [x] **12.2** Глобальный реестр интеграций с выключателями у глобального админа.
-      Доказательство: `apps/webapp/src/app/app/admin/integrations/page.tsx:12` монтирует реестр;
-      `apps/webapp/src/modules/system-settings/platformIntegrationAvailability.ts:35`; `pnpm --dir apps/webapp exec vitest run src/modules/system-settings/platformIntegrationAvailability.test.ts src/app/app/admin/integrations/PlatformIntegrationAvailabilitySection.test.tsx` — PASS.
-- [x] **12.3** Перенести учётку календаря на уровень клиники (владелец: «принадлежал точке здоровья —
+      Доказательство после коррекции: typed DB-reader объекта реестра
+      `apps/integrator/src/infra/db/platformIntegrationAvailability.ts:49`; единый outbound-gate до адаптера
+      для Telegram/MAX/Email/SMSC/Web Push `apps/integrator/src/infra/adapters/dispatchPort.ts:327`;
+      Google читает ту же политику `apps/integrator/src/integrations/google-calendar/runtimeConfig.ts:70`;
+      targeted Vitest по `platformIntegrationAvailability.test.ts`, `dispatchPort.test.ts`,
+      `runtimeConfig.test.ts` — PASS (3/3, 31/31, затем общий Google/probe прогон 18/18).
+- [ ] **12.3** Перенести учётку календаря на уровень клиники (владелец: «принадлежал точке здоровья —
       хорошо бы так и стало опять»).
-      Доказательство: platform/clinic split `apps/webapp/src/modules/system-settings/registry.ts:200`;
+      Код и тесты: platform/clinic split `apps/webapp/src/modules/system-settings/registry.ts:200`;
       clinic UI `apps/webapp/src/app/app/settings/page.tsx:201`; exact-org integrator runtime
-      `apps/integrator/src/integrations/google-calendar/runtimeConfig.ts:41`; migration + mirror
+      `apps/integrator/src/integrations/google-calendar/runtimeConfig.ts:52`; migration + mirror
       `apps/webapp/db/drizzle-migrations/0271_google_calendar_clinic_connection.sql:7`;
       `pnpm --dir apps/webapp exec vitest run src/modules/system-settings/googleCalendarClinicConnectionMigration.test.ts src/app/api/admin/google-calendar/start/route.test.ts src/app/api/admin/google-calendar/callback/route.test.ts src/app/api/admin/google-calendar/calendars/route.test.ts` and `pnpm --dir apps/integrator exec vitest run src/integrations/google-calendar/runtimeConfig.test.ts src/integrations/google-calendar/sync.test.ts` — PASS.
+      ОСТАЛОСЬ: `.agent-facts.md` подтверждает ledger миграций до id 272, но не содержит строкового
+      сравнения `public.system_settings` ↔ `integrator.system_settings`; live TEST parity SELECT нужен до `[x]`.
 - [x] **12.4** Поля VK ID (секрет через тот же конверт, что ключи Яндекса и Google).
-      Доказательство: `apps/webapp/src/modules/system-settings/registry.ts:194` и
-      `apps/webapp/src/app/app/settings/AuthProvidersSection.tsx:256`; `pnpm --dir apps/webapp exec vitest run src/modules/system-settings/registry.test.ts src/app/app/settings/AuthProvidersSection.test.tsx` — PASS.
+      Доказательство после коррекции: update и delete используют общий redactor; delete-path
+      `apps/webapp/src/infra/repos/pgSystemSettings.ts:400`;
+      `pnpm --dir apps/webapp exec vitest run src/infra/repos/pgSystemSettings.audit.test.ts src/modules/system-settings/auditRedaction.test.ts` — PASS, удалённое значение `vk_id_client_secret` в durable audit маскируется.
 - [x] **12.5** Яндекс-календарь как объявленная, но не реализованная запись.
       Доказательство: `apps/webapp/src/modules/system-settings/platformIntegrationAvailability.ts:84` (`declared`);
       `pnpm --dir apps/webapp exec vitest run src/modules/system-settings/platformIntegrationAvailability.test.ts` — PASS.
