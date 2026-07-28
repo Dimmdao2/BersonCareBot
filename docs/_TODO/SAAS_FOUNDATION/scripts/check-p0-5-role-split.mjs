@@ -1,17 +1,18 @@
 #!/usr/bin/env node
+import { sourceTextIncludes, sourceTextIndexOf } from './source-text-guard.mjs';
 
-import { readFileSync } from "node:fs";
+import { readFileSync } from 'node:fs';
 
-import { buildRlsDescriptors, readTierRows } from "./rls-descriptor-model.mjs";
+import { buildRlsDescriptors, readTierRows } from './rls-descriptor-model.mjs';
 import {
   getP05AppGrantTables,
   p05DedicatedRoleTables,
   renderP05RoleSplitSql,
-} from "./p0-5-role-split-sql.mjs";
+} from './p0-5-role-split-sql.mjs';
 
-const docPath = "docs/_TODO/SAAS_FOUNDATION/P0_5_DB_ROLE_SPLIT.md";
-const proofPath = "docs/_TODO/SAAS_FOUNDATION/P0_5_DB_ROLE_SPLIT_PROOF.sql";
-const opsSqlPath = "deploy/postgres/p0-5-role-split.sql";
+const docPath = 'docs/_TODO/SAAS_FOUNDATION/P0_5_DB_ROLE_SPLIT.md';
+const proofPath = 'docs/_TODO/SAAS_FOUNDATION/P0_5_DB_ROLE_SPLIT_PROOF.sql';
+const opsSqlPath = 'deploy/postgres/p0-5-role-split.sql';
 
 const expectedCounts = Object.freeze({
   SCOPED: 162,
@@ -23,12 +24,12 @@ function fail(message) {
 }
 
 function read(path) {
-  return readFileSync(path, "utf8");
+  return readFileSync(path, 'utf8');
 }
 
 function requireFragments(label, text, fragments) {
   for (const fragment of fragments) {
-    if (!text.includes(fragment)) {
+    if (!sourceTextIncludes(text, fragment, label)) {
       fail(`Missing required ${label} fragment: ${fragment}`);
     }
   }
@@ -36,7 +37,7 @@ function requireFragments(label, text, fragments) {
 
 function forbidFragments(label, text, fragments) {
   for (const fragment of fragments) {
-    if (text.includes(fragment)) {
+    if (sourceTextIncludes(text, fragment, label)) {
       fail(`${label} must not include forbidden fragment: ${fragment}`);
     }
   }
@@ -44,9 +45,9 @@ function forbidFragments(label, text, fragments) {
 
 function forbidExecutableSqlFragments(label, sql, fragments) {
   const executableSql = sql
-    .split("\n")
-    .filter((line) => !line.trimStart().startsWith("--"))
-    .join("\n");
+    .split('\n')
+    .filter((line) => !line.trimStart().startsWith('--'))
+    .join('\n');
 
   forbidFragments(label, executableSql, fragments);
 }
@@ -64,11 +65,13 @@ function countByTier(tables) {
 function assertGrantSetMatchesTiers() {
   if (
     p05DedicatedRoleTables.size !== 3 ||
-    !p05DedicatedRoleTables.has("public.app_runtime_settings") ||
-    !p05DedicatedRoleTables.has("public.app_runtime_settings_audit") ||
-    !p05DedicatedRoleTables.has("public.staff_security_profiles")
+    !p05DedicatedRoleTables.has('public.app_runtime_settings') ||
+    !p05DedicatedRoleTables.has('public.app_runtime_settings_audit') ||
+    !p05DedicatedRoleTables.has('public.staff_security_profiles')
   ) {
-    fail("P0.5 dedicated-role exclusion must contain only the S5 runtime tables and staff-security vault");
+    fail(
+      'P0.5 dedicated-role exclusion must contain only the S5 runtime tables and staff-security vault',
+    );
   }
 
   const grantTables = getP05AppGrantTables();
@@ -76,19 +79,21 @@ function assertGrantSetMatchesTiers() {
   const tierRows = readTierRows();
   const expectedTables = new Set(
     tierRows
-      .filter((row) => row.tier === "SCOPED" || row.tier === "BOOTSTRAP")
+      .filter((row) => row.tier === 'SCOPED' || row.tier === 'BOOTSTRAP')
       .map((row) => row.table)
       .filter((table) => !p05DedicatedRoleTables.has(table)),
   );
 
-  if (grantTableNames.has("public.app_runtime_settings")) {
-    fail("P0.5 generic app role must not receive app_runtime_settings; it uses dedicated audience-aware roles");
+  if (grantTableNames.has('public.app_runtime_settings')) {
+    fail(
+      'P0.5 generic app role must not receive app_runtime_settings; it uses dedicated audience-aware roles',
+    );
   }
-  if (grantTableNames.has("public.app_runtime_settings_audit")) {
-    fail("P0.5 generic app role must not receive app_runtime_settings_audit; it is staff-only");
+  if (grantTableNames.has('public.app_runtime_settings_audit')) {
+    fail('P0.5 generic app role must not receive app_runtime_settings_audit; it is staff-only');
   }
-  if (grantTableNames.has("public.staff_security_profiles")) {
-    fail("P0.5 generic app role must not receive staff_security_profiles; it is function-only");
+  if (grantTableNames.has('public.staff_security_profiles')) {
+    fail('P0.5 generic app role must not receive staff_security_profiles; it is function-only');
   }
 
   if (grantTableNames.size !== expectedTables.size) {
@@ -124,69 +129,73 @@ function assertGrantSetMatchesTiers() {
   }
 }
 
-function runChecks({ doc = read(docPath), proof = read(proofPath), opsSql = read(opsSqlPath) } = {}) {
+function runChecks({
+  doc = read(docPath),
+  proof = read(proofPath),
+  opsSql = read(opsSqlPath),
+} = {}) {
   const renderedSql = renderP05RoleSplitSql({ descriptors: buildRlsDescriptors() });
 
-  requireFragments("P0.5 doc", doc, [
-    "Status: P0.5 / B5 materialized dormant ops artifact. Dormant; no runtime role flip.",
-    "deploy/postgres/p0-5-role-split.sql",
-    "operator-chosen role names",
-    "Must be `NOBYPASSRLS`",
-    "No app runtime `DATABASE_URL` change.",
-    "No runtime role switch.",
-    "No dev/prod DB write.",
+  requireFragments('P0.5 doc', doc, [
+    'Status: P0.5 / B5 materialized dormant ops artifact. Dormant; no runtime role flip.',
+    'deploy/postgres/p0-5-role-split.sql',
+    'operator-chosen role names',
+    'Must be `NOBYPASSRLS`',
+    'No app runtime `DATABASE_URL` change.',
+    'No runtime role switch.',
+    'No dev/prod DB write.',
   ]);
 
-  requireFragments("P0.5 proof", proof, [
+  requireFragments('P0.5 proof', proof, [
     "current_database() LIKE 'bcb_saas_%'",
-    "scratch",
-    "SELECT 1 / 0 AS p0_5_abort",
-    "rolsuper OR rolcreaterole",
-    "CREATE ROLE :\"p0_5_app_role\" NOLOGIN NOBYPASSRLS;",
-    "ALTER TABLE p0_5_role_split_proof.scoped_rows FORCE ROW LEVEL SECURITY;",
+    'scratch',
+    'SELECT 1 / 0 AS p0_5_abort',
+    'rolsuper OR rolcreaterole',
+    'CREATE ROLE :"p0_5_app_role" NOLOGIN NOBYPASSRLS;',
+    'ALTER TABLE p0_5_role_split_proof.scoped_rows FORCE ROW LEVEL SECURITY;',
     "current_setting('app.org', true)",
-    "SET LOCAL ROLE :\"p0_5_app_role\";",
-    "RESET ROLE;",
-    "ROLLBACK;",
+    'SET LOCAL ROLE :"p0_5_app_role";',
+    'RESET ROLE;',
+    'ROLLBACK;',
   ]);
 
-  requireFragments("P0.5 ops SQL", opsSql, [
-    "CREATE ROLE %I NOLOGIN BYPASSRLS",
-    "CREATE ROLE %I LOGIN BYPASSRLS",
-    "CREATE ROLE %I LOGIN NOBYPASSRLS",
-    "SELECT rolsuper::int AS p0_5_can_manage_roles",
-    "ALTER ROLE :\"p0_5_app_role\" LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION NOBYPASSRLS;",
-    "GRANT :\"p0_5_owner_role\" TO :\"p0_5_migrator_role\";",
-    "REVOKE :\"p0_5_owner_role\" FROM :\"p0_5_app_role\";",
-    "REVOKE :\"p0_5_migrator_role\" FROM :\"p0_5_app_role\";",
-    "GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE %I.%I TO %I",
-    "GRANT USAGE, SELECT ON SEQUENCE %I.%I TO %I",
-    "\\if :{?p0_5_down}",
-    "DROP ROLE %I",
-    "P0.5 role split UP complete: 162 SCOPED tables and 27 BOOTSTRAP tables granted to the app role.",
+  requireFragments('P0.5 ops SQL', opsSql, [
+    'CREATE ROLE %I NOLOGIN BYPASSRLS',
+    'CREATE ROLE %I LOGIN BYPASSRLS',
+    'CREATE ROLE %I LOGIN NOBYPASSRLS',
+    'SELECT rolsuper::int AS p0_5_can_manage_roles',
+    'ALTER ROLE :"p0_5_app_role" LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION NOBYPASSRLS;',
+    'GRANT :"p0_5_owner_role" TO :"p0_5_migrator_role";',
+    'REVOKE :"p0_5_owner_role" FROM :"p0_5_app_role";',
+    'REVOKE :"p0_5_migrator_role" FROM :"p0_5_app_role";',
+    'GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE %I.%I TO %I',
+    'GRANT USAGE, SELECT ON SEQUENCE %I.%I TO %I',
+    '\\if :{?p0_5_down}',
+    'DROP ROLE %I',
+    'P0.5 role split UP complete: 162 SCOPED tables and 27 BOOTSTRAP tables granted to the app role.',
   ]);
 
-  forbidFragments("P0.5 proof", proof, [
-    "/opt/env/bersoncarebot",
-    "api.prod",
-    "webapp.prod",
-    "bcb_webapp_prod",
-    "bcb_webapp_dev",
+  forbidFragments('P0.5 proof', proof, [
+    '/opt/env/bersoncarebot',
+    'api.prod',
+    'webapp.prod',
+    'bcb_webapp_prod',
+    'bcb_webapp_dev',
   ]);
 
-  forbidFragments("P0.5 ops SQL", opsSql, [
-    "/opt/env/bersoncarebot",
-    "api.prod",
-    "webapp.prod",
-    "bcb_webapp_prod",
-    "bcb_webapp_dev",
-    "ALTER ROLE :\"p0_5_app_role\" BYPASSRLS",
-    "SUPERUSER BYPASSRLS",
+  forbidFragments('P0.5 ops SQL', opsSql, [
+    '/opt/env/bersoncarebot',
+    'api.prod',
+    'webapp.prod',
+    'bcb_webapp_prod',
+    'bcb_webapp_dev',
+    'ALTER ROLE :"p0_5_app_role" BYPASSRLS',
+    'SUPERUSER BYPASSRLS',
   ]);
 
-  forbidExecutableSqlFragments("P0.5 ops SQL executable body", opsSql, [
-    "REASSIGN OWNED",
-    "DROP OWNED",
+  forbidExecutableSqlFragments('P0.5 ops SQL executable body', opsSql, [
+    'REASSIGN OWNED',
+    'DROP OWNED',
   ]);
 
   if (opsSql !== renderedSql) {
@@ -203,26 +212,26 @@ function runSelfTest() {
 
   const cases = [
     {
-      name: "missing app NOBYPASSRLS",
+      name: 'missing app NOBYPASSRLS',
       args: {
         doc,
         proof,
         opsSql: opsSql.replace(
-          "ALTER ROLE :\"p0_5_app_role\" LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION NOBYPASSRLS;",
-          "ALTER ROLE :\"p0_5_app_role\" LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION BYPASSRLS;",
+          'ALTER ROLE :"p0_5_app_role" LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION NOBYPASSRLS;',
+          'ALTER ROLE :"p0_5_app_role" LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION BYPASSRLS;',
         ),
       },
     },
     {
-      name: "missing generated artifact doc link",
+      name: 'missing generated artifact doc link',
       args: {
-        doc: doc.replaceAll("deploy/postgres/p0-5-role-split.sql", "deploy/postgres/missing.sql"),
+        doc: doc.replaceAll('deploy/postgres/p0-5-role-split.sql', 'deploy/postgres/missing.sql'),
         proof,
         opsSql,
       },
     },
     {
-      name: "unsafe destructive rollback",
+      name: 'unsafe destructive rollback',
       args: {
         doc,
         proof,
@@ -246,11 +255,11 @@ function runSelfTest() {
   }
 }
 
-if (process.argv.includes("--self-test")) {
+if (process.argv.includes('--self-test')) {
   runSelfTest();
-  console.log("P0.5 role split self-test OK.");
+  console.log('P0.5 role split self-test OK.');
 } else {
   runChecks();
-  console.log("P0.5 role split contract/proof/ops artifacts OK.");
-  console.log("P0.5 app grant tables: SCOPED=162 BOOTSTRAP=27.");
+  console.log('P0.5 role split contract/proof/ops artifacts OK.');
+  console.log('P0.5 app grant tables: SCOPED=162 BOOTSTRAP=27.');
 }

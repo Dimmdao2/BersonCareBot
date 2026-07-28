@@ -1,6 +1,13 @@
 #!/usr/bin/env node
 import { readFile } from 'node:fs/promises';
 
+import {
+  sourceTextCount,
+  sourceTextIncludes,
+  sourceTextIndexOf,
+  sourceTextSliceFrom,
+} from './source-text-guard.mjs';
+
 const files = {
   migration: 'apps/webapp/db/drizzle-migrations/0185_saas_isolation_diagnostics.sql',
   identityMigration: 'apps/webapp/db/drizzle-migrations/0194_e1_patient_identity_exception.sql',
@@ -8,8 +15,7 @@ const files = {
   model: 'apps/webapp/src/modules/operator-health/saasIsolationDiagnostics.ts',
   repository: 'apps/webapp/src/infra/repos/pgSaasIsolationDiagnostics.ts',
   cli: 'apps/webapp/scripts/report-saas-isolation-diagnostics.ts',
-  postRuntimeGate:
-    'apps/webapp/src/modules/operator-health/saasIsolationPostRuntimeGate.ts',
+  postRuntimeGate: 'apps/webapp/src/modules/operator-health/saasIsolationPostRuntimeGate.ts',
   postRuntimeGateTest:
     'apps/webapp/src/modules/operator-health/saasIsolationPostRuntimeGate.test.ts',
   ui: 'apps/webapp/src/app/app/admin/system-health/SystemHealthSection.tsx',
@@ -43,22 +49,30 @@ const files = {
 };
 
 function requireText(text, fragment, label) {
-  if (!text.includes(fragment)) throw new Error(`${label}: missing ${fragment}`);
+  if (!sourceTextIncludes(text, fragment, label)) throw new Error(`${label}: missing ${fragment}`);
+}
+function requireOccurrenceCount(text, fragment, expectedCount, label) {
+  const actualCount = sourceTextCount(text, fragment, files.overlay);
+  if (actualCount !== expectedCount) {
+    throw new Error(
+      `${label}: expected ${expectedCount} occurrences of ${fragment}, got ${actualCount}`,
+    );
+  }
 }
 function requireOrder(text, fragments, label) {
   let cursor = -1;
   for (const fragment of fragments) {
-    const next = text.indexOf(fragment, cursor + 1);
+    const next = sourceTextIndexOf(text, fragment, label, cursor + 1);
     if (next < 0 || next <= cursor) throw new Error(`${label}: order/missing ${fragment}`);
     cursor = next;
   }
 }
 function shellFunction(text, name) {
-  const start = text.indexOf(`${name}(){`);
-  if (start < 0) throw new Error(`missing shell function ${name}`);
-  const next = text.indexOf('\n}\n', start);
+  const fromFunction = sourceTextSliceFrom(text, `${name}(){`, files.webappDeploy);
+  if (fromFunction === null) throw new Error(`missing shell function ${name}`);
+  const next = fromFunction.indexOf('\n}\n');
   if (next < 0) throw new Error(`unterminated shell function ${name}`);
-  return text.slice(start, next + 3);
+  return fromFunction.slice(0, next + 3);
 }
 
 async function main() {
@@ -68,7 +82,7 @@ async function main() {
     ),
   );
   for (const forbidden of ['organization_id', 'patient_id', 'user_id', 'payload', 'signature']) {
-    if (loaded.migration.includes(`"${forbidden}"`))
+    if (sourceTextIncludes(loaded.migration, `"${forbidden}"`, files.migration))
       throw new Error(`migration unsafe column: ${forbidden}`);
   }
   for (const fragment of [
@@ -101,18 +115,22 @@ async function main() {
     'hourly.bucket_start <= bounds.current_hour',
     "date_trunc('day', as_of AT TIME ZONE 'UTC') AT TIME ZONE 'UTC'",
     'app.read_saas_isolation_test_scenario_fixture_counts()',
-    "('webapp','patient_identity_exception_check')",
-    "('webapp','patient_booking_history')",
-    "('webapp','patient_product_analytics')",
-    "('webapp','patient_ui_config')",
-    "('webapp','patient_calendar_timezone')",
-    "('webapp','patient_content_catalog')",
-    "('webapp','patient_diary')",
-    "('webapp','auth_role_config')",
-    "('webapp', 'auth_role_config')",
-    "saas_isolation_events_source_operation_check",
+    'saas_isolation_events_source_operation_check',
   ])
     requireText(loaded.overlay, fragment, 'overlay');
+  for (const operationFamily of [
+    'patient_identity_exception_check',
+    'patient_booking_history',
+    'patient_product_analytics',
+    'patient_ui_config',
+    'patient_calendar_timezone',
+    'patient_content_catalog',
+    'patient_diary',
+    'auth_role_config',
+  ]) {
+    const fragment = `('webapp','${operationFamily}')`;
+    requireOccurrenceCount(loaded.overlay, fragment, 2, 'overlay operation-family allowlists');
+  }
   for (const fragment of [
     "('webapp','patient_identity_exception_check')",
     "('webapp','patient_booking_history')",
@@ -161,7 +179,7 @@ async function main() {
     'post-runtime gate pre-read/write/reread fail-closed order',
   );
   for (const fragment of [
-    "servicesChecked: [...SAAS_ISOLATION_REQUIRED_SERVICES]",
+    'servicesChecked: [...SAAS_ISOLATION_REQUIRED_SERVICES]',
     "status: 'complete'",
     'unexpectedErrorsCount: 0',
     'afterCoverage.lastCoverage.id !== coverageId',
@@ -316,7 +334,9 @@ async function main() {
     ],
     'cron reports only a caught status-write isolation failure',
   );
-  if (loaded.cron.includes('isRecognizedSaasIsolationFailure(input.error)')) {
+  if (
+    sourceTextIncludes(loaded.cron, 'isRecognizedSaasIsolationFailure(input.error)', files.cron)
+  ) {
     throw new Error('cron must not infer isolation telemetry from the business result');
   }
   const installer = shellFunction(loaded.webappDeploy, 'install_saas_isolation_telemetry_overlay');
@@ -351,10 +371,7 @@ async function main() {
     'protected diagnostic login provisioning pipeline',
   );
   const closure = shellFunction(loaded.webappDeploy, 'run_strict_post_migration_closure');
-  const postRuntimeGate = shellFunction(
-    loaded.webappDeploy,
-    'run_e1_post_runtime_coverage_gate',
-  );
+  const postRuntimeGate = shellFunction(loaded.webappDeploy, 'run_e1_post_runtime_coverage_gate');
   const scenarioProof = shellFunction(
     loaded.webappDeploy,
     'run_saas_isolation_test_scenario_proof',
@@ -415,7 +432,11 @@ async function main() {
     '00000000-0000-4000-8000-000000000000',
     'staff success; nonstaff permission denied',
   ])
-    requireText(credentialAclProbe, fragment, 'actual webapp staff/nonstaff credential-helper probe');
+    requireText(
+      credentialAclProbe,
+      fragment,
+      'actual webapp staff/nonstaff credential-helper probe',
+    );
   requireOrder(
     loaded.codeOnlyDeploy,
     [
@@ -425,7 +446,7 @@ async function main() {
     'code-only deploy delegates strict closure',
   );
   if (process.argv.includes('--self-test')) {
-    for (const [mutated, fragment, label] of [
+    for (const testCase of [
       [
         loaded.overlay.replaceAll('SECURITY DEFINER', 'SECURITY INVOKER'),
         'SECURITY DEFINER',
@@ -440,26 +461,31 @@ async function main() {
         loaded.overlay.replace("('webapp','patient_identity_exception_check'),", ''),
         "('webapp','patient_identity_exception_check')",
         'missing patient identity exception operation family',
+        2,
       ],
       [
         loaded.overlay.replace("('webapp','patient_booking_history'),", ''),
         "('webapp','patient_booking_history')",
         'missing patient booking history operation family',
+        2,
       ],
       [
         loaded.overlay.replace("('webapp','patient_product_analytics'),", ''),
         "('webapp','patient_product_analytics')",
         'missing patient product analytics operation family',
+        2,
       ],
       [
         loaded.overlay.replace("('webapp','auth_role_config'),", ''),
         "('webapp','auth_role_config')",
         'missing auth role config operation family',
+        2,
       ],
       [
         loaded.overlay.replace("('webapp', 'auth_role_config'),", ''),
         "('webapp', 'auth_role_config')",
         'missing auth role config table constraint',
+        2,
       ],
       [
         loaded.testScenarioRunner.replace('finally {', 'if (false) {'),
@@ -475,10 +501,7 @@ async function main() {
         'pnpm argument separator regression',
       ],
       [
-        loaded.cli.replace(
-          'rawArgs[0] === "--" ? rawArgs.slice(1) : rawArgs',
-          'rawArgs',
-        ),
+        loaded.cli.replace('rawArgs[0] === "--" ? rawArgs.slice(1) : rawArgs', 'rawArgs'),
         'rawArgs[0] === "--" ? rawArgs.slice(1) : rawArgs',
         'diagnostics CLI pnpm argument separator regression',
       ],
@@ -511,9 +534,14 @@ async function main() {
         'orphan post-runtime deploy gate',
       ],
     ]) {
+      const [mutated, fragment, label, expectedCount] = testCase;
       let rejected = false;
       try {
-        requireText(mutated, fragment, `self-test ${label}`);
+        if (expectedCount === undefined) {
+          requireText(mutated, fragment, `self-test ${label}`);
+        } else {
+          requireOccurrenceCount(mutated, fragment, expectedCount, `self-test ${label}`);
+        }
       } catch {
         rejected = true;
       }

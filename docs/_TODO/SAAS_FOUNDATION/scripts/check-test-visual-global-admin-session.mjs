@@ -1,43 +1,48 @@
 #!/usr/bin/env node
-import { readFileSync } from "node:fs";
+import { sourceTextCount, sourceTextIncludes, sourceTextIndexOf } from './source-text-guard.mjs';
+
+import { readFileSync } from 'node:fs';
 
 const files = {
-  helper: "deploy/host/test-visual-global-admin-session.mjs",
-  capture: "deploy/host/capture-test-global-admin-system-health.mjs",
-  cookie: "apps/webapp/src/modules/auth/sessionCookie.ts",
-  cookieTest: "apps/webapp/src/modules/auth/sessionCookie.test.ts",
-  types: "apps/webapp/src/shared/types/session.ts",
+  helper: 'deploy/host/test-visual-global-admin-session.mjs',
+  capture: 'deploy/host/capture-test-global-admin-system-health.mjs',
+  cookie: 'apps/webapp/src/modules/auth/sessionCookie.ts',
+  cookieTest: 'apps/webapp/src/modules/auth/sessionCookie.test.ts',
+  types: 'apps/webapp/src/shared/types/session.ts',
   // PLAT-01…09 slice 1 (2026-07-26): system-health moved from `(global-admin)/doctor/` to its
   // own `/app/admin/*` shell. `globalAdminLayout` now points at the layout that actually
   // governs this page (`app/admin/layout.tsx`) — the old path this pointed at
   // (`(global-admin)/doctor/system-health/layout.tsx`) never existed as a real file.
-  globalAdminLayout: "apps/webapp/src/app/app/admin/layout.tsx",
-  globalAdminPage: "apps/webapp/src/app/app/admin/system-health/page.tsx",
-  runbook: "docs/_TODO/SAAS_FOUNDATION/OWNER_READY_TEST/TEST_VISUAL_GLOBAL_ADMIN_SESSION.md",
-  package: "package.json",
+  globalAdminLayout: 'apps/webapp/src/app/app/admin/layout.tsx',
+  globalAdminPage: 'apps/webapp/src/app/app/admin/system-health/page.tsx',
+  runbook: 'docs/_TODO/SAAS_FOUNDATION/OWNER_READY_TEST/TEST_VISUAL_GLOBAL_ADMIN_SESSION.md',
+  package: 'package.json',
 };
 
 function load() {
-  return Object.fromEntries(Object.entries(files).map(([key, file]) => [key, readFileSync(file, "utf8")]));
+  return Object.fromEntries(
+    Object.entries(files).map(([key, file]) => [key, readFileSync(file, 'utf8')]),
+  );
 }
 
 function requireFragments(label, text, fragments) {
   for (const fragment of fragments) {
-    if (!text.includes(fragment)) throw new Error(`${label}: missing ${fragment}`);
+    if (!sourceTextIncludes(text, fragment, label))
+      throw new Error(`${label}: missing ${fragment}`);
   }
 }
 
 function requireOrdered(label, text, fragments) {
   let cursor = -1;
   for (const fragment of fragments) {
-    const next = text.indexOf(fragment, cursor + 1);
+    const next = sourceTextIndexOf(text, fragment, label, cursor + 1);
     if (next < 0) throw new Error(`${label}: missing ordered ${fragment}`);
     cursor = next;
   }
 }
 
 function validate(source) {
-  requireFragments("helper", source.helper, [
+  requireFragments(files.helper, source.helper, [
     'const testBaseUrl = "http://127.0.0.1:6300"',
     'const fixturePacketPath = "/opt/env/bersoncarebot/saas-test-fixture.env"',
     'databaseName !== "bersoncarebot_test"',
@@ -62,22 +67,24 @@ function validate(source) {
     'self_test_symlink_directory_accepted',
     'self_test_secret_leaked_in_error',
   ]);
-  requireOrdered("ordinary auth order", source.helper, [
-    "/api/auth/email-password/login",
-    "/api/admin/mode",
-    "boundAdminSession(adminCookie",
-    "writeJar({ filePath: outputPath",
+  requireOrdered(`${files.helper} ordinary auth order`, source.helper, [
+    '/api/auth/email-password/login',
+    '/api/admin/mode',
+    'boundAdminSession(adminCookie',
+    'writeJar({ filePath: outputPath',
   ]);
   for (const forbidden of [
-    "/run/bersoncarebot/saas-smoke.fixture",
-    "/api/auth/dev-bypass",
-    "/api/auth/dev-public",
-    "bcb_webapp_prod",
-    "bcb_webapp_dev",
+    '/run/bersoncarebot/saas-smoke.fixture',
+    '/api/auth/dev-bypass',
+    '/api/auth/dev-public',
+    'bcb_webapp_prod',
+    'bcb_webapp_dev',
   ]) {
-    if (source.helper.includes(forbidden)) throw new Error(`helper: forbidden ${forbidden}`);
+    if (sourceTextIncludes(source.helper, forbidden, files.helper)) {
+      throw new Error(`helper: forbidden ${forbidden}`);
+    }
   }
-  requireFragments("capture", source.capture, [
+  requireFragments(files.capture, source.capture, [
     'const exactBase = "https://test.bersoncare.ru"',
     'const exactCookieHost = "test.bersoncare.ru"',
     'const exactRoute = "/app/admin/system-health"',
@@ -129,23 +136,33 @@ function validate(source) {
     'fixed_navigation_${diagnostic.category}',
   ]);
   for (const forbidden of [
-    "process.env.BASE",
-    "process.env.CHROME",
-    "process.argv[3]",
-    "http://127.0.0.1:5200",
-    "https://bersoncare.ru",
+    'process.env.BASE',
+    'process.env.CHROME',
+    'process.argv[3]',
+    'http://127.0.0.1:5200',
+    'https://bersoncare.ru',
   ]) {
-    if (source.capture.includes(forbidden)) throw new Error(`capture: forbidden ${forbidden}`);
+    if (sourceTextIncludes(source.capture, forbidden, files.capture)) {
+      throw new Error(`capture: forbidden ${forbidden}`);
+    }
   }
-  requireFragments("cookie", source.cookie, [
+  requireFragments(files.cookie, source.cookie, [
     'operatorSession === null',
     'operatorSession.purpose !== "test_global_admin_visual"',
     'operatorSession.expiresAt !== parsed.expiresAt',
-    'session.operatorSession?.purpose === "test_global_admin_visual") return false',
     'session.operatorSession?.purpose === "test_global_admin_visual") return session',
   ]);
-  requireFragments("types", source.types, [
-    "operatorSession?:",
+  if (
+    sourceTextCount(
+      source.cookie,
+      'session.operatorSession?.purpose === "test_global_admin_visual") return false',
+      files.cookie,
+    ) !== 2
+  ) {
+    throw new Error('cookie: both renewable-session denial paths must remain present');
+  }
+  requireFragments(files.types, source.types, [
+    'operatorSession?:',
     'purpose: "test_global_admin_visual"',
   ]);
   // 2026-07-26: the platform console moved to /app/admin and the layout guard was reconciled.
@@ -154,106 +171,131 @@ function validate(source) {
   // restricted-session gate and stamps the platform DB principal (without which every settings page
   // 42501s on system_settings). The page-level requireGlobalAdminDoctorPage() assertion below is kept
   // — defence in depth, both guards are real and both are asserted, just in their actual files.
-  requireFragments("global admin layout", source.globalAdminLayout, [
-    "requirePlatformOperationsPage()",
-    "<DoctorWorkspaceShell",
-    "adminMode={true}",
+  requireFragments(files.globalAdminLayout, source.globalAdminLayout, [
+    'requirePlatformOperationsPage()',
+    '<DoctorWorkspaceShell',
+    'adminMode={true}',
   ]);
-  if (source.globalAdminLayout.includes("requireDoctorWorkspaceContext")) {
-    throw new Error("global admin layout: tenant workspace dependency forbidden");
+  if (
+    sourceTextIncludes(
+      source.globalAdminLayout,
+      'requireDoctorWorkspaceContext',
+      files.globalAdminLayout,
+    )
+  ) {
+    throw new Error('global admin layout: tenant workspace dependency forbidden');
   }
-  requireFragments("global admin page", source.globalAdminPage, [
-    "requireGlobalAdminDoctorPage()",
-    "<SystemHealthSection />",
+  requireFragments(files.globalAdminPage, source.globalAdminPage, [
+    'requireGlobalAdminDoctorPage()',
+    '<SystemHealthSection />',
   ]);
-  requireFragments("tests", source.cookieTest, [
-    "keeps a bounded TEST visual session non-renewable",
-    "rejects a bounded marker whose expiry differs",
-    "rejects a malformed bounded marker without throwing",
+  requireFragments(files.cookieTest, source.cookieTest, [
+    'keeps a bounded TEST visual session non-renewable',
+    'rejects a bounded marker whose expiry differs',
+    'rejects a malformed bounded marker without throwing',
   ]);
-  requireFragments("runbook", source.runbook, [
-    "root:dev 0750",
-    "root:dev 0640",
-    "issue --ttl-seconds 1800",
-    "test-visual-global-admin-session.mjs revoke",
-    "stateless HMAC cookies",
-    "Do not copy `last-shot.json`",
-    "capture-test-global-admin-system-health.mjs capture",
-    "Direct invocation of `/home/dev/brain/host-orch/shot.mjs`",
-    "exact `127.0.0.1:5432/bersoncarebot_test`",
+  requireFragments(files.runbook, source.runbook, [
+    'root:dev 0750',
+    'root:dev 0640',
+    'issue --ttl-seconds 1800',
+    'test-visual-global-admin-session.mjs revoke',
+    'stateless HMAC cookies',
+    'Do not copy `last-shot.json`',
+    'capture-test-global-admin-system-health.mjs capture',
+    'Direct invocation of `/home/dev/brain/host-orch/shot.mjs`',
+    'exact `127.0.0.1:5432/bersoncarebot_test`',
   ]);
-  if (source.runbook.includes("BASE=https://")) throw new Error("runbook: arbitrary BASE invocation forbidden");
-  requireFragments("package", source.package, ["check:test-visual-global-admin-session"]);
+  if (sourceTextIncludes(source.runbook, 'BASE=https://', files.runbook)) {
+    throw new Error('runbook: arbitrary BASE invocation forbidden');
+  }
+  requireFragments(files.package, source.package, ['check:test-visual-global-admin-session']);
 }
 
 function selfTest(source) {
   const mutations = [
-    ["non-TEST target", "bersoncarebot_test", "bcb_webapp_prod"],
+    ['non-TEST target', 'bersoncarebot_test', 'bcb_webapp_prod'],
     [
-      "renewable bounded session",
+      'renewable bounded session',
       'if (session.operatorSession?.purpose === "test_global_admin_visual") return false;',
       'if (session.operatorSession?.purpose === "test_global_admin_visual") return true;',
     ],
-    ["missing admin mode", "modeBody.adminMode !== true", "modeBody.adminMode === true"],
-    ["missing revoke", "rmSync(filePath)", "void filePath"],
-    ["wrong database host", 'parsedDatabaseUrl.hostname !== "127.0.0.1"', 'parsedDatabaseUrl.hostname !== "db.example.test"'],
-    ["wrong database port", '(parsedDatabaseUrl.port || "5432") !== "5432"', '(parsedDatabaseUrl.port || "5432") !== "5433"'],
-    ["malformed env accepted", 'if (!match) fail("malformed_env_line")', "if (!match) continue"],
+    ['missing admin mode', 'modeBody.adminMode !== true', 'modeBody.adminMode === true'],
+    ['missing revoke', 'rmSync(filePath)', 'void filePath'],
     [
-      "cross-record listener accepted",
+      'wrong database host',
+      'parsedDatabaseUrl.hostname !== "127.0.0.1"',
+      'parsedDatabaseUrl.hostname !== "db.example.test"',
+    ],
+    [
+      'wrong database port',
+      '(parsedDatabaseUrl.port || "5432") !== "5432"',
+      '(parsedDatabaseUrl.port || "5432") !== "5433"',
+    ],
+    ['malformed env accepted', 'if (!match) fail("malformed_env_line")', 'if (!match) continue'],
+    [
+      'cross-record listener accepted',
       'listener.localAddress === "127.0.0.1:6300" && expectedPid.test(listener.process)',
       'listener.localAddress === "127.0.0.1:6300" || expectedPid.test(listener.process)',
     ],
-    ["origin drift", 'const exactBase = "https://test.bersoncare.ru"', 'const exactBase = "https://evil.example"'],
-    ["cookie exfiltration domain", 'const exactCookieHost = "test.bersoncare.ru"', 'const exactCookieHost = "evil.example"'],
-    ["navigation probe cross-origin bypass", "next.origin !== exactBase", "false"],
     [
-      "capture artifact validation bypassed",
-      "    sanitizeAndValidateCapture(outputDirectory, dev);",
-      "    void outputDirectory;",
+      'origin drift',
+      'const exactBase = "https://test.bersoncare.ru"',
+      'const exactBase = "https://evil.example"',
     ],
     [
-      "PNG CRC validation bypassed",
-      "contents.readUInt32BE(dataEnd) !== pngCrc32(contents, typeStart, dataEnd)",
-      "false",
+      'cookie exfiltration domain',
+      'const exactCookieHost = "test.bersoncare.ru"',
+      'const exactCookieHost = "evil.example"',
+    ],
+    ['navigation probe cross-origin bypass', 'next.origin !== exactBase', 'false'],
+    [
+      'capture artifact validation bypassed',
+      '    sanitizeAndValidateCapture(outputDirectory, dev);',
+      '    void outputDirectory;',
     ],
     [
-      "PNG first IHDR contract bypassed",
+      'PNG CRC validation bypassed',
+      'contents.readUInt32BE(dataEnd) !== pngCrc32(contents, typeStart, dataEnd)',
+      'false',
+    ],
+    [
+      'PNG first IHDR contract bypassed',
       'if (type !== "IHDR" || length !== 13)',
       'if (type !== "IHDR" && length !== 13)',
     ],
     [
-      "PNG IDAT requirement bypassed",
-      "if (length !== 0 || !sawIdat || idatBytes === 0 || chunkEnd !== contents.length)",
-      "if (length !== 0 || chunkEnd !== contents.length)",
+      'PNG IDAT requirement bypassed',
+      'if (length !== 0 || !sawIdat || idatBytes === 0 || chunkEnd !== contents.length)',
+      'if (length !== 0 || chunkEnd !== contents.length)',
+    ],
+    ['PNG exact EOF bypassed', 'chunkEnd !== contents.length', 'chunkEnd > contents.length'],
+    ['PNG dimension bound bypassed', 'width > maxPngDimension', 'false'],
+    ['PNG interlace rejection bypassed', 'contents[dataStart + 12] !== 0', 'false'],
+    ['PNG decoded resource bound bypassed', 'decodedBytes > BigInt(maxDecodedPngBytes)', 'false'],
+    [
+      'PNG IDAT decompression bypassed',
+      'inflated = inflateSync(Buffer.concat(idatParts, idatBytes), {',
+      'inflated = { buffer: Buffer.alloc(ihdr.decodedBytes), engine: { bytesWritten: idatBytes } }; void ({',
     ],
     [
-      "PNG exact EOF bypassed",
-      "chunkEnd !== contents.length",
-      "chunkEnd > contents.length",
+      'PNG decoded length bypassed',
+      'inflated.engine.bytesWritten !== idatBytes || decoded.length !== ihdr.decodedBytes',
+      'false',
     ],
-    ["PNG dimension bound bypassed", "width > maxPngDimension", "false"],
-    ["PNG interlace rejection bypassed", "contents[dataStart + 12] !== 0", "false"],
-    ["PNG decoded resource bound bypassed", "decodedBytes > BigInt(maxDecodedPngBytes)", "false"],
-    [
-      "PNG IDAT decompression bypassed",
-      "inflated = inflateSync(Buffer.concat(idatParts, idatBytes), {",
-      "inflated = { buffer: Buffer.alloc(ihdr.decodedBytes), engine: { bytesWritten: idatBytes } }; void ({",
-    ],
-    [
-      "PNG decoded length bypassed",
-      "inflated.engine.bytesWritten !== idatBytes || decoded.length !== ihdr.decodedBytes",
-      "false",
-    ],
-    ["PNG scanline filter bypassed", "decoded[rowOffset] > 4", "false"],
+    ['PNG scanline filter bypassed', 'decoded[rowOffset] > 4', 'false'],
   ];
   for (const [label, before, after] of mutations) {
     const mutated = { ...source };
-    const target = label === "renewable bounded session"
-      ? "cookie"
-      : label === "origin drift" || label === "cookie exfiltration domain" || label.startsWith("navigation probe") || label.startsWith("capture artifact") || label.startsWith("PNG ")
-        ? "capture"
-        : "helper";
+    const target =
+      label === 'renewable bounded session'
+        ? 'cookie'
+        : label === 'origin drift' ||
+            label === 'cookie exfiltration domain' ||
+            label.startsWith('navigation probe') ||
+            label.startsWith('capture artifact') ||
+            label.startsWith('PNG ')
+          ? 'capture'
+          : 'helper';
     mutated[target] = mutated[target].replace(before, after);
     let rejected = false;
     try {
@@ -267,5 +309,7 @@ function selfTest(source) {
 
 const source = load();
 validate(source);
-if (process.argv.includes("--self-test")) selfTest(source);
-process.stdout.write(`test visual global-admin session checker: PASS${process.argv.includes("--self-test") ? " (self-test)" : ""}\n`);
+if (process.argv.includes('--self-test')) selfTest(source);
+process.stdout.write(
+  `test visual global-admin session checker: PASS${process.argv.includes('--self-test') ? ' (self-test)' : ''}\n`,
+);
