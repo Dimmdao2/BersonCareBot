@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { enterWithDbClinicBillingPrincipal } from '@bersoncare/db-principal';
+import { runWithDbClinicBillingPrincipal } from '@bersoncare/db-principal';
 import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
 import { requireClinicManagementApiContext } from '@/app-layer/guards/requireRole';
 
@@ -9,15 +9,15 @@ export async function GET() {
   if (gate.ctx.membershipRole !== 'owner' && gate.ctx.membershipRole !== 'admin') {
     return NextResponse.json({ ok: false, error: 'billing_admin_required' }, { status: 403 });
   }
-  enterWithDbClinicBillingPrincipal({
-    organizationId: gate.ctx.organizationId,
-    platformUserId: gate.ctx.session.user.userId,
-    source: 'clinic-billing-read',
-  });
-
   try {
-    const overview = await buildAppDeps().saasBilling.getOrganizationBillingOverview(
-      gate.ctx.organizationId,
+    const overview = await runWithDbClinicBillingPrincipal(
+      {
+        organizationId: gate.ctx.organizationId,
+        platformUserId: gate.ctx.session.user.userId,
+        source: 'clinic-billing-read',
+      },
+      () =>
+        buildAppDeps().saasBilling.getOrganizationBillingOverview(gate.ctx.organizationId),
     );
     const billing = {
       organizationId: overview.organizationId,

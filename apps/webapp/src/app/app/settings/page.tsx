@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
+import { runWithDbClinicBillingPrincipal } from '@bersoncare/db-principal';
 import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
 import { requireEntitlementForReadAction } from '@/app-layer/guards/requireEntitlement';
 import { requireOrganizationWorkspaceContext } from '@/app-layer/guards/requireRole';
@@ -225,10 +226,17 @@ export default async function SettingsPage({
   if (!canAccessBilling) redirect(routePaths.account);
 
   const deps = buildAppDeps();
-  const [snapshot, billing] = await Promise.all([
-    deps.orgEntitlements.getSnapshot(workspace.organizationId),
-    deps.saasBilling.getOrganizationBillingOverview(workspace.organizationId),
-  ]);
+  // The workspace guard establishes the ordinary staff principal. Read the tariff snapshot through
+  // that path first, then scope only the billing-table query to the exact-org capability.
+  const snapshot = await deps.orgEntitlements.getSnapshot(workspace.organizationId);
+  const billing = await runWithDbClinicBillingPrincipal(
+    {
+      organizationId: workspace.organizationId,
+      platformUserId: workspace.session.user.userId,
+      source: 'clinic-billing-settings-read',
+    },
+    () => deps.saasBilling.getOrganizationBillingOverview(workspace.organizationId),
+  );
   const entitlements = entitlementsFromSnapshot(snapshot);
   const mechanicRows: BillingMechanicRow[] = MECHANICS.map((mechanic) => ({
     mechanic,

@@ -18,6 +18,7 @@ const {
   getOrgBrandingManagementStateMock,
   getSlugManagementStateMock,
   getAppBaseUrlMock,
+  runWithDbClinicBillingPrincipalMock,
   settingsFormMock,
   appointmentReminderMock,
   teamSectionMock,
@@ -41,6 +42,9 @@ const {
   getOrgBrandingManagementStateMock: vi.fn(),
   getSlugManagementStateMock: vi.fn(),
   getAppBaseUrlMock: vi.fn(),
+  runWithDbClinicBillingPrincipalMock: vi.fn(
+    (_principal: unknown, fn: () => unknown) => fn(),
+  ),
   settingsFormMock: vi.fn(() => <section data-testid="organization-settings" />),
   appointmentReminderMock: vi.fn(() => <section data-testid="appointment-reminders" />),
   teamSectionMock: vi.fn(() => <section data-testid="team" />),
@@ -59,6 +63,10 @@ const {
 }));
 
 vi.mock('next/navigation', () => ({ redirect: redirectMock }));
+vi.mock('@bersoncare/db-principal', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@bersoncare/db-principal')>()),
+  runWithDbClinicBillingPrincipal: runWithDbClinicBillingPrincipalMock,
+}));
 vi.mock('@/app-layer/routes/paths', () => ({
   routePaths: { account: '/app/account', settings: '/app/settings' },
 }));
@@ -337,6 +345,17 @@ describe('legacy settings compatibility', () => {
     expect(screen.getByTestId('billing')).toBeInTheDocument();
     expect(getOrgEntitlementsSnapshotMock).toHaveBeenCalledWith('org-1');
     expect(getSaasBillingOverviewMock).toHaveBeenCalledWith('org-1');
+    expect(runWithDbClinicBillingPrincipalMock).toHaveBeenCalledWith(
+      {
+        organizationId: 'org-1',
+        platformUserId: 'owner-1',
+        source: 'clinic-billing-settings-read',
+      },
+      expect.any(Function),
+    );
+    expect(getOrgEntitlementsSnapshotMock.mock.invocationCallOrder[0]).toBeLessThan(
+      runWithDbClinicBillingPrincipalMock.mock.invocationCallOrder[0]!,
+    );
     expect(billingSectionMock).toHaveBeenCalledWith(
       expect.objectContaining({
         tariffName: 'ПОЛНЫЙ ДОСТУП - РАЗРАБОТЧИК',

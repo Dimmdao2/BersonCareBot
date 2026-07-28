@@ -3,10 +3,12 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 const guardMock = vi.hoisted(() => vi.fn());
 const buildAppDepsMock = vi.hoisted(() => vi.fn());
 const getOrganizationBillingOverviewMock = vi.hoisted(() => vi.fn());
-const enterWithDbClinicBillingPrincipalMock = vi.hoisted(() => vi.fn());
+const runWithDbClinicBillingPrincipalMock = vi.hoisted(() =>
+  vi.fn((_principal: unknown, fn: () => unknown) => fn()),
+);
 
 vi.mock('@bersoncare/db-principal', () => ({
-  enterWithDbClinicBillingPrincipal: enterWithDbClinicBillingPrincipalMock,
+  runWithDbClinicBillingPrincipal: runWithDbClinicBillingPrincipalMock,
 }));
 
 vi.mock('@/app-layer/guards/requireRole', () => ({
@@ -61,11 +63,14 @@ describe('GET /api/clinic/billing', () => {
       },
     });
     expect(getOrganizationBillingOverviewMock).toHaveBeenCalledWith(OWNER_ORGANIZATION_ID);
-    expect(enterWithDbClinicBillingPrincipalMock).toHaveBeenCalledWith({
-      organizationId: OWNER_ORGANIZATION_ID,
-      platformUserId: '33333333-3333-4333-8333-333333333333',
-      source: 'clinic-billing-read',
-    });
+    expect(runWithDbClinicBillingPrincipalMock).toHaveBeenCalledWith(
+      {
+        organizationId: OWNER_ORGANIZATION_ID,
+        platformUserId: '33333333-3333-4333-8333-333333333333',
+        source: 'clinic-billing-read',
+      },
+      expect.any(Function),
+    );
     expect(getOrganizationBillingOverviewMock).not.toHaveBeenCalledWith(FOREIGN_ORGANIZATION_ID);
     expect(guardMock.mock.invocationCallOrder[0]).toBeLessThan(
       buildAppDepsMock.mock.invocationCallOrder[0]!,
@@ -112,10 +117,13 @@ describe('GET /api/clinic/billing', () => {
       },
     });
     expect(getOrganizationBillingOverviewMock).toHaveBeenCalledWith(OWNER_ORGANIZATION_ID);
-    expect(enterWithDbClinicBillingPrincipalMock).toHaveBeenCalledWith({
-      organizationId: OWNER_ORGANIZATION_ID,
-      platformUserId: '44444444-4444-4444-8444-444444444444',
-      source: 'clinic-billing-read',
-    });
+    expect(runWithDbClinicBillingPrincipalMock).toHaveBeenCalledWith(
+      {
+        organizationId: OWNER_ORGANIZATION_ID,
+        platformUserId: '44444444-4444-4444-8444-444444444444',
+        source: 'clinic-billing-read',
+      },
+      expect.any(Function),
+    );
   });
 });

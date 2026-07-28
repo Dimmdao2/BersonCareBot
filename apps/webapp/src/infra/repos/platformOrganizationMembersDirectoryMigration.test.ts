@@ -60,7 +60,7 @@ describe('platform organization-members directory boundary', () => {
     expect(deployGate).toContain('assert_c5a_platform_organization_members_closure');
     // 106 -> 107: 0267 adds this staff-name directory accessor, 0268 adds the delivery-audit
     // writer, and 0269 removes the superseded signup-slug reservation function.
-    expect(deployGate).toContain('local expected_secdef_count=109');
+    expect(deployGate).toContain('local expected_secdef_count=110');
   });
 
   it('registers the renumbered migration 0267 exactly', () => {

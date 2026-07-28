@@ -30,8 +30,11 @@ ALTER ROLE app_clinic_billing
 -- staff principal remains app_staff and has no billing table ACL.
 GRANT app_clinic_billing TO app_staff WITH ADMIN FALSE, INHERIT FALSE, SET TRUE;
 GRANT USAGE ON SCHEMA public, app TO app_clinic_billing;
-GRANT EXECUTE ON FUNCTION app.current_org_id(), app.release_principal_context()
-  TO app_clinic_billing;
+GRANT EXECUTE ON FUNCTION
+  app.install_signed_context(text, integer, bigint, uuid, uuid, bigint, text),
+  app.current_org_id(),
+  app.release_principal_context()
+TO app_clinic_billing;
 
 BEGIN;
 
@@ -103,6 +106,7 @@ BEGIN
     RAISE WARNING '§10.2: app.cms_pages_snapshot_usage(uuid) does not exist -- skipping the guarded app_platform_settings EXECUTE grant.';
   ELSE
     GRANT SELECT ON TABLE public.content_pages TO app_owner;
+    GRANT UPDATE (updated_at) ON TABLE public.be_organizations TO app_owner;
     REVOKE ALL ON FUNCTION app.cms_pages_snapshot_usage(uuid)
       FROM PUBLIC, app_staff, app_patient, app_platform_settings;
     GRANT EXECUTE ON FUNCTION app.cms_pages_snapshot_usage(uuid)
@@ -111,43 +115,78 @@ BEGIN
 END
 $c5a_cms_pages_snapshot_usage_grant$;
 
--- #1069 / §10.1-10.2: the platform storefront reads only the two base tables needed by the
--- enforced courses/seats counters. Both tables are FORCE-RLS, so the read-only table grants and
--- their platform-only SELECT policies are one inseparable closure.
+-- #1069 / §10.1-10.2: the platform storefront needs two counts, not the underlying course or
+-- invite rows. Keep both behind one reviewed app_owner seam so the platform role cannot read course
+-- content, invited_email, token_hash, or any other column from either FORCE-RLS relation.
 DO $c5a_enforced_quota_usage_runtime$
-DECLARE
-  relation_name text;
-  relation_names constant text[] := ARRAY['courses', 'organization_member_invites'];
 BEGIN
   IF EXISTS (
-    SELECT 1
-    FROM unnest(relation_names) AS expected(name)
-    WHERE to_regclass('public.' || expected.name) IS NULL
+    SELECT 1 FROM (
+      VALUES
+        ('public.courses'),
+        ('public.be_organization_members'),
+        ('public.organization_member_invites')
+    ) AS expected(name)
+    WHERE to_regclass(expected.name) IS NULL
   ) THEN
-    RAISE WARNING '§10.1-10.2: courses or organization_member_invites is missing -- skipping the guarded platform quota-usage grants.';
+    RAISE WARNING '§10.1-10.2: enforced quota-usage relations are incomplete -- skipping the guarded count accessor.';
     RETURN;
   END IF;
 
-  FOREACH relation_name IN ARRAY relation_names LOOP
-    EXECUTE format(
-      'REVOKE INSERT, UPDATE, DELETE ON TABLE public.%I FROM app_platform_settings',
-      relation_name
-    );
-    EXECUTE format(
-      'GRANT SELECT ON TABLE public.%I TO app_platform_settings',
-      relation_name
-    );
-    EXECUTE format(
-      'DROP POLICY IF EXISTS %I ON public.%I',
-      relation_name || '_platform_quota_usage_select',
-      relation_name
-    );
-    EXECUTE format(
-      'CREATE POLICY %I ON public.%I FOR SELECT TO app_platform_settings USING (true)',
-      relation_name || '_platform_quota_usage_select',
-      relation_name
-    );
-  END LOOP;
+  EXECUTE $quota_usage_function$
+    CREATE OR REPLACE FUNCTION app.read_org_enforced_quota_usage(
+      p_organization_id uuid
+    )
+    RETURNS TABLE(courses_used integer, clinic_team_used integer)
+    LANGUAGE sql
+    STABLE
+    SECURITY DEFINER
+    SET search_path = pg_catalog
+    AS $function$
+      SELECT
+        (
+          SELECT count(*)::int
+          FROM public.courses AS course
+          WHERE course.organization_id = p_organization_id
+        ) AS courses_used,
+        (
+          (SELECT count(*) FROM public.be_organization_members AS membership
+           WHERE membership.organization_id = p_organization_id
+             AND membership.status = 'active'
+             AND membership.specialist_id IS NOT NULL)
+          +
+          (SELECT count(*) FROM public.organization_member_invites AS invite
+           WHERE invite.organization_id = p_organization_id
+             AND invite.status = 'pending'
+             AND invite.expires_at > now()
+             AND invite.invited_role = 'doctor')
+          +
+          (SELECT count(*) FROM public.organization_member_invites AS invite
+           JOIN public.be_organization_members AS membership
+             ON membership.id = invite.accepted_membership_id
+           WHERE invite.organization_id = p_organization_id
+             AND invite.status = 'accepted'
+             AND invite.invited_role = 'doctor'
+             AND membership.status = 'active'
+             AND membership.specialist_id IS NULL)
+        )::int AS clinic_team_used
+      WHERE p_organization_id IS NOT NULL
+    $function$
+  $quota_usage_function$;
+
+  ALTER FUNCTION app.read_org_enforced_quota_usage(uuid) OWNER TO app_owner;
+  GRANT SELECT ON TABLE public.organization_member_invites TO app_owner;
+  REVOKE ALL PRIVILEGES ON TABLE
+    public.courses,
+    public.organization_member_invites
+  FROM app_platform_settings;
+  DROP POLICY IF EXISTS courses_platform_quota_usage_select ON public.courses;
+  DROP POLICY IF EXISTS organization_member_invites_platform_quota_usage_select
+    ON public.organization_member_invites;
+  REVOKE ALL ON FUNCTION app.read_org_enforced_quota_usage(uuid)
+    FROM PUBLIC, app_staff, app_patient, app_clinic_billing, app_platform_settings;
+  GRANT EXECUTE ON FUNCTION app.read_org_enforced_quota_usage(uuid)
+    TO app_platform_settings;
 END
 $c5a_enforced_quota_usage_runtime$;
 -- A-6 / #1007: matching platform-side grant for the clinical_test_measure_kinds write-lock above.
@@ -626,8 +665,8 @@ SELECT 1 / (
   AND NOT has_column_privilege('app_platform_settings', 'public.be_organizations', 'is_active', 'UPDATE')
 )::int AS c5a_platform_operations_exact_role_wall;
 
--- §10.1-10.2 exact platform usage wall: the storefront may only SELECT the two raw counter
--- relations, while CMS usage stays behind its narrow app_owner SECURITY DEFINER accessor.
+-- §10.1-10.2 exact platform usage wall: the storefront gets EXECUTE on count-only accessors and no
+-- direct privilege or policy on course/invite rows.
 DO $c5a_platform_enforced_quota_usage_exact_wall$
 DECLARE
   inventory_ok boolean;
@@ -635,7 +674,8 @@ BEGIN
   IF to_regclass('public.courses') IS NULL
      OR to_regclass('public.organization_member_invites') IS NULL
      OR to_regclass('public.content_pages') IS NULL
-     OR to_regprocedure('app.cms_pages_snapshot_usage(uuid)') IS NULL THEN
+     OR to_regprocedure('app.cms_pages_snapshot_usage(uuid)') IS NULL
+     OR to_regprocedure('app.read_org_enforced_quota_usage(uuid)') IS NULL THEN
     RAISE WARNING '§10.1-10.2: enforced quota usage prerequisites are incomplete -- skipping the guarded exact wall.';
     RETURN;
   END IF;
@@ -654,8 +694,6 @@ WITH expected(relation_name) AS (
   JOIN pg_class AS relation
     ON relation.relname = expected.relation_name
    AND relation.relnamespace = 'public'::regnamespace
-), expected_acl(relation_name, privilege_type, is_grantable) AS (
-  SELECT relation_name, 'SELECT'::text, false FROM relations
 ), actual_acl AS (
   SELECT relations.relation_name, privilege.privilege_type, privilege.is_grantable
   FROM relations
@@ -663,47 +701,36 @@ WITH expected(relation_name) AS (
     COALESCE(relations.relacl, acldefault('r', relations.relowner))
   ) AS privilege
   WHERE privilege.grantee = 'app_platform_settings'::regrole
-), expected_policy(relation_name, policy_name) AS (
-  SELECT relation_name, relation_name || '_platform_quota_usage_select' FROM relations
 ), actual_policy AS (
   SELECT
-    expected_policy.relation_name,
-    policy.polname AS policy_name,
+    relations.relation_name,
+    policy.polname,
     policy.polcmd,
     policy.polpermissive,
     policy.polroles,
     pg_get_expr(policy.polqual, policy.polrelid) AS using_expression,
     policy.polwithcheck
-  FROM expected_policy
-  LEFT JOIN pg_class AS relation
-    ON relation.relname = expected_policy.relation_name
-   AND relation.relnamespace = 'public'::regnamespace
-  LEFT JOIN pg_policy AS policy
-    ON policy.polrelid = relation.oid
-   AND policy.polname = expected_policy.policy_name
+  FROM relations
+  JOIN pg_policy AS policy ON policy.polrelid = relations.oid
+  WHERE 'app_platform_settings'::regrole = ANY(policy.polroles)
 )
 SELECT (
   (SELECT count(*) FROM relations) = 2
   AND (SELECT bool_and(relrowsecurity AND relforcerowsecurity) FROM relations)
-  AND NOT EXISTS (
-    (SELECT * FROM actual_acl EXCEPT SELECT * FROM expected_acl)
-    UNION ALL
-    (SELECT * FROM expected_acl EXCEPT SELECT * FROM actual_acl)
-  )
-  AND 2 = (
-    SELECT count(*)
-    FROM actual_policy
-    WHERE policy_name IS NOT NULL
-      AND polcmd = 'r'
-      AND polpermissive
-      AND polroles = ARRAY[(SELECT oid FROM pg_roles WHERE rolname = 'app_platform_settings')]
-      AND using_expression = 'true'
-      AND polwithcheck IS NULL
-  )
+  AND NOT EXISTS (SELECT 1 FROM actual_acl)
+  AND NOT EXISTS (SELECT 1 FROM actual_policy)
+  AND has_table_privilege('app_owner', 'public.courses', 'SELECT')
+  AND has_table_privilege('app_owner', 'public.be_organization_members', 'SELECT')
+  AND has_table_privilege('app_owner', 'public.organization_member_invites', 'SELECT')
   AND has_table_privilege('app_owner', 'public.content_pages', 'SELECT')
   AND has_function_privilege(
     'app_platform_settings',
     'app.cms_pages_snapshot_usage(uuid)',
+    'EXECUTE'
+  )
+  AND has_function_privilege(
+    'app_platform_settings',
+    'app.read_org_enforced_quota_usage(uuid)',
     'EXECUTE'
   )
 )
@@ -1009,6 +1036,11 @@ BEGIN
         AND NOT membership.admin_option
         AND NOT membership.inherit_option
         AND membership.set_option
+    )
+    AND has_function_privilege(
+      'app_clinic_billing',
+      'app.install_signed_context(text,integer,bigint,uuid,uuid,bigint,text)',
+      'EXECUTE'
     )
     AND has_function_privilege('app_clinic_billing', 'app.current_org_id()', 'EXECUTE')
     AND has_function_privilege('app_clinic_billing', 'app.release_principal_context()', 'EXECUTE')

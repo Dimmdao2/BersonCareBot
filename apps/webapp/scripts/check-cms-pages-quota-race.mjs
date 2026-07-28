@@ -22,6 +22,7 @@ const root = path.resolve(import.meta.dirname, "..", "..", "..");
 const pgBin = "/usr/lib/postgresql/16/bin";
 const osUser = userInfo().username;
 const migrationDir = path.join(root, "apps/webapp/db/drizzle-migrations");
+const c5aRuntimePath = path.join(root, "deploy/postgres/c5a-platform-operations-runtime.sql");
 
 function fail(message) {
   throw new Error(`CMS pages quota race proof failed: ${message}`);
@@ -53,17 +54,30 @@ export function extractUsageFunction(migration) {
   return migration.slice(start, end);
 }
 
+export function extractEnforcedQuotaUsageFunction(runtime) {
+  const start = runtime.indexOf(
+    "CREATE OR REPLACE FUNCTION app.read_org_enforced_quota_usage(",
+  );
+  const bodyStart = runtime.indexOf("AS $function$", start);
+  const end = runtime.indexOf("$function$", bodyStart + "AS $function$".length);
+  if (start < 0 || bodyStart < 0 || end < 0) {
+    fail("could not extract app.read_org_enforced_quota_usage from the C5A runtime overlay");
+  }
+  return runtime.slice(start, end + "$function$".length);
+}
+
 function selfTest() {
   const migration = readFileSync(migrationPath, "utf8");
+  const runtime = readFileSync(c5aRuntimePath, "utf8");
   const functionSql = extractQuotaFunction(migration);
   const usageSql = extractUsageFunction(migration);
+  const enforcedUsageSql = extractEnforcedQuotaUsageFunction(runtime);
   for (const fragment of [
-    "current_setting('transaction_isolation') <> 'read committed'",
-    "cms_pages_quota_requires_read_committed",
     "pg_advisory_xact_lock",
     "'saas_quota:cms_pages:' || NEW.organization_id::text",
     "existing_page.section = NEW.section",
     "existing_page.slug = NEW.slug",
+    "SET updated_at = updated_at",
     "app.cms_pages_snapshot_usage(NEW.organization_id)",
     "saas_quota_reached:cms_pages",
     "(v_count + 1) * 5 >= v_limit * 4",
@@ -72,6 +86,9 @@ function selfTest() {
   }
   if (functionSql.indexOf("pg_advisory_xact_lock") > functionSql.indexOf("app.cms_pages_snapshot_usage(NEW.organization_id)")) {
     fail("migration recount is not ordered after its transaction advisory lock");
+  }
+  if (functionSql.includes("cms_pages_quota_requires_read_committed")) {
+    fail("migration still rejects every stronger-isolation CMS insert");
   }
   for (const fragment of [
     "FROM public.content_pages",
@@ -82,9 +99,28 @@ function selfTest() {
   for (const fragment of [
     "ALTER FUNCTION app.cms_pages_snapshot_usage(uuid) OWNER TO app_owner",
     "GRANT SELECT ON TABLE public.content_pages TO app_owner",
+    "GRANT UPDATE (updated_at) ON TABLE public.be_organizations TO app_owner",
     "ALTER FUNCTION app.enforce_cms_pages_snapshot_quota() OWNER TO app_owner",
   ]) {
     if (!migration.includes(fragment)) fail(`migration deploy ACL is missing ${fragment}`);
+  }
+  for (const fragment of [
+    "RETURNS TABLE(courses_used integer, clinic_team_used integer)",
+    "FROM public.courses AS course",
+    "FROM public.organization_member_invites AS invite",
+    "invite.invited_email",
+  ]) {
+    if (
+      fragment === "invite.invited_email"
+        ? enforcedUsageSql.includes(fragment)
+        : !enforcedUsageSql.includes(fragment)
+    ) {
+      fail(
+        fragment === "invite.invited_email"
+          ? "count-only quota accessor exposes or projects invited_email"
+          : `count-only quota accessor is missing ${fragment}`,
+      );
+    }
   }
   console.log("CMS pages quota race proof self-test: OK (no PostgreSQL required)");
 }
@@ -137,18 +173,23 @@ async function withClient(fn) {
 
 async function installSchema() {
   const migration = readFileSync(migrationPath, "utf8");
+  const runtime = readFileSync(c5aRuntimePath, "utf8");
   const quotaFunction = extractQuotaFunction(migration);
   const usageFunction = extractUsageFunction(migration);
+  const enforcedUsageFunction = extractEnforcedQuotaUsageFunction(runtime);
   await withClient(async (connection) => {
     await connection.query(`
       CREATE EXTENSION pgcrypto;
       CREATE SCHEMA app;
       CREATE ROLE app_owner NOLOGIN BYPASSRLS;
+      CREATE ROLE app_platform_settings NOLOGIN NOINHERIT NOBYPASSRLS;
       GRANT USAGE, CREATE ON SCHEMA app TO app_owner;
+      GRANT USAGE ON SCHEMA app TO app_platform_settings;
       CREATE TABLE public.be_organizations (
         id uuid PRIMARY KEY,
         tariff_id uuid,
-        is_active boolean NOT NULL DEFAULT true
+        is_active boolean NOT NULL DEFAULT true,
+        updated_at timestamptz NOT NULL DEFAULT now()
       );
       CREATE TABLE public.saas_tariffs (
         id uuid PRIMARY KEY,
@@ -180,13 +221,36 @@ async function installSchema() {
         deleted_at timestamptz,
         UNIQUE (section, slug)
       );
+      CREATE TABLE public.courses (
+        id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+        organization_id uuid NOT NULL
+      );
+      CREATE TABLE public.be_organization_members (
+        id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+        organization_id uuid NOT NULL,
+        status text NOT NULL,
+        specialist_id uuid
+      );
+      CREATE TABLE public.organization_member_invites (
+        id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+        organization_id uuid NOT NULL,
+        invited_email text NOT NULL,
+        invited_role text NOT NULL,
+        status text NOT NULL,
+        expires_at timestamptz NOT NULL,
+        accepted_membership_id uuid
+      );
       GRANT SELECT ON TABLE
         public.be_organizations,
         public.saas_tariffs,
         public.saas_organization_trials,
         public.saas_org_entitlement_overrides,
-        public.content_pages
+        public.content_pages,
+        public.courses,
+        public.be_organization_members,
+        public.organization_member_invites
       TO app_owner;
+      GRANT UPDATE (updated_at) ON TABLE public.be_organizations TO app_owner;
       INSERT INTO public.saas_tariffs (id, quotas) VALUES (
         '10000000-0000-4000-8000-000000000001',
         '{"cms_pages":{"kind":"numeric","limit":1,"unit":"items","period":"snapshot","usagePolicy":"snapshot"}}'
@@ -197,12 +261,67 @@ async function installSchema() {
       );
       ${usageFunction}
       ALTER FUNCTION app.cms_pages_snapshot_usage(uuid) OWNER TO app_owner;
+      ${enforcedUsageFunction};
+      ALTER FUNCTION app.read_org_enforced_quota_usage(uuid) OWNER TO app_owner;
+      REVOKE ALL ON FUNCTION app.read_org_enforced_quota_usage(uuid) FROM PUBLIC;
+      GRANT EXECUTE ON FUNCTION app.read_org_enforced_quota_usage(uuid)
+        TO app_platform_settings;
       ${quotaFunction}
       ALTER FUNCTION app.enforce_cms_pages_snapshot_quota() OWNER TO app_owner;
       CREATE TRIGGER content_pages_snapshot_quota_guard
         BEFORE INSERT ON public.content_pages
         FOR EACH ROW EXECUTE FUNCTION app.enforce_cms_pages_snapshot_quota();
     `);
+  });
+}
+
+async function proveCountOnlyQuotaUsage() {
+  await withClient(async (connection) => {
+    const organizationId = "20000000-0000-4000-8000-000000000001";
+    const acceptedMembershipId = "30000000-0000-4000-8000-000000000002";
+    await connection.query(
+      "INSERT INTO public.courses (organization_id) VALUES ($1), ($1)",
+      [organizationId],
+    );
+    await connection.query(
+      `INSERT INTO public.be_organization_members
+         (id, organization_id, status, specialist_id)
+       VALUES
+         ('30000000-0000-4000-8000-000000000001', $1, 'active',
+          '40000000-0000-4000-8000-000000000001'),
+         ($2, $1, 'active', NULL)`,
+      [organizationId, acceptedMembershipId],
+    );
+    await connection.query(
+      `INSERT INTO public.organization_member_invites
+         (organization_id, invited_email, invited_role, status, expires_at,
+          accepted_membership_id)
+       VALUES
+         ($1, 'pending@example.invalid', 'doctor', 'pending', now() + interval '1 day', NULL),
+         ($1, 'accepted@example.invalid', 'doctor', 'accepted', now() + interval '1 day', $2)`,
+      [organizationId, acceptedMembershipId],
+    );
+    await connection.query("SET ROLE app_platform_settings");
+    const usage = await connection.query(
+      "SELECT * FROM app.read_org_enforced_quota_usage($1::uuid)",
+      [organizationId],
+    );
+    await connection.query("RESET ROLE");
+    if (usage.rows[0]?.courses_used !== 2 || usage.rows[0]?.clinic_team_used !== 3) {
+      fail(`count-only quota accessor returned ${JSON.stringify(usage.rows[0])}`);
+    }
+    const privileges = await connection.query(`
+      SELECT
+        has_table_privilege(
+          'app_platform_settings', 'public.courses', 'SELECT'
+        ) AS courses_select,
+        has_table_privilege(
+          'app_platform_settings', 'public.organization_member_invites', 'SELECT'
+        ) AS invites_select
+    `);
+    if (privileges.rows[0]?.courses_select || privileges.rows[0]?.invites_select) {
+      fail("platform role retained direct course/invite SELECT beside the count-only accessor");
+    }
   });
 }
 
@@ -261,23 +380,68 @@ async function proveAtLimitUpsert() {
   });
 }
 
-async function proveRepeatableReadFailsClosed() {
+async function proveRepeatableReadUnderLimit() {
   await withClient(async (connection) => {
+    await connection.query(`
+      UPDATE public.saas_tariffs
+      SET quotas = '{"cms_pages":{"kind":"numeric","limit":2,"unit":"items","period":"snapshot","usagePolicy":"snapshot"}}'
+    `);
     await connection.query("BEGIN ISOLATION LEVEL REPEATABLE READ");
     try {
-      await connection.query(
+      const result = await connection.query(
         "INSERT INTO public.content_pages (organization_id, section, slug, title) VALUES ($1, $2, $3, $4)",
         ["20000000-0000-4000-8000-000000000001", "lessons", "repeatable-read", "RR"],
       );
-      fail("REPEATABLE READ insert unexpectedly bypassed the fail-closed isolation guard");
+      if (result.rowCount !== 1) fail("under-limit REPEATABLE READ insert did not succeed");
+      await connection.query("COMMIT");
     } catch (error) {
-      if (!String(error.message).includes("cms_pages_quota_requires_read_committed")) {
-        throw error;
-      }
-    } finally {
       await connection.query("ROLLBACK");
+      throw error;
     }
   });
+}
+
+async function proveRepeatableReadStaleSnapshotCannotOverflow() {
+  const stale = client();
+  const winner = client();
+  await Promise.all([stale.connect(), winner.connect()]);
+  try {
+    await winner.query(`
+      UPDATE public.saas_tariffs
+      SET quotas = '{"cms_pages":{"kind":"numeric","limit":3,"unit":"items","period":"snapshot","usagePolicy":"snapshot"}}'
+    `);
+    await stale.query("BEGIN ISOLATION LEVEL REPEATABLE READ");
+    await stale.query(
+      "SELECT updated_at FROM public.be_organizations WHERE id = $1",
+      ["20000000-0000-4000-8000-000000000001"],
+    );
+    await winner.query(
+      "INSERT INTO public.content_pages (organization_id, section, slug, title) VALUES ($1, $2, $3, $4)",
+      ["20000000-0000-4000-8000-000000000001", "lessons", "rr-winner", "Winner"],
+    );
+    await stale
+      .query(
+        "INSERT INTO public.content_pages (organization_id, section, slug, title) VALUES ($1, $2, $3, $4)",
+        ["20000000-0000-4000-8000-000000000001", "lessons", "rr-stale", "Stale"],
+      )
+      .then(
+        () => fail("stale REPEATABLE READ insert exceeded the final slot"),
+        (error) => {
+          if (error.code !== "40001") throw error;
+        },
+      );
+    await stale.query("ROLLBACK");
+
+    const count = await winner.query(
+      "SELECT count(*)::int AS count FROM public.content_pages",
+    );
+    if (count.rows[0]?.count !== 3) {
+      fail(`expected three CMS pages after RR serialization, found ${count.rows[0]?.count}`);
+    }
+  } finally {
+    await Promise.allSettled([stale.query("ROLLBACK"), winner.query("ROLLBACK")]);
+    await Promise.all([stale.end(), winner.end()]);
+  }
 }
 
 try {
@@ -297,11 +461,13 @@ try {
     "private database creation",
   );
   await installSchema();
+  await proveCountOnlyQuotaUsage();
   await proveLastSlotRace();
   await proveAtLimitUpsert();
-  await proveRepeatableReadFailsClosed();
+  await proveRepeatableReadUnderLimit();
+  await proveRepeatableReadStaleSnapshotCannotOverflow();
   console.log(
-    "CMS pages quota race proof: OK — owner ACL, final slot, at-limit upsert, and RR fail-closed",
+    "CMS pages quota race proof: OK — owner ACL, final slot, at-limit upsert, and RR serialization",
   );
 } finally {
   if (serverStarted) {

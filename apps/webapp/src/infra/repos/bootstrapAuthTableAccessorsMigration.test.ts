@@ -251,7 +251,7 @@ describe("0258 bootstrap auth table accessors", () => {
     expect(deploy).toContain("83 -> 105 (2026-07-27, taskdb #1062)");
     // 106 -> 107: 0267 adds the staff-name directory accessor, 0268 adds the delivery-audit
     // writer, and 0269 removes the superseded signup-slug reservation function.
-    expect(deploy).toContain("local expected_secdef_count=109");
+    expect(deploy).toContain("local expected_secdef_count=110");
     for (const row of [
       "('public.user_pins', 'SELECT')",
       "('public.user_pins', 'INSERT')",

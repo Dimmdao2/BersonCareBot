@@ -227,7 +227,7 @@ describe("0238 organization brand publication", () => {
     // 80 -> 81 (2026-07-27): migration 0256 adds the staff-security self password-hash action.
     // 106 -> 107: 0267 adds the staff-name directory accessor, 0268 adds the delivery-audit
     // writer, and 0269 removes the superseded signup-slug reservation function.
-    expect(deploy).toContain("local expected_secdef_count=109");
+    expect(deploy).toContain("local expected_secdef_count=110");
     expect(deploy).toContain("('public.org_enrollments', 'SELECT')");
     expect(deploy).toContain("('public.phone_challenges', 'INSERT')");
     expect(deploy).toContain("('public.phone_otp_locks', 'UPDATE')");

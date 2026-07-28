@@ -49,7 +49,8 @@ describe("0260 outgoing delivery scope text identifier fix", () => {
     // 107 -> 109: 0270 (§10.2) adds two app_owner SECURITY DEFINER functions — the CMS-page usage
     // recount and its BEFORE INSERT quota trigger. Earlier: 106 -> 107, 0267 staff-name accessor, 0268 delivery-audit
     // writer, and 0269 removes the superseded signup-slug reservation function.
-    expect(readFileSync(deployHostPath, "utf8")).toContain("local expected_secdef_count=109");
+    // 109 -> 110: the C5A runtime overlay adds the count-only enforced-quota usage accessor.
+    expect(readFileSync(deployHostPath, "utf8")).toContain("local expected_secdef_count=110");
   });
 
   it("keeps the UUID-to-UUID operator and broadcast branches unchanged", () => {

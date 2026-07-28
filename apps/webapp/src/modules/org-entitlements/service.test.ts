@@ -422,10 +422,11 @@ describe('platform tariff constructor validation', () => {
     expect(cmsPagesMigration).toContain('FROM public.content_pages');
     expect(cmsPagesMigration).toContain('WHERE organization_id = p_organization_id');
     expect(cmsPagesMigration).toContain('app.cms_pages_snapshot_usage(NEW.organization_id)');
+    expect(cmsPagesMigration).toContain('SET updated_at = updated_at');
     expect(cmsPagesMigration).toContain(
-      "current_setting('transaction_isolation') <> 'read committed'",
+      'GRANT UPDATE (updated_at) ON TABLE public.be_organizations TO app_owner',
     );
-    expect(cmsPagesMigration).toContain('cms_pages_quota_requires_read_committed');
+    expect(cmsPagesMigration).not.toContain('cms_pages_quota_requires_read_committed');
     expect(cmsPagesMigration).toContain('existing_page.section = NEW.section');
     expect(cmsPagesMigration).toContain('existing_page.slug = NEW.slug');
     expect(cmsPagesMigration).toContain('IF v_count >= v_limit THEN');
@@ -442,10 +443,16 @@ describe('platform tariff constructor validation', () => {
     );
     expect(platformRuntime).toContain("'app.cms_pages_snapshot_usage(uuid)',\n    'EXECUTE'");
     expect(platformRuntime).toContain(
-      "relation_names constant text[] := ARRAY['courses', 'organization_member_invites']",
+      'CREATE OR REPLACE FUNCTION app.read_org_enforced_quota_usage(',
     );
     expect(platformRuntime).toContain(
-      'CREATE POLICY %I ON public.%I FOR SELECT TO app_platform_settings USING (true)',
+      'GRANT EXECUTE ON FUNCTION app.read_org_enforced_quota_usage(uuid)',
+    );
+    expect(platformRuntime).toContain(
+      'REVOKE ALL PRIVILEGES ON TABLE\n    public.courses,\n    public.organization_member_invites\n  FROM app_platform_settings',
+    );
+    expect(platformRuntime).not.toContain(
+      'CREATE POLICY courses_platform_quota_usage_select',
     );
     expect(platformRuntime).toContain('c5a_platform_enforced_quota_usage_exact_wall');
   });

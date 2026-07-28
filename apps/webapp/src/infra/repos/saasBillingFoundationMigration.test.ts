@@ -83,12 +83,16 @@ describe('0259 SaaS billing foundation migration', () => {
     });
   });
 
-  it('rehydrates and asserts the exact deploy grant inventory without a new definer', () => {
+  it('rehydrates and asserts the exact deploy grant inventory', () => {
     const runtime = readFileSync(deployRuntimePath, 'utf8');
     const host = readFileSync(deployHostPath, 'utf8');
     const repository = readFileSync(repositoryPath, 'utf8');
     const principal = readFileSync(principalPath, 'utf8');
     const clinicRoute = readFileSync(clinicRoutePath, 'utf8');
+    const billingDeployGate = host.slice(
+      host.indexOf('assert_c5a_saas_billing_foundation_closure(){'),
+      host.indexOf('assert_db_owner_and_telemetry_owner_secdef_anon_surface_pinned(){'),
+    );
     expect(runtime).toContain('c5a_saas_billing_exact_wall');
     expect(runtime).toContain('CREATE ROLE app_clinic_billing NOLOGIN NOINHERIT NOBYPASSRLS');
     expect(runtime).toContain(
@@ -100,6 +104,9 @@ describe('0259 SaaS billing foundation migration', () => {
     expect(runtime).toContain('REVOKE ALL PRIVILEGES ON TABLE public.%I FROM app_staff');
     expect(runtime).toContain('GRANT SELECT ON TABLE public.%I TO app_clinic_billing');
     expect(runtime).toContain('FOR SELECT TO app_clinic_billing');
+    expect(runtime).toContain(
+      'app.install_signed_context(text, integer, bigint, uuid, uuid, bigint, text)',
+    );
     expect(runtime).toContain('actual_table_acl');
     expect(runtime).toContain('expected_table_acl');
     expect(runtime).toContain('actual_column_acl');
@@ -110,13 +117,16 @@ describe('0259 SaaS billing foundation migration', () => {
     expect(host).toContain('actual_table_acl');
     expect(host).toContain('expected_policy_inventory');
     expect(host).toContain('relforcerowsecurity');
-    expect(principal).toContain('kind: "clinicBilling"');
+    expect(billingDeployGate).toContain(
+      "'app.install_signed_context(text,integer,bigint,uuid,uuid,bigint,text)'",
+    );
+    expect(principal).toContain("kind: 'clinicBilling'");
     expect(principal).toContain('SET ROLE ${DB_PRINCIPAL_CLINIC_BILLING_ROLE}');
-    expect(clinicRoute).toContain('enterWithDbClinicBillingPrincipal');
+    expect(clinicRoute).toContain('runWithDbClinicBillingPrincipal');
     expect(repository).not.toContain('SET ROLE');
     // 106 -> 107: 0267 adds the staff-name directory accessor, 0268 adds the delivery-audit
     // writer, and 0269 removes the superseded signup-slug reservation function.
-    expect(host).toContain('local expected_secdef_count=109');
+    expect(host).toContain('local expected_secdef_count=110');
     expect(sql).not.toMatch(/SECURITY\s+DEFINER/i);
   });
 });

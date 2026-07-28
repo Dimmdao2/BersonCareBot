@@ -276,14 +276,16 @@ todo). Новую не заводить — эти две описывают р�
       «решение владельца», но фактически там дословно только 12 слов владельца — остальное дизайн агента
       (см. §Развилки, D-3). ⚠️ Деплой ассертит точный набор прав (`deploy-test-saas.sh`, `assert_*`) и падает на
       лишнем гранте — миграция и ассерты правятся ОДНИМ куском.
-      ✅ Исправлено интегрированной коррекцией: отдельный `app_clinic_billing` с exact-org FORCE-RLS
-      (`deploy/postgres/c5a-platform-operations-runtime.sql:18-34,168-268`), обычный `app_staff` лишён ACL;
-      owner/admin входят в capability-principal только после guard
-      (`apps/webapp/src/app/api/clinic/billing/route.ts:7-24`,
-      `packages/db-principal/src/index.ts:644-653,970-1003`). Доказательство:
-      `pnpm --dir packages/db-principal test` — 12/12; targeted Vitest billing/route/settings/Drizzle —
-      PASS; private PostgreSQL parse/smoke C5A — PASS. Живое применение на TEST выполняет exact deploy gate
-      `deploy/host/deploy-test-saas.sh:1691-1844`.
+      ✅ Исправлено интегрированной коррекцией: отдельный `app_clinic_billing` с exact-org FORCE-RLS,
+      обычный `app_staff` лишён ACL; capability получила полный locked-context helper set, включая
+      `install_signed_context`, и этот набор входит в exact deploy gate
+      (`deploy/postgres/c5a-platform-operations-runtime.sql:18-37`,
+      `deploy/host/deploy-test-saas.sh:1810-1852`). API и RSC-вкладка выполняют только billing-read внутри
+      scoped principal, после обычного staff-read тарифного snapshot
+      (`apps/webapp/src/app/api/clinic/billing/route.ts`,
+      `apps/webapp/src/app/app/settings/page.tsx:226-239`). Доказательство: targeted Vitest
+      `route.test.ts` + `page.test.tsx` + `saasBillingFoundationMigration.test.ts` — PASS;
+      `pnpm --dir apps/webapp typecheck` — PASS. Живое применение на TEST этим проходом не заявляется.
 - [ ] **4.6** Checkout + вебхук на mock-адаптере (ключи PSP владелец даёт позже — schema/UI/webhook это не
       блокирует, см. S4-4 строка 347).
 
@@ -528,17 +530,24 @@ U3S (#919)**, а не свежий скоуп — помечать так в к�
 
 - [x] **10.1** Исправить ложь реестра: у мест специалистов стоит `declared_no_enforcement`, хотя они РЕАЛЬНО
       ограничены (`pgOrganizationInvites.ts:106-192`, advisory-лок + пересчёт в одной транзакции).
-      ✅ Витрина доведена до исполняемого DB-контракта: platform principal получил ровно `SELECT` + отдельные
-      FORCE-RLS policies для `courses` и `organization_member_invites`
-      (`deploy/postgres/c5a-platform-operations-runtime.sql:114-152`), deploy exact gate —
-      `deploy/host/deploy-test-saas.sh:1612-1689`. Доказательство: targeted
-      `service.test.ts`/`pgOrgEntitlements.patient.test.ts` — PASS; C5A private PostgreSQL smoke — PASS.
+      ✅ Реестр и витрина доведены без расширения доступа к строкам: platform principal получает только
+      `EXECUTE` на count-only `app.read_org_enforced_quota_usage(uuid)`, а прямые ACL/policies на
+      `courses` и `organization_member_invites` отозваны
+      (`deploy/postgres/c5a-platform-operations-runtime.sql:118-189`,
+      `apps/webapp/src/infra/repos/pgOrgEntitlements.ts:226-243`). Доказательство:
+      `node apps/webapp/scripts/check-cms-pages-quota-race.mjs` — PASS (private PostgreSQL: точные
+      `courses=2`, `clinic_team=3`, direct platform SELECT=false);
+      targeted `service.test.ts`/`pgOrgEntitlements.patient.test.ts`/`pgOrganizationInvites.test.ts` — PASS.
 - [x] **10.2** Первый срез end-to-end на ОДНОЙ механике (`exercise_packages` или `cms_pages`) по образцу
       курсов: триггер, тег в реестре, ошибка в роуте, аналог `check-c5a-courses-quota-race.mjs`.
-      Доказательство: `0270_cms_pages_snapshot_quota.sql:22-27` (полный owner/execute ACL),
-      `:44-65` (fail-closed isolation + at-limit upsert), `:110-131` (recount → отказ → trigger),
-      `actions.ts:210-220` (видимый отказ); `node apps/webapp/scripts/check-cms-pages-quota-race.mjs` —
-      PASS: owner ACL, конкурентный последний слот, upsert на пределе, REPEATABLE READ fail-closed.
+      Доказательство: `0270_cms_pages_snapshot_quota.sql:22-28` (owner/execute ACL),
+      `:45-67` (advisory lock + at-limit upsert + per-org MVCC serialization token), `:110-131`
+      (recount → отказ → trigger), `actions.ts:210-220` (видимый тарифный отказ);
+      `node apps/webapp/scripts/check-cms-pages-quota-race.mjs` — PASS: owner ACL, конкурентный последний
+      слот, upsert на пределе, обычный REPEATABLE READ под лимитом и SQLSTATE 40001 для stale RR без
+      переполнения. `bash apps/webapp/scripts/check-drizzle-journal-sync.sh` и
+      `pnpm --dir apps/webapp typecheck` — PASS. Новая миграция не создавалась: исправлена ещё не
+      подтверждённая живым TEST миграция `0270`; live TEST остаётся отдельным deploy-gate.
       **⛔ РАЗВЕДКА ПЕРЕД СТРОЙКОЙ (владелец 28.07, дословно):** «прежде чем строить надо исследовать, что и как
       ограничивать квотами с точки зрения ЛОГИКИ. И да — как это делают в мировой практике». Плюс к этому его
       правило §32: сначала искать готовое, а не писать своё. Признано лидом: существующий дизайн

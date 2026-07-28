@@ -1,10 +1,9 @@
-import { and, eq, sql } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { getCurrentDbPrincipal } from "@bersoncare/db-principal";
 import { getDrizzle } from "@/app-layer/db/drizzle";
 import { runWithWebappDbOperationFamily } from "@/infra/db/saasIsolationOperationContext";
 import { runWebappPgText } from "@/infra/db/runWebappSql";
 import { CMS_PAGES_USAGE_SQL } from "@/infra/repos/cmsPagesUsageSql";
-import { CLINIC_SEAT_USAGE_SQL } from "@/infra/repos/seatUsageSql";
 import type { OrgEntitlementsPort } from "@/modules/org-entitlements/ports";
 import type {
   EffectiveOrgCommercialAccess,
@@ -13,7 +12,6 @@ import type {
   TariffQuotaMap,
 } from "@/modules/org-entitlements/types";
 import { beOrganizations } from "../../../db/schema/bookingEngine";
-import { courses } from "../../../db/schema/courses";
 import {
   saasOrganizationTrials,
   saasOrgEntitlementOverrides,
@@ -226,26 +224,22 @@ export function createPgOrgEntitlementsPort(): OrgEntitlementsPort {
       return (await readSnapshot(organizationId)).access;
     },
     async getEnforcedQuotaUsage(organizationId) {
-      const [[{ count }], cmsPagesUsage, seatUsage] = await Promise.all([
-        getDrizzle()
-          .select({ count: sql<number>`count(*)::int` })
-          .from(courses)
-          .where(eq(courses.organizationId, organizationId)),
+      const [enforcedUsage, cmsPagesUsage] = await Promise.all([
+        runWebappPgText<{ courses_used: number; clinic_team_used: number }>(
+          `SELECT courses_used, clinic_team_used
+           FROM app.read_org_enforced_quota_usage($1::uuid)`,
+          [organizationId],
+        ),
         runWebappPgText<{ used_value: number }>(
           `SELECT ${CMS_PAGES_USAGE_SQL} AS used_value`,
           [organizationId],
         ),
-        // The same authoritative expression as invite enforcement; null means no pending
-        // invite is being replaced, so every live reservation is included in the storefront.
-        runWebappPgText<{ used_value: number }>(
-          `SELECT ${CLINIC_SEAT_USAGE_SQL} AS used_value`,
-          [organizationId, null],
-        ),
       ]);
+      const usage = enforcedUsage.rows[0];
       return {
-        courses: count ?? 0,
+        courses: usage?.courses_used ?? 0,
         cms_pages: cmsPagesUsage.rows[0]?.used_value ?? 0,
-        clinic_team: seatUsage.rows[0]?.used_value ?? 0,
+        clinic_team: usage?.clinic_team_used ?? 0,
       };
     },
   };
