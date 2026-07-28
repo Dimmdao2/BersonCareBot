@@ -32,7 +32,17 @@ export type PlatformClinicsData = {
   enforcedQuotaUsage: Record<string, Partial<Record<OrgMechanic, number>>>;
 };
 
-type ApiResponse = ({ ok: true } & PlatformClinicsData) | { ok: false; error?: string };
+export type PlatformClinicMember = {
+  id: string;
+  displayName: string | null;
+  role: 'owner' | 'admin' | 'doctor' | 'assistant';
+  status: 'active' | 'invited' | 'disabled';
+  createdAt: string;
+  specialistLinked: boolean;
+};
+
+type ClinicsApiResponse = ({ ok: true } & PlatformClinicsData) | { ok: false; error?: string };
+type MembersApiResponse = { ok: true; members: PlatformClinicMember[] } | { ok: false; error?: string };
 type BillingApiResponse =
   | { ok: true; billing: SaasBillingOverviewData }
   | { ok: false; error?: string };
@@ -65,6 +75,19 @@ const TRIAL_STATUS_LABELS: Record<
   grace: 'Льготный период',
   expired: 'Истёк',
   ended: 'Завершён',
+};
+
+const MEMBERSHIP_ROLE_LABELS: Record<PlatformClinicMember['role'], string> = {
+  owner: 'Владелец',
+  admin: 'Администратор',
+  doctor: 'Врач',
+  assistant: 'Ассистент',
+};
+
+const MEMBERSHIP_STATUS_LABELS: Record<PlatformClinicMember['status'], string> = {
+  active: 'Активен',
+  invited: 'Приглашён',
+  disabled: 'Отключён',
 };
 
 function formatDate(value: string): string {
@@ -201,6 +224,58 @@ function UsageSection({ usage }: { usage: Partial<Record<OrgMechanic, number>> |
   );
 }
 
+function ClinicAccountsSection({ members }: { members: PlatformClinicMember[] }) {
+  return (
+    <DoctorSection>
+      <DoctorSectionHeader>
+        <DoctorSectionTitle>Аккаунты клиники</DoctorSectionTitle>
+      </DoctorSectionHeader>
+      {members.length === 0 ? (
+        <DoctorEmptyState size="xs">Сотрудников нет.</DoctorEmptyState>
+      ) : (
+        <div className="grid gap-2">
+          <div className="hidden grid-cols-[minmax(0,1.4fr)_minmax(0,0.9fr)_minmax(0,0.8fr)_minmax(0,0.9fr)_minmax(0,1fr)] gap-3 px-3 text-xs font-medium text-muted-foreground md:grid">
+            <span>Имя</span>
+            <span>Роль</span>
+            <span>Статус</span>
+            <span>Специалист</span>
+            <span>В клинике с</span>
+          </div>
+          {members.map((member) => (
+            <div
+              key={member.id}
+              className={`${doctorSectionItemClass} grid gap-2 md:grid-cols-[minmax(0,1.4fr)_minmax(0,0.9fr)_minmax(0,0.8fr)_minmax(0,0.9fr)_minmax(0,1fr)] md:items-center md:gap-3`}
+            >
+              <span className="min-w-0 truncate font-medium">
+                {member.displayName ?? 'Имя не указано'}
+              </span>
+              <span>
+                <span className="text-xs text-muted-foreground md:hidden">Роль: </span>
+                {MEMBERSHIP_ROLE_LABELS[member.role]}
+              </span>
+              <span>
+                <Badge variant={member.status === 'active' ? 'secondary' : 'outline'}>
+                  {MEMBERSHIP_STATUS_LABELS[member.status]}
+                </Badge>
+              </span>
+              <span>
+                <span className="text-xs text-muted-foreground md:hidden">
+                  Карточка специалиста:{' '}
+                </span>
+                {member.specialistLinked ? 'Есть' : 'Нет'}
+              </span>
+              <span className="text-sm text-muted-foreground">
+                <span className="md:hidden">В клинике с: </span>
+                {formatDate(member.createdAt)}
+              </span>
+            </div>
+          ))}
+        </div>
+      )}
+    </DoctorSection>
+  );
+}
+
 function ClinicsList({ data }: { data: PlatformClinicsData }) {
   const tariffsById = useMemo(
     () => new Map(data.tariffs.map((tariff) => [tariff.id, tariff])),
@@ -260,11 +335,13 @@ function ClinicsList({ data }: { data: PlatformClinicsData }) {
 
 function ClinicDetail({
   data,
+  members,
   organizationId,
   billing,
   billingError,
 }: {
   data: PlatformClinicsData;
+  members: PlatformClinicMember[];
   organizationId: string;
   billing: SaasBillingOverviewData | null;
   billingError: boolean;
@@ -358,6 +435,7 @@ function ClinicDetail({
         )}
       </DoctorSection>
 
+      <ClinicAccountsSection members={members} />
       <OverridesSection organization={organization} />
       <UsageSection usage={data.enforcedQuotaUsage[organization.id]} />
       {billingError ? (
@@ -382,12 +460,17 @@ export function ClinicsConsoleClient({
   organizationId,
   initialData,
   initialBillingOverview,
+  initialMembers,
 }: {
   organizationId?: string;
   initialData?: PlatformClinicsData;
   initialBillingOverview?: SaasBillingOverviewData;
+  initialMembers?: PlatformClinicMember[];
 }) {
   const [data, setData] = useState<PlatformClinicsData | null>(initialData ?? null);
+  const [members, setMembers] = useState<PlatformClinicMember[] | null>(
+    organizationId ? (initialMembers ?? null) : [],
+  );
   const [error, setError] = useState<string | null>(null);
   const [billing, setBilling] = useState<SaasBillingOverviewData | null>(
     initialBillingOverview ?? null,
@@ -395,19 +478,42 @@ export function ClinicsConsoleClient({
   const [billingError, setBillingError] = useState(false);
 
   useEffect(() => {
-    if (initialData) return;
+    if (initialData && (!organizationId || initialMembers)) return;
     let active = true;
 
-    void fetch('/api/admin/organizations', { cache: 'no-store' })
-      .then(async (response) => {
-        const body = (await response.json().catch(() => null)) as ApiResponse | null;
-        if (!response.ok || !body?.ok) {
-          if (response.status === 401 || response.status === 403) {
-            throw new Error('access');
+    const clinicsRequest = initialData
+      ? Promise.resolve(initialData)
+      : fetch('/api/admin/organizations', { cache: 'no-store' }).then(async (response) => {
+          const body = (await response.json().catch(() => null)) as ClinicsApiResponse | null;
+          if (!response.ok || !body?.ok) {
+            if (response.status === 401 || response.status === 403) {
+              throw new Error('access');
+            }
+            throw new Error('service');
           }
-          throw new Error('service');
-        }
-        if (active) setData(body);
+          return body;
+        });
+    const membersRequest =
+      organizationId && !initialMembers
+        ? fetch(`/api/admin/organizations/${organizationId}/members`, {
+            cache: 'no-store',
+          }).then(async (response) => {
+            const body = (await response.json().catch(() => null)) as MembersApiResponse | null;
+            if (!response.ok || !body?.ok) {
+              if (response.status === 401 || response.status === 403) {
+                throw new Error('access');
+              }
+              throw new Error('service');
+            }
+            return body.members;
+          })
+        : Promise.resolve(initialMembers ?? []);
+
+    void Promise.all([clinicsRequest, membersRequest])
+      .then(([nextData, nextMembers]) => {
+        if (!active) return;
+        setData(nextData);
+        setMembers(nextMembers);
       })
       .catch((reason: unknown) => {
         if (!active) return;
@@ -417,7 +523,7 @@ export function ClinicsConsoleClient({
     return () => {
       active = false;
     };
-  }, [initialData]);
+  }, [initialData, initialMembers, organizationId]);
 
   useEffect(() => {
     if (
@@ -448,11 +554,15 @@ export function ClinicsConsoleClient({
     const accessDenied = error === 'access';
     return (
       <DoctorSection>
-        <DoctorSectionTitle>Список клиник не загрузился</DoctorSectionTitle>
+        <DoctorSectionTitle>
+          {organizationId ? 'Карточка клиники не загрузилась' : 'Список клиник не загрузился'}
+        </DoctorSectionTitle>
         <p className="text-sm text-muted-foreground">
           {accessDenied
             ? 'Сессия не имеет платформенного доступа.'
-            : 'Сервис организаций не ответил или вернул ошибку.'}
+            : organizationId
+              ? 'Сервис данных клиники не ответил или вернул ошибку.'
+              : 'Сервис организаций не ответил или вернул ошибку.'}
         </p>
         <p className="text-sm">
           {accessDenied
@@ -463,7 +573,7 @@ export function ClinicsConsoleClient({
     );
   }
 
-  if (!data) {
+  if (!data || (organizationId && !members)) {
     return (
       <DoctorSection>
         <DoctorEmptyState>Загружаем клиники…</DoctorEmptyState>
@@ -474,6 +584,7 @@ export function ClinicsConsoleClient({
   return organizationId ? (
     <ClinicDetail
       data={data}
+      members={members ?? []}
       organizationId={organizationId}
       billing={billing}
       billingError={billingError}

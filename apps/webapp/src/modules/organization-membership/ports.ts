@@ -32,6 +32,9 @@ export type OrganizationMembershipPort = {
   listByPlatformUser(platformUserId: string): Promise<OrganizationMembership[]>;
   listActiveByPlatformUser(platformUserId: string): Promise<OrganizationMembership[]>;
   listByOrganization(organizationId: string): Promise<OrganizationMemberDirectoryRecord[]>;
+  listPlatformDirectoryByOrganization(
+    organizationId: string,
+  ): Promise<OrganizationMemberDirectoryRecord[]>;
   getMemberByOrganization(params: {
     organizationId: string;
     membershipId: string;

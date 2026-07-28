@@ -11,10 +11,12 @@ const queryMock = vi.hoisted(() => ({
 }));
 const fromMock = vi.hoisted(() => vi.fn(() => queryMock));
 const selectMock = vi.hoisted(() => vi.fn(() => ({ from: fromMock })));
+const executeMock = vi.hoisted(() => vi.fn());
 
 vi.mock("@/app-layer/db/drizzle", () => ({
   getDrizzle: vi.fn(() => ({
     select: selectMock,
+    execute: executeMock,
   })),
 }));
 
@@ -63,6 +65,7 @@ describe("createPgOrganizationMembershipPort", () => {
     whereMock.mockClear();
     fromMock.mockClear();
     selectMock.mockClear();
+    executeMock.mockReset();
     leftJoinMock.mockReturnValue(queryMock);
     whereMock.mockReturnValue({ orderBy: orderByMock });
   });
@@ -152,6 +155,45 @@ describe("createPgOrganizationMembershipPort", () => {
       },
     ]);
     expect(leftJoinMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("lists the platform directory through the narrow organization accessor", async () => {
+    executeMock.mockResolvedValueOnce({
+      rows: [
+        {
+          id: "membership-1",
+          organization_id: "org-1",
+          platform_user_id: "user-1",
+          role: "doctor",
+          specialist_id: "specialist-1",
+          status: "disabled",
+          created_at: "2026-07-07T00:00:00.000Z",
+          updated_at: "2026-07-08T00:00:00.000Z",
+          display_name: " Doctor ",
+        },
+      ],
+    });
+
+    const port = createPgOrganizationMembershipPort();
+    const rows = await port.listPlatformDirectoryByOrganization("org-1");
+
+    expect(rows).toEqual([
+      {
+        id: "membership-1",
+        organizationId: "org-1",
+        platformUserId: "user-1",
+        role: "doctor",
+        specialistId: "specialist-1",
+        status: "disabled",
+        createdAt: "2026-07-07T00:00:00.000Z",
+        updatedAt: "2026-07-08T00:00:00.000Z",
+        displayName: "Doctor",
+      },
+    ]);
+    const query = drizzleSqlFragmentToApproximateSql(executeMock.mock.calls[0]?.[0]);
+    expect(query).toContain("app.list_platform_organization_members");
+    expect(query).not.toContain("platform_users");
+    expect(selectMock).not.toHaveBeenCalled();
   });
 
   it("gets one organization member by organization and membership id", async () => {

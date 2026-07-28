@@ -1463,7 +1463,12 @@ SELECT has_column_privilege('app_owner', 'public.operator_incidents', 'alert_sen
   # registration funnel". This is what lets the platform-operations role read the registration-event
   # panel WITHOUT any SELECT on platform_users, which the platform role wall forbids by assertion.
   # No new table grant is required: app_owner already owns both tables.
-  local expected_secdef_count=106
+  # 106 -> 107 (2026-07-28, #1068 / owner D-5): migration 0268 adds exactly one reviewed app_owner
+  # SECURITY DEFINER function, app.list_platform_organization_members(uuid). It reads only
+  # public.be_organization_members and public.platform_users, both already present in the required
+  # table-grant set above, filters by the exact organization argument, and returns only display_name
+  # plus membership metadata. It never returns phone, email, channel bindings or patient data.
+  local expected_secdef_count=107
   local actual_secdef_count
   actual_secdef_count="$(sudo -u postgres psql -d "$DB" -X -v ON_ERROR_STOP=1 -tAc "
 SELECT count(*) FROM pg_proc p WHERE pg_get_userbyid(p.proowner) = 'app_owner' AND p.prosecdef;
@@ -1512,6 +1517,80 @@ SELECT (
     exit 1
   }
   echo "   clinical_test_measure_kinds write-lock closure: OK (app_staff locked out, app_platform_settings holds SELECT/UPDATE)"
+}
+
+assert_c5a_platform_organization_members_closure(){
+  # #1068 / owner D-5: run after every mutating closure rather than trusting the one-shot migration.
+  # The table grant is exactly SELECT; names cross the otherwise-closed platform_users boundary only
+  # through one app_owner SECURITY DEFINER projection with an exact EXECUTE ACL.
+  local ok
+  ok="$(sudo -u postgres psql -d "$DB" -X -v ON_ERROR_STOP=1 -tAc "
+WITH target_relation AS (
+  SELECT relation.oid, relation.relowner, relation.relacl
+  FROM pg_class AS relation
+  WHERE relation.oid = 'public.be_organization_members'::regclass
+), expected_table_acl(privilege_type, is_grantable) AS (
+  VALUES ('SELECT'::text, false)
+), actual_table_acl AS (
+  SELECT privilege.privilege_type, privilege.is_grantable
+  FROM target_relation
+  CROSS JOIN LATERAL aclexplode(
+    COALESCE(target_relation.relacl, acldefault('r', target_relation.relowner))
+  ) AS privilege
+  WHERE privilege.grantee = 'app_platform_settings'::regrole
+), actual_column_acl AS (
+  SELECT attribute.attname, privilege.privilege_type, privilege.is_grantable
+  FROM target_relation
+  JOIN pg_attribute AS attribute
+    ON attribute.attrelid = target_relation.oid
+   AND attribute.attnum > 0
+   AND NOT attribute.attisdropped
+  CROSS JOIN LATERAL aclexplode(attribute.attacl) AS privilege
+  WHERE privilege.grantee = 'app_platform_settings'::regrole
+), target_function AS (
+  SELECT procedure.oid, procedure.proowner, procedure.proacl, procedure.prosecdef
+  FROM pg_proc AS procedure
+  WHERE procedure.oid = 'app.list_platform_organization_members(uuid)'::regprocedure
+), expected_function_acl(grantee, privilege_type, is_grantable) AS (
+  VALUES
+    ('app_owner'::text, 'EXECUTE'::text, false),
+    ('app_platform_settings'::text, 'EXECUTE'::text, false)
+), actual_function_acl AS (
+  SELECT
+    COALESCE(grantee.rolname, privilege.grantee::text) AS grantee,
+    privilege.privilege_type,
+    privilege.is_grantable
+  FROM target_function
+  CROSS JOIN LATERAL aclexplode(
+    COALESCE(target_function.proacl, acldefault('f', target_function.proowner))
+  ) AS privilege
+  LEFT JOIN pg_roles AS grantee ON grantee.oid = privilege.grantee
+)
+SELECT (
+  (SELECT count(*) FROM target_relation) = 1
+  AND NOT EXISTS (
+    (SELECT * FROM actual_table_acl EXCEPT SELECT * FROM expected_table_acl)
+    UNION ALL
+    (SELECT * FROM expected_table_acl EXCEPT SELECT * FROM actual_table_acl)
+  )
+  AND NOT EXISTS (SELECT 1 FROM actual_column_acl)
+  AND (SELECT count(*) FROM target_function) = 1
+  AND (SELECT bool_and(prosecdef AND pg_get_userbyid(proowner) = 'app_owner') FROM target_function)
+  AND NOT EXISTS (
+    (SELECT * FROM actual_function_acl EXCEPT SELECT * FROM expected_function_acl)
+    UNION ALL
+    (SELECT * FROM expected_function_acl EXCEPT SELECT * FROM actual_function_acl)
+  )
+  AND NOT has_table_privilege('app_platform_settings', 'public.platform_users', 'SELECT')
+)::text;
+")"
+  [ "$ok" = "true" ] || {
+    echo "FATAL: platform organization-members directory exact ACL did not take effect." >&2
+    echo "       Expected app_platform_settings to hold only SELECT on be_organization_members," >&2
+    echo "       no column grants or platform_users SELECT, and plain EXECUTE on the narrow app_owner accessor." >&2
+    exit 1
+  }
+  echo "   platform organization-members directory exact ACL: OK (SELECT-only table + narrow name projection)"
 }
 
 assert_c5a_saas_billing_foundation_closure(){
@@ -1962,7 +2041,8 @@ assert_staff_security_self_runtime_acl_ready(){
   #   - get_staff_security_profile: reads only that self row;
   #   - save_pending_staff_totp: writes only that row's encrypted pending factor secret.
   # All remain existing table-owner SECURITY DEFINER functions from 0215/the canonical overlay.
-  # No new function or GRANT is introduced, so expected_secdef_count stays 106.
+  # No new function or GRANT is introduced here; the current exact count is owned by the
+  # app_owner SECURITY DEFINER gate above.
   ready="$(sudo -u deploy bash -lc "set -a && . '$WEBAPP_ENV' && set +a && db_url=\"\${DATABASE_URL_NONSTAFF:-\${DATABASE_URL:-}}\" && [ -n \"\$db_url\" ] && psql \"\$db_url\" -X -v ON_ERROR_STOP=1 -tAc \"
 RESET ROLE;
 SET ROLE app_patient;
@@ -2148,6 +2228,8 @@ run_strict_post_migration_closure(){
   run_closure_gate "app_owner SECURITY DEFINER table-grant completeness" assert_app_owner_secdef_table_grants_complete
   log "clinical_test_measure_kinds write-lock closure pin (H-7 / #1040, detects a guarded skip)"
   run_closure_gate "clinical_test_measure_kinds write-lock closure" assert_c5a_clinical_test_measure_kinds_closure
+  log "platform organization-members directory exact ACL (#1068 / owner D-5)"
+  run_closure_gate "platform organization-members directory exact ACL" assert_c5a_platform_organization_members_closure
   log "SaaS billing foundation exact grants/RLS inventory"
   run_closure_gate "SaaS billing foundation exact grants/RLS inventory" assert_c5a_saas_billing_foundation_closure
   log "DB-owner + telemetry-owner SECURITY DEFINER anon-reachable surface (A-1 stage 1, whole-class gate)"

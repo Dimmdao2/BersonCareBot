@@ -70,9 +70,12 @@ GRANT SELECT, INSERT, UPDATE ON TABLE public.saas_trial_policy TO app_platform_s
 GRANT SELECT, INSERT, UPDATE ON TABLE public.saas_organization_trials TO app_platform_settings;
 GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE public.saas_org_entitlement_overrides TO app_platform_settings;
 GRANT SELECT ON TABLE public.be_organizations TO app_platform_settings;
+GRANT SELECT ON TABLE public.be_organization_members TO app_platform_settings;
 GRANT UPDATE (tariff_id, commercial_access_state, updated_at)
   ON TABLE public.be_organizations TO app_platform_settings;
 GRANT INSERT ON TABLE public.admin_audit_log TO app_platform_settings;
+GRANT EXECUTE ON FUNCTION app.list_platform_organization_members(uuid)
+  TO app_platform_settings;
 -- A-6 / #1007: matching platform-side grant for the clinical_test_measure_kinds write-lock above.
 -- SELECT/UPDATE for catalog management; the platform principal never needs a fresh INSERT path of
 -- its own -- doctors already cover "add a new label" via the insert-only POST route.
@@ -523,6 +526,15 @@ SELECT 1 / (
   AND NOT has_table_privilege('app_platform_settings', 'public.platform_users', 'SELECT')
   AND NOT has_table_privilege('app_platform_settings', 'public.platform_users', 'INSERT')
   AND NOT has_table_privilege('app_platform_settings', 'public.platform_users', 'UPDATE')
+  AND has_table_privilege('app_platform_settings', 'public.be_organization_members', 'SELECT')
+  AND NOT has_table_privilege('app_platform_settings', 'public.be_organization_members', 'INSERT')
+  AND NOT has_table_privilege('app_platform_settings', 'public.be_organization_members', 'UPDATE')
+  AND NOT has_table_privilege('app_platform_settings', 'public.be_organization_members', 'DELETE')
+  AND has_function_privilege(
+    'app_platform_settings',
+    'app.list_platform_organization_members(uuid)',
+    'EXECUTE'
+  )
   AND NOT has_table_privilege('app_platform_settings', 'public.be_organizations', 'UPDATE')
   AND has_column_privilege('app_platform_settings', 'public.be_organizations', 'tariff_id', 'UPDATE')
   AND has_column_privilege('app_platform_settings', 'public.be_organizations', 'commercial_access_state', 'UPDATE')
@@ -530,6 +542,69 @@ SELECT 1 / (
   AND NOT has_column_privilege('app_platform_settings', 'public.be_organizations', 'title', 'UPDATE')
   AND NOT has_column_privilege('app_platform_settings', 'public.be_organizations', 'is_active', 'UPDATE')
 )::int AS c5a_platform_operations_exact_role_wall;
+
+-- #1068 / owner D-5: exact platform clinic-account directory wall. The table remains on its
+-- established bootstrap/RLS-off path; platform access is therefore pinned at the ACL boundary to
+-- one non-grantable SELECT and no column grants. Identity is projected only through the reviewed
+-- SECURITY DEFINER function, whose ACL is likewise exact and never exposes platform_users itself.
+WITH target_relation AS (
+  SELECT relation.oid, relation.relowner, relation.relacl
+  FROM pg_class AS relation
+  WHERE relation.oid = 'public.be_organization_members'::regclass
+), expected_table_acl(privilege_type, is_grantable) AS (
+  VALUES ('SELECT'::text, false)
+), actual_table_acl AS (
+  SELECT privilege.privilege_type, privilege.is_grantable
+  FROM target_relation
+  CROSS JOIN LATERAL aclexplode(
+    COALESCE(target_relation.relacl, acldefault('r', target_relation.relowner))
+  ) AS privilege
+  WHERE privilege.grantee = 'app_platform_settings'::regrole
+), actual_column_acl AS (
+  SELECT attribute.attname, privilege.privilege_type, privilege.is_grantable
+  FROM target_relation
+  JOIN pg_attribute AS attribute
+    ON attribute.attrelid = target_relation.oid
+   AND attribute.attnum > 0
+   AND NOT attribute.attisdropped
+  CROSS JOIN LATERAL aclexplode(attribute.attacl) AS privilege
+  WHERE privilege.grantee = 'app_platform_settings'::regrole
+), target_function AS (
+  SELECT procedure.oid, procedure.proowner, procedure.proacl, procedure.prosecdef
+  FROM pg_proc AS procedure
+  WHERE procedure.oid = 'app.list_platform_organization_members(uuid)'::regprocedure
+), expected_function_acl(grantee, privilege_type, is_grantable) AS (
+  VALUES
+    ('app_owner'::text, 'EXECUTE'::text, false),
+    ('app_platform_settings'::text, 'EXECUTE'::text, false)
+), actual_function_acl AS (
+  SELECT
+    COALESCE(grantee.rolname, privilege.grantee::text) AS grantee,
+    privilege.privilege_type,
+    privilege.is_grantable
+  FROM target_function
+  CROSS JOIN LATERAL aclexplode(
+    COALESCE(target_function.proacl, acldefault('f', target_function.proowner))
+  ) AS privilege
+  LEFT JOIN pg_roles AS grantee ON grantee.oid = privilege.grantee
+)
+SELECT 1 / (
+  (SELECT count(*) FROM target_relation) = 1
+  AND NOT EXISTS (
+    (SELECT * FROM actual_table_acl EXCEPT SELECT * FROM expected_table_acl)
+    UNION ALL
+    (SELECT * FROM expected_table_acl EXCEPT SELECT * FROM actual_table_acl)
+  )
+  AND NOT EXISTS (SELECT 1 FROM actual_column_acl)
+  AND (SELECT count(*) FROM target_function) = 1
+  AND (SELECT bool_and(prosecdef AND pg_get_userbyid(proowner) = 'app_owner') FROM target_function)
+  AND NOT EXISTS (
+    (SELECT * FROM actual_function_acl EXCEPT SELECT * FROM expected_function_acl)
+    UNION ALL
+    (SELECT * FROM expected_function_acl EXCEPT SELECT * FROM actual_function_acl)
+  )
+  AND NOT has_table_privilege('app_platform_settings', 'public.platform_users', 'SELECT')
+)::int AS c5a_platform_organization_members_directory_exact_wall;
 
 WITH expected(policy_name, relation_name, org_predicate) AS (
   VALUES

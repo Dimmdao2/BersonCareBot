@@ -46,9 +46,8 @@ describe("0260 outgoing delivery scope text identifier fix", () => {
     expect(migration).toContain(
       "GRANT EXECUTE ON FUNCTION app.resolve_outgoing_delivery_scope(uuid) TO app_operational_delivery_worker;",
     );
-    // 105 -> 106: migration 0261 adds the single reviewed
-    // app.is_platform_registration_analytics_user_excluded(uuid) SECURITY DEFINER.
-    expect(readFileSync(deployHostPath, "utf8")).toContain("local expected_secdef_count=106");
+    // 106 -> 107: migration 0268 adds the reviewed platform staff-directory projector.
+    expect(readFileSync(deployHostPath, "utf8")).toContain("local expected_secdef_count=107");
   });
 
   it("keeps the UUID-to-UUID operator and broadcast branches unchanged", () => {
@@ -66,12 +65,9 @@ describe("0260 outgoing delivery scope text identifier fix", () => {
     const journal = JSON.parse(readFileSync(journalPath, "utf8")) as {
       entries: Array<Record<string, unknown>>;
     };
-    // The exact journal tail grew from three pinned entries to five. Migration 0263 neutralizes
-    // the retired provider's remaining provenance values/comments; migration 0264 seeds the
-    // global platform-integration availability setting and its two runtime mirrors. Neither adds
-    // a SECURITY DEFINER, so the exact deploy count asserted above remains 106. Keep every entry
-    // from 0260 exact instead of weakening the contract merely because 0260 is no longer the tail.
-    expect(journal.entries.slice(-5)).toEqual([
+    // Keep every journal entry from 0260 exact instead of weakening the contract merely because
+    // 0260 is no longer the tail. Migration 0268 is the next owner-reserved number after 0266.
+    expect(journal.entries.slice(-8)).toEqual([
       {
         idx: 260,
         version: "7",
@@ -105,6 +101,27 @@ describe("0260 outgoing delivery scope text identifier fix", () => {
         version: "7",
         when: 1793539200061,
         tag: "0264_platform_integration_availability",
+        breakpoints: true,
+      },
+      {
+        idx: 265,
+        version: "7",
+        when: 1793539200062,
+        tag: "0265_platform_support_conversations_read",
+        breakpoints: true,
+      },
+      {
+        idx: 266,
+        version: "7",
+        when: 1793539200063,
+        tag: "0266_password_login_bruteforce_protection",
+        breakpoints: true,
+      },
+      {
+        idx: 268,
+        version: "7",
+        when: 1793539200065,
+        tag: "0268_platform_organization_members_directory",
         breakpoints: true,
       },
     ]);

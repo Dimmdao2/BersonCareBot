@@ -21,6 +21,9 @@ function serviceFor(rows: OrganizationMembership[]) {
     listByPlatformUser: vi.fn(async () => rows),
     listActiveByPlatformUser: vi.fn(async () => rows),
     listByOrganization: vi.fn(async () => rows.map((row) => ({ ...row, displayName: null }))),
+    listPlatformDirectoryByOrganization: vi.fn(async () =>
+      rows.map((row) => ({ ...row, displayName: null })),
+    ),
     getMemberByOrganization: vi.fn(async ({ organizationId, membershipId }) => {
       const row = rows.find((candidate) => candidate.organizationId === organizationId && candidate.id === membershipId);
       return row ? { ...row, displayName: null } : null;
@@ -118,5 +121,17 @@ describe("createOrganizationMembershipService", () => {
     await expect(service.listOrganizationMembers("org-1")).resolves.toEqual([
       { ...active, displayName: null },
     ]);
+  });
+
+  it("keeps every membership status in the platform directory", async () => {
+    const active = membership({ id: "membership-active", status: "active" });
+    const disabled = membership({ id: "membership-disabled", status: "disabled" });
+    const { service, port } = serviceFor([active, disabled]);
+
+    await expect(service.listPlatformOrganizationMembers("org-1")).resolves.toEqual([
+      { ...active, displayName: null },
+      { ...disabled, displayName: null },
+    ]);
+    expect(port.listPlatformDirectoryByOrganization).toHaveBeenCalledWith("org-1");
   });
 });

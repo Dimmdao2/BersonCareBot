@@ -102,9 +102,8 @@ describe("0259 SaaS billing foundation migration", () => {
     expect(host).toContain("actual_table_acl");
     expect(host).toContain("expected_policy_inventory");
     expect(host).toContain("relforcerowsecurity");
-    // 105 -> 106: migration 0261 adds the single reviewed
-    // app.is_platform_registration_analytics_user_excluded(uuid) SECURITY DEFINER.
-    expect(host).toContain("local expected_secdef_count=106");
+    // 106 -> 107: migration 0268 adds the reviewed platform staff-directory projector.
+    expect(host).toContain("local expected_secdef_count=107");
     expect(sql).not.toMatch(/SECURITY\s+DEFINER/i);
   });
 });

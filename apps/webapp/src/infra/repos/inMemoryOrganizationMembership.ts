@@ -33,6 +33,12 @@ export function createInMemoryOrganizationMembershipPort(): OrganizationMembersh
         .map((row) => ({ ...row, displayName: null }));
     },
 
+    async listPlatformDirectoryByOrganization(organizationId) {
+      return rows
+        .filter((row) => row.organizationId === organizationId)
+        .map((row) => ({ ...row, displayName: null }));
+    },
+
     async getMemberByOrganization({ organizationId, membershipId }) {
       const row = rows.find((candidate) => candidate.organizationId === organizationId && candidate.id === membershipId);
       return row ? { ...row, displayName: null } : null;

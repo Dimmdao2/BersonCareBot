@@ -1870,6 +1870,13 @@
       "when": 1793539200063,
       "tag": "0266_password_login_bruteforce_protection",
       "breakpoints": true
+    },
+    {
+      "idx": 268,
+      "version": "7",
+      "when": 1793539200065,
+      "tag": "0268_platform_organization_members_directory",
+      "breakpoints": true
     }
   ]
 }

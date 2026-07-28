@@ -82,9 +82,8 @@ describe("0256 staff-security self password hash", () => {
 
   it("pins deploy grant completeness without entering the re-ownership trap", () => {
     const deploy = readFileSync(deployPath, "utf8");
-    // 105 -> 106: migration 0261 adds the single reviewed
-    // app.is_platform_registration_analytics_user_excluded(uuid) SECURITY DEFINER.
-    expect(deploy).toContain("local expected_secdef_count=106");
+    // 106 -> 107: migration 0268 adds the reviewed platform staff-directory projector.
+    expect(deploy).toContain("local expected_secdef_count=107");
     expect(deploy).toContain("('public.user_password_credentials', 'SELECT')");
     expect(deploy).toContain("('public.user_password_credentials', 'UPDATE')");
 

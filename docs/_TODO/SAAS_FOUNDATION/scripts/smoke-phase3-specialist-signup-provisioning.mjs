@@ -91,10 +91,11 @@ const paths = {
     repoRoot,
     'apps/webapp/db/drizzle-migrations/0257_specialist_signup_slug_reservation.sql',
   ),
-  c5aPlatformOperations: path.join(
+  migration0268: path.join(
     repoRoot,
-    'deploy/postgres/c5a-platform-operations-runtime.sql',
+    'apps/webapp/db/drizzle-migrations/0268_platform_organization_members_directory.sql',
   ),
+  c5aPlatformOperations: path.join(repoRoot, 'deploy/postgres/c5a-platform-operations-runtime.sql'),
   ownerProvisioningOverlay: path.join(
     repoRoot,
     'deploy/postgres/specialist-owner-provisioning-rls.sql',
@@ -365,6 +366,7 @@ function installCanonicalSchema() {
     paths.migration0218,
     paths.migration0225,
     paths.migration0257,
+    paths.migration0268,
   ]) {
     psqlFile(migrationPath, {
       prefix: `BEGIN;\nSET ROLE ${quoteIdent(appOwnerRole)};`,
@@ -918,7 +920,10 @@ SELECT json_build_object(
     row.intent_specialist === receipt.specialistId,
     'intent specialist receipt must record the specialist bound by this same provisioning call',
   );
-  assert(row.current_slug_claims === 1, 'signup reservation must promote to one current slug claim');
+  assert(
+    row.current_slug_claims === 1,
+    'signup reservation must promote to one current slug claim',
+  );
   assert(row.pending_slug_reservations === 0, 'promoted slug claim must release the signup intent');
   assert(row.directory_slug === seed.organizationSlug, 'signup must publish the reserved slug');
   assert(row.organization_tariff === trialTariffId, 'organization must receive the trial tariff');
@@ -986,7 +991,7 @@ SELECT json_build_object(
   assert(
     state.audit_events === 0,
     'binding-helper no-op must not write a second specialist_self_binding_created event ' +
-      '(provisioning itself creates none -- only ensureOwnBookableSpecialist\'s create path does)',
+      "(provisioning itself creates none -- only ensureOwnBookableSpecialist's create path does)",
   );
   assert(
     state.intent_specialist === receipt.specialistId,
@@ -1066,7 +1071,7 @@ function assertStaticSourceGuards() {
     // (owner-reported dead workspace). The new invariant this guard protects is idempotency, not
     // absence: the INSERT must stay guarded on v_specialist_id IS NULL so a re-run of provisioning
     // for an already-provisioned intent never creates a second specialist row.
-    'canonical provisioning must bind the registering owner\'s own specialist row in the same ' +
+    "canonical provisioning must bind the registering owner's own specialist row in the same " +
       'transaction, guarded so a re-run never creates a second one',
   );
   assert(
@@ -1104,6 +1109,18 @@ function assertStaticSourceGuards() {
       source.c5aPlatformOperations.includes(
         'GRANT EXECUTE ON FUNCTION app.current_patient_user_id() TO app_platform_settings;',
       ) &&
+      source.c5aPlatformOperations.includes(
+        'GRANT SELECT ON TABLE public.be_organization_members TO app_platform_settings;',
+      ) &&
+      source.c5aPlatformOperations.includes(
+        'GRANT EXECUTE ON FUNCTION app.list_platform_organization_members(uuid)',
+      ) &&
+      source.c5aPlatformOperations.includes(
+        'c5a_platform_organization_members_directory_exact_wall',
+      ) &&
+      source.migration0268.includes('WHERE membership.organization_id = p_organization_id') &&
+      !source.migration0268.includes('phone_normalized') &&
+      !source.migration0268.includes('email_normalized') &&
       source.c5aPlatformOperations.includes(
         'GRANT UPDATE (tariff_id, commercial_access_state, updated_at)',
       ) &&
