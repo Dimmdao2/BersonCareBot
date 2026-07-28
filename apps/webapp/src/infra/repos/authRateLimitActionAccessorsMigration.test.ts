@@ -128,7 +128,7 @@ describe("0254 auth rate-limit action accessors", () => {
     const deploy = readFileSync(deployPath, "utf8");
     // 106 -> 107: 0267 adds the staff-name directory accessor, 0268 adds the delivery-audit
     // writer, and 0269 removes the superseded signup-slug reservation function.
-    expect(deploy).toContain("local expected_secdef_count=107");
+    expect(deploy).toContain("local expected_secdef_count=109");
     for (const row of [
       "('public.auth_rate_limit_events', 'SELECT')",
       "('public.auth_rate_limit_events', 'INSERT')",

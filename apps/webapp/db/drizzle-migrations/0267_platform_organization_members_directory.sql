@@ -1,4 +1,4 @@
--- 0268: expose the minimum staff-membership directory projection to platform operations.
+-- 0267: expose the minimum staff-membership directory projection to platform operations.
 --
 -- The platform role deliberately has no SELECT on public.platform_users. The clinic card still
 -- needs a staff member's display name, so this accessor joins identity internally and returns only

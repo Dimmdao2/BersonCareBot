@@ -104,7 +104,7 @@ describe("0259 SaaS billing foundation migration", () => {
     expect(host).toContain("relforcerowsecurity");
     // 106 -> 107: 0267 adds the staff-name directory accessor, 0268 adds the delivery-audit
     // writer, and 0269 removes the superseded signup-slug reservation function.
-    expect(host).toContain("local expected_secdef_count=107");
+    expect(host).toContain("local expected_secdef_count=109");
     expect(sql).not.toMatch(/SECURITY\s+DEFINER/i);
   });
 });

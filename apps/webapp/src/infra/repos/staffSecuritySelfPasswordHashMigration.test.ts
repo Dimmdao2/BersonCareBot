@@ -84,7 +84,7 @@ describe("0256 staff-security self password hash", () => {
     const deploy = readFileSync(deployPath, "utf8");
     // 106 -> 107: 0267 adds the staff-name directory accessor, 0268 adds the delivery-audit
     // writer, and 0269 removes the superseded signup-slug reservation function.
-    expect(deploy).toContain("local expected_secdef_count=107");
+    expect(deploy).toContain("local expected_secdef_count=109");
     expect(deploy).toContain("('public.user_password_credentials', 'SELECT')");
     expect(deploy).toContain("('public.user_password_credentials', 'UPDATE')");
 
