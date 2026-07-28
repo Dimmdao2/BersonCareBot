@@ -118,7 +118,7 @@ describe("createPgOrganizationProvisioningPort", () => {
     expect(organizationInsert).toBeGreaterThan(0);
     expect(currentClaimInsert).toBeGreaterThan(organizationInsert);
     expect(publication).toBeGreaterThan(currentClaimInsert);
-    expect(provisioning).toContain("v_intent.organization_slug,\n        'current'");
+    expect(provisioning).toContain("lower(v_intent.organization_slug),\n        'current'");
     expect(provisioning).toContain("WHEN unique_violation THEN");
     expect(provisioning).toContain(
       "v_unique_constraint_name = 'uq_organization_slug_claims_slug'",
@@ -139,8 +139,9 @@ describe("createPgOrganizationProvisioningPort", () => {
     expect(publicBootstrap).not.toContain("reserve_specialist_signup_slug");
     expect(publicBootstrap).toContain("organization_slug,\n    specialist_full_name");
     expect(publicBootstrap).toContain(
-      "SET challenge_id = p_challenge_id,\n      organization_slug = p_organization_slug",
+      "SET challenge_id = p_challenge_id,\n      organization_slug = lower(p_organization_slug)",
     );
+    expect(publicBootstrap).toContain("lower(p_organization_slug),");
     expect(src).toContain('value.code === "23505"');
     expect(src).toContain('if (isSlugUnavailableDbError(error)) throw new Error("slug_unavailable")');
   });

@@ -55,5 +55,9 @@ export const specialistSignupIntents = pgTable(
       "specialist_signup_intents_status_check",
       sql`${table.status} = ANY (ARRAY['pending'::text, 'provisioned'::text])`,
     ),
+    check(
+      "specialist_signup_intents_organization_slug_lower_check",
+      sql`${table.organizationSlug} IS NULL OR ${table.organizationSlug} = lower(${table.organizationSlug})`,
+    ),
   ],
 );

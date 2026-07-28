@@ -2,8 +2,8 @@
 
 /**
  * U6B executable slug-ownership proof. It starts a disposable PostgreSQL 16 cluster below /tmp,
- * applies the complete 0218 -> 0255 -> 0257 migration stack, then proves the owner rule:
- * a clinic can reclaim its own former slug, while another clinic can never take it.
+ * applies the complete 0218 -> 0255 -> 0257 -> 0269 -> 0271 migration stack, then proves the
+ * owner rule and the database-only case-insensitive uniqueness guarantee.
  */
 import { spawnSync } from "node:child_process";
 import { existsSync, mkdtempSync, mkdirSync, readFileSync, rmSync } from "node:fs";
@@ -16,6 +16,8 @@ const migrations = [
   "apps/webapp/db/drizzle-migrations/0218_u6b_organization_slug_claims.sql",
   "apps/webapp/db/drizzle-migrations/0255_organization_slug_same_org_reclaim.sql",
   "apps/webapp/db/drizzle-migrations/0257_specialist_signup_slug_reservation.sql",
+  "apps/webapp/db/drizzle-migrations/0269_remove_specialist_signup_slug_reservation.sql",
+  "apps/webapp/db/drizzle-migrations/0271_organization_slug_case_insensitive.sql",
 ];
 const stamp = `${process.pid}_${Date.now()}`;
 const scratchDir = mkdtempSync(`/tmp/bcb_u6b_slug_invariants_${stamp}_`);
@@ -98,10 +100,15 @@ try {
     CREATE TABLE public.specialist_signup_intents (id uuid PRIMARY KEY, user_id uuid NOT NULL, status text NOT NULL);
     CREATE TABLE public.clinic_public_directory_entries (
       organization_id uuid PRIMARY KEY REFERENCES public.be_organizations(id),
-      slug text NOT NULL UNIQUE,
+      slug text NOT NULL,
       is_published boolean NOT NULL DEFAULT false,
       updated_at timestamptz NOT NULL DEFAULT now()
     );
+    CREATE UNIQUE INDEX uq_clinic_public_directory_entries_slug
+      ON public.clinic_public_directory_entries USING btree (slug);
+    ALTER TABLE public.clinic_public_directory_entries
+      ADD CONSTRAINT clinic_public_directory_entries_slug_lower_check
+      CHECK (slug = lower(slug));
     INSERT INTO public.be_organizations (id) VALUES ('${orgA}'), ('${orgB}');
     INSERT INTO public.clinic_public_directory_entries (organization_id, slug) VALUES ('${orgA}', 'clinic-old');
   `, "schema setup");
@@ -141,6 +148,35 @@ try {
     "other-organization claim",
   );
   console.log("smoke-u6b: other organization claim: rejected as required");
+
+  // Isolate the expression index from the older lower-case CHECK, then prove that a direct
+  // database writer cannot insert the same claim with different casing. Removing the 0271
+  // lower(slug) index makes this assertion fail, so this is an automatic proof of the guarantee.
+  psql(
+    "ALTER TABLE public.organization_slug_claims DROP CONSTRAINT organization_slug_claims_slug_format_check;",
+    "isolate claims case-insensitive index",
+  );
+  expectRejected(
+    `INSERT INTO public.organization_slug_claims (slug, kind, organization_id) VALUES ('CLINIC-NEW', 'reservation', '${orgB}');`,
+    "duplicate key value violates unique constraint \"uq_organization_slug_claims_slug\"",
+    "case-variant organization claim",
+  );
+  console.log("smoke-u6b: case-variant organization claim: rejected by lower(slug) index");
+
+  // The directory is a second persisted slug projection. Bypass its existing projection trigger
+  // and lower-case CHECK only inside this disposable cluster to prove its own lower(slug) index.
+  psql(`
+    ALTER TABLE public.clinic_public_directory_entries
+      DISABLE TRIGGER clinic_public_directory_current_slug_guard;
+    ALTER TABLE public.clinic_public_directory_entries
+      DROP CONSTRAINT clinic_public_directory_entries_slug_lower_check;
+  `, "isolate directory case-insensitive index");
+  expectRejected(
+    `INSERT INTO public.clinic_public_directory_entries (organization_id, slug) VALUES ('${orgB}', 'CLINIC-OLD');`,
+    "duplicate key value violates unique constraint \"uq_clinic_public_directory_entries_slug\"",
+    "case-variant clinic directory slug",
+  );
+  console.log("smoke-u6b: case-variant directory slug: rejected by lower(slug) index");
 } finally {
   if (serverStarted) {
     spawnSync(path.join(pgBin, "pg_ctl"), ["-D", dataDir, "-m", "fast", "-w", "stop"], { encoding: "utf8", env: safeEnv });
