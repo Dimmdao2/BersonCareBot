@@ -173,7 +173,7 @@ function QuotaEditor({
           }
         />
       ) : null}
-      {quota ? atomicSnapshot ? (
+      {quota ? snapshotEnforced ? (
         <p className="self-center text-xs text-muted-foreground">
           Единица: {QUOTA_UNIT_LABELS.items} · текущее значение
         </p>
