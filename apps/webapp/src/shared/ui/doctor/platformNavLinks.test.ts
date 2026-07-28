@@ -15,12 +15,13 @@ describe("platform menu structure — flat by owner ruling 2026-07-26", () => {
     }
   });
 
-  it("has the exact 12 flat entries, including the owner-requested clinic console, in order", () => {
+  it("has the exact 13 flat entries, including clinics and support, in order", () => {
     expect(PLATFORM_MENU_LINKS.map((i) => i.id)).toEqual([
       "account-security",
       "analytics",
       // §9.3 / #1068 adds a customer-clinic destination, not another settings cluster.
       "clinics",
+      "support",
       "commercial",
       "admin-app-settings",
       "admin-auth",
@@ -39,6 +40,7 @@ describe("platform menu structure — flat by owner ruling 2026-07-26", () => {
       "Безопасность аккаунта",
       "Аналитика",
       "Клиники",
+      "Обращения",
       "Тарифы и триал",
       "Настройки приложения",
       "Авторизация",
@@ -60,6 +62,10 @@ describe("platform menu structure — flat by owner ruling 2026-07-26", () => {
     expect(byId.get("analytics")).toMatchObject({ href: "/app/doctor/analytics" });
     expect(byId.get("clinics")).toMatchObject({
       href: "/app/admin/clinics",
+      accessTier: "global_admin",
+    });
+    expect(byId.get("support")).toMatchObject({
+      href: "/app/admin/support",
       accessTier: "global_admin",
     });
     expect(byId.get("commercial")).toMatchObject({ href: "/app/admin/commercial" });

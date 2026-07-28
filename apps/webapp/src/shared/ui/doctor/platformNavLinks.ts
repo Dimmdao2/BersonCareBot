@@ -40,6 +40,7 @@ const RAW_PLATFORM_MENU_ITEMS: DoctorMenuLinkItem[] = [
   { id: "analytics", label: "Аналитика", href: "/app/doctor/analytics", accessTier: "global_admin" },
   // Owner punchlist §9.3 / #1068: the platform's clinic customers now have a first-class list.
   { id: "clinics", label: "Клиники", href: "/app/admin/clinics", accessTier: "global_admin" },
+  { id: "support", label: "Обращения", href: "/app/admin/support", accessTier: "global_admin" },
   // Moved in slice 3.
   { id: "commercial", label: "Тарифы и триал", href: "/app/admin/commercial", accessTier: "global_admin" },
   // Moved in slice 4.

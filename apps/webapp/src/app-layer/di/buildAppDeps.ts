@@ -189,6 +189,7 @@ import { inMemorySupportCommunicationPort } from "@/infra/repos/inMemorySupportC
 import { createPatientMessagingService } from "@/modules/messaging/patientMessagingService";
 import { createPatientNotificationInboxService } from "@/modules/messaging/patientNotificationInboxService";
 import { createDoctorSupportMessagingService } from "@/modules/messaging/doctorSupportMessagingService";
+import { createPlatformSupportService } from "@/modules/messaging/platformSupportService";
 import { createNotifyPatientDoctorReply } from "@/modules/messaging/notifyPatientDoctorReply";
 import { notifyDoctorPatientMessage } from "@/modules/messaging/notifyDoctorPatientMessage";
 import { notifyDoctorPatientProgramNote } from "@/modules/messaging/notifyDoctorPatientProgramNote";
@@ -1198,6 +1199,7 @@ const doctorSupportMessagingService = createDoctorSupportMessagingService(suppor
   shouldDispatchRelay: (ctx) => systemSettingsService.shouldDispatchRelayToRecipient(ctx),
   notifyPatientOfDoctorReply: notifyPatientDoctorReply,
 });
+const platformSupportService = createPlatformSupportService(supportCommunicationPort);
 
 function linkFromPayload(payload: Record<string, unknown>): string | null {
   const link = payload?.link;
@@ -1647,6 +1649,7 @@ function _buildAppDeps() {
       patient: patientMessagingService,
       patientNotifications: patientNotificationInboxService,
       doctorSupport: doctorSupportMessagingService,
+      platformSupport: platformSupportService,
     },
     reminders: remindersService,
     /** Журнал snooze/skip/done; `undefined` в Vitest без БД. */
