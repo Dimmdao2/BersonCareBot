@@ -101,3 +101,41 @@ export async function readPublicSystemSettingString(
   if (valueJson === null) return null;
   return parseSystemSettingStringValue(valueJson);
 }
+
+/** Exact organization row; used for clinic-owned external account credentials. */
+export async function readExactOrganizationPublicSystemSettingString(
+  db: DbPort,
+  key: string,
+  organizationId: string,
+): Promise<string | null> {
+  const normalizedOrganizationId = organizationId.trim();
+  if (!normalizedOrganizationId) return null;
+  const res = await runIntegratorSql<{ value_json: unknown }>(
+    db,
+    sql`SELECT value_json
+        FROM public.system_settings
+        WHERE key = ${key}
+          AND scope = 'admin'
+          AND organization_id = ${normalizedOrganizationId}::uuid
+        LIMIT 1`,
+  );
+  return res.rows[0] ? parseSystemSettingStringValue(res.rows[0].value_json) : null;
+}
+
+/** Organization rows whose envelope contains the literal boolean/string true. */
+export async function listExactOrganizationIdsWithTruePublicSystemSetting(
+  db: DbPort,
+  key: string,
+): Promise<string[]> {
+  const res = await runIntegratorSql<{ organization_id: string }>(
+    db,
+    sql`SELECT organization_id::text AS organization_id
+        FROM public.system_settings
+        WHERE key = ${key}
+          AND scope = 'admin'
+          AND organization_id IS NOT NULL
+          AND lower(COALESCE(value_json ->> 'value', '')) IN ('true', '1')
+        ORDER BY updated_at DESC, organization_id`,
+  );
+  return res.rows.map((row) => row.organization_id);
+}

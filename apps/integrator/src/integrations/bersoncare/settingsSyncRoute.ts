@@ -11,6 +11,7 @@ import { invalidateGoogleCalendarConfigCache } from '../google-calendar/runtimeC
 import { invalidateMessengerStaffIdsCacheForSettingKey } from '../../infra/db/messengerStaffIds.js';
 import { invalidateOperationalVerboseLogCache } from '../../infra/db/repos/operationalVerboseLog.js';
 import { runIntegratorSql } from '../../infra/db/runIntegratorSql.js';
+import { invalidatePlatformIntegrationAvailabilityCache } from '../../infra/db/platformIntegrationAvailability.js';
 
 const WINDOW_SECONDS = 300;
 
@@ -126,6 +127,10 @@ export async function registerBersoncareSettingsSyncRoute(
       invalidateAppDisplayTimezoneCache();
     }
     if (key.startsWith('google_')) {
+      invalidateGoogleCalendarConfigCache();
+    }
+    if (key === 'platform_integration_availability') {
+      invalidatePlatformIntegrationAvailabilityCache();
       invalidateGoogleCalendarConfigCache();
     }
     if (key === 'smtp_outbound') {

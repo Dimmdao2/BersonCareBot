@@ -1,8 +1,8 @@
 import { env, integratorWebhookSecret, integratorWebappEntrySecret } from "@/config/env";
 import {
   getConfigValue,
-  getConfigBool,
   getConfigValueSync,
+  getExactOrganizationConfigValue,
   getPublicConfigValue,
 } from "@/modules/system-settings/configAdapter";
 
@@ -72,16 +72,28 @@ export async function getGoogleRedirectUri(): Promise<string> {
   return getConfigValue("google_redirect_uri", "");
 }
 
-export async function getGoogleRefreshToken(): Promise<string> {
-  return getConfigValue("google_refresh_token", "");
+export async function getGoogleRefreshToken(organizationId: string): Promise<string> {
+  return getExactOrganizationConfigValue("google_refresh_token", organizationId, "");
 }
 
-export async function getGoogleCalendarId(): Promise<string> {
-  return getConfigValue("google_calendar_id", "");
+export async function getGoogleCalendarId(organizationId: string): Promise<string> {
+  return getExactOrganizationConfigValue("google_calendar_id", organizationId, "");
 }
 
-export async function getGoogleCalendarEnabled(): Promise<boolean> {
-  return getConfigBool("google_calendar_enabled", false);
+export async function getGoogleCalendarEnabled(organizationId: string): Promise<boolean> {
+  const value = await getExactOrganizationConfigValue("google_calendar_enabled", organizationId, "false");
+  return value === "true" || value === "1";
+}
+
+/** Global platform kill-switch; malformed or unavailable state is fail-closed for Calendar. */
+export async function isGoogleCalendarPlatformAvailable(): Promise<boolean> {
+  const raw = await getConfigValue("platform_integration_availability", "");
+  try {
+    const value = JSON.parse(raw) as { version?: unknown; integrations?: { google_calendar?: unknown } };
+    return value.version === 1 && value.integrations?.google_calendar === true;
+  } catch {
+    return false;
+  }
 }
 
 export async function getGoogleOauthLoginRedirectUri(): Promise<string> {

@@ -121,6 +121,26 @@ export async function readAdminSystemSettingString(
   return systemSettingInnerValueToString(await readAdminSystemSettingInnerValue(key, options));
 }
 
+/**
+ * Reads only the exact clinic row. Connection credentials must not inherit an old global
+ * value: that would direct two clinics' appointments into one calendar.
+ */
+export async function readExactOrganizationAdminSystemSettingString(
+  key: string,
+  organizationId: string,
+): Promise<string | null> {
+  const normalizedOrganizationId = organizationId.trim();
+  if (!normalizedOrganizationId) return null;
+  const result = await runWebappPgText<SystemSettingValueRow>(
+    `SELECT scope, organization_id, value_json
+       FROM system_settings
+      WHERE key = $1 AND scope = 'admin' AND organization_id = $2::uuid
+      LIMIT 1`,
+    [key, normalizedOrganizationId],
+  );
+  return systemSettingInnerValueToString(parseSettingEnvelopeValue(result.rows[0]?.value_json));
+}
+
 export async function readAdminSystemSettingBoolean(
   key: string,
   defaultValue: boolean,
@@ -377,7 +397,14 @@ export function createPgSystemSettingsPort(): SystemSettingsPort {
           : await runWebappPgText<{ value_json: unknown }>(`DELETE FROM system_settings WHERE key = $1 AND scope = $2 AND organization_id IS NULL RETURNING value_json`, [key, scope], tx);
         if (!deleted.rows[0]) return false;
         await runWebappPgText(`DELETE FROM public.app_runtime_settings WHERE key = $1 AND scope = $2 AND organization_id IS NOT DISTINCT FROM $3::uuid`, [key, scope, organizationId], tx);
-        await runWebappPgText(`INSERT INTO system_settings_audit (key, scope, organization_id, old_value_json, new_value_json, changed_by, source) VALUES ($1, $2, $3::uuid, $4::jsonb, NULL, $5, $6)`, [key, scope, organizationId, JSON.stringify(deleted.rows[0].value_json), updatedBy, "system_settings_repo_delete"], tx);
+        await runWebappPgText(`INSERT INTO system_settings_audit (key, scope, organization_id, old_value_json, new_value_json, changed_by, source) VALUES ($1, $2, $3::uuid, $4::jsonb, NULL, $5, $6)`, [
+          key,
+          scope,
+          organizationId,
+          JSON.stringify(redactSettingValueForAudit(key, deleted.rows[0].value_json)),
+          updatedBy,
+          "system_settings_repo_delete",
+        ], tx);
         return true;
       });
     },

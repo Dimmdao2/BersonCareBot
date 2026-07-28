@@ -442,6 +442,7 @@ async function trySyncCanonicalBookingToGoogleCalendar(
           {
             action: 'canceled',
             appointmentId,
+            organizationId: payload.organizationId ?? '',
             startAt: payload.slotStart,
             endAt: payload.slotEnd,
             clientName: payload.contactName,
@@ -479,6 +480,7 @@ async function trySyncCanonicalBookingToGoogleCalendar(
       {
         action,
         appointmentId,
+        organizationId: payload.organizationId ?? '',
         startAt: payload.slotStart,
         endAt: payload.slotEnd,
         clientName: payload.contactName,

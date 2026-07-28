@@ -48,6 +48,7 @@ export function isOutgoingDeliveryDispatchErrorRetryable(errorMessage: string): 
   if (isRecipientBlockedBotDispatchError(m)) return false;
   if (m.startsWith("CHANNEL_NOT_SPECIFIED")) return false;
   if (m.startsWith("CHANNEL_NOT_SUPPORTED:")) return false;
+  if (m.startsWith("PLATFORM_INTEGRATION_DISABLED:")) return false;
   if (m.startsWith("BAD_PAYLOAD")) return false;
   if (m.startsWith("MISSING_INCIDENT_ID")) return false;
   if (m.startsWith("MISSING_REMINDER_FIELDS")) return false;

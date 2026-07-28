@@ -9,6 +9,7 @@ const getBotInstanceMock = vi.hoisted(() => vi.fn());
 const getMeMock = vi.hoisted(() => vi.fn());
 const telegramConfigMock = vi.hoisted(() => ({ botToken: '' }));
 const getGoogleCalendarConfigMock = vi.hoisted(() => vi.fn());
+const listGoogleCalendarProbeOrganizationIdsMock = vi.hoisted(() => vi.fn());
 const probeGoogleCalendarAccessMock = vi.hoisted(() => vi.fn());
 
 vi.mock('../integrations/max/client.js', () => ({
@@ -32,6 +33,7 @@ vi.mock('../integrations/telegram/config.js', () => ({
 }));
 vi.mock('../integrations/google-calendar/runtimeConfig.js', () => ({
   getGoogleCalendarConfig: getGoogleCalendarConfigMock,
+  listGoogleCalendarProbeOrganizationIds: listGoogleCalendarProbeOrganizationIdsMock,
 }));
 vi.mock('../integrations/google-calendar/probe.js', () => ({
   probeGoogleCalendarAccess: probeGoogleCalendarAccessMock,
@@ -56,6 +58,7 @@ describe('runOperatorHealthProbes', () => {
     getMeMock.mockResolvedValue({ id: 1 });
     getBotInstanceMock.mockReturnValue({ api: { getMe: getMeMock } });
     getGoogleCalendarConfigMock.mockResolvedValue({ enabled: false });
+    listGoogleCalendarProbeOrganizationIdsMock.mockResolvedValue([]);
     probeGoogleCalendarAccessMock.mockResolvedValue(undefined);
   });
 
@@ -78,6 +81,9 @@ describe('runOperatorHealthProbes', () => {
 
   it('Google Calendar second failure raises an incident', async () => {
     getMaxBotInfoMock.mockResolvedValue({ id: 1 });
+    listGoogleCalendarProbeOrganizationIdsMock.mockResolvedValue([
+      'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+    ]);
     getGoogleCalendarConfigMock.mockResolvedValue({
       enabled: true,
       refreshToken: 'rt',
@@ -90,6 +96,9 @@ describe('runOperatorHealthProbes', () => {
     recordProbeRunMock.mockResolvedValue({ consecutiveFailRuns: 2, consecutiveFailures: { google_calendar: 2 } });
     const r = await runOperatorHealthProbes({ dispatchPort });
     expect(r.google_calendar).toBe('fail');
+    expect(getGoogleCalendarConfigMock).toHaveBeenCalledWith(
+      'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+    );
     expect(reportOperatorFailureMock).toHaveBeenCalledWith(
       expect.objectContaining({
         integration: 'google_calendar',
@@ -99,6 +108,9 @@ describe('runOperatorHealthProbes', () => {
   });
 
   it('uses the configured channel threshold before creating the paging incident', async () => {
+    listGoogleCalendarProbeOrganizationIdsMock.mockResolvedValue([
+      'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+    ]);
     getGoogleCalendarConfigMock.mockResolvedValue({
       enabled: true,
       refreshToken: 'rt',
@@ -122,6 +134,34 @@ describe('runOperatorHealthProbes', () => {
     });
 
     expect(reportOperatorFailureMock).not.toHaveBeenCalled();
+  });
+
+  it('probes a real clinic-scoped Google Calendar connection', async () => {
+    const firstOrganizationId = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
+    const connectedOrganizationId = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
+    listGoogleCalendarProbeOrganizationIdsMock.mockResolvedValue([
+      firstOrganizationId,
+      connectedOrganizationId,
+    ]);
+    getGoogleCalendarConfigMock.mockImplementation(async (organizationId: string) => ({
+      enabled: organizationId === connectedOrganizationId,
+      refreshToken: organizationId === connectedOrganizationId ? 'rt' : '',
+      calendarId: organizationId === connectedOrganizationId ? 'cal' : '',
+      clientId: 'cid',
+      clientSecret: 'sec',
+      redirectUri: 'http://localhost',
+    }));
+
+    const result = await runOperatorHealthProbes({
+      dispatchPort,
+      probes: ['google_calendar'],
+    });
+
+    expect(result.google_calendar).toBe('ok');
+    expect(result.details.google_calendarConfiguredOrganizations).toBe('2');
+    expect(getGoogleCalendarConfigMock).toHaveBeenNthCalledWith(1, firstOrganizationId);
+    expect(getGoogleCalendarConfigMock).toHaveBeenNthCalledWith(2, connectedOrganizationId);
+    expect(probeGoogleCalendarAccessMock).toHaveBeenCalledTimes(1);
   });
 
   it('honours the configured quiet window without contacting providers', async () => {

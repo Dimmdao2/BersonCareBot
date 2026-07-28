@@ -34,7 +34,10 @@ import type {
 import { logger } from '../infra/observability/logger.js';
 import { createPostgresIdempotencyPort } from '../infra/db/repos/idempotencyKeys.js';
 import { tryConsumeStart } from '../infra/db/repos/channelUsers.js';
-import { createDefaultDispatchPort } from '../infra/adapters/dispatchPort.js';
+import {
+  createDefaultDispatchPort,
+  type DispatchPlatformIntegrationId,
+} from '../infra/adapters/dispatchPort.js';
 import { createUnifiedSender } from '../infra/adapters/sendUnified.js';
 import type { UnifiedSender } from '../infra/adapters/sendUnified.js';
 import { createActorResolutionPort } from '../infra/adapters/actorResolutionPort.js';
@@ -67,6 +70,7 @@ import { createSubscriptionMailingReadsPort } from '../infra/adapters/subscripti
 import { createWebPushAccessPort } from '../infra/adapters/webPushAccessPort.js';
 import type { WebPushAccessPort } from '../kernel/contracts/index.js';
 import { createWebPushDeliveryAdapter } from '../integrations/web-push/deliveryAdapter.js';
+import { isPlatformIntegrationAvailable } from '../infra/db/platformIntegrationAvailability.js';
 
 /**
  * Регистраторы интеграций инжектируются,
@@ -240,6 +244,8 @@ export function buildDeps(input: BuildDepsInput = {}): AppDeps {
       adapters,
       readPort: dbReadPort,
       writePort: input.dispatchAttemptWritePort ?? dbWritePort,
+      isPlatformIntegrationEnabled: (integrationId: DispatchPlatformIntegrationId) =>
+        isPlatformIntegrationAvailable(dbPort, integrationId),
     });
 
   dispatchPortRef.current = dispatchPort;

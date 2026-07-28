@@ -7,6 +7,7 @@
 
 import {
   readAdminSystemSettingString,
+  readExactOrganizationAdminSystemSettingString,
   readIsSmtpOutboundConfigured,
   readPublicConfigBoolean,
 } from "@/infra/repos/pgSystemSettings";
@@ -120,6 +121,22 @@ async function fetchFromDb(key: string): Promise<SettingReadOutcome> {
   }
 }
 
+async function fetchFromDbForOrganization(key: string, organizationId: string): Promise<SettingReadOutcome> {
+  try {
+    return { read: true, value: await readAdminSystemSettingString(key, { organizationId }) };
+  } catch {
+    return { read: false };
+  }
+}
+
+async function fetchExactOrganizationValue(key: string, organizationId: string): Promise<SettingReadOutcome> {
+  try {
+    return { read: true, value: await readExactOrganizationAdminSystemSettingString(key, organizationId) };
+  } catch {
+    return { read: false };
+  }
+}
+
 async function fetchPublicConfigBoolFromDb(key: string): Promise<boolean | null> {
   try {
     return await readPublicConfigBoolean(key);
@@ -171,6 +188,48 @@ export async function getConfigValue(key: string, envFallback: string): Promise<
 
   const resolved = outcome.value ?? envFallback;
   cache.set(key, { value: resolved, fetchedAt: now });
+  return resolved;
+}
+
+/**
+ * Organization-specific setting read. The cache identity includes the clinic so a credential
+ * lookup can never reuse a value resolved for another organization.
+ */
+export async function getOrganizationConfigValue(
+  key: string,
+  organizationId: string,
+  envFallback: string,
+): Promise<string> {
+  const normalizedOrganizationId = organizationId.trim();
+  if (!normalizedOrganizationId) return envFallback;
+  const cacheKey = `org:${normalizedOrganizationId}:${key}`;
+  const now = Date.now();
+  const cached = cache.get(cacheKey);
+  if (cached && now - cached.fetchedAt < TTL_MS) return cached.value;
+
+  const outcome = await fetchFromDbForOrganization(key, normalizedOrganizationId);
+  if (!outcome.read) return envFallback;
+  const resolved = outcome.value ?? envFallback;
+  cache.set(cacheKey, { value: resolved, fetchedAt: now });
+  return resolved;
+}
+
+/** Exact clinic row, intentionally without global fallback for connection credentials. */
+export async function getExactOrganizationConfigValue(
+  key: string,
+  organizationId: string,
+  envFallback: string,
+): Promise<string> {
+  const normalizedOrganizationId = organizationId.trim();
+  if (!normalizedOrganizationId) return envFallback;
+  const cacheKey = `exact-org:${normalizedOrganizationId}:${key}`;
+  const now = Date.now();
+  const cached = cache.get(cacheKey);
+  if (cached && now - cached.fetchedAt < TTL_MS) return cached.value;
+  const outcome = await fetchExactOrganizationValue(key, normalizedOrganizationId);
+  if (!outcome.read) return envFallback;
+  const resolved = outcome.value ?? envFallback;
+  cache.set(cacheKey, { value: resolved, fetchedAt: now });
   return resolved;
 }
 
