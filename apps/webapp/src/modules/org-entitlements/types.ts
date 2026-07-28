@@ -23,7 +23,8 @@ export const MECHANIC_REGISTRY = {
   patient_app_paid_subscription: { label: "Платная подписка пациента", quotaUnits: ["clients"], quotaEnforcement: "declared_no_enforcement" },
   branding: { label: "Брендирование", quotaUnits: [], quotaEnforcement: "declared_no_enforcement" },
   custom_domain: { label: "Собственный домен", quotaUnits: [], quotaEnforcement: "declared_no_enforcement" },
-  clinic_team: { label: "Режим клиники", quotaUnits: ["seats"], quotaEnforcement: "declared_no_enforcement" },
+  // Checked in pgOrganizationInvites under an org advisory lock, not by a database trigger.
+  clinic_team: { label: "Режим клиники", quotaUnits: ["seats"], quotaEnforcement: "application_transaction_snapshot" },
 } as const;
 
 export type OrgMechanic = keyof typeof MECHANIC_REGISTRY;

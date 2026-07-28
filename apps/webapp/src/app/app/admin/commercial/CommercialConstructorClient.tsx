@@ -123,7 +123,7 @@ function QuotaEditor({
   onChange: (quota: TariffQuota | null) => void;
 }) {
   const units = MECHANIC_REGISTRY[mechanic].quotaUnits;
-  const atomicSnapshot = MECHANIC_REGISTRY[mechanic].quotaEnforcement === 'atomic_snapshot';
+  const snapshotEnforced = MECHANIC_REGISTRY[mechanic].quotaEnforcement !== 'declared_no_enforcement';
   if (units.length === 0) return null;
 
   function changeKind(kind: 'none' | TariffQuota['kind']) {
@@ -135,16 +135,16 @@ function QuotaEditor({
       kind,
       limit: kind === 'numeric' ? (quota?.limit ?? 0) : null,
       unit: quota?.unit && units.includes(quota.unit as never) ? quota.unit : (units[0] ?? 'items'),
-      period: atomicSnapshot ? 'snapshot' : (quota?.period ?? 'month'),
-      usagePolicy: atomicSnapshot ? 'snapshot' : (quota?.usagePolicy ?? 'consumption'),
+      period: snapshotEnforced ? 'snapshot' : (quota?.period ?? 'month'),
+      usagePolicy: snapshotEnforced ? 'snapshot' : (quota?.usagePolicy ?? 'consumption'),
     });
   }
 
   return (
     <div className="grid gap-2 sm:grid-cols-2">
       <p className="text-xs text-muted-foreground sm:col-span-2">
-        {atomicSnapshot
-          ? 'Лимит применяется атомарно к существующим курсам; с 80% фиксируется предупреждение, сверх лимита новый курс не создаётся.'
+        {snapshotEnforced
+          ? 'Лимит применяется атомарно к текущему запасу; с 80% фиксируется предупреждение, сверх лимита новая запись не создаётся.'
           : 'Квота сохраняется как конфигурация. Автоматический контроль этого лимита ещё не активирован.'}
       </p>
       <Select
