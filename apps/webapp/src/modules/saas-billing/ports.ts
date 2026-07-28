@@ -45,6 +45,36 @@ export type SaasBillingInvoice = {
   providerIdempotencyKey: string;
 };
 
+export type SaasBillingSubscriptionReadRow = SaasBillingSubscription & {
+  cancelledAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type SaasBillingInvoiceReadRow = SaasBillingInvoice & {
+  paidAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type SaasBillingProviderEventReadRow = {
+  id: string;
+  organizationId: string;
+  saasBillingInvoiceId: string | null;
+  providerId: string;
+  providerEventId: string;
+  eventType: string;
+  processedAt: string | null;
+  createdAt: string;
+};
+
+export type SaasBillingOverview = {
+  organizationId: string;
+  subscriptions: SaasBillingSubscriptionReadRow[];
+  invoices: SaasBillingInvoiceReadRow[];
+  providerEvents: SaasBillingProviderEventReadRow[];
+};
+
 export type SaasBillingProviderEventEnvelope = {
   providerId: string;
   providerEventId: string;
@@ -100,6 +130,7 @@ export type SaasBillingManualAssignmentTransactionPort = {
 };
 
 export type SaasBillingRepositoryPort = {
+  getOrganizationBillingOverview(organizationId: string): Promise<SaasBillingOverview>;
   runManualAssignmentTransaction<T>(
     work: (transaction: SaasBillingManualAssignmentTransactionPort) => Promise<T>,
   ): Promise<T>;

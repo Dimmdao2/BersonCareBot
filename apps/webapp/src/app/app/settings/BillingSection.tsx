@@ -7,6 +7,8 @@ import {
   doctorDnaFlatListRowClass,
 } from "@/shared/ui/doctor/DoctorDnaFlatListRow";
 import type { OrgMechanic } from "@/modules/org-entitlements/types";
+import type { SaasBillingOverview } from "@/modules/saas-billing/ports";
+import { SaasBillingOverview as SaasBillingOverviewSection } from "@/shared/ui/doctor/SaasBillingOverview";
 
 export type BillingMechanicRow = {
   mechanic: OrgMechanic;
@@ -21,6 +23,8 @@ type Props = {
   commercialStateLabel: string;
   /** Every canonical mechanic (`MECHANICS`), resolved through `resolveOrgEntitlements`/`entitlementsFromSnapshot`. */
   mechanics: BillingMechanicRow[];
+  /** Real rows from `saas_billing_*`; empty arrays mean no billing data, never synthetic zeroes. */
+  billing: SaasBillingOverview;
 };
 
 /**
@@ -28,39 +32,42 @@ type Props = {
  * "connect a tariff" sentence regardless of what the organization actually has. No tariff-change
  * UI here by design — that stays with the platform administrator.
  */
-export function BillingSection({ tariffName, commercialStateLabel, mechanics }: Props) {
+export function BillingSection({ tariffName, commercialStateLabel, mechanics, billing }: Props) {
   return (
-    <DoctorSection>
-      <DoctorSectionHeader>
-        <DoctorSectionTitle>Тариф и биллинг</DoctorSectionTitle>
-      </DoctorSectionHeader>
-      <div className="flex items-start justify-between gap-3 text-sm">
-        <span className="text-muted-foreground">Тариф</span>
-        <span className="text-right font-medium text-foreground">
-          {tariffName ?? "Тариф не назначен"}
-        </span>
-      </div>
-      <p className="text-sm text-muted-foreground">{commercialStateLabel}</p>
+    <>
+      <DoctorSection>
+        <DoctorSectionHeader>
+          <DoctorSectionTitle>Тариф и биллинг</DoctorSectionTitle>
+        </DoctorSectionHeader>
+        <div className="flex items-start justify-between gap-3 text-sm">
+          <span className="text-muted-foreground">Тариф</span>
+          <span className="text-right font-medium text-foreground">
+            {tariffName ?? "Тариф не назначен"}
+          </span>
+        </div>
+        <p className="text-sm text-muted-foreground">{commercialStateLabel}</p>
 
-      <div className="space-y-1.5">
-        <p className="text-sm font-medium text-foreground">Что доступно клинике</p>
-        <ul aria-label="Механики тарифа" className={doctorDnaFlatListClass}>
-          {mechanics.map((row) => (
-            <li key={row.mechanic} className={`${doctorDnaFlatListRowClass} justify-between gap-2`}>
-              <span className={doctorDnaFlatListPrimaryClass}>{row.label}</span>
-              <span className={doctorDnaFlatListMetaClass}>
-                <Badge variant={row.enabled ? "secondary" : "outline"}>
-                  {row.enabled ? "Включено" : "Недоступно"}
-                </Badge>
-              </span>
-            </li>
-          ))}
-        </ul>
-      </div>
+        <div className="space-y-1.5">
+          <p className="text-sm font-medium text-foreground">Что доступно клинике</p>
+          <ul aria-label="Механики тарифа" className={doctorDnaFlatListClass}>
+            {mechanics.map((row) => (
+              <li key={row.mechanic} className={`${doctorDnaFlatListRowClass} justify-between gap-2`}>
+                <span className={doctorDnaFlatListPrimaryClass}>{row.label}</span>
+                <span className={doctorDnaFlatListMetaClass}>
+                  <Badge variant={row.enabled ? "secondary" : "outline"}>
+                    {row.enabled ? "Включено" : "Недоступно"}
+                  </Badge>
+                </span>
+              </li>
+            ))}
+          </ul>
+        </div>
 
-      <p className="text-xs text-muted-foreground">
-        Смена тарифа и подключение новых механик выполняется администратором платформы.
-      </p>
-    </DoctorSection>
+        <p className="text-xs text-muted-foreground">
+          Смена тарифа и подключение новых механик выполняется администратором платформы.
+        </p>
+      </DoctorSection>
+      <SaasBillingOverviewSection billing={billing} />
+    </>
   );
 }

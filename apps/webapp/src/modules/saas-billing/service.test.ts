@@ -29,10 +29,35 @@ function draftSaasBillingInvoice(): SaasBillingInvoice {
 }
 
 describe("SaaS billing service", () => {
+  it("reads the requested organization billing overview through the repository port", async () => {
+    const overview = {
+      organizationId: "org-1",
+      subscriptions: [],
+      invoices: [],
+      providerEvents: [],
+    };
+    const getOrganizationBillingOverview = vi.fn().mockResolvedValue(overview);
+    const service = createSaasBillingService({
+      repository: {
+        getOrganizationBillingOverview,
+        runManualAssignmentTransaction: vi.fn(),
+        createSaasBillingInvoice: vi.fn(),
+        attachSaasBillingInvoiceProviderIntent: vi.fn(),
+        recordSaasBillingProviderEvent: vi.fn(),
+      },
+      settings: { getSaasBillingPaymentProviderValue: vi.fn() },
+      resolvePaymentProvider: vi.fn(),
+    });
+
+    await expect(service.getOrganizationBillingOverview("org-1")).resolves.toBe(overview);
+    expect(getOrganizationBillingOverview).toHaveBeenCalledWith("org-1");
+  });
+
   it("persists an invoice before creating its provider intent and then attaches the result", async () => {
     const calls: string[] = [];
     const invoice = draftSaasBillingInvoice();
     const repository: SaasBillingRepositoryPort = {
+      getOrganizationBillingOverview: vi.fn(),
       runManualAssignmentTransaction: vi.fn(),
       createSaasBillingInvoice: vi.fn(async () => {
         calls.push("invoice");
@@ -113,6 +138,7 @@ describe("SaaS billing service", () => {
     };
     const runManualAssignmentTransaction = vi.fn();
     const repository: SaasBillingRepositoryPort = {
+      getOrganizationBillingOverview: vi.fn(),
       async runManualAssignmentTransaction<T>(
         work: (value: SaasBillingManualAssignmentTransactionPort) => Promise<T>,
       ) {
@@ -168,6 +194,7 @@ describe("SaaS billing service", () => {
       appendManualAssignmentAudit: vi.fn(),
     };
     const repository: SaasBillingRepositoryPort = {
+      getOrganizationBillingOverview: vi.fn(),
       runManualAssignmentTransaction: (work) => work(transaction),
       createSaasBillingInvoice: vi.fn(),
       attachSaasBillingInvoiceProviderIntent: vi.fn(),
@@ -201,6 +228,7 @@ describe("SaaS billing service", () => {
     });
     const service = createSaasBillingService({
       repository: {
+        getOrganizationBillingOverview: vi.fn(),
         runManualAssignmentTransaction: vi.fn(),
         createSaasBillingInvoice: vi.fn(),
         attachSaasBillingInvoiceProviderIntent: vi.fn(),

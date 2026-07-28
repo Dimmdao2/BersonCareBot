@@ -212,7 +212,11 @@ export default async function SettingsPage({
 
   if (!canAccessBilling) redirect(routePaths.account);
 
-  const snapshot = await buildAppDeps().orgEntitlements.getSnapshot(workspace.organizationId);
+  const deps = buildAppDeps();
+  const [snapshot, billing] = await Promise.all([
+    deps.orgEntitlements.getSnapshot(workspace.organizationId),
+    deps.saasBilling.getOrganizationBillingOverview(workspace.organizationId),
+  ]);
   const entitlements = entitlementsFromSnapshot(snapshot);
   const mechanicRows: BillingMechanicRow[] = MECHANICS.map((mechanic) => ({
     mechanic,
@@ -228,6 +232,7 @@ export default async function SettingsPage({
         tariffName={snapshot.tariff?.name ?? null}
         commercialStateLabel={describeCommercialAccessState(snapshot.access)}
         mechanics={mechanicRows}
+        billing={billing}
       />
     </DoctorAppShell>
   );

@@ -1,6 +1,11 @@
-import { and, eq } from "drizzle-orm";
+import { and, desc, eq } from "drizzle-orm";
 import { getDrizzle } from "@/app-layer/db/drizzle";
-import type { SaasBillingInvoice, SaasBillingRepositoryPort } from "@/modules/saas-billing/ports";
+import type {
+  SaasBillingInvoice,
+  SaasBillingInvoiceReadRow,
+  SaasBillingRepositoryPort,
+  SaasBillingSubscriptionReadRow,
+} from "@/modules/saas-billing/ports";
 import { sanitizeSaasBillingProviderEventEnvelope } from "@/modules/saas-billing/providerEventEnvelope";
 import { beOrganizations } from "../../../db/schema/bookingEngine";
 import {
@@ -45,6 +50,50 @@ async function upsertSaasBillingAccount(
 
 export function createPgSaasBillingRepository(): SaasBillingRepositoryPort {
   return {
+    async getOrganizationBillingOverview(organizationId) {
+      const db = getDrizzle();
+      const [subscriptionRows, invoiceRows, providerEvents] = await Promise.all([
+        db
+          .select()
+          .from(saasBillingSubscriptions)
+          .where(eq(saasBillingSubscriptions.organizationId, organizationId))
+          .orderBy(desc(saasBillingSubscriptions.updatedAt)),
+        db
+          .select()
+          .from(saasBillingInvoices)
+          .where(eq(saasBillingInvoices.organizationId, organizationId))
+          .orderBy(desc(saasBillingInvoices.createdAt)),
+        db
+          .select({
+            id: saasBillingProviderEvents.id,
+            organizationId: saasBillingProviderEvents.organizationId,
+            saasBillingInvoiceId: saasBillingProviderEvents.saasBillingInvoiceId,
+            providerId: saasBillingProviderEvents.providerId,
+            providerEventId: saasBillingProviderEvents.providerEventId,
+            eventType: saasBillingProviderEvents.eventType,
+            processedAt: saasBillingProviderEvents.processedAt,
+            createdAt: saasBillingProviderEvents.createdAt,
+          })
+          .from(saasBillingProviderEvents)
+          .where(eq(saasBillingProviderEvents.organizationId, organizationId))
+          .orderBy(desc(saasBillingProviderEvents.createdAt)),
+      ]);
+
+      return {
+        organizationId,
+        subscriptions: subscriptionRows as SaasBillingSubscriptionReadRow[],
+        invoices: invoiceRows.map(
+          (row): SaasBillingInvoiceReadRow => ({
+            ...toSaasBillingInvoice(row),
+            paidAt: row.paidAt,
+            createdAt: row.createdAt,
+            updatedAt: row.updatedAt,
+          }),
+        ),
+        providerEvents,
+      };
+    },
+
     async runManualAssignmentTransaction(work) {
       return getDrizzle().transaction(async (tx) => {
         return work({

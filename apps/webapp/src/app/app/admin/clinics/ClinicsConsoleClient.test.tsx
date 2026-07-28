@@ -2,11 +2,71 @@
 import { render, screen, within } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { PlatformOrganizationSummary } from '@/modules/org-entitlements/ports';
+import type { SaasBillingOverview } from '@/modules/saas-billing/ports';
 import type { Tariff } from '@/modules/org-entitlements/types';
 import { ClinicsConsoleClient, type PlatformClinicsData } from './ClinicsConsoleClient';
 
 const TARIFF_ID = '22222222-2222-4222-8222-222222222222';
 const ORGANIZATION_ID = '11111111-1111-4111-8111-111111111111';
+
+const billingOverview: SaasBillingOverview = {
+  organizationId: ORGANIZATION_ID,
+  subscriptions: [
+    {
+      id: '77777777-7777-4777-8777-777777777777',
+      organizationId: ORGANIZATION_ID,
+      saasBillingAccountId: '88888888-8888-4888-8888-888888888888',
+      tariffId: TARIFF_ID,
+      source: 'paid_subscription',
+      status: 'active',
+      lifecycleState: 'active',
+      providerId: 'mock',
+      savedPaymentMethodId: null,
+      currentPeriodStartsAt: '2026-07-01T00:00:00.000Z',
+      currentPeriodEndsAt: '2026-08-01T00:00:00.000Z',
+      graceEndsAt: null,
+      readOnlyEndsAt: null,
+      cancelledAt: null,
+      createdAt: '2026-07-01T00:00:00.000Z',
+      updatedAt: '2026-07-01T00:00:00.000Z',
+    },
+  ],
+  invoices: [
+    {
+      id: '99999999-9999-4999-8999-999999999999',
+      organizationId: ORGANIZATION_ID,
+      saasBillingAccountId: '88888888-8888-4888-8888-888888888888',
+      saasBillingSubscriptionId: '77777777-7777-4777-8777-777777777777',
+      tariffId: TARIFF_ID,
+      tariffName: 'Профессиональный',
+      amountMinor: 100_000,
+      currency: 'RUB',
+      tariffBillingPeriod: 'month',
+      servicePeriodStartsAt: '2026-07-01T00:00:00.000Z',
+      servicePeriodEndsAt: '2026-08-01T00:00:00.000Z',
+      status: 'paid',
+      providerId: 'mock',
+      providerInvoiceRef: 'invoice-ref-1',
+      providerCheckoutUrl: null,
+      providerIdempotencyKey: 'invoice-key-1',
+      paidAt: '2026-07-01T01:00:00.000Z',
+      createdAt: '2026-07-01T00:00:00.000Z',
+      updatedAt: '2026-07-01T01:00:00.000Z',
+    },
+  ],
+  providerEvents: [
+    {
+      id: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaab',
+      organizationId: ORGANIZATION_ID,
+      saasBillingInvoiceId: '99999999-9999-4999-8999-999999999999',
+      providerId: 'mock',
+      providerEventId: 'provider-event-1',
+      eventType: 'captured',
+      processedAt: '2026-07-01T01:00:00.000Z',
+      createdAt: '2026-07-01T01:00:00.000Z',
+    },
+  ],
+};
 
 const tariff: Tariff = {
   id: TARIFF_ID,
@@ -107,13 +167,19 @@ describe('ClinicsConsoleClient', () => {
       enforcedQuotaUsage: { [ORGANIZATION_ID]: { courses: 7, clinic_team: 2, files: 0 } },
     };
 
-    render(<ClinicsConsoleClient initialData={data} organizationId={ORGANIZATION_ID} />);
+    render(
+      <ClinicsConsoleClient
+        initialData={data}
+        organizationId={ORGANIZATION_ID}
+        initialBillingOverview={billingOverview}
+      />,
+    );
 
     expect(screen.getByRole('heading', { name: 'Клиника Альфа' })).toBeInTheDocument();
     expect(
       screen.getByText('Клинические карточки недоступны в режиме платформы'),
     ).toBeInTheDocument();
-    expect(screen.getByText('Профессиональный')).toBeInTheDocument();
+    expect(screen.getAllByText('Профессиональный')).toHaveLength(2);
     expect(screen.getByText('Только чтение')).toBeInTheDocument();
     expect(screen.getByText('Без триала')).toBeInTheDocument();
     expect(screen.getByText('Пробный период не запускался.')).toBeInTheDocument();
@@ -138,6 +204,11 @@ describe('ClinicsConsoleClient', () => {
     expect(screen.getAllByText('не отслеживается')).toHaveLength(13);
     expect(screen.queryByText(/^0$/)).not.toBeInTheDocument();
     expect(screen.queryByText(/аккаунт/i)).not.toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Биллинг' })).toBeInTheDocument();
+    expect(screen.getByText('Платная подписка')).toBeInTheDocument();
+    expect(screen.getByText(/1.?000.*₽/)).toBeInTheDocument();
+    expect(screen.getByText('captured')).toBeInTheDocument();
+    expect(screen.getByText(/provider-event-1/)).toBeInTheDocument();
   });
 
   it('explains an access denial and the next step', async () => {

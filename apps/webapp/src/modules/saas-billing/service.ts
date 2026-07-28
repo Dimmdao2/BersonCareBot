@@ -33,6 +33,10 @@ export function createSaasBillingService(dependencies: {
   }
 
   return {
+    getOrganizationBillingOverview(organizationId: string) {
+      return dependencies.repository.getOrganizationBillingOverview(organizationId);
+    },
+
     assignManualTariff(input: {
       organizationId: string;
       tariffId: string | null;

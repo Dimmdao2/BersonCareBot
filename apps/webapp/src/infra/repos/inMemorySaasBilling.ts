@@ -1,5 +1,6 @@
 import type {
   SaasBillingInvoice,
+  SaasBillingProviderEventReadRow,
   SaasBillingRepositoryPort,
   SaasBillingSubscription,
 } from "@/modules/saas-billing/ports";
@@ -8,9 +9,35 @@ export function createInMemorySaasBillingRepository(): SaasBillingRepositoryPort
   const rows = new Map<string, SaasBillingSubscription>();
   const organizationTariffs = new Map<string, string | null>();
   const invoices = new Map<string, SaasBillingInvoice>();
-  const events = new Set<string>();
+  const events = new Map<string, SaasBillingProviderEventReadRow>();
 
   return {
+    async getOrganizationBillingOverview(organizationId) {
+      const now = new Date().toISOString();
+      return {
+        organizationId,
+        subscriptions: [...rows.values()]
+          .filter((row) => row.organizationId === organizationId)
+          .map((row) => ({
+            ...row,
+            cancelledAt: row.status === "cancelled" ? now : null,
+            createdAt: now,
+            updatedAt: now,
+          })),
+        invoices: [...invoices.values()]
+          .filter((row) => row.organizationId === organizationId)
+          .map((row) => ({
+            ...row,
+            paidAt: row.status === "paid" ? now : null,
+            createdAt: now,
+            updatedAt: now,
+          })),
+        providerEvents: [...events.values()].filter(
+          (row) => row.organizationId === organizationId,
+        ),
+      };
+    },
+
     async runManualAssignmentTransaction(work) {
       return work({
         async loadManualAssignmentState(organizationId) {
@@ -111,7 +138,16 @@ export function createInMemorySaasBillingRepository(): SaasBillingRepositoryPort
     async recordSaasBillingProviderEvent(input) {
       const key = `${input.event.providerId}:${input.event.providerEventId}`;
       if (events.has(key)) return { created: false };
-      events.add(key);
+      events.set(key, {
+        id: crypto.randomUUID(),
+        organizationId: input.organizationId,
+        saasBillingInvoiceId: input.saasBillingInvoiceId,
+        providerId: input.event.providerId,
+        providerEventId: input.event.providerEventId,
+        eventType: input.event.type,
+        processedAt: null,
+        createdAt: new Date().toISOString(),
+      });
       return { created: true };
     },
   };

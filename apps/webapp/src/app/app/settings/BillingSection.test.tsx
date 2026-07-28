@@ -4,6 +4,13 @@ import { describe, expect, it } from "vitest";
 import { render, screen } from "@testing-library/react";
 import { BillingSection } from "./BillingSection";
 
+const emptyBilling = {
+  organizationId: "org-1",
+  subscriptions: [],
+  invoices: [],
+  providerEvents: [],
+};
+
 describe("BillingSection", () => {
   it("shows the tariff name, the human commercial-state sentence, and human mechanic labels", () => {
     render(
@@ -14,6 +21,7 @@ describe("BillingSection", () => {
           { mechanic: "payments", label: "Оплата записи", enabled: true },
           { mechanic: "courses", label: "Курсы", enabled: false },
         ]}
+        billing={emptyBilling}
       />,
     );
 
@@ -34,6 +42,7 @@ describe("BillingSection", () => {
         tariffName={null}
         commercialStateLabel="Совместимость: коммерческий тариф ещё не подключён администратором платформы, доступ работает в режиме до введения тарифов."
         mechanics={[{ mechanic: "booking", label: "Онлайн-запись", enabled: true }]}
+        billing={emptyBilling}
       />,
     );
 
@@ -44,9 +53,32 @@ describe("BillingSection", () => {
   });
 
   it("never mentions connecting a tariff as if none were possible — no hardcoded stub text", () => {
-    render(<BillingSection tariffName="Базовый" commercialStateLabel="Тариф активен." mechanics={[]} />);
+    render(
+      <BillingSection
+        tariffName="Базовый"
+        commercialStateLabel="Тариф активен."
+        mechanics={[]}
+        billing={emptyBilling}
+      />,
+    );
     expect(
       screen.queryByText("Коммерческие настройки станут доступны после подключения тарифа."),
     ).not.toBeInTheDocument();
+  });
+
+  it("shows honest no-data states instead of billing zeroes", () => {
+    render(
+      <BillingSection
+        tariffName={null}
+        commercialStateLabel="Тариф не назначен."
+        mechanics={[]}
+        billing={emptyBilling}
+      />,
+    );
+
+    expect(screen.getByText("Данных о подписках пока нет.")).toBeInTheDocument();
+    expect(screen.getByText("Счетов пока нет.")).toBeInTheDocument();
+    expect(screen.queryByText(/^0(?:[,.]00)?/)).not.toBeInTheDocument();
+    expect(screen.queryByText("События провайдера")).not.toBeInTheDocument();
   });
 });

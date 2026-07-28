@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { useEffect, useMemo, useState } from 'react';
 import type { PlatformOrganizationSummary } from '@/modules/org-entitlements/ports';
+import type { SaasBillingOverview as SaasBillingOverviewData } from '@/modules/saas-billing/ports';
 import {
   MECHANICS,
   MECHANIC_REGISTRY,
@@ -23,6 +24,7 @@ import {
 } from '@/shared/ui/doctor/doctorVisual';
 import { Badge } from '@/shared/ui/doctor/primitives/badge';
 import { buttonVariants } from '@/shared/ui/doctor/primitives/button';
+import { SaasBillingOverview } from '@/shared/ui/doctor/SaasBillingOverview';
 
 export type PlatformClinicsData = {
   organizations: PlatformOrganizationSummary[];
@@ -31,6 +33,9 @@ export type PlatformClinicsData = {
 };
 
 type ApiResponse = ({ ok: true } & PlatformClinicsData) | { ok: false; error?: string };
+type BillingApiResponse =
+  | { ok: true; billing: SaasBillingOverviewData }
+  | { ok: false; error?: string };
 
 const LIFECYCLE_LABELS: Record<
   PlatformOrganizationSummary['effectiveAccess']['lifecycle'],
@@ -256,9 +261,13 @@ function ClinicsList({ data }: { data: PlatformClinicsData }) {
 function ClinicDetail({
   data,
   organizationId,
+  billing,
+  billingError,
 }: {
   data: PlatformClinicsData;
   organizationId: string;
+  billing: SaasBillingOverviewData | null;
+  billingError: boolean;
 }) {
   const organization = data.organizations.find((item) => item.id === organizationId);
   const tariffsById = useMemo(
@@ -351,6 +360,20 @@ function ClinicDetail({
 
       <OverridesSection organization={organization} />
       <UsageSection usage={data.enforcedQuotaUsage[organization.id]} />
+      {billingError ? (
+        <DoctorSection>
+          <DoctorSectionTitle>Биллинг не загрузился</DoctorSectionTitle>
+          <p className="text-sm text-muted-foreground">
+            Обновите страницу; если ошибка повторится, проверьте «Здоровье системы».
+          </p>
+        </DoctorSection>
+      ) : billing ? (
+        <SaasBillingOverview billing={billing} showProviderEvents />
+      ) : (
+        <DoctorSection>
+          <DoctorEmptyState>Загружаем биллинг…</DoctorEmptyState>
+        </DoctorSection>
+      )}
     </>
   );
 }
@@ -358,12 +381,18 @@ function ClinicDetail({
 export function ClinicsConsoleClient({
   organizationId,
   initialData,
+  initialBillingOverview,
 }: {
   organizationId?: string;
   initialData?: PlatformClinicsData;
+  initialBillingOverview?: SaasBillingOverviewData;
 }) {
   const [data, setData] = useState<PlatformClinicsData | null>(initialData ?? null);
   const [error, setError] = useState<string | null>(null);
+  const [billing, setBilling] = useState<SaasBillingOverviewData | null>(
+    initialBillingOverview ?? null,
+  );
+  const [billingError, setBillingError] = useState(false);
 
   useEffect(() => {
     if (initialData) return;
@@ -389,6 +418,31 @@ export function ClinicsConsoleClient({
       active = false;
     };
   }, [initialData]);
+
+  useEffect(() => {
+    if (
+      !organizationId ||
+      initialBillingOverview ||
+      !data?.organizations.some((organization) => organization.id === organizationId)
+    ) {
+      return;
+    }
+    let active = true;
+
+    void fetch(`/api/admin/organizations/${organizationId}/billing`, { cache: 'no-store' })
+      .then(async (response) => {
+        const body = (await response.json().catch(() => null)) as BillingApiResponse | null;
+        if (!response.ok || !body?.ok) throw new Error('billing');
+        if (active) setBilling(body.billing);
+      })
+      .catch(() => {
+        if (active) setBillingError(true);
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [data, initialBillingOverview, organizationId]);
 
   if (error) {
     const accessDenied = error === 'access';
@@ -418,7 +472,12 @@ export function ClinicsConsoleClient({
   }
 
   return organizationId ? (
-    <ClinicDetail data={data} organizationId={organizationId} />
+    <ClinicDetail
+      data={data}
+      organizationId={organizationId}
+      billing={billing}
+      billingError={billingError}
+    />
   ) : (
     <ClinicsList data={data} />
   );

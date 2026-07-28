@@ -14,6 +14,7 @@ const {
   seatStatusMock,
   listSettingsMock,
   getOrgEntitlementsSnapshotMock,
+  getSaasBillingOverviewMock,
   getOrgBrandingManagementStateMock,
   getSlugManagementStateMock,
   getAppBaseUrlMock,
@@ -34,6 +35,7 @@ const {
   seatStatusMock: vi.fn(),
   listSettingsMock: vi.fn(),
   getOrgEntitlementsSnapshotMock: vi.fn(),
+  getSaasBillingOverviewMock: vi.fn(),
   getOrgBrandingManagementStateMock: vi.fn(),
   getSlugManagementStateMock: vi.fn(),
   getAppBaseUrlMock: vi.fn(),
@@ -68,6 +70,7 @@ vi.mock("@/app-layer/di/buildAppDeps", () => ({
     clinicSeats: { getSeatStatus: seatStatusMock },
     systemSettings: { listSettingsByScope: listSettingsMock },
     orgEntitlements: { getSnapshot: getOrgEntitlementsSnapshotMock },
+    saasBilling: { getOrganizationBillingOverview: getSaasBillingOverviewMock },
     orgBranding: { getManagementState: getOrgBrandingManagementStateMock },
     clinicDirectory: { getSlugManagementState: getSlugManagementStateMock },
   }),
@@ -128,6 +131,12 @@ describe("legacy settings compatibility", () => {
       tariff: null,
       overrides: [],
       access: { lifecycle: "active", tariffId: null, source: "compatibility" },
+    });
+    getSaasBillingOverviewMock.mockResolvedValue({
+      organizationId: "org-1",
+      subscriptions: [],
+      invoices: [],
+      providerEvents: [],
     });
     getOrgBrandingManagementStateMock.mockResolvedValue({
       effective: {
@@ -299,6 +308,7 @@ describe("legacy settings compatibility", () => {
 
     expect(screen.getByTestId("billing")).toBeInTheDocument();
     expect(getOrgEntitlementsSnapshotMock).toHaveBeenCalledWith("org-1");
+    expect(getSaasBillingOverviewMock).toHaveBeenCalledWith("org-1");
     expect(billingSectionMock).toHaveBeenCalledWith(
       expect.objectContaining({
         tariffName: "ПОЛНЫЙ ДОСТУП - РАЗРАБОТЧИК",
@@ -307,6 +317,12 @@ describe("legacy settings compatibility", () => {
           expect.objectContaining({ mechanic: "payments", label: "Оплата записи", enabled: true }),
           expect.objectContaining({ mechanic: "courses", label: "Курсы", enabled: false }),
         ]),
+        billing: {
+          organizationId: "org-1",
+          subscriptions: [],
+          invoices: [],
+          providerEvents: [],
+        },
       }),
       undefined,
     );
